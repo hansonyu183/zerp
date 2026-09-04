@@ -1,5 +1,5 @@
 import { createTargetApiClient } from '@zerp/api-client'
-import { modelBuildId, type ApprovalAction } from '@zerp/model'
+import { modelBuildId, type ApprovalAction, type VouEntity } from '@zerp/model'
 
 const client = createTargetApiClient({
   baseUrl: import.meta.env.VITE_TARGET_API_BASE_URL ?? 'http://127.0.0.1:18082',
@@ -163,6 +163,28 @@ export class TargetApiError extends Error {
     this.errorKey = errorKey
     this.requestId = requestId
   }
+}
+
+type VouSubmitInput = PostJson<(typeof client.vou)[':entity']['submit-new']['$post']>
+type VouReviewInput = PostJson<(typeof client.vou)[':entity']['approve']['$post']>
+type VouStageInput = PostJson<(typeof client.vou)[':entity']['attachment-stage']['$post']>
+
+export async function queryTargetVou(csrfToken: string, entity: VouEntity) {
+  return unwrapTarget(await (await client.vou[':entity'].query.$post({ param: { entity }, json: { page: 1, pageSize: 20 } }, csrfHeaders(csrfToken))).json())
+}
+
+export async function stageTargetVouAttachment(csrfToken: string, entity: VouEntity, input: VouStageInput) {
+  return unwrapTarget(await (await client.vou[':entity']['attachment-stage'].$post({ param: { entity }, json: input }, csrfHeaders(csrfToken))).json())
+}
+
+export async function submitTargetVou(csrfToken: string, entity: VouEntity, mode: 'NEW' | 'CHANGE', input: VouSubmitInput) {
+  const endpoint = mode === 'NEW' ? client.vou[':entity']['submit-new'] : client.vou[':entity']['submit-change']
+  return unwrapTarget(await (await endpoint.$post({ param: { entity }, json: input }, csrfHeaders(csrfToken))).json())
+}
+
+export async function reviewTargetVou(csrfToken: string, entity: VouEntity, action: ApprovalAction, input: VouReviewInput & { reason?: string }) {
+  const endpoint = client.vou[':entity'][action]
+  return unwrapTarget(await (await endpoint.$post({ param: { entity }, json: input } as never, csrfHeaders(csrfToken))).json())
 }
 
 export async function restoreTargetSession() {

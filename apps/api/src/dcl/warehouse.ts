@@ -185,6 +185,12 @@ function requiredWarehouseCode(value: string | null): string {
   return value
 }
 
+function requiredVersionNo(value: number | null): number {
+  if (value === null)
+    throw new WarehouseApplicationError('warehouse_invalid_history')
+  return value
+}
+
 export class WarehouseService {
   private readonly db: Kysely<DB>
 
@@ -266,7 +272,7 @@ export class WarehouseService {
     return rows.map((row) => ({
       id: row.id,
       submissionId: row.entry_id,
-      versionNo: row.version_no,
+      versionNo: requiredVersionNo(row.version_no),
       action: row.action as
         | 'SUBMITTED'
         | 'APPROVED'
@@ -316,7 +322,7 @@ export class WarehouseService {
     return result.rows.map((row) => ({
       subjectId: row.subject_id,
       approvalEntryId: row.approval_entry_id,
-      versionNo: row.version_no,
+      versionNo: requiredVersionNo(row.version_no),
       code: row.code,
       name: row.name,
       enabled: true as const,
@@ -447,7 +453,7 @@ export class WarehouseService {
               exists: subject !== undefined,
               history: history.map((row) => ({
                 entryId: row.id,
-                versionNo: row.version_no,
+                versionNo: requiredVersionNo(row.version_no),
                 status: row.status as ApprovalStatus,
                 revision: String(row.revision),
               })),
@@ -787,7 +793,7 @@ export class WarehouseService {
       domain: row.domain,
       entity: row.entity,
       subjectId: row.subject_id,
-      versionNo: row.version_no,
+      versionNo: requiredVersionNo(row.version_no),
       status: row.status as ApprovalStatus,
       revision: String(row.revision),
       metadata: {
@@ -863,7 +869,7 @@ export class WarehouseService {
       subjectId: row.subject_id,
       code: requiredWarehouseCode(row.code),
       submissionId: row.id,
-      versionNo: row.version_no,
+      versionNo: requiredVersionNo(row.version_no),
       status: row.status as ApprovalStatus,
       revision: String(row.revision),
       submittedBy: row.submitted_by,

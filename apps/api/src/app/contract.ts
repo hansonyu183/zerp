@@ -17,6 +17,10 @@ import {
   type ArchiveAttachmentHandlers,
   type ArchiveRouteHandler,
 } from '../dcl/archive-contract.ts'
+import { registerVouRoutes, type VouRouteHandler } from '../vou/contract.ts'
+import { registerAccRoutes, type AccRouteHandler } from '../acc/contract.ts'
+import { registerWflRoutes, type WflRouteHandler } from '../wfl/contract.ts'
+import { registerRptRoutes, type RptRouteHandler } from '../rpt/contract.ts'
 
 export type TargetRouteEnvironment = {
   Variables: { requestId: string }
@@ -846,10 +850,14 @@ export function registerTargetRoutes<
 }
 
 function targetAppType() {
-  return registerTargetRoutes(
+  const base = registerTargetRoutes(
     new OpenAPIHono<TargetRouteEnvironment>(),
     undefined as unknown as TargetRouteHandlers,
   )
+  const vou = registerVouRoutes(base, undefined as unknown as VouRouteHandler)
+  const acc = registerAccRoutes(vou, undefined as unknown as AccRouteHandler)
+  const wfl = registerWflRoutes(acc, undefined as unknown as WflRouteHandler)
+  return registerRptRoutes(wfl, undefined as unknown as RptRouteHandler)
 }
 
 export type TargetAppType = ReturnType<typeof targetAppType>

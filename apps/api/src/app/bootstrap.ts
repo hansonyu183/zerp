@@ -422,6 +422,24 @@ export class TargetBootstrapService {
         .deleteFrom('dcl_customer_attachment_staging')
         .where('owner_user_id', '=', createdByUserId)
         .execute()
+      await transaction.deleteFrom('vou_attachment_staging').where('owner_user_id', '=', createdByUserId).execute()
+      const vouDocuments = await transaction.selectFrom('vou_documents').select('id').where('created_by', '=', createdByUserId).execute()
+      const vouDocumentIds = vouDocuments.map((document) => document.id)
+      if (vouDocumentIds.length > 0) {
+        const entries = await transaction.selectFrom('approval_entries').select('id')
+          .where('domain', '=', 'vou').where('subject_id', 'in', vouDocumentIds).execute()
+        const entryIds = entries.map((entry) => entry.id)
+        await transaction.deleteFrom('wfl_instances').where('root_document_id', 'in', vouDocumentIds).execute()
+        if (entryIds.length > 0) {
+          await transaction.deleteFrom('acc_inventory_entries').where('vou_approval_entry_id', 'in', entryIds).execute()
+          await transaction.deleteFrom('acc_register_entries').where('vou_approval_entry_id', 'in', entryIds).execute()
+          await transaction.deleteFrom('acc_journal_entries').where('vou_approval_entry_id', 'in', entryIds).execute()
+        }
+        await transaction.deleteFrom('vou_idempotency').where('document_id', 'in', vouDocumentIds).execute()
+        await transaction.deleteFrom('approval_events').where('domain', '=', 'vou').where('subject_id', 'in', vouDocumentIds).execute()
+        await transaction.deleteFrom('approval_entries').where('domain', '=', 'vou').where('subject_id', 'in', vouDocumentIds).execute()
+        await transaction.deleteFrom('vou_documents').where('id', 'in', vouDocumentIds).execute()
+      }
       const subjects = await transaction
         .selectFrom('dcl_subjects')
         .select('id')
@@ -447,6 +465,10 @@ export class TargetBootstrapService {
         .execute()
       await transaction
         .deleteFrom('approval_events')
+        .where('subject_id', 'in', subjectIds)
+        .execute()
+      await transaction
+        .deleteFrom('approval_entries')
         .where('subject_id', 'in', subjectIds)
         .execute()
       await transaction

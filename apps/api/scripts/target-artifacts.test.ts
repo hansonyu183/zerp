@@ -14,6 +14,7 @@ import {
   archiveSnapshotSchemas,
 } from '../src/dcl/archive-contract.ts'
 import { validateTargetRouteMetadata } from './target-artifacts.ts'
+import { vouEntities, userCreatableVouEntities } from '@zerp/model'
 
 const generatedOpenApi = new URL(
   '../src/generated/openapi.json',
@@ -545,4 +546,46 @@ test('target OpenAPI exposes typed ACC mapping current-read permissions', async 
     '/acc/mapping/catalog',
   ])
     assert.ok(catalog.some((entry) => entry.path === path))
+})
+
+test('target OpenAPI and catalog expose the complete VOU cutover surface without server Draft routes', async () => {
+  const document = JSON.parse(await readFile(generatedOpenApi, 'utf8')) as {
+    paths: Record<string, unknown>
+  }
+  for (const action of [
+    'query', 'get', 'audit-history', 'submit-new', 'submit-change',
+    'approve', 'reject', 'unreject', 'unapprove', 'delete',
+    'attachment-stage', 'attachment-cleanup',
+  ])
+    assert.ok(document.paths[`/vou/{entity}/${action}`])
+  for (const legacy of ['create', 'save', 'submit', 'unsubmit'])
+    assert.ok(!document.paths[`/vou/{entity}/${legacy}`])
+
+  const catalog = JSON.parse(await readFile(generatedCatalog, 'utf8')) as Array<{ path: string }>
+  for (const entity of vouEntities)
+    for (const action of ['query', 'get', 'approve', 'reject', 'unreject', 'unapprove', 'delete'])
+      assert.ok(catalog.some((entry) => entry.path === `/vou/${entity}/${action}`))
+  for (const entity of userCreatableVouEntities)
+    for (const action of ['submit-new', 'submit-change'])
+      assert.ok(catalog.some((entry) => entry.path === `/vou/${entity}/${action}`))
+})
+
+test('target OpenAPI exposes executable ACC, WFL and RPT transaction cores', async () => {
+  const openapi = JSON.parse(await readFile(generatedOpenApi, 'utf8')) as { paths: Record<string, unknown> }
+  const required = [
+    '/acc/book/query', '/acc/book/get', '/acc/book/create', '/acc/book/save', '/acc/book/delete',
+    '/acc/subject/query', '/acc/subject/get', '/acc/subject/create', '/acc/subject/save', '/acc/subject/delete',
+    '/acc/opening/query', '/acc/opening/submit-new', '/acc/opening/approve', '/acc/opening/reject',
+    '/acc/opening/unreject', '/acc/opening/unapprove', '/acc/opening/delete',
+    '/acc/period/query', '/acc/period/lock', '/acc/period/unlock',
+    '/dcl/wfl-process-definition/submit-new', '/dcl/wfl-process-definition/submit-change',
+    '/dcl/wfl-process-definition/approve', '/dcl/wfl-process-definition/reject',
+    '/dcl/wfl-process-definition/unreject', '/dcl/wfl-process-definition/unapprove',
+    '/dcl/wfl-process-definition/enable', '/dcl/wfl-process-definition/disable',
+    '/wfl/process-definition/get', '/wfl/process-definition/trial',
+    '/rpt/directory/query', '/rpt/{code}/query', '/rpt/{code}/export',
+  ]
+  for (const path of required) assert.ok(openapi.paths[path], path)
+  for (const legacy of ['/acc/opening/save', '/acc/opening/unsubmit', '/dcl/wfl-process-definition/save'])
+    assert.equal(openapi.paths[legacy], undefined, legacy)
 })

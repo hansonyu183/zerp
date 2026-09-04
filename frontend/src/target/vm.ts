@@ -5,6 +5,8 @@ import {
   runTargetModelCorpus,
   type ApprovalStatus,
   type WarehouseSubmitFacts,
+  type VouEntity,
+  userCreatableVouEntities,
 } from '@zerp/model'
 
 import {
@@ -38,6 +40,9 @@ import {
   type TargetArchiveDeleteRequest,
   type TargetArchiveReviewRequest,
   type TargetWarehouseAction,
+  stageTargetVouAttachment,
+  submitTargetVou,
+  queryTargetVou,
 } from './api.ts'
 import {
   archiveSubmitRequest,
@@ -73,6 +78,7 @@ import {
   WarehouseDraftRepository,
   type WarehouseDraft,
 } from './warehouse-drafts.ts'
+import { VouDraftRepository, type VouDraft } from './vou-drafts.ts'
 
 type TargetSession = Awaited<ReturnType<typeof restoreTargetSession>>
 type WarehouseItem = Awaited<
@@ -91,6 +97,9 @@ export function useTargetProbe() {
   const warehouses = ref<WarehouseItem[]>([])
   const drafts = ref<WarehouseDraft[]>([])
   const archiveEntity = ref<TargetArchiveEntity>(archiveEntityFromLocation())
+  const vouEntity = ref<VouEntity | null>(vouEntityFromLocation())
+  const vouDrafts = ref<VouDraft[]>([])
+  const vouSubmissions = ref<unknown[]>([])
   const archiveDrafts = ref<AnyArchiveDraft[]>([])
   const archiveSubmissions = ref<ArchiveSubmissionListView[]>([])
   const archiveQueryKeyword = ref('')
@@ -155,6 +164,7 @@ export function useTargetProbe() {
   )
   const draftsRepository = new WarehouseDraftRepository()
   const archiveDraftRepository = new TargetDraftRepository()
+  const vouDraftRepository = new VouDraftRepository(archiveDraftRepository)
   const modelCorpusResult = JSON.stringify(runTargetModelCorpus())
 
   async function applySession(session: TargetSession) {
@@ -164,6 +174,10 @@ export function useTargetProbe() {
     message.value = `当前用户：${session.user.displayName}`
     if (accMappingReadPage.value) {
       await loadAccMappingCatalog()
+      return
+    }
+    if (vouEntity.value) {
+      await Promise.all([loadVouDrafts(), loadVouSubmissions()])
       return
     }
     await Promise.all([
@@ -205,6 +219,71 @@ export function useTargetProbe() {
     } catch (error) {
       setError(error, '查询失败。')
     }
+  }
+
+  async function loadVouDrafts() {
+    if (!currentUser.value || !vouEntity.value) return
+    vouDrafts.value = await vouDraftRepository.list(currentUser.value.id, vouEntity.value)
+  }
+
+  async function loadVouSubmissions() {
+    if (!vouEntity.value || !permissions.value.includes(`/vou/${vouEntity.value}/query`)) return
+    try {
+      const result = await queryTargetVou(csrfToken.value, vouEntity.value)
+      vouSubmissions.value = Array.isArray(result) ? result : []
+    } catch (error) { setError(error, '单据查询失败。') }
+  }
+
+  async function newVouDraft() {
+    if (!currentUser.value || !vouEntity.value || !userCreatableVouEntities.includes(vouEntity.value as never)) return
+    const draft: VouDraft = {
+      entity: vouEntity.value, draftId: createTargetId(), ownerUserId: currentUser.value.id,
+      updatedAt: new Date().toISOString(), documentId: createTargetId(), submissionId: createTargetId(), stableRevision: null,
+      payload: { businessDate: new Date().toISOString().slice(0, 10), currency: 'CNY', amount: '0.00', lines: [] },
+    }
+    await vouDraftRepository.save(draft)
+    await loadVouDrafts()
+  }
+
+  async function saveVouDraft(draft: VouDraft) {
+    draft.updatedAt = new Date().toISOString()
+    await vouDraftRepository.save(draft)
+    message.value = '本地单据草稿已保存。'
+  }
+
+  async function addVouAttachment(draft: VouDraft, event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0]
+    if (!file) return
+    if (!['application/pdf', 'image/jpeg', 'image/png'].includes(file.type)) { message.value = '附件仅支持 PDF、JPEG 或 PNG。'; return }
+    await vouDraftRepository.saveAttachment(draft, {
+      attachmentId: createTargetId(), fileName: file.name, mimeType: file.type,
+      size: file.size, digest: await sha256(file), blob: file,
+    })
+    message.value = '附件已保存在本机草稿。'
+  }
+
+  async function submitVouDraft(draft: VouDraft) {
+    try {
+      const attachments = await vouDraftRepository.attachments(draft)
+      for (const attachment of attachments)
+        await stageTargetVouAttachment(csrfToken.value, draft.entity, {
+          stagingId: attachment.attachmentId, fileId: attachment.attachmentId,
+          fileName: attachment.fileName, mimeType: attachment.mimeType as 'application/pdf' | 'image/jpeg' | 'image/png',
+          size: attachment.size, digest: attachment.digest, contentBase64: await blobBase64(attachment.blob),
+        })
+      await submitTargetVou(csrfToken.value, draft.entity, draft.stableRevision ? 'CHANGE' : 'NEW', {
+        documentId: draft.documentId, submissionId: draft.submissionId, idempotencyKey: draft.submissionId,
+        expectedRevision: draft.stableRevision,
+        payload: { ...draft.payload, attachments: attachments.map((attachment) => ({
+          id: attachment.attachmentId, fileName: attachment.fileName,
+          contentType: attachment.mimeType as 'application/pdf' | 'image/jpeg' | 'image/png', sizeBytes: attachment.size,
+          sha256: attachment.digest, stagingId: attachment.attachmentId,
+        })) },
+      })
+      await vouDraftRepository.delete(draft)
+      await Promise.all([loadVouDrafts(), loadVouSubmissions()])
+      message.value = '单据已提交；本地草稿已删除。'
+    } catch (error) { setError(error, '单据提交失败；本地草稿和附件仍保留。') }
   }
 
   async function loadDrafts() {
@@ -989,6 +1068,14 @@ export function useTargetProbe() {
     archiveOpenSubmissions,
     archiveReferenceOptions,
     accMappingReadPage,
+    vouEntity,
+    vouDrafts,
+    vouSubmissions,
+    userCreatableVouEntities,
+    newVouDraft,
+    saveVouDraft,
+    addVouAttachment,
+    submitVouDraft,
     accMappingCatalog,
     accMappingPage,
     accMappingCurrent,
@@ -1125,6 +1212,11 @@ function archiveEntityFromLocation(): TargetArchiveEntity {
   return targetArchiveEntities.includes(entity as TargetArchiveEntity)
     ? (entity as TargetArchiveEntity)
     : 'operating-entity'
+}
+
+function vouEntityFromLocation(): VouEntity | null {
+  const entity = window.location.pathname.match(/^\/vou\/([^/]+)\/?$/)?.[1]
+  return entity && userCreatableVouEntities.includes(entity as never) ? entity as VouEntity : null
 }
 
 function archiveDeepLinkFromLocation(): {

@@ -19,6 +19,7 @@
     "generate:db": "node scripts/generate-db-types.ts",
     "generate:check": "pnpm generate && git diff --exit-code -- src/generated",
     "check:catalog": "node scripts/check-target-catalog.ts",
+    "validate:rpt": "node scripts/validate-rpt-definitions.ts",
     "sync:catalog": "node scripts/sync-target-catalog.ts",
     "e2e": "node scripts/run-target-e2e.ts"
   },
@@ -27,6 +28,7 @@
     "@hono/zod-openapi": "1.6.2",
     "@noble/hashes": "2.4.0",
     "@zerp/model": "workspace:*",
+    "@zerp/wfl-starlark": "workspace:*",
     "hono": "4.13.5",
     "kysely": "0.29.5",
     "pg": "8.23.0",

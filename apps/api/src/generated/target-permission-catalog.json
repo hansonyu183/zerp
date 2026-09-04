@@ -1,5 +1,55 @@
 [
   {
+    "id": "01JAFCC73DF1F7D9AEA8B24325",
+    "path": "/acc/book/create",
+    "domain": "acc",
+    "entity": "book",
+    "action": "create",
+    "title": "/acc/book/create",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA7045E7A61821C816032631",
+    "path": "/acc/book/delete",
+    "domain": "acc",
+    "entity": "book",
+    "action": "delete",
+    "title": "/acc/book/delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J030A8153376F512BE90D745",
+    "path": "/acc/book/get",
+    "domain": "acc",
+    "entity": "book",
+    "action": "get",
+    "title": "/acc/book/get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J3EBCA10CF4E295724712631",
+    "path": "/acc/book/query",
+    "domain": "acc",
+    "entity": "book",
+    "action": "query",
+    "title": "/acc/book/query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J8337FC50F1D050CC51DDA6C",
+    "path": "/acc/book/save",
+    "domain": "acc",
+    "entity": "book",
+    "action": "save",
+    "title": "/acc/book/save",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J6E6F5335706964D6A03C649",
     "path": "/acc/mapping/catalog",
     "domain": "acc",
@@ -26,6 +76,156 @@
     "entity": "mapping",
     "action": "query",
     "title": "查询当前会计映射",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JDF94E56553FF1D6D559A4BE",
+    "path": "/acc/opening/approve",
+    "domain": "acc",
+    "entity": "opening",
+    "action": "approve",
+    "title": "/acc/opening/approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J66EE74FAD0F896F55E1247E",
+    "path": "/acc/opening/delete",
+    "domain": "acc",
+    "entity": "opening",
+    "action": "delete",
+    "title": "/acc/opening/delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J1A8D434EEB41DD753A5F47B",
+    "path": "/acc/opening/query",
+    "domain": "acc",
+    "entity": "opening",
+    "action": "query",
+    "title": "/acc/opening/query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA86D7710A10BB2A890331B8",
+    "path": "/acc/opening/reject",
+    "domain": "acc",
+    "entity": "opening",
+    "action": "reject",
+    "title": "/acc/opening/reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J28188181C4D8066648E3FB9",
+    "path": "/acc/opening/submit-new",
+    "domain": "acc",
+    "entity": "opening",
+    "action": "submit-new",
+    "title": "/acc/opening/submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J9D0F1E5DD52A73FBFF81C42",
+    "path": "/acc/opening/unapprove",
+    "domain": "acc",
+    "entity": "opening",
+    "action": "unapprove",
+    "title": "/acc/opening/unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J6C4628A7CD1D3B3141811A9",
+    "path": "/acc/opening/unreject",
+    "domain": "acc",
+    "entity": "opening",
+    "action": "unreject",
+    "title": "/acc/opening/unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JCC7951E8055C4F67B211613",
+    "path": "/acc/period/lock",
+    "domain": "acc",
+    "entity": "period",
+    "action": "lock",
+    "title": "/acc/period/lock",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JBFCE13D7B335C53937DA99B",
+    "path": "/acc/period/query",
+    "domain": "acc",
+    "entity": "period",
+    "action": "query",
+    "title": "/acc/period/query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J1A99DC068E464B26D877243",
+    "path": "/acc/period/unlock",
+    "domain": "acc",
+    "entity": "period",
+    "action": "unlock",
+    "title": "/acc/period/unlock",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5035FB313D3383E91AEE3D2",
+    "path": "/acc/subject/create",
+    "domain": "acc",
+    "entity": "subject",
+    "action": "create",
+    "title": "/acc/subject/create",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JB4953DDC9DCA4F492ED511D",
+    "path": "/acc/subject/delete",
+    "domain": "acc",
+    "entity": "subject",
+    "action": "delete",
+    "title": "/acc/subject/delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA9FB2B09FCA8D8290FA1B4A",
+    "path": "/acc/subject/get",
+    "domain": "acc",
+    "entity": "subject",
+    "action": "get",
+    "title": "/acc/subject/get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF2CAF4833658A5F4A950CD5",
+    "path": "/acc/subject/query",
+    "domain": "acc",
+    "entity": "subject",
+    "action": "query",
+    "title": "/acc/subject/query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JAB9CE1A91E6FD7CADE730EE",
+    "path": "/acc/subject/save",
+    "domain": "acc",
+    "entity": "subject",
+    "action": "save",
+    "title": "/acc/subject/save",
     "group": null,
     "order": null
   },
@@ -2646,6 +2846,3996 @@
     "entity": "warehouse",
     "action": "versions",
     "title": "查看仓库申报版本",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J3EA01BD1E805635FB649C10",
+    "path": "/dcl/wfl-process-definition/approve",
+    "domain": "dcl",
+    "entity": "wfl-process-definition",
+    "action": "approve",
+    "title": "/dcl/wfl-process-definition/approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JCA09296E52B719F80503E7F",
+    "path": "/dcl/wfl-process-definition/disable",
+    "domain": "dcl",
+    "entity": "wfl-process-definition",
+    "action": "disable",
+    "title": "/dcl/wfl-process-definition/disable",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J214D3126FC0478C9B6D6AB7",
+    "path": "/dcl/wfl-process-definition/enable",
+    "domain": "dcl",
+    "entity": "wfl-process-definition",
+    "action": "enable",
+    "title": "/dcl/wfl-process-definition/enable",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J23A44C1D4E577EBB0B468D6",
+    "path": "/dcl/wfl-process-definition/reject",
+    "domain": "dcl",
+    "entity": "wfl-process-definition",
+    "action": "reject",
+    "title": "/dcl/wfl-process-definition/reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J8F5F997654608106FFC6761",
+    "path": "/dcl/wfl-process-definition/submit-change",
+    "domain": "dcl",
+    "entity": "wfl-process-definition",
+    "action": "submit-change",
+    "title": "/dcl/wfl-process-definition/submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J3302AB5ED673E7BE7DCD06C",
+    "path": "/dcl/wfl-process-definition/submit-new",
+    "domain": "dcl",
+    "entity": "wfl-process-definition",
+    "action": "submit-new",
+    "title": "/dcl/wfl-process-definition/submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J70024D948F1817CCEDB021E",
+    "path": "/dcl/wfl-process-definition/unapprove",
+    "domain": "dcl",
+    "entity": "wfl-process-definition",
+    "action": "unapprove",
+    "title": "/dcl/wfl-process-definition/unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC23DB62E996293852EB6784",
+    "path": "/dcl/wfl-process-definition/unreject",
+    "domain": "dcl",
+    "entity": "wfl-process-definition",
+    "action": "unreject",
+    "title": "/dcl/wfl-process-definition/unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J83A4A309FA3922E5B470AEF",
+    "path": "/rpt/directory/query",
+    "domain": "rpt",
+    "entity": "directory",
+    "action": "query",
+    "title": "报表目录",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF8865F1002BF6E3F604EF43",
+    "path": "/vou/asset-acquisition/approve",
+    "domain": "vou",
+    "entity": "asset-acquisition",
+    "action": "approve",
+    "title": "asset-acquisition approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA23ECAC11CDBCF0A2476118",
+    "path": "/vou/asset-acquisition/attachment-stage",
+    "domain": "vou",
+    "entity": "asset-acquisition",
+    "action": "attachment-stage",
+    "title": "asset-acquisition attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J69A184FDE7954A728E2FAFC",
+    "path": "/vou/asset-acquisition/audit-history",
+    "domain": "vou",
+    "entity": "asset-acquisition",
+    "action": "audit-history",
+    "title": "asset-acquisition audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JB15358949752651C72E3513",
+    "path": "/vou/asset-acquisition/delete",
+    "domain": "vou",
+    "entity": "asset-acquisition",
+    "action": "delete",
+    "title": "asset-acquisition delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JB5DFDB95D5A2BB13F54A4D2",
+    "path": "/vou/asset-acquisition/get",
+    "domain": "vou",
+    "entity": "asset-acquisition",
+    "action": "get",
+    "title": "asset-acquisition get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JDBE030C66EB98C320223246",
+    "path": "/vou/asset-acquisition/query",
+    "domain": "vou",
+    "entity": "asset-acquisition",
+    "action": "query",
+    "title": "asset-acquisition query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J433CD8BB8B302D792BA7690",
+    "path": "/vou/asset-acquisition/reject",
+    "domain": "vou",
+    "entity": "asset-acquisition",
+    "action": "reject",
+    "title": "asset-acquisition reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J29293AED804644515E5FB0D",
+    "path": "/vou/asset-acquisition/submit-change",
+    "domain": "vou",
+    "entity": "asset-acquisition",
+    "action": "submit-change",
+    "title": "asset-acquisition submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J06A7E91539ACC005BBDFFAE",
+    "path": "/vou/asset-acquisition/submit-new",
+    "domain": "vou",
+    "entity": "asset-acquisition",
+    "action": "submit-new",
+    "title": "asset-acquisition submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA4CEF1A0B965022A1AEB8F8",
+    "path": "/vou/asset-acquisition/unapprove",
+    "domain": "vou",
+    "entity": "asset-acquisition",
+    "action": "unapprove",
+    "title": "asset-acquisition unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5FC45F368D50471DE2DCC94",
+    "path": "/vou/asset-acquisition/unreject",
+    "domain": "vou",
+    "entity": "asset-acquisition",
+    "action": "unreject",
+    "title": "asset-acquisition unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JEB911F11D0CF0AC720FFE21",
+    "path": "/vou/asset-liquidation/approve",
+    "domain": "vou",
+    "entity": "asset-liquidation",
+    "action": "approve",
+    "title": "asset-liquidation approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J6D5529DB6AB143F2E42469C",
+    "path": "/vou/asset-liquidation/attachment-stage",
+    "domain": "vou",
+    "entity": "asset-liquidation",
+    "action": "attachment-stage",
+    "title": "asset-liquidation attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J1A35E882BBC60FE03B689C1",
+    "path": "/vou/asset-liquidation/audit-history",
+    "domain": "vou",
+    "entity": "asset-liquidation",
+    "action": "audit-history",
+    "title": "asset-liquidation audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J84F8A946241A4C37920A3CA",
+    "path": "/vou/asset-liquidation/delete",
+    "domain": "vou",
+    "entity": "asset-liquidation",
+    "action": "delete",
+    "title": "asset-liquidation delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J90B9E3CA1D6885D6F60C0A6",
+    "path": "/vou/asset-liquidation/get",
+    "domain": "vou",
+    "entity": "asset-liquidation",
+    "action": "get",
+    "title": "asset-liquidation get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J9D257835FECE8B5DA3B9E47",
+    "path": "/vou/asset-liquidation/query",
+    "domain": "vou",
+    "entity": "asset-liquidation",
+    "action": "query",
+    "title": "asset-liquidation query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J98A68930D16D02E9A3B9361",
+    "path": "/vou/asset-liquidation/reject",
+    "domain": "vou",
+    "entity": "asset-liquidation",
+    "action": "reject",
+    "title": "asset-liquidation reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J59D7E5661F987C03F55DE59",
+    "path": "/vou/asset-liquidation/submit-change",
+    "domain": "vou",
+    "entity": "asset-liquidation",
+    "action": "submit-change",
+    "title": "asset-liquidation submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JEB8FC46B541351F4CB15145",
+    "path": "/vou/asset-liquidation/submit-new",
+    "domain": "vou",
+    "entity": "asset-liquidation",
+    "action": "submit-new",
+    "title": "asset-liquidation submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J4DD243647F496038B18F83C",
+    "path": "/vou/asset-liquidation/unapprove",
+    "domain": "vou",
+    "entity": "asset-liquidation",
+    "action": "unapprove",
+    "title": "asset-liquidation unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J69568062B297EFBBDFD2711",
+    "path": "/vou/asset-liquidation/unreject",
+    "domain": "vou",
+    "entity": "asset-liquidation",
+    "action": "unreject",
+    "title": "asset-liquidation unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JEA7EDE63B6A032D345FBDFB",
+    "path": "/vou/asset-sale/approve",
+    "domain": "vou",
+    "entity": "asset-sale",
+    "action": "approve",
+    "title": "asset-sale approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0FBC9828816B79613353E44",
+    "path": "/vou/asset-sale/attachment-stage",
+    "domain": "vou",
+    "entity": "asset-sale",
+    "action": "attachment-stage",
+    "title": "asset-sale attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC25E3FA13FCDE33ADB11CEF",
+    "path": "/vou/asset-sale/audit-history",
+    "domain": "vou",
+    "entity": "asset-sale",
+    "action": "audit-history",
+    "title": "asset-sale audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J1E8DF5BCFB41E938C57D938",
+    "path": "/vou/asset-sale/delete",
+    "domain": "vou",
+    "entity": "asset-sale",
+    "action": "delete",
+    "title": "asset-sale delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JD2C1750906F67D5F03840D1",
+    "path": "/vou/asset-sale/get",
+    "domain": "vou",
+    "entity": "asset-sale",
+    "action": "get",
+    "title": "asset-sale get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J1AD9C21F68B5A196B6E2FE7",
+    "path": "/vou/asset-sale/query",
+    "domain": "vou",
+    "entity": "asset-sale",
+    "action": "query",
+    "title": "asset-sale query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J6108CEA0F415DB22CC6EE4D",
+    "path": "/vou/asset-sale/reject",
+    "domain": "vou",
+    "entity": "asset-sale",
+    "action": "reject",
+    "title": "asset-sale reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J529B826DA32E4D9AD332E85",
+    "path": "/vou/asset-sale/submit-change",
+    "domain": "vou",
+    "entity": "asset-sale",
+    "action": "submit-change",
+    "title": "asset-sale submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J13BC163C80944B5CE76920C",
+    "path": "/vou/asset-sale/submit-new",
+    "domain": "vou",
+    "entity": "asset-sale",
+    "action": "submit-new",
+    "title": "asset-sale submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J61B62DE17FF9320546DAE1E",
+    "path": "/vou/asset-sale/unapprove",
+    "domain": "vou",
+    "entity": "asset-sale",
+    "action": "unapprove",
+    "title": "asset-sale unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JCA663FE1FD30B40AC2F0A03",
+    "path": "/vou/asset-sale/unreject",
+    "domain": "vou",
+    "entity": "asset-sale",
+    "action": "unreject",
+    "title": "asset-sale unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5FAF95550B86F1E563D974A",
+    "path": "/vou/bill-discount/approve",
+    "domain": "vou",
+    "entity": "bill-discount",
+    "action": "approve",
+    "title": "bill-discount approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JB09647D1305FBEB4E2F5FF1",
+    "path": "/vou/bill-discount/attachment-stage",
+    "domain": "vou",
+    "entity": "bill-discount",
+    "action": "attachment-stage",
+    "title": "bill-discount attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J4F8B9F2598265B25CC2BBA6",
+    "path": "/vou/bill-discount/audit-history",
+    "domain": "vou",
+    "entity": "bill-discount",
+    "action": "audit-history",
+    "title": "bill-discount audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J192F003EC247350EBFE1BB4",
+    "path": "/vou/bill-discount/delete",
+    "domain": "vou",
+    "entity": "bill-discount",
+    "action": "delete",
+    "title": "bill-discount delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JD65090577969D25064489B9",
+    "path": "/vou/bill-discount/get",
+    "domain": "vou",
+    "entity": "bill-discount",
+    "action": "get",
+    "title": "bill-discount get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JDEDD3723BE2E96EBC51F2AC",
+    "path": "/vou/bill-discount/query",
+    "domain": "vou",
+    "entity": "bill-discount",
+    "action": "query",
+    "title": "bill-discount query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J664EC7A06857108086BC77C",
+    "path": "/vou/bill-discount/reject",
+    "domain": "vou",
+    "entity": "bill-discount",
+    "action": "reject",
+    "title": "bill-discount reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5EF2E265B6C828B573CEEF0",
+    "path": "/vou/bill-discount/submit-change",
+    "domain": "vou",
+    "entity": "bill-discount",
+    "action": "submit-change",
+    "title": "bill-discount submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JD9C5CD973995A07BCD95ADF",
+    "path": "/vou/bill-discount/submit-new",
+    "domain": "vou",
+    "entity": "bill-discount",
+    "action": "submit-new",
+    "title": "bill-discount submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J155631830382E7DAFF8586A",
+    "path": "/vou/bill-discount/unapprove",
+    "domain": "vou",
+    "entity": "bill-discount",
+    "action": "unapprove",
+    "title": "bill-discount unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J800F59504631F09B85C1106",
+    "path": "/vou/bill-discount/unreject",
+    "domain": "vou",
+    "entity": "bill-discount",
+    "action": "unreject",
+    "title": "bill-discount unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0CC0286D276731884FC98F5",
+    "path": "/vou/bill-issue/approve",
+    "domain": "vou",
+    "entity": "bill-issue",
+    "action": "approve",
+    "title": "bill-issue approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF511AB7AD29341C1B499A6D",
+    "path": "/vou/bill-issue/attachment-stage",
+    "domain": "vou",
+    "entity": "bill-issue",
+    "action": "attachment-stage",
+    "title": "bill-issue attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J7E8A0280B8354DF9B0FD000",
+    "path": "/vou/bill-issue/audit-history",
+    "domain": "vou",
+    "entity": "bill-issue",
+    "action": "audit-history",
+    "title": "bill-issue audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J7B652045C37ED5543858DD7",
+    "path": "/vou/bill-issue/delete",
+    "domain": "vou",
+    "entity": "bill-issue",
+    "action": "delete",
+    "title": "bill-issue delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0A9C070AF19F286D72BAE2D",
+    "path": "/vou/bill-issue/get",
+    "domain": "vou",
+    "entity": "bill-issue",
+    "action": "get",
+    "title": "bill-issue get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J19D2F22DF251DEE5196AF1C",
+    "path": "/vou/bill-issue/query",
+    "domain": "vou",
+    "entity": "bill-issue",
+    "action": "query",
+    "title": "bill-issue query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J1F91C3EC132BA8F2B70D562",
+    "path": "/vou/bill-issue/reject",
+    "domain": "vou",
+    "entity": "bill-issue",
+    "action": "reject",
+    "title": "bill-issue reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA9CC56736FB4E8A4D396B23",
+    "path": "/vou/bill-issue/submit-change",
+    "domain": "vou",
+    "entity": "bill-issue",
+    "action": "submit-change",
+    "title": "bill-issue submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA1E69D02BAEB66D60405ABC",
+    "path": "/vou/bill-issue/submit-new",
+    "domain": "vou",
+    "entity": "bill-issue",
+    "action": "submit-new",
+    "title": "bill-issue submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0CE78C6E8593F470D4B2590",
+    "path": "/vou/bill-issue/unapprove",
+    "domain": "vou",
+    "entity": "bill-issue",
+    "action": "unapprove",
+    "title": "bill-issue unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0D6BA9453053B3CA6B11909",
+    "path": "/vou/bill-issue/unreject",
+    "domain": "vou",
+    "entity": "bill-issue",
+    "action": "unreject",
+    "title": "bill-issue unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J15AE2177F95C6B2262CE1C6",
+    "path": "/vou/bill-maturity/approve",
+    "domain": "vou",
+    "entity": "bill-maturity",
+    "action": "approve",
+    "title": "bill-maturity approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J1383204A84AF64E70992CDF",
+    "path": "/vou/bill-maturity/attachment-stage",
+    "domain": "vou",
+    "entity": "bill-maturity",
+    "action": "attachment-stage",
+    "title": "bill-maturity attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JE6587C65DB055E6D77710E2",
+    "path": "/vou/bill-maturity/audit-history",
+    "domain": "vou",
+    "entity": "bill-maturity",
+    "action": "audit-history",
+    "title": "bill-maturity audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JDC3E2BEA0D176F42EE5E40C",
+    "path": "/vou/bill-maturity/delete",
+    "domain": "vou",
+    "entity": "bill-maturity",
+    "action": "delete",
+    "title": "bill-maturity delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0942FC6FCB7DC0C151ED1B5",
+    "path": "/vou/bill-maturity/get",
+    "domain": "vou",
+    "entity": "bill-maturity",
+    "action": "get",
+    "title": "bill-maturity get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J16D17FC61E5516F527FD1C2",
+    "path": "/vou/bill-maturity/query",
+    "domain": "vou",
+    "entity": "bill-maturity",
+    "action": "query",
+    "title": "bill-maturity query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J7CCE1B5D3258400F092DEE8",
+    "path": "/vou/bill-maturity/reject",
+    "domain": "vou",
+    "entity": "bill-maturity",
+    "action": "reject",
+    "title": "bill-maturity reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J582EC4D7FCEE74F8C4C033D",
+    "path": "/vou/bill-maturity/submit-change",
+    "domain": "vou",
+    "entity": "bill-maturity",
+    "action": "submit-change",
+    "title": "bill-maturity submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J6BE999F5249262877C8C7D9",
+    "path": "/vou/bill-maturity/submit-new",
+    "domain": "vou",
+    "entity": "bill-maturity",
+    "action": "submit-new",
+    "title": "bill-maturity submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF2A97C2C1B477E9D270C395",
+    "path": "/vou/bill-maturity/unapprove",
+    "domain": "vou",
+    "entity": "bill-maturity",
+    "action": "unapprove",
+    "title": "bill-maturity unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5538B224D0FB52E20752443",
+    "path": "/vou/bill-maturity/unreject",
+    "domain": "vou",
+    "entity": "bill-maturity",
+    "action": "unreject",
+    "title": "bill-maturity unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JD815F851000C59B2A8FC588",
+    "path": "/vou/bill-payment/approve",
+    "domain": "vou",
+    "entity": "bill-payment",
+    "action": "approve",
+    "title": "bill-payment approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J093BB446066399BA35BAE48",
+    "path": "/vou/bill-payment/attachment-stage",
+    "domain": "vou",
+    "entity": "bill-payment",
+    "action": "attachment-stage",
+    "title": "bill-payment attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JCB1ACFF5B29B23359002165",
+    "path": "/vou/bill-payment/audit-history",
+    "domain": "vou",
+    "entity": "bill-payment",
+    "action": "audit-history",
+    "title": "bill-payment audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J9E4F1E49608AB2D62CD2288",
+    "path": "/vou/bill-payment/delete",
+    "domain": "vou",
+    "entity": "bill-payment",
+    "action": "delete",
+    "title": "bill-payment delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0931DBA1441BD3B8BDFDDE7",
+    "path": "/vou/bill-payment/get",
+    "domain": "vou",
+    "entity": "bill-payment",
+    "action": "get",
+    "title": "bill-payment get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC048AC1D4B6FA74FA345483",
+    "path": "/vou/bill-payment/query",
+    "domain": "vou",
+    "entity": "bill-payment",
+    "action": "query",
+    "title": "bill-payment query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J1D162E6A6862C816ADBCF52",
+    "path": "/vou/bill-payment/reject",
+    "domain": "vou",
+    "entity": "bill-payment",
+    "action": "reject",
+    "title": "bill-payment reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J7102FA2748E21606A4EDC8F",
+    "path": "/vou/bill-payment/submit-change",
+    "domain": "vou",
+    "entity": "bill-payment",
+    "action": "submit-change",
+    "title": "bill-payment submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J94AA8C794F7F95A8F1159F8",
+    "path": "/vou/bill-payment/submit-new",
+    "domain": "vou",
+    "entity": "bill-payment",
+    "action": "submit-new",
+    "title": "bill-payment submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC1EF91A6E95C7E4C5DF8002",
+    "path": "/vou/bill-payment/unapprove",
+    "domain": "vou",
+    "entity": "bill-payment",
+    "action": "unapprove",
+    "title": "bill-payment unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J8C36B3E8BE2E9D66B384441",
+    "path": "/vou/bill-payment/unreject",
+    "domain": "vou",
+    "entity": "bill-payment",
+    "action": "unreject",
+    "title": "bill-payment unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JDE4EDFDC8E0C58EFB9D127B",
+    "path": "/vou/bill-receipt/approve",
+    "domain": "vou",
+    "entity": "bill-receipt",
+    "action": "approve",
+    "title": "bill-receipt approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JCA284BFB81802BA32285797",
+    "path": "/vou/bill-receipt/attachment-stage",
+    "domain": "vou",
+    "entity": "bill-receipt",
+    "action": "attachment-stage",
+    "title": "bill-receipt attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J9A4361F22ABB64AEF66E6F0",
+    "path": "/vou/bill-receipt/audit-history",
+    "domain": "vou",
+    "entity": "bill-receipt",
+    "action": "audit-history",
+    "title": "bill-receipt audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J8F1EBB275E716557CC5AE4D",
+    "path": "/vou/bill-receipt/delete",
+    "domain": "vou",
+    "entity": "bill-receipt",
+    "action": "delete",
+    "title": "bill-receipt delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JBBA53E8C6F3A512BECE0E46",
+    "path": "/vou/bill-receipt/get",
+    "domain": "vou",
+    "entity": "bill-receipt",
+    "action": "get",
+    "title": "bill-receipt get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J48959C62F0CDF43903B0781",
+    "path": "/vou/bill-receipt/query",
+    "domain": "vou",
+    "entity": "bill-receipt",
+    "action": "query",
+    "title": "bill-receipt query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J61334E4AC65B3252F97E235",
+    "path": "/vou/bill-receipt/reject",
+    "domain": "vou",
+    "entity": "bill-receipt",
+    "action": "reject",
+    "title": "bill-receipt reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J1D4AF230B39F14F48A3054E",
+    "path": "/vou/bill-receipt/submit-change",
+    "domain": "vou",
+    "entity": "bill-receipt",
+    "action": "submit-change",
+    "title": "bill-receipt submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J88F5B7C4E0183D1655F1416",
+    "path": "/vou/bill-receipt/submit-new",
+    "domain": "vou",
+    "entity": "bill-receipt",
+    "action": "submit-new",
+    "title": "bill-receipt submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J9A7BBF6A0FC261C2C5262CF",
+    "path": "/vou/bill-receipt/unapprove",
+    "domain": "vou",
+    "entity": "bill-receipt",
+    "action": "unapprove",
+    "title": "bill-receipt unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J6A1747BF6D689D301A19EBD",
+    "path": "/vou/bill-receipt/unreject",
+    "domain": "vou",
+    "entity": "bill-receipt",
+    "action": "unreject",
+    "title": "bill-receipt unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J06494D21B638AA9DDEF50AC",
+    "path": "/vou/employee-loan-writeoff/approve",
+    "domain": "vou",
+    "entity": "employee-loan-writeoff",
+    "action": "approve",
+    "title": "employee-loan-writeoff approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J81B103B9EA7EBAAB29C4C06",
+    "path": "/vou/employee-loan-writeoff/attachment-stage",
+    "domain": "vou",
+    "entity": "employee-loan-writeoff",
+    "action": "attachment-stage",
+    "title": "employee-loan-writeoff attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JB20428C9302D654A57E00A2",
+    "path": "/vou/employee-loan-writeoff/audit-history",
+    "domain": "vou",
+    "entity": "employee-loan-writeoff",
+    "action": "audit-history",
+    "title": "employee-loan-writeoff audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J926B8A5B813A2D4A6B23E1B",
+    "path": "/vou/employee-loan-writeoff/delete",
+    "domain": "vou",
+    "entity": "employee-loan-writeoff",
+    "action": "delete",
+    "title": "employee-loan-writeoff delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J584D63059C8DEC800AB84FB",
+    "path": "/vou/employee-loan-writeoff/get",
+    "domain": "vou",
+    "entity": "employee-loan-writeoff",
+    "action": "get",
+    "title": "employee-loan-writeoff get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JD30A57B6684886292878CD0",
+    "path": "/vou/employee-loan-writeoff/query",
+    "domain": "vou",
+    "entity": "employee-loan-writeoff",
+    "action": "query",
+    "title": "employee-loan-writeoff query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J155FDDC7A9C69E4402DC938",
+    "path": "/vou/employee-loan-writeoff/reject",
+    "domain": "vou",
+    "entity": "employee-loan-writeoff",
+    "action": "reject",
+    "title": "employee-loan-writeoff reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J69379F07753C89530D8E5D1",
+    "path": "/vou/employee-loan-writeoff/submit-change",
+    "domain": "vou",
+    "entity": "employee-loan-writeoff",
+    "action": "submit-change",
+    "title": "employee-loan-writeoff submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J8B00C37F42FC660E243658E",
+    "path": "/vou/employee-loan-writeoff/submit-new",
+    "domain": "vou",
+    "entity": "employee-loan-writeoff",
+    "action": "submit-new",
+    "title": "employee-loan-writeoff submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J624413C0E00BE9B89E7E7F3",
+    "path": "/vou/employee-loan-writeoff/unapprove",
+    "domain": "vou",
+    "entity": "employee-loan-writeoff",
+    "action": "unapprove",
+    "title": "employee-loan-writeoff unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0A349B2BFF2BD7EB957136B",
+    "path": "/vou/employee-loan-writeoff/unreject",
+    "domain": "vou",
+    "entity": "employee-loan-writeoff",
+    "action": "unreject",
+    "title": "employee-loan-writeoff unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J70013AAB38A6952EFE9E5D8",
+    "path": "/vou/employee-loan/approve",
+    "domain": "vou",
+    "entity": "employee-loan",
+    "action": "approve",
+    "title": "employee-loan approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0E756972DEC78BFA2A2F956",
+    "path": "/vou/employee-loan/attachment-stage",
+    "domain": "vou",
+    "entity": "employee-loan",
+    "action": "attachment-stage",
+    "title": "employee-loan attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J51D944FCD259344B2290563",
+    "path": "/vou/employee-loan/audit-history",
+    "domain": "vou",
+    "entity": "employee-loan",
+    "action": "audit-history",
+    "title": "employee-loan audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JE29A9178A150066310EC289",
+    "path": "/vou/employee-loan/delete",
+    "domain": "vou",
+    "entity": "employee-loan",
+    "action": "delete",
+    "title": "employee-loan delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J70AA723DC0DD410692397D0",
+    "path": "/vou/employee-loan/get",
+    "domain": "vou",
+    "entity": "employee-loan",
+    "action": "get",
+    "title": "employee-loan get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J99ACA77119462E8AF01D5CE",
+    "path": "/vou/employee-loan/query",
+    "domain": "vou",
+    "entity": "employee-loan",
+    "action": "query",
+    "title": "employee-loan query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF5E29AF42872E6E664EC621",
+    "path": "/vou/employee-loan/reject",
+    "domain": "vou",
+    "entity": "employee-loan",
+    "action": "reject",
+    "title": "employee-loan reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J521F4DC2C23AF057A933602",
+    "path": "/vou/employee-loan/submit-change",
+    "domain": "vou",
+    "entity": "employee-loan",
+    "action": "submit-change",
+    "title": "employee-loan submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J4D11A696E66C3185217160E",
+    "path": "/vou/employee-loan/submit-new",
+    "domain": "vou",
+    "entity": "employee-loan",
+    "action": "submit-new",
+    "title": "employee-loan submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J32CA38FA99A11E3C9E4183D",
+    "path": "/vou/employee-loan/unapprove",
+    "domain": "vou",
+    "entity": "employee-loan",
+    "action": "unapprove",
+    "title": "employee-loan unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J910F0E987E31B34E8112015",
+    "path": "/vou/employee-loan/unreject",
+    "domain": "vou",
+    "entity": "employee-loan",
+    "action": "unreject",
+    "title": "employee-loan unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JEE29A0CAF85EE6731F8288B",
+    "path": "/vou/employee-repayment/approve",
+    "domain": "vou",
+    "entity": "employee-repayment",
+    "action": "approve",
+    "title": "employee-repayment approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J2A20691F20F1378FAC28C3E",
+    "path": "/vou/employee-repayment/attachment-stage",
+    "domain": "vou",
+    "entity": "employee-repayment",
+    "action": "attachment-stage",
+    "title": "employee-repayment attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J32CB67BCF4E1555CA18BD8A",
+    "path": "/vou/employee-repayment/audit-history",
+    "domain": "vou",
+    "entity": "employee-repayment",
+    "action": "audit-history",
+    "title": "employee-repayment audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA871B5333D2F1F84195EC46",
+    "path": "/vou/employee-repayment/delete",
+    "domain": "vou",
+    "entity": "employee-repayment",
+    "action": "delete",
+    "title": "employee-repayment delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA1AFFA00DA884245791BFAC",
+    "path": "/vou/employee-repayment/get",
+    "domain": "vou",
+    "entity": "employee-repayment",
+    "action": "get",
+    "title": "employee-repayment get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J12819EF4D76F7CDA4CFFAE5",
+    "path": "/vou/employee-repayment/query",
+    "domain": "vou",
+    "entity": "employee-repayment",
+    "action": "query",
+    "title": "employee-repayment query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J97885285E9AA3EBD9C12056",
+    "path": "/vou/employee-repayment/reject",
+    "domain": "vou",
+    "entity": "employee-repayment",
+    "action": "reject",
+    "title": "employee-repayment reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J6BFE880EDA265C8CAFB5E75",
+    "path": "/vou/employee-repayment/submit-change",
+    "domain": "vou",
+    "entity": "employee-repayment",
+    "action": "submit-change",
+    "title": "employee-repayment submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF646BD980D30A123A66AEEE",
+    "path": "/vou/employee-repayment/submit-new",
+    "domain": "vou",
+    "entity": "employee-repayment",
+    "action": "submit-new",
+    "title": "employee-repayment submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J318053F71454A68ECB59249",
+    "path": "/vou/employee-repayment/unapprove",
+    "domain": "vou",
+    "entity": "employee-repayment",
+    "action": "unapprove",
+    "title": "employee-repayment unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA45828C21AA07DE519A050C",
+    "path": "/vou/employee-repayment/unreject",
+    "domain": "vou",
+    "entity": "employee-repayment",
+    "action": "unreject",
+    "title": "employee-repayment unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JB7A5A49A2DAA4C2F6235F70",
+    "path": "/vou/expense-payment/approve",
+    "domain": "vou",
+    "entity": "expense-payment",
+    "action": "approve",
+    "title": "expense-payment approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JD35A58552EC7AD05CC5E993",
+    "path": "/vou/expense-payment/attachment-stage",
+    "domain": "vou",
+    "entity": "expense-payment",
+    "action": "attachment-stage",
+    "title": "expense-payment attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JECAD22DECF6420DBEBF80EB",
+    "path": "/vou/expense-payment/audit-history",
+    "domain": "vou",
+    "entity": "expense-payment",
+    "action": "audit-history",
+    "title": "expense-payment audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J9337B3AAD8C1CB0D9D12170",
+    "path": "/vou/expense-payment/delete",
+    "domain": "vou",
+    "entity": "expense-payment",
+    "action": "delete",
+    "title": "expense-payment delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JB3406677F256D50352D330C",
+    "path": "/vou/expense-payment/get",
+    "domain": "vou",
+    "entity": "expense-payment",
+    "action": "get",
+    "title": "expense-payment get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J129AD4A12992FA8D9A2EF00",
+    "path": "/vou/expense-payment/query",
+    "domain": "vou",
+    "entity": "expense-payment",
+    "action": "query",
+    "title": "expense-payment query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JCC80032138256B6ACB68443",
+    "path": "/vou/expense-payment/reject",
+    "domain": "vou",
+    "entity": "expense-payment",
+    "action": "reject",
+    "title": "expense-payment reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JDDA899EC03A6FCF282FE916",
+    "path": "/vou/expense-payment/unapprove",
+    "domain": "vou",
+    "entity": "expense-payment",
+    "action": "unapprove",
+    "title": "expense-payment unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J15548806C4157F473B320C8",
+    "path": "/vou/expense-payment/unreject",
+    "domain": "vou",
+    "entity": "expense-payment",
+    "action": "unreject",
+    "title": "expense-payment unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J758755C90C86CE31B66642F",
+    "path": "/vou/expense-reimbursement/approve",
+    "domain": "vou",
+    "entity": "expense-reimbursement",
+    "action": "approve",
+    "title": "expense-reimbursement approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JB723A74199861C732AB6943",
+    "path": "/vou/expense-reimbursement/attachment-stage",
+    "domain": "vou",
+    "entity": "expense-reimbursement",
+    "action": "attachment-stage",
+    "title": "expense-reimbursement attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JBFA43DEA3029C55A14FB238",
+    "path": "/vou/expense-reimbursement/audit-history",
+    "domain": "vou",
+    "entity": "expense-reimbursement",
+    "action": "audit-history",
+    "title": "expense-reimbursement audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JED120E4F3E8EED5C56CFB14",
+    "path": "/vou/expense-reimbursement/delete",
+    "domain": "vou",
+    "entity": "expense-reimbursement",
+    "action": "delete",
+    "title": "expense-reimbursement delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J534BE2331DF91990CFE0148",
+    "path": "/vou/expense-reimbursement/get",
+    "domain": "vou",
+    "entity": "expense-reimbursement",
+    "action": "get",
+    "title": "expense-reimbursement get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF747C179FB4A51787092214",
+    "path": "/vou/expense-reimbursement/query",
+    "domain": "vou",
+    "entity": "expense-reimbursement",
+    "action": "query",
+    "title": "expense-reimbursement query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J8AED96CB1537C956D4D88A8",
+    "path": "/vou/expense-reimbursement/reject",
+    "domain": "vou",
+    "entity": "expense-reimbursement",
+    "action": "reject",
+    "title": "expense-reimbursement reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JB8EFB2F435F12D723BA3FC4",
+    "path": "/vou/expense-reimbursement/submit-change",
+    "domain": "vou",
+    "entity": "expense-reimbursement",
+    "action": "submit-change",
+    "title": "expense-reimbursement submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J32AD8590E4907AF4762D410",
+    "path": "/vou/expense-reimbursement/submit-new",
+    "domain": "vou",
+    "entity": "expense-reimbursement",
+    "action": "submit-new",
+    "title": "expense-reimbursement submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J7D15C673695D2A26314D68F",
+    "path": "/vou/expense-reimbursement/unapprove",
+    "domain": "vou",
+    "entity": "expense-reimbursement",
+    "action": "unapprove",
+    "title": "expense-reimbursement unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JFD7767AD3EFAE7BD19E9A2F",
+    "path": "/vou/expense-reimbursement/unreject",
+    "domain": "vou",
+    "entity": "expense-reimbursement",
+    "action": "unreject",
+    "title": "expense-reimbursement unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J80C71AD72747FB0C5566285",
+    "path": "/vou/intermediary-calculation/approve",
+    "domain": "vou",
+    "entity": "intermediary-calculation",
+    "action": "approve",
+    "title": "intermediary-calculation approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J2AFA5F876F84321AC6E924D",
+    "path": "/vou/intermediary-calculation/attachment-stage",
+    "domain": "vou",
+    "entity": "intermediary-calculation",
+    "action": "attachment-stage",
+    "title": "intermediary-calculation attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5343B5CE529608CDF2A0467",
+    "path": "/vou/intermediary-calculation/audit-history",
+    "domain": "vou",
+    "entity": "intermediary-calculation",
+    "action": "audit-history",
+    "title": "intermediary-calculation audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC2905E58B139E1F5AB3B7C3",
+    "path": "/vou/intermediary-calculation/delete",
+    "domain": "vou",
+    "entity": "intermediary-calculation",
+    "action": "delete",
+    "title": "intermediary-calculation delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J875094704414BE6FDBC3B0C",
+    "path": "/vou/intermediary-calculation/get",
+    "domain": "vou",
+    "entity": "intermediary-calculation",
+    "action": "get",
+    "title": "intermediary-calculation get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J2F4C1F68E464B799C72D151",
+    "path": "/vou/intermediary-calculation/query",
+    "domain": "vou",
+    "entity": "intermediary-calculation",
+    "action": "query",
+    "title": "intermediary-calculation query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA52780A07C21AB39E8530FE",
+    "path": "/vou/intermediary-calculation/reject",
+    "domain": "vou",
+    "entity": "intermediary-calculation",
+    "action": "reject",
+    "title": "intermediary-calculation reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J60361CCE30F83C2350F5E36",
+    "path": "/vou/intermediary-calculation/submit-change",
+    "domain": "vou",
+    "entity": "intermediary-calculation",
+    "action": "submit-change",
+    "title": "intermediary-calculation submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J11E9BC4F5D41FB842088993",
+    "path": "/vou/intermediary-calculation/submit-new",
+    "domain": "vou",
+    "entity": "intermediary-calculation",
+    "action": "submit-new",
+    "title": "intermediary-calculation submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC166FDC8BA9D5486F7B5963",
+    "path": "/vou/intermediary-calculation/unapprove",
+    "domain": "vou",
+    "entity": "intermediary-calculation",
+    "action": "unapprove",
+    "title": "intermediary-calculation unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC79CB3869E99DADC7BFA638",
+    "path": "/vou/intermediary-calculation/unreject",
+    "domain": "vou",
+    "entity": "intermediary-calculation",
+    "action": "unreject",
+    "title": "intermediary-calculation unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J08E91CA3A80F22698053231",
+    "path": "/vou/inventory-count/approve",
+    "domain": "vou",
+    "entity": "inventory-count",
+    "action": "approve",
+    "title": "inventory-count approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J67F75CF6EF8DFD8C3EE7B21",
+    "path": "/vou/inventory-count/attachment-stage",
+    "domain": "vou",
+    "entity": "inventory-count",
+    "action": "attachment-stage",
+    "title": "inventory-count attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JDF2CBCDC9096FDEA2440C41",
+    "path": "/vou/inventory-count/audit-history",
+    "domain": "vou",
+    "entity": "inventory-count",
+    "action": "audit-history",
+    "title": "inventory-count audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J6B3E80A9F0C2BBA6D501D2F",
+    "path": "/vou/inventory-count/delete",
+    "domain": "vou",
+    "entity": "inventory-count",
+    "action": "delete",
+    "title": "inventory-count delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0F218A9E36C29C2B779CDD5",
+    "path": "/vou/inventory-count/get",
+    "domain": "vou",
+    "entity": "inventory-count",
+    "action": "get",
+    "title": "inventory-count get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J97010009A0F4BF5B15DA795",
+    "path": "/vou/inventory-count/query",
+    "domain": "vou",
+    "entity": "inventory-count",
+    "action": "query",
+    "title": "inventory-count query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J6E5D3BB01BA2E7B5E252A99",
+    "path": "/vou/inventory-count/reject",
+    "domain": "vou",
+    "entity": "inventory-count",
+    "action": "reject",
+    "title": "inventory-count reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5B4E355E3D14708D263455D",
+    "path": "/vou/inventory-count/submit-change",
+    "domain": "vou",
+    "entity": "inventory-count",
+    "action": "submit-change",
+    "title": "inventory-count submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JBFFF426E3E5960E790E9020",
+    "path": "/vou/inventory-count/submit-new",
+    "domain": "vou",
+    "entity": "inventory-count",
+    "action": "submit-new",
+    "title": "inventory-count submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0A214D58A845C9340FCCD98",
+    "path": "/vou/inventory-count/unapprove",
+    "domain": "vou",
+    "entity": "inventory-count",
+    "action": "unapprove",
+    "title": "inventory-count unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J77C014217538E43A6A8480D",
+    "path": "/vou/inventory-count/unreject",
+    "domain": "vou",
+    "entity": "inventory-count",
+    "action": "unreject",
+    "title": "inventory-count unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC7273946C441683F7289D91",
+    "path": "/vou/order-production/approve",
+    "domain": "vou",
+    "entity": "order-production",
+    "action": "approve",
+    "title": "order-production approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J03C13964A8FFFCFE843BF34",
+    "path": "/vou/order-production/attachment-stage",
+    "domain": "vou",
+    "entity": "order-production",
+    "action": "attachment-stage",
+    "title": "order-production attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J57B94775CDDFE95D2E6BBAC",
+    "path": "/vou/order-production/audit-history",
+    "domain": "vou",
+    "entity": "order-production",
+    "action": "audit-history",
+    "title": "order-production audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA487A7AE6DF0F2E80F5CC25",
+    "path": "/vou/order-production/delete",
+    "domain": "vou",
+    "entity": "order-production",
+    "action": "delete",
+    "title": "order-production delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J6296C219AE06FEE02226724",
+    "path": "/vou/order-production/get",
+    "domain": "vou",
+    "entity": "order-production",
+    "action": "get",
+    "title": "order-production get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0E04AFC6A9C656309EA7125",
+    "path": "/vou/order-production/query",
+    "domain": "vou",
+    "entity": "order-production",
+    "action": "query",
+    "title": "order-production query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J052C113E21CA98CB957BE36",
+    "path": "/vou/order-production/reject",
+    "domain": "vou",
+    "entity": "order-production",
+    "action": "reject",
+    "title": "order-production reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J686F6192E88117D6A2E7A32",
+    "path": "/vou/order-production/submit-change",
+    "domain": "vou",
+    "entity": "order-production",
+    "action": "submit-change",
+    "title": "order-production submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J21F65A7A40BBA94590F2ACC",
+    "path": "/vou/order-production/submit-new",
+    "domain": "vou",
+    "entity": "order-production",
+    "action": "submit-new",
+    "title": "order-production submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J4B661F1C939BD33C89B5556",
+    "path": "/vou/order-production/unapprove",
+    "domain": "vou",
+    "entity": "order-production",
+    "action": "unapprove",
+    "title": "order-production unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J55488682B48323F0C2B207A",
+    "path": "/vou/order-production/unreject",
+    "domain": "vou",
+    "entity": "order-production",
+    "action": "unreject",
+    "title": "order-production unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J13F6136D89FAB88716EB6BF",
+    "path": "/vou/other-income/approve",
+    "domain": "vou",
+    "entity": "other-income",
+    "action": "approve",
+    "title": "other-income approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J160737E96DBA4F28A9825E1",
+    "path": "/vou/other-income/attachment-stage",
+    "domain": "vou",
+    "entity": "other-income",
+    "action": "attachment-stage",
+    "title": "other-income attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J48C68DF8176CC0735EC5548",
+    "path": "/vou/other-income/audit-history",
+    "domain": "vou",
+    "entity": "other-income",
+    "action": "audit-history",
+    "title": "other-income audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J8E3B11D9DEDBDF6D6BAD02E",
+    "path": "/vou/other-income/delete",
+    "domain": "vou",
+    "entity": "other-income",
+    "action": "delete",
+    "title": "other-income delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J07F0CC86FF83D98EF4978B4",
+    "path": "/vou/other-income/get",
+    "domain": "vou",
+    "entity": "other-income",
+    "action": "get",
+    "title": "other-income get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JCB353383F50B4707F04B88D",
+    "path": "/vou/other-income/query",
+    "domain": "vou",
+    "entity": "other-income",
+    "action": "query",
+    "title": "other-income query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF570CD1BF50CF5E2F5085DC",
+    "path": "/vou/other-income/reject",
+    "domain": "vou",
+    "entity": "other-income",
+    "action": "reject",
+    "title": "other-income reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JE331615B8772679854090BC",
+    "path": "/vou/other-income/submit-change",
+    "domain": "vou",
+    "entity": "other-income",
+    "action": "submit-change",
+    "title": "other-income submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF61085EFEF3B154DDECCE22",
+    "path": "/vou/other-income/submit-new",
+    "domain": "vou",
+    "entity": "other-income",
+    "action": "submit-new",
+    "title": "other-income submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J28C32E772CCA130EA47591F",
+    "path": "/vou/other-income/unapprove",
+    "domain": "vou",
+    "entity": "other-income",
+    "action": "unapprove",
+    "title": "other-income unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J19C05B37AF11BFE7D371888",
+    "path": "/vou/other-income/unreject",
+    "domain": "vou",
+    "entity": "other-income",
+    "action": "unreject",
+    "title": "other-income unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J3F12A1F6D44382288F595DB",
+    "path": "/vou/other-payment/approve",
+    "domain": "vou",
+    "entity": "other-payment",
+    "action": "approve",
+    "title": "other-payment approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J160111B1C5B64CAA724E4D4",
+    "path": "/vou/other-payment/attachment-stage",
+    "domain": "vou",
+    "entity": "other-payment",
+    "action": "attachment-stage",
+    "title": "other-payment attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC60E5A5FC695DF10DD64C8F",
+    "path": "/vou/other-payment/audit-history",
+    "domain": "vou",
+    "entity": "other-payment",
+    "action": "audit-history",
+    "title": "other-payment audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J26D03641BC12C04B50376F5",
+    "path": "/vou/other-payment/delete",
+    "domain": "vou",
+    "entity": "other-payment",
+    "action": "delete",
+    "title": "other-payment delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JFA905D6D0C06BD75B8B04EA",
+    "path": "/vou/other-payment/get",
+    "domain": "vou",
+    "entity": "other-payment",
+    "action": "get",
+    "title": "other-payment get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J65DA7D6847DFAF6113DAFB3",
+    "path": "/vou/other-payment/query",
+    "domain": "vou",
+    "entity": "other-payment",
+    "action": "query",
+    "title": "other-payment query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J9A742EDD82476FC7D534A80",
+    "path": "/vou/other-payment/reject",
+    "domain": "vou",
+    "entity": "other-payment",
+    "action": "reject",
+    "title": "other-payment reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J70134C4F3AFF7A1E5211F01",
+    "path": "/vou/other-payment/submit-change",
+    "domain": "vou",
+    "entity": "other-payment",
+    "action": "submit-change",
+    "title": "other-payment submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JEAACF582D759E7542CD572D",
+    "path": "/vou/other-payment/submit-new",
+    "domain": "vou",
+    "entity": "other-payment",
+    "action": "submit-new",
+    "title": "other-payment submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J36D0FDDB5D1B9BF37E3B201",
+    "path": "/vou/other-payment/unapprove",
+    "domain": "vou",
+    "entity": "other-payment",
+    "action": "unapprove",
+    "title": "other-payment unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J96DC58AE7207954039D1A1D",
+    "path": "/vou/other-payment/unreject",
+    "domain": "vou",
+    "entity": "other-payment",
+    "action": "unreject",
+    "title": "other-payment unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JDB678FAE072824BA550514B",
+    "path": "/vou/other-receipt/approve",
+    "domain": "vou",
+    "entity": "other-receipt",
+    "action": "approve",
+    "title": "other-receipt approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J07728D9EFFFB55B6DAB7932",
+    "path": "/vou/other-receipt/attachment-stage",
+    "domain": "vou",
+    "entity": "other-receipt",
+    "action": "attachment-stage",
+    "title": "other-receipt attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5972DB4AE47CD3D901CC101",
+    "path": "/vou/other-receipt/audit-history",
+    "domain": "vou",
+    "entity": "other-receipt",
+    "action": "audit-history",
+    "title": "other-receipt audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J6B8318AECD2A6CCA295D176",
+    "path": "/vou/other-receipt/delete",
+    "domain": "vou",
+    "entity": "other-receipt",
+    "action": "delete",
+    "title": "other-receipt delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC49E2F595A69A0455D42456",
+    "path": "/vou/other-receipt/get",
+    "domain": "vou",
+    "entity": "other-receipt",
+    "action": "get",
+    "title": "other-receipt get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JFE103E6FF9F6E0A6CD16878",
+    "path": "/vou/other-receipt/query",
+    "domain": "vou",
+    "entity": "other-receipt",
+    "action": "query",
+    "title": "other-receipt query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JFD7E9AD092421A4F14AC895",
+    "path": "/vou/other-receipt/reject",
+    "domain": "vou",
+    "entity": "other-receipt",
+    "action": "reject",
+    "title": "other-receipt reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JAD71CD4B674ACD4985AA2F6",
+    "path": "/vou/other-receipt/submit-change",
+    "domain": "vou",
+    "entity": "other-receipt",
+    "action": "submit-change",
+    "title": "other-receipt submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J6935B198FDDF8C7599B84E3",
+    "path": "/vou/other-receipt/submit-new",
+    "domain": "vou",
+    "entity": "other-receipt",
+    "action": "submit-new",
+    "title": "other-receipt submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J7EEB7D4D198530249E8903D",
+    "path": "/vou/other-receipt/unapprove",
+    "domain": "vou",
+    "entity": "other-receipt",
+    "action": "unapprove",
+    "title": "other-receipt unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J89C53CAA4F1E89FC7EE1BA2",
+    "path": "/vou/other-receipt/unreject",
+    "domain": "vou",
+    "entity": "other-receipt",
+    "action": "unreject",
+    "title": "other-receipt unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF185F42F29903EF3C6FC7C2",
+    "path": "/vou/purchase-inbound/approve",
+    "domain": "vou",
+    "entity": "purchase-inbound",
+    "action": "approve",
+    "title": "purchase-inbound approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J6ACB3C720DEC2008519C874",
+    "path": "/vou/purchase-inbound/attachment-stage",
+    "domain": "vou",
+    "entity": "purchase-inbound",
+    "action": "attachment-stage",
+    "title": "purchase-inbound attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J9739635724BDB8F9FE7ABC6",
+    "path": "/vou/purchase-inbound/audit-history",
+    "domain": "vou",
+    "entity": "purchase-inbound",
+    "action": "audit-history",
+    "title": "purchase-inbound audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JDCB17C9FE91CAC487029EAF",
+    "path": "/vou/purchase-inbound/delete",
+    "domain": "vou",
+    "entity": "purchase-inbound",
+    "action": "delete",
+    "title": "purchase-inbound delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J844A0290D2C87024EC5AD6D",
+    "path": "/vou/purchase-inbound/get",
+    "domain": "vou",
+    "entity": "purchase-inbound",
+    "action": "get",
+    "title": "purchase-inbound get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J7E97E08D0667F35552BEE95",
+    "path": "/vou/purchase-inbound/query",
+    "domain": "vou",
+    "entity": "purchase-inbound",
+    "action": "query",
+    "title": "purchase-inbound query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J601AE02455D7673C6E14674",
+    "path": "/vou/purchase-inbound/reject",
+    "domain": "vou",
+    "entity": "purchase-inbound",
+    "action": "reject",
+    "title": "purchase-inbound reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA1243E686D8A562DD70643D",
+    "path": "/vou/purchase-inbound/submit-change",
+    "domain": "vou",
+    "entity": "purchase-inbound",
+    "action": "submit-change",
+    "title": "purchase-inbound submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF5E5273E02CB2F6DE1DCDC2",
+    "path": "/vou/purchase-inbound/submit-new",
+    "domain": "vou",
+    "entity": "purchase-inbound",
+    "action": "submit-new",
+    "title": "purchase-inbound submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J63BB0A75EE5324ACE859323",
+    "path": "/vou/purchase-inbound/unapprove",
+    "domain": "vou",
+    "entity": "purchase-inbound",
+    "action": "unapprove",
+    "title": "purchase-inbound unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0DB4F5F03332BEBE3D9D886",
+    "path": "/vou/purchase-inbound/unreject",
+    "domain": "vou",
+    "entity": "purchase-inbound",
+    "action": "unreject",
+    "title": "purchase-inbound unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J043DD49AD0F6441F127DCAE",
+    "path": "/vou/purchase-inquiry/approve",
+    "domain": "vou",
+    "entity": "purchase-inquiry",
+    "action": "approve",
+    "title": "purchase-inquiry approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JB84C33A3B73F3C8938388D2",
+    "path": "/vou/purchase-inquiry/attachment-stage",
+    "domain": "vou",
+    "entity": "purchase-inquiry",
+    "action": "attachment-stage",
+    "title": "purchase-inquiry attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J4C0441FCF32E2BA733CC709",
+    "path": "/vou/purchase-inquiry/audit-history",
+    "domain": "vou",
+    "entity": "purchase-inquiry",
+    "action": "audit-history",
+    "title": "purchase-inquiry audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J619F66051E30AD9C8BCE176",
+    "path": "/vou/purchase-inquiry/delete",
+    "domain": "vou",
+    "entity": "purchase-inquiry",
+    "action": "delete",
+    "title": "purchase-inquiry delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JE5665A85A4D4F825D4B0188",
+    "path": "/vou/purchase-inquiry/get",
+    "domain": "vou",
+    "entity": "purchase-inquiry",
+    "action": "get",
+    "title": "purchase-inquiry get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA753BA4458846CF2FB850BB",
+    "path": "/vou/purchase-inquiry/query",
+    "domain": "vou",
+    "entity": "purchase-inquiry",
+    "action": "query",
+    "title": "purchase-inquiry query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JDFF60F9AA948378B0D6406E",
+    "path": "/vou/purchase-inquiry/reject",
+    "domain": "vou",
+    "entity": "purchase-inquiry",
+    "action": "reject",
+    "title": "purchase-inquiry reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA74FABC3DD056F40D9E5E48",
+    "path": "/vou/purchase-inquiry/submit-change",
+    "domain": "vou",
+    "entity": "purchase-inquiry",
+    "action": "submit-change",
+    "title": "purchase-inquiry submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J7E94D3D9F02EEE0DF61027E",
+    "path": "/vou/purchase-inquiry/submit-new",
+    "domain": "vou",
+    "entity": "purchase-inquiry",
+    "action": "submit-new",
+    "title": "purchase-inquiry submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC7C66EE16C4FA32B694C641",
+    "path": "/vou/purchase-inquiry/unapprove",
+    "domain": "vou",
+    "entity": "purchase-inquiry",
+    "action": "unapprove",
+    "title": "purchase-inquiry unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JDE456FF3A3F3CEF145F9072",
+    "path": "/vou/purchase-inquiry/unreject",
+    "domain": "vou",
+    "entity": "purchase-inquiry",
+    "action": "unreject",
+    "title": "purchase-inquiry unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J1AC8E7E94F862104750B4CE",
+    "path": "/vou/purchase-order/approve",
+    "domain": "vou",
+    "entity": "purchase-order",
+    "action": "approve",
+    "title": "purchase-order approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0B2CA6792F4959BBA8BFF67",
+    "path": "/vou/purchase-order/attachment-stage",
+    "domain": "vou",
+    "entity": "purchase-order",
+    "action": "attachment-stage",
+    "title": "purchase-order attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J21987362F6ACC0DAB2E54B0",
+    "path": "/vou/purchase-order/audit-history",
+    "domain": "vou",
+    "entity": "purchase-order",
+    "action": "audit-history",
+    "title": "purchase-order audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JBE756F1AB2112854D279798",
+    "path": "/vou/purchase-order/delete",
+    "domain": "vou",
+    "entity": "purchase-order",
+    "action": "delete",
+    "title": "purchase-order delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0C9C69CC5DB2235B7E340E9",
+    "path": "/vou/purchase-order/get",
+    "domain": "vou",
+    "entity": "purchase-order",
+    "action": "get",
+    "title": "purchase-order get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J63746A320782A6DB33D08A9",
+    "path": "/vou/purchase-order/query",
+    "domain": "vou",
+    "entity": "purchase-order",
+    "action": "query",
+    "title": "purchase-order query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA44675615F8E5F5CB565A02",
+    "path": "/vou/purchase-order/reject",
+    "domain": "vou",
+    "entity": "purchase-order",
+    "action": "reject",
+    "title": "purchase-order reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC148C489B4A96B607CD713B",
+    "path": "/vou/purchase-order/submit-change",
+    "domain": "vou",
+    "entity": "purchase-order",
+    "action": "submit-change",
+    "title": "purchase-order submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J853936FCBE6F9F350EB4C58",
+    "path": "/vou/purchase-order/submit-new",
+    "domain": "vou",
+    "entity": "purchase-order",
+    "action": "submit-new",
+    "title": "purchase-order submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JD4F5516DDBC337BC7299146",
+    "path": "/vou/purchase-order/unapprove",
+    "domain": "vou",
+    "entity": "purchase-order",
+    "action": "unapprove",
+    "title": "purchase-order unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JCD01772F368313C8F1232AB",
+    "path": "/vou/purchase-order/unreject",
+    "domain": "vou",
+    "entity": "purchase-order",
+    "action": "unreject",
+    "title": "purchase-order unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0E72A7431168B70287C3895",
+    "path": "/vou/purchase-payment/approve",
+    "domain": "vou",
+    "entity": "purchase-payment",
+    "action": "approve",
+    "title": "purchase-payment approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JB195A94FE20A7B6F38B2F6B",
+    "path": "/vou/purchase-payment/attachment-stage",
+    "domain": "vou",
+    "entity": "purchase-payment",
+    "action": "attachment-stage",
+    "title": "purchase-payment attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J675459643AD7202B66486A8",
+    "path": "/vou/purchase-payment/audit-history",
+    "domain": "vou",
+    "entity": "purchase-payment",
+    "action": "audit-history",
+    "title": "purchase-payment audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J6B065EB7B1AA85E2BB9EAA0",
+    "path": "/vou/purchase-payment/delete",
+    "domain": "vou",
+    "entity": "purchase-payment",
+    "action": "delete",
+    "title": "purchase-payment delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5C6733C5797876A4A018DE2",
+    "path": "/vou/purchase-payment/get",
+    "domain": "vou",
+    "entity": "purchase-payment",
+    "action": "get",
+    "title": "purchase-payment get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JAC9C1477194C4ECC7C9A00D",
+    "path": "/vou/purchase-payment/query",
+    "domain": "vou",
+    "entity": "purchase-payment",
+    "action": "query",
+    "title": "purchase-payment query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J93B356B631228E6212D94DA",
+    "path": "/vou/purchase-payment/reject",
+    "domain": "vou",
+    "entity": "purchase-payment",
+    "action": "reject",
+    "title": "purchase-payment reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J2576B492FBBA028384356DF",
+    "path": "/vou/purchase-payment/submit-change",
+    "domain": "vou",
+    "entity": "purchase-payment",
+    "action": "submit-change",
+    "title": "purchase-payment submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J6F64D04DACDF95111810BD5",
+    "path": "/vou/purchase-payment/submit-new",
+    "domain": "vou",
+    "entity": "purchase-payment",
+    "action": "submit-new",
+    "title": "purchase-payment submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J2C5CD31AEF25F9E109C7244",
+    "path": "/vou/purchase-payment/unapprove",
+    "domain": "vou",
+    "entity": "purchase-payment",
+    "action": "unapprove",
+    "title": "purchase-payment unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J3439C6CEB4335BBAF9AC15A",
+    "path": "/vou/purchase-payment/unreject",
+    "domain": "vou",
+    "entity": "purchase-payment",
+    "action": "unreject",
+    "title": "purchase-payment unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JD834738C87A4A357AB006D9",
+    "path": "/vou/purchase-refund/approve",
+    "domain": "vou",
+    "entity": "purchase-refund",
+    "action": "approve",
+    "title": "purchase-refund approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JCD1FA1CEB38AE375F733FD8",
+    "path": "/vou/purchase-refund/attachment-stage",
+    "domain": "vou",
+    "entity": "purchase-refund",
+    "action": "attachment-stage",
+    "title": "purchase-refund attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA626B751766B9F5096D931E",
+    "path": "/vou/purchase-refund/audit-history",
+    "domain": "vou",
+    "entity": "purchase-refund",
+    "action": "audit-history",
+    "title": "purchase-refund audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J3C2A6EC46DF3D3C6D044CA0",
+    "path": "/vou/purchase-refund/delete",
+    "domain": "vou",
+    "entity": "purchase-refund",
+    "action": "delete",
+    "title": "purchase-refund delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5BAF43A27F80804B53BF57A",
+    "path": "/vou/purchase-refund/get",
+    "domain": "vou",
+    "entity": "purchase-refund",
+    "action": "get",
+    "title": "purchase-refund get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JEEB3EE8E9F4BA6ACE74DAC0",
+    "path": "/vou/purchase-refund/query",
+    "domain": "vou",
+    "entity": "purchase-refund",
+    "action": "query",
+    "title": "purchase-refund query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J161F70BEB6AEE1C9D2A113C",
+    "path": "/vou/purchase-refund/reject",
+    "domain": "vou",
+    "entity": "purchase-refund",
+    "action": "reject",
+    "title": "purchase-refund reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J474105371433A5F51C98B30",
+    "path": "/vou/purchase-refund/submit-change",
+    "domain": "vou",
+    "entity": "purchase-refund",
+    "action": "submit-change",
+    "title": "purchase-refund submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA08E8EA23CFBCAC6F45F0F2",
+    "path": "/vou/purchase-refund/submit-new",
+    "domain": "vou",
+    "entity": "purchase-refund",
+    "action": "submit-new",
+    "title": "purchase-refund submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J3A53F5C05E47C15C1111B9E",
+    "path": "/vou/purchase-refund/unapprove",
+    "domain": "vou",
+    "entity": "purchase-refund",
+    "action": "unapprove",
+    "title": "purchase-refund unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5863BF48FDAFB1EF40C4D4A",
+    "path": "/vou/purchase-refund/unreject",
+    "domain": "vou",
+    "entity": "purchase-refund",
+    "action": "unreject",
+    "title": "purchase-refund unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JBDD3CDB94F55570AF2F0DD7",
+    "path": "/vou/purchase-return/approve",
+    "domain": "vou",
+    "entity": "purchase-return",
+    "action": "approve",
+    "title": "purchase-return approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J875049AD69E6CBCC146D191",
+    "path": "/vou/purchase-return/attachment-stage",
+    "domain": "vou",
+    "entity": "purchase-return",
+    "action": "attachment-stage",
+    "title": "purchase-return attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J6B528F82BC7ACDDEB2D9E16",
+    "path": "/vou/purchase-return/audit-history",
+    "domain": "vou",
+    "entity": "purchase-return",
+    "action": "audit-history",
+    "title": "purchase-return audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0A0D5330E4871B7D209A05F",
+    "path": "/vou/purchase-return/delete",
+    "domain": "vou",
+    "entity": "purchase-return",
+    "action": "delete",
+    "title": "purchase-return delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JAD8683DA51FE74CB191B26B",
+    "path": "/vou/purchase-return/get",
+    "domain": "vou",
+    "entity": "purchase-return",
+    "action": "get",
+    "title": "purchase-return get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JBF5FA5633D2432001B4D99B",
+    "path": "/vou/purchase-return/query",
+    "domain": "vou",
+    "entity": "purchase-return",
+    "action": "query",
+    "title": "purchase-return query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J36B45AA374C6E232EE19B9E",
+    "path": "/vou/purchase-return/reject",
+    "domain": "vou",
+    "entity": "purchase-return",
+    "action": "reject",
+    "title": "purchase-return reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JCB96993E3F9EB4963CB7B54",
+    "path": "/vou/purchase-return/submit-change",
+    "domain": "vou",
+    "entity": "purchase-return",
+    "action": "submit-change",
+    "title": "purchase-return submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J2504A693DCC8D87083C42DF",
+    "path": "/vou/purchase-return/submit-new",
+    "domain": "vou",
+    "entity": "purchase-return",
+    "action": "submit-new",
+    "title": "purchase-return submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JFB4E5CF32C567C46A0645DC",
+    "path": "/vou/purchase-return/unapprove",
+    "domain": "vou",
+    "entity": "purchase-return",
+    "action": "unapprove",
+    "title": "purchase-return unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5FBFF35B61722E87582C749",
+    "path": "/vou/purchase-return/unreject",
+    "domain": "vou",
+    "entity": "purchase-return",
+    "action": "unreject",
+    "title": "purchase-return unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J29993AD299AC3D8C303CA17",
+    "path": "/vou/sale-delivery/approve",
+    "domain": "vou",
+    "entity": "sale-delivery",
+    "action": "approve",
+    "title": "sale-delivery approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J49D78A77915EBE4A5096E6D",
+    "path": "/vou/sale-delivery/attachment-stage",
+    "domain": "vou",
+    "entity": "sale-delivery",
+    "action": "attachment-stage",
+    "title": "sale-delivery attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J1171C3CADE832CD537E6E32",
+    "path": "/vou/sale-delivery/audit-history",
+    "domain": "vou",
+    "entity": "sale-delivery",
+    "action": "audit-history",
+    "title": "sale-delivery audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J4B97C51372FA84FA7AED0E2",
+    "path": "/vou/sale-delivery/delete",
+    "domain": "vou",
+    "entity": "sale-delivery",
+    "action": "delete",
+    "title": "sale-delivery delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J538C911DDF4242BAFBEA816",
+    "path": "/vou/sale-delivery/get",
+    "domain": "vou",
+    "entity": "sale-delivery",
+    "action": "get",
+    "title": "sale-delivery get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J26AEA73381DB8D93DF1BEE9",
+    "path": "/vou/sale-delivery/query",
+    "domain": "vou",
+    "entity": "sale-delivery",
+    "action": "query",
+    "title": "sale-delivery query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JB84E50AB72867832BA11BFD",
+    "path": "/vou/sale-delivery/reject",
+    "domain": "vou",
+    "entity": "sale-delivery",
+    "action": "reject",
+    "title": "sale-delivery reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J17EED8ABA33AC6513004112",
+    "path": "/vou/sale-delivery/unapprove",
+    "domain": "vou",
+    "entity": "sale-delivery",
+    "action": "unapprove",
+    "title": "sale-delivery unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JECE2A66E84A56F2D7F1F546",
+    "path": "/vou/sale-delivery/unreject",
+    "domain": "vou",
+    "entity": "sale-delivery",
+    "action": "unreject",
+    "title": "sale-delivery unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JEA250BC151B99C7F96B2FE3",
+    "path": "/vou/sale-order/approve",
+    "domain": "vou",
+    "entity": "sale-order",
+    "action": "approve",
+    "title": "sale-order approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J3DD44F9E48566C0F2AB3C59",
+    "path": "/vou/sale-order/attachment-stage",
+    "domain": "vou",
+    "entity": "sale-order",
+    "action": "attachment-stage",
+    "title": "sale-order attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J8A994F76D26B12EAFA3AA85",
+    "path": "/vou/sale-order/audit-history",
+    "domain": "vou",
+    "entity": "sale-order",
+    "action": "audit-history",
+    "title": "sale-order audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J582FCD490C6195C5947AB70",
+    "path": "/vou/sale-order/delete",
+    "domain": "vou",
+    "entity": "sale-order",
+    "action": "delete",
+    "title": "sale-order delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J2CA35C150A2F1B0563E9818",
+    "path": "/vou/sale-order/get",
+    "domain": "vou",
+    "entity": "sale-order",
+    "action": "get",
+    "title": "sale-order get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JE98E67123F2BC88DC8B69A3",
+    "path": "/vou/sale-order/query",
+    "domain": "vou",
+    "entity": "sale-order",
+    "action": "query",
+    "title": "sale-order query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA9480F0876051F9BB1C1F2B",
+    "path": "/vou/sale-order/reject",
+    "domain": "vou",
+    "entity": "sale-order",
+    "action": "reject",
+    "title": "sale-order reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JE7A17C47B66001DC00C512D",
+    "path": "/vou/sale-order/submit-change",
+    "domain": "vou",
+    "entity": "sale-order",
+    "action": "submit-change",
+    "title": "sale-order submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J8F83E26B38A5EDBCCCA5133",
+    "path": "/vou/sale-order/submit-new",
+    "domain": "vou",
+    "entity": "sale-order",
+    "action": "submit-new",
+    "title": "sale-order submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J72ED88F643BF1F545E6E041",
+    "path": "/vou/sale-order/unapprove",
+    "domain": "vou",
+    "entity": "sale-order",
+    "action": "unapprove",
+    "title": "sale-order unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JE6E027FBD179D45175BB693",
+    "path": "/vou/sale-order/unreject",
+    "domain": "vou",
+    "entity": "sale-order",
+    "action": "unreject",
+    "title": "sale-order unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J8A0FC94FCA7B89ACC8D641F",
+    "path": "/vou/sale-outbound/approve",
+    "domain": "vou",
+    "entity": "sale-outbound",
+    "action": "approve",
+    "title": "sale-outbound approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J8FCFEC5723E38772CC07BF7",
+    "path": "/vou/sale-outbound/attachment-stage",
+    "domain": "vou",
+    "entity": "sale-outbound",
+    "action": "attachment-stage",
+    "title": "sale-outbound attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J32F052EA59CED1FEFDE23BE",
+    "path": "/vou/sale-outbound/audit-history",
+    "domain": "vou",
+    "entity": "sale-outbound",
+    "action": "audit-history",
+    "title": "sale-outbound audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC65333297AA74D69B6978B8",
+    "path": "/vou/sale-outbound/delete",
+    "domain": "vou",
+    "entity": "sale-outbound",
+    "action": "delete",
+    "title": "sale-outbound delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J4325061C761F4A4B1E74781",
+    "path": "/vou/sale-outbound/get",
+    "domain": "vou",
+    "entity": "sale-outbound",
+    "action": "get",
+    "title": "sale-outbound get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J10E605BC56E7DAC82EB954D",
+    "path": "/vou/sale-outbound/query",
+    "domain": "vou",
+    "entity": "sale-outbound",
+    "action": "query",
+    "title": "sale-outbound query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0A29EBD9E8264B22415B5C5",
+    "path": "/vou/sale-outbound/reject",
+    "domain": "vou",
+    "entity": "sale-outbound",
+    "action": "reject",
+    "title": "sale-outbound reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J286263F4B7818CBF984FCB4",
+    "path": "/vou/sale-outbound/unapprove",
+    "domain": "vou",
+    "entity": "sale-outbound",
+    "action": "unapprove",
+    "title": "sale-outbound unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J6F99DD357D8786EDBDD5C96",
+    "path": "/vou/sale-outbound/unreject",
+    "domain": "vou",
+    "entity": "sale-outbound",
+    "action": "unreject",
+    "title": "sale-outbound unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JED0448B3E374C4B40AF7F03",
+    "path": "/vou/sale-pricing/approve",
+    "domain": "vou",
+    "entity": "sale-pricing",
+    "action": "approve",
+    "title": "sale-pricing approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JABFC0E370AF80E61E970891",
+    "path": "/vou/sale-pricing/attachment-stage",
+    "domain": "vou",
+    "entity": "sale-pricing",
+    "action": "attachment-stage",
+    "title": "sale-pricing attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J53A2C7EFBB482436B07786C",
+    "path": "/vou/sale-pricing/audit-history",
+    "domain": "vou",
+    "entity": "sale-pricing",
+    "action": "audit-history",
+    "title": "sale-pricing audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J25C8AC0C4EAA6B890661D71",
+    "path": "/vou/sale-pricing/delete",
+    "domain": "vou",
+    "entity": "sale-pricing",
+    "action": "delete",
+    "title": "sale-pricing delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JDB0ACCC9EFEB68F1BD649C4",
+    "path": "/vou/sale-pricing/get",
+    "domain": "vou",
+    "entity": "sale-pricing",
+    "action": "get",
+    "title": "sale-pricing get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JCFD9C7B65B57F81B868A26A",
+    "path": "/vou/sale-pricing/query",
+    "domain": "vou",
+    "entity": "sale-pricing",
+    "action": "query",
+    "title": "sale-pricing query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J2159FAA2B8F698EA3123FFF",
+    "path": "/vou/sale-pricing/reject",
+    "domain": "vou",
+    "entity": "sale-pricing",
+    "action": "reject",
+    "title": "sale-pricing reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JFE33E98070D53946BF9DFF2",
+    "path": "/vou/sale-pricing/submit-change",
+    "domain": "vou",
+    "entity": "sale-pricing",
+    "action": "submit-change",
+    "title": "sale-pricing submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JBD44907B8A89794CD2B76DE",
+    "path": "/vou/sale-pricing/submit-new",
+    "domain": "vou",
+    "entity": "sale-pricing",
+    "action": "submit-new",
+    "title": "sale-pricing submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JDE40D546F4EB608ADF1A2EE",
+    "path": "/vou/sale-pricing/unapprove",
+    "domain": "vou",
+    "entity": "sale-pricing",
+    "action": "unapprove",
+    "title": "sale-pricing unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JED85642B9E2C4AD24712D3B",
+    "path": "/vou/sale-pricing/unreject",
+    "domain": "vou",
+    "entity": "sale-pricing",
+    "action": "unreject",
+    "title": "sale-pricing unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JAB4DF174F6656EB5BC58D25",
+    "path": "/vou/sale-return/approve",
+    "domain": "vou",
+    "entity": "sale-return",
+    "action": "approve",
+    "title": "sale-return approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0958F000B3FCDE5DC635216",
+    "path": "/vou/sale-return/attachment-stage",
+    "domain": "vou",
+    "entity": "sale-return",
+    "action": "attachment-stage",
+    "title": "sale-return attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF6523F48E6F9669CE49FD06",
+    "path": "/vou/sale-return/audit-history",
+    "domain": "vou",
+    "entity": "sale-return",
+    "action": "audit-history",
+    "title": "sale-return audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JCBDF281DC91DF0ACEA3D6ED",
+    "path": "/vou/sale-return/delete",
+    "domain": "vou",
+    "entity": "sale-return",
+    "action": "delete",
+    "title": "sale-return delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J24FEFF15B3CC776DBE90D35",
+    "path": "/vou/sale-return/get",
+    "domain": "vou",
+    "entity": "sale-return",
+    "action": "get",
+    "title": "sale-return get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF25D9D645B58D24871872DE",
+    "path": "/vou/sale-return/query",
+    "domain": "vou",
+    "entity": "sale-return",
+    "action": "query",
+    "title": "sale-return query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J7EAB89EA987D94C869FD114",
+    "path": "/vou/sale-return/reject",
+    "domain": "vou",
+    "entity": "sale-return",
+    "action": "reject",
+    "title": "sale-return reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J189A93C6D8F77944810FD6A",
+    "path": "/vou/sale-return/submit-change",
+    "domain": "vou",
+    "entity": "sale-return",
+    "action": "submit-change",
+    "title": "sale-return submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5A7CD56F7C85AB1B0FF7D98",
+    "path": "/vou/sale-return/submit-new",
+    "domain": "vou",
+    "entity": "sale-return",
+    "action": "submit-new",
+    "title": "sale-return submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J1A3EF8E1E04234A6E7FD9AB",
+    "path": "/vou/sale-return/unapprove",
+    "domain": "vou",
+    "entity": "sale-return",
+    "action": "unapprove",
+    "title": "sale-return unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JCF6F4A188DE5AC6D7AF5344",
+    "path": "/vou/sale-return/unreject",
+    "domain": "vou",
+    "entity": "sale-return",
+    "action": "unreject",
+    "title": "sale-return unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J8B4E70356FC7D60EF186FD3",
+    "path": "/vou/sale-signoff/approve",
+    "domain": "vou",
+    "entity": "sale-signoff",
+    "action": "approve",
+    "title": "sale-signoff approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JAA390BEB3999C1A4E0197B7",
+    "path": "/vou/sale-signoff/attachment-stage",
+    "domain": "vou",
+    "entity": "sale-signoff",
+    "action": "attachment-stage",
+    "title": "sale-signoff attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JECE0DBEF8425C59FA38CDC7",
+    "path": "/vou/sale-signoff/audit-history",
+    "domain": "vou",
+    "entity": "sale-signoff",
+    "action": "audit-history",
+    "title": "sale-signoff audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J6A4AFA7278F8D3DEB77D106",
+    "path": "/vou/sale-signoff/delete",
+    "domain": "vou",
+    "entity": "sale-signoff",
+    "action": "delete",
+    "title": "sale-signoff delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J3C2154F25D727C14DBD5D9D",
+    "path": "/vou/sale-signoff/get",
+    "domain": "vou",
+    "entity": "sale-signoff",
+    "action": "get",
+    "title": "sale-signoff get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JD1173ADDFCDB272274A67DB",
+    "path": "/vou/sale-signoff/query",
+    "domain": "vou",
+    "entity": "sale-signoff",
+    "action": "query",
+    "title": "sale-signoff query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J977F33B48FF06286E51B854",
+    "path": "/vou/sale-signoff/reject",
+    "domain": "vou",
+    "entity": "sale-signoff",
+    "action": "reject",
+    "title": "sale-signoff reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J750A1DA31859CCF7358DF88",
+    "path": "/vou/sale-signoff/unapprove",
+    "domain": "vou",
+    "entity": "sale-signoff",
+    "action": "unapprove",
+    "title": "sale-signoff unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JAC9F849EBB11FB5F33733D4",
+    "path": "/vou/sale-signoff/unreject",
+    "domain": "vou",
+    "entity": "sale-signoff",
+    "action": "unreject",
+    "title": "sale-signoff unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J428CDE97E1F591DCB8C49B9",
+    "path": "/vou/sales-receipt/approve",
+    "domain": "vou",
+    "entity": "sales-receipt",
+    "action": "approve",
+    "title": "sales-receipt approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JB111AB7AE48D3F7EF798259",
+    "path": "/vou/sales-receipt/attachment-stage",
+    "domain": "vou",
+    "entity": "sales-receipt",
+    "action": "attachment-stage",
+    "title": "sales-receipt attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J3579E174BE5831B60EECD22",
+    "path": "/vou/sales-receipt/audit-history",
+    "domain": "vou",
+    "entity": "sales-receipt",
+    "action": "audit-history",
+    "title": "sales-receipt audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JCAF2B66498E9E73912DA1EE",
+    "path": "/vou/sales-receipt/delete",
+    "domain": "vou",
+    "entity": "sales-receipt",
+    "action": "delete",
+    "title": "sales-receipt delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J881B7D5CB11B02875716DD8",
+    "path": "/vou/sales-receipt/get",
+    "domain": "vou",
+    "entity": "sales-receipt",
+    "action": "get",
+    "title": "sales-receipt get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JBD7E566F835C499BE54F3B6",
+    "path": "/vou/sales-receipt/query",
+    "domain": "vou",
+    "entity": "sales-receipt",
+    "action": "query",
+    "title": "sales-receipt query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JDB0F6223DFE897565CCD831",
+    "path": "/vou/sales-receipt/reject",
+    "domain": "vou",
+    "entity": "sales-receipt",
+    "action": "reject",
+    "title": "sales-receipt reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J205955B1F090DF2AAD3A150",
+    "path": "/vou/sales-receipt/submit-change",
+    "domain": "vou",
+    "entity": "sales-receipt",
+    "action": "submit-change",
+    "title": "sales-receipt submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC076A871C8167F2AA602CD3",
+    "path": "/vou/sales-receipt/submit-new",
+    "domain": "vou",
+    "entity": "sales-receipt",
+    "action": "submit-new",
+    "title": "sales-receipt submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JAA25FC2C625938C6A412FBF",
+    "path": "/vou/sales-receipt/unapprove",
+    "domain": "vou",
+    "entity": "sales-receipt",
+    "action": "unapprove",
+    "title": "sales-receipt unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JE530AEB7363EC97F7CFAB69",
+    "path": "/vou/sales-receipt/unreject",
+    "domain": "vou",
+    "entity": "sales-receipt",
+    "action": "unreject",
+    "title": "sales-receipt unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J4745402CA39598F92F43E18",
+    "path": "/vou/sales-refund/approve",
+    "domain": "vou",
+    "entity": "sales-refund",
+    "action": "approve",
+    "title": "sales-refund approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J98E9C7B90E05BDA2C18EDE2",
+    "path": "/vou/sales-refund/attachment-stage",
+    "domain": "vou",
+    "entity": "sales-refund",
+    "action": "attachment-stage",
+    "title": "sales-refund attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JB14C0EB0144F42AA3E04064",
+    "path": "/vou/sales-refund/audit-history",
+    "domain": "vou",
+    "entity": "sales-refund",
+    "action": "audit-history",
+    "title": "sales-refund audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J7D4DDA2C78E4ACDBC0ED850",
+    "path": "/vou/sales-refund/delete",
+    "domain": "vou",
+    "entity": "sales-refund",
+    "action": "delete",
+    "title": "sales-refund delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JB59830413BE45FCAA998549",
+    "path": "/vou/sales-refund/get",
+    "domain": "vou",
+    "entity": "sales-refund",
+    "action": "get",
+    "title": "sales-refund get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J59154A1F3FE904AFAB33FE5",
+    "path": "/vou/sales-refund/query",
+    "domain": "vou",
+    "entity": "sales-refund",
+    "action": "query",
+    "title": "sales-refund query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J487DA4EA73C64E1D5AFA1F6",
+    "path": "/vou/sales-refund/reject",
+    "domain": "vou",
+    "entity": "sales-refund",
+    "action": "reject",
+    "title": "sales-refund reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J9F6E48133677D39B3C49D86",
+    "path": "/vou/sales-refund/submit-change",
+    "domain": "vou",
+    "entity": "sales-refund",
+    "action": "submit-change",
+    "title": "sales-refund submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF6E33535BE68515B21A28F8",
+    "path": "/vou/sales-refund/submit-new",
+    "domain": "vou",
+    "entity": "sales-refund",
+    "action": "submit-new",
+    "title": "sales-refund submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J7FA309440B094075160C7F8",
+    "path": "/vou/sales-refund/unapprove",
+    "domain": "vou",
+    "entity": "sales-refund",
+    "action": "unapprove",
+    "title": "sales-refund unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J2CD2B3AD14E2BF2800A6D4E",
+    "path": "/vou/sales-refund/unreject",
+    "domain": "vou",
+    "entity": "sales-refund",
+    "action": "unreject",
+    "title": "sales-refund unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J9D692F3BBB4BB73061C9706",
+    "path": "/vou/self-production/approve",
+    "domain": "vou",
+    "entity": "self-production",
+    "action": "approve",
+    "title": "self-production approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J44E61C28CD271E2D394D872",
+    "path": "/vou/self-production/attachment-stage",
+    "domain": "vou",
+    "entity": "self-production",
+    "action": "attachment-stage",
+    "title": "self-production attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JEEA6359DBEAD2C0B1EBB7D3",
+    "path": "/vou/self-production/audit-history",
+    "domain": "vou",
+    "entity": "self-production",
+    "action": "audit-history",
+    "title": "self-production audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JB88966E79D869CFA54F68CB",
+    "path": "/vou/self-production/delete",
+    "domain": "vou",
+    "entity": "self-production",
+    "action": "delete",
+    "title": "self-production delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JEF9307803B66AB22B6D676E",
+    "path": "/vou/self-production/get",
+    "domain": "vou",
+    "entity": "self-production",
+    "action": "get",
+    "title": "self-production get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J6E707BBBFD5DA2A644FE736",
+    "path": "/vou/self-production/query",
+    "domain": "vou",
+    "entity": "self-production",
+    "action": "query",
+    "title": "self-production query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J1A761B71C5B30DB1633297B",
+    "path": "/vou/self-production/reject",
+    "domain": "vou",
+    "entity": "self-production",
+    "action": "reject",
+    "title": "self-production reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JCC92941AD2578F67162C345",
+    "path": "/vou/self-production/submit-change",
+    "domain": "vou",
+    "entity": "self-production",
+    "action": "submit-change",
+    "title": "self-production submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JCDADAD8C5182382F23F1273",
+    "path": "/vou/self-production/submit-new",
+    "domain": "vou",
+    "entity": "self-production",
+    "action": "submit-new",
+    "title": "self-production submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JE431366F5F2B876D5E84745",
+    "path": "/vou/self-production/unapprove",
+    "domain": "vou",
+    "entity": "self-production",
+    "action": "unapprove",
+    "title": "self-production unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF4F3D0F20B4EA7665E689C7",
+    "path": "/vou/self-production/unreject",
+    "domain": "vou",
+    "entity": "self-production",
+    "action": "unreject",
+    "title": "self-production unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5826F6791F01A0C10B8A3FC",
+    "path": "/vou/service-acceptance/approve",
+    "domain": "vou",
+    "entity": "service-acceptance",
+    "action": "approve",
+    "title": "service-acceptance approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF891FA8FDF397D92A9126DF",
+    "path": "/vou/service-acceptance/attachment-stage",
+    "domain": "vou",
+    "entity": "service-acceptance",
+    "action": "attachment-stage",
+    "title": "service-acceptance attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J8DE262F7A1E9EC1F9467B13",
+    "path": "/vou/service-acceptance/audit-history",
+    "domain": "vou",
+    "entity": "service-acceptance",
+    "action": "audit-history",
+    "title": "service-acceptance audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J8936F07C18B9763BB99965C",
+    "path": "/vou/service-acceptance/delete",
+    "domain": "vou",
+    "entity": "service-acceptance",
+    "action": "delete",
+    "title": "service-acceptance delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J9AC13A9093480E2EF0206A6",
+    "path": "/vou/service-acceptance/get",
+    "domain": "vou",
+    "entity": "service-acceptance",
+    "action": "get",
+    "title": "service-acceptance get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J843C42CC362D27B5E0A98DB",
+    "path": "/vou/service-acceptance/query",
+    "domain": "vou",
+    "entity": "service-acceptance",
+    "action": "query",
+    "title": "service-acceptance query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J867AD81460696222F883E6A",
+    "path": "/vou/service-acceptance/reject",
+    "domain": "vou",
+    "entity": "service-acceptance",
+    "action": "reject",
+    "title": "service-acceptance reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J98382F68853EB24421E8DCB",
+    "path": "/vou/service-acceptance/submit-change",
+    "domain": "vou",
+    "entity": "service-acceptance",
+    "action": "submit-change",
+    "title": "service-acceptance submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0C7A99383D93D8163BEF9AC",
+    "path": "/vou/service-acceptance/submit-new",
+    "domain": "vou",
+    "entity": "service-acceptance",
+    "action": "submit-new",
+    "title": "service-acceptance submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J98238F46DC39D6049EF7059",
+    "path": "/vou/service-acceptance/unapprove",
+    "domain": "vou",
+    "entity": "service-acceptance",
+    "action": "unapprove",
+    "title": "service-acceptance unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J48D3C7237A731879111C2F4",
+    "path": "/vou/service-acceptance/unreject",
+    "domain": "vou",
+    "entity": "service-acceptance",
+    "action": "unreject",
+    "title": "service-acceptance unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JCF47BBE1534A25BAF3EAB59",
+    "path": "/vou/service-contract/approve",
+    "domain": "vou",
+    "entity": "service-contract",
+    "action": "approve",
+    "title": "service-contract approve",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JFEF54316CB6E5A1635D3D8F",
+    "path": "/vou/service-contract/attachment-stage",
+    "domain": "vou",
+    "entity": "service-contract",
+    "action": "attachment-stage",
+    "title": "service-contract attachment-stage",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JD2EEF932D661C1ED3FA006B",
+    "path": "/vou/service-contract/audit-history",
+    "domain": "vou",
+    "entity": "service-contract",
+    "action": "audit-history",
+    "title": "service-contract audit-history",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5FA2A64A7647F3A9A0AF013",
+    "path": "/vou/service-contract/delete",
+    "domain": "vou",
+    "entity": "service-contract",
+    "action": "delete",
+    "title": "service-contract delete",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC5AA6BD8FE64036914AEE31",
+    "path": "/vou/service-contract/get",
+    "domain": "vou",
+    "entity": "service-contract",
+    "action": "get",
+    "title": "service-contract get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J9DFEE904E3F091837786243",
+    "path": "/vou/service-contract/query",
+    "domain": "vou",
+    "entity": "service-contract",
+    "action": "query",
+    "title": "service-contract query",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J2449062D0049ECBEA010746",
+    "path": "/vou/service-contract/reject",
+    "domain": "vou",
+    "entity": "service-contract",
+    "action": "reject",
+    "title": "service-contract reject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J8E322CA4DE6458B0107348D",
+    "path": "/vou/service-contract/submit-change",
+    "domain": "vou",
+    "entity": "service-contract",
+    "action": "submit-change",
+    "title": "service-contract submit-change",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J2DA6A16A941D2210C9DE4F1",
+    "path": "/vou/service-contract/submit-new",
+    "domain": "vou",
+    "entity": "service-contract",
+    "action": "submit-new",
+    "title": "service-contract submit-new",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J1F1553D00B20D784F47AFAF",
+    "path": "/vou/service-contract/unapprove",
+    "domain": "vou",
+    "entity": "service-contract",
+    "action": "unapprove",
+    "title": "service-contract unapprove",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC8A77120D43FCF12F32534F",
+    "path": "/vou/service-contract/unreject",
+    "domain": "vou",
+    "entity": "service-contract",
+    "action": "unreject",
+    "title": "service-contract unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF5C9A7EBB2C0ED704C65BB1",
+    "path": "/wfl/process-definition/get",
+    "domain": "wfl",
+    "entity": "process-definition",
+    "action": "get",
+    "title": "/wfl/process-definition/get",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J4BA4442C812AA919B9F4F0E",
+    "path": "/wfl/process-definition/trial",
+    "domain": "wfl",
+    "entity": "process-definition",
+    "action": "trial",
+    "title": "/wfl/process-definition/trial",
     "group": null,
     "order": null
   }

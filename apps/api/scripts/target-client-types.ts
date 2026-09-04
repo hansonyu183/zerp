@@ -43,6 +43,10 @@ void client.bob.reference.query.$post
 void client.acc.mapping.query.$post
 void client.acc.mapping.get.$post
 void client.acc.mapping.catalog.$post
+void client.vou[':entity'].get.$post({
+  param: { entity: 'sales-receipt' },
+  json: { documentId: '01J00000000000000000000000' },
+})
 void client.dcl.vehicle.delete.$post({
   json: {
     subjectId: '01J00000000000000000000000',

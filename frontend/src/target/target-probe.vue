@@ -47,6 +47,13 @@ const {
   archiveOpenSubmissions,
   archiveReferenceOptions,
   accMappingReadPage,
+  vouEntity,
+  vouDrafts,
+  vouSubmissions,
+  newVouDraft,
+  saveVouDraft,
+  addVouAttachment,
+  submitVouDraft,
   accMappingCatalog,
   accMappingPage,
   accMappingCurrent,
@@ -108,7 +115,24 @@ const {
     </form>
 
     <template v-else>
-      <section v-if="accMappingReadPage" aria-label="当前会计映射">
+      <section v-if="vouEntity" aria-label="目标单据">
+        <h2>{{ vouEntity }} 单据</h2>
+        <p>草稿正文与附件只保存在当前浏览器；提交成功后才创建服务器业务记录。</p>
+        <button
+          type="button"
+          @click="newVouDraft"
+        >新建本地草稿</button>
+        <article v-for="draft in vouDrafts" :key="draft.draftId" data-testid="vou-local-draft">
+          <label>业务日期 <input v-model="draft.payload.businessDate" type="date" /></label>
+          <label>币种 <input v-model="draft.payload.currency" maxlength="3" /></label>
+          <label>金额 <input v-model="draft.payload.amount" inputmode="decimal" /></label>
+          <label>附件 <input type="file" accept="application/pdf,image/jpeg,image/png" @change="addVouAttachment(draft, $event)" /></label>
+          <button type="button" @click="saveVouDraft(draft)">保存到本机</button>
+          <button type="button" @click="submitVouDraft(draft)">提交</button>
+        </article>
+        <p>服务器 Submission：{{ vouSubmissions.length }}</p>
+      </section>
+      <section v-else-if="accMappingReadPage" aria-label="当前会计映射">
         <h2>当前会计映射</h2>
         <a href="/dcl/acc-mapping">维护记账映射</a>
         <label

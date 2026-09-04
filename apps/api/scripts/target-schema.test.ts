@@ -63,6 +63,28 @@ test('isolated target schema contains every issue 364 typed DCL aggregate', asyn
     'dcl_warehouse_manager_reference_facts',
     'dcl_warehouse_reference_facts',
     'dcl_warehouse_usage_facts',
+    'acc_books',
+    'acc_book_access',
+    'acc_subjects',
+    'acc_opening_snapshots',
+    'acc_periods',
+    'vou_documents',
+    'vou_document_payloads',
+    'vou_idempotency',
+    'vou_attachment_staging',
+    'vou_attachments',
+    'acc_journal_entries',
+    'acc_journal_lines',
+    'acc_inventory_entries',
+    'acc_register_entries',
+    'wfl_definition_versions',
+    'wfl_definition_runtime_states',
+    'wfl_trials',
+    'wfl_instances',
+    'wfl_instance_nodes',
+    'wfl_action_results',
+    'wfl_runtime_audits',
+    'rpt_execution_audits',
   ])
   assert.doesNotMatch(schema, /\bbob_current_objects\b/)
   assert.doesNotMatch(schema, /\bbob_customer_subunits\b/)
@@ -89,6 +111,14 @@ test('isolated target schema contains every issue 364 typed DCL aggregate', asyn
     /entity = 'rpt-definition' AND code ~ '\^rpt-\[0-9\]\{6\}\$'/,
   )
   assert.match(schema, /status IN \('PENDING', 'APPROVED', 'REJECTED'\)/)
+  assert.match(
+    schema,
+    /domain IN \('dcl', 'vou', 'acc'\)[\s\S]*domain = 'dcl' AND version_no IS NOT NULL[\s\S]*domain = 'vou' AND version_no IS NULL[\s\S]*domain = 'acc' AND version_no IS NULL/,
+  )
+  assert.match(schema, /vou_documents[\s\S]*entity varchar\(64\) NOT NULL/)
+  assert.match(schema, /wfl_instances[\s\S]*approval_entry_id varchar\(26\) NOT NULL/)
+  assert.match(schema, /rpt_execution_audits/)
+  assert.doesNotMatch(schema, /CREATE (?:FUNCTION|TRIGGER|PROCEDURE)/i)
   assert.match(schema, /'acc-mapping'/)
   assert.match(schema, /dcl_acc_mapping_versions/)
   assert.match(schema, /dcl_rpt_definition_versions/)

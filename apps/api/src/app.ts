@@ -14,6 +14,10 @@ import { noopLogger, type AppLogger } from './platform/logging.ts'
 import type { WarehouseService } from './dcl/warehouse.ts'
 import type { ArchiveService } from './dcl/archives.ts'
 import type { AccMappingCatalogService } from './acc/mapping-catalog.ts'
+import type { VouService } from './vou/service.ts'
+import type { AccService } from './acc/service.ts'
+import type { WflService } from './wfl/service.ts'
+import type { RptService } from './rpt/service.ts'
 
 export interface DatabaseReadiness {
   ping(): Promise<void>
@@ -32,6 +36,10 @@ export interface CreateAppOptions {
   warehouse?: WarehouseService
   archives?: ArchiveService
   accMappingCatalog?: AccMappingCatalogService
+  vou?: VouService
+  acc?: AccService
+  wfl?: WflService
+  rpt?: RptService
   registerRoutes?: (
     router: OpenAPIHono<{ Variables: { requestId: string } }>,
   ) => void
@@ -145,6 +153,10 @@ export function createApp(options: CreateAppOptions = {}) {
       options.management,
       options.aux,
       options.bob,
+      options.vou,
+      options.acc,
+      options.wfl,
+      options.rpt,
     )
   options.registerRoutes?.(app)
   app.onError((error, context) => {

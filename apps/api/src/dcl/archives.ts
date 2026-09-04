@@ -442,6 +442,12 @@ function nullable(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
+function requiredVersionNo(value: number | null): number {
+  if (value === null)
+    throw new ArchiveApplicationError('archive_invalid_history')
+  return value
+}
+
 function json(value: unknown): JsonValue {
   return JSON.stringify(value) as unknown as JsonValue
 }
@@ -616,7 +622,7 @@ export class ArchiveService {
     return rows.map((row) => ({
       id: row.id,
       submissionId: row.entry_id,
-      versionNo: row.version_no,
+      versionNo: requiredVersionNo(row.version_no),
       action: row.action as ArchiveAuditView['action'],
       fromStatus: row.from_status as ApprovalStatus | null,
       toStatus: row.to_status as ApprovalStatus | null,
@@ -682,7 +688,10 @@ export class ArchiveService {
           requestId,
           occurredAt.toISOString(),
           subject !== undefined,
-          history,
+          history.map((row) => ({
+            ...row,
+            version_no: requiredVersionNo(row.version_no),
+          })),
           tx,
         )
         if (!prepared.ok)
@@ -930,6 +939,8 @@ export class ArchiveService {
           await sql`DELETE FROM dcl_acc_mapping_subject_usages
             WHERE approval_entry_id = ${entry.id}`.execute(tx)
       }
+      if (entity === 'rpt-definition' && plan.toStatus === 'APPROVED')
+        await this.registerRptPermissions(tx, entry.subjectId, actor.id)
       return this.readSubmission(tx, entity, entry.id, actor)
     })
   }
@@ -1206,7 +1217,10 @@ export class ArchiveService {
       requestId,
       new Date().toISOString(),
       entry.versionNo !== 1,
-      history,
+      history.map((row) => ({
+        ...row,
+        version_no: requiredVersionNo(row.version_no),
+      })),
       tx,
     )
     if (!prepared.ok)
@@ -2723,7 +2737,7 @@ export class ArchiveService {
       domain: row.domain,
       entity: row.entity,
       subjectId: row.subject_id,
-      versionNo: row.version_no,
+      versionNo: requiredVersionNo(row.version_no),
       status: row.status as ApprovalStatus,
       revision: String(row.revision),
       metadata: {
@@ -2800,7 +2814,7 @@ export class ArchiveService {
       subjectId: row.subject_id,
       code: row.code,
       submissionId: row.id,
-      versionNo: row.version_no,
+      versionNo: requiredVersionNo(row.version_no),
       status: row.status as ApprovalStatus,
       revision: String(row.revision),
       submittedBy: row.submitted_by,
@@ -3079,6 +3093,24 @@ export class ArchiveService {
         )
         .execute()
       return
+    }
+  }
+
+  private async registerRptPermissions(tx: Transaction<DB>, subjectId: string, actorId: string) {
+    const subject = await tx.selectFrom('dcl_subjects').select('code')
+      .where('id', '=', subjectId).where('entity', '=', 'rpt-definition').executeTakeFirstOrThrow()
+    if (!subject.code) throw new ArchiveApplicationError('archive_invalid_history')
+    for (const action of ['query', 'export'] as const) {
+      const path = `/rpt/${subject.code}/${action}`
+      const id = `01J${createHash('sha256').update(path).digest('hex').slice(0, 23).toUpperCase()}`
+      await tx.insertInto('app_permissions').values({
+        id, path, domain: 'rpt', entity: subject.code, action,
+        description: `${subject.code} ${action}`, status: 'ENABLED',
+        created_by: actorId, updated_by: actorId,
+      }).onConflict((conflict) => conflict.column('path').doUpdateSet({
+        status: 'ENABLED', description: `${subject.code} ${action}`,
+        updated_at: new Date(), updated_by: actorId,
+      })).execute()
     }
   }
 }

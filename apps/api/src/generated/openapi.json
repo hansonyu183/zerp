@@ -100325,6 +100325,4335 @@
           }
         }
       }
+    },
+    "/vou/{entity}/query": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "sale-pricing",
+                "sale-order",
+                "sale-outbound",
+                "sale-delivery",
+                "sale-signoff",
+                "sale-return",
+                "purchase-order",
+                "purchase-inbound",
+                "purchase-return",
+                "purchase-inquiry",
+                "order-production",
+                "self-production",
+                "inventory-count",
+                "sales-receipt",
+                "purchase-refund",
+                "other-receipt",
+                "sales-refund",
+                "purchase-payment",
+                "other-payment",
+                "employee-loan",
+                "employee-repayment",
+                "employee-loan-writeoff",
+                "expense-reimbursement",
+                "expense-payment",
+                "other-income",
+                "asset-acquisition",
+                "asset-sale",
+                "asset-liquidation",
+                "bill-receipt",
+                "bill-payment",
+                "bill-issue",
+                "bill-discount",
+                "bill-maturity",
+                "intermediary-calculation",
+                "service-contract",
+                "service-acceptance"
+              ]
+            },
+            "required": true,
+            "name": "entity",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "page": {
+                    "type": "number",
+                    "enum": [
+                      1
+                    ],
+                    "default": 1
+                  },
+                  "pageSize": {
+                    "type": "number",
+                    "enum": [
+                      20
+                    ],
+                    "default": 20
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "VOU query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vou/{entity}/get": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "sale-pricing",
+                "sale-order",
+                "sale-outbound",
+                "sale-delivery",
+                "sale-signoff",
+                "sale-return",
+                "purchase-order",
+                "purchase-inbound",
+                "purchase-return",
+                "purchase-inquiry",
+                "order-production",
+                "self-production",
+                "inventory-count",
+                "sales-receipt",
+                "purchase-refund",
+                "other-receipt",
+                "sales-refund",
+                "purchase-payment",
+                "other-payment",
+                "employee-loan",
+                "employee-repayment",
+                "employee-loan-writeoff",
+                "expense-reimbursement",
+                "expense-payment",
+                "other-income",
+                "asset-acquisition",
+                "asset-sale",
+                "asset-liquidation",
+                "bill-receipt",
+                "bill-payment",
+                "bill-issue",
+                "bill-discount",
+                "bill-maturity",
+                "intermediary-calculation",
+                "service-contract",
+                "service-acceptance"
+              ]
+            },
+            "required": true,
+            "name": "entity",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "documentId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  }
+                },
+                "required": [
+                  "documentId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "VOU get",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vou/{entity}/audit-history": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "sale-pricing",
+                "sale-order",
+                "sale-outbound",
+                "sale-delivery",
+                "sale-signoff",
+                "sale-return",
+                "purchase-order",
+                "purchase-inbound",
+                "purchase-return",
+                "purchase-inquiry",
+                "order-production",
+                "self-production",
+                "inventory-count",
+                "sales-receipt",
+                "purchase-refund",
+                "other-receipt",
+                "sales-refund",
+                "purchase-payment",
+                "other-payment",
+                "employee-loan",
+                "employee-repayment",
+                "employee-loan-writeoff",
+                "expense-reimbursement",
+                "expense-payment",
+                "other-income",
+                "asset-acquisition",
+                "asset-sale",
+                "asset-liquidation",
+                "bill-receipt",
+                "bill-payment",
+                "bill-issue",
+                "bill-discount",
+                "bill-maturity",
+                "intermediary-calculation",
+                "service-contract",
+                "service-acceptance"
+              ]
+            },
+            "required": true,
+            "name": "entity",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "documentId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  }
+                },
+                "required": [
+                  "documentId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "VOU audit-history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vou/{entity}/submit-new": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "sale-pricing",
+                "sale-order",
+                "sale-outbound",
+                "sale-delivery",
+                "sale-signoff",
+                "sale-return",
+                "purchase-order",
+                "purchase-inbound",
+                "purchase-return",
+                "purchase-inquiry",
+                "order-production",
+                "self-production",
+                "inventory-count",
+                "sales-receipt",
+                "purchase-refund",
+                "other-receipt",
+                "sales-refund",
+                "purchase-payment",
+                "other-payment",
+                "employee-loan",
+                "employee-repayment",
+                "employee-loan-writeoff",
+                "expense-reimbursement",
+                "expense-payment",
+                "other-income",
+                "asset-acquisition",
+                "asset-sale",
+                "asset-liquidation",
+                "bill-receipt",
+                "bill-payment",
+                "bill-issue",
+                "bill-discount",
+                "bill-maturity",
+                "intermediary-calculation",
+                "service-contract",
+                "service-acceptance"
+              ]
+            },
+            "required": true,
+            "name": "entity",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "documentId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "idempotencyKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "expectedRevision": {
+                    "type": "string",
+                    "nullable": true,
+                    "pattern": "^[1-9]\\d*$"
+                  },
+                  "payload": {
+                    "type": "object",
+                    "properties": {
+                      "businessDate": {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      "currency": {
+                        "type": "string",
+                        "pattern": "^[A-Z]{3}$"
+                      },
+                      "amount": {
+                        "type": "string",
+                        "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$"
+                      },
+                      "lines": {
+                        "type": "array",
+                        "items": {
+                          "nullable": true
+                        }
+                      },
+                      "attachments": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 26,
+                              "maxLength": 26
+                            },
+                            "fileName": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 255
+                            },
+                            "contentType": {
+                              "type": "string",
+                              "enum": [
+                                "application/pdf",
+                                "image/jpeg",
+                                "image/png"
+                              ]
+                            },
+                            "sizeBytes": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "exclusiveMinimum": true,
+                              "maximum": 10485760
+                            },
+                            "sha256": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{64}$"
+                            },
+                            "stagingId": {
+                              "type": "string",
+                              "minLength": 26,
+                              "maxLength": 26
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "fileName",
+                            "contentType",
+                            "sizeBytes",
+                            "sha256",
+                            "stagingId"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "parentEntity": {
+                        "type": "string",
+                        "enum": [
+                          "sale-pricing",
+                          "sale-order",
+                          "sale-outbound",
+                          "sale-delivery",
+                          "sale-signoff",
+                          "sale-return",
+                          "purchase-order",
+                          "purchase-inbound",
+                          "purchase-return",
+                          "purchase-inquiry",
+                          "order-production",
+                          "self-production",
+                          "inventory-count",
+                          "sales-receipt",
+                          "purchase-refund",
+                          "other-receipt",
+                          "sales-refund",
+                          "purchase-payment",
+                          "other-payment",
+                          "employee-loan",
+                          "employee-repayment",
+                          "employee-loan-writeoff",
+                          "expense-reimbursement",
+                          "expense-payment",
+                          "other-income",
+                          "asset-acquisition",
+                          "asset-sale",
+                          "asset-liquidation",
+                          "bill-receipt",
+                          "bill-payment",
+                          "bill-issue",
+                          "bill-discount",
+                          "bill-maturity",
+                          "intermediary-calculation",
+                          "service-contract",
+                          "service-acceptance"
+                        ]
+                      },
+                      "parentDocumentId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      }
+                    },
+                    "required": [
+                      "businessDate",
+                      "currency",
+                      "amount",
+                      "lines",
+                      "attachments"
+                    ],
+                    "additionalProperties": {
+                      "nullable": true
+                    }
+                  }
+                },
+                "required": [
+                  "documentId",
+                  "submissionId",
+                  "idempotencyKey",
+                  "expectedRevision",
+                  "payload"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "VOU submit-new",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vou/{entity}/submit-change": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "sale-pricing",
+                "sale-order",
+                "sale-outbound",
+                "sale-delivery",
+                "sale-signoff",
+                "sale-return",
+                "purchase-order",
+                "purchase-inbound",
+                "purchase-return",
+                "purchase-inquiry",
+                "order-production",
+                "self-production",
+                "inventory-count",
+                "sales-receipt",
+                "purchase-refund",
+                "other-receipt",
+                "sales-refund",
+                "purchase-payment",
+                "other-payment",
+                "employee-loan",
+                "employee-repayment",
+                "employee-loan-writeoff",
+                "expense-reimbursement",
+                "expense-payment",
+                "other-income",
+                "asset-acquisition",
+                "asset-sale",
+                "asset-liquidation",
+                "bill-receipt",
+                "bill-payment",
+                "bill-issue",
+                "bill-discount",
+                "bill-maturity",
+                "intermediary-calculation",
+                "service-contract",
+                "service-acceptance"
+              ]
+            },
+            "required": true,
+            "name": "entity",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "documentId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "idempotencyKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "expectedRevision": {
+                    "type": "string",
+                    "nullable": true,
+                    "pattern": "^[1-9]\\d*$"
+                  },
+                  "payload": {
+                    "type": "object",
+                    "properties": {
+                      "businessDate": {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      "currency": {
+                        "type": "string",
+                        "pattern": "^[A-Z]{3}$"
+                      },
+                      "amount": {
+                        "type": "string",
+                        "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$"
+                      },
+                      "lines": {
+                        "type": "array",
+                        "items": {
+                          "nullable": true
+                        }
+                      },
+                      "attachments": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 26,
+                              "maxLength": 26
+                            },
+                            "fileName": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 255
+                            },
+                            "contentType": {
+                              "type": "string",
+                              "enum": [
+                                "application/pdf",
+                                "image/jpeg",
+                                "image/png"
+                              ]
+                            },
+                            "sizeBytes": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "exclusiveMinimum": true,
+                              "maximum": 10485760
+                            },
+                            "sha256": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{64}$"
+                            },
+                            "stagingId": {
+                              "type": "string",
+                              "minLength": 26,
+                              "maxLength": 26
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "fileName",
+                            "contentType",
+                            "sizeBytes",
+                            "sha256",
+                            "stagingId"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "parentEntity": {
+                        "type": "string",
+                        "enum": [
+                          "sale-pricing",
+                          "sale-order",
+                          "sale-outbound",
+                          "sale-delivery",
+                          "sale-signoff",
+                          "sale-return",
+                          "purchase-order",
+                          "purchase-inbound",
+                          "purchase-return",
+                          "purchase-inquiry",
+                          "order-production",
+                          "self-production",
+                          "inventory-count",
+                          "sales-receipt",
+                          "purchase-refund",
+                          "other-receipt",
+                          "sales-refund",
+                          "purchase-payment",
+                          "other-payment",
+                          "employee-loan",
+                          "employee-repayment",
+                          "employee-loan-writeoff",
+                          "expense-reimbursement",
+                          "expense-payment",
+                          "other-income",
+                          "asset-acquisition",
+                          "asset-sale",
+                          "asset-liquidation",
+                          "bill-receipt",
+                          "bill-payment",
+                          "bill-issue",
+                          "bill-discount",
+                          "bill-maturity",
+                          "intermediary-calculation",
+                          "service-contract",
+                          "service-acceptance"
+                        ]
+                      },
+                      "parentDocumentId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      }
+                    },
+                    "required": [
+                      "businessDate",
+                      "currency",
+                      "amount",
+                      "lines",
+                      "attachments"
+                    ],
+                    "additionalProperties": {
+                      "nullable": true
+                    }
+                  }
+                },
+                "required": [
+                  "documentId",
+                  "submissionId",
+                  "idempotencyKey",
+                  "expectedRevision",
+                  "payload"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "VOU submit-change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vou/{entity}/approve": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "sale-pricing",
+                "sale-order",
+                "sale-outbound",
+                "sale-delivery",
+                "sale-signoff",
+                "sale-return",
+                "purchase-order",
+                "purchase-inbound",
+                "purchase-return",
+                "purchase-inquiry",
+                "order-production",
+                "self-production",
+                "inventory-count",
+                "sales-receipt",
+                "purchase-refund",
+                "other-receipt",
+                "sales-refund",
+                "purchase-payment",
+                "other-payment",
+                "employee-loan",
+                "employee-repayment",
+                "employee-loan-writeoff",
+                "expense-reimbursement",
+                "expense-payment",
+                "other-income",
+                "asset-acquisition",
+                "asset-sale",
+                "asset-liquidation",
+                "bill-receipt",
+                "bill-payment",
+                "bill-issue",
+                "bill-discount",
+                "bill-maturity",
+                "intermediary-calculation",
+                "service-contract",
+                "service-acceptance"
+              ]
+            },
+            "required": true,
+            "name": "entity",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "documentId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "expectedRevision": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
+                  }
+                },
+                "required": [
+                  "documentId",
+                  "submissionId",
+                  "expectedRevision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "VOU approve",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vou/{entity}/reject": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "sale-pricing",
+                "sale-order",
+                "sale-outbound",
+                "sale-delivery",
+                "sale-signoff",
+                "sale-return",
+                "purchase-order",
+                "purchase-inbound",
+                "purchase-return",
+                "purchase-inquiry",
+                "order-production",
+                "self-production",
+                "inventory-count",
+                "sales-receipt",
+                "purchase-refund",
+                "other-receipt",
+                "sales-refund",
+                "purchase-payment",
+                "other-payment",
+                "employee-loan",
+                "employee-repayment",
+                "employee-loan-writeoff",
+                "expense-reimbursement",
+                "expense-payment",
+                "other-income",
+                "asset-acquisition",
+                "asset-sale",
+                "asset-liquidation",
+                "bill-receipt",
+                "bill-payment",
+                "bill-issue",
+                "bill-discount",
+                "bill-maturity",
+                "intermediary-calculation",
+                "service-contract",
+                "service-acceptance"
+              ]
+            },
+            "required": true,
+            "name": "entity",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "documentId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "expectedRevision": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "documentId",
+                  "submissionId",
+                  "expectedRevision",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "VOU reject",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vou/{entity}/unreject": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "sale-pricing",
+                "sale-order",
+                "sale-outbound",
+                "sale-delivery",
+                "sale-signoff",
+                "sale-return",
+                "purchase-order",
+                "purchase-inbound",
+                "purchase-return",
+                "purchase-inquiry",
+                "order-production",
+                "self-production",
+                "inventory-count",
+                "sales-receipt",
+                "purchase-refund",
+                "other-receipt",
+                "sales-refund",
+                "purchase-payment",
+                "other-payment",
+                "employee-loan",
+                "employee-repayment",
+                "employee-loan-writeoff",
+                "expense-reimbursement",
+                "expense-payment",
+                "other-income",
+                "asset-acquisition",
+                "asset-sale",
+                "asset-liquidation",
+                "bill-receipt",
+                "bill-payment",
+                "bill-issue",
+                "bill-discount",
+                "bill-maturity",
+                "intermediary-calculation",
+                "service-contract",
+                "service-acceptance"
+              ]
+            },
+            "required": true,
+            "name": "entity",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "documentId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "expectedRevision": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
+                  }
+                },
+                "required": [
+                  "documentId",
+                  "submissionId",
+                  "expectedRevision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "VOU unreject",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vou/{entity}/unapprove": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "sale-pricing",
+                "sale-order",
+                "sale-outbound",
+                "sale-delivery",
+                "sale-signoff",
+                "sale-return",
+                "purchase-order",
+                "purchase-inbound",
+                "purchase-return",
+                "purchase-inquiry",
+                "order-production",
+                "self-production",
+                "inventory-count",
+                "sales-receipt",
+                "purchase-refund",
+                "other-receipt",
+                "sales-refund",
+                "purchase-payment",
+                "other-payment",
+                "employee-loan",
+                "employee-repayment",
+                "employee-loan-writeoff",
+                "expense-reimbursement",
+                "expense-payment",
+                "other-income",
+                "asset-acquisition",
+                "asset-sale",
+                "asset-liquidation",
+                "bill-receipt",
+                "bill-payment",
+                "bill-issue",
+                "bill-discount",
+                "bill-maturity",
+                "intermediary-calculation",
+                "service-contract",
+                "service-acceptance"
+              ]
+            },
+            "required": true,
+            "name": "entity",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "documentId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "expectedRevision": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "documentId",
+                  "submissionId",
+                  "expectedRevision",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "VOU unapprove",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vou/{entity}/delete": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "sale-pricing",
+                "sale-order",
+                "sale-outbound",
+                "sale-delivery",
+                "sale-signoff",
+                "sale-return",
+                "purchase-order",
+                "purchase-inbound",
+                "purchase-return",
+                "purchase-inquiry",
+                "order-production",
+                "self-production",
+                "inventory-count",
+                "sales-receipt",
+                "purchase-refund",
+                "other-receipt",
+                "sales-refund",
+                "purchase-payment",
+                "other-payment",
+                "employee-loan",
+                "employee-repayment",
+                "employee-loan-writeoff",
+                "expense-reimbursement",
+                "expense-payment",
+                "other-income",
+                "asset-acquisition",
+                "asset-sale",
+                "asset-liquidation",
+                "bill-receipt",
+                "bill-payment",
+                "bill-issue",
+                "bill-discount",
+                "bill-maturity",
+                "intermediary-calculation",
+                "service-contract",
+                "service-acceptance"
+              ]
+            },
+            "required": true,
+            "name": "entity",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "documentId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "expectedRevision": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
+                  }
+                },
+                "required": [
+                  "documentId",
+                  "submissionId",
+                  "expectedRevision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "VOU delete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vou/{entity}/attachment-stage": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "sale-pricing",
+                "sale-order",
+                "sale-outbound",
+                "sale-delivery",
+                "sale-signoff",
+                "sale-return",
+                "purchase-order",
+                "purchase-inbound",
+                "purchase-return",
+                "purchase-inquiry",
+                "order-production",
+                "self-production",
+                "inventory-count",
+                "sales-receipt",
+                "purchase-refund",
+                "other-receipt",
+                "sales-refund",
+                "purchase-payment",
+                "other-payment",
+                "employee-loan",
+                "employee-repayment",
+                "employee-loan-writeoff",
+                "expense-reimbursement",
+                "expense-payment",
+                "other-income",
+                "asset-acquisition",
+                "asset-sale",
+                "asset-liquidation",
+                "bill-receipt",
+                "bill-payment",
+                "bill-issue",
+                "bill-discount",
+                "bill-maturity",
+                "intermediary-calculation",
+                "service-contract",
+                "service-acceptance"
+              ]
+            },
+            "required": true,
+            "name": "entity",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "stagingId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "fileId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "fileName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "mimeType": {
+                    "type": "string",
+                    "enum": [
+                      "application/pdf",
+                      "image/jpeg",
+                      "image/png"
+                    ]
+                  },
+                  "size": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 10485760
+                  },
+                  "digest": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "contentBase64": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "stagingId",
+                  "fileId",
+                  "fileName",
+                  "mimeType",
+                  "size",
+                  "digest",
+                  "contentBase64"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "VOU attachment-stage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vou/{entity}/attachment-cleanup": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "sale-pricing",
+                "sale-order",
+                "sale-outbound",
+                "sale-delivery",
+                "sale-signoff",
+                "sale-return",
+                "purchase-order",
+                "purchase-inbound",
+                "purchase-return",
+                "purchase-inquiry",
+                "order-production",
+                "self-production",
+                "inventory-count",
+                "sales-receipt",
+                "purchase-refund",
+                "other-receipt",
+                "sales-refund",
+                "purchase-payment",
+                "other-payment",
+                "employee-loan",
+                "employee-repayment",
+                "employee-loan-writeoff",
+                "expense-reimbursement",
+                "expense-payment",
+                "other-income",
+                "asset-acquisition",
+                "asset-sale",
+                "asset-liquidation",
+                "bill-receipt",
+                "bill-payment",
+                "bill-issue",
+                "bill-discount",
+                "bill-maturity",
+                "intermediary-calculation",
+                "service-contract",
+                "service-acceptance"
+              ]
+            },
+            "required": true,
+            "name": "entity",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "VOU attachment-cleanup",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/acc/book/query": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/acc/book/query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/acc/book/get": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/acc/book/get",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/acc/book/create": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "startMonth": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+                  },
+                  "baseCurrency": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{3}$"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "description",
+                  "startMonth",
+                  "baseCurrency"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/acc/book/create",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/acc/book/save": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "expectedRevision": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "baseCurrency": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{3}$"
+                  }
+                },
+                "required": [
+                  "id",
+                  "expectedRevision",
+                  "name",
+                  "description",
+                  "baseCurrency"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/acc/book/save",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/acc/book/delete": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "expectedRevision": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
+                  }
+                },
+                "required": [
+                  "id",
+                  "expectedRevision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/acc/book/delete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/acc/subject/query": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "bookId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  }
+                },
+                "required": [
+                  "bookId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/acc/subject/query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/acc/subject/get": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/acc/subject/get",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/acc/subject/create": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "bookId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "parentId": {
+                    "type": "string",
+                    "nullable": true,
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "balanceDirection": {
+                    "type": "string",
+                    "enum": [
+                      "DEBIT",
+                      "CREDIT"
+                    ]
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "requiredDimensions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "CUSTOMER_SUBUNIT",
+                        "SUPPLIER",
+                        "OTHER_UNIT",
+                        "EMPLOYEE",
+                        "SALES_PARTNER",
+                        "DEPARTMENT",
+                        "PRODUCT",
+                        "WAREHOUSE",
+                        "FUND_ACCOUNT",
+                        "ASSET",
+                        "BILL"
+                      ]
+                    }
+                  },
+                  "inventoryQuantity": {
+                    "type": "boolean"
+                  },
+                  "settlementPurpose": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32
+                  }
+                },
+                "required": [
+                  "id",
+                  "bookId",
+                  "code",
+                  "name",
+                  "parentId",
+                  "balanceDirection",
+                  "enabled",
+                  "requiredDimensions",
+                  "inventoryQuantity",
+                  "settlementPurpose"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/acc/subject/create",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/acc/subject/save": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "bookId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "parentId": {
+                    "type": "string",
+                    "nullable": true,
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "balanceDirection": {
+                    "type": "string",
+                    "enum": [
+                      "DEBIT",
+                      "CREDIT"
+                    ]
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "requiredDimensions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "CUSTOMER_SUBUNIT",
+                        "SUPPLIER",
+                        "OTHER_UNIT",
+                        "EMPLOYEE",
+                        "SALES_PARTNER",
+                        "DEPARTMENT",
+                        "PRODUCT",
+                        "WAREHOUSE",
+                        "FUND_ACCOUNT",
+                        "ASSET",
+                        "BILL"
+                      ]
+                    }
+                  },
+                  "inventoryQuantity": {
+                    "type": "boolean"
+                  },
+                  "settlementPurpose": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32
+                  },
+                  "expectedRevision": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
+                  }
+                },
+                "required": [
+                  "id",
+                  "bookId",
+                  "code",
+                  "name",
+                  "parentId",
+                  "balanceDirection",
+                  "enabled",
+                  "requiredDimensions",
+                  "inventoryQuantity",
+                  "settlementPurpose",
+                  "expectedRevision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/acc/subject/save",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/acc/subject/delete": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "expectedRevision": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
+                  }
+                },
+                "required": [
+                  "id",
+                  "expectedRevision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/acc/subject/delete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/acc/opening/query": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "bookId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  }
+                },
+                "required": [
+                  "bookId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/acc/opening/query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/acc/opening/submit-new": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "bookId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "idempotencyKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "lines": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "subjectId": {
+                          "type": "string",
+                          "minLength": 26,
+                          "maxLength": 26
+                        },
+                        "currency": {
+                          "type": "string",
+                          "pattern": "^[A-Z]{3}$"
+                        },
+                        "direction": {
+                          "type": "string",
+                          "enum": [
+                            "DEBIT",
+                            "CREDIT"
+                          ]
+                        },
+                        "amount": {
+                          "type": "string",
+                          "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                        },
+                        "dimensions": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string",
+                            "minLength": 26,
+                            "maxLength": 26
+                          }
+                        }
+                      },
+                      "required": [
+                        "subjectId",
+                        "currency",
+                        "direction",
+                        "amount",
+                        "dimensions"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "assets": {
+                    "type": "array",
+                    "items": {
+                      "nullable": true
+                    }
+                  },
+                  "bills": {
+                    "type": "array",
+                    "items": {
+                      "nullable": true
+                    }
+                  },
+                  "containers": {
+                    "type": "array",
+                    "items": {
+                      "nullable": true
+                    }
+                  }
+                },
+                "required": [
+                  "bookId",
+                  "submissionId",
+                  "idempotencyKey",
+                  "lines",
+                  "assets",
+                  "bills",
+                  "containers"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/acc/opening/submit-new",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/acc/opening/approve": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "bookId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "expectedRevision": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
+                  }
+                },
+                "required": [
+                  "bookId",
+                  "submissionId",
+                  "expectedRevision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/acc/opening/approve",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/acc/opening/reject": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "bookId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "expectedRevision": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "bookId",
+                  "submissionId",
+                  "expectedRevision",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/acc/opening/reject",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/acc/opening/unreject": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "bookId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "expectedRevision": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
+                  }
+                },
+                "required": [
+                  "bookId",
+                  "submissionId",
+                  "expectedRevision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/acc/opening/unreject",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/acc/opening/unapprove": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "bookId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "expectedRevision": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "bookId",
+                  "submissionId",
+                  "expectedRevision",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/acc/opening/unapprove",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/acc/opening/delete": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "bookId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "expectedRevision": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
+                  }
+                },
+                "required": [
+                  "bookId",
+                  "submissionId",
+                  "expectedRevision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/acc/opening/delete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/acc/period/query": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "bookId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  }
+                },
+                "required": [
+                  "bookId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/acc/period/query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/acc/period/lock": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "bookId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "month": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+                  },
+                  "expectedRevision": {
+                    "type": "string",
+                    "nullable": true,
+                    "pattern": "^[1-9]\\d*$"
+                  }
+                },
+                "required": [
+                  "bookId",
+                  "month",
+                  "expectedRevision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/acc/period/lock",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/acc/period/unlock": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "bookId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "month": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+                  },
+                  "expectedRevision": {
+                    "type": "string",
+                    "nullable": true,
+                    "pattern": "^[1-9]\\d*$"
+                  }
+                },
+                "required": [
+                  "bookId",
+                  "month",
+                  "expectedRevision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/acc/period/unlock",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dcl/wfl-process-definition/submit-new": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subjectId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "idempotencyKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "expectedLatestApprovedSubmissionId": {
+                    "type": "string",
+                    "nullable": true,
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "expectedLatestApprovedRevision": {
+                    "type": "string",
+                    "nullable": true,
+                    "pattern": "^[1-9]\\d*$"
+                  },
+                  "script": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 65536
+                  },
+                  "trialDocument": {
+                    "type": "object",
+                    "properties": {
+                      "entity": {
+                        "type": "string",
+                        "enum": [
+                          "sale-pricing",
+                          "sale-order",
+                          "sale-outbound",
+                          "sale-delivery",
+                          "sale-signoff",
+                          "sale-return",
+                          "purchase-order",
+                          "purchase-inbound",
+                          "purchase-return",
+                          "purchase-inquiry",
+                          "order-production",
+                          "self-production",
+                          "inventory-count",
+                          "sales-receipt",
+                          "purchase-refund",
+                          "other-receipt",
+                          "sales-refund",
+                          "purchase-payment",
+                          "other-payment",
+                          "employee-loan",
+                          "employee-repayment",
+                          "employee-loan-writeoff",
+                          "expense-reimbursement",
+                          "expense-payment",
+                          "other-income",
+                          "asset-acquisition",
+                          "asset-sale",
+                          "asset-liquidation",
+                          "bill-receipt",
+                          "bill-payment",
+                          "bill-issue",
+                          "bill-discount",
+                          "bill-maturity",
+                          "intermediary-calculation",
+                          "service-contract",
+                          "service-acceptance"
+                        ]
+                      },
+                      "documentId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      }
+                    },
+                    "required": [
+                      "entity",
+                      "documentId"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "subjectId",
+                  "submissionId",
+                  "idempotencyKey",
+                  "expectedLatestApprovedSubmissionId",
+                  "expectedLatestApprovedRevision",
+                  "script",
+                  "trialDocument"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/dcl/wfl-process-definition/submit-new",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dcl/wfl-process-definition/submit-change": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subjectId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "idempotencyKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "expectedLatestApprovedSubmissionId": {
+                    "type": "string",
+                    "nullable": true,
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "expectedLatestApprovedRevision": {
+                    "type": "string",
+                    "nullable": true,
+                    "pattern": "^[1-9]\\d*$"
+                  },
+                  "script": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 65536
+                  },
+                  "trialDocument": {
+                    "type": "object",
+                    "properties": {
+                      "entity": {
+                        "type": "string",
+                        "enum": [
+                          "sale-pricing",
+                          "sale-order",
+                          "sale-outbound",
+                          "sale-delivery",
+                          "sale-signoff",
+                          "sale-return",
+                          "purchase-order",
+                          "purchase-inbound",
+                          "purchase-return",
+                          "purchase-inquiry",
+                          "order-production",
+                          "self-production",
+                          "inventory-count",
+                          "sales-receipt",
+                          "purchase-refund",
+                          "other-receipt",
+                          "sales-refund",
+                          "purchase-payment",
+                          "other-payment",
+                          "employee-loan",
+                          "employee-repayment",
+                          "employee-loan-writeoff",
+                          "expense-reimbursement",
+                          "expense-payment",
+                          "other-income",
+                          "asset-acquisition",
+                          "asset-sale",
+                          "asset-liquidation",
+                          "bill-receipt",
+                          "bill-payment",
+                          "bill-issue",
+                          "bill-discount",
+                          "bill-maturity",
+                          "intermediary-calculation",
+                          "service-contract",
+                          "service-acceptance"
+                        ]
+                      },
+                      "documentId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      }
+                    },
+                    "required": [
+                      "entity",
+                      "documentId"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "subjectId",
+                  "submissionId",
+                  "idempotencyKey",
+                  "expectedLatestApprovedSubmissionId",
+                  "expectedLatestApprovedRevision",
+                  "script",
+                  "trialDocument"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/dcl/wfl-process-definition/submit-change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dcl/wfl-process-definition/approve": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subjectId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "expectedRevision": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
+                  }
+                },
+                "required": [
+                  "subjectId",
+                  "submissionId",
+                  "expectedRevision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/dcl/wfl-process-definition/approve",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dcl/wfl-process-definition/reject": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subjectId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "expectedRevision": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "subjectId",
+                  "submissionId",
+                  "expectedRevision",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/dcl/wfl-process-definition/reject",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dcl/wfl-process-definition/unreject": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subjectId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "expectedRevision": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
+                  }
+                },
+                "required": [
+                  "subjectId",
+                  "submissionId",
+                  "expectedRevision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/dcl/wfl-process-definition/unreject",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dcl/wfl-process-definition/unapprove": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subjectId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "expectedRevision": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "subjectId",
+                  "submissionId",
+                  "expectedRevision",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/dcl/wfl-process-definition/unapprove",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dcl/wfl-process-definition/enable": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subjectId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "approvalEntryId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "expectedApprovalRevision": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
+                  },
+                  "expectedRuntimeRevision": {
+                    "type": "string",
+                    "nullable": true,
+                    "pattern": "^[1-9]\\d*$"
+                  }
+                },
+                "required": [
+                  "subjectId",
+                  "approvalEntryId",
+                  "expectedApprovalRevision",
+                  "expectedRuntimeRevision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/dcl/wfl-process-definition/enable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dcl/wfl-process-definition/disable": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subjectId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "approvalEntryId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "expectedApprovalRevision": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
+                  },
+                  "expectedRuntimeRevision": {
+                    "type": "string",
+                    "nullable": true,
+                    "pattern": "^[1-9]\\d*$"
+                  }
+                },
+                "required": [
+                  "subjectId",
+                  "approvalEntryId",
+                  "expectedApprovalRevision",
+                  "expectedRuntimeRevision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/dcl/wfl-process-definition/disable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wfl/process-definition/get": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/wfl/process-definition/get",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wfl/process-definition/trial": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "approvalEntryId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "document": {
+                    "type": "object",
+                    "properties": {
+                      "entity": {
+                        "type": "string",
+                        "enum": [
+                          "sale-pricing",
+                          "sale-order",
+                          "sale-outbound",
+                          "sale-delivery",
+                          "sale-signoff",
+                          "sale-return",
+                          "purchase-order",
+                          "purchase-inbound",
+                          "purchase-return",
+                          "purchase-inquiry",
+                          "order-production",
+                          "self-production",
+                          "inventory-count",
+                          "sales-receipt",
+                          "purchase-refund",
+                          "other-receipt",
+                          "sales-refund",
+                          "purchase-payment",
+                          "other-payment",
+                          "employee-loan",
+                          "employee-repayment",
+                          "employee-loan-writeoff",
+                          "expense-reimbursement",
+                          "expense-payment",
+                          "other-income",
+                          "asset-acquisition",
+                          "asset-sale",
+                          "asset-liquidation",
+                          "bill-receipt",
+                          "bill-payment",
+                          "bill-issue",
+                          "bill-discount",
+                          "bill-maturity",
+                          "intermediary-calculation",
+                          "service-contract",
+                          "service-acceptance"
+                        ]
+                      },
+                      "documentId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      }
+                    },
+                    "required": [
+                      "entity",
+                      "documentId"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "approvalEntryId",
+                  "document"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/wfl/process-definition/trial",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rpt/directory/query": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/rpt/directory/query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rpt/{code}/query": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^rpt-[0-9]{6}$"
+            },
+            "required": true,
+            "name": "code",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "parameters": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "nullable": true
+                    }
+                  },
+                  "page": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true
+                  },
+                  "pageSize": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 100
+                  }
+                },
+                "required": [
+                  "parameters",
+                  "page",
+                  "pageSize"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/rpt/{code}/query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rpt/{code}/export": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^rpt-[0-9]{6}$"
+            },
+            "required": true,
+            "name": "code",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "parameters": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "nullable": true
+                    }
+                  }
+                },
+                "required": [
+                  "parameters"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/rpt/{code}/export",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "errorKey": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "errorKey",
+                    "message",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

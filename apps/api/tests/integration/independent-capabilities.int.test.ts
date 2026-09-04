@@ -234,6 +234,10 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
         .where('subunit_id', '=', subunitId)
         .execute()
       await db
+        .deleteFrom('approval_entries')
+        .where('id', 'in', [bobPreviousEntryId, bobEntryId, customerEntryId])
+        .execute()
+      await db
         .deleteFrom('dcl_subjects')
         .where('id', 'in', [bobId, customerId])
         .execute()

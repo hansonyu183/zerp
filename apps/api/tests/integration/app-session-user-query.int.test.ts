@@ -31,6 +31,14 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
   context.after(async () => {
     try {
       await db
+        .deleteFrom('approval_events')
+        .where('entry_id', 'in', [mappingV1Id, mappingV2Id])
+        .execute()
+      await db
+        .deleteFrom('approval_entries')
+        .where('id', 'in', [mappingV1Id, mappingV2Id])
+        .execute()
+      await db
         .deleteFrom('dcl_subjects')
         .where('id', '=', mappingSubjectId)
         .execute()

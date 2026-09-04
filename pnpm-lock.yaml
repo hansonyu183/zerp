@@ -43,6 +43,9 @@ importers:
       '@zerp/model':
         specifier: workspace:*
         version: link:../../packages/model
+      '@zerp/wfl-starlark':
+        specifier: workspace:*
+        version: link:../../packages/wfl-starlark
       hono:
         specifier: 4.13.5
         version: 4.13.5

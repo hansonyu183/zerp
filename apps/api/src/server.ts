@@ -12,18 +12,24 @@ import { closeRuntime } from './platform/shutdown.ts'
 import { WarehouseService } from './dcl/warehouse.ts'
 import { ArchiveService } from './dcl/archives.ts'
 import { AccMappingCatalogService } from './acc/mapping-catalog.ts'
+import { VouService } from './vou/service.ts'
+import { AccService } from './acc/service.ts'
+import { WflService } from './wfl/service.ts'
+import { RptService } from './rpt/service.ts'
+import { createNodeWflStarlark } from '@zerp/wfl-starlark/node'
 
 const config = loadConfig()
 const database = createDatabase(config.databaseUrl.toString())
+const rpt = new RptService(database)
+const wflRuntime = await createNodeWflStarlark()
+const acc = new AccService(database)
+const wfl = new WflService(database, wflRuntime)
 const app = createApp({
   database: {
-    ping: async () =>
-      database
-        .selectFrom('app_users')
-        .select('id')
-        .limit(1)
-        .execute()
-        .then(() => undefined),
+    ping: async () => {
+      await database.selectFrom('app_users').select('id').limit(1).execute()
+      await rpt.assertAllEnabled()
+    },
   },
   session: new SessionService(database, config),
   management: new ManagementService(database, config),
@@ -32,6 +38,10 @@ const app = createApp({
   warehouse: new WarehouseService(database),
   archives: new ArchiveService(database),
   accMappingCatalog: new AccMappingCatalogService(database),
+  vou: new VouService(database, { acc, wfl }),
+  acc,
+  wfl,
+  rpt,
   config,
   corsAllowedOrigins: config.corsAllowedOrigins,
   bodyLimitBytes: config.bodyLimitBytes,

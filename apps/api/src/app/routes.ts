@@ -1,5 +1,6 @@
 import type { OpenAPIHono } from '@hono/zod-openapi'
 import { getCookie, setCookie } from 'hono/cookie'
+import type { VouEntity } from '@zerp/model'
 
 import type { TargetConfig } from '../platform/config.ts'
 import { currentRequestId } from '../platform/request-id.ts'
@@ -23,9 +24,21 @@ import {
   AccMappingCatalogError,
   type AccMappingCatalogService,
 } from '../acc/mapping-catalog.ts'
+import { VouApplicationError, type VouService } from '../vou/service.ts'
+import {
+  registerVouRoutes,
+  vouRouteMetadata,
+  type VouRouteAction,
+} from '../vou/contract.ts'
+import { AccApplicationError, type AccService } from '../acc/service.ts'
+import { registerAccRoutes, accRouteMetadata, type AccRouteAction } from '../acc/contract.ts'
+import { WflApplicationError, type WflService } from '../wfl/service.ts'
+import { registerWflRoutes, wflRouteMetadata, type WflRouteAction } from '../wfl/contract.ts'
+import { RptApplicationError, type RptService } from '../rpt/service.ts'
+import { registerRptRoutes, rptRouteMetadata, type RptRouteAction } from '../rpt/contract.ts'
 import {
   registerTargetRoutes,
-  targetRouteMetadata,
+  targetRouteMetadata as baseTargetRouteMetadata,
   type TargetRouteEnvironment,
 } from './contract.ts'
 import { createIndependentHandlers } from './independent-routes.ts'
@@ -38,7 +51,13 @@ import {
   type SessionService,
 } from './session.ts'
 
-export { targetRouteMetadata }
+export const targetRouteMetadata = [
+  ...baseTargetRouteMetadata,
+  ...vouRouteMetadata,
+  ...accRouteMetadata,
+  ...wflRouteMetadata,
+  ...rptRouteMetadata,
+]
 
 function sessionPayload(principal: Principal) {
   return {
@@ -97,6 +116,10 @@ export function registerAppRoutes(
   management?: ManagementService,
   aux?: AuxService,
   bob?: BobService,
+  vou?: VouService,
+  acc?: AccService,
+  wfl?: WflService,
+  rpt?: RptService,
 ) {
   async function executeWarehouse<T>(
     context: {
@@ -206,6 +229,54 @@ export function registerAppRoutes(
       throw error
     }
   }
+  async function executeVou<T>(
+    context: any,
+    operation: (actor: { id: string; permissions: string[] }) => Promise<T>,
+  ) {
+    const requestId = currentRequestId(context)
+    try {
+      if (!vou) throw new Error('VOU service is unavailable')
+      const current = await service.authenticate(
+        getCookie(context, config.sessionCookieName),
+        context.req.header('X-CSRF-Token'),
+        true,
+        context.req.path,
+      )
+      return {
+        code: 0 as const,
+        errorKey: '' as const,
+        message: 'ok' as const,
+        data: await operation({
+          id: current.user.id,
+          permissions: current.permissions,
+        }),
+        requestId,
+      }
+    } catch (error) {
+      if (error instanceof SessionError) return sessionFailure(error, requestId)
+      if (error instanceof VouApplicationError)
+        return {
+          code: 3001 as const,
+          errorKey: error.errorKey,
+          message: error.errorKey,
+          data: error.data,
+          requestId,
+        }
+      throw error
+    }
+  }
+  async function executeCore<T>(context: any, operation: (actor: { id: string; permissions: string[] }) => Promise<T>) {
+    const requestId = currentRequestId(context)
+    try {
+      const current = await service.authenticate(getCookie(context, config.sessionCookieName), context.req.header('X-CSRF-Token'), true, context.req.path)
+      return { code: 0 as const, errorKey: '' as const, message: 'ok' as const, data: await operation({ id: current.user.id, permissions: current.permissions }), requestId }
+    } catch (error) {
+      if (error instanceof SessionError) return sessionFailure(error, requestId)
+      if (error instanceof AccApplicationError || error instanceof WflApplicationError || error instanceof RptApplicationError)
+        return { code: 3001 as const, errorKey: error.errorKey, message: error.errorKey, data: 'data' in error ? error.data : null, requestId }
+      throw error
+    }
+  }
   const archiveHandler: ArchiveRouteHandler = async (
     entity,
     action,
@@ -269,7 +340,7 @@ export function registerAppRoutes(
     })
     return context.json(response as never, 200)
   }
-  return registerTargetRoutes(app, {
+  const target = registerTargetRoutes(app, {
     independent: createIndependentHandlers({
       session: service,
       config,
@@ -594,5 +665,92 @@ export function registerAppRoutes(
         ),
         200,
       ),
+  })
+  const withVou = registerVouRoutes(
+    target,
+    async (action: VouRouteAction, context: any) => {
+      const entity = context.req.valid('param').entity as VouEntity
+      const body = context.req.valid('json')
+      const response = await executeVou<unknown>(context, (actor) => {
+        if (action === 'query') return vou!.query(entity, actor)
+        if (action === 'get') return vou!.get(entity, body.documentId, actor)
+        if (action === 'audit-history')
+          return vou!.auditHistory(entity, body.documentId, actor)
+        if (action === 'submit-new' || action === 'submit-change')
+          return vou!.submit(
+            entity,
+            action,
+            body,
+            actor,
+            currentRequestId(context),
+          )
+        if (action === 'attachment-stage')
+          return vou!.stageAttachment(body, actor)
+        if (action === 'attachment-cleanup')
+          return vou!.cleanupAttachments(actor)
+        if (action === 'delete')
+          return vou!.delete(entity, body, actor, currentRequestId(context))
+        return vou!.review(
+          entity,
+          action,
+          body,
+          actor,
+          currentRequestId(context),
+        )
+      })
+      return context.json(response as never, 200)
+    },
+  )
+  const withAcc = registerAccRoutes(withVou, async (action: AccRouteAction, context: any) => {
+    if (!acc) throw new Error('ACC service is unavailable')
+    const input = context.req.valid('json')
+    const response = await executeCore<unknown>(context, (actor) => {
+      if (action === 'bookQuery') return acc.queryBooks(actor)
+      if (action === 'bookGet') return acc.getBook(input.id, actor)
+      if (action === 'bookCreate') return acc.createBook(input, actor)
+      if (action === 'bookSave') return acc.saveBook(input, actor)
+      if (action === 'bookDelete') return acc.deleteBook(input.id, input.expectedRevision, actor)
+      if (action === 'subjectQuery') return acc.querySubjects(input.bookId, actor)
+      if (action === 'subjectGet') return acc.getSubject(input.id, actor)
+      if (action === 'subjectCreate') return acc.createSubject(input, actor)
+      if (action === 'subjectSave') return acc.saveSubject(input, actor)
+      if (action === 'subjectDelete') return acc.deleteSubject(input.id, input.expectedRevision, actor)
+      if (action === 'openingQuery') return acc.getOpening(input.bookId, actor)
+      if (action === 'openingSubmit') return acc.submitOpening(input, actor, currentRequestId(context))
+      if (action === 'openingDelete') return acc.deleteOpening(input, actor, currentRequestId(context))
+      if (action === 'openingApprove') return acc.reviewOpening('approve', input, actor, currentRequestId(context))
+      if (action === 'openingReject') return acc.reviewOpening('reject', input, actor, currentRequestId(context))
+      if (action === 'openingUnreject') return acc.reviewOpening('unreject', input, actor, currentRequestId(context))
+      if (action === 'openingUnapprove') return acc.reviewOpening('unapprove', input, actor, currentRequestId(context))
+      if (action === 'periodQuery') return acc.queryPeriods(input.bookId, actor)
+      return acc.setPeriod(input, action === 'periodLock', actor)
+    })
+    return context.json(response as never, 200)
+  })
+  const withWfl = registerWflRoutes(withAcc, async (action: WflRouteAction, context: any) => {
+    if (!wfl) throw new Error('WFL service is unavailable')
+    const input = context.req.valid('json')
+    const response = await executeCore<unknown>(context, (actor) => {
+      if (action === 'submitNew' || action === 'submitChange') return wfl.submit(action === 'submitNew' ? 'submit-new' : 'submit-change', input, actor, currentRequestId(context))
+      if (action === 'approve') return wfl.review('approve', input, actor, currentRequestId(context))
+      if (action === 'reject') return wfl.review('reject', input, actor, currentRequestId(context))
+      if (action === 'unreject') return wfl.review('unreject', input, actor, currentRequestId(context))
+      if (action === 'unapprove') return wfl.review('unapprove', input, actor, currentRequestId(context))
+      if (action === 'enable' || action === 'disable') return wfl.setEnabled(input, action === 'enable', actor)
+      if (action === 'current') return wfl.current(input.code, actor)
+      return wfl.trial(input.approvalEntryId, input.document, actor)
+    })
+    return context.json(response as never, 200)
+  })
+  return registerRptRoutes(withWfl, async (action: RptRouteAction, context: any) => {
+    if (!rpt) throw new Error('RPT service is unavailable')
+    const input = context.req.valid('json')
+    const response = await executeCore<unknown>(context, (actor) => {
+      if (action === 'directory') return rpt.directory(actor)
+      const code = context.req.valid('param').code
+      if (action === 'query') return rpt.query(code, input, actor, currentRequestId(context))
+      return rpt.export(code, input.parameters, actor, currentRequestId(context))
+    })
+    return context.json(response as never, 200)
   })
 }

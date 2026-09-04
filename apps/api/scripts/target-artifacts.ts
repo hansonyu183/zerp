@@ -7,6 +7,7 @@ import type { Kysely } from 'kysely'
 import { createApp } from '../src/app.ts'
 import { targetRouteMetadata } from '../src/app/routes.ts'
 import { archiveCapabilityPermissionMetadata } from '../src/dcl/archive-contract.ts'
+import { vouCapabilityPermissionMetadata } from '../src/vou/contract.ts'
 import { SessionService } from '../src/app/session.ts'
 import type { DB } from '../src/db/generated.ts'
 import type { TargetConfig } from '../src/platform/config.ts'
@@ -94,7 +95,16 @@ function executableTargetPaths() {
   return {
     document,
     paths: paths.filter((entry) =>
-      [' /app/', ' /aux/', ' /dcl/', ' /bob/', ' /acc/'].some((prefix) =>
+      [
+        ' /app/',
+        ' /aux/',
+        ' /dcl/',
+        ' /bob/',
+        ' /acc/',
+        ' /vou/',
+        ' /wfl/',
+        ' /rpt/',
+      ].some((prefix) =>
         entry.includes(prefix),
       ),
     ),
@@ -165,7 +175,10 @@ export async function generateTargetArtifacts(): Promise<void> {
   const catalog = validateTargetRouteMetadata(
     paths,
     targetRouteMetadata,
-    archiveCapabilityPermissionMetadata,
+    [
+      ...archiveCapabilityPermissionMetadata,
+      ...vouCapabilityPermissionMetadata,
+    ],
   )
   await mkdir(generatedDirectory, { recursive: true })
   await Promise.all([

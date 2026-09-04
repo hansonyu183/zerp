@@ -408,6 +408,30 @@ test('each DCL archive has a directly addressable target page', async ({
   await queryArchiveEntity(page, 'vehicle')
 })
 
+test('VOU stays browser-local until real HTTP submit succeeds', async ({ browser }) => {
+  const context = await browser.newContext()
+  const page = await context.newPage()
+  await page.goto('/vou/sale-pricing')
+  await signIn(page, process.env.TARGET_E2E_USERNAME!, process.env.TARGET_E2E_PASSWORD!)
+  const region = page.getByRole('region', { name: '目标单据' })
+  await expect(region).toContainText('服务器 Submission：0')
+  await region.getByRole('button', { name: '新建本地草稿' }).click()
+  const draft = region.locator('[data-testid="vou-local-draft"]')
+  await expect(draft).toHaveCount(1)
+  await draft.getByLabel('金额').fill('88.50')
+  await draft.getByRole('button', { name: '保存到本机' }).click()
+  await page.reload()
+  await expect(region.locator('[data-testid="vou-local-draft"]')).toHaveCount(1)
+  const responsePromise = page.waitForResponse((response) => new URL(response.url()).pathname === '/vou/sale-pricing/submit-new')
+  await region.getByRole('button', { name: '提交', exact: true }).click()
+  const response = await responsePromise
+  expect(response.ok()).toBe(true)
+  expect((await response.json()).code).toBe(0)
+  await expect(region.locator('[data-testid="vou-local-draft"]')).toHaveCount(0)
+  await expect(region).toContainText('服务器 Submission：1')
+  await context.close()
+})
+
 test('ACC current page is read-only and loads no DCL or warehouse surface', async ({
   page,
 }) => {

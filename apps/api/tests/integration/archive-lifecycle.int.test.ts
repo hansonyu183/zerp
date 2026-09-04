@@ -55,6 +55,10 @@ test('business-key and referenced-entry locks admit at most one concurrent write
         .where('subject_id', 'in', subjectIds)
         .execute()
       await db
+        .deleteFrom('approval_entries')
+        .where('subject_id', 'in', subjectIds)
+        .execute()
+      await db
         .deleteFrom('dcl_subjects')
         .where('id', 'in', subjectIds)
         .execute()
@@ -297,6 +301,7 @@ test('typed DCL archives persist idempotent V1/V2 lifecycle and derive current f
         .deleteFrom('approval_events')
         .where('subject_id', '=', subjectId)
         .execute()
+      await db.deleteFrom('approval_entries').where('subject_id', '=', subjectId).execute()
       await db.deleteFrom('dcl_subjects').where('id', '=', subjectId).execute()
       await db
         .deleteFrom('app_users')
@@ -523,6 +528,10 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
           .execute()
         await db
           .deleteFrom('approval_events')
+          .where('subject_id', 'in', subjectIds)
+          .execute()
+        await db
+          .deleteFrom('approval_entries')
           .where('subject_id', 'in', subjectIds)
           .execute()
       }

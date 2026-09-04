@@ -125,6 +125,7 @@ target-wfl-parity:
 
 target-check: target-generate-check target-wfl-parity
 	TARGET_DATABASE_URL='$(TARGET_DATABASE_URL)' pnpm --filter @zerp/api check:catalog
+	TARGET_DATABASE_URL='$(TARGET_DATABASE_URL)' pnpm --filter @zerp/api validate:rpt
 	pnpm --filter @zerp/api typecheck
 	pnpm --filter @zerp/api-client typecheck
 	pnpm --filter @zerp/frontend build:target

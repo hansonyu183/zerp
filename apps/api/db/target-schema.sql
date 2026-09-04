@@ -206,14 +206,15 @@ INSERT INTO dcl_code_counters(entity, next_value) VALUES
     ('vehicle', 1),
     ('fund-account', 1),
     ('operating-entity', 1),
-    ('rpt-definition', 1);
+    ('rpt-definition', 1),
+    ('wfl-process-definition', 1);
 
 CREATE TABLE dcl_subjects (
     id varchar(26) PRIMARY KEY,
     entity varchar(64) NOT NULL CHECK (entity IN (
         'customer', 'supplier', 'other-unit', 'employee', 'sales-partner',
         'product', 'warehouse', 'vehicle', 'fund-account', 'operating-entity',
-        'acc-mapping', 'rpt-definition'
+        'acc-mapping', 'rpt-definition', 'wfl-process-definition'
     )),
     code varchar(64) CONSTRAINT dcl_subjects_entity_code_ck CHECK (
         (entity = 'customer' AND code ~ '^CUS-[0-9]{4}$')
@@ -228,6 +229,7 @@ CREATE TABLE dcl_subjects (
         OR (entity = 'operating-entity' AND code ~ '^OPE-[0-9]{4}$')
         OR (entity = 'acc-mapping' AND code IS NULL)
         OR (entity = 'rpt-definition' AND code ~ '^rpt-[0-9]{6}$')
+        OR (entity = 'wfl-process-definition' AND code ~ '^wfl-[0-9]{6}$')
     ),
     created_at timestamptz NOT NULL,
     created_by varchar(26) NOT NULL REFERENCES app_users(id)
@@ -237,14 +239,10 @@ CREATE UNIQUE INDEX dcl_subjects_entity_code_unique
 
 CREATE TABLE approval_entries (
     id varchar(26) PRIMARY KEY,
-    domain varchar(32) NOT NULL CHECK (domain = 'dcl'),
-    entity varchar(64) NOT NULL CHECK (entity IN (
-        'customer', 'supplier', 'other-unit', 'employee', 'sales-partner',
-        'product', 'warehouse', 'vehicle', 'fund-account', 'operating-entity',
-        'acc-mapping', 'rpt-definition'
-    )),
-    subject_id varchar(26) NOT NULL REFERENCES dcl_subjects(id) ON DELETE CASCADE,
-    version_no integer NOT NULL CHECK (version_no > 0),
+    domain varchar(32) NOT NULL CHECK (domain IN ('dcl', 'vou', 'acc')),
+    entity varchar(64) NOT NULL,
+    subject_id varchar(26) NOT NULL,
+    version_no integer CHECK (version_no IS NULL OR version_no > 0),
     status varchar(16) NOT NULL CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED')),
     revision bigint NOT NULL CHECK (revision > 0),
     submitted_by varchar(26) NOT NULL REFERENCES app_users(id),
@@ -256,12 +254,37 @@ CREATE TABLE approval_entries (
     rejection_reason varchar(1000),
     updated_by varchar(26) NOT NULL REFERENCES app_users(id),
     updated_at timestamptz NOT NULL,
-    UNIQUE (domain, entity, subject_id, version_no)
+    UNIQUE (domain, entity, subject_id, version_no),
+    CHECK (
+        (domain = 'dcl' AND version_no IS NOT NULL AND entity IN (
+            'customer', 'supplier', 'other-unit', 'employee', 'sales-partner',
+            'product', 'warehouse', 'vehicle', 'fund-account', 'operating-entity',
+            'acc-mapping', 'rpt-definition', 'wfl-process-definition'
+        ))
+        OR (domain = 'vou' AND version_no IS NULL AND entity IN (
+            'sale-pricing', 'sale-order', 'sale-outbound', 'sale-delivery',
+            'sale-signoff', 'sale-return', 'purchase-order', 'purchase-inbound',
+            'purchase-return', 'purchase-inquiry', 'order-production',
+            'self-production', 'inventory-count', 'sales-receipt',
+            'purchase-refund', 'other-receipt', 'sales-refund',
+            'purchase-payment', 'other-payment', 'employee-loan',
+            'employee-repayment', 'employee-loan-writeoff',
+            'expense-reimbursement', 'expense-payment', 'other-income',
+            'asset-acquisition', 'asset-sale', 'asset-liquidation',
+            'bill-receipt', 'bill-payment', 'bill-issue', 'bill-discount',
+            'bill-maturity', 'intermediary-calculation', 'service-contract',
+            'service-acceptance'
+        ))
+        OR (domain = 'acc' AND version_no IS NULL AND entity = 'opening')
+    )
 );
 
 CREATE UNIQUE INDEX approval_entries_open_version_unique
     ON approval_entries(domain, entity, subject_id)
     WHERE status IN ('PENDING', 'REJECTED');
+CREATE UNIQUE INDEX approval_entries_unversioned_subject_unique
+    ON approval_entries(domain, entity, subject_id)
+    WHERE version_no IS NULL;
 CREATE INDEX approval_entries_latest_approved_idx
     ON approval_entries(domain, entity, subject_id, version_no DESC)
     WHERE status = 'APPROVED';
@@ -599,7 +622,7 @@ CREATE TABLE approval_events (
     domain varchar(32) NOT NULL,
     entity varchar(64) NOT NULL,
     subject_id varchar(26) NOT NULL,
-    version_no integer NOT NULL,
+    version_no integer,
     action varchar(16) NOT NULL CHECK (
         action IN ('SUBMITTED', 'APPROVED', 'REJECTED', 'UNREJECTED', 'UNAPPROVED', 'DELETED')
     ),
@@ -698,3 +721,266 @@ CREATE TABLE dcl_warehouse_usage_facts (
 );
 CREATE INDEX dcl_warehouse_usage_facts_warehouse_idx
     ON dcl_warehouse_usage_facts(warehouse_id);
+
+-- #365 transactional cores. Business decisions stay in TypeScript Domain
+-- Services; these tables preserve facts, identities, CAS revisions and locks.
+CREATE TABLE acc_books (
+    id varchar(26) PRIMARY KEY,
+    code varchar(16) NOT NULL UNIQUE CHECK (code ~ '^ACC-[0-9]{4}$'),
+    name varchar(200) NOT NULL CHECK (btrim(name) <> ''),
+    description varchar(1000) NOT NULL DEFAULT '',
+    start_month varchar(7) NOT NULL CHECK (start_month ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
+    base_currency varchar(3) NOT NULL CHECK (base_currency ~ '^[A-Z]{3}$'),
+    control_book boolean NOT NULL,
+    revision bigint NOT NULL DEFAULT 1 CHECK (revision > 0),
+    created_at timestamptz NOT NULL,
+    created_by varchar(26) NOT NULL REFERENCES app_users(id),
+    updated_at timestamptz NOT NULL,
+    updated_by varchar(26) NOT NULL REFERENCES app_users(id)
+);
+CREATE UNIQUE INDEX acc_books_single_control_book ON acc_books(control_book)
+    WHERE control_book;
+
+CREATE TABLE acc_book_access (
+    book_id varchar(26) NOT NULL REFERENCES acc_books(id) ON DELETE CASCADE,
+    user_id varchar(26) NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+    can_query boolean NOT NULL,
+    can_operate boolean NOT NULL,
+    PRIMARY KEY (book_id, user_id),
+    CHECK (can_query OR can_operate)
+);
+
+CREATE TABLE acc_subjects (
+    id varchar(26) PRIMARY KEY,
+    book_id varchar(26) NOT NULL REFERENCES acc_books(id) ON DELETE RESTRICT,
+    code varchar(64) NOT NULL,
+    name varchar(200) NOT NULL CHECK (btrim(name) <> ''),
+    parent_id varchar(26) REFERENCES acc_subjects(id) ON DELETE RESTRICT,
+    balance_direction varchar(8) NOT NULL CHECK (balance_direction IN ('DEBIT', 'CREDIT')),
+    enabled boolean NOT NULL,
+    required_dimensions jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(required_dimensions) = 'array'),
+    inventory_quantity boolean NOT NULL DEFAULT false,
+    settlement_purpose varchar(32) NOT NULL DEFAULT 'NONE',
+    revision bigint NOT NULL DEFAULT 1 CHECK (revision > 0),
+    created_at timestamptz NOT NULL,
+    created_by varchar(26) NOT NULL REFERENCES app_users(id),
+    updated_at timestamptz NOT NULL,
+    updated_by varchar(26) NOT NULL REFERENCES app_users(id),
+    UNIQUE (book_id, code)
+);
+
+CREATE TABLE acc_opening_snapshots (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    book_id varchar(26) NOT NULL REFERENCES acc_books(id) ON DELETE RESTRICT,
+    payload jsonb NOT NULL CHECK (jsonb_typeof(payload) = 'object')
+);
+
+CREATE TABLE acc_periods (
+    book_id varchar(26) NOT NULL REFERENCES acc_books(id) ON DELETE CASCADE,
+    period_month varchar(7) NOT NULL CHECK (period_month ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
+    locked boolean NOT NULL DEFAULT false,
+    revision bigint NOT NULL DEFAULT 1 CHECK (revision > 0),
+    updated_at timestamptz NOT NULL,
+    updated_by varchar(26) NOT NULL REFERENCES app_users(id),
+    PRIMARY KEY (book_id, period_month)
+);
+
+CREATE TABLE vou_documents (
+    id varchar(26) PRIMARY KEY,
+    entity varchar(64) NOT NULL,
+    document_no varchar(32) NOT NULL UNIQUE,
+    stable_revision bigint NOT NULL DEFAULT 1 CHECK (stable_revision > 0),
+    created_at timestamptz NOT NULL,
+    created_by varchar(26) NOT NULL REFERENCES app_users(id),
+    CHECK (entity IN (
+        'sale-pricing', 'sale-order', 'sale-outbound', 'sale-delivery',
+        'sale-signoff', 'sale-return', 'purchase-order', 'purchase-inbound',
+        'purchase-return', 'purchase-inquiry', 'order-production',
+        'self-production', 'inventory-count', 'sales-receipt',
+        'purchase-refund', 'other-receipt', 'sales-refund',
+        'purchase-payment', 'other-payment', 'employee-loan',
+        'employee-repayment', 'employee-loan-writeoff',
+        'expense-reimbursement', 'expense-payment', 'other-income',
+        'asset-acquisition', 'asset-sale', 'asset-liquidation',
+        'bill-receipt', 'bill-payment', 'bill-issue', 'bill-discount',
+        'bill-maturity', 'intermediary-calculation', 'service-contract',
+        'service-acceptance'
+    ))
+);
+CREATE INDEX vou_documents_entity_number_idx ON vou_documents(entity, document_no);
+
+CREATE TABLE vou_document_payloads (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    amount numeric(24, 8) NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    payload jsonb NOT NULL CHECK (jsonb_typeof(payload) = 'object'),
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_idempotency (
+    entity varchar(64) NOT NULL,
+    idempotency_key varchar(128) NOT NULL,
+    request_hash varchar(64) NOT NULL,
+    document_id varchar(26) NOT NULL,
+    submission_id varchar(26) NOT NULL,
+    response jsonb NOT NULL CHECK (jsonb_typeof(response) = 'object'),
+    created_at timestamptz NOT NULL,
+    PRIMARY KEY (entity, idempotency_key)
+);
+
+CREATE TABLE vou_attachment_staging (
+    id varchar(26) PRIMARY KEY,
+    file_id varchar(26) NOT NULL,
+    owner_user_id varchar(26) NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+    file_name varchar(255) NOT NULL,
+    mime_type varchar(128) NOT NULL CHECK (mime_type IN ('application/pdf', 'image/jpeg', 'image/png')),
+    size_bytes integer NOT NULL CHECK (size_bytes BETWEEN 1 AND 10485760),
+    digest varchar(64) NOT NULL CHECK (digest ~ '^[0-9a-f]{64}$'),
+    content bytea NOT NULL,
+    created_at timestamptz NOT NULL,
+    expires_at timestamptz NOT NULL,
+    CHECK (octet_length(content) = size_bytes),
+    CHECK (expires_at > created_at),
+    UNIQUE (owner_user_id, file_id)
+);
+
+CREATE TABLE vou_attachments (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    file_id varchar(26) NOT NULL,
+    file_name varchar(255) NOT NULL,
+    mime_type varchar(128) NOT NULL,
+    size_bytes integer NOT NULL CHECK (size_bytes BETWEEN 1 AND 10485760),
+    digest varchar(64) NOT NULL CHECK (digest ~ '^[0-9a-f]{64}$'),
+    content bytea NOT NULL,
+    created_at timestamptz NOT NULL,
+    CHECK (octet_length(content) = size_bytes),
+    PRIMARY KEY (approval_entry_id, file_id)
+);
+
+CREATE TABLE acc_journal_entries (
+    id varchar(26) PRIMARY KEY,
+    book_id varchar(26) NOT NULL REFERENCES acc_books(id) ON DELETE RESTRICT,
+    vou_document_id varchar(26) NOT NULL REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    vou_approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL,
+    reversed_at timestamptz,
+    created_at timestamptz NOT NULL,
+    UNIQUE (book_id, vou_approval_entry_id)
+);
+
+CREATE TABLE acc_journal_lines (
+    id varchar(26) PRIMARY KEY,
+    journal_entry_id varchar(26) NOT NULL REFERENCES acc_journal_entries(id) ON DELETE CASCADE,
+    subject_id varchar(26) NOT NULL REFERENCES acc_subjects(id) ON DELETE RESTRICT,
+    direction varchar(8) NOT NULL CHECK (direction IN ('DEBIT', 'CREDIT')),
+    amount numeric(24, 8) NOT NULL CHECK (amount >= 0),
+    dimensions jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(dimensions) = 'object')
+);
+
+CREATE TABLE acc_inventory_entries (
+    id varchar(26) PRIMARY KEY,
+    vou_approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    document_id varchar(26) NOT NULL REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    line_id varchar(26) NOT NULL,
+    warehouse_id varchar(26) NOT NULL,
+    product_id varchar(26) NOT NULL,
+    quantity numeric(24, 8) NOT NULL,
+    reversed_at timestamptz,
+    created_at timestamptz NOT NULL,
+    UNIQUE (vou_approval_entry_id, line_id)
+);
+
+CREATE TABLE acc_register_entries (
+    id varchar(26) PRIMARY KEY,
+    register_kind varchar(32) NOT NULL CHECK (register_kind IN ('ASSET', 'BILL', 'CONTAINER', 'EMPLOYEE_LOAN')),
+    object_id varchar(26) NOT NULL,
+    vou_approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    payload jsonb NOT NULL CHECK (jsonb_typeof(payload) = 'object'),
+    reversed_at timestamptz,
+    created_at timestamptz NOT NULL,
+    UNIQUE (register_kind, object_id, vou_approval_entry_id)
+);
+
+CREATE TABLE wfl_definition_versions (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    script text NOT NULL CHECK (btrim(script) <> ''),
+    compiled_graph jsonb NOT NULL CHECK (jsonb_typeof(compiled_graph) = 'object')
+);
+
+CREATE TABLE wfl_definition_runtime_states (
+    subject_id varchar(26) PRIMARY KEY REFERENCES dcl_subjects(id) ON DELETE CASCADE,
+    enabled boolean NOT NULL,
+    revision bigint NOT NULL DEFAULT 1 CHECK (revision > 0),
+    updated_at timestamptz NOT NULL,
+    updated_by varchar(26) NOT NULL REFERENCES app_users(id)
+);
+
+CREATE TABLE wfl_trials (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    payload_digest varchar(64) NOT NULL CHECK (payload_digest ~ '^[0-9a-f]{64}$'),
+    result jsonb NOT NULL CHECK (jsonb_typeof(result) = 'object'),
+    created_at timestamptz NOT NULL,
+    created_by varchar(26) NOT NULL REFERENCES app_users(id),
+    PRIMARY KEY (approval_entry_id, document_id, payload_digest)
+);
+
+CREATE TABLE wfl_instances (
+    id varchar(26) PRIMARY KEY,
+    definition_subject_id varchar(26) NOT NULL REFERENCES dcl_subjects(id) ON DELETE RESTRICT,
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    definition_code varchar(64) NOT NULL,
+    definition_name varchar(200) NOT NULL,
+    root_document_id varchar(26) NOT NULL REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    created_at timestamptz NOT NULL,
+    UNIQUE (definition_subject_id, root_document_id)
+);
+
+CREATE TABLE wfl_instance_nodes (
+    id varchar(26) PRIMARY KEY,
+    instance_id varchar(26) NOT NULL REFERENCES wfl_instances(id) ON DELETE CASCADE,
+    node_key varchar(64) NOT NULL,
+    document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    parent_node_id varchar(26) REFERENCES wfl_instance_nodes(id) ON DELETE RESTRICT,
+    relation varchar(64),
+    created_at timestamptz NOT NULL,
+    UNIQUE (instance_id, node_key, document_id)
+);
+
+CREATE TABLE wfl_action_results (
+    id varchar(26) PRIMARY KEY,
+    instance_id varchar(26) NOT NULL REFERENCES wfl_instances(id) ON DELETE CASCADE,
+    source_node_id varchar(26) NOT NULL REFERENCES wfl_instance_nodes(id) ON DELETE RESTRICT,
+    script_position varchar(128) NOT NULL,
+    fingerprint varchar(64) NOT NULL CHECK (fingerprint ~ '^[0-9a-f]{64}$'),
+    target_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    active boolean NOT NULL DEFAULT true,
+    created_at timestamptz NOT NULL,
+    UNIQUE (instance_id, source_node_id, script_position)
+);
+
+CREATE TABLE wfl_runtime_audits (
+    id varchar(26) PRIMARY KEY,
+    instance_id varchar(26) NOT NULL REFERENCES wfl_instances(id) ON DELETE CASCADE,
+    action varchar(64) NOT NULL,
+    actor_id varchar(26) NOT NULL REFERENCES app_users(id),
+    details jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(details) = 'object'),
+    created_at timestamptz NOT NULL
+);
+
+CREATE TABLE rpt_execution_audits (
+    id varchar(26) PRIMARY KEY,
+    definition_subject_id varchar(26) NOT NULL REFERENCES dcl_subjects(id) ON DELETE RESTRICT,
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    actor_id varchar(26) NOT NULL REFERENCES app_users(id),
+    action varchar(16) NOT NULL CHECK (action IN ('QUERY', 'EXPORT', 'VALIDATE')),
+    parameters jsonb NOT NULL CHECK (jsonb_typeof(parameters) = 'object'),
+    row_count integer CHECK (row_count IS NULL OR row_count >= 0),
+    request_id varchar(128) NOT NULL,
+    created_at timestamptz NOT NULL
+);

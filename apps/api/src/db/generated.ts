@@ -23,7 +23,106 @@ export type JsonPrimitive = boolean | number | string | null;
 
 export type JsonValue = JsonArray | JsonObject | JsonPrimitive;
 
+export type Numeric = ColumnType<string, number | string, number | string>;
+
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
+
+export interface AccBookAccess {
+  book_id: string;
+  can_operate: boolean;
+  can_query: boolean;
+  user_id: string;
+}
+
+export interface AccBooks {
+  base_currency: string;
+  code: string;
+  control_book: boolean;
+  created_at: Timestamp;
+  created_by: string;
+  description: Generated<string>;
+  id: string;
+  name: string;
+  revision: Generated<Int8>;
+  start_month: string;
+  updated_at: Timestamp;
+  updated_by: string;
+}
+
+export interface AccInventoryEntries {
+  created_at: Timestamp;
+  document_id: string;
+  id: string;
+  line_id: string;
+  product_id: string;
+  quantity: Numeric;
+  reversed_at: Timestamp | null;
+  vou_approval_entry_id: string;
+  warehouse_id: string;
+}
+
+export interface AccJournalEntries {
+  book_id: string;
+  business_date: Timestamp;
+  created_at: Timestamp;
+  currency: string;
+  id: string;
+  reversed_at: Timestamp | null;
+  vou_approval_entry_id: string;
+  vou_document_id: string;
+}
+
+export interface AccJournalLines {
+  amount: Numeric;
+  dimensions: Generated<Json>;
+  direction: string;
+  id: string;
+  journal_entry_id: string;
+  subject_id: string;
+}
+
+export interface AccOpeningSnapshots {
+  approval_entry_id: string;
+  book_id: string;
+  payload: Json;
+}
+
+export interface AccPeriods {
+  book_id: string;
+  locked: Generated<boolean>;
+  period_month: string;
+  revision: Generated<Int8>;
+  updated_at: Timestamp;
+  updated_by: string;
+}
+
+export interface AccRegisterEntries {
+  created_at: Timestamp;
+  id: string;
+  object_id: string;
+  payload: Json;
+  register_kind: string;
+  reversed_at: Timestamp | null;
+  vou_approval_entry_id: string;
+}
+
+export interface AccSubjects {
+  balance_direction: string;
+  book_id: string;
+  code: string;
+  created_at: Timestamp;
+  created_by: string;
+  enabled: boolean;
+  id: string;
+  inventory_quantity: Generated<boolean>;
+  name: string;
+  parent_id: string | null;
+  required_dimensions: Generated<Json>;
+  revision: Generated<Int8>;
+  settlement_purpose: Generated<string>;
+  updated_at: Timestamp;
+  updated_by: string;
+}
 
 export interface AppAuditEvents {
   actor_user_id: string | null;
@@ -121,7 +220,7 @@ export interface ApprovalEntries {
   submitted_by: string;
   updated_at: Timestamp;
   updated_by: string;
-  version_no: number;
+  version_no: number | null;
 }
 
 export interface ApprovalEvents {
@@ -139,7 +238,7 @@ export interface ApprovalEvents {
   subject_id: string;
   to_revision: Int8 | null;
   to_status: string | null;
-  version_no: number;
+  version_no: number | null;
 }
 
 export interface AppSessions {
@@ -616,7 +715,145 @@ export interface RptDefinitionValidities {
   validated_by: string;
 }
 
+export interface RptExecutionAudits {
+  action: string;
+  actor_id: string;
+  approval_entry_id: string;
+  created_at: Timestamp;
+  definition_subject_id: string;
+  id: string;
+  parameters: Json;
+  request_id: string;
+  row_count: number | null;
+}
+
+export interface VouAttachments {
+  approval_entry_id: string;
+  content: Buffer;
+  created_at: Timestamp;
+  digest: string;
+  file_id: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+}
+
+export interface VouAttachmentStaging {
+  content: Buffer;
+  created_at: Timestamp;
+  digest: string;
+  expires_at: Timestamp;
+  file_id: string;
+  file_name: string;
+  id: string;
+  mime_type: string;
+  owner_user_id: string;
+  size_bytes: number;
+}
+
+export interface VouDocumentPayloads {
+  amount: Numeric;
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  payload: Json;
+}
+
+export interface VouDocuments {
+  created_at: Timestamp;
+  created_by: string;
+  document_no: string;
+  entity: string;
+  id: string;
+  stable_revision: Generated<Int8>;
+}
+
+export interface VouIdempotency {
+  created_at: Timestamp;
+  document_id: string;
+  entity: string;
+  idempotency_key: string;
+  request_hash: string;
+  response: Json;
+  submission_id: string;
+}
+
+export interface WflActionResults {
+  active: Generated<boolean>;
+  created_at: Timestamp;
+  fingerprint: string;
+  id: string;
+  instance_id: string;
+  script_position: string;
+  source_node_id: string;
+  target_document_id: string | null;
+}
+
+export interface WflDefinitionRuntimeStates {
+  enabled: boolean;
+  revision: Generated<Int8>;
+  subject_id: string;
+  updated_at: Timestamp;
+  updated_by: string;
+}
+
+export interface WflDefinitionVersions {
+  approval_entry_id: string;
+  compiled_graph: Json;
+  script: string;
+}
+
+export interface WflInstanceNodes {
+  created_at: Timestamp;
+  document_id: string | null;
+  id: string;
+  instance_id: string;
+  node_key: string;
+  parent_node_id: string | null;
+  relation: string | null;
+}
+
+export interface WflInstances {
+  approval_entry_id: string;
+  created_at: Timestamp;
+  definition_code: string;
+  definition_name: string;
+  definition_subject_id: string;
+  id: string;
+  root_document_id: string;
+}
+
+export interface WflRuntimeAudits {
+  action: string;
+  actor_id: string;
+  created_at: Timestamp;
+  details: Generated<Json>;
+  id: string;
+  instance_id: string;
+}
+
+export interface WflTrials {
+  approval_entry_id: string;
+  created_at: Timestamp;
+  created_by: string;
+  document_id: string;
+  payload_digest: string;
+  result: Json;
+}
+
 export interface DB {
+  acc_book_access: AccBookAccess;
+  acc_books: AccBooks;
+  acc_inventory_entries: AccInventoryEntries;
+  acc_journal_entries: AccJournalEntries;
+  acc_journal_lines: AccJournalLines;
+  acc_opening_snapshots: AccOpeningSnapshots;
+  acc_periods: AccPeriods;
+  acc_register_entries: AccRegisterEntries;
+  acc_subjects: AccSubjects;
   app_audit_events: AppAuditEvents;
   app_business_menu_items: AppBusinessMenuItems;
   app_menu_settings: AppMenuSettings;
@@ -666,4 +903,17 @@ export interface DB {
   dcl_warehouse_versions: DclWarehouseVersions;
   object_number_counters: ObjectNumberCounters;
   rpt_definition_validities: RptDefinitionValidities;
+  rpt_execution_audits: RptExecutionAudits;
+  vou_attachment_staging: VouAttachmentStaging;
+  vou_attachments: VouAttachments;
+  vou_document_payloads: VouDocumentPayloads;
+  vou_documents: VouDocuments;
+  vou_idempotency: VouIdempotency;
+  wfl_action_results: WflActionResults;
+  wfl_definition_runtime_states: WflDefinitionRuntimeStates;
+  wfl_definition_versions: WflDefinitionVersions;
+  wfl_instance_nodes: WflInstanceNodes;
+  wfl_instances: WflInstances;
+  wfl_runtime_audits: WflRuntimeAudits;
+  wfl_trials: WflTrials;
 }

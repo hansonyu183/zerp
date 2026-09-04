@@ -61,6 +61,10 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
         .where('actor_id', 'in', [submitterId, reviewerId])
         .execute()
       await db
+        .deleteFrom('approval_entries')
+        .where('submitted_by', 'in', [submitterId, reviewerId])
+        .execute()
+      await db
         .deleteFrom('dcl_subjects')
         .where('created_by', '=', submitterId)
         .execute()

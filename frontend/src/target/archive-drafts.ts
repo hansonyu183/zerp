@@ -285,7 +285,7 @@ export function initialArchiveSnapshot<Entity extends TargetArchiveEntity>(
     columns: [
       {
         alias: 'value',
-        label: '值',
+        name: '值',
         order: 1,
         type: 'INTEGER',
         width: 120,

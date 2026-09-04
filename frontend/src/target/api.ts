@@ -165,26 +165,115 @@ export class TargetApiError extends Error {
   }
 }
 
-type VouSubmitInput = PostJson<(typeof client.vou)[':entity']['submit-new']['$post']>
-type VouReviewInput = PostJson<(typeof client.vou)[':entity']['approve']['$post']>
-type VouStageInput = PostJson<(typeof client.vou)[':entity']['attachment-stage']['$post']>
+type VouSubmitInput = PostJson<
+  (typeof client.vou)[':entity']['submit-new']['$post']
+>
+type VouReviewInput = PostJson<
+  (typeof client.vou)[':entity']['approve']['$post']
+>
+type VouStageInput = PostJson<
+  (typeof client.vou)[':entity']['attachment-stage']['$post']
+>
+type VouDeleteInput = PostJson<
+  (typeof client.vou)[':entity']['delete']['$post']
+>
+type VouReferenceQueryInput = PostJson<
+  (typeof client.vou.reference.query)['$post']
+>
 
 export async function queryTargetVou(csrfToken: string, entity: VouEntity) {
-  return unwrapTarget(await (await client.vou[':entity'].query.$post({ param: { entity }, json: { page: 1, pageSize: 20 } }, csrfHeaders(csrfToken))).json())
+  return unwrapTarget(
+    await (
+      await client.vou[':entity'].query.$post(
+        { param: { entity }, json: { page: 1, pageSize: 20 } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
 }
 
-export async function stageTargetVouAttachment(csrfToken: string, entity: VouEntity, input: VouStageInput) {
-  return unwrapTarget(await (await client.vou[':entity']['attachment-stage'].$post({ param: { entity }, json: input }, csrfHeaders(csrfToken))).json())
+export async function queryTargetVouReference(
+  csrfToken: string,
+  input: VouReferenceQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou.reference.query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
 }
 
-export async function submitTargetVou(csrfToken: string, entity: VouEntity, mode: 'NEW' | 'CHANGE', input: VouSubmitInput) {
-  const endpoint = mode === 'NEW' ? client.vou[':entity']['submit-new'] : client.vou[':entity']['submit-change']
-  return unwrapTarget(await (await endpoint.$post({ param: { entity }, json: input }, csrfHeaders(csrfToken))).json())
+export async function stageTargetVouAttachment(
+  csrfToken: string,
+  entity: VouEntity,
+  input: VouStageInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou[':entity']['attachment-stage'].$post(
+        { param: { entity }, json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
 }
 
-export async function reviewTargetVou(csrfToken: string, entity: VouEntity, action: ApprovalAction, input: VouReviewInput & { reason?: string }) {
+export async function submitTargetVou(
+  csrfToken: string,
+  entity: VouEntity,
+  mode: 'NEW' | 'CHANGE',
+  input: VouSubmitInput,
+) {
+  const endpoint =
+    mode === 'NEW'
+      ? client.vou[':entity']['submit-new']
+      : client.vou[':entity']['submit-change']
+  return unwrapTarget(
+    await (
+      await endpoint.$post(
+        { param: { entity }, json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function reviewTargetVou(
+  csrfToken: string,
+  entity: VouEntity,
+  action: ApprovalAction,
+  input: VouReviewInput & { reason?: string },
+) {
   const endpoint = client.vou[':entity'][action]
-  return unwrapTarget(await (await endpoint.$post({ param: { entity }, json: input } as never, csrfHeaders(csrfToken))).json())
+  return unwrapTarget(
+    await (
+      await endpoint.$post(
+        { param: { entity }, json: input } as never,
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function deleteTargetVou(
+  csrfToken: string,
+  entity: VouEntity,
+  input: VouDeleteInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou[':entity'].delete.$post(
+        {
+          param: { entity },
+          json: input,
+        },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
 }
 
 export async function restoreTargetSession() {
@@ -597,7 +686,13 @@ export type TargetAuxReferenceEntity =
   | 'position'
   | 'settlement-method'
 export type TargetBobReferenceEntity =
-  'operating-entity' | 'employee' | 'other-unit' | 'sales-partner'
+  | 'customer-subunit'
+  | 'employee'
+  | 'other-unit'
+  | 'sales-partner'
+  | 'product'
+  | 'operating-entity'
+  | 'supplier'
 
 export function normalizeTargetBobReferenceCandidate<
   Candidate extends { sourceApprovalEntryId: string },
@@ -671,6 +766,158 @@ export async function getTargetAccMappingCurrent(
         csrfHeaders(csrfToken),
       )
     ).json(),
+  )
+}
+
+// ACC target pages deliberately use the executable Hono client.  The Hono
+// contracts carry `unknown` response payloads, so the target ViewModel owns
+// the small, read-only projections it renders.
+export async function queryTargetAccBooks(csrfToken: string) {
+  return unwrapTarget(
+    await (await client.acc.book.query.$post({ json: {} }, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function createTargetAccBook(csrfToken: string, input: PostJson<(typeof client.acc.book.create)['$post']>) {
+  return unwrapTarget(
+    await (await client.acc.book.create.$post({ json: input }, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function saveTargetAccBook(csrfToken: string, input: PostJson<(typeof client.acc.book.save)['$post']>) {
+  return unwrapTarget(
+    await (await client.acc.book.save.$post({ json: input }, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function deleteTargetAccBook(csrfToken: string, input: PostJson<(typeof client.acc.book.delete)['$post']>) {
+  return unwrapTarget(
+    await (await client.acc.book.delete.$post({ json: input }, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function queryTargetAccSubjects(csrfToken: string, bookId: string) {
+  return unwrapTarget(
+    await (await client.acc.subject.query.$post({ json: { bookId } }, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function createTargetAccSubject(csrfToken: string, input: PostJson<(typeof client.acc.subject.create)['$post']>) {
+  return unwrapTarget(
+    await (await client.acc.subject.create.$post({ json: input }, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function saveTargetAccSubject(csrfToken: string, input: PostJson<(typeof client.acc.subject.save)['$post']>) {
+  return unwrapTarget(
+    await (await client.acc.subject.save.$post({ json: input }, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function deleteTargetAccSubject(csrfToken: string, input: PostJson<(typeof client.acc.subject.delete)['$post']>) {
+  return unwrapTarget(
+    await (await client.acc.subject.delete.$post({ json: input }, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function queryTargetAccOpening(csrfToken: string, bookId: string) {
+  return unwrapTarget(
+    await (await client.acc.opening.query.$post({ json: { bookId } }, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function submitTargetAccOpening(csrfToken: string, input: PostJson<(typeof client.acc.opening['submit-new'])['$post']>) {
+  return unwrapTarget(
+    await (await client.acc.opening['submit-new'].$post({ json: input }, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function reviewTargetAccOpening(csrfToken: string, action: ApprovalAction, input: Record<string, unknown>) {
+  const endpoint = client.acc.opening[action]
+  return unwrapTarget(
+    await (await endpoint.$post({ json: input } as never, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function deleteTargetAccOpening(csrfToken: string, input: PostJson<(typeof client.acc.opening.delete)['$post']>) {
+  return unwrapTarget(
+    await (await client.acc.opening.delete.$post({ json: input }, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function queryTargetAccPeriods(csrfToken: string, bookId: string) {
+  return unwrapTarget(
+    await (await client.acc.period.query.$post({ json: { bookId } }, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function setTargetAccPeriod(csrfToken: string, action: 'lock' | 'unlock', input: Record<string, unknown>) {
+  return unwrapTarget(
+    await (await client.acc.period[action].$post({ json: input } as never, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function queryTargetWflDefinitions(csrfToken: string) {
+  return unwrapTarget(
+    await (await client.dcl['wfl-process-definition'].query.$post({ json: {} }, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function submitTargetWflDefinition(csrfToken: string, mode: 'NEW' | 'CHANGE', input: Record<string, unknown>) {
+  const endpoint = mode === 'NEW'
+    ? client.dcl['wfl-process-definition']['submit-new']
+    : client.dcl['wfl-process-definition']['submit-change']
+  return unwrapTarget(
+    await (await endpoint.$post({ json: input } as never, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function reviewTargetWflDefinition(csrfToken: string, action: ApprovalAction, input: Record<string, unknown>) {
+  const endpoint = client.dcl['wfl-process-definition'][action]
+  return unwrapTarget(
+    await (await endpoint.$post({ json: input } as never, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function setTargetWflDefinitionEnabled(csrfToken: string, action: 'enable' | 'disable', input: Record<string, unknown>) {
+  return unwrapTarget(
+    await (await client.dcl['wfl-process-definition'][action].$post({ json: input } as never, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function trialTargetWflDefinition(csrfToken: string, input: Record<string, unknown>) {
+  return unwrapTarget(
+    await (await client.wfl['process-definition'].trial.$post({ json: input } as never, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function queryTargetWflCurrentDefinitions(csrfToken: string) {
+  return unwrapTarget(
+    await (await client.wfl['process-definition'].query.$post({ json: { page: 1, pageSize: 20 } }, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function getTargetWflCurrentDefinition(csrfToken: string, code: string) {
+  return unwrapTarget(
+    await (await client.wfl['process-definition'].get.$post({ json: { code } }, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function queryTargetWflInstances(csrfToken: string) {
+  return unwrapTarget(
+    await (await client.wfl['process-instance'].query.$post({ json: { page: 1, pageSize: 20 } }, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function getTargetWflInstance(csrfToken: string, processId: string) {
+  return unwrapTarget(
+    await (await client.wfl['process-instance'].get.$post({ json: { processId } }, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function actionTargetWflInstance(csrfToken: string, input: Record<string, unknown>) {
+  return unwrapTarget(
+    await (await client.wfl['process-instance'].action.$post({ json: input } as never, csrfHeaders(csrfToken))).json(),
   )
 }
 

@@ -9,7 +9,7 @@ import { createApp } from '../../src/app.ts'
 import { TargetBootstrapService } from '../../src/app/bootstrap.ts'
 import { ManagementService } from '../../src/app/management.ts'
 import { hashPassword, SessionService } from '../../src/app/session.ts'
-import { AuxService } from '../../src/aux/service.ts'
+import { AuxApplicationError, AuxService } from '../../src/aux/service.ts'
 import { BobService } from '../../src/bob/service.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { loadConfig } from '../../src/platform/config.ts'
@@ -431,6 +431,50 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   assert.deepEqual(blockedDelete.data.blockers, [
     { source: 'dcl_employee_versions', count: 1 },
   ])
+
+  const settlementMethod = {
+    name: `E2E 月结 ${suffix}`,
+    termCode: 'MONTHLY_30',
+    ruleType: 'MONTH_END',
+    monthOffset: 1,
+    dayOfMonth: 0,
+    dayOffset: 0,
+    defaultSalesSurcharge: '0.00',
+    description: '',
+  }
+  const auxService = new AuxService(db)
+  await assert.rejects(
+    () =>
+      auxService.create('settlement-method', settlementMethod, {
+        id: principal.userId,
+        permissions: ['/aux/settlement-method/create'],
+      }),
+    (error) =>
+      error instanceof AuxApplicationError &&
+      error.errorKey === 'validation_failed',
+  )
+  await assert.rejects(
+    () =>
+      auxService.ensureE2ESettlementMethod(settlementMethod, {
+        id: principal.userId,
+        permissions: [],
+      }),
+    (error) =>
+      error instanceof AuxApplicationError && error.errorKey === 'forbidden',
+  )
+  const seededSettlementMethod = await auxService.ensureE2ESettlementMethod(
+    settlementMethod,
+    { id: principal.userId, permissions: [], trusted: true },
+  )
+  createdAuxIds.push(seededSettlementMethod.objectId)
+  const repeatedSettlementMethod = await auxService.ensureE2ESettlementMethod(
+    settlementMethod,
+    { id: principal.userId, permissions: [], trusted: true },
+  )
+  assert.equal(
+    repeatedSettlementMethod.objectId,
+    seededSettlementMethod.objectId,
+  )
 
   const bobQuery = await post('/bob/employee/query', {
     page: 1,

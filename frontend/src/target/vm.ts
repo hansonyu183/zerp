@@ -3,9 +3,15 @@ import {
   approvalActionPresentation,
   projectWarehouseViewState,
   runTargetModelCorpus,
+  createVouDraftPayload as createModelVouDraftPayload,
+  vouEntityInputDescriptors,
+  type ApprovalAction,
   type ApprovalStatus,
   type WarehouseSubmitFacts,
   type VouEntity,
+  type VouPayload,
+  type VouInputFieldDescriptor,
+  type VouReferenceCandidateEntity,
   userCreatableVouEntities,
 } from '@zerp/model'
 
@@ -43,6 +49,33 @@ import {
   stageTargetVouAttachment,
   submitTargetVou,
   queryTargetVou,
+  queryTargetVouReference,
+  reviewTargetVou,
+  deleteTargetVou,
+  actionTargetWflInstance,
+  createTargetAccBook,
+  createTargetAccSubject,
+  deleteTargetAccBook,
+  deleteTargetAccOpening,
+  deleteTargetAccSubject,
+  getTargetWflCurrentDefinition,
+  getTargetWflInstance,
+  queryTargetAccBooks,
+  queryTargetAccOpening,
+  queryTargetAccPeriods,
+  queryTargetAccSubjects,
+  queryTargetWflCurrentDefinitions,
+  queryTargetWflDefinitions,
+  queryTargetWflInstances,
+  reviewTargetAccOpening,
+  reviewTargetWflDefinition,
+  saveTargetAccBook,
+  saveTargetAccSubject,
+  setTargetAccPeriod,
+  setTargetWflDefinitionEnabled,
+  submitTargetAccOpening,
+  submitTargetWflDefinition,
+  trialTargetWflDefinition,
 } from './api.ts'
 import {
   archiveSubmitRequest,
@@ -78,12 +111,226 @@ import {
   WarehouseDraftRepository,
   type WarehouseDraft,
 } from './warehouse-drafts.ts'
-import { VouDraftRepository, type VouDraft } from './vou-drafts.ts'
+import {
+  TargetWorkflowDraftRepository,
+  VouDraftRepository,
+  type OpeningDraft,
+  type VouDraft,
+  type WflDefinitionDraft,
+} from './vou-drafts.ts'
 
 type TargetSession = Awaited<ReturnType<typeof restoreTargetSession>>
 type WarehouseItem = Awaited<
   ReturnType<typeof queryTargetWarehouses>
 >['items'][number]
+
+interface VouSubmissionView {
+  entity: VouEntity
+  documentId: string
+  submissionId: string
+  documentNo: string
+  status: ApprovalStatus
+  revision: string
+  payload: VouPayload
+  availableApprovalActions: ApprovalAction[]
+  canDelete: boolean
+}
+
+interface AccBookView {
+  id: string
+  code: string
+  name: string
+  description: string
+  startMonth: string
+  baseCurrency: string
+  controlBook: boolean
+  revision: string
+}
+
+interface AccSubjectView {
+  id: string
+  bookId: string
+  code: string
+  name: string
+  balanceDirection: 'DEBIT' | 'CREDIT'
+  enabled: boolean
+  parentId: string | null
+  requiredDimensions: string[]
+  inventoryQuantity: boolean
+  settlementPurpose: string
+  revision: string
+}
+
+interface AccOpeningView {
+  bookId: string
+  submissionId: string
+  approval: { status: ApprovalStatus; revision: string }
+  payload: OpeningDraft
+  availableApprovalActions: ApprovalAction[]
+}
+
+interface AccPeriodView {
+  bookId: string
+  month: string
+  locked: boolean
+  revision: string
+}
+
+interface WflDefinitionView {
+  subjectId: string
+  submissionId: string
+  code: string
+  versionNo: number
+  status: ApprovalStatus
+  revision: string
+  script: string
+  compiledGraph: { code: string; name: string }
+  availableApprovalActions: ApprovalAction[]
+  enabled: boolean
+  runtimeRevision: string | null
+}
+
+interface WflCurrentDefinitionView {
+  subjectId: string
+  approvalEntryId: string
+  code: string
+  name: string
+  enabled: boolean
+  compiledGraph: { code: string; name: string }
+}
+
+interface WflInstanceNodeView {
+  nodeId: string
+  nodeKey: string
+  nodeName: string
+  entity: VouEntity | null
+  documentId: string | null
+  submissionId: string | null
+  status: ApprovalStatus | null
+  revision: string | null
+  availableActions: string[]
+}
+
+interface WflInstanceView {
+  processId: string
+  definitionCode: string
+  definitionName: string
+  nodes: WflInstanceNodeView[]
+  availableTargets: Array<{
+    parentNodeId: string
+    targetNodeKey: string
+    targetNodeName: string
+  }>
+}
+
+interface VouInputEntry {
+  field: VouInputFieldDescriptor
+  path: string[]
+  referenceEntity?: VouReferenceCandidateEntity
+  allowedEntities?: readonly VouReferenceCandidateEntity[]
+  referenceKind?: 'object' | 'versioned' | 'snapshot'
+}
+
+interface VouReferenceCandidate {
+  entity: VouReferenceCandidateEntity
+  objectId: string
+  approvalEntryId?: string
+  code: string
+  name: string
+}
+
+
+const targetErrorPresentation: Readonly<Record<string, string>> = {
+  approval_invalid_action: '当前状态不允许此操作。',
+  approval_invalid_actor: '当前用户不能执行此操作。',
+  approval_invalid_transition: '审批状态转换无效。',
+  approval_not_latest_approved: '当前版本不是最新已批准版本。',
+  approval_open_version_exists: '已有开放提交版本。',
+  approval_reason_required: '请填写审批原因。',
+  approval_not_found: '提交件不存在或已被删除。',
+  approval_stale_revision: '提交件已被其他操作更新，请重新加载。',
+  vou_attachment_digest_invalid: '附件内容校验失败，请重新选择文件。',
+  vou_attachment_limit_exceeded: '附件数量超过上限。',
+  vou_attachment_size_invalid: '附件大小不符合要求。',
+  vou_attachment_staging_conflict: '附件暂存与当前草稿不一致，请重新上传。',
+  vou_attachment_staging_invalid: '附件暂存无效，请重新上传。',
+  vou_attachment_type_invalid: '附件类型不受支持。',
+  vou_delete_blocked: '该单据存在下游业务，不能删除。',
+  vou_attachment_not_found: '附件暂存记录不存在，请重新提交。',
+  vou_document_entity_mismatch: '单据类型与已有单据不一致。',
+  vou_idempotency_conflict: '本次提交标识已被用于不同内容，请新建草稿后重试。',
+  vou_document_number_exhausted: '单据编号已用尽。',
+  vou_invalid_payload: '请补全必填引用和明细后再提交。',
+  vou_not_found: '单据不存在或已被删除。',
+  vou_parent_invalid: '来源单据无效。',
+  vou_period_locked: '业务期间已锁定。',
+  vou_reference_unavailable: '引用已失效或不再是当前有效版本。',
+  vou_stale_revision: '草稿基于过期版本，请重新加载。',
+  vou_submission_exists: '该单据已有开放提交件。',
+  vou_submit_mode_mismatch: '当前草稿提交方式无效。',
+  vou_trusted_actor_required: '系统生成单据不能从浏览器新建。',
+  acc_amount_invalid: '金额格式或金额方向无效。',
+  acc_book_access_denied: '当前用户无权访问该账簿。',
+  acc_book_code_exhausted: '账簿编码已用尽。',
+  acc_book_delete_blocked: '账簿存在关联业务，不能删除。',
+  acc_control_book_delete_forbidden: '控制账簿不能删除。',
+  acc_inventory_dimension_required: '库存核算缺少必填辅助核算。',
+  acc_inventory_quantity_required: '库存核算缺少数量。',
+  acc_mapping_collection_invalid: '记账映射集合无效。',
+  acc_mapping_currency_invalid: '记账映射币种无效。',
+  acc_mapping_dimension_required: '记账映射缺少辅助核算。',
+  acc_mapping_multi_currency_unsupported: '记账映射不支持多币种。',
+  acc_mapping_not_found: '记账映射不存在。',
+  acc_mapping_rule_conflict: '记账映射规则冲突。',
+  acc_mapping_template_not_found: '记账映射模板不存在。',
+  acc_book_not_found: '会计账簿不存在。',
+  acc_opening_delete_blocked: '期初提交件不能删除。',
+  acc_opening_dimension_required: '期初明细缺少必填辅助核算。',
+  acc_opening_empty: '期初至少需要一条明细。',
+  acc_opening_register_id_required: '期初登记对象缺少标识。',
+  acc_opening_register_invalid: '期初登记对象无效。',
+  acc_opening_subject_invalid: '期初明细的会计科目无效。',
+  acc_opening_unapprove_blocked: '期初已被后续业务使用，不能反批准。',
+  acc_opening_unbalanced: '期初借贷金额不平衡。',
+  acc_period_already_locked: '会计期间已经锁定。',
+  acc_period_before_book_start: '会计期间早于账簿启用期间。',
+  acc_period_mapping_missing: '会计期间缺少记账映射。',
+  acc_period_negative_inventory: '会计期间出现负库存。',
+  acc_period_not_continuous: '会计期间必须连续锁定。',
+  acc_period_not_ended: '会计期间尚未结束。',
+  acc_period_not_locked: '会计期间尚未锁定。',
+  acc_period_open_vou: '期间仍有未完成单据。',
+  acc_period_opening_not_approved: '期初尚未批准，不能锁定期间。',
+  acc_period_unbalanced: '会计期间借贷不平衡。',
+  acc_period_unlock_not_latest: '只能解锁最近锁定的会计期间。',
+  acc_subject_frozen: '会计科目已停用。',
+  acc_subject_delete_blocked: '会计科目存在关联业务，不能删除。',
+  acc_subject_not_found: '会计科目不存在。',
+  acc_subject_parent_invalid: '会计科目父级无效。',
+  acc_posting_subject_invalid: '记账科目无效。',
+  acc_posting_unbalanced: '记账借贷不平衡。',
+  wfl_action_conflict: '该流程动作已使用不同请求标识执行。',
+  wfl_action_unavailable: '当前流程节点不允许此动作。',
+  wfl_child_target_unavailable: '当前流程节点没有可创建的目标。',
+  wfl_compile_failed: '流程脚本无法编译。',
+  wfl_definition_code_conflict: '流程定义编码已存在。',
+  wfl_definition_in_use: '流程定义正在被实例使用。',
+  wfl_definition_not_found: '流程定义不存在。',
+  wfl_downstream_blocker: '流程存在下游单据，不能执行该操作。',
+  wfl_instance_not_found: '流程实例不存在。',
+  wfl_multiple_definitions_match: '存在多个匹配的启用流程定义。',
+  wfl_node_not_found: '流程节点不存在。',
+  wfl_request_key_consumed: '该请求标识已经使用。',
+  wfl_request_key_invalid: '请求标识格式无效。',
+  wfl_resource_limit: '流程定义超过资源限制。',
+  wfl_runtime_failed: '流程脚本执行失败。',
+  wfl_script_too_large: '流程脚本超过长度限制。',
+  wfl_trial_document_not_found: '试运行单据不存在。',
+  wfl_trial_entity_mismatch: '试运行单据类型不匹配。',
+  wfl_trial_failed: '流程试运行未通过。',
+  wfl_trial_required: '请先完成流程试运行。',
+  wfl_vou_port_invalid_result: '流程单据协作返回无效结果。',
+}
 
 export function useTargetProbe() {
   const username = ref('')
@@ -99,7 +346,12 @@ export function useTargetProbe() {
   const archiveEntity = ref<TargetArchiveEntity>(archiveEntityFromLocation())
   const vouEntity = ref<VouEntity | null>(vouEntityFromLocation())
   const vouDrafts = ref<VouDraft[]>([])
-  const vouSubmissions = ref<unknown[]>([])
+  const vouSubmissions = ref<VouSubmissionView[]>([])
+  const vouReasons = ref<Record<string, string>>({})
+  const vouAttachmentCounts = ref<Record<string, number>>({})
+  const vouReferenceCandidates = ref<
+    Partial<Record<VouReferenceCandidateEntity, VouReferenceCandidate[]>>
+  >({})
   const archiveDrafts = ref<AnyArchiveDraft[]>([])
   const archiveSubmissions = ref<ArchiveSubmissionListView[]>([])
   const archiveQueryKeyword = ref('')
@@ -139,11 +391,77 @@ export function useTargetProbe() {
   > | null>(null)
   const accBookId = ref('')
   const accVouEntity = ref('')
+  const targetPath = window.location.pathname
+  const accBookPage = ref(targetPath === '/acc/book')
+  const accSubjectPage = ref(targetPath === '/acc/subject')
+  const accOpeningPage = ref(targetPath === '/acc/opening')
+  const accPeriodPage = ref(targetPath === '/acc/period')
+  const wflDefinitionPage = ref(targetPath === '/dcl/wfl-process-definition')
+  const wflCurrentPage = ref(targetPath === '/wfl/process-definition')
+  const wflInstancePage = ref(targetPath === '/wfl/process-instance')
+  const accBooks = ref<AccBookView[]>([])
+  const accSubjects = ref<AccSubjectView[]>([])
+  const openingDrafts = ref<OpeningDraft[]>([])
+  const accOpening = ref<AccOpeningView | null>(null)
+  const accPeriods = ref<AccPeriodView[]>([])
+  const accPeriodMonth = ref('')
+  const accReason = ref('')
+  const wflDrafts = ref<WflDefinitionDraft[]>([])
+  const wflDefinitions = ref<WflDefinitionView[]>([])
+  const wflCurrentDefinitions = ref<WflCurrentDefinitionView[]>([])
+  const wflCurrentDefinition = ref<WflCurrentDefinitionView | null>(null)
+  const wflInstances = ref<WflInstanceView[]>([])
+  const wflInstance = ref<WflInstanceView | null>(null)
+  const wflReasons = ref<Record<string, string>>({})
+  const wflRequestKeys = ref<Record<string, string>>({})
   const canQueryAccMapping = computed(() =>
     permissions.value.includes('/acc/mapping/query'),
   )
   const canGetAccMapping = computed(() =>
     permissions.value.includes('/acc/mapping/get'),
+  )
+  const canQueryAccBooks = computed(() =>
+    permissions.value.includes('/acc/book/query'),
+  )
+  const canCreateAccBook = computed(() =>
+    ['/acc/book/query', '/acc/book/create'].every((permission) =>
+      permissions.value.includes(permission),
+    ),
+  )
+  const canCreateAccSubject = computed(() =>
+    !!accBookId.value &&
+    ['/acc/book/query', '/acc/subject/query', '/acc/subject/create'].every(
+      (permission) => permissions.value.includes(permission),
+    ),
+  )
+  const canCreateOpeningDraft = computed(() =>
+    !!accBookId.value &&
+    [
+      '/acc/book/query',
+      '/acc/subject/query',
+      '/acc/opening/query',
+      '/acc/opening/submit-new',
+    ].every((permission) => permissions.value.includes(permission)),
+  )
+  const canQueryWflDefinitions = computed(() =>
+    permissions.value.includes('/dcl/wfl-process-definition/query'),
+  )
+  const canCreateWflDefinitionDraft = computed(() =>
+    [
+      '/dcl/wfl-process-definition/query',
+      '/dcl/wfl-process-definition/submit-new',
+      '/wfl/process-definition/trial',
+    ].every((permission) => permissions.value.includes(permission)),
+  )
+  const canCreateVouDraft = computed(
+    () =>
+      !!vouEntity.value &&
+      userCreatableVouEntities.includes(vouEntity.value as never) &&
+      [
+        `/vou/${vouEntity.value}/submit-new`,
+        `/vou/${vouEntity.value}/query`,
+        ...vouReferencePermissions(vouEntity.value),
+      ].every((permission) => permissions.value.includes(permission)),
   )
   const archiveApproved = computed(() =>
     latestApproved(archiveSubmissions.value),
@@ -153,6 +471,9 @@ export function useTargetProbe() {
       (submission) =>
         submission.status === 'PENDING' || submission.status === 'REJECTED',
     ),
+  )
+  const canSubmitWflDefinitionDraft = computed(
+    () => permissions.value.includes('/dcl/wfl-process-definition/submit-new'),
   )
   const reason = ref('')
   const signedIn = computed(() => csrfToken.value.length > 0)
@@ -165,6 +486,9 @@ export function useTargetProbe() {
   const draftsRepository = new WarehouseDraftRepository()
   const archiveDraftRepository = new TargetDraftRepository()
   const vouDraftRepository = new VouDraftRepository(archiveDraftRepository)
+  const workflowDraftRepository = new TargetWorkflowDraftRepository(
+    archiveDraftRepository,
+  )
   const modelCorpusResult = JSON.stringify(runTargetModelCorpus())
 
   async function applySession(session: TargetSession) {
@@ -176,8 +500,29 @@ export function useTargetProbe() {
       await loadAccMappingCatalog()
       return
     }
+    if (accBookPage.value || accSubjectPage.value || accOpeningPage.value || accPeriodPage.value) {
+      await loadAccBooks()
+      if (accBookId.value) await loadAccBookDetail()
+      return
+    }
+    if (wflDefinitionPage.value) {
+      await Promise.all([loadWflDrafts(), loadWflDefinitions()])
+      return
+    }
+    if (wflCurrentPage.value) {
+      await loadWflCurrentDefinitions()
+      return
+    }
+    if (wflInstancePage.value) {
+      await loadWflInstances()
+      return
+    }
     if (vouEntity.value) {
-      await Promise.all([loadVouDrafts(), loadVouSubmissions()])
+      await Promise.all([
+        loadVouDrafts(),
+        loadVouSubmissions(),
+        loadVouReferenceCandidates(vouEntity.value),
+      ])
       return
     }
     await Promise.all([
@@ -223,23 +568,83 @@ export function useTargetProbe() {
 
   async function loadVouDrafts() {
     if (!currentUser.value || !vouEntity.value) return
-    vouDrafts.value = await vouDraftRepository.list(currentUser.value.id, vouEntity.value)
+    vouDrafts.value = await vouDraftRepository.list(
+      currentUser.value.id,
+      vouEntity.value,
+    )
+    const counts = await Promise.all(
+      vouDrafts.value.map(
+        async (draft) =>
+          [
+            draft.draftId,
+            (await vouDraftRepository.attachments(draft)).length,
+          ] as const,
+      ),
+    )
+    vouAttachmentCounts.value = Object.fromEntries(counts)
   }
 
   async function loadVouSubmissions() {
-    if (!vouEntity.value || !permissions.value.includes(`/vou/${vouEntity.value}/query`)) return
+    if (
+      !vouEntity.value ||
+      !permissions.value.includes(`/vou/${vouEntity.value}/query`)
+    )
+      return
     try {
-      const result = await queryTargetVou(csrfToken.value, vouEntity.value)
-      vouSubmissions.value = Array.isArray(result) ? result : []
-    } catch (error) { setError(error, '单据查询失败。') }
+      const result: unknown = await queryTargetVou(
+        csrfToken.value,
+        vouEntity.value,
+      )
+      vouSubmissions.value = Array.isArray(result)
+        ? result.filter(isVouSubmissionView)
+        : []
+    } catch (error) {
+      setError(error, '单据查询失败。')
+    }
+  }
+
+  async function loadVouReferenceCandidates(entity: VouEntity) {
+    const entities = vouCandidateEntities(entity)
+    const candidates: Partial<
+      Record<VouReferenceCandidateEntity, VouReferenceCandidate[]>
+    > = {}
+    try {
+      const results = await Promise.all(
+        entities.map(async (candidate) => {
+          const page: unknown = await queryTargetVouReference(
+            csrfToken.value,
+            {
+            entity: candidate,
+            },
+          )
+          return [candidate, page] as const
+        }),
+      )
+      for (const [entityName, page] of results)
+        candidates[entityName] = isRecord(page) && Array.isArray(page.items)
+          ? page.items.flatMap((row) => referenceCandidate(entityName, row))
+          : []
+      vouReferenceCandidates.value = candidates
+    } catch (error) {
+      setError(error, '引用候选查询失败。')
+    }
   }
 
   async function newVouDraft() {
-    if (!currentUser.value || !vouEntity.value || !userCreatableVouEntities.includes(vouEntity.value as never)) return
+    if (!currentUser.value || !vouEntity.value || !canCreateVouDraft.value) {
+      message.value = '无权新建并完成该单据的提交闭环。'
+      return
+    }
+    await loadVouReferenceCandidates(vouEntity.value)
     const draft: VouDraft = {
-      entity: vouEntity.value, draftId: createTargetId(), ownerUserId: currentUser.value.id,
-      updatedAt: new Date().toISOString(), documentId: createTargetId(), submissionId: createTargetId(), stableRevision: null,
-      payload: { businessDate: new Date().toISOString().slice(0, 10), currency: 'CNY', amount: '0.00', lines: [] },
+      entity: vouEntity.value,
+      draftId: createTargetId(),
+      ownerUserId: currentUser.value.id,
+      updatedAt: new Date().toISOString(),
+      documentId: createTargetId(),
+      submissionId: createTargetId(),
+      stableRevision: null,
+      payload: createVouDraftPayload(vouEntity.value),
     }
     await vouDraftRepository.save(draft)
     await loadVouDrafts()
@@ -254,11 +659,22 @@ export function useTargetProbe() {
   async function addVouAttachment(draft: VouDraft, event: Event) {
     const file = (event.target as HTMLInputElement).files?.[0]
     if (!file) return
-    if (!['application/pdf', 'image/jpeg', 'image/png'].includes(file.type)) { message.value = '附件仅支持 PDF、JPEG 或 PNG。'; return }
+    if (!['application/pdf', 'image/jpeg', 'image/png'].includes(file.type)) {
+      message.value = '附件仅支持 PDF、JPEG 或 PNG。'
+      return
+    }
     await vouDraftRepository.saveAttachment(draft, {
-      attachmentId: createTargetId(), fileName: file.name, mimeType: file.type,
-      size: file.size, digest: await sha256(file), blob: file,
+      attachmentId: createTargetId(),
+      fileName: file.name,
+      mimeType: file.type,
+      size: file.size,
+      digest: await sha256(file),
+      blob: file,
     })
+    vouAttachmentCounts.value = {
+      ...vouAttachmentCounts.value,
+      [draft.draftId]: (vouAttachmentCounts.value[draft.draftId] ?? 0) + 1,
+    }
     message.value = '附件已保存在本机草稿。'
   }
 
@@ -267,23 +683,957 @@ export function useTargetProbe() {
       const attachments = await vouDraftRepository.attachments(draft)
       for (const attachment of attachments)
         await stageTargetVouAttachment(csrfToken.value, draft.entity, {
-          stagingId: attachment.attachmentId, fileId: attachment.attachmentId,
-          fileName: attachment.fileName, mimeType: attachment.mimeType as 'application/pdf' | 'image/jpeg' | 'image/png',
-          size: attachment.size, digest: attachment.digest, contentBase64: await blobBase64(attachment.blob),
+          stagingId: attachment.attachmentId,
+          fileId: attachment.attachmentId,
+          fileName: attachment.fileName,
+          mimeType: attachment.mimeType as
+            'application/pdf' | 'image/jpeg' | 'image/png',
+          size: attachment.size,
+          digest: attachment.digest,
+          contentBase64: await blobBase64(attachment.blob),
         })
-      await submitTargetVou(csrfToken.value, draft.entity, draft.stableRevision ? 'CHANGE' : 'NEW', {
-        documentId: draft.documentId, submissionId: draft.submissionId, idempotencyKey: draft.submissionId,
-        expectedRevision: draft.stableRevision,
-        payload: { ...draft.payload, attachments: attachments.map((attachment) => ({
-          id: attachment.attachmentId, fileName: attachment.fileName,
-          contentType: attachment.mimeType as 'application/pdf' | 'image/jpeg' | 'image/png', sizeBytes: attachment.size,
-          sha256: attachment.digest, stagingId: attachment.attachmentId,
-        })) },
-      })
+      await submitTargetVou(
+        csrfToken.value,
+        draft.entity,
+        draft.stableRevision ? 'CHANGE' : 'NEW',
+        {
+          documentId: draft.documentId,
+          submissionId: draft.submissionId,
+          idempotencyKey: draft.submissionId,
+          expectedRevision: draft.stableRevision,
+          payload: {
+            ...compactVouDraftPayload(draft.entity, draft.payload),
+            attachments: attachments.map((attachment) => ({
+              id: attachment.attachmentId,
+              fileName: attachment.fileName,
+              contentType: attachment.mimeType as
+                'application/pdf' | 'image/jpeg' | 'image/png',
+              sizeBytes: attachment.size,
+              sha256: attachment.digest,
+              stagingId: attachment.attachmentId,
+            })),
+          },
+        },
+      )
       await vouDraftRepository.delete(draft)
       await Promise.all([loadVouDrafts(), loadVouSubmissions()])
       message.value = '单据已提交；本地草稿已删除。'
-    } catch (error) { setError(error, '单据提交失败；本地草稿和附件仍保留。') }
+    } catch (error) {
+      setError(error, '单据提交失败；本地草稿和附件仍保留。')
+    }
+  }
+
+  function vouInputs(draft: VouDraft): VouInputEntry[] {
+    const entries: VouInputEntry[] = []
+    const visit = (
+      fields: readonly VouInputFieldDescriptor[],
+      parent: string[] = [],
+      referenceEntity?: VouReferenceCandidateEntity,
+      allowedEntities?: readonly VouReferenceCandidateEntity[],
+      referenceKind?: 'object' | 'versioned' | 'snapshot',
+    ) => {
+      for (const field of fields) {
+        const path = [...parent, field.key]
+        if (field.key === 'attachments') continue
+        if (field.kind === 'object' && field.fields?.length) {
+          visit(
+            field.fields,
+            path,
+            field.referenceEntity,
+            field.allowedEntities,
+            field.fields.some((child) => child.key === 'selectionOrigin')
+              ? 'versioned'
+              : field.fields.some((child) => child.key === 'entity')
+                ? 'snapshot'
+                : 'object',
+          )
+          continue
+        }
+        if (field.kind === 'array' && field.item?.length) {
+          const rows = valueAt(
+            draft.payload as Record<string, unknown>,
+            path,
+          )
+          if (!Array.isArray(rows)) continue
+          for (let index = 0; index < rows.length; index++) {
+            const row = rows[index]
+            const variant = field.variants?.find((candidate) =>
+              isRecord(row) &&
+              Object.entries(candidate.discriminators).every(
+                ([key, value]) => row[key] === value,
+              ),
+            )
+            visit(variant?.fields ?? field.item, [...path, String(index)])
+          }
+          continue
+        }
+        entries.push({
+          field,
+          path,
+          referenceEntity: field.referenceEntity ?? referenceEntity,
+          allowedEntities: field.allowedEntities ?? allowedEntities,
+          referenceKind,
+        })
+      }
+    }
+    visit(vouEntityInputDescriptors[draft.entity])
+    return entries
+  }
+
+  function vouArrayInputs(draft: VouDraft): VouInputEntry[] {
+    return vouEntityInputDescriptors[draft.entity]
+      .filter((field) => field.key !== 'attachments' && field.kind === 'array')
+      .map((field) => ({ field, path: [field.key] }))
+  }
+
+  function vouInputTestId(entry: VouInputEntry) {
+    return `vou-field-${entry.path.join('-')}`
+  }
+
+  function vouInputLabel(entry: VouInputEntry) {
+    return `${entry.path.join(' · ')}${entry.referenceEntity ? `（${entry.referenceEntity}）` : ''}`
+  }
+
+  function vouInputCandidates(entry: VouInputEntry) {
+    const entities = entry.referenceEntity
+      ? [entry.referenceEntity]
+      : entry.allowedEntities ?? []
+    return entities.flatMap(
+      (entity) => vouReferenceCandidates.value[entity] ?? [],
+    )
+  }
+
+  function selectVouInputCandidate(
+    draft: VouDraft,
+    entry: VouInputEntry,
+    event: Event,
+  ) {
+    const candidate = vouInputCandidates(entry).find(
+      (item) => item.objectId === (event.target as HTMLSelectElement).value,
+    )
+    if (!candidate) return
+    const payload = draft.payload as Record<string, unknown>
+    const leaf = entry.path.at(-1)
+    if (leaf === 'assetId' || leaf === 'billId') {
+      setValueAt(payload, entry.path, candidate.objectId)
+      return
+    }
+    const parent = entry.path.slice(0, -1)
+    setValueAt(payload, [...parent, 'objectId'], candidate.objectId)
+    if (
+      entry.referenceKind === 'snapshot'
+    ) {
+      if (candidate.approvalEntryId)
+        setValueAt(payload, [...parent, 'approvalEntryId'], candidate.approvalEntryId)
+      setValueAt(payload, [...parent, 'entity'], candidate.entity)
+      setValueAt(payload, [...parent, 'code'], candidate.code)
+      setValueAt(payload, [...parent, 'name'], candidate.name)
+      return
+    }
+    if (entry.referenceKind === 'versioned' && candidate.approvalEntryId) {
+      setValueAt(payload, [...parent, 'approvalEntryId'], candidate.approvalEntryId)
+      setValueAt(payload, [...parent, 'selectionOrigin'], 'CURRENT')
+    }
+  }
+
+  function valueAt(object: Record<string, unknown>, path: readonly string[]) {
+    let current: unknown = object
+    for (const segment of path) {
+      if (Array.isArray(current)) current = current[Number(segment)]
+      else if (isRecord(current)) current = current[segment]
+      else return undefined
+    }
+    return current
+  }
+
+  function setValueAt(
+    object: Record<string, unknown>,
+    path: readonly string[],
+    value: unknown,
+  ) {
+    let current: Record<string, unknown> | unknown[] = object
+    for (const [index, segment] of path.entries()) {
+      const last = index === path.length - 1
+      const nextIsArray = /^\d+$/.test(path[index + 1] ?? '')
+      if (Array.isArray(current)) {
+        const key = Number(segment)
+        if (last) current[key] = value
+        else {
+          current[key] ??= nextIsArray ? [] : {}
+          current = current[key] as Record<string, unknown> | unknown[]
+        }
+        continue
+      }
+      if (last) current[segment] = value
+      else {
+        current[segment] ??= nextIsArray ? [] : {}
+        current = current[segment] as Record<string, unknown> | unknown[]
+      }
+    }
+  }
+
+  function emptyVouInput(field: VouInputFieldDescriptor): unknown {
+    switch (field.kind) {
+      case 'decimal':
+        return '0.00'
+      case 'integer':
+        return 0
+      case 'date':
+        return '2026-01-01'
+      case 'boolean':
+        return false
+      case 'enum':
+        return field.enumValues?.[0] ?? ''
+      case 'object':
+        return Object.fromEntries(
+          (field.fields ?? []).map((child) => [child.key, emptyVouInput(child)]),
+        )
+      case 'array':
+        return []
+      default:
+        return ''
+    }
+  }
+
+  function vouInputValue(draft: VouDraft, entry: VouInputEntry) {
+    const value = valueAt(draft.payload as Record<string, unknown>, entry.path)
+    const { field } = entry
+    if (field.kind === 'boolean') return value === true ? 'true' : 'false'
+    return String(value ?? '')
+  }
+
+  function updateVouInput(
+    draft: VouDraft,
+    entry: VouInputEntry,
+    event: Event,
+  ) {
+    const raw = (event.target as HTMLInputElement).value
+    const payload = draft.payload as Record<string, unknown>
+    const { field } = entry
+    if (field.kind === 'boolean') setValueAt(payload, entry.path, raw === 'true')
+    else if (field.kind === 'integer') setValueAt(payload, entry.path, Number(raw))
+    else if (field.kind === 'array')
+      setValueAt(
+        payload,
+        entry.path,
+        raw
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean),
+      )
+    else setValueAt(payload, entry.path, raw)
+  }
+
+  function appendVouArrayItem(draft: VouDraft, entry: VouInputEntry) {
+    const payload = draft.payload as Record<string, unknown>
+    let existing = valueAt(payload, entry.path)
+    if (existing === undefined) {
+      setValueAt(payload, entry.path, [])
+      existing = valueAt(payload, entry.path)
+    }
+    if (!Array.isArray(existing)) return
+    existing.push(
+      Object.fromEntries(
+        (entry.field.variants?.[0]?.fields ?? entry.field.item ?? []).map(
+          (child) => [child.key, emptyVouInput(child)],
+        ),
+      ),
+    )
+  }
+
+  function selectVouArrayVariant(
+    draft: VouDraft,
+    entry: VouInputEntry,
+    event: Event,
+  ) {
+    const variant = entry.field.variants?.find(
+      (candidate) => candidate.id === (event.target as HTMLSelectElement).value,
+    )
+    const rows = valueAt(
+      draft.payload as Record<string, unknown>,
+      entry.path,
+    )
+    if (!variant || !Array.isArray(rows) || rows.length === 0) return
+    rows[0] = Object.fromEntries(
+      variant.fields.map((field) => [field.key, emptyVouInput(field)]),
+    )
+  }
+
+  function vouAttachmentCount(draft: VouDraft) {
+    return vouAttachmentCounts.value[draft.draftId] ?? 0
+  }
+
+  function canReviewVou(submission: VouSubmissionView, action: ApprovalAction) {
+    return submission.availableApprovalActions.includes(action)
+  }
+
+  async function reviewVou(
+    submission: VouSubmissionView,
+    action: ApprovalAction,
+  ) {
+    const reason = vouReasons.value[submission.submissionId]?.trim() ?? ''
+    if ((action === 'reject' || action === 'unapprove') && !reason) {
+      message.value = '请填写审批原因。'
+      return
+    }
+    try {
+      await reviewTargetVou(csrfToken.value, submission.entity, action, {
+        documentId: submission.documentId,
+        submissionId: submission.submissionId,
+        expectedRevision: submission.revision,
+        ...((action === 'reject' || action === 'unapprove') && { reason }),
+      } as never)
+      delete vouReasons.value[submission.submissionId]
+      await loadVouSubmissions()
+      message.value = `单据已${approvalActionPresentation[action].label}。`
+    } catch (error) {
+      setError(error, '审批操作失败。')
+      await loadVouSubmissions()
+    }
+  }
+
+  async function deleteVou(submission: VouSubmissionView) {
+    if (!submission.canDelete) {
+      message.value = '无权删除该开放提交件。'
+      return
+    }
+    try {
+      await deleteTargetVou(csrfToken.value, submission.entity, {
+        documentId: submission.documentId,
+        submissionId: submission.submissionId,
+        expectedRevision: submission.revision,
+      })
+      await loadVouSubmissions()
+      message.value = '开放提交件已删除。'
+    } catch (error) {
+      setError(error, '删除提交件失败。')
+      await loadVouSubmissions()
+    }
+  }
+
+  async function cloneVouSubmission(submission: VouSubmissionView) {
+    if (
+      !currentUser.value ||
+      !permissions.value.includes(`/vou/${submission.entity}/submit-change`)
+    ) {
+      message.value = '无权创建改单草稿。'
+      return
+    }
+    const { attachments: _attachments, ...payload } = submission.payload
+    const draft: VouDraft = {
+      entity: submission.entity,
+      draftId: createTargetId(),
+      ownerUserId: currentUser.value.id,
+      updatedAt: new Date().toISOString(),
+      documentId: submission.documentId,
+      submissionId: createTargetId(),
+      stableRevision: submission.revision,
+      payload: structuredClone(payload),
+    }
+    await vouDraftRepository.save(draft)
+    await loadVouDrafts()
+    message.value = '已复制为本机改单草稿。'
+  }
+
+  async function loadAccBooks() {
+    if (!canQueryAccBooks.value) return
+    try {
+      const result: unknown = await queryTargetAccBooks(csrfToken.value)
+      accBooks.value = Array.isArray(result)
+        ? result.filter(isAccBookView)
+        : []
+      if (!accBookId.value && accBooks.value[0])
+        accBookId.value = accBooks.value[0].id
+    } catch (error) {
+      setError(error, '会计账簿查询失败。')
+    }
+  }
+
+  async function createAccBook() {
+    if (!canCreateAccBook.value) return
+    const id = createTargetId()
+    try {
+      await createTargetAccBook(csrfToken.value, {
+        id,
+        name: '本地新账簿',
+        description: '',
+        startMonth: previousMonthText(),
+        baseCurrency: 'CNY',
+      })
+      await loadAccBooks()
+      accBookId.value = id
+      message.value = '会计账簿已创建。'
+    } catch (error) {
+      setError(error, '会计账簿创建失败。')
+    }
+  }
+
+  async function saveAccBook(book: AccBookView) {
+    if (!permissions.value.includes('/acc/book/save')) return
+    try {
+      await saveTargetAccBook(csrfToken.value, {
+        id: book.id,
+        expectedRevision: book.revision,
+        name: book.name,
+        description: book.description,
+        baseCurrency: book.baseCurrency,
+      })
+      await loadAccBooks()
+      message.value = '会计账簿已保存。'
+    } catch (error) {
+      setError(error, '会计账簿保存失败。')
+      await loadAccBooks()
+    }
+  }
+
+  async function deleteAccBook(book: AccBookView) {
+    if (!permissions.value.includes('/acc/book/delete')) return
+    try {
+      await deleteTargetAccBook(csrfToken.value, {
+        id: book.id,
+        expectedRevision: book.revision,
+      })
+      if (accBookId.value === book.id) accBookId.value = ''
+      await loadAccBooks()
+      message.value = '会计账簿已删除。'
+    } catch (error) {
+      setError(error, '会计账簿删除失败。')
+      await loadAccBooks()
+    }
+  }
+
+  async function loadAccBookDetail() {
+    if (!accBookId.value) return
+    await Promise.all([
+      loadAccSubjects(),
+      loadOpeningDrafts(),
+      loadAccOpening(),
+      loadAccPeriods(),
+    ])
+  }
+
+  async function selectAccBook(bookId: string) {
+    accBookId.value = bookId
+    await loadAccBookDetail()
+  }
+
+  async function loadAccSubjects() {
+    if (!accBookId.value || !permissions.value.includes('/acc/subject/query')) return
+    try {
+      const result: unknown = await queryTargetAccSubjects(csrfToken.value, accBookId.value)
+      accSubjects.value = Array.isArray(result)
+        ? result.filter(isAccSubjectView)
+        : []
+    } catch (error) {
+      setError(error, '会计科目查询失败。')
+    }
+  }
+
+  async function createAccSubject(direction: 'DEBIT' | 'CREDIT') {
+    if (!canCreateAccSubject.value) return
+    try {
+      await createTargetAccSubject(csrfToken.value, {
+        id: createTargetId(),
+        bookId: accBookId.value,
+        code: direction === 'DEBIT' ? `100${accSubjects.value.length}` : `400${accSubjects.value.length}`,
+        name: direction === 'DEBIT' ? '本地借方科目' : '本地贷方科目',
+        parentId: null,
+        balanceDirection: direction,
+        enabled: true,
+        requiredDimensions: [],
+        inventoryQuantity: false,
+        settlementPurpose: 'NONE',
+      })
+      await loadAccSubjects()
+      message.value = '会计科目已创建。'
+    } catch (error) {
+      setError(error, '会计科目创建失败。')
+    }
+  }
+
+  async function saveAccSubject(subject: AccSubjectView) {
+    if (!permissions.value.includes('/acc/subject/save')) return
+    try {
+      await saveTargetAccSubject(csrfToken.value, {
+        id: subject.id,
+        bookId: subject.bookId,
+        expectedRevision: subject.revision,
+        code: subject.code,
+        name: subject.name,
+        parentId: subject.parentId,
+        balanceDirection: subject.balanceDirection,
+        enabled: subject.enabled,
+        requiredDimensions: subject.requiredDimensions as never,
+        inventoryQuantity: subject.inventoryQuantity,
+        settlementPurpose: subject.settlementPurpose,
+      })
+      await loadAccSubjects()
+      message.value = '会计科目已保存。'
+    } catch (error) {
+      setError(error, '会计科目保存失败。')
+      await loadAccSubjects()
+    }
+  }
+
+  async function deleteAccSubject(subject: AccSubjectView) {
+    if (!permissions.value.includes('/acc/subject/delete')) return
+    try {
+      await deleteTargetAccSubject(csrfToken.value, {
+        id: subject.id,
+        expectedRevision: subject.revision,
+      })
+      await loadAccSubjects()
+      message.value = '会计科目已删除。'
+    } catch (error) {
+      setError(error, '会计科目删除失败。')
+      await loadAccSubjects()
+    }
+  }
+
+  async function loadOpeningDrafts() {
+    if (!currentUser.value || !accBookId.value) return
+    openingDrafts.value = await workflowDraftRepository.listOpenings(
+      currentUser.value.id,
+      accBookId.value,
+    )
+  }
+
+  async function newOpeningDraft() {
+    if (!currentUser.value || !canCreateOpeningDraft.value) return
+    const debit = accSubjects.value.find((subject) => subject.balanceDirection === 'DEBIT')
+    const credit = accSubjects.value.find((subject) => subject.balanceDirection === 'CREDIT')
+    const draft: OpeningDraft = {
+      entity: 'acc-opening',
+      draftId: createTargetId(),
+      ownerUserId: currentUser.value.id,
+      updatedAt: new Date().toISOString(),
+      bookId: accBookId.value,
+      submissionId: createTargetId(),
+      lines: [
+        ...(debit ? [{ subjectId: debit.id, currency: 'CNY', direction: 'DEBIT' as const, amount: '100.00', dimensions: {} }] : []),
+        ...(credit ? [{ subjectId: credit.id, currency: 'CNY', direction: 'CREDIT' as const, amount: '100.00', dimensions: {} }] : []),
+      ],
+      assets: [],
+      bills: [],
+      containers: [],
+    }
+    await workflowDraftRepository.save(draft)
+    await loadOpeningDrafts()
+    message.value = '期初草稿已保存在本机。'
+  }
+
+  async function saveOpeningDraft(draft: OpeningDraft) {
+    draft.updatedAt = new Date().toISOString()
+    await workflowDraftRepository.save(draft)
+    message.value = '期初草稿已保存到本机。'
+  }
+
+  function addOpeningLine(draft: OpeningDraft) {
+    const subject = accSubjects.value[0]
+    if (!subject) return
+    draft.lines.push({
+      subjectId: subject.id,
+      currency: 'CNY',
+      direction: subject.balanceDirection,
+      amount: '0.00',
+      dimensions: {},
+    })
+    void saveOpeningDraft(draft)
+  }
+
+  function deleteOpeningLine(draft: OpeningDraft, index: number) {
+    draft.lines.splice(index, 1)
+    void saveOpeningDraft(draft)
+  }
+
+  function openingCollectionJson(
+    draft: OpeningDraft,
+    collection: 'assets' | 'bills' | 'containers',
+  ) {
+    return JSON.stringify(draft[collection], null, 2)
+  }
+
+  async function updateOpeningCollection(
+    draft: OpeningDraft,
+    collection: 'assets' | 'bills' | 'containers',
+    event: Event,
+  ) {
+    try {
+      const parsed: unknown = JSON.parse(
+        (event.target as HTMLTextAreaElement).value,
+      )
+      if (!Array.isArray(parsed)) throw new Error('opening_collection_not_array')
+      draft[collection] = parsed
+      await saveOpeningDraft(draft)
+    } catch {
+      message.value = '登记内容必须是 JSON 数组。'
+    }
+  }
+
+  async function updateOpeningDimensions(
+    draft: OpeningDraft,
+    line: OpeningDraft['lines'][number],
+    event: Event,
+  ) {
+    try {
+      const parsed: unknown = JSON.parse(
+        (event.target as HTMLTextAreaElement).value,
+      )
+      if (!isRecord(parsed) || Object.values(parsed).some((value) => typeof value !== 'string'))
+        throw new Error('opening_dimensions_not_object')
+      line.dimensions = parsed as Record<string, string>
+      await saveOpeningDraft(draft)
+    } catch {
+      message.value = '辅助维度必须是字符串值的 JSON 对象。'
+    }
+  }
+
+  function openingQuantity(line: OpeningDraft['lines'][number]) {
+    return (line as OpeningDraft['lines'][number] & { quantity?: string })
+      .quantity ?? ''
+  }
+
+  async function updateOpeningQuantity(
+    draft: OpeningDraft,
+    line: OpeningDraft['lines'][number],
+    event: Event,
+  ) {
+    ;(line as OpeningDraft['lines'][number] & { quantity?: string }).quantity =
+      (event.target as HTMLInputElement).value
+    await saveOpeningDraft(draft)
+  }
+
+  async function deleteOpeningDraft(draft: OpeningDraft) {
+    await workflowDraftRepository.delete(draft)
+    await loadOpeningDrafts()
+  }
+
+  async function submitOpeningDraft(draft: OpeningDraft) {
+    try {
+      await submitTargetAccOpening(csrfToken.value, {
+        bookId: draft.bookId,
+        submissionId: draft.submissionId,
+        idempotencyKey: draft.submissionId,
+        lines: draft.lines.map((line) => {
+          const quantity = openingQuantity(line)
+          return quantity ? { ...line, quantity } : line
+        }) as never,
+        assets: draft.assets,
+        bills: draft.bills,
+        containers: draft.containers,
+      })
+      await workflowDraftRepository.delete(draft)
+      await Promise.all([loadOpeningDrafts(), loadAccOpening()])
+      message.value = '期初已提交；本地草稿已删除。'
+    } catch (error) {
+      setError(error, '期初提交失败；本地草稿仍保留。')
+      await loadAccOpening()
+    }
+  }
+
+  async function loadAccOpening() {
+    if (!accBookId.value || !permissions.value.includes('/acc/opening/query')) return
+    try {
+      accOpening.value = parseAccOpeningView(
+        await queryTargetAccOpening(csrfToken.value, accBookId.value),
+      )
+    } catch (error) {
+      if (error instanceof TargetApiError && error.errorKey === 'approval_not_found') {
+        accOpening.value = null
+        return
+      }
+      setError(error, '期初查询失败。')
+    }
+  }
+
+  async function reviewAccOpening(action: ApprovalAction) {
+    const opening = accOpening.value
+    if (!opening || !canReviewAccOpening(action)) return
+    const reason = accReason.value.trim()
+    if ((action === 'reject' || action === 'unapprove') && !reason) {
+      message.value = '请填写审批原因。'
+      return
+    }
+    try {
+      await reviewTargetAccOpening(csrfToken.value, action, {
+        bookId: opening.bookId,
+        submissionId: opening.submissionId,
+        expectedRevision: opening.approval.revision,
+        ...((action === 'reject' || action === 'unapprove') && { reason }),
+      })
+      accReason.value = ''
+      await loadAccOpening()
+      message.value = `期初已${approvalActionPresentation[action].label}。`
+    } catch (error) {
+      setError(error, '期初审批失败。')
+      await loadAccOpening()
+    }
+  }
+
+  function canReviewAccOpening(action: ApprovalAction) {
+    return !!accOpening.value?.availableApprovalActions.includes(action)
+  }
+
+  async function deleteAccOpening() {
+    const opening = accOpening.value
+    if (!opening) return
+    try {
+      await deleteTargetAccOpening(csrfToken.value, {
+        bookId: opening.bookId,
+        submissionId: opening.submissionId,
+        expectedRevision: opening.approval.revision,
+      })
+      await loadAccOpening()
+      message.value = '开放期初提交件已删除。'
+    } catch (error) {
+      setError(error, '期初删除失败。')
+      await loadAccOpening()
+    }
+  }
+
+  async function loadAccPeriods() {
+    if (!accBookId.value || !permissions.value.includes('/acc/period/query')) return
+    try {
+      const result: unknown = await queryTargetAccPeriods(csrfToken.value, accBookId.value)
+      accPeriods.value = Array.isArray(result)
+        ? result.filter(isAccPeriodView)
+        : []
+      if (!accPeriodMonth.value) {
+        const book = accBooks.value.find((item) => item.id === accBookId.value)
+        accPeriodMonth.value = book?.startMonth ?? previousMonthText()
+      }
+    } catch (error) {
+      setError(error, '会计期间查询失败。')
+    }
+  }
+
+  async function setAccPeriod(locked: boolean, period?: AccPeriodView) {
+    const month = period?.month ?? accPeriodMonth.value
+    if (!accBookId.value || !month) return
+    const permission = `/acc/period/${locked ? 'lock' : 'unlock'}`
+    if (!permissions.value.includes(permission)) return
+    try {
+      await setTargetAccPeriod(csrfToken.value, locked ? 'lock' : 'unlock', {
+        bookId: accBookId.value,
+        month,
+        expectedRevision: period?.revision ?? null,
+      })
+      await loadAccPeriods()
+      message.value = locked ? '会计期间已锁定。' : '会计期间已解锁。'
+    } catch (error) {
+      setError(error, '会计期间操作失败。')
+      await loadAccPeriods()
+    }
+  }
+
+  async function loadWflDrafts() {
+    if (!currentUser.value) return
+    wflDrafts.value = await workflowDraftRepository.listDefinitions(currentUser.value.id)
+  }
+
+  async function loadWflDefinitions() {
+    if (!canQueryWflDefinitions.value) return
+    try {
+      const result = await queryTargetWflDefinitions(csrfToken.value)
+      wflDefinitions.value = flattenWflDefinitions(result)
+    } catch (error) {
+      setError(error, '流程定义查询失败。')
+    }
+  }
+
+  async function newWflDefinitionDraft() {
+    if (!currentUser.value || !canCreateWflDefinitionDraft.value) return
+    const draft: WflDefinitionDraft = {
+      entity: 'wfl-process-definition',
+      draftId: createTargetId(),
+      ownerUserId: currentUser.value.id,
+      updatedAt: new Date().toISOString(),
+      subjectId: createTargetId(),
+      submissionId: createTargetId(),
+      expectedLatestApprovedSubmissionId: null,
+      expectedLatestApprovedRevision: null,
+      script: defaultWflScript(),
+      trialDocument: { entity: 'sale-order', documentId: '' },
+      trialSucceeded: false,
+    }
+    await workflowDraftRepository.save(draft)
+    await loadWflDrafts()
+    message.value = '流程定义草稿已保存在本机。'
+  }
+
+  async function saveWflDefinitionDraft(draft: WflDefinitionDraft) {
+    draft.updatedAt = new Date().toISOString()
+    draft.trialSucceeded = false
+    await workflowDraftRepository.save(draft)
+    message.value = '流程定义草稿已保存到本机。'
+  }
+
+  async function deleteWflDefinitionDraft(draft: WflDefinitionDraft) {
+    await workflowDraftRepository.delete(draft)
+    await loadWflDrafts()
+  }
+
+  async function trialWflDefinition(draft: WflDefinitionDraft) {
+    try {
+      const result = await trialTargetWflDefinition(csrfToken.value, {
+        script: draft.script,
+        document: draft.trialDocument,
+      })
+      draft.trialSucceeded = true
+      draft.updatedAt = new Date().toISOString()
+      await workflowDraftRepository.save(draft)
+      message.value = result ? '流程试运行成功。' : '流程试运行完成。'
+    } catch (error) {
+      setError(error, '流程试运行失败；草稿仍保留。')
+    }
+  }
+
+  async function submitWflDefinitionDraft(draft: WflDefinitionDraft) {
+    if (!draft.trialSucceeded || !canSubmitWflDefinitionDraft.value) {
+      message.value = '请先以当前草稿完成试运行，并确认具备提交流程定义的权限。'
+      return
+    }
+    try {
+      await submitTargetWflDefinition(csrfToken.value, 'NEW', {
+        subjectId: draft.subjectId,
+        submissionId: draft.submissionId,
+        idempotencyKey: draft.submissionId,
+        expectedLatestApprovedSubmissionId: draft.expectedLatestApprovedSubmissionId,
+        expectedLatestApprovedRevision: draft.expectedLatestApprovedRevision,
+        script: draft.script,
+        trialDocument: draft.trialDocument,
+      })
+      await workflowDraftRepository.delete(draft)
+      await Promise.all([loadWflDrafts(), loadWflDefinitions()])
+      message.value = '流程定义已提交；本地草稿已删除。'
+    } catch (error) {
+      setError(error, '流程定义提交失败；本地草稿仍保留。')
+    }
+  }
+
+  async function reviewWflDefinition(definition: WflDefinitionView, action: ApprovalAction) {
+    if (!canReviewWflDefinition(definition, action)) return
+    const reason = wflReasons.value[definition.submissionId]?.trim() ?? ''
+    if ((action === 'reject' || action === 'unapprove') && !reason) {
+      message.value = '请填写审批原因。'
+      return
+    }
+    try {
+      await reviewTargetWflDefinition(csrfToken.value, action, {
+        subjectId: definition.subjectId,
+        submissionId: definition.submissionId,
+        expectedRevision: definition.revision,
+        ...((action === 'reject' || action === 'unapprove') && { reason }),
+      })
+      await loadWflDefinitions()
+      message.value = `流程定义已${approvalActionPresentation[action].label}。`
+    } catch (error) {
+      setError(error, '流程定义审批失败。')
+      await loadWflDefinitions()
+    }
+  }
+
+  function canReviewWflDefinition(
+    definition: WflDefinitionView,
+    action: ApprovalAction,
+  ) {
+    return definition.availableApprovalActions.includes(action)
+  }
+
+  async function setWflDefinitionEnabled(definition: WflDefinitionView, enabled: boolean) {
+    const action = enabled ? 'enable' : 'disable'
+    if (!permissions.value.includes(`/dcl/wfl-process-definition/${action}`)) return
+    try {
+      await setTargetWflDefinitionEnabled(csrfToken.value, action, {
+        subjectId: definition.subjectId,
+        approvalEntryId: definition.submissionId,
+        expectedApprovalRevision: definition.revision,
+        expectedRuntimeRevision: definition.runtimeRevision,
+      })
+      await loadWflDefinitions()
+      message.value = enabled ? '流程定义已启用。' : '流程定义已停用。'
+    } catch (error) {
+      setError(error, '流程定义启停失败。')
+      await loadWflDefinitions()
+    }
+  }
+
+  async function loadWflCurrentDefinitions() {
+    if (!permissions.value.includes('/wfl/process-definition/query')) return
+    try {
+      const result: unknown = await queryTargetWflCurrentDefinitions(csrfToken.value)
+      const items = isRecord(result) && Array.isArray(result.items) ? result.items : result
+      wflCurrentDefinitions.value = Array.isArray(items)
+        ? items.filter(isWflCurrentDefinitionView)
+        : []
+    } catch (error) {
+      setError(error, '当前流程定义查询失败。')
+    }
+  }
+
+  async function selectWflCurrentDefinition(code: string) {
+    try {
+      wflCurrentDefinition.value = parseWflCurrentDefinitionView(
+        await getTargetWflCurrentDefinition(csrfToken.value, code),
+      )
+    } catch (error) {
+      setError(error, '当前流程定义读取失败。')
+    }
+  }
+
+  async function loadWflInstances() {
+    if (!permissions.value.includes('/wfl/process-instance/query')) return
+    try {
+      const result: unknown = await queryTargetWflInstances(csrfToken.value)
+      wflInstances.value = isRecord(result) && Array.isArray(result.items)
+        ? result.items.filter(isWflInstanceView)
+        : []
+    } catch (error) {
+      setError(error, '流程实例查询失败。')
+    }
+  }
+
+  async function selectWflInstance(processId: string) {
+    try {
+      wflInstance.value = parseWflInstanceView(
+        await getTargetWflInstance(csrfToken.value, processId),
+      )
+    } catch (error) {
+      setError(error, '流程实例读取失败。')
+    }
+  }
+
+  async function actionWflInstance(node: WflInstanceNodeView, action: string, targetNodeKey?: string) {
+    const instance = wflInstance.value
+    if (!instance || !canActionWflInstance(node, action)) return
+    const reason = wflReasons.value[node.nodeId]?.trim() ?? ''
+    if (action === 'REJECT_CHILD' && !reason) {
+      message.value = '请填写审批原因。'
+      return
+    }
+    const requestKey = wflRequestKeys.value[node.nodeId] || createTargetId()
+    wflRequestKeys.value[node.nodeId] = requestKey
+    try {
+      wflInstance.value = parseWflInstanceView(
+        await actionTargetWflInstance(csrfToken.value, {
+          processId: instance.processId,
+          nodeId: node.nodeId,
+          action,
+          ...(targetNodeKey && { targetNodeKey, requestKey }),
+          ...(node.revision && action !== 'OPEN_DOCUMENT' && action !== 'CREATE_CHILD' && { expectedRevision: node.revision }),
+          ...(action === 'REJECT_CHILD' && { reason }),
+        }),
+      )
+      await loadWflInstances()
+      message.value = '流程实例动作已完成。'
+    } catch (error) {
+      setError(error, '流程实例动作失败。')
+      await selectWflInstance(instance.processId)
+    }
+  }
+
+  function canActionWflInstance(node: WflInstanceNodeView, action: string) {
+    return node.availableActions.includes(action)
   }
 
   async function loadDrafts() {
@@ -1071,20 +2421,100 @@ export function useTargetProbe() {
     vouEntity,
     vouDrafts,
     vouSubmissions,
+    vouReasons,
     userCreatableVouEntities,
+    canCreateVouDraft,
     newVouDraft,
     saveVouDraft,
     addVouAttachment,
     submitVouDraft,
+    vouInputs,
+    vouArrayInputs,
+    vouInputTestId,
+    vouInputLabel,
+    vouInputCandidates,
+    vouInputValue,
+    updateVouInput,
+    selectVouInputCandidate,
+    selectVouArrayVariant,
+    appendVouArrayItem,
+    vouAttachmentCount,
+    canReviewVou,
+    reviewVou,
+    deleteVou,
+    cloneVouSubmission,
     accMappingCatalog,
     accMappingPage,
     accMappingCurrent,
     accBookId,
     accVouEntity,
+    accBookPage,
+    accSubjectPage,
+    accOpeningPage,
+    accPeriodPage,
+    wflDefinitionPage,
+    wflCurrentPage,
+    wflInstancePage,
+    accBooks,
+    accSubjects,
+    openingDrafts,
+    accOpening,
+    accPeriods,
+    accPeriodMonth,
+    accReason,
+    wflDrafts,
+    wflDefinitions,
+    wflCurrentDefinitions,
+    wflCurrentDefinition,
+    wflInstances,
+    wflInstance,
+    wflReasons,
+    wflRequestKeys,
     canQueryAccMapping,
     canGetAccMapping,
+    canQueryAccBooks,
+    canCreateAccBook,
+    canCreateAccSubject,
+    canCreateOpeningDraft,
+    canQueryWflDefinitions,
+    canCreateWflDefinitionDraft,
+    canSubmitWflDefinitionDraft,
     queryAccMappingCurrent,
     selectAccMappingCurrent,
+    createAccBook,
+    saveAccBook,
+    deleteAccBook,
+    selectAccBook,
+    createAccSubject,
+    saveAccSubject,
+    deleteAccSubject,
+    newOpeningDraft,
+    saveOpeningDraft,
+    addOpeningLine,
+    deleteOpeningLine,
+    openingCollectionJson,
+    updateOpeningCollection,
+    updateOpeningDimensions,
+    openingQuantity,
+    updateOpeningQuantity,
+    deleteOpeningDraft,
+    submitOpeningDraft,
+    reviewAccOpening,
+    canReviewAccOpening,
+    deleteAccOpening,
+    setAccPeriod,
+    newWflDefinitionDraft,
+    saveWflDefinitionDraft,
+    deleteWflDefinitionDraft,
+    trialWflDefinition,
+    submitWflDefinitionDraft,
+    reviewWflDefinition,
+    canReviewWflDefinition,
+    setWflDefinitionEnabled,
+    selectWflCurrentDefinition,
+    selectWflInstance,
+    actionWflInstance,
+    canActionWflInstance,
     targetArchiveEntities,
     archiveEntityPresentation,
     canCreateArchiveDraft,
@@ -1162,6 +2592,140 @@ export function archiveDraftReady(draft: AnyArchiveDraft): boolean {
   return true
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function vouCandidateEntities(entity: VouEntity) {
+  const candidates = new Set<VouReferenceCandidateEntity>()
+  const visit = (fields: readonly VouInputFieldDescriptor[]) => {
+    for (const field of fields) {
+      if (field.referenceEntity) candidates.add(field.referenceEntity)
+      for (const allowed of field.allowedEntities ?? []) candidates.add(allowed)
+      if (field.fields) visit(field.fields)
+      if (field.item) visit(field.item)
+    }
+  }
+  visit(vouEntityInputDescriptors[entity])
+  return [...candidates]
+}
+
+function vouReferencePermissions(entity: VouEntity) {
+  const candidates = vouCandidateEntities(entity)
+  return candidates.length ? ['/vou/reference/query'] : []
+}
+
+function referenceCandidate(
+  entity: VouReferenceCandidateEntity,
+  value: unknown,
+): VouReferenceCandidate[] {
+  if (!isRecord(value) || typeof value.objectId !== 'string' ||
+    typeof value.code !== 'string' || typeof value.name !== 'string')
+    return []
+  return [
+    {
+      entity,
+      objectId: value.objectId,
+      ...(typeof value.approvalEntryId === 'string' && {
+        approvalEntryId: value.approvalEntryId,
+      }),
+      code: value.code,
+      name: value.name,
+    },
+  ]
+}
+
+function isApprovalStatus(value: unknown): value is ApprovalStatus {
+  return value === 'PENDING' || value === 'APPROVED' || value === 'REJECTED'
+}
+
+function isApprovalAction(value: unknown): value is ApprovalAction {
+  return value === 'approve' || value === 'reject' || value === 'unreject' || value === 'unapprove'
+}
+
+function isAccBookView(value: unknown): value is AccBookView {
+  return isRecord(value) && typeof value.id === 'string' && typeof value.code === 'string' &&
+    typeof value.name === 'string' && typeof value.description === 'string' &&
+    typeof value.startMonth === 'string' && typeof value.baseCurrency === 'string' &&
+    typeof value.controlBook === 'boolean' && typeof value.revision === 'string'
+}
+
+function isAccSubjectView(value: unknown): value is AccSubjectView {
+  return isRecord(value) && typeof value.id === 'string' && typeof value.bookId === 'string' &&
+    typeof value.code === 'string' && typeof value.name === 'string' &&
+    (value.balanceDirection === 'DEBIT' || value.balanceDirection === 'CREDIT') &&
+    typeof value.enabled === 'boolean' &&
+    (typeof value.parentId === 'string' || value.parentId === null) &&
+    Array.isArray(value.requiredDimensions) && value.requiredDimensions.every((item) => typeof item === 'string') &&
+    typeof value.inventoryQuantity === 'boolean' && typeof value.settlementPurpose === 'string' &&
+    typeof value.revision === 'string'
+}
+
+function isAccPeriodView(value: unknown): value is AccPeriodView {
+  return isRecord(value) && typeof value.bookId === 'string' && typeof value.month === 'string' &&
+    typeof value.locked === 'boolean' && typeof value.revision === 'string'
+}
+
+function parseAccOpeningView(value: unknown): AccOpeningView | null {
+  if (!isRecord(value) || typeof value.bookId !== 'string' || typeof value.submissionId !== 'string' ||
+    !isRecord(value.approval) || !isApprovalStatus(value.approval.status) ||
+    typeof value.approval.revision !== 'string' || !isRecord(value.payload) ||
+    !Array.isArray(value.availableApprovalActions)) return null
+  return {
+    bookId: value.bookId,
+    submissionId: value.submissionId,
+    approval: { status: value.approval.status, revision: value.approval.revision },
+    payload: value.payload as unknown as OpeningDraft,
+    availableApprovalActions: value.availableApprovalActions.filter(isApprovalAction),
+  }
+}
+
+function isWflDefinitionView(value: unknown): value is WflDefinitionView {
+  return isRecord(value) && typeof value.subjectId === 'string' && typeof value.submissionId === 'string' &&
+    typeof value.code === 'string' && typeof value.versionNo === 'number' && isApprovalStatus(value.status) &&
+    typeof value.revision === 'string' && typeof value.script === 'string' && isRecord(value.compiledGraph) &&
+    typeof value.compiledGraph.code === 'string' && typeof value.compiledGraph.name === 'string' &&
+    typeof value.enabled === 'boolean' && (typeof value.runtimeRevision === 'string' || value.runtimeRevision === null) &&
+    Array.isArray(value.availableApprovalActions)
+}
+
+function flattenWflDefinitions(value: unknown): WflDefinitionView[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return []
+    return [item.latestApproved, item.openCandidate].filter(isWflDefinitionView)
+  })
+}
+
+function isWflCurrentDefinitionView(value: unknown): value is WflCurrentDefinitionView {
+  return isRecord(value) && typeof value.subjectId === 'string' && typeof value.approvalEntryId === 'string' &&
+    typeof value.code === 'string' && typeof value.name === 'string' && typeof value.enabled === 'boolean' &&
+    isRecord(value.compiledGraph) && typeof value.compiledGraph.code === 'string' && typeof value.compiledGraph.name === 'string'
+}
+
+function parseWflCurrentDefinitionView(value: unknown): WflCurrentDefinitionView | null {
+  return isWflCurrentDefinitionView(value) ? value : null
+}
+
+function isWflInstanceView(value: unknown): value is WflInstanceView {
+  return isRecord(value) && typeof value.processId === 'string' && typeof value.definitionCode === 'string' &&
+    typeof value.definitionName === 'string' && Array.isArray(value.nodes) && Array.isArray(value.availableTargets)
+}
+
+function parseWflInstanceView(value: unknown): WflInstanceView | null {
+  return isWflInstanceView(value) ? value : null
+}
+
+function previousMonthText() {
+  const date = new Date()
+  date.setUTCMonth(date.getUTCMonth() - 1)
+  return date.toISOString().slice(0, 7)
+}
+
+function defaultWflScript() {
+  return 'root = node(key="root", name="销售订单", entity="sale-order")\nworkflow(code="local-flow", name="本地流程", root=root, edges=[])'
+}
+
 function parseArchiveAuditHistory(value: unknown) {
   if (!Array.isArray(value)) return []
   return value.flatMap((item) => {
@@ -1216,7 +2780,61 @@ function archiveEntityFromLocation(): TargetArchiveEntity {
 
 function vouEntityFromLocation(): VouEntity | null {
   const entity = window.location.pathname.match(/^\/vou\/([^/]+)\/?$/)?.[1]
-  return entity && userCreatableVouEntities.includes(entity as never) ? entity as VouEntity : null
+  return entity && userCreatableVouEntities.includes(entity as never)
+    ? (entity as VouEntity)
+    : null
+}
+
+function createVouDraftPayload(entity: VouEntity): VouDraft['payload'] {
+  return createModelVouDraftPayload(entity, createTargetId) as VouDraft['payload']
+}
+
+function compactVouDraftPayload(
+  entity: VouEntity,
+  payload: VouDraft['payload'],
+): VouDraft['payload'] {
+  const requiredTopLevelFields = new Set(
+    vouEntityInputDescriptors[entity]
+      .filter((field) => field.required)
+      .map((field) => field.key),
+  )
+  const compact = (value: unknown, depth = 0): unknown => {
+    if (Array.isArray(value)) return value.map((item) => compact(item, depth + 1))
+    if (!isRecord(value)) return value
+    return Object.fromEntries(
+      Object.entries(value).flatMap(([key, nested]) => {
+        const next = compact(nested, depth + 1)
+        if (next === '') return []
+        if (
+          isRecord(next) &&
+          Object.keys(next).length === 0 &&
+          !(depth === 0 && requiredTopLevelFields.has(key))
+        )
+          return []
+        return [[key, next]]
+      }),
+    )
+  }
+  return compact(payload) as VouDraft['payload']
+}
+
+function isVouSubmissionView(value: unknown): value is VouSubmissionView {
+  if (!value || typeof value !== 'object') return false
+  const item = value as Record<string, unknown>
+  return (
+    typeof item.entity === 'string' &&
+    typeof item.documentId === 'string' &&
+    typeof item.submissionId === 'string' &&
+    typeof item.documentNo === 'string' &&
+    typeof item.revision === 'string' &&
+    (item.status === 'PENDING' ||
+      item.status === 'APPROVED' ||
+      item.status === 'REJECTED') &&
+    !!item.payload &&
+    typeof item.payload === 'object' &&
+    Array.isArray(item.availableApprovalActions) &&
+    typeof item.canDelete === 'boolean'
+  )
 }
 
 function archiveDeepLinkFromLocation(): {
@@ -1247,7 +2865,7 @@ function targetErrorMessage(
   if (!(error instanceof TargetApiError)) return fallback
   if (error.errorKey === 'unauthenticated') return unauthenticated
   if (error.errorKey === 'forbidden') return '无权执行此操作。'
-  return `${error.errorKey}: ${error.message || fallback}`
+  return targetErrorPresentation[error.errorKey] ?? (error.message || fallback)
 }
 
 function targetErrorRequestId(error: unknown): string {

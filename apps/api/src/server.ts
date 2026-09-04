@@ -1,4 +1,5 @@
 import { serve } from '@hono/node-server'
+import pg from 'pg'
 
 import { createApp } from './app.ts'
 import { SessionService } from './app/session.ts'
@@ -14,16 +15,35 @@ import { ArchiveService } from './dcl/archives.ts'
 import { AccMappingCatalogService } from './acc/mapping-catalog.ts'
 import { VouService } from './vou/service.ts'
 import { AccService } from './acc/service.ts'
-import { WflService } from './wfl/service.ts'
-import { RptService } from './rpt/service.ts'
+import { WflService, type WflVouPort } from './wfl/service.ts'
+import { PgRptDefinitionValidator, RptService } from './rpt/service.ts'
 import { createNodeWflStarlark } from '@zerp/wfl-starlark/node'
 
 const config = loadConfig()
 const database = createDatabase(config.databaseUrl.toString())
-const rpt = new RptService(database)
+const rptValidationPool = new pg.Pool({
+  connectionString: config.databaseUrl.toString(),
+})
+const rptValidator = new PgRptDefinitionValidator(rptValidationPool, database)
+const rpt = new RptService(database, rptValidator)
+try {
+  await rpt.assertAllEnabled()
+} catch (error) {
+  await Promise.all([rptValidationPool.end(), database.destroy()])
+  throw error
+}
 const wflRuntime = await createNodeWflStarlark()
 const acc = new AccService(database)
-const wfl = new WflService(database, wflRuntime)
+let vou!: VouService
+const vouPort: WflVouPort = {
+  createChild: (...args) => vou.createChild(...args),
+  approveChild: (...args) => vou.approveChild(...args),
+  rejectChild: (...args) => vou.rejectChild(...args),
+  retryChild: (...args) => vou.retryChild(...args),
+  cancelChild: (...args) => vou.cancelChild(...args),
+}
+const wfl = new WflService(database, wflRuntime, vouPort)
+vou = new VouService(database, { acc, wfl })
 const app = createApp({
   database: {
     ping: async () => {
@@ -36,9 +56,9 @@ const app = createApp({
   aux: new AuxService(database),
   bob: new BobService(database),
   warehouse: new WarehouseService(database),
-  archives: new ArchiveService(database),
+  archives: new ArchiveService(database, rptValidator),
   accMappingCatalog: new AccMappingCatalogService(database),
-  vou: new VouService(database, { acc, wfl }),
+  vou,
   acc,
   wfl,
   rpt,
@@ -60,7 +80,11 @@ const shutdown = async (signal: NodeJS.Signals) => {
   shutdownStarted = true
   jsonLogger.info({ event: 'shutdown_started', signal })
   try {
-    await closeRuntime(server, database, config.shutdownTimeoutMs)
+    try {
+      await closeRuntime(server, database, config.shutdownTimeoutMs)
+    } finally {
+      await rptValidationPool.end()
+    }
     jsonLogger.info({ event: 'shutdown_completed', signal })
   } catch (error) {
     process.exitCode = 1

@@ -1,4 +1,5 @@
 import { TargetBootstrapService } from '../src/app/bootstrap.ts'
+import { AccService } from '../src/acc/service.ts'
 import { createDatabase } from '../src/db/database.ts'
 import { readTargetPermissionCatalog } from './target-artifacts.ts'
 
@@ -15,6 +16,7 @@ try {
   await new TargetBootstrapService(database).migratePermissionCatalog(
     await readTargetPermissionCatalog(),
   )
+  await new AccService(database).syncVouEntityCatalog()
 } finally {
   await database.destroy()
 }

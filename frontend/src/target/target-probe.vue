@@ -2,6 +2,7 @@
 import {
   approvalActionPresentation,
   approvalStatusPresentation,
+  vouEntityPresentation,
 } from '@zerp/model'
 
 import { archiveValidityPresentation } from './archive-view.ts'
@@ -50,19 +51,97 @@ const {
   vouEntity,
   vouDrafts,
   vouSubmissions,
+  vouReasons,
   newVouDraft,
   saveVouDraft,
   addVouAttachment,
   submitVouDraft,
+  canCreateVouDraft,
+  vouInputs,
+  vouArrayInputs,
+  vouInputTestId,
+  vouInputLabel,
+  vouInputCandidates,
+  vouInputValue,
+  updateVouInput,
+  selectVouInputCandidate,
+  selectVouArrayVariant,
+  appendVouArrayItem,
+  vouAttachmentCount,
+  canReviewVou,
+  reviewVou,
+  deleteVou,
+  cloneVouSubmission,
   accMappingCatalog,
   accMappingPage,
   accMappingCurrent,
   accBookId,
   accVouEntity,
+  accBookPage,
+  accSubjectPage,
+  accOpeningPage,
+  accPeriodPage,
+  wflDefinitionPage,
+  wflCurrentPage,
+  wflInstancePage,
+  accBooks,
+  accSubjects,
+  openingDrafts,
+  accOpening,
+  accPeriods,
+  accPeriodMonth,
+  accReason,
+  wflDrafts,
+  wflDefinitions,
+  wflCurrentDefinitions,
+  wflCurrentDefinition,
+  wflInstances,
+  wflInstance,
+  wflReasons,
+  wflRequestKeys,
   canQueryAccMapping,
   canGetAccMapping,
+  canCreateAccBook,
+  canCreateAccSubject,
+  canCreateOpeningDraft,
+  canCreateWflDefinitionDraft,
+  canSubmitWflDefinitionDraft,
   queryAccMappingCurrent,
   selectAccMappingCurrent,
+  createAccBook,
+  saveAccBook,
+  deleteAccBook,
+  selectAccBook,
+  createAccSubject,
+  saveAccSubject,
+  deleteAccSubject,
+  newOpeningDraft,
+  saveOpeningDraft,
+  addOpeningLine,
+  deleteOpeningLine,
+  openingCollectionJson,
+  updateOpeningCollection,
+  updateOpeningDimensions,
+  openingQuantity,
+  updateOpeningQuantity,
+  deleteOpeningDraft,
+  submitOpeningDraft,
+  reviewAccOpening,
+  canReviewAccOpening,
+  deleteAccOpening,
+  setAccPeriod,
+  newWflDefinitionDraft,
+  saveWflDefinitionDraft,
+  deleteWflDefinitionDraft,
+  trialWflDefinition,
+  submitWflDefinitionDraft,
+  reviewWflDefinition,
+  canReviewWflDefinition,
+  setWflDefinitionEnabled,
+  selectWflCurrentDefinition,
+  selectWflInstance,
+  actionWflInstance,
+  canActionWflInstance,
   targetArchiveEntities,
   archiveEntityPresentation,
   canCreateArchiveDraft,
@@ -116,21 +195,259 @@ const {
 
     <template v-else>
       <section v-if="vouEntity" aria-label="目标单据">
-        <h2>{{ vouEntity }} 单据</h2>
-        <p>草稿正文与附件只保存在当前浏览器；提交成功后才创建服务器业务记录。</p>
+        <h2>{{ vouEntityPresentation[vouEntity].label }}</h2>
+        <p>
+          草稿正文与附件只保存在当前浏览器；提交成功后才创建服务器业务记录。
+        </p>
         <button
           type="button"
+          :disabled="!canCreateVouDraft"
           @click="newVouDraft"
-        >新建本地草稿</button>
-        <article v-for="draft in vouDrafts" :key="draft.draftId" data-testid="vou-local-draft">
-          <label>业务日期 <input v-model="draft.payload.businessDate" type="date" /></label>
-          <label>币种 <input v-model="draft.payload.currency" maxlength="3" /></label>
-          <label>金额 <input v-model="draft.payload.amount" inputmode="decimal" /></label>
-          <label>附件 <input type="file" accept="application/pdf,image/jpeg,image/png" @change="addVouAttachment(draft, $event)" /></label>
+        >
+          新建本地草稿
+        </button>
+        <article
+          v-for="draft in vouDrafts"
+          :key="draft.draftId"
+          data-testid="vou-local-draft"
+        >
+          <label v-for="entry in vouInputs(draft)" :key="entry.path.join('.')">
+            {{ vouInputLabel(entry) }}{{ entry.field.required ? ' *' : '' }}
+            <select
+              v-if="entry.field.kind === 'enum' || entry.field.kind === 'boolean'"
+              :data-testid="vouInputTestId(entry)"
+              :value="vouInputValue(draft, entry)"
+              @change="updateVouInput(draft, entry, $event)"
+            >
+              <option v-for="value in entry.field.kind === 'boolean' ? ['false', 'true'] : entry.field.enumValues" :key="value" :value="value">{{ value }}</option>
+            </select>
+            <template v-else>
+              <select
+                v-if="['objectId', 'assetId', 'billId'].includes(entry.path[entry.path.length - 1] ?? '')"
+                :data-testid="`${vouInputTestId(entry)}-candidate`"
+                @change="selectVouInputCandidate(draft, entry, $event)"
+              >
+                <option value="">请选择候选</option>
+                <option v-for="candidate in vouInputCandidates(entry)" :key="`${candidate.entity}-${candidate.objectId}`" :value="candidate.objectId">{{ candidate.code }} · {{ candidate.name }}</option>
+              </select>
+              <input
+                v-else
+                :data-testid="vouInputTestId(entry)"
+                :type="entry.field.kind === 'date' ? 'date' : 'text'"
+                :value="vouInputValue(draft, entry)"
+                @input="updateVouInput(draft, entry, $event)"
+              />
+            </template>
+          </label>
+          <button
+            v-for="entry in vouArrayInputs(draft)"
+            :key="`append-${entry.path.join('.')}`"
+            type="button"
+            @click="appendVouArrayItem(draft, entry)"
+          >
+            新增 {{ vouInputLabel(entry) }} 明细
+          </button>
+          <label
+            v-for="entry in vouArrayInputs(draft).filter((item) => item.field.variants?.length)"
+            :key="`variant-${entry.path.join('.')}`"
+          >
+            {{ vouInputLabel(entry) }} 类型
+            <select @change="selectVouArrayVariant(draft, entry, $event)">
+              <option
+                v-for="variant in entry.field.variants"
+                :key="variant.id"
+                :value="variant.id"
+              >{{ variant.id }}</option>
+            </select>
+          </label>
+          <label
+            >附件
+            <input
+              type="file"
+              accept="application/pdf,image/jpeg,image/png"
+              @change="addVouAttachment(draft, $event)"
+          /></label>
+          <p>本地附件：{{ vouAttachmentCount(draft) }}</p>
           <button type="button" @click="saveVouDraft(draft)">保存到本机</button>
           <button type="button" @click="submitVouDraft(draft)">提交</button>
         </article>
         <p>服务器 Submission：{{ vouSubmissions.length }}</p>
+        <article
+          v-for="submission in vouSubmissions"
+          :key="submission.submissionId"
+          data-testid="vou-submission"
+          :data-vou-document-id="submission.documentId"
+          :data-vou-submission-id="submission.submissionId"
+        >
+          <h3>
+            {{ vouEntityPresentation[submission.entity].label }} ·
+            {{ submission.documentNo }}
+          </h3>
+          <p>{{ approvalStatusPresentation[submission.status].label }}</p>
+          <p>附件：{{ submission.payload.attachments.length }}</p>
+          <label>
+            审批原因
+            <input
+              v-model="vouReasons[submission.submissionId]"
+              maxlength="1000"
+            />
+          </label>
+          <button
+            v-for="action in submission.availableApprovalActions"
+            :key="action"
+            type="button"
+            :disabled="!canReviewVou(submission, action)"
+            @click="reviewVou(submission, action)"
+          >
+            {{ approvalActionPresentation[action].label }}
+          </button>
+          <button
+            v-if="submission.canDelete"
+            type="button"
+            @click="deleteVou(submission)"
+          >
+            删除提交件
+          </button>
+          <button
+            v-if="submission.status !== 'APPROVED'"
+            type="button"
+            @click="cloneVouSubmission(submission)"
+          >
+            复制为改单草稿
+          </button>
+        </article>
+      </section>
+      <section v-else-if="accBookPage" aria-label="会计账簿">
+        <h2>会计账簿</h2>
+        <button type="button" :disabled="!canCreateAccBook" @click="createAccBook">
+          新建账簿
+        </button>
+        <p v-if="accBooks.length === 0">暂无可见账簿。</p>
+        <article v-for="book in accBooks" :key="book.id" data-testid="acc-book" :data-acc-book-id="book.id">
+          <h3>{{ book.code }} · {{ book.name }}</h3>
+          <label>名称<input v-model="book.name" /></label>
+          <label>说明<textarea v-model="book.description" /></label>
+          <label>本位币<input v-model="book.baseCurrency" maxlength="3" /></label>
+          <p>{{ book.startMonth }}</p>
+          <button type="button" @click="saveAccBook(book)">保存账簿</button>
+          <button type="button" @click="deleteAccBook(book)">删除账簿</button>
+          <button type="button" @click="selectAccBook(book.id)">选择账簿</button>
+        </article>
+      </section>
+      <section v-else-if="accSubjectPage" aria-label="会计科目">
+        <h2>会计科目</h2>
+        <label>账簿<select v-model="accBookId" @change="selectAccBook(accBookId)">
+          <option value="">请选择</option>
+          <option v-for="book in accBooks" :key="book.id" :value="book.id">{{ book.code }} · {{ book.name }}</option>
+        </select></label>
+        <button type="button" :disabled="!canCreateAccSubject" @click="createAccSubject('DEBIT')">新建借方科目</button>
+        <button type="button" :disabled="!canCreateAccSubject" @click="createAccSubject('CREDIT')">新建贷方科目</button>
+        <article v-for="subject in accSubjects" :key="subject.id" data-testid="acc-subject" :data-acc-subject-id="subject.id">
+          <h3>{{ subject.code }} · {{ subject.name }}</h3>
+          <label>编码<input v-model="subject.code" /></label>
+          <label>名称<input v-model="subject.name" /></label>
+          <label>方向<select v-model="subject.balanceDirection"><option value="DEBIT">借方</option><option value="CREDIT">贷方</option></select></label>
+          <label>启用<input v-model="subject.enabled" type="checkbox" /></label>
+          <button type="button" @click="saveAccSubject(subject)">保存科目</button>
+          <button type="button" @click="deleteAccSubject(subject)">删除科目</button>
+        </article>
+      </section>
+      <section v-else-if="accOpeningPage" aria-label="账簿期初">
+        <h2>账簿期初</h2>
+        <label>账簿<select v-model="accBookId" @change="selectAccBook(accBookId)">
+          <option value="">请选择</option>
+          <option v-for="book in accBooks" :key="book.id" :value="book.id">{{ book.code }} · {{ book.name }}</option>
+        </select></label>
+        <button type="button" :disabled="!canCreateOpeningDraft" @click="newOpeningDraft">新建本地期初草稿</button>
+        <article v-for="draft in openingDrafts" :key="draft.draftId" data-testid="opening-local-draft">
+          <h3>本地期初草稿</h3>
+          <fieldset v-for="(line, index) in draft.lines" :key="`${draft.draftId}-${index}`">
+            <legend>期初明细 {{ index + 1 }}</legend>
+            <label>科目<select v-model="line.subjectId" @change="saveOpeningDraft(draft)">
+              <option v-for="subject in accSubjects" :key="subject.id" :value="subject.id">{{ subject.code }} · {{ subject.name }}</option>
+            </select></label>
+            <label>方向<select v-model="line.direction" @change="saveOpeningDraft(draft)"><option value="DEBIT">借方</option><option value="CREDIT">贷方</option></select></label>
+            <label>金额<input v-model="line.amount" inputmode="decimal" @input="saveOpeningDraft(draft)" /></label>
+            <label>数量<input inputmode="decimal" :value="openingQuantity(line)" @input="updateOpeningQuantity(draft, line, $event)" /></label>
+            <label>辅助维度（JSON）<textarea :value="JSON.stringify(line.dimensions)" @change="updateOpeningDimensions(draft, line, $event)" /></label>
+            <button type="button" @click="deleteOpeningLine(draft, index)">删除明细</button>
+          </fieldset>
+          <button type="button" @click="addOpeningLine(draft)">新增期初明细</button>
+          <label>资产登记（JSON 数组）<textarea data-testid="opening-assets" :value="openingCollectionJson(draft, 'assets')" @change="updateOpeningCollection(draft, 'assets', $event)" /></label>
+          <label>票据登记（JSON 数组）<textarea data-testid="opening-bills" :value="openingCollectionJson(draft, 'bills')" @change="updateOpeningCollection(draft, 'bills', $event)" /></label>
+          <label>空桶登记（JSON 数组）<textarea data-testid="opening-containers" :value="openingCollectionJson(draft, 'containers')" @change="updateOpeningCollection(draft, 'containers', $event)" /></label>
+          <button type="button" @click="saveOpeningDraft(draft)">保存到本机</button>
+          <button type="button" @click="submitOpeningDraft(draft)">提交</button>
+          <button type="button" @click="deleteOpeningDraft(draft)">删除本地草稿</button>
+        </article>
+        <article v-if="accOpening" data-testid="acc-opening-submission">
+          <h3>服务器期初提交件</h3>
+          <p>{{ approvalStatusPresentation[accOpening.approval.status].label }}</p>
+          <label>审批原因<input v-model="accReason" maxlength="1000" /></label>
+          <button v-for="action in accOpening.availableApprovalActions" :key="action" type="button" :disabled="!canReviewAccOpening(action)" @click="reviewAccOpening(action)">{{ approvalActionPresentation[action].label }}</button>
+          <button type="button" @click="deleteAccOpening">撤回</button>
+        </article>
+      </section>
+      <section v-else-if="accPeriodPage" aria-label="会计期间">
+        <h2>会计期间</h2>
+        <label>账簿<select v-model="accBookId" @change="selectAccBook(accBookId)">
+          <option value="">请选择</option><option v-for="book in accBooks" :key="book.id" :value="book.id">{{ book.code }} · {{ book.name }}</option>
+        </select></label>
+        <label>期间<input v-model="accPeriodMonth" type="month" /></label>
+        <button type="button" @click="setAccPeriod(true)">锁定期间</button>
+        <article v-for="period in accPeriods" :key="period.month" data-testid="acc-period">
+          <h3>{{ period.month }}</h3><p>{{ period.locked ? '已锁定' : '未锁定' }}</p>
+          <button v-if="period.locked" type="button" @click="setAccPeriod(false, period)">解锁</button>
+          <button v-else type="button" @click="setAccPeriod(true, period)">锁定</button>
+        </article>
+      </section>
+      <section v-else-if="wflDefinitionPage" aria-label="流程定义维护">
+        <h2>流程定义维护</h2>
+        <button type="button" :disabled="!canCreateWflDefinitionDraft" @click="newWflDefinitionDraft">新建本地流程草稿</button>
+        <article v-for="draft in wflDrafts" :key="draft.draftId" data-testid="wfl-local-draft" :data-wfl-submission-id="draft.submissionId">
+          <label>脚本<textarea v-model="draft.script" @input="saveWflDefinitionDraft(draft)" /></label>
+          <label>试运行单据实体<input v-model="draft.trialDocument.entity" @input="saveWflDefinitionDraft(draft)" /></label>
+          <label>试运行单据标识<input v-model="draft.trialDocument.documentId" @input="saveWflDefinitionDraft(draft)" /></label>
+          <button type="button" @click="saveWflDefinitionDraft(draft)">保存到本机</button>
+          <button type="button" @click="trialWflDefinition(draft)">试运行</button>
+          <p>试运行：{{ draft.trialSucceeded ? '已通过' : '输入变更后需要重新试运行' }}</p>
+          <button type="button" :disabled="!draft.trialSucceeded || !canSubmitWflDefinitionDraft" @click="submitWflDefinitionDraft(draft)">提交</button>
+          <button type="button" @click="deleteWflDefinitionDraft(draft)">删除本地草稿</button>
+        </article>
+        <article v-for="definition in wflDefinitions" :key="definition.submissionId" data-testid="wfl-definition-submission" :data-wfl-submission-id="definition.submissionId">
+          <h3>{{ definition.code }} · V{{ definition.versionNo }}</h3>
+          <p>{{ approvalStatusPresentation[definition.status].label }} · {{ definition.compiledGraph.name }}</p>
+          <label>审批原因<input v-model="wflReasons[definition.submissionId]" maxlength="1000" /></label>
+          <button v-for="action in definition.availableApprovalActions" :key="action" type="button" :disabled="!canReviewWflDefinition(definition, action)" @click="reviewWflDefinition(definition, action)">{{ approvalActionPresentation[action].label }}</button>
+          <button v-if="definition.status === 'APPROVED'" type="button" @click="setWflDefinitionEnabled(definition, !definition.enabled)">{{ definition.enabled ? '停用' : '启用' }}</button>
+        </article>
+      </section>
+      <section v-else-if="wflCurrentPage" aria-label="当前流程定义">
+        <h2>当前流程定义</h2>
+        <article v-for="definition in wflCurrentDefinitions" :key="definition.approvalEntryId" data-testid="wfl-current-definition">
+          <h3>{{ definition.code }} · {{ definition.name }}</h3>
+          <button type="button" @click="selectWflCurrentDefinition(definition.code)">查看详情</button>
+          <a :href="`/dcl/wfl-process-definition?code=${definition.code}`">前往维护</a>
+        </article>
+        <pre v-if="wflCurrentDefinition">{{ wflCurrentDefinition.compiledGraph }}</pre>
+      </section>
+      <section v-else-if="wflInstancePage" aria-label="流程实例">
+        <h2>流程实例</h2>
+        <article v-for="instance in wflInstances" :key="instance.processId" data-testid="wfl-instance">
+          <h3>{{ instance.definitionCode }} · {{ instance.definitionName }}</h3>
+          <button type="button" @click="selectWflInstance(instance.processId)">查看实例</button>
+        </article>
+        <article v-if="wflInstance" data-testid="wfl-instance-detail">
+          <h3>{{ wflInstance.definitionCode }} · {{ wflInstance.definitionName }}</h3>
+          <fieldset v-for="node in wflInstance.nodes" :key="node.nodeId">
+            <legend>{{ node.nodeName }}</legend>
+            <p v-if="node.status">{{ approvalStatusPresentation[node.status].label }}</p>
+            <label>原因<input v-model="wflReasons[node.nodeId]" maxlength="1000" /></label>
+            <label>请求标识<input v-model="wflRequestKeys[node.nodeId]" minlength="16" maxlength="64" /></label>
+            <button v-for="action in node.availableActions.filter((value) => value !== 'CREATE_CHILD')" :key="action" type="button" :disabled="!canActionWflInstance(node, action)" @click="actionWflInstance(node, action)">{{ action }}</button>
+            <button v-for="target in wflInstance.availableTargets.filter((item) => item.parentNodeId === node.nodeId && canActionWflInstance(node, 'CREATE_CHILD'))" :key="target.targetNodeKey" type="button" @click="actionWflInstance(node, 'CREATE_CHILD', target.targetNodeKey)">创建 {{ target.targetNodeName }}</button>
+          </fieldset>
+        </article>
       </section>
       <section v-else-if="accMappingReadPage" aria-label="当前会计映射">
         <h2>当前会计映射</h2>

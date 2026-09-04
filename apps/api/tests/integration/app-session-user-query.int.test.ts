@@ -433,26 +433,21 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
   })
   const catalogPayload = await catalog.json()
   assert.equal(catalogPayload.code, 0)
-  assert.deepEqual(catalogPayload.data, {
-    books: [{ id: bookId, code: 'HTTP-BOOK', name: 'HTTP账簿' }],
-    vouEntities: [
-      {
-        id: vouEntityId,
-        code: 'HTTP-SALE',
-        name: 'HTTP销售',
-        fieldCatalog: { headerFields: ['status'], lineFields: ['amount'] },
-      },
-    ],
-    subjects: [
-      {
-        id: subjectId,
-        bookId,
-        code: '1001',
-        name: '现金',
-        requiredDimensions: ['customer'],
-      },
-    ],
-  })
+  assert.deepEqual(catalogPayload.data.books.filter((item: { id: string }) => item.id === bookId), [
+    { id: bookId, code: 'HTTP-BOOK', name: 'HTTP账簿' },
+  ])
+  assert.deepEqual(catalogPayload.data.vouEntities.filter((item: { id: string }) => item.id === vouEntityId), [
+    {
+      id: vouEntityId,
+      code: 'HTTP-SALE',
+      name: 'HTTP销售',
+      fieldCatalog: { headerFields: ['status'], lineFields: ['amount'] },
+    },
+  ])
+  assert.ok(catalogPayload.data.vouEntities.some((item: { id: string }) => item.id === 'sale-pricing'))
+  assert.deepEqual(catalogPayload.data.subjects.filter((item: { id: string }) => item.id === subjectId), [
+    { id: subjectId, bookId, code: '1001', name: '现金', requiredDimensions: ['customer'] },
+  ])
   const mappingQuery = await fetch(`${origin}/acc/mapping/query`, {
     method: 'POST',
     headers: {

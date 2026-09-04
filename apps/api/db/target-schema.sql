@@ -239,7 +239,7 @@ CREATE UNIQUE INDEX dcl_subjects_entity_code_unique
 
 CREATE TABLE approval_entries (
     id varchar(26) PRIMARY KEY,
-    domain varchar(32) NOT NULL CHECK (domain IN ('dcl', 'vou', 'acc')),
+    domain varchar(32) NOT NULL,
     entity varchar(64) NOT NULL,
     subject_id varchar(26) NOT NULL,
     version_no integer CHECK (version_no IS NULL OR version_no > 0),
@@ -254,29 +254,7 @@ CREATE TABLE approval_entries (
     rejection_reason varchar(1000),
     updated_by varchar(26) NOT NULL REFERENCES app_users(id),
     updated_at timestamptz NOT NULL,
-    UNIQUE (domain, entity, subject_id, version_no),
-    CHECK (
-        (domain = 'dcl' AND version_no IS NOT NULL AND entity IN (
-            'customer', 'supplier', 'other-unit', 'employee', 'sales-partner',
-            'product', 'warehouse', 'vehicle', 'fund-account', 'operating-entity',
-            'acc-mapping', 'rpt-definition', 'wfl-process-definition'
-        ))
-        OR (domain = 'vou' AND version_no IS NULL AND entity IN (
-            'sale-pricing', 'sale-order', 'sale-outbound', 'sale-delivery',
-            'sale-signoff', 'sale-return', 'purchase-order', 'purchase-inbound',
-            'purchase-return', 'purchase-inquiry', 'order-production',
-            'self-production', 'inventory-count', 'sales-receipt',
-            'purchase-refund', 'other-receipt', 'sales-refund',
-            'purchase-payment', 'other-payment', 'employee-loan',
-            'employee-repayment', 'employee-loan-writeoff',
-            'expense-reimbursement', 'expense-payment', 'other-income',
-            'asset-acquisition', 'asset-sale', 'asset-liquidation',
-            'bill-receipt', 'bill-payment', 'bill-issue', 'bill-discount',
-            'bill-maturity', 'intermediary-calculation', 'service-contract',
-            'service-acceptance'
-        ))
-        OR (domain = 'acc' AND version_no IS NULL AND entity = 'opening')
-    )
+    UNIQUE (domain, entity, subject_id, version_no)
 );
 
 CREATE UNIQUE INDEX approval_entries_open_version_unique
@@ -785,40 +763,768 @@ CREATE TABLE acc_periods (
     PRIMARY KEY (book_id, period_month)
 );
 
+CREATE TABLE acc_period_balances (
+    book_id varchar(26) NOT NULL REFERENCES acc_books(id) ON DELETE CASCADE,
+    period_month varchar(7) NOT NULL CHECK (period_month ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
+    subject_id varchar(26) NOT NULL REFERENCES acc_subjects(id) ON DELETE RESTRICT,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    dimensions jsonb NOT NULL CHECK (jsonb_typeof(dimensions) = 'object'),
+    dimension_key text NOT NULL,
+    opening_balance numeric(24, 8) NOT NULL,
+    debit_amount numeric(24, 8) NOT NULL,
+    credit_amount numeric(24, 8) NOT NULL,
+    closing_balance numeric(24, 8) NOT NULL,
+    created_at timestamptz NOT NULL,
+    PRIMARY KEY (book_id, period_month, subject_id, currency, dimension_key)
+);
+
 CREATE TABLE vou_documents (
     id varchar(26) PRIMARY KEY,
     entity varchar(64) NOT NULL,
     document_no varchar(32) NOT NULL UNIQUE,
     stable_revision bigint NOT NULL DEFAULT 1 CHECK (stable_revision > 0),
     created_at timestamptz NOT NULL,
-    created_by varchar(26) NOT NULL REFERENCES app_users(id),
-    CHECK (entity IN (
-        'sale-pricing', 'sale-order', 'sale-outbound', 'sale-delivery',
-        'sale-signoff', 'sale-return', 'purchase-order', 'purchase-inbound',
-        'purchase-return', 'purchase-inquiry', 'order-production',
-        'self-production', 'inventory-count', 'sales-receipt',
-        'purchase-refund', 'other-receipt', 'sales-refund',
-        'purchase-payment', 'other-payment', 'employee-loan',
-        'employee-repayment', 'employee-loan-writeoff',
-        'expense-reimbursement', 'expense-payment', 'other-income',
-        'asset-acquisition', 'asset-sale', 'asset-liquidation',
-        'bill-receipt', 'bill-payment', 'bill-issue', 'bill-discount',
-        'bill-maturity', 'intermediary-calculation', 'service-contract',
-        'service-acceptance'
-    ))
+    created_by varchar(26) NOT NULL REFERENCES app_users(id)
 );
 CREATE INDEX vou_documents_entity_number_idx ON vou_documents(entity, document_no);
 
-CREATE TABLE vou_document_payloads (
+-- Each VOU entity owns a distinct header.  Rich wire data is decomposed into
+-- typed business-family child relations below; VOU has no JSON payload store.
+CREATE TABLE vou_sale_pricing_details (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
-    document_id varchar(26) NOT NULL REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
     business_date date NOT NULL,
     currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
-    amount numeric(24, 8) NOT NULL,
+    total_amount_minor bigint NOT NULL,
     parent_entity varchar(64),
     parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
-    payload jsonb NOT NULL CHECK (jsonb_typeof(payload) = 'object'),
     CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_sale_order_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    credit_limit numeric(24, 8),
+    credit_occupancy_before numeric(24, 8),
+    credit_order_amount numeric(24, 8),
+    credit_over_amount numeric(24, 8),
+    credit_override_reason text,
+    credit_override_actor_id varchar(26) REFERENCES app_users(id),
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_sale_outbound_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_sale_delivery_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_sale_signoff_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    expected_solvent_containers integer NOT NULL DEFAULT 0 CHECK (expected_solvent_containers >= 0),
+    expected_resin_containers integer NOT NULL DEFAULT 0 CHECK (expected_resin_containers >= 0),
+    returned_solvent_containers integer NOT NULL DEFAULT 0 CHECK (returned_solvent_containers >= 0),
+    returned_resin_containers integer NOT NULL DEFAULT 0 CHECK (returned_resin_containers >= 0),
+    container_difference_reason text,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_sale_return_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_purchase_order_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_purchase_inbound_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_purchase_return_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_purchase_inquiry_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_order_production_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_self_production_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_inventory_count_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_sales_receipt_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_purchase_refund_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_other_receipt_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_sales_refund_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_purchase_payment_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_other_payment_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_employee_loan_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_employee_repayment_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_employee_loan_writeoff_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_expense_reimbursement_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_expense_payment_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_other_income_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_asset_acquisition_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_asset_sale_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_asset_liquidation_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_bill_receipt_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_bill_payment_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_bill_issue_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_bill_discount_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_bill_maturity_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_intermediary_calculation_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_service_contract_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+CREATE TABLE vou_service_acceptance_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64),
+    parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
+);
+
+ALTER TABLE vou_sale_pricing_details ADD COLUMN remark text;
+ALTER TABLE vou_sale_order_details ADD COLUMN remark text, ADD COLUMN special_approval boolean;
+ALTER TABLE vou_sale_outbound_details ADD COLUMN remark text;
+ALTER TABLE vou_sale_delivery_details ADD COLUMN remark text;
+ALTER TABLE vou_sale_signoff_details ADD COLUMN remark text;
+ALTER TABLE vou_sale_return_details ADD COLUMN remark text, ADD COLUMN return_reason text;
+ALTER TABLE vou_purchase_inquiry_details ADD COLUMN remark text;
+ALTER TABLE vou_purchase_order_details ADD COLUMN remark text, ADD COLUMN settlement_method_id varchar(26);
+ALTER TABLE vou_purchase_inbound_details ADD COLUMN remark text;
+ALTER TABLE vou_purchase_return_details ADD COLUMN remark text, ADD COLUMN return_reason text;
+ALTER TABLE vou_order_production_details ADD COLUMN remark text;
+ALTER TABLE vou_self_production_details ADD COLUMN remark text;
+ALTER TABLE vou_inventory_count_details ADD COLUMN remark text;
+ALTER TABLE vou_sales_receipt_details ADD COLUMN remark text;
+ALTER TABLE vou_purchase_refund_details ADD COLUMN remark text;
+ALTER TABLE vou_other_receipt_details ADD COLUMN remark text, ADD COLUMN counterparty_type varchar(32), ADD COLUMN other_category varchar(32);
+ALTER TABLE vou_sales_refund_details ADD COLUMN remark text;
+ALTER TABLE vou_purchase_payment_details ADD COLUMN remark text;
+ALTER TABLE vou_other_payment_details ADD COLUMN remark text, ADD COLUMN counterparty_type varchar(32), ADD COLUMN other_category varchar(32);
+ALTER TABLE vou_employee_loan_details ADD COLUMN remark text;
+ALTER TABLE vou_employee_repayment_details ADD COLUMN remark text;
+ALTER TABLE vou_employee_loan_writeoff_details ADD COLUMN remark text;
+ALTER TABLE vou_expense_reimbursement_details ADD COLUMN remark text;
+ALTER TABLE vou_expense_payment_details ADD COLUMN remark text;
+ALTER TABLE vou_other_income_details ADD COLUMN remark text, ADD COLUMN source_name varchar(200), ADD COLUMN counterparty_type varchar(32);
+ALTER TABLE vou_asset_acquisition_details ADD COLUMN remark text;
+ALTER TABLE vou_asset_sale_details ADD COLUMN remark text;
+ALTER TABLE vou_asset_liquidation_details ADD COLUMN remark text;
+ALTER TABLE vou_bill_receipt_details ADD COLUMN remark text, ADD COLUMN internal_cost_rate_bps integer;
+ALTER TABLE vou_bill_payment_details ADD COLUMN remark text;
+ALTER TABLE vou_bill_issue_details ADD COLUMN remark text, ADD COLUMN interest_mode varchar(32);
+ALTER TABLE vou_bill_discount_details ADD COLUMN remark text, ADD COLUMN interest_mode varchar(32), ADD COLUMN with_recourse boolean;
+ALTER TABLE vou_bill_maturity_details ADD COLUMN remark text, ADD COLUMN maturity_type varchar(16);
+ALTER TABLE vou_intermediary_calculation_details ADD COLUMN remark text, ADD COLUMN period_start date, ADD COLUMN period_end date, ADD COLUMN source_hash varchar(64), ADD COLUMN script_id varchar(128), ADD COLUMN script_revision integer, ADD COLUMN script_name varchar(200), ADD COLUMN script_source text, ADD COLUMN script_hash varchar(64);
+ALTER TABLE vou_service_contract_details ADD COLUMN remark text, ADD COLUMN capabilities varchar(32)[], ADD COLUMN applicable_from date, ADD COLUMN applicable_to date, ADD COLUMN terms text;
+ALTER TABLE vou_service_acceptance_details ADD COLUMN remark text, ADD COLUMN contract_document_id varchar(26), ADD COLUMN service_date date, ADD COLUMN acceptance_date date, ADD COLUMN settlement_direction varchar(16), ADD COLUMN fulfillment_fact text, ADD COLUMN acceptance_fact text;
+
+CREATE TABLE vou_reference_snapshots (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    field varchar(64) NOT NULL,
+    line_no integer NOT NULL DEFAULT 0 CHECK (line_no BETWEEN 0 AND 200),
+    item_no integer NOT NULL DEFAULT 0 CHECK (item_no BETWEEN 0 AND 200),
+    object_id varchar(26) NOT NULL,
+    approval_reference_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    selection_origin varchar(16) CHECK (selection_origin IN ('CURRENT', 'HISTORICAL')),
+    reference_entity varchar(64),
+    reference_code varchar(64),
+    reference_name varchar(200),
+    PRIMARY KEY (approval_entry_id, field, line_no, item_no),
+    CHECK ((approval_reference_id IS NULL) = (selection_origin IS NULL))
+);
+
+CREATE TABLE vou_price_line_snapshots (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    unit_price_minor bigint NOT NULL,
+    remark text,
+    PRIMARY KEY (approval_entry_id, line_no)
+);
+
+CREATE TABLE vou_product_line_snapshots (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    line_id varchar(26) NOT NULL CHECK (line_id ~ '^[0-9A-HJKMNP-TV-Z]{26}$'),
+    entered_quantity_micros bigint NOT NULL,
+    entered_unit_id varchar(26) NOT NULL,
+    base_quantity_micros bigint NOT NULL,
+    unit_price_minor bigint NOT NULL,
+    settlement_surcharge_minor bigint,
+    purchase_unit_price_minor bigint,
+    remark text,
+    delivery_specification_type varchar(32),
+    container_type text,
+    quantity_per_container_micros bigint,
+    formula_source_type varchar(32),
+    formula_source_document_id varchar(26),
+    formula_source_document_no varchar(32),
+    formula_output_entered_quantity_micros bigint,
+    formula_output_entered_unit_id varchar(26),
+    formula_output_base_quantity_micros bigint,
+    PRIMARY KEY (approval_entry_id, line_no),
+    UNIQUE (approval_entry_id, line_id)
+);
+
+CREATE TABLE vou_formula_component_snapshots (
+    approval_entry_id varchar(26) NOT NULL,
+    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    component_no integer NOT NULL CHECK (component_no BETWEEN 1 AND 200),
+    material_id varchar(26) NOT NULL,
+    entered_quantity_micros bigint NOT NULL,
+    entered_unit_id varchar(26) NOT NULL,
+    base_quantity_micros bigint NOT NULL,
+    PRIMARY KEY (approval_entry_id, line_no, component_no),
+    FOREIGN KEY (approval_entry_id, line_no) REFERENCES vou_product_line_snapshots(approval_entry_id, line_no) ON DELETE CASCADE
+);
+
+CREATE TABLE vou_source_line_snapshots (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    source_line_id varchar(128) NOT NULL,
+    base_quantity_micros bigint NOT NULL,
+    remark text,
+    PRIMARY KEY (approval_entry_id, line_no)
+);
+
+CREATE TABLE vou_signoff_line_snapshots (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    source_line_id varchar(128) NOT NULL,
+    signed_quantity_micros bigint NOT NULL,
+    rejected_quantity_micros bigint NOT NULL,
+    remark text,
+    PRIMARY KEY (approval_entry_id, line_no)
+);
+
+CREATE TABLE vou_return_line_snapshots (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    source_line_id varchar(128) NOT NULL,
+    base_quantity_micros bigint NOT NULL,
+    remark text,
+    PRIMARY KEY (approval_entry_id, line_no)
+);
+
+CREATE TABLE vou_expense_line_snapshots (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    category varchar(200) NOT NULL,
+    description text NOT NULL,
+    amount_minor bigint NOT NULL,
+    remark text,
+    PRIMARY KEY (approval_entry_id, line_no)
+);
+
+CREATE TABLE vou_amount_allocation_snapshots (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    amount_minor bigint NOT NULL,
+    PRIMARY KEY (approval_entry_id, line_no)
+);
+
+CREATE TABLE vou_inventory_count_line_snapshots (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    entered_quantity_micros bigint NOT NULL,
+    entered_unit_id varchar(26) NOT NULL,
+    base_quantity_micros bigint NOT NULL,
+    remark text,
+    PRIMARY KEY (approval_entry_id, line_no)
+);
+
+CREATE TABLE vou_production_line_snapshots (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    source_order_line_id varchar(128),
+    entered_quantity_micros bigint NOT NULL,
+    entered_unit_id varchar(26) NOT NULL,
+    base_quantity_micros bigint NOT NULL,
+    loss_rate_micros bigint NOT NULL,
+    remark text,
+    PRIMARY KEY (approval_entry_id, line_no)
+);
+
+CREATE TABLE vou_production_material_snapshots (
+    approval_entry_id varchar(26) NOT NULL,
+    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    material_no integer NOT NULL CHECK (material_no BETWEEN 1 AND 200),
+    formula_line_no integer NOT NULL,
+    material_id varchar(26) NOT NULL,
+    entered_quantity_micros bigint NOT NULL,
+    entered_unit_id varchar(26) NOT NULL,
+    base_quantity_micros bigint NOT NULL,
+    adjustment_reason text,
+    PRIMARY KEY (approval_entry_id, line_no, material_no),
+    FOREIGN KEY (approval_entry_id, line_no) REFERENCES vou_production_line_snapshots(approval_entry_id, line_no) ON DELETE CASCADE
+);
+
+CREATE TABLE vou_asset_acquisition_line_snapshots (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    asset_name varchar(200) NOT NULL,
+    specification varchar(200),
+    original_value_minor bigint NOT NULL,
+    useful_life_months integer NOT NULL,
+    residual_rate_micros bigint NOT NULL,
+    location varchar(200),
+    remark text,
+    PRIMARY KEY (approval_entry_id, line_no)
+);
+
+CREATE TABLE vou_asset_disposal_line_snapshots (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    asset_id varchar(128) NOT NULL,
+    sale_amount_minor bigint,
+    reason text,
+    salvage_income_minor bigint,
+    disposal_expense_minor bigint,
+    remark text,
+    PRIMARY KEY (approval_entry_id, line_no)
+);
+
+CREATE TABLE vou_bill_line_snapshots (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 20),
+    bill_id varchar(128),
+    position_type varchar(16),
+    direction varchar(8),
+    purpose varchar(16) NOT NULL,
+    bill_type varchar(32),
+    bill_no varchar(200),
+    medium varchar(16),
+    currency varchar(3),
+    face_amount_minor bigint,
+    issue_date date,
+    maturity_date date,
+    drawer varchar(200),
+    acceptor varchar(200),
+    payee varchar(200),
+    annual_rate_bps integer,
+    remark text,
+    PRIMARY KEY (approval_entry_id, line_no)
+);
+
+CREATE TABLE vou_bill_cash_line_snapshots (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 20),
+    bill_line_id varchar(128),
+    direction varchar(8) NOT NULL,
+    amount_type varchar(16) NOT NULL,
+    amount_minor bigint NOT NULL,
+    remark text,
+    PRIMARY KEY (approval_entry_id, line_no)
+);
+
+CREATE TABLE vou_intermediary_source_line_snapshots (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    source_signoff_line_id varchar(128) NOT NULL,
+    source_kind varchar(32) NOT NULL,
+    signoff_document_id varchar(26) NOT NULL,
+    signoff_document_no varchar(32) NOT NULL,
+    signoff_date date NOT NULL,
+    order_document_id varchar(26) NOT NULL,
+    order_document_no varchar(32) NOT NULL,
+    order_date date NOT NULL,
+    due_date date NOT NULL,
+    collection_date date NOT NULL,
+    collection_delay_days integer NOT NULL,
+    sales_attribution_type varchar(32) NOT NULL,
+    sales_contract_status varchar(32) NOT NULL,
+    sales_contract_document_id varchar(26),
+    sales_contract_revision integer,
+    sales_contract_applicable_from date,
+    sales_contract_applicable_to date,
+    sales_contract_terms text,
+    behavior_profile varchar(32) NOT NULL,
+    signed_quantity_micros bigint NOT NULL,
+    pricing_quantity_micros bigint NOT NULL,
+    standard_piece_quantity_micros bigint NOT NULL,
+    unit_price_minor bigint NOT NULL,
+    reference_unit_price_minor bigint NOT NULL,
+    settlement_surcharge_minor bigint NOT NULL,
+    line_amount_minor bigint NOT NULL,
+    settlement_term_code varchar(64) NOT NULL,
+    special_approval boolean NOT NULL,
+    return_document_nos varchar(32)[] NOT NULL DEFAULT '{}',
+    adjustment_employee_amount_minor bigint NOT NULL,
+    adjustment_intermediary_amount_minor bigint NOT NULL,
+    PRIMARY KEY (approval_entry_id, line_no)
+);
+
+CREATE TABLE vou_intermediary_result_line_snapshots (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    source_signoff_line_id varchar(128) NOT NULL,
+    premium_unit_price_minor bigint NOT NULL,
+    standard_piece_quantity_micros bigint NOT NULL,
+    base_commission_minor bigint NOT NULL,
+    premium_commission_minor bigint NOT NULL,
+    low_price_commission_minor bigint NOT NULL,
+    market_maintenance_subsidy_minor bigint NOT NULL,
+    market_development_subsidy_minor bigint NOT NULL,
+    bill_cost_minor bigint NOT NULL,
+    bill_line_ids varchar(128)[] NOT NULL,
+    employee_amount_minor bigint NOT NULL,
+    intermediary_amount_minor bigint NOT NULL,
+    note text,
+    PRIMARY KEY (approval_entry_id, line_no)
+);
+
+CREATE TABLE vou_intermediary_bill_snapshots (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    bill_line_id varchar(128) NOT NULL,
+    receipt_document_id varchar(26) NOT NULL,
+    receipt_document_no varchar(32) NOT NULL,
+    receipt_date date NOT NULL,
+    bill_type varchar(32) NOT NULL,
+    face_amount_minor bigint NOT NULL,
+    issue_date date NOT NULL,
+    maturity_date date NOT NULL,
+    cost_days integer NOT NULL,
+    PRIMARY KEY (approval_entry_id, line_no)
+);
+
+CREATE TABLE vou_intermediary_summary_snapshots (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    category varchar(32) NOT NULL,
+    amount_minor bigint NOT NULL,
+    PRIMARY KEY (approval_entry_id, line_no)
+);
+
+CREATE TABLE vou_document_counters (
+    entity varchar(64) NOT NULL CHECK (entity IN (
+        'sale-pricing', 'sale-order', 'sale-outbound', 'sale-delivery', 'sale-signoff', 'sale-return',
+        'purchase-order', 'purchase-inbound', 'purchase-return', 'purchase-inquiry', 'order-production',
+        'self-production', 'inventory-count', 'sales-receipt', 'purchase-refund', 'other-receipt',
+        'sales-refund', 'purchase-payment', 'other-payment', 'employee-loan', 'employee-repayment',
+        'employee-loan-writeoff', 'expense-reimbursement', 'expense-payment', 'other-income',
+        'asset-acquisition', 'asset-sale', 'asset-liquidation', 'bill-receipt', 'bill-payment',
+        'bill-issue', 'bill-discount', 'bill-maturity', 'intermediary-calculation', 'service-contract',
+        'service-acceptance'
+    )),
+    business_date date NOT NULL,
+    last_value integer NOT NULL CHECK (last_value BETWEEN 0 AND 9999),
+    PRIMARY KEY (entity, business_date)
 );
 
 CREATE TABLE vou_idempotency (
@@ -851,6 +1557,7 @@ CREATE TABLE vou_attachment_staging (
 CREATE TABLE vou_attachments (
     approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
     file_id varchar(26) NOT NULL,
+    staging_id varchar(26) NOT NULL,
     file_name varchar(255) NOT NULL,
     mime_type varchar(128) NOT NULL,
     size_bytes integer NOT NULL CHECK (size_bytes BETWEEN 1 AND 10485760),
@@ -864,14 +1571,26 @@ CREATE TABLE vou_attachments (
 CREATE TABLE acc_journal_entries (
     id varchar(26) PRIMARY KEY,
     book_id varchar(26) NOT NULL REFERENCES acc_books(id) ON DELETE RESTRICT,
-    vou_document_id varchar(26) NOT NULL REFERENCES vou_documents(id) ON DELETE RESTRICT,
-    vou_approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    source_kind varchar(32) NOT NULL DEFAULT 'VOU' CHECK (source_kind IN ('VOU', 'OPENING', 'COST_SETTLEMENT', 'DEPRECIATION')),
+    vou_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    vou_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    opening_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
     business_date date NOT NULL,
     currency varchar(3) NOT NULL,
     reversed_at timestamptz,
     created_at timestamptz NOT NULL,
-    UNIQUE (book_id, vou_approval_entry_id)
+    CHECK (
+        (source_kind = 'VOU' AND vou_document_id IS NOT NULL AND vou_approval_entry_id IS NOT NULL AND opening_approval_entry_id IS NULL)
+        OR (source_kind = 'OPENING' AND vou_document_id IS NULL AND vou_approval_entry_id IS NULL AND opening_approval_entry_id IS NOT NULL)
+        OR (source_kind IN ('COST_SETTLEMENT', 'DEPRECIATION') AND vou_document_id IS NULL AND vou_approval_entry_id IS NULL AND opening_approval_entry_id IS NULL)
+    )
 );
+CREATE UNIQUE INDEX acc_journal_entries_vou_source_unique
+    ON acc_journal_entries(book_id, vou_approval_entry_id)
+    WHERE source_kind = 'VOU';
+CREATE UNIQUE INDEX acc_journal_entries_opening_source_unique
+    ON acc_journal_entries(book_id, opening_approval_entry_id, currency)
+    WHERE source_kind = 'OPENING';
 
 CREATE TABLE acc_journal_lines (
     id varchar(26) PRIMARY KEY,
@@ -884,26 +1603,134 @@ CREATE TABLE acc_journal_lines (
 
 CREATE TABLE acc_inventory_entries (
     id varchar(26) PRIMARY KEY,
-    vou_approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE RESTRICT,
-    document_id varchar(26) NOT NULL REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    vou_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    opening_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    book_id varchar(26) NOT NULL REFERENCES acc_books(id) ON DELETE RESTRICT,
+    subject_id varchar(26) NOT NULL REFERENCES acc_subjects(id) ON DELETE RESTRICT,
+    journal_entry_id varchar(26) NOT NULL REFERENCES acc_journal_entries(id) ON DELETE CASCADE,
     line_id varchar(26) NOT NULL,
     warehouse_id varchar(26) NOT NULL,
     product_id varchar(26) NOT NULL,
+    business_date date NOT NULL,
     quantity numeric(24, 8) NOT NULL,
     reversed_at timestamptz,
     created_at timestamptz NOT NULL,
-    UNIQUE (vou_approval_entry_id, line_id)
+    UNIQUE (vou_approval_entry_id, book_id, line_id),
+    CHECK (
+        (vou_approval_entry_id IS NOT NULL AND document_id IS NOT NULL AND opening_approval_entry_id IS NULL)
+        OR (vou_approval_entry_id IS NULL AND document_id IS NULL AND opening_approval_entry_id IS NOT NULL)
+    )
+);
+CREATE INDEX acc_inventory_entries_control_balance_idx
+    ON acc_inventory_entries(book_id, warehouse_id, product_id, business_date, created_at, id);
+
+CREATE TABLE acc_container_entries (
+    id varchar(26) PRIMARY KEY,
+    customer_subunit_id varchar(26) NOT NULL REFERENCES dcl_customer_subunit_roots(subunit_id) ON DELETE RESTRICT,
+    customer_id varchar(26) NOT NULL REFERENCES dcl_subjects(id) ON DELETE RESTRICT,
+    customer_approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    container_type varchar(16) NOT NULL CHECK (container_type IN ('SOLVENT', 'RESIN')),
+    quantity_delta bigint NOT NULL,
+    business_date date NOT NULL,
+    vou_approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    source_document_id varchar(26) NOT NULL REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    source_revision bigint NOT NULL CHECK (source_revision > 0),
+    created_at timestamptz NOT NULL,
+    UNIQUE (vou_approval_entry_id, container_type),
+    UNIQUE (source_document_id, source_revision, container_type)
+);
+CREATE INDEX acc_container_entries_balance_idx
+    ON acc_container_entries(customer_subunit_id, container_type, business_date, created_at, id);
+
+CREATE TABLE acc_asset_registers (
+    id varchar(26) PRIMARY KEY,
+    asset_no varchar(64) NOT NULL UNIQUE,
+    name varchar(200) NOT NULL,
+    status varchar(16) NOT NULL CHECK (status IN ('ACTIVE', 'SOLD', 'RETIRED')),
+    acquisition_vou_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    acquisition_opening_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    state_vou_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    state_opening_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    payload jsonb NOT NULL CHECK (jsonb_typeof(payload) = 'object'),
+    created_at timestamptz NOT NULL,
+    CHECK ((acquisition_vou_approval_entry_id IS NOT NULL) <> (acquisition_opening_approval_entry_id IS NOT NULL)),
+    CHECK ((state_vou_approval_entry_id IS NOT NULL) <> (state_opening_approval_entry_id IS NOT NULL))
+);
+CREATE INDEX acc_asset_registers_acquisition_source_idx ON acc_asset_registers(acquisition_vou_approval_entry_id);
+
+CREATE TABLE acc_asset_book_values (
+    asset_id varchar(26) NOT NULL REFERENCES acc_asset_registers(id) ON DELETE CASCADE,
+    book_id varchar(26) NOT NULL REFERENCES acc_books(id) ON DELETE RESTRICT,
+    acquisition_vou_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    acquisition_opening_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    original_value numeric(24, 8) NOT NULL CHECK (original_value >= 0),
+    created_at timestamptz NOT NULL,
+    PRIMARY KEY (asset_id, book_id),
+    CHECK ((acquisition_vou_approval_entry_id IS NOT NULL) <> (acquisition_opening_approval_entry_id IS NOT NULL))
+);
+
+CREATE TABLE acc_bill_registers (
+    id varchar(26) PRIMARY KEY,
+    bill_no varchar(200) NOT NULL,
+    position_type varchar(16) NOT NULL CHECK (position_type IN ('ASSET', 'LIABILITY')),
+    status varchar(16) NOT NULL CHECK (status IN ('AVAILABLE', 'REPLACED', 'PAID', 'DISCOUNTED', 'MATURED')),
+    created_vou_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    created_opening_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    state_vou_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    state_opening_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    payload jsonb NOT NULL CHECK (jsonb_typeof(payload) = 'object'),
+    created_at timestamptz NOT NULL,
+    CHECK ((created_vou_approval_entry_id IS NOT NULL) <> (created_opening_approval_entry_id IS NOT NULL)),
+    CHECK ((state_vou_approval_entry_id IS NOT NULL) <> (state_opening_approval_entry_id IS NOT NULL))
+);
+CREATE UNIQUE INDEX acc_bill_registers_identity_unique
+    ON acc_bill_registers (
+        (payload->>'billType'), bill_no, (payload->>'acceptor'), (payload->>'faceAmount'), (payload->>'maturityDate')
+    );
+
+CREATE TABLE acc_bill_book_values (
+    bill_id varchar(26) NOT NULL REFERENCES acc_bill_registers(id) ON DELETE CASCADE,
+    book_id varchar(26) NOT NULL REFERENCES acc_books(id) ON DELETE RESTRICT,
+    opening_approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    value_amount numeric(24, 8) NOT NULL CHECK (value_amount > 0),
+    created_at timestamptz NOT NULL,
+    PRIMARY KEY (bill_id, book_id)
 );
 
 CREATE TABLE acc_register_entries (
     id varchar(26) PRIMARY KEY,
     register_kind varchar(32) NOT NULL CHECK (register_kind IN ('ASSET', 'BILL', 'CONTAINER', 'EMPLOYEE_LOAN')),
     object_id varchar(26) NOT NULL,
-    vou_approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    source_kind varchar(32) NOT NULL DEFAULT 'VOU' CHECK (source_kind IN ('VOU', 'OPENING')),
+    vou_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    opening_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
     payload jsonb NOT NULL CHECK (jsonb_typeof(payload) = 'object'),
     reversed_at timestamptz,
     created_at timestamptz NOT NULL,
-    UNIQUE (register_kind, object_id, vou_approval_entry_id)
+    CHECK (
+        (source_kind = 'VOU' AND vou_approval_entry_id IS NOT NULL AND opening_approval_entry_id IS NULL)
+        OR (source_kind = 'OPENING' AND vou_approval_entry_id IS NULL AND opening_approval_entry_id IS NOT NULL)
+    )
+);
+CREATE UNIQUE INDEX acc_register_entries_vou_source_unique
+    ON acc_register_entries(register_kind, object_id, vou_approval_entry_id)
+    WHERE source_kind = 'VOU';
+CREATE UNIQUE INDEX acc_register_entries_opening_source_unique
+    ON acc_register_entries(register_kind, object_id, opening_approval_entry_id)
+    WHERE source_kind = 'OPENING';
+
+CREATE TABLE acc_opening_container_balances (
+    opening_approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    customer_subunit_id varchar(26) NOT NULL REFERENCES dcl_customer_subunit_roots(subunit_id) ON DELETE RESTRICT,
+    customer_id varchar(26) NOT NULL REFERENCES dcl_subjects(id) ON DELETE RESTRICT,
+    customer_approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    customer_subunit_code varchar(64) NOT NULL,
+    customer_subunit_name varchar(200) NOT NULL,
+    container_type varchar(16) NOT NULL CHECK (container_type IN ('SOLVENT', 'RESIN')),
+    quantity bigint NOT NULL CHECK (quantity <> 0),
+    created_at timestamptz NOT NULL,
+    PRIMARY KEY (opening_approval_entry_id, customer_subunit_id, container_type)
 );
 
 CREATE TABLE wfl_definition_versions (

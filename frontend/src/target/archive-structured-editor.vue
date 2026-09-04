@@ -1803,12 +1803,12 @@ function dimensionsComplete(value: unknown, candidates: readonly string[]) {
           :key="index"
         >
           <label
-            >参数名
+            >参数键
             <input
-              :value="parameter.name"
+              :value="parameter.key"
               @input="
                 setValue(
-                  ['parameters', index, 'name'],
+                  ['parameters', index, 'key'],
                   ($event.target as HTMLInputElement).value,
                 )
               "
@@ -1816,10 +1816,10 @@ function dimensionsComplete(value: unknown, candidates: readonly string[]) {
           <label
             >显示名称
             <input
-              :value="parameter.label"
+              :value="parameter.name"
               @input="
                 setValue(
-                  ['parameters', index, 'label'],
+                  ['parameters', index, 'name'],
                   ($event.target as HTMLInputElement).value,
                 )
               "
@@ -1866,8 +1866,8 @@ function dimensionsComplete(value: unknown, candidates: readonly string[]) {
           type="button"
           @click="
             addRecord(['parameters'], {
-              name: `parameter_${recordsAt(['parameters']).length + 1}`,
-              label: '新参数',
+              key: `parameter_${recordsAt(['parameters']).length + 1}`,
+              name: '新参数',
               type: 'TEXT',
               required: false,
             })
@@ -1893,10 +1893,10 @@ function dimensionsComplete(value: unknown, candidates: readonly string[]) {
           <label
             >显示名称
             <input
-              :value="column.label"
+              :value="column.name"
               @input="
                 setValue(
-                  ['columns', index, 'label'],
+                  ['columns', index, 'name'],
                   ($event.target as HTMLInputElement).value,
                 )
               "
@@ -1985,7 +1985,7 @@ function dimensionsComplete(value: unknown, candidates: readonly string[]) {
           @click="
             addRecord(['columns'], {
               alias: `column_${recordsAt(['columns']).length + 1}`,
-              label: '新列',
+              name: '新列',
               order: recordsAt(['columns']).length + 1,
               type: 'TEXT',
               width: 120,

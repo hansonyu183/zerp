@@ -36,6 +36,26 @@ export interface AuxSnapshot {
   name: string
 }
 
+/** Immutable settlement facts frozen from the enabled AUX object into a DCL version. */
+export interface SettlementMethodSnapshot extends AuxSnapshot {
+  termCode:
+    | 'PREPAID'
+    | 'CASH_ON_DELIVERY'
+    | 'ARRIVAL_3'
+    | 'ARRIVAL_5'
+    | 'ARRIVAL_7'
+    | 'ARRIVAL_15'
+    | 'ARRIVAL_30'
+    | 'MONTHLY_CURRENT'
+    | 'MONTHLY_30'
+    | 'MONTHLY_60'
+    | 'MONTHLY_90'
+  ruleType: 'RELATIVE_DAYS' | 'MONTH_END'
+  monthOffset: number
+  dayOfMonth: number
+  dayOffset: number
+}
+
 export interface ReferenceBlocker {
   field: string
   objectId: string
@@ -765,7 +785,7 @@ function normalizeOperatingEntitySet(
 }
 export interface SupplierData
   extends IdentityArchiveData, OperatingEntitySetData {
-  settlementMethod: ExactReference | null
+  settlementMethod: (AuxSnapshot | SettlementMethodSnapshot) | null
   defaultPurchaser: ExactReference | null
 }
 export interface SupplierSubmitCommand extends ArchiveCommand<SupplierData> {}
@@ -863,7 +883,7 @@ export function projectSupplierViewState(
 
 export interface OtherUnitData
   extends IdentityArchiveData, OperatingEntitySetData {
-  settlementMethod: ExactReference | null
+  settlementMethod: (AuxSnapshot | SettlementMethodSnapshot) | null
 }
 export interface OtherUnitSubmitCommand extends ArchiveCommand<OtherUnitData> {}
 export interface OtherUnitSubmitFacts extends ArchiveFacts {
@@ -1002,7 +1022,8 @@ interface CustomerSubunitBase {
   contactName: string
   address: string
   customerType: string
-  settlementMethod: AuxSnapshot | null
+  /** Input is only an AUX identity; ArchiveService replaces it with an authoritative snapshot. */
+  settlementMethod: (AuxSnapshot | SettlementMethodSnapshot) | null
   receiptMethod: string
   transportMethod: string
   pricePolicy: string
@@ -1693,22 +1714,41 @@ export type RptParameterType =
   | 'DATE_RANGE'
   | 'ENUM'
   | 'REFERENCE'
+export type RptReferenceType =
+  | 'ACCOUNTING_BOOK'
+  | 'ACCOUNT_SUBJECT'
+  | 'CUSTOMER_SUBUNIT'
+  | 'SUPPLIER'
+  | 'OTHER_UNIT'
+  | 'EMPLOYEE'
+  | 'SALES_PARTNER'
+  | 'DEPARTMENT'
+  | 'PRODUCT'
+  | 'WAREHOUSE'
+  | 'FUND_ACCOUNT'
+  | 'ASSET'
+  | 'BILL'
+  | 'COUNTERPARTY'
 export type RptColumnType =
-  'TEXT' | 'INTEGER' | 'DECIMAL' | 'BOOLEAN' | 'DATE' | 'DATETIME'
+  'TEXT' | 'INTEGER' | 'DECIMAL' | 'BOOLEAN' | 'DATE' | 'DATETIME' | 'ID'
 export interface RptParameter {
+  key: string
   name: string
-  label: string
   type: RptParameterType
   required: boolean
+  defaultValue?: unknown
+  enumValues?: readonly string[]
+  referenceType?: RptReferenceType
 }
 export interface RptColumn {
   alias: string
-  label: string
+  name: string
   order: number
   type: RptColumnType
   width: number
   visible: boolean
-  format: string
+  format?: string
+  drilldownEntity?: 'VOU'
 }
 export interface RptDefinitionData {
   name: string
@@ -1717,6 +1757,23 @@ export interface RptDefinitionData {
   sql: string
   parameters: readonly RptParameter[]
   columns: readonly RptColumn[]
+}
+
+function validRptDate(value: string): boolean {
+  const parsed = new Date(`${value}T00:00:00.000Z`)
+  return !Number.isNaN(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === value
+}
+
+function validRptParameterValue(parameter: RptParameter, value: unknown): boolean {
+  if (value === null) return !parameter.required
+  if (parameter.type === 'TEXT') return typeof value === 'string'
+  if (parameter.type === 'INTEGER') return typeof value === 'number' && Number.isSafeInteger(value)
+  if (parameter.type === 'DECIMAL') return typeof value === 'string' && /^-?(?:0|[1-9]\d*)(?:\.\d+)?$/.test(value)
+  if (parameter.type === 'BOOLEAN') return typeof value === 'boolean'
+  if (parameter.type === 'DATE') return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && validRptDate(value)
+  if (parameter.type === 'DATE_RANGE') return Array.isArray(value) && value.length === 2 && value.every((item) => typeof item === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item) && validRptDate(item)) && value[0]! <= value[1]!
+  if (parameter.type === 'ENUM') return typeof value === 'string' && parameter.enumValues?.includes(value) === true
+  return typeof value === 'string' && /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(value)
 }
 /** Technical SQL validity is a separate RPT fact, never an Approval status. */
 export interface RptDefinitionValidity {
@@ -1767,14 +1824,17 @@ export function prepareRptDefinitionSubmit(
   const sql = trim(command.data.sql),
     parameters = command.data.parameters.map((parameter) => ({
       ...parameter,
+      key: trim(parameter.key),
       name: trim(parameter.name),
-      label: trim(parameter.label),
+      ...(parameter.enumValues
+        ? { enumValues: parameter.enumValues.map(trim) }
+        : {}),
     })),
     columns = command.data.columns.map((column) => ({
       ...column,
       alias: trim(column.alias),
-      label: trim(column.label),
-      format: trim(column.format),
+      name: trim(column.name),
+      ...(column.format === undefined ? {} : { format: trim(column.format) }),
     }))
   const names = new Set<string>(),
     aliases = new Set<string>(),
@@ -1785,8 +1845,9 @@ export function prepareRptDefinitionSubmit(
     /;/.test(sql) ||
     parameters.some(
       (parameter) =>
-        !parameter.name ||
-        !parameter.label ||
+        !/^[a-z][a-zA-Z0-9]{0,63}$/.test(parameter.key) ||
+        !hasText(parameter.name) ||
+        parameter.name.length > 100 ||
         ![
           'TEXT',
           'INTEGER',
@@ -1797,21 +1858,34 @@ export function prepareRptDefinitionSubmit(
           'ENUM',
           'REFERENCE',
         ].includes(parameter.type) ||
-        names.has(parameter.name) ||
-        !names.add(parameter.name),
+        names.has(parameter.key) ||
+        !names.add(parameter.key) ||
+        (parameter.type === 'ENUM' &&
+          (!parameter.enumValues ||
+            parameter.enumValues.length === 0 ||
+            parameter.enumValues.some((value) => !hasText(value) || value.length > 200) ||
+            new Set(parameter.enumValues).size !== parameter.enumValues.length)) ||
+        (parameter.type !== 'ENUM' && parameter.enumValues !== undefined) ||
+        (parameter.type === 'REFERENCE' && parameter.referenceType === undefined) ||
+        (parameter.type !== 'REFERENCE' && parameter.referenceType !== undefined) ||
+        (parameter.defaultValue !== undefined && !validRptParameterValue(parameter, parameter.defaultValue)),
     ) ||
     columns.length === 0 ||
     columns.some(
       (column) =>
-        !column.alias ||
-        !column.label ||
+        !/^[a-z][a-z0-9_]{0,62}[a-z0-9]$/.test(column.alias) ||
+        !hasText(column.name) ||
+        column.name.length > 100 ||
         !Number.isInteger(column.order) ||
         column.order < 1 ||
         !Number.isInteger(column.width) ||
-        column.width < 1 ||
-        !['TEXT', 'INTEGER', 'DECIMAL', 'BOOLEAN', 'DATE', 'DATETIME'].includes(
+        column.width < 60 ||
+        column.width > 1000 ||
+        !['TEXT', 'INTEGER', 'DECIMAL', 'BOOLEAN', 'DATE', 'DATETIME', 'ID'].includes(
           column.type,
         ) ||
+        (column.format !== undefined && column.format.length > 100) ||
+        (column.drilldownEntity !== undefined && column.drilldownEntity !== 'VOU') ||
         aliases.has(column.alias) ||
         orders.has(column.order) ||
         !aliases.add(column.alias) ||

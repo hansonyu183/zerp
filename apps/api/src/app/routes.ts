@@ -262,6 +262,18 @@ export function registerAppRoutes(
           data: error.data,
           requestId,
         }
+      if (
+        error instanceof AccApplicationError ||
+        error instanceof WflApplicationError ||
+        error instanceof RptApplicationError
+      )
+        return {
+          code: 3001 as const,
+          errorKey: error.errorKey,
+          message: error.errorKey,
+          data: 'data' in error ? error.data : null,
+          requestId,
+        }
       throw error
     }
   }
@@ -669,6 +681,13 @@ export function registerAppRoutes(
   const withVou = registerVouRoutes(
     target,
     async (action: VouRouteAction, context: any) => {
+      if (action === 'reference') {
+        const body = context.req.valid('json')
+        const response = await executeVou<unknown>(context, (actor) =>
+          vou!.queryReferenceCandidates(body, actor),
+        )
+        return context.json(response as never, 200)
+      }
       const entity = context.req.valid('param').entity as VouEntity
       const body = context.req.valid('json')
       const response = await executeVou<unknown>(context, (actor) => {
@@ -685,9 +704,9 @@ export function registerAppRoutes(
             currentRequestId(context),
           )
         if (action === 'attachment-stage')
-          return vou!.stageAttachment(body, actor)
+          return vou!.stageAttachment(entity, body, actor)
         if (action === 'attachment-cleanup')
-          return vou!.cleanupAttachments(actor)
+          return vou!.cleanupAttachments(entity, actor)
         if (action === 'delete')
           return vou!.delete(entity, body, actor, currentRequestId(context))
         return vou!.review(
@@ -736,9 +755,19 @@ export function registerAppRoutes(
       if (action === 'reject') return wfl.review('reject', input, actor, currentRequestId(context))
       if (action === 'unreject') return wfl.review('unreject', input, actor, currentRequestId(context))
       if (action === 'unapprove') return wfl.review('unapprove', input, actor, currentRequestId(context))
+      if (action === 'query') return wfl.query(actor)
+      if (action === 'get') return wfl.get(input.subjectId, actor, input.approvalEntryId)
+      if (action === 'versions') return wfl.versions(input.subjectId, actor)
+      if (action === 'auditHistory') return wfl.auditHistory(input.subjectId, actor)
+      if (action === 'delete') return wfl.delete(input, actor, currentRequestId(context))
       if (action === 'enable' || action === 'disable') return wfl.setEnabled(input, action === 'enable', actor)
+      if (action === 'currentQuery') return wfl.queryCurrentDefinitions(input, actor)
       if (action === 'current') return wfl.current(input.code, actor)
-      return wfl.trial(input.approvalEntryId, input.document, actor)
+      if (action === 'trial') return wfl.trial(input, actor)
+      if (action === 'instanceQuery') return wfl.queryInstances(input, actor)
+      if (action === 'instanceGet') return wfl.getInstance(input.processId, actor)
+      if (action === 'instanceAuditHistory') return wfl.instanceAuditHistory(input.processId, actor)
+      return wfl.executeNodeAction(input, actor, currentRequestId(context))
     })
     return context.json(response as never, 200)
   })
@@ -749,6 +778,7 @@ export function registerAppRoutes(
       if (action === 'directory') return rpt.directory(actor)
       const code = context.req.valid('param').code
       if (action === 'query') return rpt.query(code, input, actor, currentRequestId(context))
+      if (action === 'referenceQuery') return rpt.referenceQuery(code, input, actor)
       return rpt.export(code, input.parameters, actor, currentRequestId(context))
     })
     return context.json(response as never, 200)

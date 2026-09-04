@@ -5,43 +5,46 @@ import type { ApprovalTransitionPlan, VouEntity, VouPayload } from '@zerp/model'
 
 export interface ApprovalApplicationPlan {
   kind: 'approval'
-  transition?: ApprovalTransitionPlan
-  entity?: VouEntity
-  documentId?: string
+  action: 'APPLY'
+  transition: ApprovalTransitionPlan
+  entity: VouEntity
+  documentId: string
 }
 
-export interface VouApplicationPlan {
-  kind: 'vou'
-  action?: 'approve' | 'unapprove'
-  documentId?: string
-}
+export type VouApplicationPlan =
+  | { kind: 'vou'; action: 'NONE' }
+  | { kind: 'vou'; action: 'approve' | 'unapprove'; documentId: string }
 
-export interface AccApplicationPlan {
-  kind: 'acc'
-  action?: 'approve' | 'unapprove'
-  entity?: VouEntity
-  documentId?: string
-  documentNo?: string
-  approvalEntryId?: string
-  approvalRevision?: string
-  payload?: VouPayload
-  occurredAt?: string
-}
+export type AccApplicationPlan =
+  | { kind: 'acc'; action: 'NONE' }
+  | {
+      kind: 'acc'
+      action: 'approve' | 'unapprove'
+      entity: VouEntity
+      documentId: string
+      documentNo: string
+      approvalEntryId: string
+      approvalRevision: string
+      payload: VouPayload
+      occurredAt: string
+    }
 
-export interface WflApplicationPlan {
-  kind: 'wfl'
-  action?: 'approve' | 'unapprove'
-  entity?: VouEntity
-  documentId?: string
-  approvalEntryId?: string
-  payload?: VouPayload
-  actorId?: string
-  occurredAt?: string
-}
+export type WflApplicationPlan =
+  | { kind: 'wfl'; action: 'NONE' }
+  | {
+      kind: 'wfl'
+      action: 'approve' | 'unapprove'
+      entity: VouEntity
+      documentId: string
+      approvalEntryId: string
+      payload: VouPayload
+      actorId: string
+      occurredAt: string
+    }
 
 export interface RptApplicationPlan {
   kind: 'rpt'
-  approvalEntryId?: string
+  action: 'NONE'
 }
 
 export interface PlanExecutor<T> {
@@ -49,11 +52,11 @@ export interface PlanExecutor<T> {
 }
 
 export interface ApplicationPlanBundle {
-  approval?: ApprovalApplicationPlan
-  vou?: VouApplicationPlan
-  acc?: AccApplicationPlan
-  wfl?: WflApplicationPlan
-  rpt?: RptApplicationPlan
+  approval: ApprovalApplicationPlan
+  vou: VouApplicationPlan
+  acc: AccApplicationPlan
+  wfl: WflApplicationPlan
+  rpt: RptApplicationPlan
 }
 
 export interface ApplicationPlanExecutors {
@@ -80,11 +83,10 @@ export class ApplicationTransactionCoordinator {
     transaction: Transaction<DB>,
     plans: ApplicationPlanBundle,
   ): Promise<void> {
-    if (plans.approval)
-      await this.executors.approval.apply(transaction, plans.approval)
-    if (plans.vou) await this.executors.vou.apply(transaction, plans.vou)
-    if (plans.acc) await this.executors.acc.apply(transaction, plans.acc)
-    if (plans.wfl) await this.executors.wfl.apply(transaction, plans.wfl)
-    if (plans.rpt) await this.executors.rpt.apply(transaction, plans.rpt)
+    await this.executors.approval.apply(transaction, plans.approval)
+    await this.executors.vou.apply(transaction, plans.vou)
+    await this.executors.acc.apply(transaction, plans.acc)
+    await this.executors.wfl.apply(transaction, plans.wfl)
+    await this.executors.rpt.apply(transaction, plans.rpt)
   }
 }

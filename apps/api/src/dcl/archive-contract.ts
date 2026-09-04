@@ -164,7 +164,29 @@ const employeeSnapshot = z
 
 // Settlement methods are AUX facts. They intentionally do not carry an
 // Approval Entry: a DCL exact-version reference here would fabricate history.
-const settlementSnapshot = auxSnapshot
+// ArchiveService replaces any client-supplied identity with these immutable
+// term facts from the currently enabled AUX object before persistence.
+const settlementSnapshot = auxSnapshot.extend({
+  termCode: z
+    .enum([
+      'PREPAID',
+      'CASH_ON_DELIVERY',
+      'ARRIVAL_3',
+      'ARRIVAL_5',
+      'ARRIVAL_7',
+      'ARRIVAL_15',
+      'ARRIVAL_30',
+      'MONTHLY_CURRENT',
+      'MONTHLY_30',
+      'MONTHLY_60',
+      'MONTHLY_90',
+    ])
+    .optional(),
+  ruleType: z.enum(['RELATIVE_DAYS', 'MONTH_END']).optional(),
+  monthOffset: z.number().int().min(0).max(3).optional(),
+  dayOfMonth: z.number().int().min(0).max(31).optional(),
+  dayOffset: z.number().int().min(0).max(30).optional(),
+})
 const archiveIdentityBase = {
   identityKind: z.enum(['PERSON', 'ORGANIZATION']),
   legalName: z.string().min(1).max(200),
@@ -370,8 +392,8 @@ const rptDefinitionSnapshot = z
     parameters: z.array(
       z
         .object({
-          name: z.string().min(1),
-          label: z.string().min(1),
+          key: z.string().regex(/^[a-z][a-zA-Z0-9]{0,63}$/),
+          name: z.string().min(1).max(100),
           type: z.enum([
             'TEXT',
             'INTEGER',
@@ -383,14 +405,21 @@ const rptDefinitionSnapshot = z
             'REFERENCE',
           ]),
           required: z.boolean(),
+          defaultValue: z.unknown().optional(),
+          enumValues: z.array(z.string().min(1).max(200)).min(1).optional(),
+          referenceType: z.enum([
+            'ACCOUNTING_BOOK', 'ACCOUNT_SUBJECT', 'CUSTOMER_SUBUNIT', 'SUPPLIER',
+            'OTHER_UNIT', 'EMPLOYEE', 'SALES_PARTNER', 'DEPARTMENT', 'PRODUCT',
+            'WAREHOUSE', 'FUND_ACCOUNT', 'ASSET', 'BILL', 'COUNTERPARTY',
+          ]).optional(),
         })
         .strict(),
     ),
     columns: z.array(
       z
         .object({
-          alias: z.string().min(1),
-          label: z.string().min(1),
+          alias: z.string().regex(/^[a-z][a-z0-9_]{0,62}[a-z0-9]$/),
+          name: z.string().min(1).max(100),
           order: z.number().int().positive(),
           type: z.enum([
             'TEXT',
@@ -399,10 +428,12 @@ const rptDefinitionSnapshot = z
             'BOOLEAN',
             'DATE',
             'DATETIME',
+            'ID',
           ]),
-          width: z.number().int().positive(),
+          width: z.number().int().min(60).max(1000),
           visible: z.boolean(),
-          format: z.string(),
+          format: z.string().max(100).optional(),
+          drilldownEntity: z.enum(['VOU']).optional(),
         })
         .strict(),
     ),

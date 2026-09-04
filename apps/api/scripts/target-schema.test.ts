@@ -4,7 +4,7 @@ import test from 'node:test'
 
 const root = new URL('../../../', import.meta.url)
 
-test('isolated target schema contains every issue 364 typed DCL aggregate', async () => {
+test('isolated target schema contains every target typed aggregate', async () => {
   const schema = await readFile(
     new URL('apps/api/db/target-schema.sql', root),
     'utf8',
@@ -13,7 +13,7 @@ test('isolated target schema contains every issue 364 typed DCL aggregate', asyn
   const tables = [...schema.matchAll(/CREATE TABLE ([a-z0-9_]+)/g)].map(
     (match) => match[1],
   )
-  assert.deepEqual(tables, [
+  assert.deepEqual(tables.filter((table) => !table.startsWith('vou_')), [
     'app_users',
     'app_user_profiles',
     'app_permissions',
@@ -68,15 +68,17 @@ test('isolated target schema contains every issue 364 typed DCL aggregate', asyn
     'acc_subjects',
     'acc_opening_snapshots',
     'acc_periods',
-    'vou_documents',
-    'vou_document_payloads',
-    'vou_idempotency',
-    'vou_attachment_staging',
-    'vou_attachments',
+    'acc_period_balances',
     'acc_journal_entries',
     'acc_journal_lines',
     'acc_inventory_entries',
+    'acc_container_entries',
+    'acc_asset_registers',
+    'acc_asset_book_values',
+    'acc_bill_registers',
+    'acc_bill_book_values',
     'acc_register_entries',
+    'acc_opening_container_balances',
     'wfl_definition_versions',
     'wfl_definition_runtime_states',
     'wfl_trials',
@@ -86,6 +88,28 @@ test('isolated target schema contains every issue 364 typed DCL aggregate', asyn
     'wfl_runtime_audits',
     'rpt_execution_audits',
   ])
+  const vouDetails = [
+    'sale-pricing', 'sale-order', 'sale-outbound', 'sale-delivery',
+    'sale-signoff', 'sale-return', 'purchase-order', 'purchase-inbound',
+    'purchase-return', 'purchase-inquiry', 'order-production', 'self-production',
+    'inventory-count', 'sales-receipt', 'purchase-refund', 'other-receipt',
+    'sales-refund', 'purchase-payment', 'other-payment', 'employee-loan',
+    'employee-repayment', 'employee-loan-writeoff', 'expense-reimbursement',
+    'expense-payment', 'other-income', 'asset-acquisition', 'asset-sale',
+    'asset-liquidation', 'bill-receipt', 'bill-payment', 'bill-issue',
+    'bill-discount', 'bill-maturity', 'intermediary-calculation',
+    'service-contract', 'service-acceptance',
+  ].map((entity) => `vou_${entity.replaceAll('-', '_')}_details`)
+  for (const table of vouDetails) assert.ok(tables.includes(table), table)
+  for (const table of [
+    'vou_reference_snapshots', 'vou_product_line_snapshots',
+    'vou_price_line_snapshots', 'vou_source_line_snapshots',
+    'vou_expense_line_snapshots', 'vou_bill_line_snapshots',
+  ]) assert.ok(tables.includes(table), table)
+  for (const legacy of [
+    'vou_document_payloads', 'vou_document_detail_facts',
+    'vou_document_line_facts', 'vou_document_reference_facts',
+  ]) assert.ok(!tables.includes(legacy), legacy)
   assert.doesNotMatch(schema, /\bbob_current_objects\b/)
   assert.doesNotMatch(schema, /\bbob_customer_subunits\b/)
   for (const [entity, prefix] of [
@@ -111,16 +135,22 @@ test('isolated target schema contains every issue 364 typed DCL aggregate', asyn
     /entity = 'rpt-definition' AND code ~ '\^rpt-\[0-9\]\{6\}\$'/,
   )
   assert.match(schema, /status IN \('PENDING', 'APPROVED', 'REJECTED'\)/)
-  assert.match(
-    schema,
-    /domain IN \('dcl', 'vou', 'acc'\)[\s\S]*domain = 'dcl' AND version_no IS NOT NULL[\s\S]*domain = 'vou' AND version_no IS NULL[\s\S]*domain = 'acc' AND version_no IS NULL/,
-  )
-  assert.match(schema, /vou_documents[\s\S]*entity varchar\(64\) NOT NULL/)
+  assert.doesNotMatch(schema, /approval_entries[\s\S]*domain IN/)
+  assert.doesNotMatch(schema, /approval_entries[\s\S]*domain = 'vou'/)
+  const vouDocumentsDefinition = schema
+    .slice(schema.indexOf('CREATE TABLE vou_documents'))
+    .slice(0, schema.slice(schema.indexOf('CREATE TABLE vou_documents')).indexOf(');'))
+  assert.match(vouDocumentsDefinition, /entity varchar\(64\) NOT NULL/)
+  assert.doesNotMatch(vouDocumentsDefinition, /CHECK \(entity IN/)
   assert.match(schema, /wfl_instances[\s\S]*approval_entry_id varchar\(26\) NOT NULL/)
   assert.match(schema, /rpt_execution_audits/)
   assert.doesNotMatch(schema, /CREATE (?:FUNCTION|TRIGGER|PROCEDURE)/i)
   assert.match(schema, /'acc-mapping'/)
   assert.match(schema, /dcl_acc_mapping_versions/)
+  assert.match(schema, /acc_journal_entries[\s\S]*source_kind varchar\(32\) NOT NULL DEFAULT 'VOU'/)
+  assert.match(schema, /acc_journal_entries_opening_source_unique/)
+  assert.match(schema, /acc_register_entries_opening_source_unique/)
+  assert.match(schema, /acc_period_balances[\s\S]*opening_balance numeric\(24, 8\) NOT NULL/)
   assert.match(schema, /dcl_rpt_definition_versions/)
   assert.match(schema, /status IN \('VALID', 'INVALID'\)/)
   assert.match(

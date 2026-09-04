@@ -26,6 +26,12 @@ import { ulid } from 'ulid'
 
 import type { ArchiveEntity } from './archive-contract.ts'
 import type { DB, JsonValue } from '../db/generated.ts'
+import type {
+  RptColumn,
+  RptDefinition,
+  RptDefinitionValidator,
+  RptParameter,
+} from '../rpt/service.ts'
 
 type Executor = Kysely<DB> | Transaction<DB>
 export type ArchiveSnapshot = Record<string, unknown>
@@ -470,9 +476,11 @@ function requestHash(
 /** DCL archive persistence. Entity payloads are deliberately explicit below. */
 export class ArchiveService {
   private readonly db: Kysely<DB>
+  private readonly rptValidator: RptDefinitionValidator
 
-  constructor(db: Kysely<DB>) {
+  constructor(db: Kysely<DB>, rptValidator: RptDefinitionValidator) {
     this.db = db
+    this.rptValidator = rptValidator
   }
 
   async query(
@@ -789,8 +797,6 @@ export class ArchiveService {
           input.submissionId.trim(),
           plan.data,
         )
-        if (entity === 'rpt-definition')
-          await this.validateReport(tx, input.submissionId.trim(), actor.id)
         if (entity === 'customer')
           await this.promoteCustomerAttachments(
             tx,
@@ -854,6 +860,26 @@ export class ArchiveService {
     requestId: string,
   ): Promise<ArchiveSubmissionView> {
     requirePermission(actor, `/dcl/${entity}/${action}`)
+    if (action === 'approve' && entity === 'rpt-definition') {
+      const entry = await this.loadEntry(
+        this.db,
+        entity,
+        input.submissionId,
+        input.subjectId,
+        false,
+      )
+      const preflight = decideApproval({
+        action,
+        entry,
+        actor,
+        expectedRevision: input.expectedRevision,
+        occurredAt: new Date().toISOString(),
+        requestId,
+      })
+      if (!preflight.ok)
+        throw new ArchiveApplicationError(preflight.error.errorKey)
+      await this.validateReport(this.db, input.submissionId, actor.id)
+    }
     return this.db.transaction().execute(async (tx) => {
       await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:archive:${entity}:${input.subjectId}`}, 0))`.execute(
         tx,
@@ -875,8 +901,6 @@ export class ArchiveService {
           actor,
           requestId,
         )
-      if (action === 'approve' && entity === 'rpt-definition')
-        await this.validateReport(tx, input.submissionId, actor.id)
       const occurredAt = new Date()
       const decision = decideApproval({
         action,
@@ -939,8 +963,16 @@ export class ArchiveService {
           await sql`DELETE FROM dcl_acc_mapping_subject_usages
             WHERE approval_entry_id = ${entry.id}`.execute(tx)
       }
-      if (entity === 'rpt-definition' && plan.toStatus === 'APPROVED')
-        await this.registerRptPermissions(tx, entry.subjectId, actor.id)
+      if (
+        entity === 'employee' &&
+        (plan.toStatus === 'APPROVED' || plan.fromStatus === 'APPROVED')
+      )
+        await this.syncWarehouseManagerReference(tx, entry.subjectId)
+      if (
+        entity === 'rpt-definition' &&
+        (plan.toStatus === 'APPROVED' || plan.fromStatus === 'APPROVED')
+      )
+        await this.syncRptPermissions(tx, entry.subjectId, actor.id)
       return this.readSubmission(tx, entity, entry.id, actor)
     })
   }
@@ -1685,6 +1717,33 @@ export class ArchiveService {
       await this.auxFacts(tx, [[field, String(requested.id ?? '')]])
     )[0]
     if (!fact || !fact.available) throw new ArchiveApplicationError(errorKey)
+    if (field === 'settlementMethod') {
+      const termCode = typeof fact.data.termCode === 'string' ? fact.data.termCode : ''
+      const ruleType = typeof fact.data.ruleType === 'string' ? fact.data.ruleType : ''
+      const monthOffset = fact.data.monthOffset
+      const dayOfMonth = fact.data.dayOfMonth
+      const dayOffset = fact.data.dayOffset
+      if (
+        ![
+          'PREPAID', 'CASH_ON_DELIVERY', 'ARRIVAL_3', 'ARRIVAL_5',
+          'ARRIVAL_7', 'ARRIVAL_15', 'ARRIVAL_30', 'MONTHLY_CURRENT',
+          'MONTHLY_30', 'MONTHLY_60', 'MONTHLY_90',
+        ].includes(termCode) ||
+        !['RELATIVE_DAYS', 'MONTH_END'].includes(ruleType) ||
+        !Number.isInteger(monthOffset) || !Number.isInteger(dayOfMonth) ||
+        !Number.isInteger(dayOffset)
+      ) throw new ArchiveApplicationError(errorKey)
+      return {
+        id: fact.objectId,
+        code: fact.code,
+        name: fact.name,
+        termCode,
+        ruleType,
+        monthOffset,
+        dayOfMonth,
+        dayOffset,
+      }
+    }
     return {
       ...requested,
       id: fact.objectId,
@@ -2926,6 +2985,49 @@ export class ArchiveService {
       ON CONFLICT DO NOTHING`.execute(tx)
   }
 
+  private async syncWarehouseManagerReference(
+    tx: Executor,
+    employeeId: string,
+  ): Promise<void> {
+    const current = await sql<{
+      approval_entry_id: string
+      code: string
+      name: string
+      enabled: boolean
+    }>`
+      SELECT e.id AS approval_entry_id, s.code, v.display_name AS name, v.enabled
+      FROM approval_entries e
+      JOIN dcl_subjects s ON s.id = e.subject_id
+      JOIN dcl_employee_versions v ON v.approval_entry_id = e.id
+      WHERE e.domain = 'dcl'
+        AND e.entity = 'employee'
+        AND e.subject_id = ${employeeId}
+        AND e.status = 'APPROVED'
+      ORDER BY e.version_no DESC
+      LIMIT 1
+    `.execute(tx)
+    const fact = current.rows[0]
+    if (!fact) {
+      await tx
+        .deleteFrom('dcl_warehouse_manager_reference_facts')
+        .where('employee_id', '=', employeeId)
+        .execute()
+      return
+    }
+    await sql`
+      INSERT INTO dcl_warehouse_manager_reference_facts (
+        employee_id, latest_approved_entry_id, code, name, enabled
+      ) VALUES (
+        ${employeeId}, ${fact.approval_entry_id}, ${fact.code}, ${fact.name}, ${fact.enabled}
+      )
+      ON CONFLICT (employee_id) DO UPDATE SET
+        latest_approved_entry_id = EXCLUDED.latest_approved_entry_id,
+        code = EXCLUDED.code,
+        name = EXCLUDED.name,
+        enabled = EXCLUDED.enabled
+    `.execute(tx)
+  }
+
   private async accMappingReferenceBlockers(
     tx: Executor,
     approvalEntryId: string,
@@ -3004,111 +3106,102 @@ export class ArchiveService {
   }
 
   private async validateReport(
-    tx: Transaction<DB>,
+    executor: Executor,
     submissionId: string,
     actorId: string,
   ): Promise<void> {
-    const snapshot = await this.readSnapshot(tx, 'rpt-definition', submissionId)
-    const reportSql = String(snapshot.sql ?? '').trim()
-    if (
-      !/^(select|with)\b/i.test(reportSql) ||
-      /\b(insert|update|delete|merge|copy|alter|create|drop|grant|revoke|call|do)\b/i.test(
-        reportSql,
-      ) ||
-      /;/.test(reportSql)
-    ) {
-      await tx
-        .insertInto('rpt_definition_validities')
-        .values({
-          approval_entry_id: submissionId,
-          status: 'INVALID',
-          diagnostic: 'Only one read-only SELECT/WITH statement is allowed.',
-          validated_at: new Date(),
-          validated_by: actorId,
-        })
-        .onConflict((oc) =>
-          oc.column('approval_entry_id').doUpdateSet({
-            status: 'INVALID',
-            diagnostic: 'Only one read-only SELECT/WITH statement is allowed.',
-            validated_at: new Date(),
-            validated_by: actorId,
-          }),
-        )
-        .execute()
-      return
+    const snapshot = await this.readSnapshot(
+      executor,
+      'rpt-definition',
+      submissionId,
+    )
+    const entry = await executor
+      .selectFrom('approval_entries as e')
+      .innerJoin('dcl_subjects as s', 's.id', 'e.subject_id')
+      .select(['e.subject_id', 's.code'])
+      .where('e.id', '=', submissionId)
+      .where('e.domain', '=', 'dcl')
+      .where('e.entity', '=', 'rpt-definition')
+      .executeTakeFirstOrThrow()
+    if (!entry.code)
+      throw new ArchiveApplicationError('archive_invalid_history')
+    const definition: RptDefinition = {
+      subjectId: entry.subject_id,
+      approvalEntryId: submissionId,
+      code: entry.code,
+      name: String(snapshot.name ?? ''),
+      sql: String(snapshot.sql ?? ''),
+      parameters: array(snapshot.parameters) as RptParameter[],
+      columns: array(snapshot.columns) as RptColumn[],
     }
+    let diagnostic: string | null = null
     try {
-      await sql.raw('SAVEPOINT rpt_definition_validation').execute(tx)
-      try {
-        await sql.raw(`EXPLAIN ${reportSql}`).execute(tx)
-      } catch (error) {
-        await sql
-          .raw('ROLLBACK TO SAVEPOINT rpt_definition_validation')
-          .execute(tx)
-        await sql.raw('RELEASE SAVEPOINT rpt_definition_validation').execute(tx)
-        throw error
-      }
-      await sql.raw('RELEASE SAVEPOINT rpt_definition_validation').execute(tx)
-      await tx
-        .insertInto('rpt_definition_validities')
-        .values({
-          approval_entry_id: submissionId,
-          status: 'VALID',
-          diagnostic: null,
-          validated_at: new Date(),
-          validated_by: actorId,
-        })
-        .onConflict((oc) =>
-          oc.column('approval_entry_id').doUpdateSet({
-            status: 'VALID',
-            diagnostic: null,
-            validated_at: new Date(),
-            validated_by: actorId,
-          }),
-        )
-        .execute()
+      await this.rptValidator.validate(definition)
     } catch (error) {
-      await tx
-        .insertInto('rpt_definition_validities')
-        .values({
-          approval_entry_id: submissionId,
-          status: 'INVALID',
-          diagnostic:
-            error instanceof Error
-              ? error.message.slice(0, 2000)
-              : 'Invalid report query.',
-          validated_at: new Date(),
-          validated_by: actorId,
-        })
-        .onConflict((oc) =>
-          oc.column('approval_entry_id').doUpdateSet({
-            status: 'INVALID',
-            diagnostic:
-              error instanceof Error
-                ? error.message.slice(0, 2000)
-                : 'Invalid report query.',
-            validated_at: new Date(),
-            validated_by: actorId,
-          }),
-        )
-        .execute()
-      return
+      diagnostic =
+        error instanceof Error
+          ? error.message.slice(0, 2000)
+          : 'Invalid report query.'
     }
+    const validatedAt = new Date()
+    await executor
+      .insertInto('rpt_definition_validities')
+      .values({
+        approval_entry_id: submissionId,
+        status: diagnostic === null ? 'VALID' : 'INVALID',
+        diagnostic,
+        validated_at: validatedAt,
+        validated_by: actorId,
+      })
+      .onConflict((oc) =>
+        oc.column('approval_entry_id').doUpdateSet({
+          status: diagnostic === null ? 'VALID' : 'INVALID',
+          diagnostic,
+          validated_at: validatedAt,
+          validated_by: actorId,
+        }),
+      )
+      .execute()
+    if (diagnostic !== null)
+      throw new ArchiveApplicationError('rpt_definition_invalid')
   }
 
-  private async registerRptPermissions(tx: Transaction<DB>, subjectId: string, actorId: string) {
+  private async syncRptPermissions(
+    tx: Transaction<DB>,
+    subjectId: string,
+    actorId: string,
+  ) {
     const subject = await tx.selectFrom('dcl_subjects').select('code')
       .where('id', '=', subjectId).where('entity', '=', 'rpt-definition').executeTakeFirstOrThrow()
     if (!subject.code) throw new ArchiveApplicationError('archive_invalid_history')
+    const current = await tx.selectFrom('approval_entries as e')
+      .innerJoin('dcl_rpt_definition_versions as v', 'v.approval_entry_id', 'e.id')
+      .leftJoin('rpt_definition_validities as validity', 'validity.approval_entry_id', 'e.id')
+      .select(['v.name', 'v.enabled', 'validity.status as validity'])
+      .where('e.domain', '=', 'dcl')
+      .where('e.entity', '=', 'rpt-definition')
+      .where('e.subject_id', '=', subjectId)
+      .where('e.status', '=', 'APPROVED')
+      .orderBy('e.version_no', 'desc')
+      .executeTakeFirst()
+    const status = current?.enabled === true && current.validity === 'VALID'
+      ? 'ENABLED' as const
+      : 'DISABLED' as const
+    const description = current?.name || subject.code
+    const menuOrder = 900_000 + Number(subject.code.slice(4))
     for (const action of ['query', 'export'] as const) {
       const path = `/rpt/${subject.code}/${action}`
       const id = `01J${createHash('sha256').update(path).digest('hex').slice(0, 23).toUpperCase()}`
       await tx.insertInto('app_permissions').values({
         id, path, domain: 'rpt', entity: subject.code, action,
-        description: `${subject.code} ${action}`, status: 'ENABLED',
+        description, status,
+        menu_group: action === 'query' ? '报表' : null,
+        menu_order: action === 'query' ? menuOrder : null,
         created_by: actorId, updated_by: actorId,
       }).onConflict((conflict) => conflict.column('path').doUpdateSet({
-        status: 'ENABLED', description: `${subject.code} ${action}`,
+        status, description,
+        menu_group: action === 'query' ? '报表' : null,
+        menu_order: action === 'query' ? menuOrder : null,
         updated_at: new Date(), updated_by: actorId,
       })).execute()
     }

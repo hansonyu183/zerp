@@ -522,6 +522,57 @@ export class AuxService {
     })
   }
 
+  async ensureE2ESettlementMethod(
+    data: unknown,
+    actor: AuxActor & { trusted?: boolean },
+  ): Promise<AuxMutationResult> {
+    if (actor.trusted !== true) applicationError('forbidden')
+    return this.db.transaction().execute(async (transaction) => {
+      await this.lock(transaction)
+      const normalised = await this.validateData(
+        transaction,
+        'settlement-method',
+        null,
+        data,
+      )
+      const existing = await sql<{
+        id: string
+        revision: string | number | bigint
+        enabled: boolean
+      }>`
+        SELECT id, revision, enabled FROM aux_objects
+        WHERE entity = 'settlement-method'
+          AND data->>'termCode' = ${String(normalised.termCode)}
+          AND data->>'name' = ${String(normalised.name)}
+        FOR UPDATE
+      `.execute(transaction)
+      if (existing.rows[0]) {
+        const row = existing.rows[0]
+        return {
+          objectId: row.id,
+          objectRevision: objectRevision(row.revision),
+          enabled: row.enabled,
+        }
+      }
+      const counter = await sql<{ last_value: number }>`
+        INSERT INTO object_number_counters(domain, entity, last_value)
+        VALUES ('aux', 'settlement-method', 1)
+        ON CONFLICT (domain, entity) DO UPDATE
+          SET last_value = object_number_counters.last_value + 1
+          WHERE object_number_counters.last_value < 9999
+        RETURNING last_value
+      `.execute(transaction)
+      const number = counter.rows[0]?.last_value
+      if (!number) applicationError('conflict')
+      const objectId = ulid()
+      await sql`INSERT INTO aux_objects(id, entity, code, enabled, revision, data, created_by, updated_by)
+        VALUES (${objectId}, 'settlement-method', ${`${codePrefixes['settlement-method']}-${String(number).padStart(4, '0')}`}, true, 1, ${JSON.stringify(normalised)}::jsonb, ${actor.id}, ${actor.id})`.execute(
+        transaction,
+      )
+      return { objectId, objectRevision: '1', enabled: true }
+    })
+  }
+
   async save(
     entity: AuxEntity,
     objectId: string,

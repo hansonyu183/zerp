@@ -8,6 +8,7 @@ import { createApp } from '../src/app.ts'
 import { targetRouteMetadata } from '../src/app/routes.ts'
 import { archiveCapabilityPermissionMetadata } from '../src/dcl/archive-contract.ts'
 import { vouCapabilityPermissionMetadata } from '../src/vou/contract.ts'
+import { wflCapabilityPermissionMetadata } from '../src/wfl/contract.ts'
 import { SessionService } from '../src/app/session.ts'
 import type { DB } from '../src/db/generated.ts'
 import type { TargetConfig } from '../src/platform/config.ts'
@@ -178,6 +179,7 @@ export async function generateTargetArtifacts(): Promise<void> {
     [
       ...archiveCapabilityPermissionMetadata,
       ...vouCapabilityPermissionMetadata,
+      ...wflCapabilityPermissionMetadata,
     ],
   )
   await mkdir(generatedDirectory, { recursive: true })

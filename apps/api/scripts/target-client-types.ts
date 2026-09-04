@@ -11,6 +11,7 @@ import {
   archiveRouteSets,
   type registerArchiveRoutes,
 } from '../src/dcl/archive-contract.ts'
+import { vouRouteSet } from '../src/vou/contract.ts'
 
 type SchemaOf<T> =
   T extends OpenAPIHono<any, infer Schema, any> ? Schema : never
@@ -28,6 +29,7 @@ const noWideIndependentPath: string extends keyof SchemaOf<
   : true = true
 const auxReferencePath: '/aux/reference/query' = auxReferenceRoute.path
 const bobReferencePath: '/bob/reference/query' = bobReferenceRoute.path
+const vouReferencePath: '/vou/reference/query' = vouRouteSet.reference.path
 const vehicleDeletePath: '/dcl/vehicle/delete' =
   archiveRouteSets.vehicle.delete.path
 
@@ -40,6 +42,7 @@ const archiveClient = hc<ReturnType<typeof registerArchiveRoutes>>(
 // TargetAppType. Keep their literal paths in the executable Hono composition.
 void client.aux.reference.query.$post
 void client.bob.reference.query.$post
+void client.vou.reference.query.$post
 void client.acc.mapping.query.$post
 void client.acc.mapping.get.$post
 void client.acc.mapping.catalog.$post
@@ -66,4 +69,5 @@ void noWideArchivePath
 void noWideIndependentPath
 void auxReferencePath
 void bobReferencePath
+void vouReferencePath
 void vehicleDeletePath

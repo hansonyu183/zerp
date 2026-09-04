@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import test from 'node:test'
 
 import { sql } from 'kysely'
+import pg from 'pg'
 import { ulid } from 'ulid'
 
 import { createDatabase } from '../../src/db/database.ts'
@@ -10,13 +11,18 @@ import {
   ArchiveApplicationError,
   ArchiveService,
 } from '../../src/dcl/archives.ts'
+import { PgRptDefinitionValidator } from '../../src/rpt/service.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
 
 test('business-key and referenced-entry locks admit at most one concurrent writer', async (context) => {
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
   const db = createDatabase(databaseUrl)
-  const service = new ArchiveService(db)
+  const validationPool = new pg.Pool({ connectionString: databaseUrl })
+  const service = new ArchiveService(
+    db,
+    new PgRptDefinitionValidator(validationPool, db),
+  )
   const submitterId = ulid(),
     reviewerId = ulid()
   const submitter = {
@@ -67,6 +73,7 @@ test('business-key and referenced-entry locks admit at most one concurrent write
         .where('id', 'in', [submitterId, reviewerId])
         .execute()
     } finally {
+      await validationPool.end()
       await db.destroy()
     }
   })
@@ -279,7 +286,11 @@ test('typed DCL archives persist idempotent V1/V2 lifecycle and derive current f
   const subjectId = ulid()
   const v1Id = ulid()
   const v2Id = ulid()
-  const service = new ArchiveService(db)
+  const validationPool = new pg.Pool({ connectionString: databaseUrl })
+  const service = new ArchiveService(
+    db,
+    new PgRptDefinitionValidator(validationPool, db),
+  )
   const submitter = {
     id: submitterId,
     permissions: [] as string[],
@@ -308,6 +319,7 @@ test('typed DCL archives persist idempotent V1/V2 lifecycle and derive current f
         .where('id', 'in', [submitterId, reviewerId])
         .execute()
     } finally {
+      await validationPool.end()
       await db.destroy()
     }
   })
@@ -500,7 +512,11 @@ test('typed DCL archives persist idempotent V1/V2 lifecycle and derive current f
 test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attachment finalization', async (context) => {
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
   const db = createDatabase(databaseUrl)
-  const service = new ArchiveService(db)
+  const validationPool = new pg.Pool({ connectionString: databaseUrl })
+  const service = new ArchiveService(
+    db,
+    new PgRptDefinitionValidator(validationPool, db),
+  )
   const submitterId = ulid()
   const reviewerId = ulid()
   const submitter = {
@@ -556,6 +572,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
         .where('id', 'in', [submitterId, reviewerId])
         .execute()
     } finally {
+      await validationPool.end()
       await db.destroy()
     }
   })
@@ -1247,7 +1264,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     columns: [
       {
         alias: 'total',
-        label: '总数',
+        name: '总数',
         order: 1,
         type: 'INTEGER',
         width: 120,
@@ -1259,16 +1276,25 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   assert.equal(validReport.validity?.status, 'VALID')
   assert.equal(validReport.validity?.validatedBy, reviewerId)
   assert.match(validReport.validity?.validatedAt ?? '', /^\d{4}-\d{2}-\d{2}T/)
-  const invalidReport = await submitAndApprove('rpt-definition', {
+  const invalidReportSubjectId = ulid()
+  const invalidReportSubmissionId = ulid()
+  subjectIds.push(invalidReportSubjectId)
+  const invalidReport = await service.submit('rpt-definition', 'submit-new', {
+    subjectId: invalidReportSubjectId,
+    submissionId: invalidReportSubmissionId,
+    idempotencyKey: invalidReportSubmissionId,
+    expectedLatestApprovedSubmissionId: null,
+    expectedLatestApprovedRevision: null,
+    snapshot: {
     name: '失效但可批准的报表',
-    description: 'Approval 与技术有效性彼此独立',
+    description: '批准前必须通过技术校验',
     enabled: true,
     sql: 'SELECT missing_column FROM missing_table',
     parameters: [],
     columns: [
       {
         alias: 'missing_column',
-        label: '缺失列',
+        name: '缺失列',
         order: 1,
         type: 'TEXT',
         width: 120,
@@ -1276,10 +1302,27 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
         format: '',
       },
     ],
-  })
-  assert.equal(invalidReport.status, 'APPROVED')
-  assert.equal(invalidReport.validity?.status, 'INVALID')
-  assert.equal(invalidReport.validity?.validatedBy, reviewerId)
+    },
+  }, submitter, ulid())
+  await assert.rejects(
+    service.review('rpt-definition', 'approve', {
+      subjectId: invalidReportSubjectId,
+      submissionId: invalidReportSubmissionId,
+      expectedRevision: invalidReport.revision,
+    }, reviewer, ulid()),
+    (error: unknown) =>
+      error instanceof ArchiveApplicationError &&
+      error.errorKey === 'rpt_definition_invalid',
+  )
+  const invalidAfterReview = await service.get(
+    'rpt-definition',
+    invalidReportSubjectId,
+    reviewer,
+    invalidReportSubmissionId,
+  )
+  assert.equal(invalidAfterReview.status, 'PENDING')
+  assert.equal(invalidAfterReview.validity?.status, 'INVALID')
+  assert.equal(invalidAfterReview.validity?.validatedBy, reviewerId)
   const reportVersion = await service.get(
     'rpt-definition',
     validReport.subjectId,
@@ -1292,7 +1335,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       'rpt-definition',
       validReport.subjectId,
       reviewer,
-      invalidReport.submissionId,
+      invalidReportSubmissionId,
     ),
     (error: unknown) =>
       error instanceof ArchiveApplicationError &&

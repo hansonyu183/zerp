@@ -1,54 +1,13 @@
-import type { Kysely, Transaction } from 'kysely'
+import { sql, type Kysely, type Transaction } from 'kysely'
 
 import type { TargetPermissionCatalogEntry } from '../../scripts/target-artifacts.ts'
-import type { DB, JsonValue } from '../db/generated.ts'
+import type { DB } from '../db/generated.ts'
 
 export interface TargetE2EPrincipal {
   userId: string
   roleId: string
   username: string
   passwordHash: string
-}
-
-export interface TargetE2EManagerReference {
-  employeeId: string
-  latestApprovedEntryId: string
-  code: string
-  name: string
-  enabled: boolean
-}
-
-export interface TargetE2EArchiveFacts {
-  createdBy: string
-  auxObjects: readonly {
-    id: string
-    entity:
-      | 'dictionary-item'
-      | 'product-type'
-      | 'product-category'
-      | 'measurement-unit'
-      | 'employee-category'
-      | 'department'
-      | 'position'
-    code: string
-    data: JsonValue
-  }[]
-  accounting: {
-    book: { id: string; code: string; name: string }
-    vouEntity: {
-      id: string
-      code: string
-      name: string
-      fieldCatalog: { headerFields: string[]; lineFields: string[] }
-    }
-    subjects: readonly {
-      id: string
-      code: string
-      name: string
-      leaf: boolean
-      requiredDimensions: string[]
-    }[]
-  }
 }
 
 export interface PermissionCatalogMigrationReport {
@@ -300,106 +259,6 @@ export class TargetBootstrapService {
     })
   }
 
-  async createE2EManagerReference(
-    reference: TargetE2EManagerReference,
-  ): Promise<void> {
-    await this.db
-      .insertInto('dcl_warehouse_manager_reference_facts')
-      .values({
-        employee_id: reference.employeeId,
-        latest_approved_entry_id: reference.latestApprovedEntryId,
-        code: reference.code,
-        name: reference.name,
-        enabled: reference.enabled,
-      })
-      .execute()
-  }
-
-  async deleteE2EManagerReference(employeeId: string): Promise<void> {
-    await this.db
-      .deleteFrom('dcl_warehouse_manager_reference_facts')
-      .where('employee_id', '=', employeeId)
-      .execute()
-  }
-
-  async createE2EArchiveFacts(facts: TargetE2EArchiveFacts): Promise<void> {
-    await this.db.transaction().execute(async (transaction) => {
-      await transaction
-        .insertInto('aux_objects')
-        .values(
-          facts.auxObjects.map((item) => ({
-            id: item.id,
-            entity: item.entity,
-            code: item.code,
-            data: item.data,
-            enabled: true,
-            created_by: facts.createdBy,
-            updated_by: facts.createdBy,
-          })),
-        )
-        .execute()
-      await transaction
-        .insertInto('dcl_acc_book_facts')
-        .values({ ...facts.accounting.book, enabled: true })
-        .execute()
-      await transaction
-        .insertInto('dcl_acc_vou_entity_facts')
-        .values({
-          id: facts.accounting.vouEntity.id,
-          code: facts.accounting.vouEntity.code,
-          name: facts.accounting.vouEntity.name,
-          field_catalog: facts.accounting.vouEntity.fieldCatalog,
-          enabled: true,
-        })
-        .execute()
-      await transaction
-        .insertInto('dcl_acc_subject_facts')
-        .values(
-          facts.accounting.subjects.map((subject) => ({
-            id: subject.id,
-            book_id: facts.accounting.book.id,
-            code: subject.code,
-            name: subject.name,
-            leaf: subject.leaf,
-            enabled: true,
-            required_dimensions: JSON.stringify(
-              subject.requiredDimensions,
-            ) as unknown as JsonValue,
-          })),
-        )
-        .execute()
-    })
-  }
-
-  async deleteE2EArchiveFacts(facts: TargetE2EArchiveFacts): Promise<void> {
-    await this.db.transaction().execute(async (transaction) => {
-      await transaction
-        .deleteFrom('dcl_acc_subject_facts')
-        .where(
-          'id',
-          'in',
-          facts.accounting.subjects.map((subject) => subject.id),
-        )
-        .execute()
-      await transaction
-        .deleteFrom('dcl_acc_vou_entity_facts')
-        .where('id', '=', facts.accounting.vouEntity.id)
-        .execute()
-      await transaction
-        .deleteFrom('dcl_acc_book_facts')
-        .where('id', '=', facts.accounting.book.id)
-        .execute()
-      await transaction
-        .deleteFrom('aux_objects')
-        .where(
-          'id',
-          'in',
-          facts.auxObjects.map((item) => item.id),
-        )
-        .execute()
-    })
-  }
-
   async deleteE2EPrincipal(
     principal: Pick<TargetE2EPrincipal, 'userId' | 'roleId'>,
   ): Promise<void> {
@@ -422,23 +281,82 @@ export class TargetBootstrapService {
         .deleteFrom('dcl_customer_attachment_staging')
         .where('owner_user_id', '=', createdByUserId)
         .execute()
-      await transaction.deleteFrom('vou_attachment_staging').where('owner_user_id', '=', createdByUserId).execute()
-      const vouDocuments = await transaction.selectFrom('vou_documents').select('id').where('created_by', '=', createdByUserId).execute()
+      await transaction
+        .deleteFrom('vou_attachment_staging')
+        .where('owner_user_id', '=', createdByUserId)
+        .execute()
+      const vouDocuments = await transaction
+        .selectFrom('vou_documents')
+        .select('id')
+        .where('created_by', '=', createdByUserId)
+        .execute()
       const vouDocumentIds = vouDocuments.map((document) => document.id)
       if (vouDocumentIds.length > 0) {
-        const entries = await transaction.selectFrom('approval_entries').select('id')
-          .where('domain', '=', 'vou').where('subject_id', 'in', vouDocumentIds).execute()
+        const entries = await transaction
+          .selectFrom('approval_entries')
+          .select('id')
+          .where('domain', '=', 'vou')
+          .where('subject_id', 'in', vouDocumentIds)
+          .execute()
         const entryIds = entries.map((entry) => entry.id)
-        await transaction.deleteFrom('wfl_instances').where('root_document_id', 'in', vouDocumentIds).execute()
+        await transaction
+          .deleteFrom('wfl_instances')
+          .where('root_document_id', 'in', vouDocumentIds)
+          .execute()
+        await transaction
+          .deleteFrom('wfl_trials')
+          .where('document_id', 'in', vouDocumentIds)
+          .execute()
         if (entryIds.length > 0) {
-          await transaction.deleteFrom('acc_inventory_entries').where('vou_approval_entry_id', 'in', entryIds).execute()
-          await transaction.deleteFrom('acc_register_entries').where('vou_approval_entry_id', 'in', entryIds).execute()
-          await transaction.deleteFrom('acc_journal_entries').where('vou_approval_entry_id', 'in', entryIds).execute()
+          await sql`
+            DELETE FROM acc_asset_book_values
+            WHERE acquisition_vou_approval_entry_id IN (${sql.join(entryIds)})
+          `.execute(transaction)
+          await sql`
+            DELETE FROM acc_asset_registers
+            WHERE acquisition_vou_approval_entry_id IN (${sql.join(entryIds)})
+               OR state_vou_approval_entry_id IN (${sql.join(entryIds)})
+          `.execute(transaction)
+          await sql`
+            DELETE FROM acc_bill_registers
+            WHERE created_vou_approval_entry_id IN (${sql.join(entryIds)})
+               OR state_vou_approval_entry_id IN (${sql.join(entryIds)})
+          `.execute(transaction)
+          await transaction
+            .deleteFrom('acc_inventory_entries')
+            .where('vou_approval_entry_id', 'in', entryIds)
+            .execute()
+          await transaction
+            .deleteFrom('acc_register_entries')
+            .where('vou_approval_entry_id', 'in', entryIds)
+            .execute()
+          await transaction
+            .deleteFrom('acc_container_entries')
+            .where('vou_approval_entry_id', 'in', entryIds)
+            .execute()
+          await transaction
+            .deleteFrom('acc_journal_entries')
+            .where('vou_approval_entry_id', 'in', entryIds)
+            .execute()
         }
-        await transaction.deleteFrom('vou_idempotency').where('document_id', 'in', vouDocumentIds).execute()
-        await transaction.deleteFrom('approval_events').where('domain', '=', 'vou').where('subject_id', 'in', vouDocumentIds).execute()
-        await transaction.deleteFrom('approval_entries').where('domain', '=', 'vou').where('subject_id', 'in', vouDocumentIds).execute()
-        await transaction.deleteFrom('vou_documents').where('id', 'in', vouDocumentIds).execute()
+        await transaction
+          .deleteFrom('vou_idempotency')
+          .where('document_id', 'in', vouDocumentIds)
+          .execute()
+        await transaction
+          .deleteFrom('approval_events')
+          .where('domain', '=', 'vou')
+          .where('subject_id', 'in', vouDocumentIds)
+          .execute()
+        await transaction
+          .deleteFrom('approval_entries')
+          .where('domain', '=', 'vou')
+          .where('subject_id', 'in', vouDocumentIds)
+          .execute()
+        await transaction
+          .deleteFrom('vou_documents')
+          .where('id', 'in', vouDocumentIds)
+          .execute()
       }
       const subjects = await transaction
         .selectFrom('dcl_subjects')

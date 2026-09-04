@@ -11,10 +11,66 @@ const bookSave = z.object({ id: z.string().length(26), expectedRevision: z.strin
 const subject = z.object({ id: z.string().length(26), bookId: z.string().length(26), code: z.string().min(1).max(64), name: z.string().trim().min(1).max(200), parentId: z.string().length(26).nullable(), balanceDirection: z.enum(['DEBIT', 'CREDIT']), enabled: z.boolean(), requiredDimensions: z.array(z.enum(['CUSTOMER_SUBUNIT', 'SUPPLIER', 'OTHER_UNIT', 'EMPLOYEE', 'SALES_PARTNER', 'DEPARTMENT', 'PRODUCT', 'WAREHOUSE', 'FUND_ACCOUNT', 'ASSET', 'BILL'])), inventoryQuantity: z.boolean(), settlementPurpose: z.string().min(1).max(32) }).strict()
 const subjectSave = subject.extend({ expectedRevision: z.string().regex(/^[1-9]\d*$/) }).strict()
 const bookIdentity = z.object({ bookId: z.string().length(26) }).strict()
+const money = z.string().regex(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/)
+const nonNegativeMoney = money
+const optionalId = z.string().length(26).optional()
+const archiveReference = z.object({
+  entity: z.enum(['customer', 'supplier', 'other-unit', 'employee', 'sales-partner', 'operating-entity']),
+  objectId: z.string().length(26),
+  customerId: z.string().length(26).optional(),
+  approvalEntryId: z.string().length(26),
+  code: z.string().min(1).max(64),
+  name: z.string().min(1).max(200),
+}).strict()
+const openingAsset = z.object({
+  assetId: optionalId,
+  assetNo: z.string().trim().max(64).optional(),
+  name: z.string().trim().max(200).optional(),
+  categoryId: optionalId,
+  departmentId: optionalId,
+  usefulLifeMonths: z.number().int().positive().max(1200).optional(),
+  residualRate: z.string().regex(/^(?:0|[1-9]\d*)(?:\.\d{1,4})?$/).optional(),
+  acquiredOn: z.string().date().optional(),
+  currency: z.string().regex(/^[A-Z]{3}$/),
+  originalValue: money,
+  accumulatedDepreciation: nonNegativeMoney,
+}).strict()
+const openingBill = z.object({
+  billId: optionalId,
+  billNo: z.string().trim().max(200).optional(),
+  billType: z.string().trim().max(64).optional(),
+  positionType: z.enum(['ASSET', 'LIABILITY']).optional(),
+  medium: z.enum(['PAPER', 'ELECTRONIC']).optional(),
+  currency: z.string().regex(/^[A-Z]{3}$/),
+  faceAmount: nonNegativeMoney.optional(),
+  issueDate: z.string().date().optional(),
+  maturityDate: z.string().date().optional(),
+  drawer: z.string().trim().max(200).optional(),
+  acceptor: z.string().trim().max(200).optional(),
+  payee: z.string().trim().max(200).optional(),
+  annualRateBps: z.number().int().nonnegative().max(100000).optional(),
+  interestDays: z.number().int().nonnegative().max(36500).optional(),
+  interestAmount: nonNegativeMoney.optional(),
+  customerCostAmount: nonNegativeMoney.optional(),
+  valueAmount: money,
+  originatingCounterparty: archiveReference.optional(),
+}).strict()
+const openingContainer = z.object({
+  subunit: z.object({
+    entity: z.literal('customer-subunit'),
+    objectId: z.string().length(26),
+    customerId: z.string().length(26),
+    approvalEntryId: z.string().length(26),
+    code: z.string().min(1).max(64),
+    name: z.string().min(1).max(200),
+  }).strict(),
+  containerType: z.enum(['SOLVENT', 'RESIN']),
+  quantity: z.number().int().refine((value) => value !== 0),
+}).strict()
 const opening = z.object({
   bookId: z.string().length(26), submissionId: z.string().length(26), idempotencyKey: z.string().min(1).max(128),
-  lines: z.array(z.object({ subjectId: z.string().length(26), currency: z.string().regex(/^[A-Z]{3}$/), direction: z.enum(['DEBIT', 'CREDIT']), amount: z.string().regex(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/), dimensions: z.record(z.string(), z.string().length(26)) }).strict()),
-  assets: z.array(z.unknown()), bills: z.array(z.unknown()), containers: z.array(z.unknown()),
+  lines: z.array(z.object({ subjectId: z.string().length(26), currency: z.string().regex(/^[A-Z]{3}$/), direction: z.enum(['DEBIT', 'CREDIT']), amount: money, dimensions: z.record(z.string(), z.string().length(26)), quantity: z.string().regex(/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/).optional() }).strict()),
+  assets: z.array(openingAsset), bills: z.array(openingBill), containers: z.array(openingContainer),
 }).strict()
 const openingReview = z.object({ bookId: z.string().length(26), submissionId: z.string().length(26), expectedRevision: z.string().regex(/^[1-9]\d*$/) }).strict()
 const openingReason = openingReview.extend({ reason: z.string().trim().min(1).max(1000) }).strict()

@@ -429,12 +429,14 @@ test('keeps ACC and RPT payloads typed and frozen in their plans', () => {
         enabled: true,
         sql: 'SELECT 1 AS amount',
         parameters: [
-          { name: 'asOf', label: '截至日', type: 'DATE', required: true },
+          { key: 'asOf', name: '截至日', type: 'DATE', required: true },
+          { key: 'status', name: '状态', type: 'ENUM', required: false, defaultValue: 'OPEN', enumValues: ['OPEN', 'CLOSED'] },
+          { key: 'customerId', name: '客户子单位', type: 'REFERENCE', required: false, referenceType: 'CUSTOMER_SUBUNIT' },
         ],
         columns: [
           {
             alias: 'amount',
-            label: '金额',
+            name: '金额',
             order: 1,
             type: 'DECIMAL',
             width: 120,
@@ -447,6 +449,24 @@ test('keeps ACC and RPT payloads typed and frozen in their plans', () => {
     newFacts,
   )
   assert.equal(rpt.ok, true)
+  if (rpt.ok) {
+    assert.deepEqual(rpt.plan.data.parameters[1], {
+      key: 'status', name: '状态', type: 'ENUM', required: false,
+      defaultValue: 'OPEN', enumValues: ['OPEN', 'CLOSED'],
+    })
+  }
+  const invalidRpt = prepareRptDefinitionSubmit(
+    {
+      ...command(),
+      data: {
+        name: '无效参数', description: '', enabled: true, sql: 'SELECT 1 AS total',
+        parameters: [{ key: 'status', name: '状态', type: 'ENUM', required: true }],
+        columns: [{ alias: 'total', name: '总数', order: 1, type: 'INTEGER', width: 120, visible: true }],
+      },
+    },
+    newFacts,
+  )
+  assert.deepEqual(invalidRpt, { ok: false, error: { errorKey: 'rpt_definition_invalid_data' } })
 })
 
 test('rejects a fixed mapping subject whose dimensions do not match its required dimensions', () => {

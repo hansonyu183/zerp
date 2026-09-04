@@ -27,6 +27,49 @@ export type Numeric = ColumnType<string, number | string, number | string>;
 
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
+export interface AccAssetBookValues {
+  acquisition_opening_approval_entry_id: string | null;
+  acquisition_vou_approval_entry_id: string | null;
+  asset_id: string;
+  book_id: string;
+  created_at: Timestamp;
+  original_value: Numeric;
+}
+
+export interface AccAssetRegisters {
+  acquisition_opening_approval_entry_id: string | null;
+  acquisition_vou_approval_entry_id: string | null;
+  asset_no: string;
+  created_at: Timestamp;
+  id: string;
+  name: string;
+  payload: Json;
+  state_opening_approval_entry_id: string | null;
+  state_vou_approval_entry_id: string | null;
+  status: string;
+}
+
+export interface AccBillBookValues {
+  bill_id: string;
+  book_id: string;
+  created_at: Timestamp;
+  opening_approval_entry_id: string;
+  value_amount: Numeric;
+}
+
+export interface AccBillRegisters {
+  bill_no: string;
+  created_at: Timestamp;
+  created_opening_approval_entry_id: string | null;
+  created_vou_approval_entry_id: string | null;
+  id: string;
+  payload: Json;
+  position_type: string;
+  state_opening_approval_entry_id: string | null;
+  state_vou_approval_entry_id: string | null;
+  status: string;
+}
+
 export interface AccBookAccess {
   book_id: string;
   can_operate: boolean;
@@ -49,15 +92,34 @@ export interface AccBooks {
   updated_by: string;
 }
 
-export interface AccInventoryEntries {
+export interface AccContainerEntries {
+  business_date: Timestamp;
+  container_type: string;
   created_at: Timestamp;
-  document_id: string;
+  customer_approval_entry_id: string;
+  customer_id: string;
+  customer_subunit_id: string;
   id: string;
+  quantity_delta: Int8;
+  source_document_id: string;
+  source_revision: Int8;
+  vou_approval_entry_id: string;
+}
+
+export interface AccInventoryEntries {
+  book_id: string;
+  business_date: Timestamp;
+  created_at: Timestamp;
+  document_id: string | null;
+  id: string;
+  journal_entry_id: string;
   line_id: string;
+  opening_approval_entry_id: string | null;
   product_id: string;
   quantity: Numeric;
   reversed_at: Timestamp | null;
-  vou_approval_entry_id: string;
+  subject_id: string;
+  vou_approval_entry_id: string | null;
   warehouse_id: string;
 }
 
@@ -67,9 +129,11 @@ export interface AccJournalEntries {
   created_at: Timestamp;
   currency: string;
   id: string;
+  opening_approval_entry_id: string | null;
   reversed_at: Timestamp | null;
-  vou_approval_entry_id: string;
-  vou_document_id: string;
+  source_kind: Generated<string>;
+  vou_approval_entry_id: string | null;
+  vou_document_id: string | null;
 }
 
 export interface AccJournalLines {
@@ -81,10 +145,36 @@ export interface AccJournalLines {
   subject_id: string;
 }
 
+export interface AccOpeningContainerBalances {
+  container_type: string;
+  created_at: Timestamp;
+  customer_approval_entry_id: string;
+  customer_id: string;
+  customer_subunit_code: string;
+  customer_subunit_id: string;
+  customer_subunit_name: string;
+  opening_approval_entry_id: string;
+  quantity: Int8;
+}
+
 export interface AccOpeningSnapshots {
   approval_entry_id: string;
   book_id: string;
   payload: Json;
+}
+
+export interface AccPeriodBalances {
+  book_id: string;
+  closing_balance: Numeric;
+  created_at: Timestamp;
+  credit_amount: Numeric;
+  currency: string;
+  debit_amount: Numeric;
+  dimension_key: string;
+  dimensions: Json;
+  opening_balance: Numeric;
+  period_month: string;
+  subject_id: string;
 }
 
 export interface AccPeriods {
@@ -100,10 +190,12 @@ export interface AccRegisterEntries {
   created_at: Timestamp;
   id: string;
   object_id: string;
+  opening_approval_entry_id: string | null;
   payload: Json;
   register_kind: string;
   reversed_at: Timestamp | null;
-  vou_approval_entry_id: string;
+  source_kind: Generated<string>;
+  vou_approval_entry_id: string | null;
 }
 
 export interface AccSubjects {
@@ -727,6 +819,68 @@ export interface RptExecutionAudits {
   row_count: number | null;
 }
 
+export interface VouAmountAllocationSnapshots {
+  amount_minor: Int8;
+  approval_entry_id: string;
+  line_no: number;
+}
+
+export interface VouAssetAcquisitionDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouAssetAcquisitionLineSnapshots {
+  approval_entry_id: string;
+  asset_name: string;
+  line_no: number;
+  location: string | null;
+  original_value_minor: Int8;
+  remark: string | null;
+  residual_rate_micros: Int8;
+  specification: string | null;
+  useful_life_months: number;
+}
+
+export interface VouAssetDisposalLineSnapshots {
+  approval_entry_id: string;
+  asset_id: string;
+  disposal_expense_minor: Int8 | null;
+  line_no: number;
+  reason: string | null;
+  remark: string | null;
+  sale_amount_minor: Int8 | null;
+  salvage_income_minor: Int8 | null;
+}
+
+export interface VouAssetLiquidationDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouAssetSaleDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
 export interface VouAttachments {
   approval_entry_id: string;
   content: Buffer;
@@ -736,6 +890,7 @@ export interface VouAttachments {
   file_name: string;
   mime_type: string;
   size_bytes: number;
+  staging_id: string;
 }
 
 export interface VouAttachmentStaging {
@@ -751,15 +906,101 @@ export interface VouAttachmentStaging {
   size_bytes: number;
 }
 
-export interface VouDocumentPayloads {
-  amount: Numeric;
+export interface VouBillCashLineSnapshots {
+  amount_minor: Int8;
+  amount_type: string;
+  approval_entry_id: string;
+  bill_line_id: string | null;
+  direction: string;
+  line_no: number;
+  remark: string | null;
+}
+
+export interface VouBillDiscountDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  interest_mode: string | null;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+  with_recourse: boolean | null;
+}
+
+export interface VouBillIssueDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  interest_mode: string | null;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouBillLineSnapshots {
+  acceptor: string | null;
+  annual_rate_bps: number | null;
+  approval_entry_id: string;
+  bill_id: string | null;
+  bill_no: string | null;
+  bill_type: string | null;
+  currency: string | null;
+  direction: string | null;
+  drawer: string | null;
+  face_amount_minor: Int8 | null;
+  issue_date: Timestamp | null;
+  line_no: number;
+  maturity_date: Timestamp | null;
+  medium: string | null;
+  payee: string | null;
+  position_type: string | null;
+  purpose: string;
+  remark: string | null;
+}
+
+export interface VouBillMaturityDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  maturity_type: string | null;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouBillPaymentDetails {
   approval_entry_id: string;
   business_date: Timestamp;
   currency: string;
   document_id: string;
   parent_document_id: string | null;
   parent_entity: string | null;
-  payload: Json;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouBillReceiptDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  internal_cost_rate_bps: number | null;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouDocumentCounters {
+  business_date: Timestamp;
+  entity: string;
+  last_value: number;
 }
 
 export interface VouDocuments {
@@ -771,6 +1012,80 @@ export interface VouDocuments {
   stable_revision: Generated<Int8>;
 }
 
+export interface VouEmployeeLoanDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouEmployeeLoanWriteoffDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouEmployeeRepaymentDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouExpenseLineSnapshots {
+  amount_minor: Int8;
+  approval_entry_id: string;
+  category: string;
+  description: string;
+  line_no: number;
+  remark: string | null;
+}
+
+export interface VouExpensePaymentDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouExpenseReimbursementDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouFormulaComponentSnapshots {
+  approval_entry_id: string;
+  base_quantity_micros: Int8;
+  component_no: number;
+  entered_quantity_micros: Int8;
+  entered_unit_id: string;
+  line_no: number;
+  material_id: string;
+}
+
 export interface VouIdempotency {
   created_at: Timestamp;
   document_id: string;
@@ -779,6 +1094,472 @@ export interface VouIdempotency {
   request_hash: string;
   response: Json;
   submission_id: string;
+}
+
+export interface VouIntermediaryBillSnapshots {
+  approval_entry_id: string;
+  bill_line_id: string;
+  bill_type: string;
+  cost_days: number;
+  face_amount_minor: Int8;
+  issue_date: Timestamp;
+  line_no: number;
+  maturity_date: Timestamp;
+  receipt_date: Timestamp;
+  receipt_document_id: string;
+  receipt_document_no: string;
+}
+
+export interface VouIntermediaryCalculationDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  period_end: Timestamp | null;
+  period_start: Timestamp | null;
+  remark: string | null;
+  script_hash: string | null;
+  script_id: string | null;
+  script_name: string | null;
+  script_revision: number | null;
+  script_source: string | null;
+  source_hash: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouIntermediaryResultLineSnapshots {
+  approval_entry_id: string;
+  base_commission_minor: Int8;
+  bill_cost_minor: Int8;
+  bill_line_ids: string[];
+  employee_amount_minor: Int8;
+  intermediary_amount_minor: Int8;
+  line_no: number;
+  low_price_commission_minor: Int8;
+  market_development_subsidy_minor: Int8;
+  market_maintenance_subsidy_minor: Int8;
+  note: string | null;
+  premium_commission_minor: Int8;
+  premium_unit_price_minor: Int8;
+  source_signoff_line_id: string;
+  standard_piece_quantity_micros: Int8;
+}
+
+export interface VouIntermediarySourceLineSnapshots {
+  adjustment_employee_amount_minor: Int8;
+  adjustment_intermediary_amount_minor: Int8;
+  approval_entry_id: string;
+  behavior_profile: string;
+  collection_date: Timestamp;
+  collection_delay_days: number;
+  due_date: Timestamp;
+  line_amount_minor: Int8;
+  line_no: number;
+  order_date: Timestamp;
+  order_document_id: string;
+  order_document_no: string;
+  pricing_quantity_micros: Int8;
+  reference_unit_price_minor: Int8;
+  return_document_nos: Generated<string[]>;
+  sales_attribution_type: string;
+  sales_contract_applicable_from: Timestamp | null;
+  sales_contract_applicable_to: Timestamp | null;
+  sales_contract_document_id: string | null;
+  sales_contract_revision: number | null;
+  sales_contract_status: string;
+  sales_contract_terms: string | null;
+  settlement_surcharge_minor: Int8;
+  settlement_term_code: string;
+  signed_quantity_micros: Int8;
+  signoff_date: Timestamp;
+  signoff_document_id: string;
+  signoff_document_no: string;
+  source_kind: string;
+  source_signoff_line_id: string;
+  special_approval: boolean;
+  standard_piece_quantity_micros: Int8;
+  unit_price_minor: Int8;
+}
+
+export interface VouIntermediarySummarySnapshots {
+  amount_minor: Int8;
+  approval_entry_id: string;
+  category: string;
+  line_no: number;
+}
+
+export interface VouInventoryCountDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouInventoryCountLineSnapshots {
+  approval_entry_id: string;
+  base_quantity_micros: Int8;
+  entered_quantity_micros: Int8;
+  entered_unit_id: string;
+  line_no: number;
+  remark: string | null;
+}
+
+export interface VouOrderProductionDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouOtherIncomeDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  counterparty_type: string | null;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  source_name: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouOtherPaymentDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  counterparty_type: string | null;
+  currency: string;
+  document_id: string;
+  other_category: string | null;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouOtherReceiptDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  counterparty_type: string | null;
+  currency: string;
+  document_id: string;
+  other_category: string | null;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouPriceLineSnapshots {
+  approval_entry_id: string;
+  line_no: number;
+  remark: string | null;
+  unit_price_minor: Int8;
+}
+
+export interface VouProductionLineSnapshots {
+  approval_entry_id: string;
+  base_quantity_micros: Int8;
+  entered_quantity_micros: Int8;
+  entered_unit_id: string;
+  line_no: number;
+  loss_rate_micros: Int8;
+  remark: string | null;
+  source_order_line_id: string | null;
+}
+
+export interface VouProductionMaterialSnapshots {
+  adjustment_reason: string | null;
+  approval_entry_id: string;
+  base_quantity_micros: Int8;
+  entered_quantity_micros: Int8;
+  entered_unit_id: string;
+  formula_line_no: number;
+  line_no: number;
+  material_id: string;
+  material_no: number;
+}
+
+export interface VouProductLineSnapshots {
+  approval_entry_id: string;
+  base_quantity_micros: Int8;
+  container_type: string | null;
+  delivery_specification_type: string | null;
+  entered_quantity_micros: Int8;
+  entered_unit_id: string;
+  formula_output_base_quantity_micros: Int8 | null;
+  formula_output_entered_quantity_micros: Int8 | null;
+  formula_output_entered_unit_id: string | null;
+  formula_source_document_id: string | null;
+  formula_source_document_no: string | null;
+  formula_source_type: string | null;
+  line_id: string;
+  line_no: number;
+  purchase_unit_price_minor: Int8 | null;
+  quantity_per_container_micros: Int8 | null;
+  remark: string | null;
+  settlement_surcharge_minor: Int8 | null;
+  unit_price_minor: Int8;
+}
+
+export interface VouPurchaseInboundDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouPurchaseInquiryDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouPurchaseOrderDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  settlement_method_id: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouPurchasePaymentDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouPurchaseRefundDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouPurchaseReturnDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  return_reason: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouReferenceSnapshots {
+  approval_entry_id: string;
+  approval_reference_id: string | null;
+  field: string;
+  item_no: Generated<number>;
+  line_no: Generated<number>;
+  object_id: string;
+  reference_code: string | null;
+  reference_entity: string | null;
+  reference_name: string | null;
+  selection_origin: string | null;
+}
+
+export interface VouReturnLineSnapshots {
+  approval_entry_id: string;
+  base_quantity_micros: Int8;
+  line_no: number;
+  remark: string | null;
+  source_line_id: string;
+}
+
+export interface VouSaleDeliveryDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouSaleOrderDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  credit_limit: Numeric | null;
+  credit_occupancy_before: Numeric | null;
+  credit_order_amount: Numeric | null;
+  credit_over_amount: Numeric | null;
+  credit_override_actor_id: string | null;
+  credit_override_reason: string | null;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  special_approval: boolean | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouSaleOutboundDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouSalePricingDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouSaleReturnDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  return_reason: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouSaleSignoffDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  container_difference_reason: string | null;
+  currency: string;
+  document_id: string;
+  expected_resin_containers: Generated<number>;
+  expected_solvent_containers: Generated<number>;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  returned_resin_containers: Generated<number>;
+  returned_solvent_containers: Generated<number>;
+  total_amount_minor: Int8;
+}
+
+export interface VouSalesReceiptDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouSalesRefundDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouSelfProductionDetails {
+  approval_entry_id: string;
+  business_date: Timestamp;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouServiceAcceptanceDetails {
+  acceptance_date: Timestamp | null;
+  acceptance_fact: string | null;
+  approval_entry_id: string;
+  business_date: Timestamp;
+  contract_document_id: string | null;
+  currency: string;
+  document_id: string;
+  fulfillment_fact: string | null;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  service_date: Timestamp | null;
+  settlement_direction: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouServiceContractDetails {
+  applicable_from: Timestamp | null;
+  applicable_to: Timestamp | null;
+  approval_entry_id: string;
+  business_date: Timestamp;
+  capabilities: string[] | null;
+  currency: string;
+  document_id: string;
+  parent_document_id: string | null;
+  parent_entity: string | null;
+  remark: string | null;
+  terms: string | null;
+  total_amount_minor: Int8;
+}
+
+export interface VouSignoffLineSnapshots {
+  approval_entry_id: string;
+  line_no: number;
+  rejected_quantity_micros: Int8;
+  remark: string | null;
+  signed_quantity_micros: Int8;
+  source_line_id: string;
+}
+
+export interface VouSourceLineSnapshots {
+  approval_entry_id: string;
+  base_quantity_micros: Int8;
+  line_no: number;
+  remark: string | null;
+  source_line_id: string;
 }
 
 export interface WflActionResults {
@@ -845,12 +1626,19 @@ export interface WflTrials {
 }
 
 export interface DB {
+  acc_asset_book_values: AccAssetBookValues;
+  acc_asset_registers: AccAssetRegisters;
+  acc_bill_book_values: AccBillBookValues;
+  acc_bill_registers: AccBillRegisters;
   acc_book_access: AccBookAccess;
   acc_books: AccBooks;
+  acc_container_entries: AccContainerEntries;
   acc_inventory_entries: AccInventoryEntries;
   acc_journal_entries: AccJournalEntries;
   acc_journal_lines: AccJournalLines;
+  acc_opening_container_balances: AccOpeningContainerBalances;
   acc_opening_snapshots: AccOpeningSnapshots;
+  acc_period_balances: AccPeriodBalances;
   acc_periods: AccPeriods;
   acc_register_entries: AccRegisterEntries;
   acc_subjects: AccSubjects;
@@ -904,11 +1692,67 @@ export interface DB {
   object_number_counters: ObjectNumberCounters;
   rpt_definition_validities: RptDefinitionValidities;
   rpt_execution_audits: RptExecutionAudits;
+  vou_amount_allocation_snapshots: VouAmountAllocationSnapshots;
+  vou_asset_acquisition_details: VouAssetAcquisitionDetails;
+  vou_asset_acquisition_line_snapshots: VouAssetAcquisitionLineSnapshots;
+  vou_asset_disposal_line_snapshots: VouAssetDisposalLineSnapshots;
+  vou_asset_liquidation_details: VouAssetLiquidationDetails;
+  vou_asset_sale_details: VouAssetSaleDetails;
   vou_attachment_staging: VouAttachmentStaging;
   vou_attachments: VouAttachments;
-  vou_document_payloads: VouDocumentPayloads;
+  vou_bill_cash_line_snapshots: VouBillCashLineSnapshots;
+  vou_bill_discount_details: VouBillDiscountDetails;
+  vou_bill_issue_details: VouBillIssueDetails;
+  vou_bill_line_snapshots: VouBillLineSnapshots;
+  vou_bill_maturity_details: VouBillMaturityDetails;
+  vou_bill_payment_details: VouBillPaymentDetails;
+  vou_bill_receipt_details: VouBillReceiptDetails;
+  vou_document_counters: VouDocumentCounters;
   vou_documents: VouDocuments;
+  vou_employee_loan_details: VouEmployeeLoanDetails;
+  vou_employee_loan_writeoff_details: VouEmployeeLoanWriteoffDetails;
+  vou_employee_repayment_details: VouEmployeeRepaymentDetails;
+  vou_expense_line_snapshots: VouExpenseLineSnapshots;
+  vou_expense_payment_details: VouExpensePaymentDetails;
+  vou_expense_reimbursement_details: VouExpenseReimbursementDetails;
+  vou_formula_component_snapshots: VouFormulaComponentSnapshots;
   vou_idempotency: VouIdempotency;
+  vou_intermediary_bill_snapshots: VouIntermediaryBillSnapshots;
+  vou_intermediary_calculation_details: VouIntermediaryCalculationDetails;
+  vou_intermediary_result_line_snapshots: VouIntermediaryResultLineSnapshots;
+  vou_intermediary_source_line_snapshots: VouIntermediarySourceLineSnapshots;
+  vou_intermediary_summary_snapshots: VouIntermediarySummarySnapshots;
+  vou_inventory_count_details: VouInventoryCountDetails;
+  vou_inventory_count_line_snapshots: VouInventoryCountLineSnapshots;
+  vou_order_production_details: VouOrderProductionDetails;
+  vou_other_income_details: VouOtherIncomeDetails;
+  vou_other_payment_details: VouOtherPaymentDetails;
+  vou_other_receipt_details: VouOtherReceiptDetails;
+  vou_price_line_snapshots: VouPriceLineSnapshots;
+  vou_product_line_snapshots: VouProductLineSnapshots;
+  vou_production_line_snapshots: VouProductionLineSnapshots;
+  vou_production_material_snapshots: VouProductionMaterialSnapshots;
+  vou_purchase_inbound_details: VouPurchaseInboundDetails;
+  vou_purchase_inquiry_details: VouPurchaseInquiryDetails;
+  vou_purchase_order_details: VouPurchaseOrderDetails;
+  vou_purchase_payment_details: VouPurchasePaymentDetails;
+  vou_purchase_refund_details: VouPurchaseRefundDetails;
+  vou_purchase_return_details: VouPurchaseReturnDetails;
+  vou_reference_snapshots: VouReferenceSnapshots;
+  vou_return_line_snapshots: VouReturnLineSnapshots;
+  vou_sale_delivery_details: VouSaleDeliveryDetails;
+  vou_sale_order_details: VouSaleOrderDetails;
+  vou_sale_outbound_details: VouSaleOutboundDetails;
+  vou_sale_pricing_details: VouSalePricingDetails;
+  vou_sale_return_details: VouSaleReturnDetails;
+  vou_sale_signoff_details: VouSaleSignoffDetails;
+  vou_sales_receipt_details: VouSalesReceiptDetails;
+  vou_sales_refund_details: VouSalesRefundDetails;
+  vou_self_production_details: VouSelfProductionDetails;
+  vou_service_acceptance_details: VouServiceAcceptanceDetails;
+  vou_service_contract_details: VouServiceContractDetails;
+  vou_signoff_line_snapshots: VouSignoffLineSnapshots;
+  vou_source_line_snapshots: VouSourceLineSnapshots;
   wfl_action_results: WflActionResults;
   wfl_definition_runtime_states: WflDefinitionRuntimeStates;
   wfl_definition_versions: WflDefinitionVersions;

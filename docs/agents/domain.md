@@ -8,7 +8,7 @@ How the engineering skills should consume this repo's domain documentation when 
 - **`docs/domains/`** for authoritative business rules relevant to the task.
 - **`docs/use-cases/`** when the task involves a page flow, frontend orchestration, backend collaboration sequence, or acceptance scenario.
 - **`docs/adr/`** for architectural decisions that touch the area being changed.
-- **`contracts/openapi/`** when the task involves the HTTP wire contract.
+- **`contracts/openapi/`** when the task involves the #366 前 live Go HTTP wire contract. The isolated target contract is generated from executable Hono/Zod routes under `apps/api/` and must not be combined with the live YAML.
 
 If a source is absent, proceed with the sources that exist. Create or amend shared vocabulary and ADRs only when the task scope includes the corresponding decision.
 
@@ -24,10 +24,12 @@ If a needed concept isn't in the glossary, reconsider whether the term belongs t
 
 ## Respect authoritative sources
 
-`docs/domains/` is the source of truth for business rules. `contracts/openapi/` is the source of truth for the HTTP wire contract. `docs/use-cases/` owns page-oriented orchestration and acceptance flows, and must link to rather than restate domain rules or wire schemas. `CONTEXT.md` supplies shared vocabulary; it does not replace any of these sources.
+`docs/domains/` is the source of truth for business rules. Before #366, `contracts/openapi/` is the source of truth for the live Go HTTP wire contract, while executable Hono/Zod routes under `apps/api/` own the isolated target contract. `docs/use-cases/` owns page-oriented orchestration and acceptance flows, and must link to rather than restate domain rules or wire schemas. `CONTEXT.md` supplies shared vocabulary; it does not replace any of these sources.
 
 ## Flag ADR conflicts
 
 If output contradicts an existing ADR, surface the actual ADR identifier and title rather than silently overriding it:
 
 > _Contradicts ADR-0049 (强类型业务档案取代 Party 与关系层)—but worth reopening because…_
+
+When a later ADR replaces an earlier decision completely, use reciprocal `supersedes` / `superseded_by` frontmatter and mark the earlier ADR `superseded`. When it replaces only named clauses while both decisions retain authoritative content, keep both ADRs `accepted` and use reciprocal `partially_supersedes` / `partially_superseded_by` frontmatter; the later ADR body must identify the replaced clauses and the rules that remain. Run `pnpm docs:adr-index` and `pnpm docs:check` after changing either relationship.

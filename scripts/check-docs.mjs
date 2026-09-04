@@ -89,7 +89,15 @@ export function validateAdrDocuments(documents) {
 
     const unexpectedKeys = Object.keys(metadata).filter(
       (key) =>
-        !['id', 'date', 'status', 'supersedes', 'superseded_by'].includes(key),
+        ![
+          'id',
+          'date',
+          'status',
+          'supersedes',
+          'superseded_by',
+          'partially_supersedes',
+          'partially_superseded_by',
+        ].includes(key),
     )
     if (unexpectedKeys.length > 0) {
       adrFailures.push(
@@ -138,6 +146,8 @@ export function validateAdrDocuments(documents) {
     const targets = [
       ...adrReferences(metadata.superseded_by ?? ''),
       ...adrReferences(metadata.supersedes ?? ''),
+      ...adrReferences(metadata.partially_superseded_by ?? ''),
+      ...adrReferences(metadata.partially_supersedes ?? ''),
     ]
     for (const target of targets) {
       if (!/^ADR-\d{4}$/u.test(target)) {
@@ -175,6 +185,48 @@ export function validateAdrDocuments(documents) {
       ) {
         adrFailures.push(
           `${file} 与 ${target.file} 的 supersession 元数据不互相对应`,
+        )
+      }
+    }
+
+    const partialTargets = adrReferences(metadata.partially_supersedes ?? '')
+    const partialSources = adrReferences(metadata.partially_superseded_by ?? '')
+    if (
+      (partialTargets.length > 0 || partialSources.length > 0) &&
+      metadata.status !== 'accepted'
+    ) {
+      adrFailures.push(`${file} 的部分取代关系两端都必须保持 accepted`)
+    }
+
+    for (const targetId of partialTargets) {
+      const target = knownIds.get(targetId)
+      if (!target) continue
+      if (target.metadata.status !== 'accepted') {
+        adrFailures.push(
+          `${target.file} 与 ${file} 的部分取代关系两端都必须保持 accepted`,
+        )
+      }
+      if (
+        !adrReferences(target.metadata.partially_superseded_by ?? '').includes(
+          metadata.id,
+        )
+      ) {
+        adrFailures.push(
+          `${target.file} 与 ${file} 的 partial supersession 元数据不互相对应`,
+        )
+      }
+    }
+
+    for (const targetId of partialSources) {
+      const target = knownIds.get(targetId)
+      if (
+        target &&
+        !adrReferences(target.metadata.partially_supersedes ?? '').includes(
+          metadata.id,
+        )
+      ) {
+        adrFailures.push(
+          `${file} 与 ${target.file} 的 partial supersession 元数据不互相对应`,
         )
       }
     }
@@ -255,7 +307,7 @@ export function generateAdrIndex(documents) {
     '',
     '<!-- 此文件由 pnpm docs:adr-index 生成，请勿手工编辑。 -->',
     '',
-    '每份 ADR 的 frontmatter 与标题是此索引的唯一来源；现行领域规则和 HTTP 契约仍分别以 docs/domains/ 与 contracts/openapi/ 为准。',
+    '每份 ADR 的 frontmatter 与标题是此索引的唯一来源；现行领域规则以 docs/domains/ 为准。#366 前的 live HTTP 契约以 contracts/openapi/ 为准，隔离 target 契约从 apps/api/ 的可执行 Hono/Zod 路由生成。',
     '',
   ]
 
@@ -275,6 +327,27 @@ export function generateAdrIndex(documents) {
         const targets = adrReferences(record.metadata.superseded_by ?? '').map(
           (id) => (recordsById.has(id) ? adrLink(recordsById.get(id)) : id),
         )
+        lines.push(
+          '| ' +
+            adrLink(record) +
+            ' | ' +
+            record.metadata.date +
+            ' | ' +
+            adrTableCell(record.title) +
+            ' | ' +
+            targets.join('、') +
+            ' |',
+        )
+      }
+    } else if (status === 'accepted') {
+      lines.push(
+        '| ADR | 日期 | 决定 | 部分取代者 |',
+        '| --- | --- | --- | --- |',
+      )
+      for (const record of sectionRecords) {
+        const targets = adrReferences(
+          record.metadata.partially_superseded_by ?? '',
+        ).map((id) => (recordsById.has(id) ? adrLink(recordsById.get(id)) : id))
         lines.push(
           '| ' +
             adrLink(record) +
@@ -746,9 +819,9 @@ function useCaseCoverage(pages, documentedKeys, orphanKeys) {
     '',
     '<!-- 此文件由 `pnpm docs:coverage` 生成，请勿手工编辑。 -->',
     '',
-    '数据来源：[`frontend/src/router/registry.ts`](../../frontend/src/router/registry.ts)、[`frontend/src/router/index.ts`](../../frontend/src/router/index.ts)，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。',
+    '数据来源：[`frontend/src/router/registry.ts`](../../frontend/src/router/registry.ts)、[`frontend/src/router/index.ts`](../../frontend/src/router/index.ts)、[`frontend/target.html`](../../frontend/target.html)，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。',
     '',
-    '统计口径：页面入口只统计静态注册页面，并将 `/rpt/{code}` 计为一个动态路由；运行时菜单项和具体报表定义实例另行统计，不与本页入口数直接相加。',
+    '统计口径：页面入口统计 live 静态注册页面、隔离 target HTML 入口，并将 `/rpt/{code}` 计为一个动态路由；运行时菜单项和具体报表定义实例另行统计，不与本页入口数直接相加。',
     '',
     `- 页面入口：${pages.length}`,
     `- 已覆盖入口：${coveredPages.length}`,
@@ -1113,6 +1186,42 @@ function staticBusinessPages(source) {
   return pages
 }
 
+export function parseTargetEntryPage(source) {
+  const failures = []
+  const title = source.match(/<title>([^<]+)<\/title>/u)?.[1]?.trim()
+  const useCaseKey = source.match(
+    /<body\b[^>]*\bdata-use-case="([a-z][a-z0-9-]*\/[a-z][a-z0-9-]*)"/u,
+  )?.[1]
+  const entryModule = source.match(
+    /<script\b[^>]*\btype="module"[^>]*\bsrc="([^"]+)"[^>]*><\/script>/u,
+  )?.[1]
+
+  if (!title) failures.push('frontend/target.html 缺少 title')
+  if (!useCaseKey) {
+    failures.push('frontend/target.html 缺少 data-use-case 页面用例映射')
+  }
+  if (entryModule !== '/src/target/main.ts') {
+    failures.push(
+      'frontend/target.html 必须以 /src/target/main.ts 作为 module 入口',
+    )
+  }
+
+  return {
+    failures,
+    pages:
+      failures.length === 0
+        ? [
+            {
+              title,
+              route: '/target.html',
+              source: '[target 入口](../../frontend/target.html)',
+              useCaseKey,
+            },
+          ]
+        : [],
+  }
+}
+
 function dynamicReportPage(source) {
   const isRegistered =
     source.includes("routeDomain === 'rpt' && routeEntity !== 'definition'") &&
@@ -1133,6 +1242,10 @@ function dynamicReportPage(source) {
 }
 
 const staticPages = staticBusinessPages(routerIndexSource)
+const targetEntryPage = parseTargetEntryPage(
+  fs.readFileSync(path.join(root, 'frontend', 'target.html'), 'utf8'),
+)
+failures.push(...targetEntryPage.failures)
 const registryPages = pageRegistrations.map(({ domain, entity, title }) => ({
   title,
   route: `/${domain}/${entity}`,
@@ -1143,6 +1256,7 @@ const expectedUseCasePages = [
   ...staticPages,
   ...registryPages,
   ...dynamicReportPage(registrySource),
+  ...targetEntryPage.pages,
 ]
 const expectedUseCaseKeys = expectedUseCasePages.map(
   ({ useCaseKey }) => useCaseKey,

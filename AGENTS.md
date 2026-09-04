@@ -9,8 +9,8 @@
 ## 仓库边界
 
 - 本仓库是 ZERP 的唯一开发仓库；live 前端位于 `frontend/`，live Go 后端位于 `backend/`。架构切换期间，未接入生产流量的 TypeScript target 后端位于 `apps/api/`，共享包位于 `packages/`；这些目录只服务隔离 target 拓扑，在 #366 切换前不得代理、组合或改变 live Go API。
-- `contracts/openapi/` 是 HTTP 线协议的唯一事实来源，`docs/domains/` 是业务规则的唯一事实来源。
-- `docs/use-cases/` 按页面记录前端编排、后端协作流程、异常分支和验收场景；用例文档必须引用领域规则和 OpenAPI，不得复制或改写它们。
+- #366 前，`contracts/openapi/` 是 live Go HTTP 线协议的唯一事实来源；隔离 target 的 HTTP 契约只从 `apps/api/` 的可执行 Hono/Zod 路由生成，二者不得组合。`docs/domains/` 是业务规则的唯一事实来源。
+- `docs/use-cases/` 按页面记录前端编排、后端协作流程、异常分支和验收场景；用例文档必须引用领域规则，并按所属运行线引用 live OpenAPI 或 target 可执行路由，不得复制或改写权威规则与线协议。
 - 禁止在 `frontend/` 或 `backend/` 下复制领域文档或维护第二套接口说明。
 - `frontend/AGENTS.md`、`backend/AGENTS.md` 只补充模块约束，不得覆盖本文件的全仓规则。
 - 模块任务默认只修改所属目录；跨端契约、领域文档、根级编排或质量检查任务可以按任务范围同时修改根目录和两个模块，无需把单仓边界误解为子目录隔离。
@@ -22,7 +22,8 @@
 
 ## 契约优先
 
-- 新增或修改接口时先修改 OpenAPI 和领域文档，再运行 `make generate`。
+- 新增或修改 live Go 接口时先修改 OpenAPI 和领域文档，再运行 `make generate`。
+- 新增或修改隔离 target 接口时先修改 `apps/api/` 的可执行 Hono/Zod 路由及领域文档，再运行 `make target-generate`；#366 前不得借此改写或拼接 live OpenAPI。
 - `frontend/src/api/generated/`、`backend/internal/api/generated/`、`contracts/openapi/dist/` 均为生成物，禁止手工编辑。
 - 业务接口继续使用 `POST application/json` 和 `/{domain}/{entity}/{action}`，响应包络为 `{code, errorKey, message, data, requestId}`；失败响应使用稳定 `errorKey` 表达业务语义，前端只按 `errorKey` 分支或映射用户提示，`message` 仅用于诊断和默认说明。
 - 前端业务代码只能通过 `src/api/client.ts` 及其领域封装调用生成客户端，不得直接使用 `fetch` 或拼接任意 API 路径。

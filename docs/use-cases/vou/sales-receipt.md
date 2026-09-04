@@ -1,6 +1,6 @@
 # 销售收款页面用例
 
-本页面遵循 [VOU 领域规则](../../domains/vou.md#36-往来收款与往来付款) 和 [OpenAPI VOU Schema](../../../contracts/openapi/schemas/vou.yaml)。
+本页面遵循 [VOU 领域规则](../../domains/vou.md#36-往来收款与往来付款)。#366 前当前 live 线协议见 [OpenAPI VOU Schema](../../../contracts/openapi/schemas/vou.yaml)；下文的本地 Draft、Submission 与 `submit-*` 描述由 Hono/Zod 路由生成的隔离 target，不能作为 live 接口调用。
 
 ## 1. 页面与查询
 

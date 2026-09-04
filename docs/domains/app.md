@@ -2,9 +2,11 @@
 
 ## 1. 文档目的
 
-本文定义 ZERP **APP（Application）** 领域的业务边界、数据模型、状态与安全规则。HTTP 路径和数据结构以根目录 OpenAPI 为准。
+本文定义 ZERP **APP（Application）** 领域的业务边界、数据模型、状态与安全规则。#366 前的 live HTTP 路径和数据结构以根目录 OpenAPI 为准。
 
 APP 使用固定领域标识 `app`。本文记录 OpenAPI 无法独立表达的认证、授权、事务、失效和业务协作语义，不维护第二套线协议。
+
+本文的通用 APP 业务规则同时约束 live 与隔离 target；涉及本地 Draft、Submission、shared TypeScript model 或目标 Workbench 的段落描述 ADR-0051/#366 目标语义。#366 前，live Go/OpenAPI 仍是唯一线上实现与线协议，当前隔离 target 不包含 Workbench。
 
 ## 2. 领域职责与边界
 

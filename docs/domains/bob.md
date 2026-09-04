@@ -2,11 +2,13 @@
 
 ## 1. 文档目的
 
-本文定义 ZERP **BOB（Business Object）** 领域的业务模型、数据约束和事务边界，覆盖经营主体、仓库、车辆、资金账户、产品、员工、客户、供应商、其他单位与销售合作方的当前有效只读业务资料。上述版本化档案由 DCL 管理；客户子单位是 Customer Version 子项，不是独立 BOB/DCL 对象。HTTP 路径和数据结构以根目录 OpenAPI 为准。
+本文定义 ZERP **BOB（Business Object）** 领域的业务模型、数据约束和事务边界，覆盖经营主体、仓库、车辆、资金账户、产品、员工、客户、供应商、其他单位与销售合作方的当前有效只读业务资料。上述版本化档案由 DCL 管理；客户子单位是 Customer Version 子项，不是独立 BOB/DCL 对象。#366 前的 live HTTP 路径和数据结构以根目录 OpenAPI 为准。
 
 BOB 使用固定领域标识 `bob`。本文只记录 OpenAPI 无法独立表达的 highest-approved typed query、引用和业务不变量；stable subject、business code、声明生命周期与 typed snapshot 由 DCL 拥有，版本头、状态和 revision 由中央 Approval 拥有。
 
 当前对外实体标识、字段与路径见 [OpenAPI BOB Schema](../../contracts/openapi/schemas/bob.yaml)；本文不维护其副本。数据库内部名称可以使用 `fund_account`，对外 wire value 仍以 OpenAPI 为准。
+
+上述 OpenAPI 引用均指 #366 前的 live Go 线协议；隔离 target 的 BOB 查询与引用协议从 `apps/api/` 可执行 Hono/Zod 路由生成，不与 live 契约或权限目录组合。
 
 ## 2. 领域职责与边界
 

@@ -589,3 +589,43 @@ test('target OpenAPI exposes executable ACC, WFL and RPT transaction cores', asy
   for (const legacy of ['/acc/opening/save', '/acc/opening/unsubmit', '/dcl/wfl-process-definition/save'])
     assert.equal(openapi.paths[legacy], undefined, legacy)
 })
+
+test('target OpenAPI exposes health and readiness as public plain responses', async () => {
+  const document = JSON.parse(await readFile(generatedOpenApi, 'utf8')) as {
+    paths: Record<
+      string,
+      {
+        get?: {
+          responses?: Record<
+            string,
+            {
+              content?: Record<
+                string,
+                {
+                  schema?: { properties?: Record<string, { enum?: string[] }> }
+                }
+              >
+            }
+          >
+        }
+      }
+    >
+  }
+
+  const status = (path: string, response: string) =>
+    document.paths[path]?.get?.responses?.[response]?.content?.[
+      'application/json'
+    ]?.schema?.properties?.status?.enum
+
+  assert.deepEqual(status('/healthz', '200'), ['ok'])
+  assert.deepEqual(status('/readyz', '200'), ['ok'])
+  assert.deepEqual(status('/readyz', '503'), ['unavailable'])
+
+  const catalog = JSON.parse(await readFile(generatedCatalog, 'utf8')) as {
+    path: string
+  }[]
+  assert.equal(
+    catalog.some(({ path }) => path === '/healthz' || path === '/readyz'),
+    false,
+  )
+})

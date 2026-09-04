@@ -1,6 +1,6 @@
 # 票据付出页面用例
 
-权威业务规则见 [VOU 票据管理](../../domains/vou.md#313-票据管理)，线协议见 [OpenAPI VOU Schema](../../../contracts/openapi/schemas/vou.yaml)。
+权威业务规则见 [VOU 票据管理](../../domains/vou.md#313-票据管理)。#366 前当前 live 线协议见 [OpenAPI VOU Schema](../../../contracts/openapi/schemas/vou.yaml)；下文的本地 Draft、Submission 与 `submit-*` 描述由 Hono/Zod 路由生成的隔离 target，不能作为 live 接口调用。
 
 ## 1. 页面与查询
 
@@ -13,7 +13,7 @@
 1. 新建时选择供应商，录入业务日期、币种和备注，再打开“选择持有票据”对话框按票据号码查询。
 2. 对话框展示服务端返回的可选票据资料，允许多选并回填付出票据表格；重新打开时保留当前选择，确认后以最新选择替换表格。
 3. 页面提交票据标识、用途和行备注，不开放票据固定资料编辑。前端检查只用于定位空选择、重复选择等输入问题。
-4. 保存成功后重新读取详情和列表；失败时保留供应商、已选票据和备注，并显示业务消息与 `requestId`。
+4. 新单据只在浏览器 IndexedDB 本地 Draft 中保存；首次提交调用目标 Hono `submit-new`，从开放 Submission 克隆改正后调用 `submit-change`。成功后删除本地 Draft 并重新读取详情和列表；失败时保留供应商、已选票据和备注，并显示业务消息与 `requestId`。
 
 ## 3. 流转与验收
 

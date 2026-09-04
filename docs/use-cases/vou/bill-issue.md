@@ -1,6 +1,6 @@
 # 票据开出页面用例
 
-权威业务规则见 [VOU 票据管理](../../domains/vou.md#313-票据管理)，线协议见 [OpenAPI VOU Schema](../../../contracts/openapi/schemas/vou.yaml)。
+权威业务规则见 [VOU 票据管理](../../domains/vou.md#313-票据管理)。#366 前当前 live 线协议见 [OpenAPI VOU Schema](../../../contracts/openapi/schemas/vou.yaml)；下文的本地 Draft、Submission 与 `submit-*` 描述由 Hono/Zod 路由生成的隔离 target，不能作为 live 接口调用。
 
 ## 1. 页面与查询
 
@@ -13,7 +13,7 @@
 1. 新建时选择供应商，录入业务日期、币种、备注和利息承担方式；选择第三方承担时显示其他单位搜索框，切回银行扣息后不得提交残留的承担方。
 2. 票据区录入公司开出票据资料，页面以负债流入的开票模式呈现；资金区可录入真实保证金、手续费等资金收付。
 3. 页面展示票据合计、资金流入、资金流出和票据净现金流预览，并提示利息预览不会自动生成资金行。
-4. 保存成功后重新读取服务端详情和列表；失败时保持当前输入并显示业务消息与 `requestId`。
+4. 新单据只在浏览器 IndexedDB 本地 Draft 中保存；首次提交调用目标 Hono `submit-new`，从开放 Submission 克隆改正后调用 `submit-change`。成功后删除本地 Draft 并重新读取服务端详情和列表；失败时保持当前输入并显示业务消息与 `requestId`。
 
 ## 3. 流转与验收
 

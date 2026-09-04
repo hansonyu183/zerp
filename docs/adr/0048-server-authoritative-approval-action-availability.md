@@ -2,6 +2,7 @@
 id: ADR-0048
 date: 2026-08-31
 status: accepted
+partially_superseded_by: ADR-0051
 ---
 
 # Approval 动作资格由服务端中央决策

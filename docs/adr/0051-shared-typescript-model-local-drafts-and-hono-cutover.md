@@ -2,6 +2,7 @@
 id: ADR-0051
 date: 2026-09-03
 status: accepted
+partially_supersedes: ADR-0004, ADR-0032, ADR-0045, ADR-0046, ADR-0047, ADR-0048
 ---
 
 # 共享 TypeScript 模型、本地 Draft 与 Hono 一次性切换

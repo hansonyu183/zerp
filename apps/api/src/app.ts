@@ -4,6 +4,7 @@ import { HTTPException } from 'hono/http-exception'
 import { modelBuildId } from '@zerp/model'
 
 import { currentRequestId, requestId } from './platform/request-id.ts'
+import { registerHealthRoutes } from './app/health-contract.ts'
 import type { TargetConfig } from './platform/config.ts'
 import { registerAppRoutes } from './app/routes.ts'
 import type { SessionService } from './app/session.ts'
@@ -133,15 +134,7 @@ export function createApp(options: CreateAppOptions = {}) {
     }
     await next()
   })
-  app.get('/healthz', (context) => context.json({ status: 'ok' }))
-  app.get('/readyz', async (context) => {
-    try {
-      await options.database?.ping()
-      return context.json({ status: 'ok' })
-    } catch {
-      return context.json({ status: 'unavailable' }, 503)
-    }
-  })
+  registerHealthRoutes(app, options.database)
   if (options.session && options.config)
     registerAppRoutes(
       app,

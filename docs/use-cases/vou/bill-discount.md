@@ -1,6 +1,6 @@
 # 票据贴现页面用例
 
-权威业务规则见 [VOU 票据管理](../../domains/vou.md#313-票据管理)，线协议见 [OpenAPI VOU Schema](../../../contracts/openapi/schemas/vou.yaml)。
+权威业务规则见 [VOU 票据管理](../../domains/vou.md#313-票据管理)。#366 前当前 live 线协议见 [OpenAPI VOU Schema](../../../contracts/openapi/schemas/vou.yaml)；下文的本地 Draft、Submission 与 `submit-*` 描述由 Hono/Zod 路由生成的隔离 target，不能作为 live 接口调用。
 
 ## 1. 页面与查询
 

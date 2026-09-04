@@ -2,9 +2,11 @@
 
 ## 1. 领域边界
 
-VOU（Voucher）负责销售、采购、资金及费用单据的制单、提交、批准、执行、反向流转、附件和领域审计。当前实体、可创建实体、路径与数据结构见 [OpenAPI VOU Schema](../../contracts/openapi/schemas/vou.yaml)，本文不维护其副本。
+VOU（Voucher）负责销售、采购、资金及费用单据的制单、提交、批准、执行、反向流转、附件和领域审计。#366 前的 live 实体、可创建实体、路径与数据结构见 [OpenAPI VOU Schema](../../contracts/openapi/schemas/vou.yaml)，本文不维护其副本。
 
-HTTP 路径和数据结构以根目录 OpenAPI 为准；本文只维护单据生命周期、计算、快照和事务语义。
+live HTTP 路径和数据结构以根目录 OpenAPI 为准；本文只维护单据生命周期、计算、快照和事务语义。
+
+上述 OpenAPI 引用均指 #366 前的 live Go 线协议。本页的本地 Draft、Submission、shared TypeScript model、Hono、Kysely 与 `PENDING | APPROVED | REJECTED` 描述隔离 target 的权威业务语义，其契约从可执行 Hono/Zod 路由生成；target 与 live 的运行时、schema、契约和权限目录不得组合。
 
 各类原子单据均由 VOU 独立管理，唯一授权依据是精确的 VOU API 权限。WFL 只消费事件并维护
 单据组合、跨单据规则和自动建单，不代理单据正文、生命周期、附件或审计。
@@ -398,21 +400,21 @@ WFL 只编排服务合同与履约验收。RPT 可以按相对方类型、stable
 
 ## 6. 事务与审计
 
-创建、保存、状态变化、入账结果、反向动作和附件关联都在文档锁及 revision 校验下完成。编号计数器按实体和业务日期加锁，允许业务上出现号码间隙但禁止重复。
+Submission 创建与删除、状态变化、入账结果、反向动作和附件关联都在文档锁及 revision 校验下完成。编号计数器按实体和业务日期加锁，允许业务上出现号码间隙但禁止重复。
 
 Approval 审计事件追加保存动作、前后状态与 revision、操作者、发生时间、适用时的反向原因和请求 ID。反向动作清理中央 Approval 当前态字段，但不得删除 `approval_events` 历史；VOU 不再保存第二套生命周期审计。
 
 单据 `approve` 和 `unapprove` 由 shared TypeScript model 返回按 VOU 实体区分的强类型 Plan。VOU 在提交持久化前构造只含业务日期、金额、明细、附件和业务引用的不可变事实；Approval entry、动作、前后状态、revision、操作者及 request ID 由服务器权威事实映射，不在领域 Plan 中重复。反批准 Plan 使用反批准前的已批准业务副本。Hono transaction adapter 在同一 Kysely transaction 中持久化 Plan 的 Approval、VOU 与下游效果；它不回查 VOU 表拼装业务事实。
 
-所有订阅者按启动时的注册顺序同步执行并采用 fail-fast。任一订阅者主动拒绝、返回故障或发生 panic 时，VOU 批准或反批准、Approval 审计记录以及此前订阅者的数据库写入全部回滚；没有订阅者时保持现有批准行为。业务拒绝返回冲突响应，其他订阅故障返回内部错误。订阅者不得产生不能由数据库事务回滚的外部副作用。
+目标 application transaction coordinator 按 `Approval -> VOU -> ACC -> WFL -> RPT` 的固定顺序，在同一 Kysely transaction 中同步执行强类型 Plan 并采用 fail-fast。任一步主动拒绝或执行失败时，VOU 批准或反批准、Approval 审计及此前步骤的数据库写入全部回滚；业务拒绝返回冲突响应，其他故障返回内部错误。事务步骤不得产生不能由数据库事务回滚的外部副作用。
 
 ## 7. 验收
 
 - 全部 VOU 原子单据均能独立查询和查看，销售三类下级单据及费用付款不开放人工创建入口；
 - 销售订单可分批出库，销售出库、销售送货、销售签收严格追溯来源且并发不超量；
 - 销售和采购流程的人员、仓库、联系人和结算规则按制单版本稳定快照；
-- 新建贸易单据能从客户或供应商默认带入人员，显式覆盖生效，保存草稿省略人员时保持原快照；
-- 缺少结算方式不能创建或保存贸易单据；
+- 新建贸易单据能从客户或供应商默认带入人员，显式覆盖生效，Submission 输入省略人员时保持 Draft 中的原快照；
+- 缺少结算方式不能提交贸易单据；
 - 商品和费用明细备注可保存、读取并拒绝超过 1000 字的输入；
 - BOB 无效引用、平台车辆不匹配、资金账户币种不匹配被拒绝；
 - 数量、金额、日期和差异原因等业务规则由 VOU Service 测试覆盖；各 typed detail 表的 PK/UNIQUE、FK、NOT NULL 和简单数据形状 CHECK 继续覆盖持久化结构；
@@ -420,7 +422,7 @@ Approval 审计事件追加保存动作、前后状态与 revision、操作者�
 - 批准与反批准事件按单据类型精确投递，任一订阅失败不产生 VOU 或下游部分写入；
 - 采购入库只读继承采购单价，累计占用和并发写入均不能超过采购订单；
 - 附件大小、类型、哈希、令牌、路径和权限规则可验证；
-- 数据库基线初始化、sqlc 生成、单元测试、数据库集成测试、vet、build、race、Compose 健康检查全部通过。
+- live 数据库基线与 sqlc 生成检查保持通过；target schema、Kysely 类型、共享模型、API、真实 PostgreSQL 与浏览器 E2E 通过独立 target gate，#366 前不混跑或组合两套运行时。
 
 ## 8. 上级单据与 WFL 组合
 

@@ -4,6 +4,8 @@
 
 WFL 是以 VOU 单据为节点的用户可管理流程引擎。VOU 独立负责单据正文、生命周期、附件、领域校验和审计；ACC 独立负责资金、库存和往来事实。WFL 拥有 Starlark 脚本与编译图领域能力、试算零写入 adapter、类型化 `WorkflowActions`、实际实例树、动作结果和运行审计；流程定义的本地 Draft、Submission、审批、删除、版本历史和审计读取由 [DCL 流程定义申报](dcl.md#310-流程定义申报) 统一拥有。WFL 不复制 VOU 正文或代理 VOU 正文权限。
 
+本页的本地 Draft、Submission、shared TypeScript model 与 Hono route 描述隔离 target 的权威业务语义。#366 前，live Go/OpenAPI 仍是唯一线上实现与线协议；target 已完成的 WFL 能力只在隔离拓扑运行，不与 live 组合。
+
 销售定价 `sale-pricing`、采购询价 `purchase-inquiry` 和其他收入 `other-income` 不触发流程，也不能成为流程节点。
 
 ## 2. 定义与 Approval Version
@@ -40,4 +42,4 @@ WFL 复用 VOU 的同步事务事件总线。根单据批准时允许零个或�
 
 ## 6. 验收边界
 
-真实 PostgreSQL 验收覆盖 current 定义切换与回落、任一持久化实例精确 `approvalEntryId` blocker、新实例固定 latest APPROVED、既有实例继续固定原 entry、code/name 快照不变、回滚、历史审计身份保留、单/零/多匹配、六个动作、重试、反批准、删除、并发与任一失败全事务回滚。#361 的 WFL parity 门槛还必须以完整现有 Starlark 语料验证可同时在 Node 与浏览器运行的受维护运行时之编译、条件、初始值、资源上限与确定性；失败阻断后续 WFL 切换并要求独立 DSL 规格。目标 Hono 生成契约、客户端、后端、前端、领域文档和 ADR 统一描述目标模型，且不与 live Go/OpenAPI 组合。
+真实 PostgreSQL 验收覆盖 current 定义切换与回落、任一持久化实例精确 `approvalEntryId` blocker、新实例固定 latest APPROVED、既有实例继续固定原 entry、code/name 快照不变、回滚、历史审计身份保留、单/零/多匹配、六个动作、重试、反批准、删除、并发与任一失败全事务回滚。#361 的 WFL parity 门槛已由 [专项证据](../testing/wfl-starlark-parity-issue-361.md) 记录，并以同一完整 Starlark 语料验证 Go、Node 与浏览器的编译、条件、初始值、资源上限和确定性结果。目标 Hono 生成契约、客户端、后端、前端、领域文档和 ADR 统一描述目标模型，且不与 live Go/OpenAPI 组合。

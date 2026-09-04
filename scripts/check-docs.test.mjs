@@ -11,6 +11,7 @@ import {
   validateBobFormalTerminology,
   validateLegacyLanguage,
   parseUseCaseMissingBaseline,
+  parseTargetEntryPage,
   validateSkillReferences,
   validateUseCaseMissingBaseline,
   validateUseCaseMissingBaselineReduction,
@@ -88,6 +89,42 @@ test('accepts reciprocal ADR supersession metadata', () => {
     ]),
     [],
   )
+})
+
+test('accepts reciprocal partial ADR supersession metadata without retiring either ADR', () => {
+  assert.deepEqual(
+    validateAdrDocuments([
+      {
+        file: 'docs/adr/0001-earlier.md',
+        source:
+          '---\nid: ADR-0001\ndate: 2026-08-01\nstatus: accepted\npartially_superseded_by: ADR-0002\n---\n\n# Earlier\n',
+      },
+      {
+        file: 'docs/adr/0002-later.md',
+        source:
+          '---\nid: ADR-0002\ndate: 2026-08-02\nstatus: accepted\npartially_supersedes: ADR-0001\n---\n\n# Later\n',
+      },
+    ]),
+    [],
+  )
+})
+
+test('rejects incomplete or non-accepted partial ADR supersession metadata', () => {
+  const failures = validateAdrDocuments([
+    {
+      file: 'docs/adr/0001-earlier.md',
+      source:
+        '---\nid: ADR-0001\ndate: 2026-08-01\nstatus: superseded\npartially_superseded_by: ADR-0002\n---\n\n# Earlier\n',
+    },
+    {
+      file: 'docs/adr/0002-later.md',
+      source:
+        '---\nid: ADR-0002\ndate: 2026-08-02\nstatus: accepted\n---\n\n# Later\n',
+    },
+  ]).join('\n')
+
+  assert.match(failures, /部分取代关系两端都必须保持 accepted/)
+  assert.match(failures, /partial supersession 元数据不互相对应/)
 })
 
 test('rejects a superseding ADR when its predecessor is not reciprocally superseded', () => {
@@ -194,19 +231,24 @@ test('generates the ADR index from frontmatter and titles and detects drift', as
     {
       file: 'docs/adr/0002-current.md',
       source:
-        '---\nid: ADR-0002\ndate: 2026-08-02\nstatus: accepted\nsupersedes: ADR-0001\n---\n\n# Current decision\n',
+        '---\nid: ADR-0002\ndate: 2026-08-02\nstatus: accepted\nsupersedes: ADR-0001\npartially_superseded_by: ADR-0004\n---\n\n# Current decision\n',
     },
     {
       file: 'docs/adr/0003-rejected.md',
       source:
         '---\nid: ADR-0003\ndate: 2026-08-03\nstatus: rejected\n---\n\n# Rejected decision\n',
     },
+    {
+      file: 'docs/adr/0004-partial.md',
+      source:
+        '---\nid: ADR-0004\ndate: 2026-08-04\nstatus: accepted\npartially_supersedes: ADR-0002\n---\n\n# Partial decision\n',
+    },
   ]
 
   const index = generateAdrIndex(documents)
   assert.match(
     index,
-    /\| \[ADR-0002\]\(0002-current\.md\) \| 2026-08-02 \| Current decision \|/,
+    /\| \[ADR-0002\]\(0002-current\.md\) \| 2026-08-02 \| Current decision \| \[ADR-0004\]/,
   )
   assert.match(
     index,
@@ -226,6 +268,32 @@ test('generates the ADR index from frontmatter and titles and detects drift', as
       )
     ).join('\n'),
     /已漂移；请运行 pnpm docs:adr-index/,
+  )
+})
+
+test('parses a target HTML entry into the use-case coverage model', () => {
+  assert.deepEqual(
+    parseTargetEntryPage(
+      '<title>ZERP Target Probe</title><body data-use-case="app/target-probe"><script type="module" src="/src/target/main.ts"></script></body>',
+    ),
+    {
+      failures: [],
+      pages: [
+        {
+          route: '/target.html',
+          source: '[target 入口](../../frontend/target.html)',
+          title: 'ZERP Target Probe',
+          useCaseKey: 'app/target-probe',
+        },
+      ],
+    },
+  )
+
+  assert.match(
+    parseTargetEntryPage('<title>Target</title><body></body>').failures.join(
+      '\n',
+    ),
+    /缺少 data-use-case/,
   )
 })
 

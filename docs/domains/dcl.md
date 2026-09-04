@@ -6,7 +6,7 @@ DCL（Declaration Control）拥有全部版本化业务对象的稳定 subject�
 
 ### 1.1 本地 Draft 与 Submission 生命周期
 
-除 Warehouse 与 WFL Process Definition 外，本切片迁移的 11 个 DCL 聚合均采用同一目标生命周期：浏览器在当前登录用户和设备命名空间的 IndexedDB 中可同时保留多个本地 Draft。Draft 保存客户端生成的 draft/subject/submission 标识、未发送的完整表单、引用显示快照以及支持该聚合的附件 Blob 和元数据；刷新恢复、克隆和本地删除不写业务数据库。Draft 删除不请求 HTTP，也不属于 Approval。WFL Process Definition 的目标生命周期、真实既有 VOU 零写试运行、current read 与启停整体由后续事务核心切片交付；#366 前完整 live Go 实现保持不变。
+全部 13 个 DCL 聚合采用同一目标生命周期：浏览器在当前登录用户和设备命名空间的 IndexedDB 中可同时保留多个本地 Draft。Draft 保存客户端生成的 draft/subject/submission 标识、未发送的完整表单、引用显示快照以及支持该聚合的附件 Blob 和元数据；刷新恢复、克隆和本地删除不写业务数据库。Draft 删除不请求 HTTP，也不属于 Approval。Warehouse 与 WFL Process Definition 的领域特有规则分别见下文；其 target 实现与其余 DCL 聚合一样只在隔离拓扑运行，#366 前完整 live Go 实现保持不变。
 
 只有 `POST /dcl/{entity}/submit-new` 与 `POST /dcl/{entity}/submit-change`（可执行 Hono/Zod 目标路由）会在服务器事务中创建 Submission、版本 payload 和必要 stable subject。请求必须带 `expectedLatestApprovedSubmissionId` 与 `expectedLatestApprovedRevision`；服务端锁内重新读取历史和当前事实、权限及引用后决定这是 V1 还是最高已批准版本之后的 Vn，并拒绝与事实不符的 submit mode、过期 expected 值、重复开放候选或重复标识。浏览器规范化和决定只作提示，不能替代服务端复核。
 

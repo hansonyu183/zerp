@@ -4,7 +4,8 @@
 
 - 路由：`/home/dashboard`
 - 领域规则：[APP 工作台待办](../../domains/app.md#工作台待办)、[Approval Action Availability](../../domains/approval.md#32-approval-action-availability)、[DCL 原子性与引用](../../domains/dcl.md#4-原子性与引用) 与 [VOU 生命周期](../../domains/vou.md#22-生命周期)
-- 目标线协议：从可执行 Hono/Zod 路由生成的 target OpenAPI；#366 前 live OpenAPI 仍不变且不与 target 组合
+- 当前可执行线协议：[live OpenAPI](../../../contracts/openapi/openapi.yaml)
+- #366 future：目标 Workbench 将从可执行 Hono/Zod 路由生成；当前隔离 target 明确不包含 `/app/workbench/query`，本页的本地 Draft/Submission 编排在 #366 前不得解读为已实现 target 能力
 - 全站筛选和行操作规范：[前端工程约束](../../../frontend/AGENTS.md)
 
 ## `WKB-01` 打开工作台查看待办
@@ -14,7 +15,7 @@
 1. 工作台是一级直接导航入口，不设置同名分组或二级菜单。
 2. 页面默认进入“待办单据”，只查询当前页签，不同时加载“待办资料”。
 3. “待办单据”和“待办资料”分别保存关键词、实体类型、待办阶段和分页状态。
-4. 首次进入、每次切换到某个页签以及任一待办动作成功或失败后，前端都按该页签当前状态重新调用 `POST /app/workbench/query`，不得只展示首次加载的缓存结果。
+4. live 页面首次进入、每次切换到某个页签以及任一待办动作成功或失败后，都按该页签当前状态重新调用 `POST /app/workbench/query`，不得只展示首次加载的缓存结果；#366 的 target Workbench 落地后保持同一可观察编排。
 5. 查询失败时显示明确错误和重新查询入口，不得把失败后的空结果显示为“暂无待办”。
 6. 前端按响应中的 `availableActions` 渲染操作，不根据状态或本地权限推断额外动作。
 

@@ -2,28 +2,29 @@
 
 <!-- 此文件由 `pnpm docs:coverage` 生成，请勿手工编辑。 -->
 
-数据来源：[`frontend/src/router/registry.ts`](../../frontend/src/router/registry.ts)、[`frontend/src/router/index.ts`](../../frontend/src/router/index.ts)，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。
+数据来源：[`frontend/src/router/registry.ts`](../../frontend/src/router/registry.ts)、[`frontend/src/router/index.ts`](../../frontend/src/router/index.ts)、[`frontend/target.html`](../../frontend/target.html)，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。
 
-统计口径：页面入口只统计静态注册页面，并将 `/rpt/{code}` 计为一个动态路由；运行时菜单项和具体报表定义实例另行统计，不与本页入口数直接相加。
+统计口径：页面入口统计 live 静态注册页面、隔离 target HTML 入口，并将 `/rpt/{code}` 计为一个动态路由；运行时菜单项和具体报表定义实例另行统计，不与本页入口数直接相加。
 
-- 页面入口：77
-- 已覆盖入口：33
-- 已登记用例：32
+- 页面入口：78
+- 已覆盖入口：34
+- 已登记用例：33
 - 缺少用例：44
 - 孤儿用例：0
 
 ## APP
 
-| 页面     | 路由                    | 来源                                           | 状态                                           |
-| -------- | ----------------------- | ---------------------------------------------- | ---------------------------------------------- |
-| 登录     | `/signin`               | [静态路由](../../frontend/src/router/index.ts) | [已文档化](app/signin.md)                      |
-| 修改密码 | `/change-password`      | [静态路由](../../frontend/src/router/index.ts) | [已文档化](app/signin.md)                      |
-| 工作台   | `/home/dashboard`       | [静态路由](../../frontend/src/router/index.ts) | [已文档化](app/workbench.md)                   |
-| 用户管理 | `/app/user`             | [静态路由](../../frontend/src/router/index.ts) | [已文档化](app/user-management.md)             |
-| 角色管理 | `/app/role`             | [静态路由](../../frontend/src/router/index.ts) | [已文档化](app/role-management.md)             |
-| 权限管理 | `/app/permission`       | [静态路由](../../frontend/src/router/index.ts) | [已文档化](app/permission-management.md)       |
-| 系统参数 | `/app/system-parameter` | [静态路由](../../frontend/src/router/index.ts) | [已文档化](app/system-parameter-management.md) |
-| 菜单管理 | `/app/menu`             | [静态路由](../../frontend/src/router/index.ts) | [已文档化](app/menu-management.md)             |
+| 页面              | 路由                    | 来源                                           | 状态                                           |
+| ----------------- | ----------------------- | ---------------------------------------------- | ---------------------------------------------- |
+| 登录              | `/signin`               | [静态路由](../../frontend/src/router/index.ts) | [已文档化](app/signin.md)                      |
+| 修改密码          | `/change-password`      | [静态路由](../../frontend/src/router/index.ts) | [已文档化](app/signin.md)                      |
+| 工作台            | `/home/dashboard`       | [静态路由](../../frontend/src/router/index.ts) | [已文档化](app/workbench.md)                   |
+| 用户管理          | `/app/user`             | [静态路由](../../frontend/src/router/index.ts) | [已文档化](app/user-management.md)             |
+| 角色管理          | `/app/role`             | [静态路由](../../frontend/src/router/index.ts) | [已文档化](app/role-management.md)             |
+| 权限管理          | `/app/permission`       | [静态路由](../../frontend/src/router/index.ts) | [已文档化](app/permission-management.md)       |
+| 系统参数          | `/app/system-parameter` | [静态路由](../../frontend/src/router/index.ts) | [已文档化](app/system-parameter-management.md) |
+| 菜单管理          | `/app/menu`             | [静态路由](../../frontend/src/router/index.ts) | [已文档化](app/menu-management.md)             |
+| ZERP Target Probe | `/target.html`          | [target 入口](../../frontend/target.html)      | [已文档化](app/target-probe.md)                |
 
 ## DCL
 

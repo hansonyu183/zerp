@@ -1,6 +1,6 @@
 # 票据到期处理页面用例
 
-权威业务规则见 [VOU 票据管理](../../domains/vou.md#313-票据管理)，线协议见 [OpenAPI VOU Schema](../../../contracts/openapi/schemas/vou.yaml)。
+权威业务规则见 [VOU 票据管理](../../domains/vou.md#313-票据管理)。#366 前当前 live 线协议见 [OpenAPI VOU Schema](../../../contracts/openapi/schemas/vou.yaml)；下文的本地 Draft、Submission 与 `submit-*` 描述由 Hono/Zod 路由生成的隔离 target，不能作为 live 接口调用。
 
 ## 1. 页面与查询
 
@@ -13,7 +13,7 @@
 1. 新建时先选择“到期收款”或“到期付款”。切换处理方式会清空已经选择的票据，避免把上一方向的选择带入新表单。
 2. 选择对话框按处理方式查询相应票据，并允许按票据号码筛选；确认后在到期票据表格中展示服务端资料。
 3. 资金区选择资金账户并录入金额类型、金额和备注；页面按处理方式约束资金方向并展示票据与资金汇总预览。
-4. 保存成功后重新读取详情和列表；失败时保留处理方式、票据和资金行，显示业务消息与 `requestId`。
+4. 新单据只在浏览器 IndexedDB 本地 Draft 中保存；首次提交调用目标 Hono `submit-new`，从开放 Submission 克隆改正后调用 `submit-change`。成功后删除本地 Draft 并重新读取详情和列表；失败时保留处理方式、票据和资金行，显示业务消息与 `requestId`。
 
 ## 3. 流转与验收
 

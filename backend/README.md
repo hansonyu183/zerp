@@ -1,6 +1,6 @@
 # ZERP Backend
 
-ZERP 后端是单仓中的 Go API，负责领域服务、权限校验、事务、PostgreSQL 持久化、附件和运行状态端点。HTTP 线协议以根目录 OpenAPI 为准，业务规则以根目录领域文档为准。
+ZERP live 后端是单仓中的 Go API，负责领域服务、权限校验、事务、PostgreSQL 持久化、附件和运行状态端点。#366 前，live HTTP 线协议以根目录 OpenAPI 为准；隔离 Hono target 的入口见根 README。业务规则以根目录领域文档为准。
 
 ## 模块运行
 
@@ -29,7 +29,7 @@ API 在开始监听前同步 APP 菜单路由目录与业务菜单。同步在�
 | `make generate`         | 生成 sqlc 代码                 |
 | `make quality`          | 运行后端完整质量检查           |
 
-容器编排统一由仓库根目录的 `compose.yaml` 及其 dev、e2e、production override 管理。容器化 API 不得与占用同一端口的 `make run` 同时使用。
+live 容器编排统一由仓库根目录的 `compose.yaml` 及其 dev、e2e、production override 管理。#366 前的 Hono target 使用独立 `compose.target.yaml` 和根级 `make target-*` 命令，不与 live 编排组合。容器化 API 不得与占用同一端口的 `make run` 同时使用。
 
 ## 文档导航
 

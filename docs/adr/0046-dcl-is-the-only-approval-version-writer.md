@@ -2,6 +2,7 @@
 id: ADR-0046
 date: 2026-08-29
 status: accepted
+partially_superseded_by: ADR-0051
 ---
 
 # DCL 是申报版本的唯一写入方

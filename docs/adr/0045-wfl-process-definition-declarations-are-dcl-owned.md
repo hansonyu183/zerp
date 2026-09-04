@@ -2,6 +2,7 @@
 id: ADR-0045
 date: 2026-08-29
 status: accepted
+partially_superseded_by: ADR-0051
 ---
 
 # 流程定义申报由 DCL 拥有并供 WFL 当前执行

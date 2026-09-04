@@ -98,6 +98,8 @@ function executableTargetPaths() {
     document,
     paths: paths.filter((entry) =>
       [
+        'GET /healthz',
+        'GET /readyz',
         ' /app/',
         ' /aux/',
         ' /dcl/',

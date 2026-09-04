@@ -36,6 +36,7 @@ import { WflApplicationError, type WflService } from '../wfl/service.ts'
 import { registerWflRoutes, wflRouteMetadata, type WflRouteAction } from '../wfl/contract.ts'
 import { RptApplicationError, type RptService } from '../rpt/service.ts'
 import { registerRptRoutes, rptRouteMetadata, type RptRouteAction } from '../rpt/contract.ts'
+import { healthRouteMetadata } from './health-contract.ts'
 import {
   registerTargetRoutes,
   targetRouteMetadata as baseTargetRouteMetadata,
@@ -52,6 +53,7 @@ import {
 } from './session.ts'
 
 export const targetRouteMetadata = [
+  ...healthRouteMetadata,
   ...baseTargetRouteMetadata,
   ...vouRouteMetadata,
   ...accRouteMetadata,

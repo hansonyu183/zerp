@@ -1,6 +1,6 @@
 # ZERP 前端 API 配置
 
-本文只说明环境拓扑、API 基址、Origin、Cookie 和联调步骤。HTTP 路径与数据结构以 `contracts/openapi/` 为准，业务规则以 `docs/domains/` 为准。
+本文只说明环境拓扑、API 基址、Origin、Cookie 和联调步骤。#366 前，live Go HTTP 路径与数据结构以 `contracts/openapi/` 为准；隔离 target 契约从 `apps/api/` 的可执行 Hono/Zod 路由生成，二者不得组合。业务规则以 `docs/domains/` 为准。
 
 ZERP 前端仅通过 Cloudflare Pages 部署，并使用生成客户端直连后端 API。
 
@@ -81,9 +81,22 @@ make e2e
 
 根级脚本会向 Playwright 注入正确的 API、Web 和账号变量。不要在前端环境文件中长期复制密码或端口；不得把 E2E 指向生产或日常联调数据库。
 
-完整验收统一从仓库根目录运行 `make e2e`。命令会创建一次性 PostgreSQL 容器，原生启动 API 和 Web，结束后自动清理隔离数据库与进程。
+live Go 栈的完整验收从仓库根目录运行 `make e2e`。命令会创建一次性 PostgreSQL 容器，原生启动 API 和 Web，结束后自动清理隔离数据库与进程。
 
-## 4. 联调验收
+## 4. 隔离 target 验证
+
+#366 前，Hono API、共享 TypeScript model、target schema、target OpenAPI、target 权限目录和 target frontend 只在 `compose.target.yaml` 的隔离拓扑中运行，不代理或接收 live Go 流量。最完整的本地验证为：
+
+```bash
+make target-e2e
+make target-down
+```
+
+默认使用数据库 `zerp_target_test`、PostgreSQL 端口 `55439`、API 端口 `18082` 和 Web 端口 `18083`。这些 target 检查都会先删除并重建 `zerp-target` Compose 的数据库容器及可丢弃卷，不得把 `TARGET_*` 变量指向共享或真实业务库。它们会保留已启动的 target 资源供失败检查或结果回读；确认不再需要后必须运行 `make target-down`。只需要较窄检查时，依次选择 `make target-generate-check`、`make target-check` 或 `make target-test`。
+
+这组命令不属于 live 发布或 Pages 联调流程。CI 以独立 `target-foundation` job 执行 target E2E，并在结束时清理 target 资源。
+
+## 5. 联调验收
 
 每个目标环境重新验证：
 

@@ -32,4 +32,4 @@
 3. 同请求重试幂等；不同 payload 复用 key、重复 ID、错误 submit mode、旧 latest-approved/revision、恶意客户端 decision、权限不足与失效引用都返回稳定错误且无部分写入。
 4. `approve`、`reject`、`unreject`、`unapprove` 与 `delete` 覆盖成功、完整 actor/permission matrix、stale revision、reason 规则、结构化 blocker 和 audit/revision；`REJECTED` 仍可发现和审阅。
 5. canonical 业务规则语料在浏览器与 Node 服务端运行结果一致；真实 PostgreSQL 测试覆盖并发 submit 冲突、版本号分配、highest-approved 回落与精确引用 blocker。
-6. target OpenAPI、Hono client type 和目标权限目录从同一完整路由图生成。Compose 只装载 target APP/Approval/DCL Warehouse 所需 schema；生产 Go route、live schema、契约和权限不在本切片删除或改写。
+6. target OpenAPI、Hono client type 和目标权限目录从同一完整路由图生成。`compose.target.yaml` 装载完整隔离 target schema；#366 前生产 Go route、live schema、契约和权限保持不变。

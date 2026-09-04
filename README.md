@@ -1,13 +1,15 @@
 # ZERP
 
-ZERP 是一个面向企业内部业务的全栈 ERP 单仓项目。Vue 前端、Go API、当前数据库基线、OpenAPI 契约、领域文档和部署编排均在本仓库统一维护。
+ZERP 是一个面向企业内部业务的全栈 ERP 单仓项目。Vue 前端、live Go API、当前数据库基线、live OpenAPI 契约、领域文档和部署编排均在本仓库统一维护；#366 前的 Hono/共享 TypeScript target 只在隔离拓扑中验证。
 
 ## 目录
 
 ```text
 frontend/             Vue 3、TypeScript、Vite、Vuetify
 backend/              Go、Gin、pgx、sqlc
-contracts/openapi/    唯一 HTTP 线协议与生成后的 bundle
+apps/api/             隔离 target Hono/Kysely API
+packages/             隔离 target 共享模型、客户端与 WFL 运行时
+contracts/openapi/    #366 前唯一 live HTTP 线协议与生成后的 bundle
 docs/domains/         唯一业务规则与领域职责说明
 docs/use-cases/       按页面组织的前后端处理流程与验收场景
 scripts/              联调与测试工具
@@ -48,7 +50,7 @@ make dev-down
 | `make dev`                               | 启动数据库、API 与前端热更新                            |
 | `make generate`                          | 生成 OpenAPI bundle、Go/TS API 与 sqlc                  |
 | `make generate-check`                    | 验证生成物已提交且无漂移                                |
-| `make check`                             | 运行全仓文档、契约、生成物、前后端及运行配置门禁        |
+| `make check`                             | 运行文档及 live 契约、生成物、前后端和运行配置门禁      |
 | `make test`                              | 运行前后端测试                                          |
 | `make e2e`                               | 启动隔离全栈并运行真实 API Playwright                   |
 | `make build`                             | 构建前端、后端及 API 容器镜像                           |
@@ -58,9 +60,23 @@ make dev-down
 
 `pnpm --filter @zerp/frontend typecheck` 是唯一生产前端类型门禁，只运行一次 `vue-tsc -b --force`。`pnpm --filter @zerp/frontend test:vue-template-typecheck` 是独立工具链回归测试：它要求同一 checker 拒绝故意错误的隔离 Vue template fixture，并由 `make check` 自动运行；该 canary 不属于生产 `typecheck` 命令。
 
+## 隔离 target 验证
+
+#366 前，target frontend、Hono API、共享 TypeScript model、target schema、target OpenAPI 和 target 权限目录只在 `compose.target.yaml` 的隔离环境运行，不代理或接收 live Go 流量，也不与 live 数据库共同写入。
+
+| 命令                         | 作用                                                  |
+| ---------------------------- | ----------------------------------------------------- |
+| `make target-generate-check` | 重新生成并检查 target OpenAPI、权限目录和 Kysely 类型 |
+| `make target-check`          | 运行 target 生成检查、WFL parity 与静态检查           |
+| `make target-test`           | 运行 target 检查和 API 测试                           |
+| `make target-e2e`            | 构建隔离 target 并运行真实 PostgreSQL/浏览器 E2E      |
+| `make target-down`           | 删除本机 target Compose 容器和卷                      |
+
+默认隔离资源是数据库 `zerp_target_test`、PostgreSQL `55439`、API `18082` 和 Web `18083`；可通过同名 `TARGET_*` Make 变量覆盖。`target-generate-check`、`target-check`、`target-test` 和 `target-e2e` 都会先删除并重建 `zerp-target` Compose 的数据库容器及可丢弃卷，不得把这些变量指向共享或真实业务库。这些命令会保留已启动的 target 资源供检查，结束后应显式运行 `make target-down`。CI 将这条链路作为独立的 `target-foundation` job 运行，当前 `make check` 与 `make e2e` 仍验证 live Go 栈。
+
 ## 契约开发
 
-`contracts/openapi/openapi.yaml` 及其引用文件是 HTTP 线协议的唯一来源。修改契约后运行：
+`contracts/openapi/openapi.yaml` 及其引用文件是 #366 前 live Go HTTP 线协议的唯一来源。修改 live 契约后运行：
 
 ```bash
 make generate
@@ -100,6 +116,7 @@ ZERP 前端仅通过 Cloudflare Pages 部署。API 基址、Origin、Cookie、�
 - [ADR-0050：数据库只负责持久化](docs/adr/0050-database-only-persists-facts.md)
 - [页面用例索引](docs/use-cases/README.md)
 - [前端 API 配置](docs/operations/frontend-api-configuration.md)
+- [测试与验收证据](docs/testing/README.md)
 
 安全开发约束见 [AGENTS.md](AGENTS.md)，部署安全配置见[运行手册](docs/operations/frontend-api-configuration.md)。
 

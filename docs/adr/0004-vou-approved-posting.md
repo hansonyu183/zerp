@@ -2,6 +2,7 @@
 id: ADR-0004
 date: 2026-08-09
 status: accepted
+partially_superseded_by: ADR-0051
 ---
 
 # VOU 在审批时入账，批准是唯一终态

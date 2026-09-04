@@ -26,6 +26,12 @@ import { ulid } from 'ulid'
 
 import type { ArchiveEntity } from './archive-contract.ts'
 import type { DB, JsonValue } from '../db/generated.ts'
+import {
+  cancelAttachmentDeletion,
+  drainAttachmentDeletions,
+  enqueueAttachmentDeletions,
+  lockAttachmentStorageKey,
+} from '../platform/attachment-deletion.ts'
 import { AttachmentStore } from '../platform/attachment-store.ts'
 import type {
   RptColumn,
@@ -445,7 +451,10 @@ function array(value: unknown): unknown[] {
   return Array.isArray(value) ? value : []
 }
 
-function customerAttachmentContentMatches(mimeType: string, content: Buffer): boolean {
+function customerAttachmentContentMatches(
+  mimeType: string,
+  content: Buffer,
+): boolean {
   if (mimeType === 'application/pdf')
     return content.subarray(0, 5).toString() === '%PDF-'
   if (mimeType === 'image/png')
@@ -1015,7 +1024,7 @@ export class ArchiveService {
     requestId: string,
   ): Promise<{ submissionId: string; deleted: true }> {
     requirePermission(actor, `/dcl/${entity}/delete`)
-    return this.db.transaction().execute(async (tx) => {
+    const outcome = await this.db.transaction().execute(async (tx) => {
       await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:archive:${entity}:${input.subjectId}`}, 0))`.execute(
         tx,
       )
@@ -1032,6 +1041,15 @@ export class ArchiveService {
         throw new ArchiveApplicationError('approval_invalid_transition')
       if (entry.metadata.submitted.actorId !== actor.id)
         throw new ArchiveApplicationError('approval_invalid_actor')
+      const candidateStorageKeys =
+        entity === 'customer'
+          ? await tx
+              .selectFrom('dcl_customer_attachments')
+              .select('storage_key')
+              .where('approval_entry_id', '=', entry.id)
+              .execute()
+              .then((rows) => [...new Set(rows.map((row) => row.storage_key))])
+          : []
       await tx
         .insertInto('approval_events')
         .values({
@@ -1069,8 +1087,30 @@ export class ArchiveService {
           .deleteFrom('dcl_subjects')
           .where('id', '=', entry.subjectId)
           .execute()
-      return { submissionId: entry.id, deleted: true as const }
+      let unreferencedStorageKeys = candidateStorageKeys
+      if (candidateStorageKeys.length > 0) {
+        const referenced = await tx
+          .selectFrom('dcl_customer_attachments')
+          .select('storage_key')
+          .where('storage_key', 'in', candidateStorageKeys)
+          .execute()
+        const referencedKeys = new Set(referenced.map((row) => row.storage_key))
+        unreferencedStorageKeys = candidateStorageKeys.filter(
+          (storageKey) => !referencedKeys.has(storageKey),
+        )
+        await enqueueAttachmentDeletions(tx, unreferencedStorageKeys)
+      }
+      return {
+        result: { submissionId: entry.id, deleted: true as const },
+        storageKeys: unreferencedStorageKeys,
+      }
     })
+    await drainAttachmentDeletions(
+      this.db,
+      this.attachmentStore,
+      outcome.storageKeys,
+    )
+    return outcome.result
   }
 
   async stageCustomerAttachment(
@@ -1091,17 +1131,13 @@ export class ArchiveService {
       throw new ArchiveApplicationError('customer_attachment_invalid_content')
     const now = new Date(),
       expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000)
-    let storageKey: string | undefined
+    const storageKey = `staging/${actor.id}/${input.stagingId}`
     try {
       return await this.db.transaction().execute(async (tx) => {
         await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:customer:attachment:${input.stagingId}`}, 0))`.execute(
           tx,
         )
-        storageKey = await this.attachmentStore.stage({
-          ownerId: actor.id,
-          stagingId: input.stagingId,
-          content,
-        })
+        await lockAttachmentStorageKey(tx, storageKey)
         const existing = await tx
           .selectFrom('dcl_customer_attachment_staging')
           .selectAll()
@@ -1119,6 +1155,11 @@ export class ArchiveService {
             throw new ArchiveApplicationError(
               'customer_attachment_staging_conflict',
             )
+          await this.attachmentStore.stage({
+            ownerId: actor.id,
+            stagingId: input.stagingId,
+            content,
+          })
           if (existing.expires_at <= now)
             await tx
               .updateTable('dcl_customer_attachment_staging')
@@ -1129,6 +1170,7 @@ export class ArchiveService {
               })
               .where('id', '=', existing.id)
               .executeTakeFirstOrThrow()
+          await cancelAttachmentDeletion(tx, storageKey)
           return {
             stagingId: existing.id,
             fileId: existing.file_id,
@@ -1142,6 +1184,11 @@ export class ArchiveService {
             ).toISOString(),
           }
         }
+        await this.attachmentStore.stage({
+          ownerId: actor.id,
+          stagingId: input.stagingId,
+          content,
+        })
         await tx
           .insertInto('dcl_customer_attachment_staging')
           .values({
@@ -1157,6 +1204,7 @@ export class ArchiveService {
             expires_at: expiresAt,
           })
           .execute()
+        await cancelAttachmentDeletion(tx, storageKey)
         return {
           stagingId: input.stagingId,
           fileId: input.fileId,
@@ -1168,15 +1216,10 @@ export class ArchiveService {
         }
       })
     } catch (error) {
-      if (storageKey) {
-        const existing = await this.db
-          .selectFrom('dcl_customer_attachment_staging')
-          .select('storage_key')
-          .where('id', '=', input.stagingId)
-          .executeTakeFirst()
-        if (existing?.storage_key !== storageKey)
-          await this.attachmentStore.remove(storageKey)
-      }
+      await this.db.transaction().execute(async (tx) => {
+        await enqueueAttachmentDeletions(tx, [storageKey])
+      })
+      await drainAttachmentDeletions(this.db, this.attachmentStore)
       throw error
     }
   }
@@ -1185,6 +1228,7 @@ export class ArchiveService {
     actor: ApprovalActor,
   ): Promise<{ deleted: number }> {
     requirePermission(actor, '/dcl/customer/attachment-cleanup')
+    await drainAttachmentDeletions(this.db, this.attachmentStore)
     const expired = await this.db
       .selectFrom('dcl_customer_attachment_staging')
       .select('id')
@@ -1192,7 +1236,7 @@ export class ArchiveService {
       .execute()
     let deleted = 0
     for (const attachment of expired) {
-      const removed = await this.db.transaction().execute(async (tx) => {
+      const storageKey = await this.db.transaction().execute(async (tx) => {
         await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:customer:attachment:${attachment.id}`}, 0))`.execute(
           tx,
         )
@@ -1202,17 +1246,24 @@ export class ArchiveService {
           .where('id', '=', attachment.id)
           .forUpdate()
           .executeTakeFirst()
-        if (!staged || staged.expires_at > new Date()) return false
-        await this.attachmentStore.remove(staged.storage_key)
+        if (!staged || staged.expires_at > new Date()) return null
         const result = await tx
           .deleteFrom('dcl_customer_attachment_staging')
           .where('id', '=', staged.id)
           .executeTakeFirst()
         if (Number(result.numDeletedRows) !== 1)
-          throw new ArchiveApplicationError('customer_attachment_staging_invalid')
-        return true
+          throw new ArchiveApplicationError(
+            'customer_attachment_staging_invalid',
+          )
+        await enqueueAttachmentDeletions(tx, [staged.storage_key])
+        return staged.storage_key
       })
-      if (removed) deleted += 1
+      if (storageKey) {
+        deleted += 1
+        await drainAttachmentDeletions(this.db, this.attachmentStore, [
+          storageKey,
+        ])
+      }
     }
     return { deleted }
   }
@@ -1796,21 +1847,33 @@ export class ArchiveService {
     )[0]
     if (!fact || !fact.available) throw new ArchiveApplicationError(errorKey)
     if (field === 'settlementMethod') {
-      const termCode = typeof fact.data.termCode === 'string' ? fact.data.termCode : ''
-      const ruleType = typeof fact.data.ruleType === 'string' ? fact.data.ruleType : ''
+      const termCode =
+        typeof fact.data.termCode === 'string' ? fact.data.termCode : ''
+      const ruleType =
+        typeof fact.data.ruleType === 'string' ? fact.data.ruleType : ''
       const monthOffset = fact.data.monthOffset
       const dayOfMonth = fact.data.dayOfMonth
       const dayOffset = fact.data.dayOffset
       if (
         ![
-          'PREPAID', 'CASH_ON_DELIVERY', 'ARRIVAL_3', 'ARRIVAL_5',
-          'ARRIVAL_7', 'ARRIVAL_15', 'ARRIVAL_30', 'MONTHLY_CURRENT',
-          'MONTHLY_30', 'MONTHLY_60', 'MONTHLY_90',
+          'PREPAID',
+          'CASH_ON_DELIVERY',
+          'ARRIVAL_3',
+          'ARRIVAL_5',
+          'ARRIVAL_7',
+          'ARRIVAL_15',
+          'ARRIVAL_30',
+          'MONTHLY_CURRENT',
+          'MONTHLY_30',
+          'MONTHLY_60',
+          'MONTHLY_90',
         ].includes(termCode) ||
         !['RELATIVE_DAYS', 'MONTH_END'].includes(ruleType) ||
-        !Number.isInteger(monthOffset) || !Number.isInteger(dayOfMonth) ||
+        !Number.isInteger(monthOffset) ||
+        !Number.isInteger(dayOfMonth) ||
         !Number.isInteger(dayOffset)
-      ) throw new ArchiveApplicationError(errorKey)
+      )
+        throw new ArchiveApplicationError(errorKey)
       return {
         id: fact.objectId,
         code: fact.code,
@@ -2550,11 +2613,15 @@ export class ArchiveService {
   private customerStagingAttachments(snapshot: ArchiveSnapshot) {
     return [
       ...array(snapshot.identityAttachments),
-      ...array(snapshot.subunits).flatMap((item) => array(record(item).attachments)),
+      ...array(snapshot.subunits).flatMap((item) =>
+        array(record(item).attachments),
+      ),
     ]
       .map(record)
       .filter(
-        (attachment): attachment is Record<string, unknown> & {
+        (
+          attachment,
+        ): attachment is Record<string, unknown> & {
           stagingId: string
           id: string
         } =>
@@ -3266,12 +3333,26 @@ export class ArchiveService {
     subjectId: string,
     actorId: string,
   ) {
-    const subject = await tx.selectFrom('dcl_subjects').select('code')
-      .where('id', '=', subjectId).where('entity', '=', 'rpt-definition').executeTakeFirstOrThrow()
-    if (!subject.code) throw new ArchiveApplicationError('archive_invalid_history')
-    const current = await tx.selectFrom('approval_entries as e')
-      .innerJoin('dcl_rpt_definition_versions as v', 'v.approval_entry_id', 'e.id')
-      .leftJoin('rpt_definition_validities as validity', 'validity.approval_entry_id', 'e.id')
+    const subject = await tx
+      .selectFrom('dcl_subjects')
+      .select('code')
+      .where('id', '=', subjectId)
+      .where('entity', '=', 'rpt-definition')
+      .executeTakeFirstOrThrow()
+    if (!subject.code)
+      throw new ArchiveApplicationError('archive_invalid_history')
+    const current = await tx
+      .selectFrom('approval_entries as e')
+      .innerJoin(
+        'dcl_rpt_definition_versions as v',
+        'v.approval_entry_id',
+        'e.id',
+      )
+      .leftJoin(
+        'rpt_definition_validities as validity',
+        'validity.approval_entry_id',
+        'e.id',
+      )
       .select(['v.name', 'v.enabled', 'validity.status as validity'])
       .where('e.domain', '=', 'dcl')
       .where('e.entity', '=', 'rpt-definition')
@@ -3279,26 +3360,41 @@ export class ArchiveService {
       .where('e.status', '=', 'APPROVED')
       .orderBy('e.version_no', 'desc')
       .executeTakeFirst()
-    const status = current?.enabled === true && current.validity === 'VALID'
-      ? 'ENABLED' as const
-      : 'DISABLED' as const
+    const status =
+      current?.enabled === true && current.validity === 'VALID'
+        ? ('ENABLED' as const)
+        : ('DISABLED' as const)
     const description = current?.name || subject.code
     const menuOrder = 900_000 + Number(subject.code.slice(4))
     for (const action of ['query', 'export'] as const) {
       const path = `/rpt/${subject.code}/${action}`
       const id = `01J${createHash('sha256').update(path).digest('hex').slice(0, 23).toUpperCase()}`
-      await tx.insertInto('app_permissions').values({
-        id, path, domain: 'rpt', entity: subject.code, action,
-        description, status,
-        menu_group: action === 'query' ? '报表' : null,
-        menu_order: action === 'query' ? menuOrder : null,
-        created_by: actorId, updated_by: actorId,
-      }).onConflict((conflict) => conflict.column('path').doUpdateSet({
-        status, description,
-        menu_group: action === 'query' ? '报表' : null,
-        menu_order: action === 'query' ? menuOrder : null,
-        updated_at: new Date(), updated_by: actorId,
-      })).execute()
+      await tx
+        .insertInto('app_permissions')
+        .values({
+          id,
+          path,
+          domain: 'rpt',
+          entity: subject.code,
+          action,
+          description,
+          status,
+          menu_group: action === 'query' ? '报表' : null,
+          menu_order: action === 'query' ? menuOrder : null,
+          created_by: actorId,
+          updated_by: actorId,
+        })
+        .onConflict((conflict) =>
+          conflict.column('path').doUpdateSet({
+            status,
+            description,
+            menu_group: action === 'query' ? '报表' : null,
+            menu_order: action === 'query' ? menuOrder : null,
+            updated_at: new Date(),
+            updated_by: actorId,
+          }),
+        )
+        .execute()
     }
   }
 }

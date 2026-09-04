@@ -316,7 +316,10 @@ test('typed DCL archives persist idempotent V1/V2 lifecycle and derive current f
         .deleteFrom('approval_events')
         .where('subject_id', '=', subjectId)
         .execute()
-      await db.deleteFrom('approval_entries').where('subject_id', '=', subjectId).execute()
+      await db
+        .deleteFrom('approval_entries')
+        .where('subject_id', '=', subjectId)
+        .execute()
       await db.deleteFrom('dcl_subjects').where('id', '=', subjectId).execute()
       await db
         .deleteFrom('app_users')
@@ -517,8 +520,12 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
   const db = createDatabase(databaseUrl)
   const validationPool = new pg.Pool({ connectionString: databaseUrl })
-  const attachmentRoot = await mkdtemp(join(tmpdir(), 'zerp-customer-attachments-'))
-  const attachmentStore = new AttachmentStore(attachmentRoot, { orphanGraceMs: 0 })
+  const attachmentRoot = await mkdtemp(
+    join(tmpdir(), 'zerp-customer-attachments-'),
+  )
+  const attachmentStore = new AttachmentStore(attachmentRoot, {
+    orphanGraceMs: 0,
+  })
   const service = new ArchiveService(
     db,
     new PgRptDefinitionValidator(validationPool, db),
@@ -985,6 +992,10 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       .executeTakeFirst(),
     undefined,
   )
+  await db
+    .insertInto('attachment_deletion_jobs')
+    .values({ storage_key: failedStaging.storage_key, created_at: new Date() })
+    .execute()
   const restaged = await service.stageCustomerAttachment(
     {
       stagingId: failedStagingId,
@@ -998,6 +1009,33 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     submitter,
   )
   assert.ok(new Date(restaged.expiresAt) > new Date())
+  assert.equal(
+    await db
+      .selectFrom('attachment_deletion_jobs')
+      .select('storage_key')
+      .where('storage_key', '=', failedStaging.storage_key)
+      .executeTakeFirst(),
+    undefined,
+  )
+  await db
+    .insertInto('attachment_deletion_jobs')
+    .values({ storage_key: failedStaging.storage_key, created_at: new Date() })
+    .execute()
+  assert.deepEqual(await service.cleanupCustomerAttachments(submitter), {
+    deleted: 0,
+  })
+  assert.deepEqual(
+    await attachmentStore.read(failedStaging.storage_key),
+    attachment,
+  )
+  assert.equal(
+    await db
+      .selectFrom('attachment_deletion_jobs')
+      .select('storage_key')
+      .where('storage_key', '=', failedStaging.storage_key)
+      .executeTakeFirst(),
+    undefined,
+  )
   await db
     .updateTable('dcl_customer_attachment_staging')
     .set({ created_at: new Date(-1_000), expires_at: new Date(0) })
@@ -1009,7 +1047,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   assert.deepEqual(await service.cleanupCustomerAttachments(submitter), {
     deleted: 0,
   })
-  const customer = await submitAndApprove('customer', {
+  const customerSnapshot = {
     identityKind: 'OTHER',
     legalName: '全聚合客户',
     displayName: '全聚合客户',
@@ -1056,7 +1094,8 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       },
     ],
     enabled: true,
-  })
+  }
+  const customer = await submitAndApprove('customer', customerSnapshot)
   assert.equal(
     await db
       .selectFrom('dcl_customer_attachments')
@@ -1081,6 +1120,81 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   assert.deepEqual(
     await attachmentStore.read(permanentAttachment.rows[0]!.storage_key),
     attachment,
+  )
+
+  const deletedStagingId = ulid()
+  const deletedAttachmentId = ulid()
+  await service.stageCustomerAttachment(
+    {
+      stagingId: deletedStagingId,
+      fileId: deletedAttachmentId,
+      fileName: 'delete-me.pdf',
+      mimeType: 'application/pdf',
+      size: attachment.length,
+      digest,
+      contentBase64: attachment.toString('base64'),
+    },
+    submitter,
+  )
+  const deletedCustomerSubjectId = ulid()
+  const deletedCustomerSubmissionId = ulid()
+  subjectIds.push(deletedCustomerSubjectId)
+  const deletedCustomer = await service.submit(
+    'customer',
+    'submit-new',
+    {
+      subjectId: deletedCustomerSubjectId,
+      submissionId: deletedCustomerSubmissionId,
+      idempotencyKey: deletedCustomerSubmissionId,
+      expectedLatestApprovedSubmissionId: null,
+      expectedLatestApprovedRevision: null,
+      snapshot: {
+        ...customerSnapshot,
+        legalName: '待删除客户',
+        displayName: '待删除客户',
+        legalIdentifier: 'CUSTOMER-DELETE-001',
+        identityAttachments: [
+          {
+            id: deletedAttachmentId,
+            fileName: 'delete-me.pdf',
+            contentType: 'application/pdf',
+            sizeBytes: attachment.length,
+            sha256: digest,
+            stagingId: deletedStagingId,
+          },
+        ],
+        subunits: customerSnapshot.subunits.map((subunit) => ({
+          ...subunit,
+          id: ulid(),
+        })),
+      },
+    },
+    submitter,
+    ulid(),
+  )
+  const deletedPermanentKey = `permanent/dcl/customer/${deletedCustomerSubmissionId}/${deletedAttachmentId}`
+  assert.deepEqual(await attachmentStore.read(deletedPermanentKey), attachment)
+  await service.delete(
+    'customer',
+    {
+      subjectId: deletedCustomerSubjectId,
+      submissionId: deletedCustomerSubmissionId,
+      expectedRevision: deletedCustomer.revision,
+    },
+    submitter,
+    ulid(),
+  )
+  await assert.rejects(
+    attachmentStore.read(deletedPermanentKey),
+    /attachment_not_found/,
+  )
+  assert.equal(
+    await db
+      .selectFrom('attachment_deletion_jobs')
+      .select('storage_key')
+      .where('storage_key', '=', deletedPermanentKey)
+      .executeTakeFirst(),
+    undefined,
   )
 
   const accMappingSubjectId = ulid()
@@ -1322,37 +1436,49 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   const invalidReportSubjectId = ulid()
   const invalidReportSubmissionId = ulid()
   subjectIds.push(invalidReportSubjectId)
-  const invalidReport = await service.submit('rpt-definition', 'submit-new', {
-    subjectId: invalidReportSubjectId,
-    submissionId: invalidReportSubmissionId,
-    idempotencyKey: invalidReportSubmissionId,
-    expectedLatestApprovedSubmissionId: null,
-    expectedLatestApprovedRevision: null,
-    snapshot: {
-    name: '失效但可批准的报表',
-    description: '批准前必须通过技术校验',
-    enabled: true,
-    sql: 'SELECT missing_column FROM missing_table',
-    parameters: [],
-    columns: [
-      {
-        alias: 'missing_column',
-        name: '缺失列',
-        order: 1,
-        type: 'TEXT',
-        width: 120,
-        visible: true,
-        format: '',
-      },
-    ],
-    },
-  }, submitter, ulid())
-  await assert.rejects(
-    service.review('rpt-definition', 'approve', {
+  const invalidReport = await service.submit(
+    'rpt-definition',
+    'submit-new',
+    {
       subjectId: invalidReportSubjectId,
       submissionId: invalidReportSubmissionId,
-      expectedRevision: invalidReport.revision,
-    }, reviewer, ulid()),
+      idempotencyKey: invalidReportSubmissionId,
+      expectedLatestApprovedSubmissionId: null,
+      expectedLatestApprovedRevision: null,
+      snapshot: {
+        name: '失效但可批准的报表',
+        description: '批准前必须通过技术校验',
+        enabled: true,
+        sql: 'SELECT missing_column FROM missing_table',
+        parameters: [],
+        columns: [
+          {
+            alias: 'missing_column',
+            name: '缺失列',
+            order: 1,
+            type: 'TEXT',
+            width: 120,
+            visible: true,
+            format: '',
+          },
+        ],
+      },
+    },
+    submitter,
+    ulid(),
+  )
+  await assert.rejects(
+    service.review(
+      'rpt-definition',
+      'approve',
+      {
+        subjectId: invalidReportSubjectId,
+        submissionId: invalidReportSubmissionId,
+        expectedRevision: invalidReport.revision,
+      },
+      reviewer,
+      ulid(),
+    ),
     (error: unknown) =>
       error instanceof ArchiveApplicationError &&
       error.errorKey === 'rpt_definition_invalid',

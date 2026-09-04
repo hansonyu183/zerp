@@ -616,6 +616,11 @@ CREATE TABLE approval_events (
 CREATE INDEX approval_events_entry_created_idx
     ON approval_events(entry_id, created_at, id);
 
+CREATE TABLE attachment_deletion_jobs (
+    storage_key varchar(512) PRIMARY KEY,
+    created_at timestamptz NOT NULL
+);
+
 CREATE TABLE dcl_warehouse_idempotency (
     idempotency_key varchar(128) PRIMARY KEY,
     request_hash varchar(64) NOT NULL,

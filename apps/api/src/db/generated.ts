@@ -390,6 +390,11 @@ export interface AppUsers {
   username: string;
 }
 
+export interface AttachmentDeletionJobs {
+  created_at: Timestamp;
+  storage_key: string;
+}
+
 export interface AuxObjects {
   code: string;
   created_at: Generated<Timestamp>;
@@ -1648,6 +1653,7 @@ export interface DB {
   app_users: AppUsers;
   approval_entries: ApprovalEntries;
   approval_events: ApprovalEvents;
+  attachment_deletion_jobs: AttachmentDeletionJobs;
   aux_objects: AuxObjects;
   aux_reference_facts: AuxReferenceFacts;
   dcl_acc_book_facts: DclAccBookFacts;

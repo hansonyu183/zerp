@@ -91,7 +91,7 @@ Customer 是唯一 Approval subject 和聚合根。客户 stable ID 与 `CUS-*` 
 
 已批准版本中的子单位不能物理删除；下一 Customer candidate 可以停用或从当前集合移除，但其 stable ID 与历史版本永久可解析。只有从未进入任何批准版本且未被业务引用的本地 Draft 子单位才可物理删除。本地 Draft 的根资料编辑不得丢失子单位或其业务附件，子单位编辑不得改变根资料或身份税务附件。交易和 ACC 历史至少保存 `subunitId + customerApprovalEntryId + 必要业务快照`，正式引用阻止对应 Customer Approval Entry 的不安全反批准。
 
-Customer 附件先随本地 Draft 以 Blob 保留，submit 时经 `/dcl/customer/attachment-stage` 暂存并在同一事务随 Customer Version 最终入库；失败或过期暂存由 `/dcl/customer/attachment-cleanup` 清理，不产生第二事实源。
+Customer 附件先随本地 Draft 以 Blob 保留，submit 时经 `/dcl/customer/attachment-stage` 暂存并在同一事务随 Customer Version 最终入库；失败或过期暂存由 `/dcl/customer/attachment-cleanup` 清理，不产生第二事实源。开放 Submission 删除及暂存过期清理在业务事务中登记物理删除任务，提交后幂等删除 Blob；物理删除失败保留任务供后续清理重试，不回滚或伪造业务事实。
 
 ## 3.7 供应商、其他单位与销售合作方申报
 

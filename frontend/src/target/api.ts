@@ -9,6 +9,10 @@ const client = createTargetApiClient({
 type PostJson<Post extends (...args: never[]) => unknown> =
   Parameters<Post>[0] extends { json: infer Json } ? Json : never
 
+export type TargetWorkbenchQueryInput = PostJson<
+  (typeof client.app.workbench.query)['$post']
+>
+
 type WarehouseSubmitInput = PostJson<
   (typeof client.dcl.warehouse)['submit-new']['$post']
 >
@@ -192,6 +196,14 @@ export async function queryTargetVou(csrfToken: string, entity: VouEntity) {
   )
 }
 
+export async function getTargetVou(csrfToken: string, entity: VouEntity, documentId: string) {
+  return unwrapTarget(
+    await (await client.vou[':entity'].get.$post(
+      { param: { entity }, json: { documentId } }, csrfHeaders(csrfToken),
+    )).json(),
+  )
+}
+
 export async function queryTargetVouReference(
   csrfToken: string,
   input: VouReferenceQueryInput,
@@ -324,6 +336,20 @@ export async function queryTargetUsers(csrfToken: string) {
   return payload.data
 }
 
+export async function queryTargetWorkbench(
+  csrfToken: string,
+  input: TargetWorkbenchQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.app.workbench.query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
 type TargetSuccessData<T> = T extends { code: 0; data: infer Data }
   ? Data
   : never
@@ -384,6 +410,12 @@ export async function queryTargetWarehouses(csrfToken: string) {
         csrfHeaders(csrfToken),
       )
     ).json(),
+  )
+}
+
+export async function getTargetWarehouse(csrfToken: string, subjectId: string) {
+  return unwrapTarget(
+    await (await client.dcl.warehouse.get.$post({ json: { subjectId } }, csrfHeaders(csrfToken))).json(),
   )
 }
 
@@ -863,6 +895,12 @@ export async function queryTargetWflDefinitions(csrfToken: string) {
   )
 }
 
+export async function getTargetWflDefinition(csrfToken: string, subjectId: string) {
+  return unwrapTarget(
+    await (await client.dcl['wfl-process-definition'].get.$post({ json: { subjectId } }, csrfHeaders(csrfToken))).json(),
+  )
+}
+
 export async function submitTargetWflDefinition(csrfToken: string, mode: 'NEW' | 'CHANGE', input: Record<string, unknown>) {
   const endpoint = mode === 'NEW'
     ? client.dcl['wfl-process-definition']['submit-new']
@@ -876,6 +914,12 @@ export async function reviewTargetWflDefinition(csrfToken: string, action: Appro
   const endpoint = client.dcl['wfl-process-definition'][action]
   return unwrapTarget(
     await (await endpoint.$post({ json: input } as never, csrfHeaders(csrfToken))).json(),
+  )
+}
+
+export async function deleteTargetWflDefinition(csrfToken: string, input: PostJson<(typeof client.dcl)['wfl-process-definition']['delete']['$post']>) {
+  return unwrapTarget(
+    await (await client.dcl['wfl-process-definition'].delete.$post({ json: input }, csrfHeaders(csrfToken))).json(),
   )
 }
 

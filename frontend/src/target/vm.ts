@@ -1,4 +1,4 @@
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import {
   approvalActionPresentation,
   projectWarehouseViewState,
@@ -17,8 +17,11 @@ import {
 
 import {
   deleteTargetWarehouseSubmission,
+  deleteTargetWflDefinition,
   queryTargetUsers,
+  queryTargetWorkbench,
   queryTargetWarehouses,
+  getTargetWarehouse,
   restoreTargetSession,
   reviewTargetWarehouse,
   signInTarget,
@@ -46,9 +49,11 @@ import {
   type TargetArchiveDeleteRequest,
   type TargetArchiveReviewRequest,
   type TargetWarehouseAction,
+  type TargetWorkbenchQueryInput,
   stageTargetVouAttachment,
   submitTargetVou,
   queryTargetVou,
+  getTargetVou,
   queryTargetVouReference,
   reviewTargetVou,
   deleteTargetVou,
@@ -66,6 +71,7 @@ import {
   queryTargetAccSubjects,
   queryTargetWflCurrentDefinitions,
   queryTargetWflDefinitions,
+  getTargetWflDefinition,
   queryTargetWflInstances,
   reviewTargetAccOpening,
   reviewTargetWflDefinition,
@@ -134,6 +140,47 @@ interface VouSubmissionView {
   payload: VouPayload
   availableApprovalActions: ApprovalAction[]
   canDelete: boolean
+}
+
+type WorkbenchReviewAction = Extract<ApprovalAction, 'reject' | 'approve' | 'unreject'>
+type WorkbenchAction = 'view' | 'edit' | 'delete' | WorkbenchReviewAction
+type WorkbenchTab = 'DOCUMENT' | 'ARCHIVE'
+
+interface WorkbenchTabState {
+  keyword: string
+  entity: string
+  status: Extract<ApprovalStatus, 'PENDING' | 'REJECTED'> | ''
+  page: number
+  items: WorkbenchItemView[]
+  total: number
+  queryError: string | null
+  actionError: string | null
+}
+
+interface WorkbenchItemView {
+  domain: 'dcl' | 'vou'
+  entity: string
+  subjectOrDocumentId: string
+  submissionId: string
+  code: string
+  name: string
+  status: Extract<ApprovalStatus, 'PENDING' | 'REJECTED'>
+  revision: string
+  availableActions: WorkbenchAction[]
+  updatedAt: string
+}
+
+function newWorkbenchTabState(): WorkbenchTabState {
+  return {
+    keyword: '',
+    entity: '',
+    status: '',
+    page: 1,
+    items: [],
+    total: 0,
+    queryError: null,
+    actionError: null,
+  }
 }
 
 interface AccBookView {
@@ -392,6 +439,13 @@ export function useTargetProbe() {
   const accBookId = ref('')
   const accVouEntity = ref('')
   const targetPath = window.location.pathname
+  const workbenchPage = ref(targetPath === '/home/dashboard')
+  const workbenchActiveTab = ref<WorkbenchTab>('DOCUMENT')
+  const workbenchDocumentState = reactive<WorkbenchTabState>(newWorkbenchTabState())
+  const workbenchArchiveState = reactive<WorkbenchTabState>(newWorkbenchTabState())
+  const workbenchRequestVersions: Record<WorkbenchTab, number> = { DOCUMENT: 0, ARCHIVE: 0 }
+  const workbenchActiveState = computed(() => workbenchState(workbenchActiveTab.value))
+  const workbenchReasons = ref<Record<string, string>>({})
   const accBookPage = ref(targetPath === '/acc/book')
   const accSubjectPage = ref(targetPath === '/acc/subject')
   const accOpeningPage = ref(targetPath === '/acc/opening')
@@ -496,6 +550,10 @@ export function useTargetProbe() {
     currentUser.value = session.user
     permissions.value = session.permissions
     message.value = `当前用户：${session.user.displayName}`
+    if (workbenchPage.value) {
+      await queryWorkbench('DOCUMENT', 1)
+      return
+    }
     if (accMappingReadPage.value) {
       await loadAccMappingCatalog()
       return
@@ -507,6 +565,7 @@ export function useTargetProbe() {
     }
     if (wflDefinitionPage.value) {
       await Promise.all([loadWflDrafts(), loadWflDefinitions()])
+      await loadWflDefinitionDeepLink()
       return
     }
     if (wflCurrentPage.value) {
@@ -523,6 +582,7 @@ export function useTargetProbe() {
         loadVouSubmissions(),
         loadVouReferenceCandidates(vouEntity.value),
       ])
+      await loadVouDeepLink()
       return
     }
     await Promise.all([
@@ -531,6 +591,7 @@ export function useTargetProbe() {
       loadArchiveDrafts(),
       loadArchiveReferenceOptions(),
     ])
+    await loadWarehouseDeepLink()
     await loadArchiveDeepLink()
   }
 
@@ -563,6 +624,175 @@ export function useTargetProbe() {
       message.value = `已查询 ${page.items.length} 位用户。`
     } catch (error) {
       setError(error, '查询失败。')
+    }
+  }
+
+  function workbenchState(tab: WorkbenchTab) {
+    return tab === 'DOCUMENT' ? workbenchDocumentState : workbenchArchiveState
+  }
+
+  function currentWorkbenchQuery(
+    tab: WorkbenchTab,
+    page: number,
+  ): TargetWorkbenchQueryInput {
+    const state = workbenchState(tab)
+    const filters = {
+      kind: tab,
+      ...(state.entity.trim() ? { entity: state.entity.trim() } : {}),
+      ...(state.status ? { status: state.status } : {}),
+      ...(state.keyword.trim() ? { keyword: state.keyword.trim() } : {}),
+    }
+    return {
+      page,
+      pageSize: 20,
+      ...(Object.keys(filters).length ? { filters } : {}),
+    }
+  }
+
+  async function queryWorkbench(
+    tab: WorkbenchTab = workbenchActiveTab.value,
+    page = workbenchState(tab).page,
+    correctingExpiredPage = false,
+  ) {
+    const state = workbenchState(tab)
+    const requestVersion = ++workbenchRequestVersions[tab]
+    try {
+      const result = await queryTargetWorkbench(
+        csrfToken.value,
+        currentWorkbenchQuery(tab, page),
+      )
+      if (requestVersion !== workbenchRequestVersions[tab]) return
+      const lastPage = Math.max(1, Math.ceil(result.total / 20))
+      if (!correctingExpiredPage && result.page > lastPage)
+        return queryWorkbench(tab, lastPage, true)
+      state.items = result.items as WorkbenchItemView[]
+      state.total = result.total
+      state.page = result.page
+      state.queryError = null
+      message.value = `已查询 ${result.total} 项待办。`
+    } catch (error) {
+      if (requestVersion !== workbenchRequestVersions[tab]) return
+      state.queryError = targetErrorMessage(error, '工作台查询失败。', '请重新登录。')
+      requestId.value = targetErrorRequestId(error)
+    }
+  }
+
+  async function switchWorkbenchTab(tab: WorkbenchTab) {
+    workbenchActiveTab.value = tab
+    const state = workbenchState(tab)
+    await queryWorkbench(tab, state.page)
+  }
+
+  async function applyWorkbenchFilters() {
+    const state = workbenchActiveState.value
+    state.page = 1
+    await queryWorkbench(workbenchActiveTab.value, 1)
+  }
+
+  async function resetWorkbenchFilters() {
+    const state = workbenchActiveState.value
+    state.keyword = ''
+    state.entity = ''
+    state.status = ''
+    state.page = 1
+    await queryWorkbench(workbenchActiveTab.value, 1)
+  }
+
+  async function retryWorkbench() {
+    await queryWorkbench(workbenchActiveTab.value, workbenchActiveState.value.page)
+  }
+
+  function workbenchItemHref(item: WorkbenchItemView, mode: 'view' | 'edit'): string {
+    const parameters = new URLSearchParams({ mode })
+    if (item.domain === 'vou') parameters.set('documentId', item.subjectOrDocumentId)
+    else {
+      parameters.set('objectId', item.subjectOrDocumentId)
+      parameters.set('approvalEntryId', item.submissionId)
+      parameters.set('code', item.code)
+    }
+    return `/${item.domain}/${item.entity}?${parameters.toString()}`
+  }
+
+  function visibleWorkbenchActions(item: WorkbenchItemView): WorkbenchAction[] {
+    return item.availableActions.filter((action) => action !== 'view' || !item.availableActions.includes('edit'))
+  }
+
+  function workbenchActionLabel(action: WorkbenchAction): string {
+    if (action === 'view') return '查看'
+    if (action === 'edit') return '编辑'
+    if (action === 'delete') return '撤回'
+    return approvalActionPresentation[action].label
+  }
+
+  async function reviewWorkbench(item: WorkbenchItemView, action: WorkbenchReviewAction) {
+    const tab = workbenchActiveTab.value
+    const state = workbenchState(tab)
+    const reason = workbenchReasons.value[item.submissionId]?.trim()
+    state.actionError = null
+    if (action === 'reject' && !reason) {
+      state.actionError = '请填写驳回原因。'
+      return
+    }
+    try {
+      if (item.domain === 'dcl') {
+        const input = {
+          subjectId: item.subjectOrDocumentId,
+          submissionId: item.submissionId,
+          expectedRevision: item.revision,
+          ...(action === 'reject' ? { reason: reason ?? '' } : {}),
+        }
+        if (item.entity === 'warehouse')
+          await reviewTargetWarehouse(
+            csrfToken.value,
+            action as TargetWarehouseAction,
+            input,
+          )
+        else if (item.entity === 'wfl-process-definition')
+          await reviewTargetWflDefinition(csrfToken.value, action, input)
+        else
+          await reviewTargetArchive(csrfToken.value, {
+            entity: item.entity as TargetArchiveEntity,
+            action,
+            input,
+          } as TargetArchiveReviewRequest)
+      } else {
+        await reviewTargetVou(csrfToken.value, item.entity as VouEntity, action, {
+          documentId: item.subjectOrDocumentId,
+          submissionId: item.submissionId,
+          expectedRevision: item.revision,
+          ...(action === 'reject' ? { reason: reason ?? '' } : {}),
+        } as Parameters<typeof reviewTargetVou>[3])
+      }
+      message.value = `${approvalActionPresentation[action].label}已提交，已刷新待办。`
+    } catch (error) {
+      state.actionError = targetErrorMessage(error, '待办处理失败。', '请重新登录。')
+      requestId.value = targetErrorRequestId(error)
+    } finally {
+      await queryWorkbench(tab, state.page)
+    }
+  }
+
+  async function deleteWorkbench(item: WorkbenchItemView) {
+    const tab = workbenchActiveTab.value
+    const state = workbenchState(tab)
+    state.actionError = null
+    try {
+      const input = { subjectId: item.subjectOrDocumentId, submissionId: item.submissionId, expectedRevision: item.revision }
+      if (item.domain === 'vou')
+        await deleteTargetVou(csrfToken.value, item.entity as VouEntity, {
+          documentId: item.subjectOrDocumentId, submissionId: item.submissionId, expectedRevision: item.revision,
+        })
+      else if (item.entity === 'warehouse') await deleteTargetWarehouseSubmission(csrfToken.value, input)
+      else if (item.entity === 'wfl-process-definition') await deleteTargetWflDefinition(csrfToken.value, input)
+      else await deleteTargetArchive(csrfToken.value, {
+        entity: item.entity as TargetArchiveEntity, input,
+      } as TargetArchiveDeleteRequest)
+      message.value = '撤回已提交，已刷新待办。'
+    } catch (error) {
+      state.actionError = targetErrorMessage(error, '撤回失败。', '请重新登录。')
+      requestId.value = targetErrorRequestId(error)
+    } finally {
+      await queryWorkbench(tab, state.page)
     }
   }
 
@@ -600,6 +830,25 @@ export function useTargetProbe() {
         : []
     } catch (error) {
       setError(error, '单据查询失败。')
+    }
+  }
+
+  async function loadVouDeepLink() {
+    if (!vouEntity.value) return
+    const parameters = new URLSearchParams(window.location.search)
+    const documentId = parameters.get('documentId')?.trim()
+    const mode = parameters.get('mode')
+    if (!documentId || (mode !== 'view' && mode !== 'edit')) return
+    try {
+      const detail = await getTargetVou(csrfToken.value, vouEntity.value, documentId)
+      if (!isVouSubmissionView(detail)) throw new Error('vou_submission_response_invalid')
+      vouSubmissions.value = [
+        detail,
+        ...vouSubmissions.value.filter((item) => item.documentId !== documentId),
+      ]
+      if (mode === 'edit') await cloneVouSubmission(detail)
+    } catch (error) {
+      setError(error, '工作台单据深链读取失败。')
     }
   }
 
@@ -1441,6 +1690,23 @@ export function useTargetProbe() {
     }
   }
 
+  async function loadWflDefinitionDeepLink() {
+    const parameters = new URLSearchParams(window.location.search)
+    const subjectId = parameters.get('objectId')?.trim()
+    const mode = parameters.get('mode')
+    if (!subjectId || (mode !== 'view' && mode !== 'edit')) return
+    try {
+      const detail: unknown = await getTargetWflDefinition(csrfToken.value, subjectId)
+      if (!isWflDefinitionView(detail)) throw new Error('wfl_definition_response_invalid')
+      wflDefinitions.value = [
+        detail,
+        ...wflDefinitions.value.filter((item) => item.submissionId !== detail.submissionId),
+      ]
+    } catch (error) {
+      setError(error, '工作台流程定义深链读取失败。')
+    }
+  }
+
   async function newWflDefinitionDraft() {
     if (!currentUser.value || !canCreateWflDefinitionDraft.value) return
     const draft: WflDefinitionDraft = {
@@ -1651,6 +1917,21 @@ export function useTargetProbe() {
     }
   }
 
+  async function loadWarehouseDeepLink() {
+    if (window.location.pathname !== '/dcl/warehouse') return
+    const parameters = new URLSearchParams(window.location.search)
+    const subjectId = parameters.get('objectId')?.trim()
+    const mode = parameters.get('mode')
+    if (!subjectId || (mode !== 'view' && mode !== 'edit')) return
+    try {
+      const detail = await getTargetWarehouse(csrfToken.value, subjectId)
+      warehouses.value = [detail, ...warehouses.value.filter((item) => item.subjectId !== subjectId)]
+      if (mode === 'edit') await cloneSubmission(detail)
+    } catch (error) {
+      setError(error, '工作台仓库深链读取失败。')
+    }
+  }
+
   async function loadArchiveDrafts() {
     if (!currentUser.value) return
     archiveDrafts.value = await archiveDraftRepository.list(
@@ -1732,21 +2013,36 @@ export function useTargetProbe() {
 
   async function loadArchiveDeepLink() {
     const deepLink = archiveDeepLinkFromLocation()
-    if (!deepLink || archiveEntity.value !== 'rpt-definition') return
-    archiveQueryKeyword.value = deepLink.code
-    await queryArchive(1, false)
-    const subject = archiveSubmissions.value.find(
-      (submission) => submission.code === deepLink.code,
-    )
-    if (!subject) {
-      message.value = '深链指定的报表定义不存在。'
-      return
+    if (!deepLink) return
+    try {
+      if (!deepLink.objectId) {
+        archiveQueryKeyword.value = deepLink.code
+        await queryArchive(1, false)
+        const subject = archiveSubmissions.value.find((submission) => submission.code === deepLink.code)
+        if (!subject) throw new Error('archive_deep_link_submission_not_found')
+        await loadArchiveHistory('rpt-definition', subject.subjectId, deepLink.approvalEntryId)
+        return
+      }
+      const detail = requiredArchiveSubmission(
+        archiveEntity.value,
+        await getTargetArchive(
+          csrfToken.value, archiveEntity.value, deepLink.objectId,
+          archiveEntity.value === 'rpt-definition' ? deepLink.approvalEntryId : undefined,
+        ),
+      )
+      archiveHistory.value = { detail, versions: [], audit: [] }
+      if (deepLink.mode === 'edit') {
+        archiveQueryKeyword.value = deepLink.code
+        await queryArchive(1, false)
+        const subject = archiveSubmissions.value.find(
+          (submission) => submission.submissionId === deepLink.approvalEntryId,
+        )
+        if (!subject) throw new Error('archive_deep_link_submission_not_found')
+        await cloneArchiveSubmission(subject)
+      }
+    } catch (error) {
+      setError(error, '工作台档案深链读取失败。')
     }
-    await loadArchiveHistory(
-      'rpt-definition',
-      subject.subjectId,
-      deepLink.approvalEntryId,
-    )
   }
 
   function resetArchiveQuery() {
@@ -2383,15 +2679,31 @@ export function useTargetProbe() {
     username,
     password,
     message,
-    requestId,
-    users,
+  requestId,
+  users,
+  workbenchPage,
+  workbenchActiveTab,
+  workbenchDocumentState,
+  workbenchArchiveState,
+  workbenchActiveState,
+  workbenchReasons,
     warehouses,
     drafts,
     reason,
     signedIn,
     modelCorpusResult,
-    signIn,
-    queryUsers,
+  signIn,
+  queryUsers,
+  queryWorkbench,
+  switchWorkbenchTab,
+  applyWorkbenchFilters,
+  resetWorkbenchFilters,
+    retryWorkbench,
+    reviewWorkbench,
+    deleteWorkbench,
+    workbenchItemHref,
+    visibleWorkbenchActions,
+    workbenchActionLabel,
     newDraft,
     saveDraft,
     deleteDraft,
@@ -2838,14 +3150,23 @@ function isVouSubmissionView(value: unknown): value is VouSubmissionView {
 }
 
 function archiveDeepLinkFromLocation(): {
+  objectId?: string
   code: string
   approvalEntryId: string
+  mode?: 'view' | 'edit'
 } | null {
-  if (archiveEntityFromLocation() !== 'rpt-definition') return null
+  const entity = window.location.pathname.match(/^\/dcl\/([^/]+)\/?$/)?.[1]
+  if (!targetArchiveEntities.includes(entity as TargetArchiveEntity)) return null
   const parameters = new URLSearchParams(window.location.search)
+  const objectId = parameters.get('objectId')?.trim() ?? ''
   const code = parameters.get('code')?.trim() ?? ''
   const approvalEntryId = parameters.get('approvalEntryId')?.trim() ?? ''
-  return code && approvalEntryId ? { code, approvalEntryId } : null
+  const mode = parameters.get('mode')
+  if (objectId && code && approvalEntryId && (mode === 'view' || mode === 'edit'))
+    return { objectId, code, approvalEntryId, mode }
+  if (entity === 'rpt-definition' && code && approvalEntryId)
+    return { code, approvalEntryId }
+  return null
 }
 
 function requiredArchiveSubmission(

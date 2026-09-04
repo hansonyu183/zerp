@@ -12,6 +12,7 @@ export interface TargetConfig {
   sessionAbsoluteTimeoutMs: number
   passwordMinLength: number
   shutdownTimeoutMs: number
+  attachmentStorageRoot: string
 }
 
 type Environment = Record<string, string | undefined>
@@ -124,5 +125,7 @@ export function loadConfig(
       10_000,
       'SHUTDOWN_TIMEOUT',
     ),
+    attachmentStorageRoot:
+      environment.ATTACHMENT_STORAGE_ROOT ?? '/var/lib/zerp/attachments',
   }
 }

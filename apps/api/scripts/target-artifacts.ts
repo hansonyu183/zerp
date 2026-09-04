@@ -57,6 +57,7 @@ function targetConfig(): TargetConfig {
     sessionAbsoluteTimeoutMs: 43_200_000,
     passwordMinLength: 12,
     shutdownTimeoutMs: 10_000,
+    attachmentStorageRoot: '/var/lib/zerp/attachments',
   }
 }
 

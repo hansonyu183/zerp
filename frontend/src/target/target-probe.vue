@@ -15,6 +15,10 @@ const {
   message,
   requestId,
   users,
+  workbenchPage,
+  workbenchActiveTab,
+  workbenchActiveState,
+  workbenchReasons,
   warehouses,
   drafts,
   reason,
@@ -22,6 +26,16 @@ const {
   modelCorpusResult,
   signIn,
   queryUsers,
+  queryWorkbench,
+  switchWorkbenchTab,
+  applyWorkbenchFilters,
+  resetWorkbenchFilters,
+  retryWorkbench,
+  reviewWorkbench,
+  deleteWorkbench,
+  workbenchItemHref,
+  visibleWorkbenchActions,
+  workbenchActionLabel,
   newDraft,
   saveDraft,
   deleteDraft,
@@ -194,7 +208,67 @@ const {
     </form>
 
     <template v-else>
-      <section v-if="vouEntity" aria-label="目标单据">
+      <section v-if="workbenchPage" aria-label="审批工作台">
+        <h2>审批工作台</h2>
+        <nav aria-label="工作台页签">
+          <button
+            type="button"
+            :aria-pressed="workbenchActiveTab === 'DOCUMENT'"
+            @click="switchWorkbenchTab('DOCUMENT')"
+          >待办单据</button>
+          <button
+            type="button"
+            :aria-pressed="workbenchActiveTab === 'ARCHIVE'"
+            @click="switchWorkbenchTab('ARCHIVE')"
+          >待办资料</button>
+        </nav>
+        <form aria-label="工作台查询条件" @submit.prevent="applyWorkbenchFilters">
+          <label>关键词<input v-model="workbenchActiveState.keyword" maxlength="200" /></label>
+          <label>
+            实体
+            <input v-model="workbenchActiveState.entity" maxlength="64" />
+          </label>
+          <label>
+            状态
+            <select v-model="workbenchActiveState.status">
+              <option value="">全部</option>
+              <option value="PENDING">待批准</option>
+              <option value="REJECTED">已驳回</option>
+            </select>
+          </label>
+          <button type="submit">查询</button>
+          <button type="button" @click="applyWorkbenchFilters">应用筛选</button>
+          <button type="button" @click="resetWorkbenchFilters">重置筛选</button>
+        </form>
+        <p v-if="workbenchActiveState.queryError" role="alert">
+          {{ workbenchActiveState.queryError }}
+          <button type="button" @click="retryWorkbench">重新查询</button>
+        </p>
+        <p v-if="workbenchActiveState.actionError" role="alert">{{ workbenchActiveState.actionError }}</p>
+        <p>待办：{{ workbenchActiveState.total }}</p>
+        <p v-if="!workbenchActiveState.queryError && workbenchActiveState.items.length === 0">暂无可处理待办。</p>
+        <article
+          v-for="item in workbenchActiveState.items"
+          :key="item.submissionId"
+          data-testid="workbench-item"
+          :data-workbench-submission-id="item.submissionId"
+        >
+          <h3>{{ item.code }} · {{ item.name }}</h3>
+          <p>{{ item.domain === 'dcl' ? '资料' : '单据' }} · {{ item.entity }} · {{ approvalStatusPresentation[item.status].label }}</p>
+          <label v-if="item.availableActions.includes('reject')">
+            驳回原因
+            <input v-model="workbenchReasons[item.submissionId]" maxlength="1000" />
+          </label>
+          <template v-for="action in visibleWorkbenchActions(item)" :key="action">
+            <a v-if="action === 'view' || action === 'edit'" :href="workbenchItemHref(item, action)">{{ workbenchActionLabel(action) }}</a>
+            <button v-else-if="action === 'delete'" type="button" @click="deleteWorkbench(item)">{{ workbenchActionLabel(action) }}</button>
+            <button v-else type="button" @click="reviewWorkbench(item, action)">{{ workbenchActionLabel(action) }}</button>
+          </template>
+        </article>
+        <button type="button" :disabled="workbenchActiveState.page <= 1" @click="queryWorkbench(workbenchActiveTab, workbenchActiveState.page - 1)">上一页</button>
+        <button type="button" :disabled="workbenchActiveState.page * 20 >= workbenchActiveState.total" @click="queryWorkbench(workbenchActiveTab, workbenchActiveState.page + 1)">下一页</button>
+      </section>
+      <section v-else-if="vouEntity" aria-label="目标单据">
         <h2>{{ vouEntityPresentation[vouEntity].label }}</h2>
         <p>
           草稿正文与附件只保存在当前浏览器；提交成功后才创建服务器业务记录。

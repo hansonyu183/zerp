@@ -34,8 +34,11 @@ services:
       APP_SESSION_COOKIE_SECURE: 'false'
       APP_SESSION_COOKIE_SAME_SITE: lax
       HTTP_BODY_LIMIT_BYTES: '15728640'
+      ATTACHMENT_STORAGE_ROOT: /var/lib/zerp/attachments
     ports:
       - '127.0.0.1:${TARGET_API_PORT:-18082}:8080'
+    volumes:
+      - target-attachment-data:/var/lib/zerp/attachments
     depends_on:
       target-db:
         condition: service_healthy
@@ -67,3 +70,6 @@ services:
       timeout: 3s
       retries: 20
       start_period: 5s
+
+volumes:
+  target-attachment-data:

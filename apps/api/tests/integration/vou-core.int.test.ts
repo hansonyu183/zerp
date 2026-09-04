@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
 import { createHash, randomBytes } from 'node:crypto'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
 
 import { serve } from '@hono/node-server'
@@ -11,6 +14,7 @@ import { createApp } from '../../src/app.ts'
 import { hashPassword, SessionService } from '../../src/app/session.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { loadConfig } from '../../src/platform/config.ts'
+import { AttachmentStore } from '../../src/platform/attachment-store.ts'
 import { readVouPersistence, VouApplicationError, VouService } from '../../src/vou/service.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
@@ -354,7 +358,13 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
 test('VOU attachment staging validates ownership, promotion, retry and cleanup', async (context) => {
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
   const db = createDatabase(databaseUrl)
-  const service = new VouService(db, { acc: { async apply() {} }, wfl: { async apply() {} } })
+  const attachmentRoot = await mkdtemp(join(tmpdir(), 'zerp-vou-attachments-'))
+  const attachmentStore = new AttachmentStore(attachmentRoot, { orphanGraceMs: 0 })
+  const service = new VouService(
+    db,
+    { acc: { async apply() {} }, wfl: { async apply() {} } },
+    { attachmentStore },
+  )
   const ownerId = ulid(), otherId = ulid(), productId = ulid(), productApprovalId = ulid(), currentProductApprovalId = ulid()
   const owner = { id: ownerId, permissions: [] as string[], trusted: true }
   const other = { id: otherId, permissions: [] as string[], trusted: true }
@@ -367,6 +377,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
     await sql`DELETE FROM dcl_subjects WHERE created_by = ${ownerId}`.execute(db)
     await sql`DELETE FROM app_users WHERE id IN (${ownerId}, ${otherId})`.execute(db)
     await db.destroy()
+    await rm(attachmentRoot, { recursive: true, force: true })
   })
   await db.insertInto('app_users').values([
     { id: ownerId, username: `vou-attachment-${ownerId}`, display_name: 'attachment owner', password_hash: 'unused', status: 'ENABLED', password_changed_at: now, password_change_required: false },
@@ -400,6 +411,24 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
   await assert.rejects(service.stageAttachment('sale-pricing', { ...stage(ulid(), ulid()), size: content.length + 1 }, owner), (error: unknown) => error instanceof VouApplicationError && error.errorKey === 'vou_attachment_size_invalid')
   const foreign = stage(ulid(), ulid())
   await service.stageAttachment('sale-pricing', foreign, other)
+  await assert.rejects(
+    service.stageAttachment(
+      'sale-pricing',
+      { ...foreign, fileId: ulid() },
+      owner,
+    ),
+    (error: unknown) =>
+      error instanceof VouApplicationError &&
+      error.errorKey === 'vou_attachment_staging_conflict',
+  )
+  await assert.rejects(
+    attachmentStore.read(`staging/${ownerId}/${foreign.stagingId}`),
+    /attachment_not_found/,
+  )
+  assert.deepEqual(
+    await attachmentStore.read(`staging/${otherId}/${foreign.stagingId}`),
+    content,
+  )
   const attachment = (item: ReturnType<typeof stage>) => ({ id: item.fileId, stagingId: item.stagingId, fileName: item.fileName, contentType: item.mimeType, sizeBytes: item.size, sha256: item.digest })
   const payload = (attachments: readonly ReturnType<typeof attachment>[], approvalEntryId = productApprovalId) => ({ businessDate: '2026-09-04', currency: 'CNY', attachments, priceLines: [{ product: { objectId: productId, approvalEntryId, selectionOrigin: 'HISTORICAL' as const }, unitPrice: '1.00' }] })
   const foreignSubmissionId = ulid()
@@ -410,6 +439,56 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
   const failedSubmissionId = ulid()
   await assert.rejects(service.submit('sale-pricing', 'submit-new', { documentId: ulid(), submissionId: failedSubmissionId, idempotencyKey: failedSubmissionId, expectedRevision: null, payload: payload([attachment(failed)], ulid()) }, owner, 'attachment-reference-failure'), (error: unknown) => error instanceof VouApplicationError && error.errorKey === 'vou_reference_unavailable')
   assert.equal((await db.selectFrom('vou_attachment_staging').select('id').where('id', '=', failed.stagingId).execute()).length, 1)
+  const rollback = stage(ulid(), ulid())
+  await service.stageAttachment('sale-pricing', rollback, owner)
+  const rollbackSubmissionId = ulid()
+  await assert.rejects(
+    service.submit(
+      'sale-pricing',
+      'submit-new',
+      {
+        documentId: ulid(),
+        submissionId: rollbackSubmissionId,
+        idempotencyKey: rollbackSubmissionId,
+        expectedRevision: null,
+        // The first attachment reaches physical promotion; the duplicated
+        // staging id makes the later DB work fail and roll the transaction back.
+        payload: payload([attachment(rollback), attachment(rollback)]),
+      },
+      owner,
+      'attachment-rollback-after-promote',
+    ),
+  )
+  const rollbackStaging = await sql<{ storage_key: string }>`
+    SELECT storage_key FROM vou_attachment_staging WHERE id = ${rollback.stagingId}
+  `.execute(db)
+  assert.deepEqual(
+    await attachmentStore.read(rollbackStaging.rows[0]!.storage_key),
+    content,
+  )
+  await assert.rejects(
+    attachmentStore.read(
+      `permanent/vou/sale-pricing/${rollbackSubmissionId}/${rollback.fileId}`,
+    ),
+    /attachment_not_found/,
+  )
+  await service.submit(
+    'sale-pricing',
+    'submit-new',
+    {
+      documentId: ulid(),
+      submissionId: rollbackSubmissionId,
+      idempotencyKey: rollbackSubmissionId,
+      expectedRevision: null,
+      payload: payload([attachment(rollback)]),
+    },
+    owner,
+    'attachment-retry-after-rollback',
+  )
+  await assert.rejects(
+    attachmentStore.read(rollbackStaging.rows[0]!.storage_key),
+    /attachment_not_found/,
+  )
   const mismatchSubmissionId = ulid()
   await assert.rejects(service.submit('asset-acquisition', 'submit-new', {
     documentId: ulid(), submissionId: mismatchSubmissionId, idempotencyKey: mismatchSubmissionId, expectedRevision: null,
@@ -453,11 +532,41 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
   assert.equal((historicalReceipt.payload as { counterparty: { approvalEntryId: string } }).counterparty.approvalEntryId, customerOldApprovalId)
   const promoted = stage(ulid(), ulid())
   await service.stageAttachment('sale-pricing', promoted, owner)
+  const staged = await sql<{ storage_key: string }>`
+    SELECT storage_key FROM vou_attachment_staging WHERE id = ${promoted.stagingId}
+  `.execute(db)
+  assert.deepEqual(
+    await attachmentStore.read(staged.rows[0]!.storage_key),
+    content,
+  )
   const submissionId = ulid(), documentId = ulid()
   const input = { documentId, submissionId, idempotencyKey: submissionId, expectedRevision: null, payload: payload([attachment(promoted)]) }
   await service.submit('sale-pricing', 'submit-new', input, owner, 'attachment-promote')
   await service.submit('sale-pricing', 'submit-new', input, owner, 'attachment-retry')
   assert.equal((await db.selectFrom('vou_attachments').select('file_id').where('approval_entry_id', '=', submissionId).execute()).length, 1)
+  const permanent = await sql<{ storage_key: string }>`
+    SELECT storage_key FROM vou_attachments WHERE approval_entry_id = ${submissionId}
+  `.execute(db)
+  assert.deepEqual(
+    await attachmentStore.read(permanent.rows[0]!.storage_key),
+    content,
+  )
+  await assert.rejects(
+    service.submit(
+      'sale-pricing',
+      'submit-new',
+      { ...input, expectedRevision: '1' },
+      owner,
+      'attachment-conflicting-retry',
+    ),
+    (error: unknown) =>
+      error instanceof VouApplicationError &&
+      error.errorKey === 'vou_idempotency_conflict',
+  )
+  assert.deepEqual(
+    await attachmentStore.read(permanent.rows[0]!.storage_key),
+    content,
+  )
   assert.equal((await db.selectFrom('vou_attachment_staging').select('id').where('id', '=', promoted.stagingId).execute()).length, 0)
   const permanentOrphans = await sql<{ count: string }>`SELECT count(*)::text AS count FROM vou_attachments attachment LEFT JOIN approval_entries approval ON approval.id = attachment.approval_entry_id WHERE approval.id IS NULL`.execute(db)
   assert.equal(permanentOrphans.rows[0]?.count, '0')
@@ -480,6 +589,60 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
     1,
   )
   assert.equal((await db.selectFrom('vou_attachment_staging').select('id').where('id', '=', expired.stagingId).execute()).length, 0)
+  assert.deepEqual(await attachmentStore.read(`staging/${ownerId}/${expired.stagingId}`), content)
+  const referencedStaging = await db.selectFrom('vou_attachment_staging').select('storage_key').execute()
+  assert.equal(await attachmentStore.cleanupStagingOrphans(
+    new Set(referencedStaging.map((row) => row.storage_key)), { writersFrozen: true },
+  ), 1)
+  await assert.rejects(attachmentStore.read(`staging/${ownerId}/${expired.stagingId}`), /attachment_not_found/)
+  const physicalDeleteFailure = stage(ulid(), ulid())
+  await service.stageAttachment('sale-pricing', physicalDeleteFailure, owner)
+  await db
+    .updateTable('vou_attachment_staging')
+    .set({
+      created_at: new Date(Date.now() - 61_000),
+      expires_at: new Date(Date.now() - 1_000),
+    })
+    .where('id', '=', physicalDeleteFailure.stagingId)
+    .execute()
+  class FailingRemoveAttachmentStore extends AttachmentStore {
+    override async remove(_key: string): Promise<void> {
+      throw new Error('physical delete unavailable')
+    }
+
+    override async cleanupStagingOrphans(
+      _referencedKeys: ReadonlySet<string>,
+      _proof: { writersFrozen: true },
+    ): Promise<number> {
+      return 0
+    }
+  }
+  const cleanupService = new VouService(
+    db,
+    { acc: { async apply() {} }, wfl: { async apply() {} } },
+    { attachmentStore: new FailingRemoveAttachmentStore(attachmentRoot) },
+  )
+  assert.equal(
+    await cleanupService.cleanupAttachments('sale-pricing', {
+      ...ordinaryActor,
+      permissions: ['/vou/sale-pricing/attachment-cleanup'],
+    }),
+    1,
+  )
+  assert.equal(
+    await db
+      .selectFrom('vou_attachment_staging')
+      .select('id')
+      .where('id', '=', physicalDeleteFailure.stagingId)
+      .executeTakeFirst(),
+    undefined,
+  )
+  assert.deepEqual(
+    await attachmentStore.read(
+      `staging/${ownerId}/${physicalDeleteFailure.stagingId}`,
+    ),
+    content,
+  )
 })
 
 test('VOU reference candidates use session, CSRF and current typed facts', async (context) => {

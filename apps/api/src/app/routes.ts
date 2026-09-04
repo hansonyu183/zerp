@@ -36,6 +36,7 @@ import { WflApplicationError, type WflService } from '../wfl/service.ts'
 import { registerWflRoutes, wflRouteMetadata, type WflRouteAction } from '../wfl/contract.ts'
 import { RptApplicationError, type RptService } from '../rpt/service.ts'
 import { registerRptRoutes, rptRouteMetadata, type RptRouteAction } from '../rpt/contract.ts'
+import type { WorkbenchService } from './workbench.ts'
 import {
   registerTargetRoutes,
   targetRouteMetadata as baseTargetRouteMetadata,
@@ -120,6 +121,7 @@ export function registerAppRoutes(
   acc?: AccService,
   wfl?: WflService,
   rpt?: RptService,
+  workbench?: WorkbenchService,
 ) {
   async function executeWarehouse<T>(
     context: {
@@ -479,6 +481,35 @@ export function registerAppRoutes(
               context.req.valid('json'),
               principal,
             ),
+            requestId: currentRequestId(context),
+          },
+          200,
+        )
+      } catch (error) {
+        return context.json(
+          sessionFailure(error, currentRequestId(context)),
+          200,
+        )
+      }
+    },
+    queryWorkbench: async (context) => {
+      try {
+        if (!workbench) throw new Error('APP workbench service is unavailable')
+        const principal = await service.authenticate(
+          getCookie(context, config.sessionCookieName),
+          context.req.header('X-CSRF-Token'),
+          true,
+          context.req.path,
+        )
+        return context.json(
+          {
+            code: 0 as const,
+            errorKey: '' as const,
+            message: 'ok' as const,
+            data: await workbench.query(context.req.valid('json'), {
+              id: principal.user.id,
+              permissions: principal.permissions,
+            }),
             requestId: currentRequestId(context),
           },
           200,

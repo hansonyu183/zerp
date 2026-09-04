@@ -18,6 +18,7 @@ test('target configuration parses the isolated runtime settings', () => {
     DATABASE_URL: 'postgres://zerp:password@127.0.0.1:55436/zerp_target_test',
     CORS_ALLOWED_ORIGINS: 'http://127.0.0.1:5174, http://localhost:5174',
     APP_SESSION_COOKIE_SECURE: 'false',
+    ATTACHMENT_STORAGE_ROOT: '/var/lib/zerp/attachments',
   })
 
   assert.equal(config.databaseUrl.pathname, '/zerp_target_test')
@@ -27,6 +28,7 @@ test('target configuration parses the isolated runtime settings', () => {
   ])
   assert.equal(config.sessionCookieSecure, false)
   assert.equal(config.passwordMinLength, 12)
+  assert.equal(config.attachmentStorageRoot, '/var/lib/zerp/attachments')
 })
 
 test('target configuration rejects non-positive sizes and durations', () => {

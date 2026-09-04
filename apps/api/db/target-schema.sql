@@ -644,10 +644,9 @@ CREATE TABLE dcl_customer_attachment_staging (
     mime_type varchar(128) NOT NULL,
     size_bytes integer NOT NULL CHECK (size_bytes BETWEEN 1 AND 10485760),
     digest varchar(64) NOT NULL CHECK (digest ~ '^[0-9a-f]{64}$'),
-    content bytea NOT NULL,
+    storage_key varchar(512) NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
     expires_at timestamptz NOT NULL,
-    CHECK (octet_length(content) = size_bytes),
     CHECK (expires_at > created_at)
 );
 
@@ -658,9 +657,8 @@ CREATE TABLE dcl_customer_attachments (
     mime_type varchar(128) NOT NULL,
     size_bytes integer NOT NULL CHECK (size_bytes BETWEEN 1 AND 10485760),
     digest varchar(64) NOT NULL CHECK (digest ~ '^[0-9a-f]{64}$'),
-    content bytea NOT NULL,
+    storage_key varchar(512) NOT NULL,
     created_at timestamptz NOT NULL,
-    CHECK (octet_length(content) = size_bytes),
     PRIMARY KEY (approval_entry_id, file_id)
 );
 
@@ -1546,10 +1544,9 @@ CREATE TABLE vou_attachment_staging (
     mime_type varchar(128) NOT NULL CHECK (mime_type IN ('application/pdf', 'image/jpeg', 'image/png')),
     size_bytes integer NOT NULL CHECK (size_bytes BETWEEN 1 AND 10485760),
     digest varchar(64) NOT NULL CHECK (digest ~ '^[0-9a-f]{64}$'),
-    content bytea NOT NULL,
+    storage_key varchar(512) NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
     expires_at timestamptz NOT NULL,
-    CHECK (octet_length(content) = size_bytes),
     CHECK (expires_at > created_at),
     UNIQUE (owner_user_id, file_id)
 );
@@ -1562,9 +1559,8 @@ CREATE TABLE vou_attachments (
     mime_type varchar(128) NOT NULL,
     size_bytes integer NOT NULL CHECK (size_bytes BETWEEN 1 AND 10485760),
     digest varchar(64) NOT NULL CHECK (digest ~ '^[0-9a-f]{64}$'),
-    content bytea NOT NULL,
+    storage_key varchar(512) NOT NULL,
     created_at timestamptz NOT NULL,
-    CHECK (octet_length(content) = size_bytes),
     PRIMARY KEY (approval_entry_id, file_id)
 );
 

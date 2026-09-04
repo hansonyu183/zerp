@@ -26,6 +26,7 @@ import { ulid } from 'ulid'
 
 import type { ArchiveEntity } from './archive-contract.ts'
 import type { DB, JsonValue } from '../db/generated.ts'
+import { AttachmentStore } from '../platform/attachment-store.ts'
 import type {
   RptColumn,
   RptDefinition,
@@ -444,6 +445,23 @@ function array(value: unknown): unknown[] {
   return Array.isArray(value) ? value : []
 }
 
+function customerAttachmentContentMatches(mimeType: string, content: Buffer): boolean {
+  if (mimeType === 'application/pdf')
+    return content.subarray(0, 5).toString() === '%PDF-'
+  if (mimeType === 'image/png')
+    return content
+      .subarray(0, 8)
+      .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+  if (mimeType === 'image/jpeg')
+    return (
+      content[0] === 0xff &&
+      content[1] === 0xd8 &&
+      content[content.length - 2] === 0xff &&
+      content[content.length - 1] === 0xd9
+    )
+  return false
+}
+
 function nullable(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
@@ -477,10 +495,20 @@ function requestHash(
 export class ArchiveService {
   private readonly db: Kysely<DB>
   private readonly rptValidator: RptDefinitionValidator
+  private readonly attachmentStore: AttachmentStore
 
-  constructor(db: Kysely<DB>, rptValidator: RptDefinitionValidator) {
+  constructor(
+    db: Kysely<DB>,
+    rptValidator: RptDefinitionValidator,
+    options: { attachmentStore?: AttachmentStore } = {},
+  ) {
     this.db = db
     this.rptValidator = rptValidator
+    this.attachmentStore =
+      options.attachmentStore ??
+      new AttachmentStore(
+        process.env.ATTACHMENT_STORAGE_ROOT ?? '/var/lib/zerp/attachments',
+      )
   }
 
   async query(
@@ -653,8 +681,10 @@ export class ArchiveService {
     requirePermission(actor, `/dcl/${entity}/${action}`)
     const idempotencyKey = input.idempotencyKey.trim()
     const hash = requestHash(action, entity, input)
+    let view: ArchiveSubmissionView
+    const preparedPermanentKeys = new Set<string>()
     try {
-      return await this.db.transaction().execute(async (tx) => {
+      view = await this.db.transaction().execute(async (tx) => {
         await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:archive:${entity}:idempotency:${idempotencyKey}`}, 0))`.execute(
           tx,
         )
@@ -803,6 +833,7 @@ export class ArchiveService {
             input.submissionId.trim(),
             input.snapshot,
             actor.id,
+            preparedPermanentKeys,
           )
         await tx
           .insertInto('approval_events')
@@ -845,11 +876,16 @@ export class ArchiveService {
         return view
       })
     } catch (error) {
+      if (entity === 'customer')
+        await this.discardPreparedCustomerAttachments(preparedPermanentKeys)
       if (error instanceof ArchiveApplicationError) throw error
       if (pgCode(error) === '23505')
         throw new ArchiveApplicationError('archive_conflict')
       throw error
     }
+    if (entity === 'customer')
+      await this.finalizeCustomerAttachments(input.snapshot, actor.id)
+    return view
   }
 
   async review(
@@ -1052,12 +1088,21 @@ export class ArchiveService {
     if (
       content.length !== input.size ||
       digest !== input.digest ||
-      !/^[0-9a-f]{64}$/.test(input.digest)
+      !/^[0-9a-f]{64}$/.test(input.digest) ||
+      input.size < 1 ||
+      input.size > 10_485_760 ||
+      !customerAttachmentContentMatches(input.mimeType, content)
     )
       throw new ArchiveApplicationError('customer_attachment_invalid_content')
     const now = new Date(),
       expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000)
-    return this.db.transaction().execute(async (tx) => {
+    const storageKey = await this.attachmentStore.stage({
+      ownerId: actor.id,
+      stagingId: input.stagingId,
+      content,
+    })
+    try {
+      return await this.db.transaction().execute(async (tx) => {
       await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:customer:attachment:${input.stagingId}`}, 0))`.execute(
         tx,
       )
@@ -1082,7 +1127,7 @@ export class ArchiveService {
           await tx
             .updateTable('dcl_customer_attachment_staging')
             .set({
-              content,
+              storage_key: storageKey,
               created_at: now,
               expires_at: expiresAt,
             })
@@ -1111,7 +1156,7 @@ export class ArchiveService {
           mime_type: input.mimeType,
           size_bytes: input.size,
           digest: input.digest,
-          content,
+          storage_key: storageKey,
           created_at: now,
           expires_at: expiresAt,
         })
@@ -1125,18 +1170,42 @@ export class ArchiveService {
         digest: input.digest,
         expiresAt: expiresAt.toISOString(),
       }
-    })
+      })
+    } catch (error) {
+      const existing = await this.db
+        .selectFrom('dcl_customer_attachment_staging')
+        .select('storage_key')
+        .where('id', '=', input.stagingId)
+        .executeTakeFirst()
+      if (existing?.storage_key !== storageKey)
+        await this.attachmentStore.remove(storageKey)
+      throw error
+    }
   }
 
   async cleanupCustomerAttachments(
     actor: ApprovalActor,
   ): Promise<{ deleted: number }> {
     requirePermission(actor, '/dcl/customer/attachment-cleanup')
-    const deleted = await this.db
-      .deleteFrom('dcl_customer_attachment_staging')
-      .where('expires_at', '<=', new Date())
-      .executeTakeFirst()
-    return { deleted: Number(deleted.numDeletedRows) }
+    const expired = await this.db.transaction().execute(async (tx) => {
+      const rows = await tx
+        .selectFrom('dcl_customer_attachment_staging')
+        .select('id')
+        .where('expires_at', '<=', new Date())
+        .forUpdate()
+        .execute()
+      if (rows.length === 0) return rows
+      await tx
+        .deleteFrom('dcl_customer_attachment_staging')
+        .where(
+          'id',
+          'in',
+          rows.map((attachment) => attachment.id),
+        )
+        .execute()
+      return rows
+    })
+    return { deleted: expired.length }
   }
 
   private async prepare(
@@ -2365,6 +2434,7 @@ export class ArchiveService {
     approvalEntryId: string,
     snapshot: ArchiveSnapshot,
     actorId: string,
+    preparedPermanentKeys: Set<string>,
   ): Promise<void> {
     const owner = await tx
       .selectFrom('approval_entries')
@@ -2390,7 +2460,7 @@ export class ArchiveService {
             'a.mime_type',
             'a.size_bytes',
             'a.digest',
-            'a.content',
+            'a.storage_key',
           ])
           .where('e.subject_id', '=', owner.subject_id)
           .where('a.file_id', '=', String(attachment.id ?? ''))
@@ -2413,7 +2483,7 @@ export class ArchiveService {
             mime_type: prior.mime_type,
             size_bytes: prior.size_bytes,
             digest: prior.digest,
-            content: prior.content,
+            storage_key: prior.storage_key,
             created_at: new Date(),
           })
           .execute()
@@ -2436,6 +2506,18 @@ export class ArchiveService {
         staged.digest !== attachment.sha256
       )
         throw new ArchiveApplicationError('customer_attachment_staging_invalid')
+      const content = await this.attachmentStore.read(staged.storage_key)
+      if (
+        content.length !== staged.size_bytes ||
+        !customerAttachmentContentMatches(staged.mime_type, content) ||
+        createHash('sha256').update(content).digest('hex') !== staged.digest
+      )
+        throw new ArchiveApplicationError('customer_attachment_staging_invalid')
+      const prepared = await this.attachmentStore.promote({
+        stagingKey: staged.storage_key,
+        permanentKey: `permanent/dcl/customer/${approvalEntryId}/${staged.file_id}`,
+      })
+      if (prepared.created) preparedPermanentKeys.add(prepared.key)
       await tx
         .insertInto('dcl_customer_attachments')
         .values({
@@ -2445,7 +2527,7 @@ export class ArchiveService {
           mime_type: staged.mime_type,
           size_bytes: staged.size_bytes,
           digest: staged.digest,
-          content: staged.content,
+          storage_key: prepared.key,
           created_at: new Date(),
         })
         .execute()
@@ -2454,6 +2536,53 @@ export class ArchiveService {
         .where('id', '=', staged.id)
         .execute()
     }
+  }
+
+  private customerStagingAttachments(snapshot: ArchiveSnapshot) {
+    return [
+      ...array(snapshot.identityAttachments),
+      ...array(snapshot.subunits).flatMap((item) => array(record(item).attachments)),
+    ]
+      .map(record)
+      .filter(
+        (attachment): attachment is Record<string, unknown> & {
+          stagingId: string
+          id: string
+        } =>
+          typeof attachment.stagingId === 'string' &&
+          typeof attachment.id === 'string',
+      )
+  }
+
+  private async finalizeCustomerAttachments(
+    snapshot: ArchiveSnapshot,
+    ownerId: string,
+  ): Promise<void> {
+    await Promise.all(
+      this.customerStagingAttachments(snapshot).map(async (attachment) => {
+        try {
+          await this.attachmentStore.finalize(
+            `staging/${ownerId}/${attachment.stagingId}`,
+          )
+        } catch {
+          // DB is already committed. A later orphan pass can retry removal.
+        }
+      }),
+    )
+  }
+
+  private async discardPreparedCustomerAttachments(
+    keys: ReadonlySet<string>,
+  ): Promise<void> {
+    await Promise.all(
+      [...keys].map(async (key) => {
+        try {
+          await this.attachmentStore.remove(key)
+        } catch {
+          // The original submission error remains authoritative.
+        }
+      }),
+    )
   }
 
   private async readSnapshot(

@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
 
 import { sql } from 'kysely'
@@ -11,6 +14,7 @@ import {
   ArchiveApplicationError,
   ArchiveService,
 } from '../../src/dcl/archives.ts'
+import { AttachmentStore } from '../../src/platform/attachment-store.ts'
 import { PgRptDefinitionValidator } from '../../src/rpt/service.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
@@ -513,9 +517,12 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
   const db = createDatabase(databaseUrl)
   const validationPool = new pg.Pool({ connectionString: databaseUrl })
+  const attachmentRoot = await mkdtemp(join(tmpdir(), 'zerp-customer-attachments-'))
+  const attachmentStore = new AttachmentStore(attachmentRoot, { orphanGraceMs: 0 })
   const service = new ArchiveService(
     db,
     new PgRptDefinitionValidator(validationPool, db),
+    { attachmentStore },
   )
   const submitterId = ulid()
   const reviewerId = ulid()
@@ -574,6 +581,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     } finally {
       await validationPool.end()
       await db.destroy()
+      await rm(attachmentRoot, { recursive: true, force: true })
     }
   })
 
@@ -863,7 +871,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     capabilities: ['CHANNEL_PARTNER'],
   })
 
-  const attachment = Buffer.from('customer identity attachment')
+  const attachment = Buffer.from('%PDF-1.7 customer identity attachment')
   const attachmentId = ulid()
   const stagingId = ulid()
   const digest = createHash('sha256').update(attachment).digest('hex')
@@ -878,6 +886,13 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       contentBase64: attachment.toString('base64'),
     },
     submitter,
+  )
+  const stagedAttachment = await sql<{ storage_key: string }>`
+    SELECT storage_key FROM dcl_customer_attachment_staging WHERE id = ${stagingId}
+  `.execute(db)
+  assert.deepEqual(
+    await attachmentStore.read(stagedAttachment.rows[0]!.storage_key),
+    attachment,
   )
   const failedStagingId = ulid()
   const failedAttachmentId = ulid()
@@ -1038,6 +1053,14 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       .where('id', '=', stagingId)
       .executeTakeFirst(),
     undefined,
+  )
+  const permanentAttachment = await sql<{ storage_key: string }>`
+    SELECT storage_key FROM dcl_customer_attachments
+    WHERE approval_entry_id = ${customer.submissionId} AND file_id = ${attachmentId}
+  `.execute(db)
+  assert.deepEqual(
+    await attachmentStore.read(permanentAttachment.rows[0]!.storage_key),
+    attachment,
   )
 
   const accMappingSubjectId = ulid()

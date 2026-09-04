@@ -5,7 +5,7 @@ import { createNodeWflStarlark } from '@zerp/wfl-starlark/node'
 import { ulid } from 'ulid'
 
 import { createDatabase } from '../../src/db/database.ts'
-import { VouService } from '../../src/vou/service.ts'
+import { VouApplicationError, VouService } from '../../src/vou/service.ts'
 import { WflService, type WflVouPort } from '../../src/wfl/service.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
@@ -94,6 +94,48 @@ function saleOrderPayload(references: Awaited<ReturnType<typeof seedSaleOrderRef
     }],
   }
 }
+
+test('WFL child creation rejects static attachment staging references', async (context) => {
+  assert.ok(databaseUrl)
+  const db = createDatabase(databaseUrl)
+  const runtime = await createNodeWflStarlark()
+  const { vou } = createWflAndVou(db, runtime)
+  context.after(async () => db.destroy())
+
+  await assert.rejects(
+    db.transaction().execute((transaction) =>
+      vou.createChild(transaction, {
+        entity: 'sale-outbound',
+        parent: {
+          entity: 'sale-order',
+          documentId: ulid(),
+          submissionId: ulid(),
+        },
+        initial: {
+          businessDate: '2026-09-04',
+          currency: 'CNY',
+          attachments: [
+            {
+              id: ulid(),
+              stagingId: ulid(),
+              fileName: 'script.pdf',
+              contentType: 'application/pdf',
+              sizeBytes: 1,
+              sha256: '0'.repeat(64),
+            },
+          ],
+          sourceLines: [],
+        },
+        requestKey: 'wfl-static-attachment-test',
+        actor: { id: ulid(), permissions: [], trusted: true },
+        requestId: 'wfl-static-attachment-test',
+      }),
+    ),
+    (error: unknown) =>
+      error instanceof VouApplicationError &&
+      error.errorKey === 'vou_invalid_payload',
+  )
+})
 
 async function cleanupSaleOrderReferences(db: ReturnType<typeof createDatabase>, references: Awaited<ReturnType<typeof seedSaleOrderReferences>>) {
   await db.deleteFrom('aux_objects').where('id', '=', references.unitId).execute()

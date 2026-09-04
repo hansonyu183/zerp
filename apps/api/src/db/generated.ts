@@ -472,17 +472,16 @@ export interface DclCodeCounters {
 
 export interface DclCustomerAttachments {
   approval_entry_id: string;
-  content: Buffer;
   created_at: Timestamp;
   digest: string;
   file_id: string;
   file_name: string;
   mime_type: string;
   size_bytes: number;
+  storage_key: string;
 }
 
 export interface DclCustomerAttachmentStaging {
-  content: Buffer;
   created_at: Timestamp;
   digest: string;
   expires_at: Timestamp;
@@ -492,6 +491,7 @@ export interface DclCustomerAttachmentStaging {
   mime_type: string;
   owner_user_id: string;
   size_bytes: number;
+  storage_key: string;
 }
 
 export interface DclCustomerSubunitRoots {
@@ -883,7 +883,6 @@ export interface VouAssetSaleDetails {
 
 export interface VouAttachments {
   approval_entry_id: string;
-  content: Buffer;
   created_at: Timestamp;
   digest: string;
   file_id: string;
@@ -891,10 +890,10 @@ export interface VouAttachments {
   mime_type: string;
   size_bytes: number;
   staging_id: string;
+  storage_key: string;
 }
 
 export interface VouAttachmentStaging {
-  content: Buffer;
   created_at: Timestamp;
   digest: string;
   expires_at: Timestamp;
@@ -904,6 +903,7 @@ export interface VouAttachmentStaging {
   mime_type: string;
   owner_user_id: string;
   size_bytes: number;
+  storage_key: string;
 }
 
 export interface VouBillCashLineSnapshots {

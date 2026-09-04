@@ -25,6 +25,7 @@ import {
   type PlanExecutor,
   type WflApplicationPlan,
 } from '../platform/transaction-coordinator.ts'
+import { AttachmentStore } from '../platform/attachment-store.ts'
 import { lockAccountingPeriod } from '../acc/period-lock.ts'
 import type { AccControlBalancePort } from '../acc/service.ts'
 import type { WflVouPort } from '../wfl/service.ts'
@@ -324,11 +325,21 @@ export class VouService implements WflVouPort {
   private readonly db: Kysely<DB>
   private readonly accEffects: PlanExecutor<AccApplicationPlan> & Partial<AccControlBalancePort>
   private readonly wflEffects: PlanExecutor<WflApplicationPlan>
+  private readonly attachmentStore: AttachmentStore
 
-  constructor(db: Kysely<DB>, effects: VouEffects) {
+  constructor(
+    db: Kysely<DB>,
+    effects: VouEffects,
+    options: { attachmentStore?: AttachmentStore } = {},
+  ) {
     this.db = db
     this.accEffects = effects.acc
     this.wflEffects = effects.wfl
+    this.attachmentStore =
+      options.attachmentStore ??
+      new AttachmentStore(
+        process.env.ATTACHMENT_STORAGE_ROOT ?? '/var/lib/zerp/attachments',
+      )
   }
 
   async stageAttachment(
@@ -353,7 +364,13 @@ export class VouService implements WflVouPort {
       throw new VouApplicationError('vou_attachment_digest_invalid')
     const now = new Date()
     const expiresAt = new Date(now.getTime() + 15 * 60 * 1000)
-    await this.db.transaction().execute(async (tx) => {
+    const storageKey = await this.attachmentStore.stage({
+      ownerId: actor.id,
+      stagingId: input.stagingId,
+      content,
+    })
+    try {
+      await this.db.transaction().execute(async (tx) => {
       const existing = await tx
         .selectFrom('vou_attachment_staging')
         .selectAll()
@@ -378,20 +395,30 @@ export class VouService implements WflVouPort {
       }
       await tx
         .insertInto('vou_attachment_staging')
-        .values({
+          .values({
           id: input.stagingId,
           file_id: input.fileId,
           owner_user_id: actor.id,
           file_name: input.fileName,
           mime_type: input.mimeType,
-          size_bytes: input.size,
-          digest,
-          content,
+            size_bytes: input.size,
+            digest,
+            storage_key: storageKey,
           created_at: now,
           expires_at: expiresAt,
         })
         .execute()
-    })
+      })
+    } catch (error) {
+      const existing = await this.db
+        .selectFrom('vou_attachment_staging')
+        .select('storage_key')
+        .where('id', '=', input.stagingId)
+        .executeTakeFirst()
+      if (existing?.storage_key !== storageKey)
+        await this.attachmentStore.remove(storageKey)
+      throw error
+    }
     return {
       ...input,
       contentBase64: undefined,
@@ -404,11 +431,25 @@ export class VouService implements WflVouPort {
     actor: ApprovalActor,
   ): Promise<number> {
     requirePermission(actor, `/vou/${entity}/attachment-cleanup`)
-    const result = await this.db
-      .deleteFrom('vou_attachment_staging')
-      .where('expires_at', '<=', new Date())
-      .executeTakeFirst()
-    return Number(result.numDeletedRows)
+    const expired = await this.db.transaction().execute(async (tx) => {
+      const rows = await tx
+        .selectFrom('vou_attachment_staging')
+        .select('id')
+        .where('expires_at', '<=', new Date())
+        .forUpdate()
+        .execute()
+      if (rows.length === 0) return rows
+      await tx
+        .deleteFrom('vou_attachment_staging')
+        .where(
+          'id',
+          'in',
+          rows.map((row) => row.id),
+        )
+        .execute()
+      return rows
+    })
+    return expired.length
   }
 
   async submit(
@@ -418,9 +459,12 @@ export class VouService implements WflVouPort {
     actor: ApprovalActor,
     requestId: string,
   ): Promise<VouView> {
-    return this.db
-      .transaction()
-      .execute((transaction) =>
+    let view: VouView
+    const preparedPermanentKeys = new Set<string>()
+    try {
+      view = await this.db
+        .transaction()
+        .execute((transaction) =>
         this.submitInTransaction(
           transaction,
           entity,
@@ -429,8 +473,15 @@ export class VouService implements WflVouPort {
           actor,
           requestId,
           actor.trusted === true,
+          preparedPermanentKeys,
         ),
-      )
+        )
+    } catch (error) {
+      await this.discardPreparedAttachments(preparedPermanentKeys)
+      throw error
+    }
+    await this.finalizeSubmittedAttachments(input.payload, actor.id)
+    return view
   }
 
   private async submitInTransaction(
@@ -441,6 +492,7 @@ export class VouService implements WflVouPort {
     actor: ApprovalActor,
     requestId: string,
     trustedSystemActor: boolean,
+    preparedPermanentKeys = new Set<string>(),
   ): Promise<VouView> {
     if (!trustedSystemActor)
       requirePermission(actor, `/vou/${entity}/${action}`)
@@ -575,10 +627,12 @@ export class VouService implements WflVouPort {
     )
     await this.promoteAttachments(
       tx,
+      entity,
       input.submissionId,
       input.payload,
       actor.id,
       now,
+      preparedPermanentKeys,
     )
     await tx
       .insertInto('approval_events')
@@ -1016,7 +1070,8 @@ export class VouService implements WflVouPort {
     if (
       typeof initial.businessDate !== 'string' ||
       typeof initial.currency !== 'string' ||
-      !Array.isArray(initial.attachments)
+      !Array.isArray(initial.attachments) ||
+      initial.attachments.length > 0
     )
       throw new VouApplicationError('vou_invalid_payload')
     const documentId = ulid()
@@ -2197,10 +2252,12 @@ export class VouService implements WflVouPort {
 
   private async promoteAttachments(
     executor: Executor,
+    entity: VouEntity,
     entryId: string,
     payload: VouPayload,
     ownerId: string,
     now: Date,
+    preparedPermanentKeys: Set<string>,
   ) {
     for (const attachment of payload.attachments) {
       const row = await executor
@@ -2209,13 +2266,28 @@ export class VouService implements WflVouPort {
         .where('id', '=', attachment.stagingId)
         .where('owner_user_id', '=', ownerId)
         .executeTakeFirstOrThrow()
+      const content = await this.attachmentStore.read(row.storage_key)
+      if (
+        content.length !== row.size_bytes ||
+        !contentMatches(
+          row.mime_type as VouAttachmentStageInput['mimeType'],
+          content,
+        ) ||
+        createHash('sha256').update(content).digest('hex') !== row.digest
+      )
+        throw new VouApplicationError('vou_attachment_staging_invalid')
+      const prepared = await this.attachmentStore.promote({
+        stagingKey: row.storage_key,
+        permanentKey: `permanent/vou/${entity}/${entryId}/${row.file_id}`,
+      })
+      if (prepared.created) preparedPermanentKeys.add(prepared.key)
       await sql`
         INSERT INTO vou_attachments (
           approval_entry_id, file_id, staging_id, file_name, mime_type,
-          size_bytes, digest, content, created_at
+          size_bytes, digest, storage_key, created_at
         ) VALUES (
           ${entryId}, ${row.file_id}, ${row.id}, ${row.file_name}, ${row.mime_type},
-          ${row.size_bytes}, ${row.digest}, ${row.content}, ${now}
+          ${row.size_bytes}, ${row.digest}, ${prepared.key}, ${now}
         )
       `.execute(executor)
       await executor
@@ -2223,6 +2295,35 @@ export class VouService implements WflVouPort {
         .where('id', '=', row.id)
         .execute()
     }
+  }
+
+  private async finalizeSubmittedAttachments(
+    payload: VouPayload,
+    ownerId: string,
+  ): Promise<void> {
+    await Promise.all(
+      payload.attachments.map(async (attachment) => {
+        try {
+          await this.attachmentStore.finalize(
+            `staging/${ownerId}/${attachment.stagingId}`,
+          )
+        } catch {
+          // DB is already committed. A later orphan pass can retry removal.
+        }
+      }),
+    )
+  }
+
+  private async discardPreparedAttachments(keys: ReadonlySet<string>): Promise<void> {
+    await Promise.all(
+      [...keys].map(async (key) => {
+        try {
+          await this.attachmentStore.remove(key)
+        } catch {
+          // The original submission error remains authoritative.
+        }
+      }),
+    )
   }
 
   private async downstreamBlockers(executor: Executor, documentId: string) {

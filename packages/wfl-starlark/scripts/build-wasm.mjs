@@ -6,8 +6,8 @@ import { execFileSync } from 'node:child_process'
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 const generated = join(packageRoot, 'generated')
 const goVersion = execFileSync('go', ['version'], { encoding: 'utf8' }).trim()
-if (!goVersion.startsWith('go version go1.26.5 ')) {
-  throw new Error(`WFL Starlark WASM requires Go 1.26.5; found ${goVersion}`)
+if (!goVersion.startsWith('go version go1.26.6 ')) {
+  throw new Error(`WFL Starlark WASM requires Go 1.26.6; found ${goVersion}`)
 }
 const goRoot = execFileSync('go', ['env', 'GOROOT'], {
   encoding: 'utf8',

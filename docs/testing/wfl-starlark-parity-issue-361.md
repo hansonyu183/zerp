@@ -16,7 +16,7 @@ pnpm --dir packages/wfl-starlark test:node
 pnpm --dir packages/wfl-starlark test:browser
 ```
 
-`wasm:build` requires Go `1.26.5`, the toolchain declared in `packages/wfl-starlark/go/go.mod`. It copies that exact toolchain's `wasm_exec.js` next to the generated `.wasm`, so the Go runtime glue and the binary cannot drift. A Go upgrade must update the module toolchain declaration and regenerate both together.
+`wasm:build` requires Go `1.26.6`, the toolchain declared in `packages/wfl-starlark/go/go.mod`. It copies that exact toolchain's `wasm_exec.js` next to the generated `.wasm`, so the Go runtime glue and the binary cannot drift. A Go upgrade must update the backend and WFL module toolchain declarations and regenerate both together.
 
 ## Shared corpus
 

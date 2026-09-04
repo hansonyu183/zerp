@@ -1,5 +1,5 @@
 import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
-import type { Handler, Schema } from 'hono'
+import type { Handler } from 'hono'
 
 import type { TargetRouteEnvironment } from './contract.ts'
 
@@ -356,13 +356,36 @@ const auxMutation = z.object({
 })
 const auxReferenceRequest = z
   .object({
-    entity: z.enum(['settlement-method', 'payment-method', 'dictionary-item']),
+    entity: z.enum([
+      'settlement-method',
+      'payment-method',
+      'dictionary-item',
+      'product-type',
+      'product-category',
+      'employee-category',
+      'department',
+      'position',
+      'measurement-unit',
+    ]),
     keyword: z.string().max(100).optional(),
     dictionaryTypeCode: z.string().max(32).optional(),
   })
   .strict()
 const auxReferences = z.array(
-  z.object({ objectId: z.string(), code: z.string(), name: z.string() }),
+  z.object({
+    objectId: z.string(),
+    code: z.string(),
+    name: z.string(),
+    behaviorProfile: z
+      .enum([
+        'RAW_MATERIAL',
+        'STANDARD_FINISHED',
+        'CUSTOM_FINISHED',
+        'PACKAGING',
+      ])
+      .optional(),
+    quantityScale: z.number().int().nonnegative().optional(),
+  }),
 )
 
 function auxRoute<const Path extends string>(
@@ -491,9 +514,21 @@ export const auxReferenceRouteBinding = {
   permission: '/aux/reference/query',
 } as const
 
+export const auxReferenceRoute = postRoute(
+  '/aux/reference/query',
+  auxReferenceRequest,
+  auxReferences,
+)
+
 export const bobReferenceRouteBinding = {
   permission: '/bob/reference/query',
 } as const
+
+export const bobReferenceRoute = postRoute(
+  '/bob/reference/query',
+  bobReferenceRequest,
+  bobReferences,
+)
 
 export function auxRouteBinding(
   entity: AuxRouteBinding['entity'],
@@ -531,14 +566,11 @@ const auxRouteActions = [
   'delete',
 ] as const
 
-export function registerIndependentRoutes<
-  Routes extends Schema,
-  BasePath extends string,
->(
-  app: OpenAPIHono<TargetRouteEnvironment, Routes, BasePath>,
+export function registerIndependentRoutes(
+  app: OpenAPIHono<TargetRouteEnvironment>,
   handlers: IndependentRouteHandlers,
 ) {
-  return app.openapiRoutes([
+  const fixed = app.openapiRoutes([
     { route: brandingGet, handler: handlers.app },
     { route: userSignout, handler: handlers.app },
     { route: userProfile, handler: handlers.app },
@@ -565,7 +597,11 @@ export function registerIndependentRoutes<
     { route: menuSave, handler: handlers.app },
     { route: menuActivate, handler: handlers.app },
     { route: menuReset, handler: handlers.app },
-
+  ] as const)
+  // AUX/BOB CRUD routes are registered from finite runtime inventories. Keep
+  // them executable without allowing their widened template-string paths to
+  // erase the static client schema above or the reference seams below.
+  fixed.openapiRoutes([
     ...auxEntities.flatMap((entity) =>
       auxRouteActions
         .filter(
@@ -578,27 +614,20 @@ export function registerIndependentRoutes<
           handler: handlers.aux(auxRouteBinding(entity, action)),
         })),
     ),
-    {
-      route: postRoute(
-        '/aux/reference/query',
-        auxReferenceRequest,
-        auxReferences,
-      ),
-      handler: handlers.aux(auxReferenceRouteBinding),
-    },
-
     ...bobEntities.flatMap((entity) =>
       (['query', 'get'] as const).map((action) => ({
         route: bobRoute(`/bob/${entity}/${action}`, action),
         handler: handlers.bob(bobRouteBinding(entity, action)),
       })),
     ),
+  ] as const)
+  return fixed.openapiRoutes([
     {
-      route: postRoute(
-        '/bob/reference/query',
-        bobReferenceRequest,
-        bobReferences,
-      ),
+      route: auxReferenceRoute,
+      handler: handlers.aux(auxReferenceRouteBinding),
+    },
+    {
+      route: bobReferenceRoute,
       handler: handlers.bob(bobReferenceRouteBinding),
     },
   ] as const)

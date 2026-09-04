@@ -1,15 +1,22 @@
 import {
   createRoute,
-  type OpenAPIHono,
+  OpenAPIHono,
   type RouteHandler,
   z,
 } from '@hono/zod-openapi'
+import type { Schema } from 'hono'
 
 import {
   independentRouteMetadata,
   registerIndependentRoutes,
   type IndependentRouteHandlers,
 } from './independent-contract.ts'
+import {
+  archiveRouteMetadata,
+  registerArchiveRoutes,
+  type ArchiveAttachmentHandlers,
+  type ArchiveRouteHandler,
+} from '../dcl/archive-contract.ts'
 
 export type TargetRouteEnvironment = {
   Variables: { requestId: string }
@@ -478,6 +485,197 @@ export const warehouseReferenceRoute = createRoute({
   },
 })
 
+const accMappingCatalog = z
+  .object({
+    books: z.array(
+      z.object({ id: z.string(), code: z.string(), name: z.string() }).strict(),
+    ),
+    vouEntities: z.array(
+      z
+        .object({
+          id: z.string(),
+          code: z.string(),
+          name: z.string(),
+          fieldCatalog: z
+            .object({
+              headerFields: z.array(z.string()),
+              lineFields: z.array(z.string()),
+            })
+            .strict(),
+        })
+        .strict(),
+    ),
+    subjects: z.array(
+      z
+        .object({
+          id: z.string(),
+          bookId: z.string(),
+          code: z.string(),
+          name: z.string(),
+          requiredDimensions: z.array(z.string()),
+        })
+        .strict(),
+    ),
+  })
+  .strict()
+
+const accMappingDefinition = z
+  .object({
+    defaultTemplateId: z.string().min(1).max(64).nullable(),
+    rules: z.array(
+      z
+        .object({
+          conditions: z
+            .array(
+              z
+                .object({
+                  field: z.string().min(1).max(128),
+                  operator: z.enum([
+                    'EQ',
+                    'NE',
+                    'IN',
+                    'NOT_IN',
+                    'IS_EMPTY',
+                    'IS_NOT_EMPTY',
+                  ]),
+                  values: z.array(z.string().min(1).max(256)),
+                })
+                .strict(),
+            )
+            .min(1),
+          result: z.enum(['POST', 'UN_POST']),
+          templateId: z.string().min(1).max(64).nullable(),
+        })
+        .strict(),
+    ),
+    templates: z.array(
+      z
+        .object({
+          templateId: z.string().min(1).max(64),
+          collection: z.string().min(1).max(128).nullable(),
+          lines: z
+            .array(
+              z
+                .object({
+                  subjectSource: z.enum(['FIXED', 'FIELD']),
+                  subjectValue: z.string().min(1).max(128),
+                  direction: z.enum(['DEBIT', 'CREDIT']),
+                  amountField: z.string().min(1).max(128),
+                  currencyField: z.string().min(1).max(128),
+                  dimensions: z.record(z.string(), z.string()),
+                  quantityField: z.string().min(1).max(128).nullable(),
+                  costCounterpartSubjectId: z.string().length(26).nullable(),
+                  costCounterpartDimensions: z.record(z.string(), z.string()),
+                })
+                .strict(),
+            )
+            .min(2),
+        })
+        .strict(),
+    ),
+    assetConfiguration: z
+      .object({
+        assetSubjectId: z.string().length(26),
+        assetDimensions: z.record(z.string(), z.string()),
+        accumulatedDepreciationSubjectId: z.string().length(26),
+        accumulatedDepreciationDimensions: z.record(z.string(), z.string()),
+        depreciationExpenseSubjectId: z.string().length(26),
+        depreciationExpenseDimensions: z.record(z.string(), z.string()),
+      })
+      .strict()
+      .nullable(),
+  })
+  .strict()
+
+const accMappingCurrent = z
+  .object({
+    subjectId: z.string().length(26),
+    approvalEntryId: z.string().length(26),
+    approvalRevision: z.string(),
+    book: z
+      .object({ id: z.string().length(26), code: z.string(), name: z.string() })
+      .strict(),
+    vouEntity: z
+      .object({ id: z.string().length(26), code: z.string(), name: z.string() })
+      .strict(),
+    defaultResult: z.enum(['POST', 'UN_POST']),
+    definition: accMappingDefinition,
+  })
+  .strict()
+
+const accMappingQueryData = z
+  .object({
+    items: z.array(accMappingCurrent),
+    total: z.number().int().nonnegative(),
+    page: z.number().int().positive(),
+    pageSize: z.number().int().positive(),
+  })
+  .strict()
+
+function accMappingRoute<
+  Path extends string,
+  Body extends z.ZodType,
+  Data extends z.ZodType,
+>(path: Path, body: Body, data: Data, description: string) {
+  return createRoute({
+    method: 'post',
+    path,
+    request: { body: { content: { 'application/json': { schema: body } } } },
+    responses: {
+      200: {
+        description,
+        content: {
+          'application/json': {
+            schema: z.union([
+              z.object({
+                code: z.literal(0),
+                errorKey: z.literal(''),
+                message: z.literal('ok'),
+                data,
+                requestId: z.string(),
+              }),
+              failureEnvelope,
+            ]),
+          },
+        },
+      },
+    },
+  })
+}
+
+const accMappingEmptyRequest = z.object({}).strict()
+
+export const accMappingQueryRoute = accMappingRoute(
+  '/acc/mapping/query',
+  z
+    .object({
+      bookId: z.string().length(26),
+      vouEntity: z.string().min(1).max(64).optional(),
+      page: z.number().int().positive(),
+      pageSize: z.number().int().positive().max(100),
+    })
+    .strict(),
+  accMappingQueryData,
+  'Current approved ACC mappings envelope',
+)
+export const accMappingGetRoute = accMappingRoute(
+  '/acc/mapping/get',
+  z
+    .object({
+      bookId: z.string().length(26),
+      vouEntity: z.string().min(1).max(64),
+    })
+    .strict(),
+  accMappingCurrent,
+  'Current approved ACC mapping envelope',
+)
+export const accMappingCatalogRoute = accMappingRoute(
+  '/acc/mapping/catalog',
+  accMappingEmptyRequest,
+  accMappingCatalog,
+  'ACC mapping catalog envelope',
+)
+
 export const targetRouteMetadata = [
   { method: signinRoute.method, path: signinRoute.path },
   { method: restoreRoute.method, path: restoreRoute.path },
@@ -518,11 +716,26 @@ export const targetRouteMetadata = [
     permission: '/bob/warehouse/reference',
     title: '引用仓库',
   },
+  ...(
+    [
+      ['query', accMappingQueryRoute, '查询当前会计映射'],
+      ['get', accMappingGetRoute, '查看当前会计映射'],
+      ['catalog', accMappingCatalogRoute, '会计映射目录'],
+    ] as const
+  ).map(([action, route, title]) => ({
+    method: route.method,
+    path: route.path,
+    permission: `/acc/mapping/${action}`,
+    title,
+  })),
   ...independentRouteMetadata,
+  ...archiveRouteMetadata,
 ] as const
 
 export interface TargetRouteHandlers {
   independent: IndependentRouteHandlers
+  archive: ArchiveRouteHandler
+  archiveAttachments: ArchiveAttachmentHandlers
   signin: RouteHandler<typeof signinRoute, TargetRouteEnvironment>
   restore: RouteHandler<typeof restoreRoute, TargetRouteEnvironment>
   queryUsers: RouteHandler<typeof queryUsersRoute, TargetRouteEnvironment>
@@ -575,10 +788,22 @@ export interface TargetRouteHandlers {
     typeof warehouseReferenceRoute,
     TargetRouteEnvironment
   >
+  accMappingQuery: RouteHandler<
+    typeof accMappingQueryRoute,
+    TargetRouteEnvironment
+  >
+  accMappingGet: RouteHandler<typeof accMappingGetRoute, TargetRouteEnvironment>
+  accMappingCatalog: RouteHandler<
+    typeof accMappingCatalogRoute,
+    TargetRouteEnvironment
+  >
 }
 
-export function registerTargetRoutes(
-  app: OpenAPIHono<TargetRouteEnvironment>,
+export function registerTargetRoutes<
+  AppSchema extends Schema,
+  BasePath extends string,
+>(
+  app: OpenAPIHono<TargetRouteEnvironment, AppSchema, BasePath>,
   handlers: TargetRouteHandlers,
 ) {
   const base = app.openapiRoutes([
@@ -604,8 +829,27 @@ export function registerTargetRoutes(
     { route: warehouseUnapproveRoute, handler: handlers.warehouseUnapprove },
     { route: warehouseDeleteRoute, handler: handlers.warehouseDelete },
     { route: warehouseReferenceRoute, handler: handlers.warehouseReference },
+    { route: accMappingQueryRoute, handler: handlers.accMappingQuery },
+    { route: accMappingGetRoute, handler: handlers.accMappingGet },
+    { route: accMappingCatalogRoute, handler: handlers.accMappingCatalog },
   ] as const)
-  return registerIndependentRoutes(base, handlers.independent)
+  const independent = registerIndependentRoutes(
+    new OpenAPIHono<TargetRouteEnvironment>(),
+    handlers.independent,
+  )
+  const archives = registerArchiveRoutes(
+    new OpenAPIHono<TargetRouteEnvironment>(),
+    handlers.archive,
+    handlers.archiveAttachments,
+  )
+  return base.route('/', independent).route('/', archives)
 }
 
-export type TargetAppType = ReturnType<typeof registerTargetRoutes>
+function targetAppType() {
+  return registerTargetRoutes(
+    new OpenAPIHono<TargetRouteEnvironment>(),
+    undefined as unknown as TargetRouteHandlers,
+  )
+}
+
+export type TargetAppType = ReturnType<typeof targetAppType>

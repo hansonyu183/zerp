@@ -25,6 +25,9 @@ test('runs the canonical target corpus in the server runtime', () => {
     ok: false,
     error: { errorKey: 'approval_stale_revision' },
   })
+  assert.equal(result.fundAccountSubmit.ok, true)
+  if (result.fundAccountSubmit.ok)
+    assert.equal(result.fundAccountSubmit.plan.data.accountNumber, 'CN1234')
 })
 
 const submitter: ApprovalActor = {

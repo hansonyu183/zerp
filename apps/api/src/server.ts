@@ -10,6 +10,8 @@ import { loadConfig } from './platform/config.ts'
 import { jsonLogger } from './platform/logging.ts'
 import { closeRuntime } from './platform/shutdown.ts'
 import { WarehouseService } from './dcl/warehouse.ts'
+import { ArchiveService } from './dcl/archives.ts'
+import { AccMappingCatalogService } from './acc/mapping-catalog.ts'
 
 const config = loadConfig()
 const database = createDatabase(config.databaseUrl.toString())
@@ -28,6 +30,8 @@ const app = createApp({
   aux: new AuxService(database),
   bob: new BobService(database),
   warehouse: new WarehouseService(database),
+  archives: new ArchiveService(database),
+  accMappingCatalog: new AccMappingCatalogService(database),
   config,
   corsAllowedOrigins: config.corsAllowedOrigins,
   bodyLimitBytes: config.bodyLimitBytes,

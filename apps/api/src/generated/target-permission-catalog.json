@@ -1,5 +1,35 @@
 [
   {
+    "id": "01J6E6F5335706964D6A03C649",
+    "path": "/acc/mapping/catalog",
+    "domain": "acc",
+    "entity": "mapping",
+    "action": "catalog",
+    "title": "会计映射目录",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JBB0E2371FBAE95869AC3451",
+    "path": "/acc/mapping/get",
+    "domain": "acc",
+    "entity": "mapping",
+    "action": "get",
+    "title": "查看当前会计映射",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC0E73D8C246AE28CD0E7999",
+    "path": "/acc/mapping/query",
+    "domain": "acc",
+    "entity": "mapping",
+    "action": "query",
+    "title": "查询当前会计映射",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J60CD5D69F1423D2AD343396",
     "path": "/app/menu/activate",
     "domain": "app",
@@ -1266,6 +1296,1246 @@
     "entity": "warehouse",
     "action": "reference",
     "title": "引用仓库",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF2CCEE69ED97F84647B0CEE",
+    "path": "/dcl/acc-mapping/approve",
+    "domain": "dcl",
+    "entity": "acc-mapping",
+    "action": "approve",
+    "title": "approve acc-mapping",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JFEE385A9CD1288A84E6D712",
+    "path": "/dcl/acc-mapping/audit-history",
+    "domain": "dcl",
+    "entity": "acc-mapping",
+    "action": "audit-history",
+    "title": "audit-history acc-mapping",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J3AC3973349C13458DF86EAE",
+    "path": "/dcl/acc-mapping/delete",
+    "domain": "dcl",
+    "entity": "acc-mapping",
+    "action": "delete",
+    "title": "delete acc-mapping",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J7F90D65A3190DFEA8C1DCC7",
+    "path": "/dcl/acc-mapping/get",
+    "domain": "dcl",
+    "entity": "acc-mapping",
+    "action": "get",
+    "title": "get acc-mapping",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JFCA28726FB9EAEACC4F7F79",
+    "path": "/dcl/acc-mapping/query",
+    "domain": "dcl",
+    "entity": "acc-mapping",
+    "action": "query",
+    "title": "query acc-mapping",
+    "group": "申报控制",
+    "order": 39
+  },
+  {
+    "id": "01J0F610FEAA8A3CA283E01DF6",
+    "path": "/dcl/acc-mapping/reject",
+    "domain": "dcl",
+    "entity": "acc-mapping",
+    "action": "reject",
+    "title": "reject acc-mapping",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF3B1ED3070AA96571EE6792",
+    "path": "/dcl/acc-mapping/submit-change",
+    "domain": "dcl",
+    "entity": "acc-mapping",
+    "action": "submit-change",
+    "title": "submit-change acc-mapping",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5DF679AF9F77D7F2041131F",
+    "path": "/dcl/acc-mapping/submit-new",
+    "domain": "dcl",
+    "entity": "acc-mapping",
+    "action": "submit-new",
+    "title": "submit-new acc-mapping",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J2DA1EEA1F88FAD77A50614F",
+    "path": "/dcl/acc-mapping/unapprove",
+    "domain": "dcl",
+    "entity": "acc-mapping",
+    "action": "unapprove",
+    "title": "unapprove acc-mapping",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J92B4A62D7D78708FA0C7978",
+    "path": "/dcl/acc-mapping/unreject",
+    "domain": "dcl",
+    "entity": "acc-mapping",
+    "action": "unreject",
+    "title": "unreject acc-mapping",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J743B74F124908C7BA488811",
+    "path": "/dcl/acc-mapping/versions",
+    "domain": "dcl",
+    "entity": "acc-mapping",
+    "action": "versions",
+    "title": "versions acc-mapping",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0EC601B3034645FEF9BCCA3",
+    "path": "/dcl/customer/approve",
+    "domain": "dcl",
+    "entity": "customer",
+    "action": "approve",
+    "title": "approve customer",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF0B35CFCAC1A4D20BD24C97",
+    "path": "/dcl/customer/attachment-cleanup",
+    "domain": "dcl",
+    "entity": "customer",
+    "action": "attachment-cleanup",
+    "title": "清理客户附件暂存",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J4BD54272B2719A7458A07A0",
+    "path": "/dcl/customer/attachment-stage",
+    "domain": "dcl",
+    "entity": "customer",
+    "action": "attachment-stage",
+    "title": "暂存客户附件",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JB5FB097CBF695A23D5DAF2A",
+    "path": "/dcl/customer/audit-history",
+    "domain": "dcl",
+    "entity": "customer",
+    "action": "audit-history",
+    "title": "audit-history customer",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JE442457379AAB2FB87119C5",
+    "path": "/dcl/customer/delete",
+    "domain": "dcl",
+    "entity": "customer",
+    "action": "delete",
+    "title": "delete customer",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0ED3975D4A8AF0EA02EB1E0",
+    "path": "/dcl/customer/get",
+    "domain": "dcl",
+    "entity": "customer",
+    "action": "get",
+    "title": "get customer",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0D8BCA1D9FB9F384CEF3AFF",
+    "path": "/dcl/customer/query",
+    "domain": "dcl",
+    "entity": "customer",
+    "action": "query",
+    "title": "query customer",
+    "group": "申报控制",
+    "order": 36
+  },
+  {
+    "id": "01J1B742D54C93F4C24DEA59CF",
+    "path": "/dcl/customer/reject",
+    "domain": "dcl",
+    "entity": "customer",
+    "action": "reject",
+    "title": "reject customer",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J220B7E678FCFD501145D93C",
+    "path": "/dcl/customer/save-subunits",
+    "domain": "dcl",
+    "entity": "customer",
+    "action": "save-subunits",
+    "title": "维护客户子单位",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J3319B0B8E637B5C73618244",
+    "path": "/dcl/customer/submit-change",
+    "domain": "dcl",
+    "entity": "customer",
+    "action": "submit-change",
+    "title": "submit-change customer",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J06F51F4C0D14AA74BA612E2",
+    "path": "/dcl/customer/submit-new",
+    "domain": "dcl",
+    "entity": "customer",
+    "action": "submit-new",
+    "title": "submit-new customer",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J32C8DD16296D8A7393E5BFF",
+    "path": "/dcl/customer/unapprove",
+    "domain": "dcl",
+    "entity": "customer",
+    "action": "unapprove",
+    "title": "unapprove customer",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J6432BD8DE4A51DF6F437BA2",
+    "path": "/dcl/customer/unreject",
+    "domain": "dcl",
+    "entity": "customer",
+    "action": "unreject",
+    "title": "unreject customer",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J313CD3A588EAF6552AC1C80",
+    "path": "/dcl/customer/versions",
+    "domain": "dcl",
+    "entity": "customer",
+    "action": "versions",
+    "title": "versions customer",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J732B242AFB4D8E2A6486A0A",
+    "path": "/dcl/employee/approve",
+    "domain": "dcl",
+    "entity": "employee",
+    "action": "approve",
+    "title": "approve employee",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J295A793F4AEFA615786A6B0",
+    "path": "/dcl/employee/audit-history",
+    "domain": "dcl",
+    "entity": "employee",
+    "action": "audit-history",
+    "title": "audit-history employee",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J3309585F59AACA51F57B8D7",
+    "path": "/dcl/employee/delete",
+    "domain": "dcl",
+    "entity": "employee",
+    "action": "delete",
+    "title": "delete employee",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA1BC3074C7F88B119DB0865",
+    "path": "/dcl/employee/get",
+    "domain": "dcl",
+    "entity": "employee",
+    "action": "get",
+    "title": "get employee",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J3BBC2C8DE986635277B591A",
+    "path": "/dcl/employee/query",
+    "domain": "dcl",
+    "entity": "employee",
+    "action": "query",
+    "title": "query employee",
+    "group": "申报控制",
+    "order": 34
+  },
+  {
+    "id": "01JCA72906E742DC091CFEBD12",
+    "path": "/dcl/employee/reject",
+    "domain": "dcl",
+    "entity": "employee",
+    "action": "reject",
+    "title": "reject employee",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J7D5C9F7C53C198D527603AF",
+    "path": "/dcl/employee/submit-change",
+    "domain": "dcl",
+    "entity": "employee",
+    "action": "submit-change",
+    "title": "submit-change employee",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JE6E066E9EEE9102DC75E5E0",
+    "path": "/dcl/employee/submit-new",
+    "domain": "dcl",
+    "entity": "employee",
+    "action": "submit-new",
+    "title": "submit-new employee",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JB316CE4F0D8008F7EDB5F66",
+    "path": "/dcl/employee/unapprove",
+    "domain": "dcl",
+    "entity": "employee",
+    "action": "unapprove",
+    "title": "unapprove employee",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J172893D1649F15D3DF6D337",
+    "path": "/dcl/employee/unreject",
+    "domain": "dcl",
+    "entity": "employee",
+    "action": "unreject",
+    "title": "unreject employee",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J75722B0CA83E3A75FA4294C",
+    "path": "/dcl/employee/versions",
+    "domain": "dcl",
+    "entity": "employee",
+    "action": "versions",
+    "title": "versions employee",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J7187645FD151606B25CFF99",
+    "path": "/dcl/fund-account/approve",
+    "domain": "dcl",
+    "entity": "fund-account",
+    "action": "approve",
+    "title": "approve fund-account",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA13E9B37F3A61A4C40D4847",
+    "path": "/dcl/fund-account/audit-history",
+    "domain": "dcl",
+    "entity": "fund-account",
+    "action": "audit-history",
+    "title": "audit-history fund-account",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J9B9833C05EB8619D27013A0",
+    "path": "/dcl/fund-account/delete",
+    "domain": "dcl",
+    "entity": "fund-account",
+    "action": "delete",
+    "title": "delete fund-account",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JEE491718790AAD7D0843090",
+    "path": "/dcl/fund-account/get",
+    "domain": "dcl",
+    "entity": "fund-account",
+    "action": "get",
+    "title": "get fund-account",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J3DCF0C8BA9409980790ABE2",
+    "path": "/dcl/fund-account/query",
+    "domain": "dcl",
+    "entity": "fund-account",
+    "action": "query",
+    "title": "query fund-account",
+    "group": "申报控制",
+    "order": 32
+  },
+  {
+    "id": "01J96C4278F0B193C7DE3752F1",
+    "path": "/dcl/fund-account/reject",
+    "domain": "dcl",
+    "entity": "fund-account",
+    "action": "reject",
+    "title": "reject fund-account",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J96F78BDF3A24C065C822CD6",
+    "path": "/dcl/fund-account/submit-change",
+    "domain": "dcl",
+    "entity": "fund-account",
+    "action": "submit-change",
+    "title": "submit-change fund-account",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J82871F4E2785D87A1DC7937",
+    "path": "/dcl/fund-account/submit-new",
+    "domain": "dcl",
+    "entity": "fund-account",
+    "action": "submit-new",
+    "title": "submit-new fund-account",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J22937EFAC5B8F88A83D5CB0",
+    "path": "/dcl/fund-account/unapprove",
+    "domain": "dcl",
+    "entity": "fund-account",
+    "action": "unapprove",
+    "title": "unapprove fund-account",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J2C0CE9874BCDED5DC549AEA",
+    "path": "/dcl/fund-account/unreject",
+    "domain": "dcl",
+    "entity": "fund-account",
+    "action": "unreject",
+    "title": "unreject fund-account",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J24D043F889FC7857ECF2CD7",
+    "path": "/dcl/fund-account/versions",
+    "domain": "dcl",
+    "entity": "fund-account",
+    "action": "versions",
+    "title": "versions fund-account",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC63EC0F73F0D4B51CA287C9",
+    "path": "/dcl/operating-entity/approve",
+    "domain": "dcl",
+    "entity": "operating-entity",
+    "action": "approve",
+    "title": "approve operating-entity",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JAB65D6E952A4FA2BB8F0A3C",
+    "path": "/dcl/operating-entity/audit-history",
+    "domain": "dcl",
+    "entity": "operating-entity",
+    "action": "audit-history",
+    "title": "audit-history operating-entity",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JDC2B19C4C72AEE7AA87193A",
+    "path": "/dcl/operating-entity/delete",
+    "domain": "dcl",
+    "entity": "operating-entity",
+    "action": "delete",
+    "title": "delete operating-entity",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J12A9EFF233B0C8BD8412093",
+    "path": "/dcl/operating-entity/get",
+    "domain": "dcl",
+    "entity": "operating-entity",
+    "action": "get",
+    "title": "get operating-entity",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J57B2907C278D9A94998A8EB",
+    "path": "/dcl/operating-entity/query",
+    "domain": "dcl",
+    "entity": "operating-entity",
+    "action": "query",
+    "title": "query operating-entity",
+    "group": "申报控制",
+    "order": 30
+  },
+  {
+    "id": "01J460CCBF2822FB62F956E7B5",
+    "path": "/dcl/operating-entity/reject",
+    "domain": "dcl",
+    "entity": "operating-entity",
+    "action": "reject",
+    "title": "reject operating-entity",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF8E2751CD8185D39DCA3A2D",
+    "path": "/dcl/operating-entity/submit-change",
+    "domain": "dcl",
+    "entity": "operating-entity",
+    "action": "submit-change",
+    "title": "submit-change operating-entity",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J6B649218D24038426EB4869",
+    "path": "/dcl/operating-entity/submit-new",
+    "domain": "dcl",
+    "entity": "operating-entity",
+    "action": "submit-new",
+    "title": "submit-new operating-entity",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J6F518681F85645600B3E4ED",
+    "path": "/dcl/operating-entity/unapprove",
+    "domain": "dcl",
+    "entity": "operating-entity",
+    "action": "unapprove",
+    "title": "unapprove operating-entity",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J1C4F1BCEB15944DF33A207B",
+    "path": "/dcl/operating-entity/unreject",
+    "domain": "dcl",
+    "entity": "operating-entity",
+    "action": "unreject",
+    "title": "unreject operating-entity",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J3D7737098E80D381E47489B",
+    "path": "/dcl/operating-entity/versions",
+    "domain": "dcl",
+    "entity": "operating-entity",
+    "action": "versions",
+    "title": "versions operating-entity",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC2E6C5A198CCF211B0D0A93",
+    "path": "/dcl/other-unit/approve",
+    "domain": "dcl",
+    "entity": "other-unit",
+    "action": "approve",
+    "title": "approve other-unit",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF4FB6C95E403FA58696890B",
+    "path": "/dcl/other-unit/audit-history",
+    "domain": "dcl",
+    "entity": "other-unit",
+    "action": "audit-history",
+    "title": "audit-history other-unit",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JD255C37CCA6307FB2553127",
+    "path": "/dcl/other-unit/delete",
+    "domain": "dcl",
+    "entity": "other-unit",
+    "action": "delete",
+    "title": "delete other-unit",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC0AA98658CE42D365214789",
+    "path": "/dcl/other-unit/get",
+    "domain": "dcl",
+    "entity": "other-unit",
+    "action": "get",
+    "title": "get other-unit",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC9079764287422C4010F7F6",
+    "path": "/dcl/other-unit/query",
+    "domain": "dcl",
+    "entity": "other-unit",
+    "action": "query",
+    "title": "query other-unit",
+    "group": "申报控制",
+    "order": 37
+  },
+  {
+    "id": "01J4CADB0F813A131A8519AB2C",
+    "path": "/dcl/other-unit/reject",
+    "domain": "dcl",
+    "entity": "other-unit",
+    "action": "reject",
+    "title": "reject other-unit",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J8A5180B8872D9330F127667",
+    "path": "/dcl/other-unit/submit-change",
+    "domain": "dcl",
+    "entity": "other-unit",
+    "action": "submit-change",
+    "title": "submit-change other-unit",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JD8DF7FFEC49FAC566EB17B0",
+    "path": "/dcl/other-unit/submit-new",
+    "domain": "dcl",
+    "entity": "other-unit",
+    "action": "submit-new",
+    "title": "submit-new other-unit",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JEEA848ACF55E51F6CA25740",
+    "path": "/dcl/other-unit/unapprove",
+    "domain": "dcl",
+    "entity": "other-unit",
+    "action": "unapprove",
+    "title": "unapprove other-unit",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J711CE20A706E76DD8E1EB6C",
+    "path": "/dcl/other-unit/unreject",
+    "domain": "dcl",
+    "entity": "other-unit",
+    "action": "unreject",
+    "title": "unreject other-unit",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA4E8206542A98D7658EA910",
+    "path": "/dcl/other-unit/versions",
+    "domain": "dcl",
+    "entity": "other-unit",
+    "action": "versions",
+    "title": "versions other-unit",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J79A1EBF2FFEA8AC2DA6FE05",
+    "path": "/dcl/product/approve",
+    "domain": "dcl",
+    "entity": "product",
+    "action": "approve",
+    "title": "approve product",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF54F90B7801723F2D18094B",
+    "path": "/dcl/product/audit-history",
+    "domain": "dcl",
+    "entity": "product",
+    "action": "audit-history",
+    "title": "audit-history product",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J14769F0E40A1EF159269C08",
+    "path": "/dcl/product/delete",
+    "domain": "dcl",
+    "entity": "product",
+    "action": "delete",
+    "title": "delete product",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J64C7186912B002F45D81908",
+    "path": "/dcl/product/get",
+    "domain": "dcl",
+    "entity": "product",
+    "action": "get",
+    "title": "get product",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JCE266589525590E25EBC694",
+    "path": "/dcl/product/query",
+    "domain": "dcl",
+    "entity": "product",
+    "action": "query",
+    "title": "query product",
+    "group": "申报控制",
+    "order": 33
+  },
+  {
+    "id": "01J2997AC7C18E2CD135190034",
+    "path": "/dcl/product/reject",
+    "domain": "dcl",
+    "entity": "product",
+    "action": "reject",
+    "title": "reject product",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J707F64EB70B0334D85F88E4",
+    "path": "/dcl/product/submit-change",
+    "domain": "dcl",
+    "entity": "product",
+    "action": "submit-change",
+    "title": "submit-change product",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF9A0BA9B740FAB3B48A645A",
+    "path": "/dcl/product/submit-new",
+    "domain": "dcl",
+    "entity": "product",
+    "action": "submit-new",
+    "title": "submit-new product",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J40AD793C48A541B76B981E0",
+    "path": "/dcl/product/unapprove",
+    "domain": "dcl",
+    "entity": "product",
+    "action": "unapprove",
+    "title": "unapprove product",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5326E8FF06093C34B80B31A",
+    "path": "/dcl/product/unreject",
+    "domain": "dcl",
+    "entity": "product",
+    "action": "unreject",
+    "title": "unreject product",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J1E6D718280AD40C45FC25B2",
+    "path": "/dcl/product/versions",
+    "domain": "dcl",
+    "entity": "product",
+    "action": "versions",
+    "title": "versions product",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J8D09C7DFF10FEFB025388D9",
+    "path": "/dcl/rpt-definition/approve",
+    "domain": "dcl",
+    "entity": "rpt-definition",
+    "action": "approve",
+    "title": "approve rpt-definition",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J2BCA89225B62438942F2C31",
+    "path": "/dcl/rpt-definition/audit-history",
+    "domain": "dcl",
+    "entity": "rpt-definition",
+    "action": "audit-history",
+    "title": "audit-history rpt-definition",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF2F8EF6DABCAD1783154C93",
+    "path": "/dcl/rpt-definition/delete",
+    "domain": "dcl",
+    "entity": "rpt-definition",
+    "action": "delete",
+    "title": "delete rpt-definition",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JB36E4BA35E3908F3382DF52",
+    "path": "/dcl/rpt-definition/get",
+    "domain": "dcl",
+    "entity": "rpt-definition",
+    "action": "get",
+    "title": "get rpt-definition",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J3D6AAE09D4868E8EBE425A5",
+    "path": "/dcl/rpt-definition/query",
+    "domain": "dcl",
+    "entity": "rpt-definition",
+    "action": "query",
+    "title": "query rpt-definition",
+    "group": "申报控制",
+    "order": 40
+  },
+  {
+    "id": "01JE5E2D48C71D884FB2C752A2",
+    "path": "/dcl/rpt-definition/reject",
+    "domain": "dcl",
+    "entity": "rpt-definition",
+    "action": "reject",
+    "title": "reject rpt-definition",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0736DE615F2AEE276ECA5C2",
+    "path": "/dcl/rpt-definition/submit-change",
+    "domain": "dcl",
+    "entity": "rpt-definition",
+    "action": "submit-change",
+    "title": "submit-change rpt-definition",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J9FD577055E0C5E259720218",
+    "path": "/dcl/rpt-definition/submit-new",
+    "domain": "dcl",
+    "entity": "rpt-definition",
+    "action": "submit-new",
+    "title": "submit-new rpt-definition",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J495B79EBF3E7551B0ECA1C1",
+    "path": "/dcl/rpt-definition/unapprove",
+    "domain": "dcl",
+    "entity": "rpt-definition",
+    "action": "unapprove",
+    "title": "unapprove rpt-definition",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC9FA0D8E38CF598CF161323",
+    "path": "/dcl/rpt-definition/unreject",
+    "domain": "dcl",
+    "entity": "rpt-definition",
+    "action": "unreject",
+    "title": "unreject rpt-definition",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J442609DAE28F71B0D60D62C",
+    "path": "/dcl/rpt-definition/versions",
+    "domain": "dcl",
+    "entity": "rpt-definition",
+    "action": "versions",
+    "title": "versions rpt-definition",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J3B4EE9177978B883A9E7286",
+    "path": "/dcl/sales-partner/approve",
+    "domain": "dcl",
+    "entity": "sales-partner",
+    "action": "approve",
+    "title": "approve sales-partner",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J1791CD2A9F205C0C7FD8AA0",
+    "path": "/dcl/sales-partner/audit-history",
+    "domain": "dcl",
+    "entity": "sales-partner",
+    "action": "audit-history",
+    "title": "audit-history sales-partner",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J7C6BCAEF9188BE2985D078A",
+    "path": "/dcl/sales-partner/delete",
+    "domain": "dcl",
+    "entity": "sales-partner",
+    "action": "delete",
+    "title": "delete sales-partner",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J03D2E3CF1436132888CC1B3",
+    "path": "/dcl/sales-partner/get",
+    "domain": "dcl",
+    "entity": "sales-partner",
+    "action": "get",
+    "title": "get sales-partner",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J4EE31D29F39E533E98BCDE7",
+    "path": "/dcl/sales-partner/query",
+    "domain": "dcl",
+    "entity": "sales-partner",
+    "action": "query",
+    "title": "query sales-partner",
+    "group": "申报控制",
+    "order": 38
+  },
+  {
+    "id": "01J2D8D142E7EC75BAB1EED92D",
+    "path": "/dcl/sales-partner/reject",
+    "domain": "dcl",
+    "entity": "sales-partner",
+    "action": "reject",
+    "title": "reject sales-partner",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J47E929116EBA15DB30C28D9",
+    "path": "/dcl/sales-partner/submit-change",
+    "domain": "dcl",
+    "entity": "sales-partner",
+    "action": "submit-change",
+    "title": "submit-change sales-partner",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J6956550350FCF68D8F7678D",
+    "path": "/dcl/sales-partner/submit-new",
+    "domain": "dcl",
+    "entity": "sales-partner",
+    "action": "submit-new",
+    "title": "submit-new sales-partner",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J0BF50DA72366527D89D1671",
+    "path": "/dcl/sales-partner/unapprove",
+    "domain": "dcl",
+    "entity": "sales-partner",
+    "action": "unapprove",
+    "title": "unapprove sales-partner",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J3318C12DB5A14851FF2CDDE",
+    "path": "/dcl/sales-partner/unreject",
+    "domain": "dcl",
+    "entity": "sales-partner",
+    "action": "unreject",
+    "title": "unreject sales-partner",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J29500F3C451F7C5B829C955",
+    "path": "/dcl/sales-partner/versions",
+    "domain": "dcl",
+    "entity": "sales-partner",
+    "action": "versions",
+    "title": "versions sales-partner",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC9A403C86581C1F9A67AD77",
+    "path": "/dcl/supplier/approve",
+    "domain": "dcl",
+    "entity": "supplier",
+    "action": "approve",
+    "title": "approve supplier",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J846E55918DD39D175D8D9D5",
+    "path": "/dcl/supplier/audit-history",
+    "domain": "dcl",
+    "entity": "supplier",
+    "action": "audit-history",
+    "title": "audit-history supplier",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J80A80D759407A0607A5FCA0",
+    "path": "/dcl/supplier/delete",
+    "domain": "dcl",
+    "entity": "supplier",
+    "action": "delete",
+    "title": "delete supplier",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J4C7D63274B60963E9291A9D",
+    "path": "/dcl/supplier/get",
+    "domain": "dcl",
+    "entity": "supplier",
+    "action": "get",
+    "title": "get supplier",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA9193447C28ADD360C9C2D7",
+    "path": "/dcl/supplier/query",
+    "domain": "dcl",
+    "entity": "supplier",
+    "action": "query",
+    "title": "query supplier",
+    "group": "申报控制",
+    "order": 35
+  },
+  {
+    "id": "01J4FA62A4086CDDC587F53EFC",
+    "path": "/dcl/supplier/reject",
+    "domain": "dcl",
+    "entity": "supplier",
+    "action": "reject",
+    "title": "reject supplier",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J1438067E88C4A58CAA6CC31",
+    "path": "/dcl/supplier/submit-change",
+    "domain": "dcl",
+    "entity": "supplier",
+    "action": "submit-change",
+    "title": "submit-change supplier",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J2EE21AD36DFE667AE49E391",
+    "path": "/dcl/supplier/submit-new",
+    "domain": "dcl",
+    "entity": "supplier",
+    "action": "submit-new",
+    "title": "submit-new supplier",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J596380C7169933CF41AEC2C",
+    "path": "/dcl/supplier/unapprove",
+    "domain": "dcl",
+    "entity": "supplier",
+    "action": "unapprove",
+    "title": "unapprove supplier",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC0B9D81A4C8F1836FFBCCE6",
+    "path": "/dcl/supplier/unreject",
+    "domain": "dcl",
+    "entity": "supplier",
+    "action": "unreject",
+    "title": "unreject supplier",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5F29C9C93537EE31AA6E8E7",
+    "path": "/dcl/supplier/versions",
+    "domain": "dcl",
+    "entity": "supplier",
+    "action": "versions",
+    "title": "versions supplier",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA9C2C530CABB79FEA477A47",
+    "path": "/dcl/vehicle/approve",
+    "domain": "dcl",
+    "entity": "vehicle",
+    "action": "approve",
+    "title": "approve vehicle",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J496ACE13246A3CA2C4AFFE0",
+    "path": "/dcl/vehicle/audit-history",
+    "domain": "dcl",
+    "entity": "vehicle",
+    "action": "audit-history",
+    "title": "audit-history vehicle",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC6E7294F5248F65BBCB2F89",
+    "path": "/dcl/vehicle/delete",
+    "domain": "dcl",
+    "entity": "vehicle",
+    "action": "delete",
+    "title": "delete vehicle",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J286AEE7F45C1007DED897CF",
+    "path": "/dcl/vehicle/get",
+    "domain": "dcl",
+    "entity": "vehicle",
+    "action": "get",
+    "title": "get vehicle",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J558F9F3E95B5D6B76902BF7",
+    "path": "/dcl/vehicle/query",
+    "domain": "dcl",
+    "entity": "vehicle",
+    "action": "query",
+    "title": "query vehicle",
+    "group": "申报控制",
+    "order": 31
+  },
+  {
+    "id": "01J0AEC8049792510CCB6D8E28",
+    "path": "/dcl/vehicle/reject",
+    "domain": "dcl",
+    "entity": "vehicle",
+    "action": "reject",
+    "title": "reject vehicle",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JECFEDAE93B7D9F29C415ED5",
+    "path": "/dcl/vehicle/submit-change",
+    "domain": "dcl",
+    "entity": "vehicle",
+    "action": "submit-change",
+    "title": "submit-change vehicle",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JD3F48028BE47F52554A3055",
+    "path": "/dcl/vehicle/submit-new",
+    "domain": "dcl",
+    "entity": "vehicle",
+    "action": "submit-new",
+    "title": "submit-new vehicle",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J629A4783A5AA05A608E64A9",
+    "path": "/dcl/vehicle/unapprove",
+    "domain": "dcl",
+    "entity": "vehicle",
+    "action": "unapprove",
+    "title": "unapprove vehicle",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JE37EAF2DAFA9048266336BF",
+    "path": "/dcl/vehicle/unreject",
+    "domain": "dcl",
+    "entity": "vehicle",
+    "action": "unreject",
+    "title": "unreject vehicle",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF6AA5088B216D8C8339A16D",
+    "path": "/dcl/vehicle/versions",
+    "domain": "dcl",
+    "entity": "vehicle",
+    "action": "versions",
+    "title": "versions vehicle",
     "group": null,
     "order": null
   },

@@ -1,18 +1,20 @@
 # DCL 报表定义变更页面用例
 
-权威业务规则见 [DCL 报表定义申报](../../domains/dcl.md#39-报表定义申报)、[RPT 报表定义与 DCL](../../domains/rpt.md#3-报表定义与-dcl) 与 [Approval Version](../../domains/approval.md#6-approval-version)，线协议见 [OpenAPI DCL 报表定义 Schema](../../../contracts/openapi/schemas/dcl-rpt-definition.yaml) 与 [OpenAPI RPT Schema](../../../contracts/openapi/schemas/rpt.yaml)。
+权威业务规则见 [DCL 报表定义申报](../../domains/dcl.md#39-报表定义申报)、[RPT 报表定义与 DCL](../../domains/rpt.md#3-报表定义与-dcl) 与 [Approval Version](../../domains/approval.md#6-approval-version)。目标线 HTTP 由可执行 Hono/Zod 路由提供；#366 前 live Go/OpenAPI 不变且不与 target 组合。
 
 ## 1. 页面与权限边界
 
-1. `/dcl/rpt-definition` 是报表定义唯一维护入口，覆盖新建、编辑、提交、撤回、驳回、批准、反批准、草稿删除、启停、版本和审计。
-2. 列表调用 `POST /dcl/rpt-definition/query`，区分 latest approved 与唯一 open candidate；详情可以按精确 Approval Entry ID 读取历史版本。
+页面使用目标 Hono `query|get|versions|audit-history|submit-new|submit-change|approve|reject|unreject|unapprove|delete` 路由。
+
+1. `/dcl/rpt-definition` 是报表定义本地 Draft、Submission、版本和审计的唯一维护入口。
+2. 列表调用目标 Hono `POST /dcl/rpt-definition/query`，区分 latest approved 与唯一 open candidate；详情可以按精确 Approval Entry ID 读取历史版本。
 3. 每个动作检查精确 `/dcl/rpt-definition/*` 权限；普通 `/rpt/{code}` 页面只读取目录并执行当前正式定义，不显示维护动作。
 
-## 2. 新建与保存
+## 2. 本地 Draft 与提交
 
-1. 新建时由系统分配永久冻结的 code；用户录入随版本保存的 name、description、enabled、单条只读 SQL、类型化参数和显式结果列契约。
-2. 每次保存提交完整 snapshot（包括必填 enabled），不保存差异，不允许从前端拼接任意接口路径；并发只携带 candidate 的 `approvalEntryId` 与 `approvalRevision`。
-3. 保存执行结构校验；提交和批准还必须携带校验参数，由后端在只读角色和只读事务中完成完整 SQL、参数及列契约验证。
+1. 新建和编辑均先在 IndexedDB 保存本地 Draft；同一页面可并存多个 Draft，用户录入 name、description、enabled、单条只读 SQL、类型化参数和显式结果列契约。
+2. 提交发送完整 snapshot 到目标 Hono `submit-new` 或 `submit-change`，携带 `expectedLatestApprovedSubmissionId` 与 `expectedLatestApprovedRevision`；服务端分配永久冻结的 code（新 subject）或 Vn，并创建 `PENDING`，不发送差异。
+3. 浏览器只做即时结构提示；submit 和批准由后端在只读角色和只读事务中完成完整 SQL、参数及列契约验证。
 
 ## 3. 审批、有效性与 RPT 当前执行面
 
@@ -20,7 +22,7 @@
 2. 批准后按上文 DCL 原子性规则使最新 `APPROVED + VALID` 定义的 query/export 权限可用；新版本批准后切换到新 entry。
 3. 反批准按同一权威规则回落到上一正式版本；没有正式版本时停用使用权限。
 4. 最新批准版本为 INVALID 时停止执行，不回退到更低版本；恢复必须通过新候选、重新验证和批准。
-5. 启停是本地 Draft 的版本事实，submit 后成为不可变 Submission；当前 APPROVED 定义的界面明确提示先创建下一 Draft，不能以 root revision 直接改写正式版本。
+5. 启停是本地 Draft 的版本事实，submit 后成为不可变 Submission；当前 APPROVED 定义的界面明确提示先克隆下一 Draft，不能以 root revision 直接改写正式版本。
 
 ## 4. 查询、历史与深链
 

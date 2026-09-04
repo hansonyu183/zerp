@@ -1,7 +1,7 @@
 import type { Kysely, Transaction } from 'kysely'
 
 import type { TargetPermissionCatalogEntry } from '../../scripts/target-artifacts.ts'
-import type { DB } from '../db/generated.ts'
+import type { DB, JsonValue } from '../db/generated.ts'
 
 export interface TargetE2EPrincipal {
   userId: string
@@ -16,6 +16,39 @@ export interface TargetE2EManagerReference {
   code: string
   name: string
   enabled: boolean
+}
+
+export interface TargetE2EArchiveFacts {
+  createdBy: string
+  auxObjects: readonly {
+    id: string
+    entity:
+      | 'dictionary-item'
+      | 'product-type'
+      | 'product-category'
+      | 'measurement-unit'
+      | 'employee-category'
+      | 'department'
+      | 'position'
+    code: string
+    data: JsonValue
+  }[]
+  accounting: {
+    book: { id: string; code: string; name: string }
+    vouEntity: {
+      id: string
+      code: string
+      name: string
+      fieldCatalog: { headerFields: string[]; lineFields: string[] }
+    }
+    subjects: readonly {
+      id: string
+      code: string
+      name: string
+      leaf: boolean
+      requiredDimensions: string[]
+    }[]
+  }
 }
 
 export interface PermissionCatalogMigrationReport {
@@ -289,6 +322,84 @@ export class TargetBootstrapService {
       .execute()
   }
 
+  async createE2EArchiveFacts(facts: TargetE2EArchiveFacts): Promise<void> {
+    await this.db.transaction().execute(async (transaction) => {
+      await transaction
+        .insertInto('aux_objects')
+        .values(
+          facts.auxObjects.map((item) => ({
+            id: item.id,
+            entity: item.entity,
+            code: item.code,
+            data: item.data,
+            enabled: true,
+            created_by: facts.createdBy,
+            updated_by: facts.createdBy,
+          })),
+        )
+        .execute()
+      await transaction
+        .insertInto('dcl_acc_book_facts')
+        .values({ ...facts.accounting.book, enabled: true })
+        .execute()
+      await transaction
+        .insertInto('dcl_acc_vou_entity_facts')
+        .values({
+          id: facts.accounting.vouEntity.id,
+          code: facts.accounting.vouEntity.code,
+          name: facts.accounting.vouEntity.name,
+          field_catalog: facts.accounting.vouEntity.fieldCatalog,
+          enabled: true,
+        })
+        .execute()
+      await transaction
+        .insertInto('dcl_acc_subject_facts')
+        .values(
+          facts.accounting.subjects.map((subject) => ({
+            id: subject.id,
+            book_id: facts.accounting.book.id,
+            code: subject.code,
+            name: subject.name,
+            leaf: subject.leaf,
+            enabled: true,
+            required_dimensions: JSON.stringify(
+              subject.requiredDimensions,
+            ) as unknown as JsonValue,
+          })),
+        )
+        .execute()
+    })
+  }
+
+  async deleteE2EArchiveFacts(facts: TargetE2EArchiveFacts): Promise<void> {
+    await this.db.transaction().execute(async (transaction) => {
+      await transaction
+        .deleteFrom('dcl_acc_subject_facts')
+        .where(
+          'id',
+          'in',
+          facts.accounting.subjects.map((subject) => subject.id),
+        )
+        .execute()
+      await transaction
+        .deleteFrom('dcl_acc_vou_entity_facts')
+        .where('id', '=', facts.accounting.vouEntity.id)
+        .execute()
+      await transaction
+        .deleteFrom('dcl_acc_book_facts')
+        .where('id', '=', facts.accounting.book.id)
+        .execute()
+      await transaction
+        .deleteFrom('aux_objects')
+        .where(
+          'id',
+          'in',
+          facts.auxObjects.map((item) => item.id),
+        )
+        .execute()
+    })
+  }
+
   async deleteE2EPrincipal(
     principal: Pick<TargetE2EPrincipal, 'userId' | 'roleId'>,
   ): Promise<void> {
@@ -307,6 +418,10 @@ export class TargetBootstrapService {
 
   async deleteE2EWarehouseFixtures(createdByUserId: string): Promise<void> {
     await this.db.transaction().execute(async (transaction) => {
+      await transaction
+        .deleteFrom('dcl_customer_attachment_staging')
+        .where('owner_user_id', '=', createdByUserId)
+        .execute()
       const subjects = await transaction
         .selectFrom('dcl_subjects')
         .select('id')
@@ -324,6 +439,10 @@ export class TargetBootstrapService {
         .execute()
       await transaction
         .deleteFrom('dcl_warehouse_idempotency')
+        .where('subject_id', 'in', subjectIds)
+        .execute()
+      await transaction
+        .deleteFrom('dcl_archive_idempotency')
         .where('subject_id', 'in', subjectIds)
         .execute()
       await transaction

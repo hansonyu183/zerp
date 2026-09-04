@@ -33,6 +33,7 @@ services:
       APP_SESSION_COOKIE_NAME: zerp_target_session
       APP_SESSION_COOKIE_SECURE: 'false'
       APP_SESSION_COOKIE_SAME_SITE: lax
+      HTTP_BODY_LIMIT_BYTES: '15728640'
     ports:
       - '127.0.0.1:${TARGET_API_PORT:-18082}:8080'
     depends_on:

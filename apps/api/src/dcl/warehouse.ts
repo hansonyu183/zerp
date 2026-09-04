@@ -180,6 +180,11 @@ function requirePermission(actor: ApprovalActor, permission: string): void {
     throw new WarehouseApplicationError('forbidden')
 }
 
+function requiredWarehouseCode(value: string | null): string {
+  if (!value) throw new WarehouseApplicationError('warehouse_invalid_history')
+  return value
+}
+
 export class WarehouseService {
   private readonly db: Kysely<DB>
 
@@ -485,7 +490,7 @@ export class WarehouseService {
             .select('code')
             .where('id', '=', plan.subjectId)
             .executeTakeFirstOrThrow()
-          code = current.code
+          code = requiredWarehouseCode(current.code)
         }
         await transaction
           .insertInto('approval_entries')
@@ -856,7 +861,7 @@ export class WarehouseService {
     )
     return {
       subjectId: row.subject_id,
-      code: row.code,
+      code: requiredWarehouseCode(row.code),
       submissionId: row.id,
       versionNo: row.version_no,
       status: row.status as ApprovalStatus,

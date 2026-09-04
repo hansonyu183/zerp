@@ -12,6 +12,8 @@ import type { AuxService } from './aux/service.ts'
 import type { BobService } from './bob/service.ts'
 import { noopLogger, type AppLogger } from './platform/logging.ts'
 import type { WarehouseService } from './dcl/warehouse.ts'
+import type { ArchiveService } from './dcl/archives.ts'
+import type { AccMappingCatalogService } from './acc/mapping-catalog.ts'
 
 export interface DatabaseReadiness {
   ping(): Promise<void>
@@ -28,6 +30,8 @@ export interface CreateAppOptions {
   config?: TargetConfig
   logger?: AppLogger
   warehouse?: WarehouseService
+  archives?: ArchiveService
+  accMappingCatalog?: AccMappingCatalogService
   registerRoutes?: (
     router: OpenAPIHono<{ Variables: { requestId: string } }>,
   ) => void
@@ -136,6 +140,8 @@ export function createApp(options: CreateAppOptions = {}) {
       options.session,
       options.config,
       options.warehouse,
+      options.archives,
+      options.accMappingCatalog,
       options.management,
       options.aux,
       options.bob,

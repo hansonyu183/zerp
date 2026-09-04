@@ -58,7 +58,16 @@ export interface AuxQueryInput {
 }
 
 export interface AuxReferenceQueryInput {
-  entity: 'settlement-method' | 'payment-method' | 'dictionary-item'
+  entity:
+    | 'settlement-method'
+    | 'payment-method'
+    | 'dictionary-item'
+    | 'product-type'
+    | 'product-category'
+    | 'employee-category'
+    | 'department'
+    | 'position'
+    | 'measurement-unit'
   keyword?: string
   dictionaryTypeCode?: string
 }
@@ -67,6 +76,9 @@ export interface AuxReferenceCandidate {
   objectId: string
   code: string
   name: string
+  behaviorProfile?:
+    'RAW_MATERIAL' | 'STANDARD_FINISHED' | 'CUSTOM_FINISHED' | 'PACKAGING'
+  quantityScale?: number
 }
 
 export class AuxApplicationError extends Error {
@@ -608,7 +620,17 @@ export class AuxService {
     const { entity } = input
     if (
       !(
-        ['settlement-method', 'payment-method', 'dictionary-item'] as const
+        [
+          'settlement-method',
+          'payment-method',
+          'dictionary-item',
+          'product-type',
+          'product-category',
+          'employee-category',
+          'department',
+          'position',
+          'measurement-unit',
+        ] as const
       ).includes(entity)
     )
       applicationError('validation_failed')
@@ -628,13 +650,24 @@ export class AuxService {
       id: string
       code: string
       name: string
-    }>`SELECT id, code, COALESCE(data->>'name', '') AS name FROM aux_objects WHERE ${sql.join(where, sql` AND `)} ORDER BY COALESCE((data->>'sortOrder')::integer, 2147483647), code, id LIMIT 20`.execute(
+      behavior_profile: AuxReferenceCandidate['behaviorProfile'] | null
+      quantity_scale: number | null
+    }>`SELECT id, code, COALESCE(data->>'name', '') AS name,
+      CASE WHEN entity = 'product-type' THEN data->>'behaviorProfile' END AS behavior_profile,
+      CASE WHEN entity = 'measurement-unit' THEN NULLIF(data->>'quantityScale', '')::integer END AS quantity_scale
+      FROM aux_objects WHERE ${sql.join(where, sql` AND `)} ORDER BY COALESCE((data->>'sortOrder')::integer, 2147483647), code, id LIMIT 20`.execute(
       this.db,
     )
     return result.rows.map((row) => ({
       objectId: row.id,
       code: row.code,
       name: row.name,
+      ...(row.behavior_profile === null
+        ? {}
+        : { behaviorProfile: row.behavior_profile }),
+      ...(row.quantity_scale === null
+        ? {}
+        : { quantityScale: row.quantity_scale }),
     }))
   }
 

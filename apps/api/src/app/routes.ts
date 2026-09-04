@@ -10,6 +10,20 @@ import {
   type WarehouseService,
 } from '../dcl/warehouse.ts'
 import {
+  ArchiveApplicationError,
+  type ArchiveReviewInput,
+  type ArchiveService,
+  type ArchiveSubmitInput,
+} from '../dcl/archives.ts'
+import {
+  archiveQuerySchemas,
+  type ArchiveRouteHandler,
+} from '../dcl/archive-contract.ts'
+import {
+  AccMappingCatalogError,
+  type AccMappingCatalogService,
+} from '../acc/mapping-catalog.ts'
+import {
   registerTargetRoutes,
   targetRouteMetadata,
   type TargetRouteEnvironment,
@@ -62,11 +76,24 @@ function warehouseFailure(requestId: string, error: WarehouseApplicationError) {
   }
 }
 
+function archiveFailure(requestId: string, error: ArchiveApplicationError) {
+  const code: 1002 | 3001 = error.errorKey === 'forbidden' ? 1002 : 3001
+  return {
+    code,
+    errorKey: error.errorKey,
+    message: error.errorKey,
+    data: error.data,
+    requestId,
+  }
+}
+
 export function registerAppRoutes(
   app: OpenAPIHono<TargetRouteEnvironment>,
   service: SessionService,
   config: TargetConfig,
   warehouse?: WarehouseService,
+  archives?: ArchiveService,
+  accMappingCatalog?: AccMappingCatalogService,
   management?: ManagementService,
   aux?: AuxService,
   bob?: BobService,
@@ -104,6 +131,144 @@ export function registerAppRoutes(
       throw error
     }
   }
+  async function executeArchive<T>(
+    context: {
+      req: { header(name: string): string | undefined; path: string }
+    },
+    requestId: string,
+    operation: (actor: { id: string; permissions: string[] }) => Promise<T>,
+  ) {
+    try {
+      if (!archives) throw new Error('DCL archive service is unavailable')
+      const current = await service.authenticate(
+        getCookie(
+          context as Parameters<typeof getCookie>[0],
+          config.sessionCookieName,
+        ),
+        context.req.header('X-CSRF-Token'),
+        true,
+        context.req.path,
+      )
+      return {
+        code: 0 as const,
+        errorKey: '' as const,
+        message: 'ok' as const,
+        data: await operation({
+          id: current.user.id,
+          permissions: current.permissions,
+        }),
+        requestId,
+      }
+    } catch (error) {
+      if (error instanceof SessionError) return sessionFailure(error, requestId)
+      if (error instanceof ArchiveApplicationError)
+        return archiveFailure(requestId, error)
+      throw error
+    }
+  }
+  async function executeAccCatalog<T>(
+    context: {
+      req: { header(name: string): string | undefined; path: string }
+    },
+    requestId: string,
+    operation: (actor: { permissions: string[] }) => Promise<T>,
+  ) {
+    try {
+      if (!accMappingCatalog)
+        throw new Error('ACC mapping catalog service is unavailable')
+      const current = await service.authenticate(
+        getCookie(
+          context as Parameters<typeof getCookie>[0],
+          config.sessionCookieName,
+        ),
+        context.req.header('X-CSRF-Token'),
+        true,
+        context.req.path,
+      )
+      return {
+        code: 0 as const,
+        errorKey: '' as const,
+        message: 'ok' as const,
+        data: await operation({ permissions: current.permissions }),
+        requestId,
+      }
+    } catch (error) {
+      if (error instanceof SessionError) return sessionFailure(error, requestId)
+      if (error instanceof AccMappingCatalogError)
+        return {
+          code:
+            error.errorKey === 'forbidden' ? (1002 as const) : (3001 as const),
+          errorKey: error.errorKey,
+          message: error.errorKey,
+          data: null,
+          requestId,
+        }
+      throw error
+    }
+  }
+  const archiveHandler: ArchiveRouteHandler = async (
+    entity,
+    action,
+    context,
+  ) => {
+    const requestId = currentRequestId(context)
+    const input = context.req.valid('json')
+    const response = await executeArchive(context, requestId, async (actor) => {
+      if (action === 'query') {
+        return archives!.query(
+          entity,
+          archiveQuerySchemas[entity].parse(input),
+          actor,
+        )
+      }
+      if (action === 'get')
+        return archives!.get(
+          entity,
+          (input as { subjectId: string }).subjectId,
+          actor,
+          entity === 'rpt-definition'
+            ? (input as { approvalEntryId?: string }).approvalEntryId
+            : undefined,
+        )
+      if (action === 'versions') {
+        const items = await archives!.versions(
+          entity,
+          (input as { subjectId: string }).subjectId,
+          actor,
+        )
+        return { items, total: items.length }
+      }
+      if (action === 'audit-history')
+        return archives!.auditHistory(
+          entity,
+          (input as { subjectId: string }).subjectId,
+          actor,
+        )
+      if (action === 'submit-new' || action === 'submit-change')
+        return archives!.submit(
+          entity,
+          action,
+          input as ArchiveSubmitInput,
+          actor,
+          requestId,
+        )
+      if (action === 'delete')
+        return archives!.delete(
+          entity,
+          input as ArchiveReviewInput,
+          actor,
+          requestId,
+        )
+      return archives!.review(
+        entity,
+        action,
+        input as ArchiveReviewInput,
+        actor,
+        requestId,
+      )
+    })
+    return context.json(response as never, 200)
+  }
   return registerTargetRoutes(app, {
     independent: createIndependentHandlers({
       session: service,
@@ -112,6 +277,48 @@ export function registerAppRoutes(
       aux,
       bob,
     }),
+    archive: archiveHandler,
+    archiveAttachments: {
+      stage: async (context) =>
+        context.json(
+          (await executeArchive(context, currentRequestId(context), (actor) =>
+            archives!.stageCustomerAttachment(context.req.valid('json'), actor),
+          )) as never,
+          200,
+        ),
+      cleanup: async (context) =>
+        context.json(
+          (await executeArchive(context, currentRequestId(context), (actor) =>
+            archives!.cleanupCustomerAttachments(actor),
+          )) as never,
+          200,
+        ),
+    },
+    accMappingQuery: async (context) =>
+      context.json(
+        (await executeAccCatalog(context, currentRequestId(context), (actor) =>
+          accMappingCatalog!.query(context.req.valid('json'), actor),
+        )) as never,
+        200,
+      ),
+    accMappingGet: async (context) =>
+      context.json(
+        (await executeAccCatalog(context, currentRequestId(context), (actor) =>
+          accMappingCatalog!.get(
+            context.req.valid('json').bookId,
+            context.req.valid('json').vouEntity,
+            actor,
+          ),
+        )) as never,
+        200,
+      ),
+    accMappingCatalog: async (context) =>
+      context.json(
+        (await executeAccCatalog(context, currentRequestId(context), (actor) =>
+          accMappingCatalog!.catalog(actor),
+        )) as never,
+        200,
+      ),
     signin: async (context) => {
       const input = context.req.valid('json')
       try {

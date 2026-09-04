@@ -1,3 +1,8 @@
+import {
+  TargetDraftRepository,
+  type TargetDraftRecord,
+} from './draft-storage.ts'
+
 export interface WarehouseDraftSnapshot {
   name: string
   address: string
@@ -11,7 +16,8 @@ export interface WarehouseDraftSnapshot {
   enabled: boolean
 }
 
-export interface WarehouseDraft {
+export interface WarehouseDraft extends TargetDraftRecord {
+  entity: 'warehouse'
   draftId: string
   ownerUserId: string
   mode: 'NEW' | 'CHANGE'
@@ -22,10 +28,6 @@ export interface WarehouseDraft {
   expectedLatestApprovedRevision: string | null
   snapshot: WarehouseDraftSnapshot
   updatedAt: string
-}
-
-interface StoredDraft extends WarehouseDraft {
-  key: string
 }
 
 const alphabet = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
@@ -43,6 +45,7 @@ export function createWarehouseDraft(
 ): WarehouseDraft {
   const submissionId = createTargetId()
   return {
+    entity: 'warehouse',
     draftId: createTargetId(),
     ownerUserId,
     mode: 'NEW',
@@ -69,88 +72,21 @@ export function createWarehouseDraft(
 }
 
 export class WarehouseDraftRepository {
-  private readonly databaseName: string
+  private readonly drafts: TargetDraftRepository
 
   constructor(databaseName = 'zerp-target-drafts-v1') {
-    this.databaseName = databaseName
+    this.drafts = new TargetDraftRepository(databaseName)
   }
 
-  async list(ownerUserId: string): Promise<WarehouseDraft[]> {
-    const database = await this.open()
-    try {
-      const transaction = database.transaction('warehouse-drafts', 'readonly')
-      const request = transaction
-        .objectStore('warehouse-drafts')
-        .getAll(IDBKeyRange.bound(`${ownerUserId}:`, `${ownerUserId}:\uffff`))
-      const rows = await requestResult<StoredDraft[]>(request)
-      await transactionDone(transaction)
-      return rows
-        .map(({ key: _key, ...draft }) => draft)
-        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
-    } finally {
-      database.close()
-    }
+  list(ownerUserId: string): Promise<WarehouseDraft[]> {
+    return this.drafts.list(ownerUserId, 'warehouse')
   }
 
-  async save(draft: WarehouseDraft): Promise<void> {
-    const database = await this.open()
-    try {
-      const transaction = database.transaction('warehouse-drafts', 'readwrite')
-      const storedDraft: StoredDraft = {
-        ...draft,
-        snapshot: { ...draft.snapshot },
-        key: this.key(draft.ownerUserId, draft.draftId),
-      }
-      transaction.objectStore('warehouse-drafts').put(storedDraft)
-      await transactionDone(transaction)
-    } finally {
-      database.close()
-    }
+  save(draft: WarehouseDraft): Promise<void> {
+    return this.drafts.save(draft)
   }
 
-  async delete(ownerUserId: string, draftId: string): Promise<void> {
-    const database = await this.open()
-    try {
-      const transaction = database.transaction('warehouse-drafts', 'readwrite')
-      transaction
-        .objectStore('warehouse-drafts')
-        .delete(this.key(ownerUserId, draftId))
-      await transactionDone(transaction)
-    } finally {
-      database.close()
-    }
+  delete(ownerUserId: string, draftId: string): Promise<void> {
+    return this.drafts.delete(ownerUserId, 'warehouse', draftId)
   }
-
-  private key(ownerUserId: string, draftId: string): string {
-    return `${ownerUserId}:${draftId}`
-  }
-
-  private open(): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(this.databaseName, 1)
-      request.onupgradeneeded = () => {
-        if (!request.result.objectStoreNames.contains('warehouse-drafts'))
-          request.result.createObjectStore('warehouse-drafts', {
-            keyPath: 'key',
-          })
-      }
-      request.onerror = () => reject(request.error)
-      request.onsuccess = () => resolve(request.result)
-    })
-  }
-}
-
-function requestResult<T>(request: IDBRequest<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    request.onerror = () => reject(request.error)
-    request.onsuccess = () => resolve(request.result)
-  })
-}
-
-function transactionDone(transaction: IDBTransaction): Promise<void> {
-  return new Promise((resolve, reject) => {
-    transaction.oncomplete = () => resolve()
-    transaction.onerror = () => reject(transaction.error)
-    transaction.onabort = () => reject(transaction.error)
-  })
 }

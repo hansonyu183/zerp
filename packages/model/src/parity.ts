@@ -4,6 +4,7 @@ import {
   type ApprovalActor,
   type ApprovalEntry,
 } from './approval.ts'
+import { prepareFundAccountSubmit } from './archives.ts'
 
 const corpusEntry: ApprovalEntry = {
   id: '01JMODELENTRY00000000000000',
@@ -51,5 +52,45 @@ export function runTargetModelCorpus() {
       occurredAt: '2026-09-03T01:00:00.000Z',
       requestId: 'model-corpus-request',
     }),
+    fundAccountSubmit: prepareFundAccountSubmit(
+      {
+        action: 'submit-new',
+        actor: {
+          id: '01JMODELSUBMITTER0000000000',
+          permissions: ['/dcl/fund-account/submit-new'],
+        },
+        requestId: 'model-corpus-fund-account',
+        occurredAt: '2026-09-04T00:00:00.000Z',
+        submissionId: '01JMODELFUNDACCOUNT00000000',
+        idempotencyKey: '01JMODELFUNDACCOUNT00000000',
+        subjectId: '01JMODELFUNDSUBJECT000000000',
+        expectedLatestApprovedSubmissionId: null,
+        expectedLatestApprovedRevision: null,
+        data: {
+          name: ' 基本户 ',
+          currency: ' cny ',
+          accountName: ' ZERP ',
+          bank: ' 示例银行 ',
+          branch: ' 示例支行 ',
+          accountNumber: ' cn-12 34 ',
+          remark: ' ',
+          enabled: true,
+          operatingEntity: {
+            objectId: '01JMODELOPERATINGENTITY00000',
+            approvalEntryId: '01JMODELOPERATINGENTRY000000',
+            code: 'OE-0001',
+            name: ' 示例主体 ',
+          },
+        },
+      },
+      {
+        subject: { exists: false, history: [] },
+        operatingEntity: {
+          objectId: '01JMODELOPERATINGENTITY00000',
+          latestApprovedEntryId: '01JMODELOPERATINGENTRY000000',
+          enabled: true,
+        },
+      },
+    ),
   }
 }

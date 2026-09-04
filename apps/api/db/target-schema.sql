@@ -195,15 +195,27 @@ CREATE TABLE dcl_code_counters (
     entity varchar(64) PRIMARY KEY,
     next_value integer NOT NULL CHECK (next_value BETWEEN 1 AND 9999)
 );
-INSERT INTO dcl_code_counters(entity, next_value) VALUES ('warehouse', 1);
+INSERT INTO dcl_code_counters(entity, next_value) VALUES
+    ('customer', 1),
+    ('supplier', 1),
+    ('other-unit', 1),
+    ('employee', 1),
+    ('sales-partner', 1),
+    ('product', 1),
+    ('warehouse', 1),
+    ('vehicle', 1),
+    ('fund-account', 1),
+    ('operating-entity', 1),
+    ('rpt-definition', 1);
 
 CREATE TABLE dcl_subjects (
     id varchar(26) PRIMARY KEY,
     entity varchar(64) NOT NULL CHECK (entity IN (
         'customer', 'supplier', 'other-unit', 'employee', 'sales-partner',
-        'product', 'warehouse', 'vehicle', 'fund-account', 'operating-entity'
+        'product', 'warehouse', 'vehicle', 'fund-account', 'operating-entity',
+        'acc-mapping', 'rpt-definition'
     )),
-    code varchar(64) NOT NULL CONSTRAINT dcl_subjects_entity_code_ck CHECK (
+    code varchar(64) CONSTRAINT dcl_subjects_entity_code_ck CHECK (
         (entity = 'customer' AND code ~ '^CUS-[0-9]{4}$')
         OR (entity = 'supplier' AND code ~ '^SUP-[0-9]{4}$')
         OR (entity = 'other-unit' AND code ~ '^OTU-[0-9]{4}$')
@@ -214,6 +226,8 @@ CREATE TABLE dcl_subjects (
         OR (entity = 'vehicle' AND code ~ '^VEH-[0-9]{4}$')
         OR (entity = 'fund-account' AND code ~ '^FAC-[0-9]{4}$')
         OR (entity = 'operating-entity' AND code ~ '^OPE-[0-9]{4}$')
+        OR (entity = 'acc-mapping' AND code IS NULL)
+        OR (entity = 'rpt-definition' AND code ~ '^rpt-[0-9]{6}$')
     ),
     created_at timestamptz NOT NULL,
     created_by varchar(26) NOT NULL REFERENCES app_users(id)
@@ -226,7 +240,8 @@ CREATE TABLE approval_entries (
     domain varchar(32) NOT NULL CHECK (domain = 'dcl'),
     entity varchar(64) NOT NULL CHECK (entity IN (
         'customer', 'supplier', 'other-unit', 'employee', 'sales-partner',
-        'product', 'warehouse', 'vehicle', 'fund-account', 'operating-entity'
+        'product', 'warehouse', 'vehicle', 'fund-account', 'operating-entity',
+        'acc-mapping', 'rpt-definition'
     )),
     subject_id varchar(26) NOT NULL REFERENCES dcl_subjects(id) ON DELETE CASCADE,
     version_no integer NOT NULL CHECK (version_no > 0),
@@ -258,7 +273,21 @@ CREATE TABLE dcl_customer_versions (
     kind varchar(32) NOT NULL,
     legal_identifier varchar(128),
     display_name varchar(200) NOT NULL,
+    legal_name varchar(200),
     default_operating_entity_id varchar(26),
+    default_operating_entity_approval_entry_id varchar(26),
+    default_operating_entity_code varchar(64),
+    default_operating_entity_name varchar(200),
+    phone varchar(32),
+    email varchar(320),
+    address varchar(500),
+    invoice_title varchar(200),
+    invoice_address varchar(500),
+    invoice_phone varchar(32),
+    invoice_bank varchar(200),
+    invoice_account varchar(128),
+    remittance_profiles jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(remittance_profiles) = 'array'),
+    tax_attachments jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(tax_attachments) = 'array'),
     enabled boolean NOT NULL
 );
 
@@ -273,10 +302,25 @@ CREATE TABLE dcl_customer_version_subunits (
     customer_approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
     subunit_id varchar(26) NOT NULL REFERENCES dcl_customer_subunit_roots(subunit_id) ON DELETE RESTRICT,
     name varchar(200) NOT NULL,
+    contact_name varchar(100),
+    contact_phone varchar(32),
+    business_address varchar(500),
     customer_type_id varchar(26),
     settlement_method_id varchar(26),
     primary_sales_attribution_type varchar(32),
     primary_sales_attribution_object_id varchar(26),
+    primary_sales_attribution_approval_entry_id varchar(26),
+    primary_sales_attribution_code varchar(64),
+    primary_sales_attribution_name varchar(200),
+    sales_attribution_snapshot jsonb,
+    settlement_snapshot jsonb,
+    payment_snapshot jsonb,
+    transport_snapshot jsonb,
+    pricing_snapshot jsonb,
+    credit_limits jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(credit_limits) = 'array'),
+    internal_reminder varchar(1000),
+    default_order_remark varchar(1000),
+    business_attachments jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(business_attachments) = 'array'),
     enabled boolean NOT NULL,
     PRIMARY KEY (customer_approval_entry_id, subunit_id)
 );
@@ -289,11 +333,24 @@ CREATE TABLE dcl_supplier_versions (
     legal_identifier varchar(128),
     default_operating_entity_id varchar(26),
     default_purchaser_employee_id varchar(26),
+    default_purchaser_approval_entry_id varchar(26),
+    default_purchaser_code varchar(64),
+    default_purchaser_name varchar(200),
+    contact_name varchar(100),
+    contact_phone varchar(32),
+    address varchar(500),
+    remark varchar(1000),
+    default_operating_entity_reference jsonb,
+    settlement_method_snapshot jsonb,
+    default_purchaser_snapshot jsonb,
     enabled boolean NOT NULL
 );
 CREATE TABLE dcl_supplier_version_operating_entities (
     approval_entry_id varchar(26) NOT NULL REFERENCES dcl_supplier_versions(approval_entry_id) ON DELETE CASCADE,
     operating_entity_id varchar(26) NOT NULL,
+    operating_entity_approval_entry_id varchar(26) NOT NULL,
+    operating_entity_code varchar(64) NOT NULL,
+    operating_entity_name varchar(200) NOT NULL,
     PRIMARY KEY (approval_entry_id, operating_entity_id)
 );
 
@@ -304,21 +361,40 @@ CREATE TABLE dcl_other_unit_versions (
     display_name varchar(200) NOT NULL,
     legal_identifier varchar(128),
     default_operating_entity_id varchar(26),
+    contact_name varchar(100),
+    contact_phone varchar(32),
+    address varchar(500),
+    remark varchar(1000),
+    default_operating_entity_reference jsonb,
+    settlement_method_snapshot jsonb,
     enabled boolean NOT NULL
 );
 CREATE TABLE dcl_other_unit_version_operating_entities (
     approval_entry_id varchar(26) NOT NULL REFERENCES dcl_other_unit_versions(approval_entry_id) ON DELETE CASCADE,
     operating_entity_id varchar(26) NOT NULL,
+    operating_entity_approval_entry_id varchar(26) NOT NULL,
+    operating_entity_code varchar(64) NOT NULL,
+    operating_entity_name varchar(200) NOT NULL,
     PRIMARY KEY (approval_entry_id, operating_entity_id)
 );
 
 CREATE TABLE dcl_employee_versions (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     display_name varchar(200) NOT NULL,
+    legal_name varchar(200),
+    legal_identifier varchar(128),
     employee_category_id varchar(26),
     department_id varchar(26),
     position_id varchar(26),
     operating_entity_id varchar(26),
+    operating_entity_approval_entry_id varchar(26),
+    operating_entity_code varchar(64),
+    operating_entity_name varchar(200),
+    work_phone varchar(32),
+    work_email varchar(320),
+    hired_on date,
+    remark varchar(1000),
+    source_snapshots jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(source_snapshots) = 'object'),
     enabled boolean NOT NULL
 );
 
@@ -329,11 +405,20 @@ CREATE TABLE dcl_sales_partner_versions (
     display_name varchar(200) NOT NULL,
     legal_identifier varchar(128),
     default_operating_entity_id varchar(26),
+    capabilities jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(capabilities) = 'array'),
+    contact_name varchar(100),
+    contact_phone varchar(32),
+    address varchar(500),
+    remark varchar(1000),
+    default_operating_entity_reference jsonb,
     enabled boolean NOT NULL
 );
 CREATE TABLE dcl_sales_partner_version_operating_entities (
     approval_entry_id varchar(26) NOT NULL REFERENCES dcl_sales_partner_versions(approval_entry_id) ON DELETE CASCADE,
     operating_entity_id varchar(26) NOT NULL,
+    operating_entity_approval_entry_id varchar(26) NOT NULL,
+    operating_entity_code varchar(64) NOT NULL,
+    operating_entity_name varchar(200) NOT NULL,
     PRIMARY KEY (approval_entry_id, operating_entity_id)
 );
 
@@ -345,6 +430,15 @@ CREATE TABLE dcl_product_versions (
     behavior_profile varchar(32),
     default_input_unit_id varchar(26),
     pricing_unit_id varchar(26),
+    specification varchar(200),
+    model varchar(200),
+    barcode varchar(128),
+    source_snapshots jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(source_snapshots) = 'object'),
+    unit_conversions jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(unit_conversions) = 'array'),
+    default_packaging_snapshot jsonb,
+    recyclable boolean NOT NULL DEFAULT false,
+    fixed_formula jsonb,
+    remark varchar(1000),
     enabled boolean NOT NULL
 );
 
@@ -367,10 +461,22 @@ CREATE TABLE dcl_vehicle_versions (
     name varchar(200) NOT NULL,
     plate_number varchar(64),
     vehicle_type_object_id varchar(26),
+    vehicle_type_snapshot jsonb,
     carrier_affiliation_type varchar(16),
     carrier_operating_entity_id varchar(26),
+    carrier_operating_entity_approval_entry_id varchar(26),
+    carrier_operating_entity_code varchar(64),
+    carrier_operating_entity_name varchar(200),
     carrier_other_unit_object_id varchar(26),
+    carrier_other_unit_approval_entry_id varchar(26),
+    carrier_other_unit_code varchar(64),
+    carrier_other_unit_name varchar(200),
+    carrier_snapshot jsonb,
+    vin varchar(64),
+    engine_number varchar(64),
+    rated_load_micros bigint,
     bulk_liquid_capable boolean NOT NULL DEFAULT false,
+    remark varchar(1000),
     enabled boolean NOT NULL
 );
 
@@ -381,7 +487,13 @@ CREATE TABLE dcl_fund_account_versions (
     account_name varchar(200),
     account_number varchar(128),
     bank_name varchar(200),
+    branch_name varchar(200),
     operating_entity_id varchar(26),
+    operating_entity_approval_entry_id varchar(26),
+    operating_entity_code varchar(64),
+    operating_entity_name varchar(200),
+    operating_entity_snapshot jsonb,
+    remark varchar(1000),
     enabled boolean NOT NULL
 );
 
@@ -389,7 +501,96 @@ CREATE TABLE dcl_operating_entity_versions (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     legal_name varchar(200) NOT NULL,
     legal_identifier varchar(128),
+    registered_address varchar(500) NOT NULL,
+    contact_name varchar(100) NOT NULL,
+    contact_phone varchar(32) NOT NULL,
+    invoice_title varchar(200) NOT NULL,
+    invoice_address varchar(500) NOT NULL,
+    invoice_phone varchar(32) NOT NULL,
+    invoice_bank varchar(200) NOT NULL,
+    invoice_account varchar(128) NOT NULL,
+    remark varchar(1000),
     enabled boolean NOT NULL
+);
+
+CREATE TABLE dcl_acc_mapping_versions (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    book_id varchar(26) NOT NULL,
+    vou_entity_id varchar(26) NOT NULL,
+    book_snapshot jsonb NOT NULL CHECK (jsonb_typeof(book_snapshot) = 'object'),
+    vou_entity_snapshot jsonb NOT NULL CHECK (jsonb_typeof(vou_entity_snapshot) = 'object'),
+    default_result varchar(16) NOT NULL CHECK (default_result IN ('POST', 'UN_POST')),
+    mapping_definition jsonb NOT NULL CHECK (jsonb_typeof(mapping_definition) = 'object')
+);
+
+CREATE TABLE dcl_rpt_definition_versions (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    name varchar(200) NOT NULL,
+    description varchar(1000) NOT NULL,
+    enabled boolean NOT NULL,
+    sql_text text NOT NULL,
+    parameters jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(parameters) = 'array'),
+    columns jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(columns) = 'array')
+);
+
+CREATE TABLE rpt_definition_validities (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    status varchar(16) NOT NULL CHECK (status IN ('VALID', 'INVALID')),
+    diagnostic text,
+    validated_at timestamptz NOT NULL,
+    validated_by varchar(26) NOT NULL REFERENCES app_users(id)
+);
+
+-- ACC owns these typed reference facts in the next cutover slice. DCL only
+-- revalidates them while accepting an ACC mapping definition.
+CREATE TABLE dcl_acc_book_facts (
+    id varchar(26) PRIMARY KEY,
+    code varchar(64) NOT NULL,
+    name varchar(200) NOT NULL,
+    enabled boolean NOT NULL
+);
+
+CREATE TABLE dcl_acc_vou_entity_facts (
+    id varchar(26) PRIMARY KEY,
+    code varchar(64) NOT NULL,
+    name varchar(200) NOT NULL,
+    field_catalog jsonb NOT NULL DEFAULT '{"headerFields":[],"lineFields":[]}'::jsonb
+        CHECK (
+            jsonb_typeof(field_catalog) = 'object'
+            AND field_catalog ? 'headerFields'
+            AND field_catalog ? 'lineFields'
+            AND jsonb_typeof(field_catalog->'headerFields') = 'array'
+            AND jsonb_typeof(field_catalog->'lineFields') = 'array'
+        ),
+    enabled boolean NOT NULL
+);
+
+-- Narrow ACC catalog facts used only to validate a submitted MappingDefinition.
+-- They are not ACC postings, current mappings, or a transactional #365 surface.
+CREATE TABLE dcl_acc_subject_facts (
+    id varchar(26) PRIMARY KEY,
+    book_id varchar(26) NOT NULL REFERENCES dcl_acc_book_facts(id) ON DELETE RESTRICT,
+    code varchar(64) NOT NULL,
+    name varchar(200) NOT NULL,
+    leaf boolean NOT NULL,
+    enabled boolean NOT NULL,
+    required_dimensions jsonb NOT NULL DEFAULT '[]'::jsonb
+        CHECK (jsonb_typeof(required_dimensions) = 'array')
+);
+
+CREATE TABLE dcl_acc_mapping_subject_usages (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    subject_id varchar(26) NOT NULL REFERENCES dcl_acc_subject_facts(id),
+    PRIMARY KEY (approval_entry_id, subject_id)
+);
+
+-- #365-owned VOU/document writers persist exact mapping-version consumption
+-- here. DCL only reads this typed fact before unapproving a mapping version.
+CREATE TABLE dcl_acc_mapping_reference_facts (
+    mapping_approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_type varchar(64) NOT NULL,
+    document_id varchar(64) NOT NULL,
+    PRIMARY KEY (mapping_approval_entry_id, document_type, document_id)
 );
 
 CREATE TABLE approval_events (
@@ -421,6 +622,45 @@ CREATE TABLE dcl_warehouse_idempotency (
     submission_id varchar(26) NOT NULL,
     response jsonb NOT NULL,
     created_at timestamptz NOT NULL
+);
+
+CREATE TABLE dcl_archive_idempotency (
+    entity varchar(64) NOT NULL,
+    idempotency_key varchar(128) NOT NULL,
+    request_hash varchar(64) NOT NULL,
+    subject_id varchar(26) NOT NULL,
+    submission_id varchar(26) NOT NULL,
+    response jsonb NOT NULL,
+    created_at timestamptz NOT NULL,
+    PRIMARY KEY (entity, idempotency_key)
+);
+
+CREATE TABLE dcl_customer_attachment_staging (
+    id varchar(26) PRIMARY KEY,
+    file_id varchar(26) NOT NULL,
+    owner_user_id varchar(26) NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+    file_name varchar(255) NOT NULL,
+    mime_type varchar(128) NOT NULL,
+    size_bytes integer NOT NULL CHECK (size_bytes BETWEEN 1 AND 10485760),
+    digest varchar(64) NOT NULL CHECK (digest ~ '^[0-9a-f]{64}$'),
+    content bytea NOT NULL,
+    created_at timestamptz NOT NULL,
+    expires_at timestamptz NOT NULL,
+    CHECK (octet_length(content) = size_bytes),
+    CHECK (expires_at > created_at)
+);
+
+CREATE TABLE dcl_customer_attachments (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    file_id varchar(26) NOT NULL,
+    file_name varchar(255) NOT NULL,
+    mime_type varchar(128) NOT NULL,
+    size_bytes integer NOT NULL CHECK (size_bytes BETWEEN 1 AND 10485760),
+    digest varchar(64) NOT NULL CHECK (digest ~ '^[0-9a-f]{64}$'),
+    content bytea NOT NULL,
+    created_at timestamptz NOT NULL,
+    CHECK (octet_length(content) = size_bytes),
+    PRIMARY KEY (approval_entry_id, file_id)
 );
 
 CREATE TABLE dcl_warehouse_manager_reference_facts (

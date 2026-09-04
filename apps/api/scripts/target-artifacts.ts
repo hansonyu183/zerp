@@ -6,6 +6,7 @@ import type { Kysely } from 'kysely'
 
 import { createApp } from '../src/app.ts'
 import { targetRouteMetadata } from '../src/app/routes.ts'
+import { archiveCapabilityPermissionMetadata } from '../src/dcl/archive-contract.ts'
 import { SessionService } from '../src/app/session.ts'
 import type { DB } from '../src/db/generated.ts'
 import type { TargetConfig } from '../src/platform/config.ts'
@@ -33,6 +34,10 @@ interface RouteMetadata {
     group: string
     order: number
   }
+}
+interface CapabilityPermissionMetadata {
+  permission: string
+  title: string
 }
 
 function targetConfig(): TargetConfig {
@@ -89,7 +94,7 @@ function executableTargetPaths() {
   return {
     document,
     paths: paths.filter((entry) =>
-      [' /app/', ' /aux/', ' /dcl/', ' /bob/'].some((prefix) =>
+      [' /app/', ' /aux/', ' /dcl/', ' /bob/', ' /acc/'].some((prefix) =>
         entry.includes(prefix),
       ),
     ),
@@ -98,8 +103,22 @@ function executableTargetPaths() {
 
 export function permissionCatalog(
   metadata: readonly RouteMetadata[],
+  capabilities: readonly CapabilityPermissionMetadata[] = [],
 ): TargetPermissionCatalogEntry[] {
-  const permissions = metadata.filter((entry) => entry.permission !== undefined)
+  const permissions = [
+    ...metadata
+      .filter((entry) => entry.permission !== undefined)
+      .map((entry) => ({
+        permission: entry.permission!,
+        title: entry.title ?? entry.menu!.title,
+        menu: entry.menu,
+      })),
+    ...capabilities.map((entry) => ({
+      permission: entry.permission,
+      title: entry.title,
+      menu: undefined,
+    })),
+  ]
   for (const entry of metadata) {
     if (entry.permission === undefined && entry.menu !== undefined)
       throw new Error(
@@ -115,12 +134,12 @@ export function permissionCatalog(
       )
   }
   assertNoDuplicates(
-    permissions.map((entry) => entry.permission!),
+    permissions.map((entry) => entry.permission),
     'permission paths',
   )
   return permissions
     .map((entry) => {
-      const match = entry.permission!.match(
+      const match = entry.permission.match(
         /^\/([a-z0-9-]+)\/([a-z0-9-]+)\/([a-z0-9-]+)$/,
       )
       if (!match)
@@ -128,12 +147,12 @@ export function permissionCatalog(
           `invalid target permission metadata: ${entry.permission}`,
         )
       return {
-        id: `01J${createHash('sha256').update(entry.permission!).digest('hex').slice(0, 23).toUpperCase()}`,
-        path: entry.permission!,
+        id: `01J${createHash('sha256').update(entry.permission).digest('hex').slice(0, 23).toUpperCase()}`,
+        path: entry.permission,
         domain: match[1]!,
         entity: match[2]!,
         action: match[3]!,
-        title: entry.title ?? entry.menu!.title,
+        title: entry.title,
         group: entry.menu?.group ?? null,
         order: entry.menu?.order ?? null,
       }
@@ -143,7 +162,11 @@ export function permissionCatalog(
 
 export async function generateTargetArtifacts(): Promise<void> {
   const { document, paths } = executableTargetPaths()
-  const catalog = validateTargetRouteMetadata(paths, targetRouteMetadata)
+  const catalog = validateTargetRouteMetadata(
+    paths,
+    targetRouteMetadata,
+    archiveCapabilityPermissionMetadata,
+  )
   await mkdir(generatedDirectory, { recursive: true })
   await Promise.all([
     writeFile(
@@ -160,6 +183,7 @@ export async function generateTargetArtifacts(): Promise<void> {
 export function validateTargetRouteMetadata(
   paths: readonly string[],
   source: readonly RouteMetadata[],
+  capabilities: readonly CapabilityPermissionMetadata[] = [],
 ): TargetPermissionCatalogEntry[] {
   const metadata = [...source]
   const metadataPaths = metadata.map((entry) =>
@@ -175,7 +199,7 @@ export function validateTargetRouteMetadata(
       `target route metadata must exactly match executable Hono routes; missing=${missing.join(',') || '-'} extra=${extra.join(',') || '-'}`,
     )
   }
-  return permissionCatalog(metadata)
+  return permissionCatalog(metadata, capabilities)
 }
 
 export async function readTargetPermissionCatalog(): Promise<

@@ -147,63 +147,6 @@ const userPageEnvelope = z.union([
   failureEnvelope,
 ])
 
-const workbenchQuery = z
-  .object({
-    page: z.number().int().min(1),
-    pageSize: z.literal(20),
-    filters: z
-      .object({
-        kind: z.enum(['ARCHIVE', 'DOCUMENT']).optional(),
-        entity: z.string().min(1).max(64).optional(),
-        status: z.enum(['PENDING', 'REJECTED']).optional(),
-        keyword: z.string().min(1).max(200).optional(),
-      })
-      .strict()
-      .optional(),
-  })
-  .strict()
-
-const workbenchPageEnvelope = z.union([
-  z.object({
-    code: z.literal(0),
-    errorKey: z.literal(''),
-    message: z.literal('ok'),
-    data: z.object({
-      items: z.array(z.object({
-        domain: z.enum(['dcl', 'vou']),
-        entity: z.string(),
-        subjectOrDocumentId: z.string(),
-        submissionId: z.string(),
-        code: z.string(),
-        name: z.string(),
-        status: z.enum(['PENDING', 'REJECTED']),
-        revision: z.string(),
-        availableActions: z.array(z.enum(['view', 'edit', 'delete', 'reject', 'approve', 'unreject'])),
-        updatedAt: z.string().datetime(),
-      }).strict()),
-      total: z.number().int().nonnegative(),
-      page: z.number().int().positive(),
-      pageSize: z.literal(20),
-    }).strict(),
-    requestId: z.string(),
-  }),
-  failureEnvelope,
-])
-
-export const queryWorkbenchRoute = createRoute({
-  method: 'post',
-  path: '/app/workbench/query',
-  request: {
-    body: { content: { 'application/json': { schema: workbenchQuery } } },
-  },
-  responses: {
-    200: {
-      description: 'Session-scoped actionable approval submissions',
-      content: { 'application/json': { schema: workbenchPageEnvelope } },
-    },
-  },
-})
-
 export const signinRoute = createRoute({
   method: 'post',
   path: '/app/user/signin',
@@ -740,7 +683,6 @@ export const accMappingCatalogRoute = accMappingRoute(
 export const targetRouteMetadata = [
   { method: signinRoute.method, path: signinRoute.path },
   { method: restoreRoute.method, path: restoreRoute.path },
-  { method: queryWorkbenchRoute.method, path: queryWorkbenchRoute.path },
   {
     method: queryUsersRoute.method,
     path: queryUsersRoute.path,
@@ -801,10 +743,6 @@ export interface TargetRouteHandlers {
   signin: RouteHandler<typeof signinRoute, TargetRouteEnvironment>
   restore: RouteHandler<typeof restoreRoute, TargetRouteEnvironment>
   queryUsers: RouteHandler<typeof queryUsersRoute, TargetRouteEnvironment>
-  queryWorkbench: RouteHandler<
-    typeof queryWorkbenchRoute,
-    TargetRouteEnvironment
-  >
   warehouseQuery: RouteHandler<
     typeof warehouseQueryRoute,
     TargetRouteEnvironment
@@ -876,7 +814,6 @@ export function registerTargetRoutes<
     { route: signinRoute, handler: handlers.signin },
     { route: restoreRoute, handler: handlers.restore },
     { route: queryUsersRoute, handler: handlers.queryUsers },
-    { route: queryWorkbenchRoute, handler: handlers.queryWorkbench },
     { route: warehouseQueryRoute, handler: handlers.warehouseQuery },
     { route: warehouseGetRoute, handler: handlers.warehouseGet },
     { route: warehouseVersionsRoute, handler: handlers.warehouseVersions },

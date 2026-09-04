@@ -56,6 +56,7 @@ import {
   deleteTargetVou,
   actionTargetWflInstance,
   createTargetAccBook,
+  createTargetAccSubject,
   deleteTargetAccBook,
   deleteTargetAccOpening,
   deleteTargetAccSubject,
@@ -241,7 +242,6 @@ interface VouReferenceCandidate {
   name: string
 }
 
-
 const targetErrorPresentation: Readonly<Record<string, string>> = {
   approval_invalid_action: '当前状态不允许此操作。',
   approval_invalid_actor: '当前用户不能执行此操作。',
@@ -395,7 +395,7 @@ const targetWireValuePresentation: Readonly<Record<string, string>> = {
   RETRY_CHILD: '重新提交下游单据',
   CANCEL_CHILD: '取消下游单据',
   'asset-primary': '资产期初',
-  'change': '变更',
+  change: '变更',
   'payment-primary': '付款期初',
   'liability-primary': '负债期初',
   'discount-primary': '贴现期初',
@@ -473,6 +473,9 @@ export function useTargetProbe() {
     ReturnType<typeof getTargetAccMappingCurrent>
   > | null>(null)
   const accBookId = ref('')
+  const accSubjectCode = ref('')
+  const accSubjectName = ref('')
+  const accSubjectDirection = ref<'DEBIT' | 'CREDIT'>('DEBIT')
   const accVouEntity = ref('')
   const targetPath = window.location.pathname
   const accBookPage = ref(targetPath === '/acc/book')
@@ -515,22 +518,35 @@ export function useTargetProbe() {
   const canSaveAccBook = computed(() =>
     canCompleteAction('/acc/book/query', '/acc/book/save'),
   )
-  const canSaveAccSubject = computed(() =>
-    !!accBookId.value &&
-    canCompleteAction(
-      '/acc/book/query',
-      '/acc/subject/query',
-      '/acc/subject/save',
-    ),
+  const canCreateAccSubject = computed(
+    () =>
+      !!accBookId.value &&
+      !!accSubjectCode.value.trim() &&
+      !!accSubjectName.value.trim() &&
+      canCompleteAction(
+        '/acc/book/query',
+        '/acc/subject/query',
+        '/acc/subject/create',
+      ),
   )
-  const canCreateOpeningDraft = computed(() =>
-    !!accBookId.value &&
-    [
-      '/acc/book/query',
-      '/acc/subject/query',
-      '/acc/opening/query',
-      '/acc/opening/submit-new',
-    ].every((permission) => permissions.value.includes(permission)),
+  const canSaveAccSubject = computed(
+    () =>
+      !!accBookId.value &&
+      canCompleteAction(
+        '/acc/book/query',
+        '/acc/subject/query',
+        '/acc/subject/save',
+      ),
+  )
+  const canCreateOpeningDraft = computed(
+    () =>
+      !!accBookId.value &&
+      [
+        '/acc/book/query',
+        '/acc/subject/query',
+        '/acc/opening/query',
+        '/acc/opening/submit-new',
+      ].every((permission) => permissions.value.includes(permission)),
   )
   const canQueryWflDefinitions = computed(() =>
     permissions.value.includes('/dcl/wfl-process-definition/query'),
@@ -561,8 +577,8 @@ export function useTargetProbe() {
         submission.status === 'PENDING' || submission.status === 'REJECTED',
     ),
   )
-  const canSubmitWflDefinitionDraft = computed(
-    () => permissions.value.includes('/dcl/wfl-process-definition/submit-new'),
+  const canSubmitWflDefinitionDraft = computed(() =>
+    permissions.value.includes('/dcl/wfl-process-definition/submit-new'),
   )
   const reason = ref('')
   const signedIn = computed(() => csrfToken.value.length > 0)
@@ -589,7 +605,12 @@ export function useTargetProbe() {
       await loadAccMappingCatalog()
       return
     }
-    if (accBookPage.value || accSubjectPage.value || accOpeningPage.value || accPeriodPage.value) {
+    if (
+      accBookPage.value ||
+      accSubjectPage.value ||
+      accOpeningPage.value ||
+      accPeriodPage.value
+    ) {
       await loadAccBooks()
       if (accBookId.value) await loadAccBookDetail()
       return
@@ -702,11 +723,18 @@ export function useTargetProbe() {
     const mode = parameters.get('mode')
     if (!documentId || (mode !== 'view' && mode !== 'edit')) return
     try {
-      const detail = await getTargetVou(csrfToken.value, vouEntity.value, documentId)
-      if (!isVouSubmissionView(detail)) throw new Error('vou_submission_response_invalid')
+      const detail = await getTargetVou(
+        csrfToken.value,
+        vouEntity.value,
+        documentId,
+      )
+      if (!isVouSubmissionView(detail))
+        throw new Error('vou_submission_response_invalid')
       vouSubmissions.value = [
         detail,
-        ...vouSubmissions.value.filter((item) => item.documentId !== documentId),
+        ...vouSubmissions.value.filter(
+          (item) => item.documentId !== documentId,
+        ),
       ]
       if (mode === 'edit') await cloneVouSubmission(detail)
     } catch (error) {
@@ -722,19 +750,17 @@ export function useTargetProbe() {
     try {
       const results = await Promise.all(
         entities.map(async (candidate) => {
-          const page: unknown = await queryTargetVouReference(
-            csrfToken.value,
-            {
+          const page: unknown = await queryTargetVouReference(csrfToken.value, {
             entity: candidate,
-            },
-          )
+          })
           return [candidate, page] as const
         }),
       )
       for (const [entityName, page] of results)
-        candidates[entityName] = isRecord(page) && Array.isArray(page.items)
-          ? page.items.flatMap((row) => referenceCandidate(entityName, row))
-          : []
+        candidates[entityName] =
+          isRecord(page) && Array.isArray(page.items)
+            ? page.items.flatMap((row) => referenceCandidate(entityName, row))
+            : []
       vouReferenceCandidates.value = candidates
     } catch (error) {
       setError(error, '引用候选查询失败。')
@@ -861,18 +887,16 @@ export function useTargetProbe() {
           continue
         }
         if (field.kind === 'array' && field.item?.length) {
-          const rows = valueAt(
-            draft.payload as Record<string, unknown>,
-            path,
-          )
+          const rows = valueAt(draft.payload as Record<string, unknown>, path)
           if (!Array.isArray(rows)) continue
           for (let index = 0; index < rows.length; index++) {
             const row = rows[index]
-            const variant = field.variants?.find((candidate) =>
-              isRecord(row) &&
-              Object.entries(candidate.discriminators).every(
-                ([key, value]) => row[key] === value,
-              ),
+            const variant = field.variants?.find(
+              (candidate) =>
+                isRecord(row) &&
+                Object.entries(candidate.discriminators).every(
+                  ([key, value]) => row[key] === value,
+                ),
             )
             visit(variant?.fields ?? field.item, [...path, String(index)])
           }
@@ -908,7 +932,7 @@ export function useTargetProbe() {
   function vouInputCandidates(entry: VouInputEntry) {
     const entities = entry.referenceEntity
       ? [entry.referenceEntity]
-      : entry.allowedEntities ?? []
+      : (entry.allowedEntities ?? [])
     return entities.flatMap(
       (entity) => vouReferenceCandidates.value[entity] ?? [],
     )
@@ -931,18 +955,24 @@ export function useTargetProbe() {
     }
     const parent = entry.path.slice(0, -1)
     setValueAt(payload, [...parent, 'objectId'], candidate.objectId)
-    if (
-      entry.referenceKind === 'snapshot'
-    ) {
+    if (entry.referenceKind === 'snapshot') {
       if (candidate.approvalEntryId)
-        setValueAt(payload, [...parent, 'approvalEntryId'], candidate.approvalEntryId)
+        setValueAt(
+          payload,
+          [...parent, 'approvalEntryId'],
+          candidate.approvalEntryId,
+        )
       setValueAt(payload, [...parent, 'entity'], candidate.entity)
       setValueAt(payload, [...parent, 'code'], candidate.code)
       setValueAt(payload, [...parent, 'name'], candidate.name)
       return
     }
     if (entry.referenceKind === 'versioned' && candidate.approvalEntryId) {
-      setValueAt(payload, [...parent, 'approvalEntryId'], candidate.approvalEntryId)
+      setValueAt(
+        payload,
+        [...parent, 'approvalEntryId'],
+        candidate.approvalEntryId,
+      )
       setValueAt(payload, [...parent, 'selectionOrigin'], 'CURRENT')
     }
   }
@@ -997,7 +1027,10 @@ export function useTargetProbe() {
         return field.enumValues?.[0] ?? ''
       case 'object':
         return Object.fromEntries(
-          (field.fields ?? []).map((child) => [child.key, emptyVouInput(child)]),
+          (field.fields ?? []).map((child) => [
+            child.key,
+            emptyVouInput(child),
+          ]),
         )
       case 'array':
         return []
@@ -1013,16 +1046,14 @@ export function useTargetProbe() {
     return String(value ?? '')
   }
 
-  function updateVouInput(
-    draft: VouDraft,
-    entry: VouInputEntry,
-    event: Event,
-  ) {
+  function updateVouInput(draft: VouDraft, entry: VouInputEntry, event: Event) {
     const raw = (event.target as HTMLInputElement).value
     const payload = draft.payload as Record<string, unknown>
     const { field } = entry
-    if (field.kind === 'boolean') setValueAt(payload, entry.path, raw === 'true')
-    else if (field.kind === 'integer') setValueAt(payload, entry.path, Number(raw))
+    if (field.kind === 'boolean')
+      setValueAt(payload, entry.path, raw === 'true')
+    else if (field.kind === 'integer')
+      setValueAt(payload, entry.path, Number(raw))
     else if (field.kind === 'array')
       setValueAt(
         payload,
@@ -1060,10 +1091,7 @@ export function useTargetProbe() {
     const variant = entry.field.variants?.find(
       (candidate) => candidate.id === (event.target as HTMLSelectElement).value,
     )
-    const rows = valueAt(
-      draft.payload as Record<string, unknown>,
-      entry.path,
-    )
+    const rows = valueAt(draft.payload as Record<string, unknown>, entry.path)
     if (!variant || !Array.isArray(rows) || rows.length === 0) return
     rows[0] = Object.fromEntries(
       variant.fields.map((field) => [field.key, emptyVouInput(field)]),
@@ -1150,9 +1178,7 @@ export function useTargetProbe() {
     if (!canQueryAccBooks.value) return
     try {
       const result: unknown = await queryTargetAccBooks(csrfToken.value)
-      accBooks.value = Array.isArray(result)
-        ? result.filter(isAccBookView)
-        : []
+      accBooks.value = Array.isArray(result) ? result.filter(isAccBookView) : []
       if (!accBookId.value && accBooks.value[0])
         accBookId.value = accBooks.value[0].id
     } catch (error) {
@@ -1229,14 +1255,42 @@ export function useTargetProbe() {
   }
 
   async function loadAccSubjects() {
-    if (!accBookId.value || !permissions.value.includes('/acc/subject/query')) return
+    if (!accBookId.value || !permissions.value.includes('/acc/subject/query'))
+      return
     try {
-      const result: unknown = await queryTargetAccSubjects(csrfToken.value, accBookId.value)
+      const result: unknown = await queryTargetAccSubjects(
+        csrfToken.value,
+        accBookId.value,
+      )
       accSubjects.value = Array.isArray(result)
         ? result.filter(isAccSubjectView)
         : []
     } catch (error) {
       setError(error, '会计科目查询失败。')
+    }
+  }
+
+  async function createAccSubject() {
+    if (!canCreateAccSubject.value) return
+    try {
+      await createTargetAccSubject(csrfToken.value, {
+        id: createTargetId(),
+        bookId: accBookId.value,
+        code: accSubjectCode.value.trim(),
+        name: accSubjectName.value.trim(),
+        parentId: null,
+        balanceDirection: accSubjectDirection.value,
+        enabled: true,
+        requiredDimensions: [],
+        inventoryQuantity: false,
+        settlementPurpose: 'NONE',
+      })
+      accSubjectCode.value = ''
+      accSubjectName.value = ''
+      await loadAccSubjects()
+      message.value = '会计科目已创建。'
+    } catch (error) {
+      setError(error, '会计科目创建失败。')
     }
   }
 
@@ -1289,8 +1343,12 @@ export function useTargetProbe() {
 
   async function newOpeningDraft() {
     if (!currentUser.value || !canCreateOpeningDraft.value) return
-    const debit = accSubjects.value.find((subject) => subject.balanceDirection === 'DEBIT')
-    const credit = accSubjects.value.find((subject) => subject.balanceDirection === 'CREDIT')
+    const debit = accSubjects.value.find(
+      (subject) => subject.balanceDirection === 'DEBIT',
+    )
+    const credit = accSubjects.value.find(
+      (subject) => subject.balanceDirection === 'CREDIT',
+    )
     const draft: OpeningDraft = {
       entity: 'acc-opening',
       draftId: createTargetId(),
@@ -1299,8 +1357,28 @@ export function useTargetProbe() {
       bookId: accBookId.value,
       submissionId: createTargetId(),
       lines: [
-        ...(debit ? [{ subjectId: debit.id, currency: 'CNY', direction: 'DEBIT' as const, amount: '100.00', dimensions: {} }] : []),
-        ...(credit ? [{ subjectId: credit.id, currency: 'CNY', direction: 'CREDIT' as const, amount: '100.00', dimensions: {} }] : []),
+        ...(debit
+          ? [
+              {
+                subjectId: debit.id,
+                currency: 'CNY',
+                direction: 'DEBIT' as const,
+                amount: '100.00',
+                dimensions: {},
+              },
+            ]
+          : []),
+        ...(credit
+          ? [
+              {
+                subjectId: credit.id,
+                currency: 'CNY',
+                direction: 'CREDIT' as const,
+                amount: '100.00',
+                dimensions: {},
+              },
+            ]
+          : []),
       ],
       assets: [],
       bills: [],
@@ -1351,7 +1429,8 @@ export function useTargetProbe() {
       const parsed: unknown = JSON.parse(
         (event.target as HTMLTextAreaElement).value,
       )
-      if (!Array.isArray(parsed)) throw new Error('opening_collection_not_array')
+      if (!Array.isArray(parsed))
+        throw new Error('opening_collection_not_array')
       draft[collection] = parsed
       await saveOpeningDraft(draft)
     } catch {
@@ -1368,7 +1447,10 @@ export function useTargetProbe() {
       const parsed: unknown = JSON.parse(
         (event.target as HTMLTextAreaElement).value,
       )
-      if (!isRecord(parsed) || Object.values(parsed).some((value) => typeof value !== 'string'))
+      if (
+        !isRecord(parsed) ||
+        Object.values(parsed).some((value) => typeof value !== 'string')
+      )
         throw new Error('opening_dimensions_not_object')
       line.dimensions = parsed as Record<string, string>
       await saveOpeningDraft(draft)
@@ -1378,8 +1460,10 @@ export function useTargetProbe() {
   }
 
   function openingQuantity(line: OpeningDraft['lines'][number]) {
-    return (line as OpeningDraft['lines'][number] & { quantity?: string })
-      .quantity ?? ''
+    return (
+      (line as OpeningDraft['lines'][number] & { quantity?: string })
+        .quantity ?? ''
+    )
   }
 
   async function updateOpeningQuantity(
@@ -1421,13 +1505,17 @@ export function useTargetProbe() {
   }
 
   async function loadAccOpening() {
-    if (!accBookId.value || !permissions.value.includes('/acc/opening/query')) return
+    if (!accBookId.value || !permissions.value.includes('/acc/opening/query'))
+      return
     try {
       accOpening.value = parseAccOpeningView(
         await queryTargetAccOpening(csrfToken.value, accBookId.value),
       )
     } catch (error) {
-      if (error instanceof TargetApiError && error.errorKey === 'approval_not_found') {
+      if (
+        error instanceof TargetApiError &&
+        error.errorKey === 'approval_not_found'
+      ) {
         accOpening.value = null
         return
       }
@@ -1481,9 +1569,13 @@ export function useTargetProbe() {
   }
 
   async function loadAccPeriods() {
-    if (!accBookId.value || !permissions.value.includes('/acc/period/query')) return
+    if (!accBookId.value || !permissions.value.includes('/acc/period/query'))
+      return
     try {
-      const result: unknown = await queryTargetAccPeriods(csrfToken.value, accBookId.value)
+      const result: unknown = await queryTargetAccPeriods(
+        csrfToken.value,
+        accBookId.value,
+      )
       accPeriods.value = Array.isArray(result)
         ? result.filter(isAccPeriodView)
         : []
@@ -1517,7 +1609,9 @@ export function useTargetProbe() {
 
   async function loadWflDrafts() {
     if (!currentUser.value) return
-    wflDrafts.value = await workflowDraftRepository.listDefinitions(currentUser.value.id)
+    wflDrafts.value = await workflowDraftRepository.listDefinitions(
+      currentUser.value.id,
+    )
   }
 
   async function loadWflDefinitions() {
@@ -1536,11 +1630,17 @@ export function useTargetProbe() {
     const mode = parameters.get('mode')
     if (!subjectId || (mode !== 'view' && mode !== 'edit')) return
     try {
-      const detail: unknown = await getTargetWflDefinition(csrfToken.value, subjectId)
-      if (!isWflDefinitionView(detail)) throw new Error('wfl_definition_response_invalid')
+      const detail: unknown = await getTargetWflDefinition(
+        csrfToken.value,
+        subjectId,
+      )
+      if (!isWflDefinitionView(detail))
+        throw new Error('wfl_definition_response_invalid')
       wflDefinitions.value = [
         detail,
-        ...wflDefinitions.value.filter((item) => item.submissionId !== detail.submissionId),
+        ...wflDefinitions.value.filter(
+          (item) => item.submissionId !== detail.submissionId,
+        ),
       ]
     } catch (error) {
       setError(error, '工作台流程定义深链读取失败。')
@@ -1604,7 +1704,8 @@ export function useTargetProbe() {
         subjectId: draft.subjectId,
         submissionId: draft.submissionId,
         idempotencyKey: draft.submissionId,
-        expectedLatestApprovedSubmissionId: draft.expectedLatestApprovedSubmissionId,
+        expectedLatestApprovedSubmissionId:
+          draft.expectedLatestApprovedSubmissionId,
         expectedLatestApprovedRevision: draft.expectedLatestApprovedRevision,
         script: draft.script,
         trialDocument: draft.trialDocument,
@@ -1617,7 +1718,10 @@ export function useTargetProbe() {
     }
   }
 
-  async function reviewWflDefinition(definition: WflDefinitionView, action: ApprovalAction) {
+  async function reviewWflDefinition(
+    definition: WflDefinitionView,
+    action: ApprovalAction,
+  ) {
     if (!canReviewWflDefinition(definition, action)) return
     const reason = wflReasons.value[definition.submissionId]?.trim() ?? ''
     if ((action === 'reject' || action === 'unapprove') && !reason) {
@@ -1646,9 +1750,13 @@ export function useTargetProbe() {
     return definition.availableApprovalActions.includes(action)
   }
 
-  async function setWflDefinitionEnabled(definition: WflDefinitionView, enabled: boolean) {
+  async function setWflDefinitionEnabled(
+    definition: WflDefinitionView,
+    enabled: boolean,
+  ) {
     const action = enabled ? 'enable' : 'disable'
-    if (!permissions.value.includes(`/dcl/wfl-process-definition/${action}`)) return
+    if (!permissions.value.includes(`/dcl/wfl-process-definition/${action}`))
+      return
     try {
       await setTargetWflDefinitionEnabled(csrfToken.value, action, {
         subjectId: definition.subjectId,
@@ -1667,8 +1775,11 @@ export function useTargetProbe() {
   async function loadWflCurrentDefinitions() {
     if (!permissions.value.includes('/wfl/process-definition/query')) return
     try {
-      const result: unknown = await queryTargetWflCurrentDefinitions(csrfToken.value)
-      const items = isRecord(result) && Array.isArray(result.items) ? result.items : result
+      const result: unknown = await queryTargetWflCurrentDefinitions(
+        csrfToken.value,
+      )
+      const items =
+        isRecord(result) && Array.isArray(result.items) ? result.items : result
       wflCurrentDefinitions.value = Array.isArray(items)
         ? items.filter(isWflCurrentDefinitionView)
         : []
@@ -1691,9 +1802,10 @@ export function useTargetProbe() {
     if (!permissions.value.includes('/wfl/process-instance/query')) return
     try {
       const result: unknown = await queryTargetWflInstances(csrfToken.value)
-      wflInstances.value = isRecord(result) && Array.isArray(result.items)
-        ? result.items.filter(isWflInstanceView)
-        : []
+      wflInstances.value =
+        isRecord(result) && Array.isArray(result.items)
+          ? result.items.filter(isWflInstanceView)
+          : []
     } catch (error) {
       setError(error, '流程实例查询失败。')
     }
@@ -1709,7 +1821,11 @@ export function useTargetProbe() {
     }
   }
 
-  async function actionWflInstance(node: WflInstanceNodeView, action: string, targetNodeKey?: string) {
+  async function actionWflInstance(
+    node: WflInstanceNodeView,
+    action: string,
+    targetNodeKey?: string,
+  ) {
     const instance = wflInstance.value
     if (!instance || !canActionWflInstance(node, action)) return
     const reason = wflReasons.value[node.nodeId]?.trim() ?? ''
@@ -1726,7 +1842,9 @@ export function useTargetProbe() {
           nodeId: node.nodeId,
           action,
           ...(targetNodeKey && { targetNodeKey, requestKey }),
-          ...(node.revision && action !== 'OPEN_DOCUMENT' && action !== 'CREATE_CHILD' && { expectedRevision: node.revision }),
+          ...(node.revision &&
+            action !== 'OPEN_DOCUMENT' &&
+            action !== 'CREATE_CHILD' && { expectedRevision: node.revision }),
           ...(action === 'REJECT_CHILD' && { reason }),
         }),
       )
@@ -1765,7 +1883,10 @@ export function useTargetProbe() {
     if (!subjectId || (mode !== 'view' && mode !== 'edit')) return
     try {
       const detail = await getTargetWarehouse(csrfToken.value, subjectId)
-      warehouses.value = [detail, ...warehouses.value.filter((item) => item.subjectId !== subjectId)]
+      warehouses.value = [
+        detail,
+        ...warehouses.value.filter((item) => item.subjectId !== subjectId),
+      ]
       if (mode === 'edit') await cloneSubmission(detail)
     } catch (error) {
       setError(error, '工作台仓库深链读取失败。')
@@ -1858,16 +1979,26 @@ export function useTargetProbe() {
       if (!deepLink.objectId) {
         archiveQueryKeyword.value = deepLink.code
         await queryArchive(1, false)
-        const subject = archiveSubmissions.value.find((submission) => submission.code === deepLink.code)
+        const subject = archiveSubmissions.value.find(
+          (submission) => submission.code === deepLink.code,
+        )
         if (!subject) throw new Error('archive_deep_link_submission_not_found')
-        await loadArchiveHistory('rpt-definition', subject.subjectId, deepLink.approvalEntryId)
+        await loadArchiveHistory(
+          'rpt-definition',
+          subject.subjectId,
+          deepLink.approvalEntryId,
+        )
         return
       }
       const detail = requiredArchiveSubmission(
         archiveEntity.value,
         await getTargetArchive(
-          csrfToken.value, archiveEntity.value, deepLink.objectId,
-          archiveEntity.value === 'rpt-definition' ? deepLink.approvalEntryId : undefined,
+          csrfToken.value,
+          archiveEntity.value,
+          deepLink.objectId,
+          archiveEntity.value === 'rpt-definition'
+            ? deepLink.approvalEntryId
+            : undefined,
         ),
       )
       archiveHistory.value = { detail, versions: [], audit: [] }
@@ -2584,6 +2715,9 @@ export function useTargetProbe() {
     accMappingPage,
     accMappingCurrent,
     accBookId,
+    accSubjectCode,
+    accSubjectName,
+    accSubjectDirection,
     accVouEntity,
     accBookPage,
     accSubjectPage,
@@ -2612,6 +2746,7 @@ export function useTargetProbe() {
     canQueryAccBooks,
     canCreateAccBook,
     canSaveAccBook,
+    canCreateAccSubject,
     canSaveAccSubject,
     canCreateOpeningDraft,
     canQueryWflDefinitions,
@@ -2623,6 +2758,7 @@ export function useTargetProbe() {
     saveAccBook,
     deleteAccBook,
     selectAccBook,
+    createAccSubject,
     saveAccSubject,
     deleteAccSubject,
     newOpeningDraft,
@@ -2756,8 +2892,12 @@ function referenceCandidate(
   entity: VouReferenceCandidateEntity,
   value: unknown,
 ): VouReferenceCandidate[] {
-  if (!isRecord(value) || typeof value.objectId !== 'string' ||
-    typeof value.code !== 'string' || typeof value.name !== 'string')
+  if (
+    !isRecord(value) ||
+    typeof value.objectId !== 'string' ||
+    typeof value.code !== 'string' ||
+    typeof value.name !== 'string'
+  )
     return []
   return [
     {
@@ -2777,53 +2917,100 @@ function isApprovalStatus(value: unknown): value is ApprovalStatus {
 }
 
 function isApprovalAction(value: unknown): value is ApprovalAction {
-  return value === 'approve' || value === 'reject' || value === 'unreject' || value === 'unapprove'
+  return (
+    value === 'approve' ||
+    value === 'reject' ||
+    value === 'unreject' ||
+    value === 'unapprove'
+  )
 }
 
 function isAccBookView(value: unknown): value is AccBookView {
-  return isRecord(value) && typeof value.id === 'string' && typeof value.code === 'string' &&
-    typeof value.name === 'string' && typeof value.description === 'string' &&
-    typeof value.startMonth === 'string' && typeof value.baseCurrency === 'string' &&
-    typeof value.controlBook === 'boolean' && typeof value.revision === 'string'
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.code === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.description === 'string' &&
+    typeof value.startMonth === 'string' &&
+    typeof value.baseCurrency === 'string' &&
+    typeof value.controlBook === 'boolean' &&
+    typeof value.revision === 'string'
+  )
 }
 
 function isAccSubjectView(value: unknown): value is AccSubjectView {
-  return isRecord(value) && typeof value.id === 'string' && typeof value.bookId === 'string' &&
-    typeof value.code === 'string' && typeof value.name === 'string' &&
-    (value.balanceDirection === 'DEBIT' || value.balanceDirection === 'CREDIT') &&
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.bookId === 'string' &&
+    typeof value.code === 'string' &&
+    typeof value.name === 'string' &&
+    (value.balanceDirection === 'DEBIT' ||
+      value.balanceDirection === 'CREDIT') &&
     typeof value.enabled === 'boolean' &&
     (typeof value.parentId === 'string' || value.parentId === null) &&
-    Array.isArray(value.requiredDimensions) && value.requiredDimensions.every((item) => typeof item === 'string') &&
-    typeof value.inventoryQuantity === 'boolean' && typeof value.settlementPurpose === 'string' &&
+    Array.isArray(value.requiredDimensions) &&
+    value.requiredDimensions.every((item) => typeof item === 'string') &&
+    typeof value.inventoryQuantity === 'boolean' &&
+    typeof value.settlementPurpose === 'string' &&
     typeof value.revision === 'string'
+  )
 }
 
 function isAccPeriodView(value: unknown): value is AccPeriodView {
-  return isRecord(value) && typeof value.bookId === 'string' && typeof value.month === 'string' &&
-    typeof value.locked === 'boolean' && typeof value.revision === 'string'
+  return (
+    isRecord(value) &&
+    typeof value.bookId === 'string' &&
+    typeof value.month === 'string' &&
+    typeof value.locked === 'boolean' &&
+    typeof value.revision === 'string'
+  )
 }
 
 function parseAccOpeningView(value: unknown): AccOpeningView | null {
-  if (!isRecord(value) || typeof value.bookId !== 'string' || typeof value.submissionId !== 'string' ||
-    !isRecord(value.approval) || !isApprovalStatus(value.approval.status) ||
-    typeof value.approval.revision !== 'string' || !isRecord(value.payload) ||
-    !Array.isArray(value.availableApprovalActions)) return null
+  if (
+    !isRecord(value) ||
+    typeof value.bookId !== 'string' ||
+    typeof value.submissionId !== 'string' ||
+    !isRecord(value.approval) ||
+    !isApprovalStatus(value.approval.status) ||
+    typeof value.approval.revision !== 'string' ||
+    !isRecord(value.payload) ||
+    !Array.isArray(value.availableApprovalActions)
+  )
+    return null
   return {
     bookId: value.bookId,
     submissionId: value.submissionId,
-    approval: { status: value.approval.status, revision: value.approval.revision },
+    approval: {
+      status: value.approval.status,
+      revision: value.approval.revision,
+    },
     payload: value.payload as unknown as OpeningDraft,
-    availableApprovalActions: value.availableApprovalActions.filter(isApprovalAction),
+    availableApprovalActions:
+      value.availableApprovalActions.filter(isApprovalAction),
   }
 }
 
 function isWflDefinitionView(value: unknown): value is WflDefinitionView {
-  return isRecord(value) && typeof value.subjectId === 'string' && typeof value.submissionId === 'string' &&
-    typeof value.code === 'string' && typeof value.versionNo === 'number' && isApprovalStatus(value.status) &&
-    typeof value.revision === 'string' && typeof value.script === 'string' && isRecord(value.compiledGraph) &&
-    typeof value.compiledGraph.code === 'string' && typeof value.compiledGraph.name === 'string' &&
-    typeof value.enabled === 'boolean' && (typeof value.runtimeRevision === 'string' || value.runtimeRevision === null) &&
+  return (
+    isRecord(value) &&
+    typeof value.subjectId === 'string' &&
+    typeof value.submissionId === 'string' &&
+    typeof value.code === 'string' &&
+    typeof value.versionNo === 'number' &&
+    isApprovalStatus(value.status) &&
+    typeof value.revision === 'string' &&
+    typeof value.script === 'string' &&
+    isRecord(value.compiledGraph) &&
+    typeof value.compiledGraph.code === 'string' &&
+    typeof value.compiledGraph.name === 'string' &&
+    typeof value.enabled === 'boolean' &&
+    (typeof value.runtimeRevision === 'string' ||
+      value.runtimeRevision === null) &&
     Array.isArray(value.availableApprovalActions)
+  )
 }
 
 function flattenWflDefinitions(value: unknown): WflDefinitionView[] {
@@ -2834,19 +3021,37 @@ function flattenWflDefinitions(value: unknown): WflDefinitionView[] {
   })
 }
 
-function isWflCurrentDefinitionView(value: unknown): value is WflCurrentDefinitionView {
-  return isRecord(value) && typeof value.subjectId === 'string' && typeof value.approvalEntryId === 'string' &&
-    typeof value.code === 'string' && typeof value.name === 'string' && typeof value.enabled === 'boolean' &&
-    isRecord(value.compiledGraph) && typeof value.compiledGraph.code === 'string' && typeof value.compiledGraph.name === 'string'
+function isWflCurrentDefinitionView(
+  value: unknown,
+): value is WflCurrentDefinitionView {
+  return (
+    isRecord(value) &&
+    typeof value.subjectId === 'string' &&
+    typeof value.approvalEntryId === 'string' &&
+    typeof value.code === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.enabled === 'boolean' &&
+    isRecord(value.compiledGraph) &&
+    typeof value.compiledGraph.code === 'string' &&
+    typeof value.compiledGraph.name === 'string'
+  )
 }
 
-function parseWflCurrentDefinitionView(value: unknown): WflCurrentDefinitionView | null {
+function parseWflCurrentDefinitionView(
+  value: unknown,
+): WflCurrentDefinitionView | null {
   return isWflCurrentDefinitionView(value) ? value : null
 }
 
 function isWflInstanceView(value: unknown): value is WflInstanceView {
-  return isRecord(value) && typeof value.processId === 'string' && typeof value.definitionCode === 'string' &&
-    typeof value.definitionName === 'string' && Array.isArray(value.nodes) && Array.isArray(value.availableTargets)
+  return (
+    isRecord(value) &&
+    typeof value.processId === 'string' &&
+    typeof value.definitionCode === 'string' &&
+    typeof value.definitionName === 'string' &&
+    Array.isArray(value.nodes) &&
+    Array.isArray(value.availableTargets)
+  )
 }
 
 function parseWflInstanceView(value: unknown): WflInstanceView | null {
@@ -2923,7 +3128,10 @@ function vouEntityFromLocation(): VouEntity | null {
 }
 
 function createVouDraftPayload(entity: VouEntity): VouDraft['payload'] {
-  return createModelVouDraftPayload(entity, createTargetId) as VouDraft['payload']
+  return createModelVouDraftPayload(
+    entity,
+    createTargetId,
+  ) as VouDraft['payload']
 }
 
 function compactVouDraftPayload(
@@ -2936,7 +3144,8 @@ function compactVouDraftPayload(
       .map((field) => field.key),
   )
   const compact = (value: unknown, depth = 0): unknown => {
-    if (Array.isArray(value)) return value.map((item) => compact(item, depth + 1))
+    if (Array.isArray(value))
+      return value.map((item) => compact(item, depth + 1))
     if (!isRecord(value)) return value
     return Object.fromEntries(
       Object.entries(value).flatMap(([key, nested]) => {
@@ -2981,13 +3190,19 @@ function archiveDeepLinkFromLocation(): {
   mode?: 'view' | 'edit'
 } | null {
   const entity = window.location.pathname.match(/^\/dcl\/([^/]+)\/?$/)?.[1]
-  if (!targetArchiveEntities.includes(entity as TargetArchiveEntity)) return null
+  if (!targetArchiveEntities.includes(entity as TargetArchiveEntity))
+    return null
   const parameters = new URLSearchParams(window.location.search)
   const objectId = parameters.get('objectId')?.trim() ?? ''
   const code = parameters.get('code')?.trim() ?? ''
   const approvalEntryId = parameters.get('approvalEntryId')?.trim() ?? ''
   const mode = parameters.get('mode')
-  if (objectId && code && approvalEntryId && (mode === 'view' || mode === 'edit'))
+  if (
+    objectId &&
+    code &&
+    approvalEntryId &&
+    (mode === 'view' || mode === 'edit')
+  )
     return { objectId, code, approvalEntryId, mode }
   if (entity === 'rpt-definition' && code && approvalEntryId)
     return { code, approvalEntryId }

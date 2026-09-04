@@ -192,11 +192,18 @@ export async function queryTargetVou(csrfToken: string, entity: VouEntity) {
   )
 }
 
-export async function getTargetVou(csrfToken: string, entity: VouEntity, documentId: string) {
+export async function getTargetVou(
+  csrfToken: string,
+  entity: VouEntity,
+  documentId: string,
+) {
   return unwrapTarget(
-    await (await client.vou[':entity'].get.$post(
-      { param: { entity }, json: { documentId } }, csrfHeaders(csrfToken),
-    )).json(),
+    await (
+      await client.vou[':entity'].get.$post(
+        { param: { entity }, json: { documentId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
   )
 }
 
@@ -397,7 +404,12 @@ export async function queryTargetWarehouses(csrfToken: string) {
 
 export async function getTargetWarehouse(csrfToken: string, subjectId: string) {
   return unwrapTarget(
-    await (await client.dcl.warehouse.get.$post({ json: { subjectId } }, csrfHeaders(csrfToken))).json(),
+    await (
+      await client.dcl.warehouse.get.$post(
+        { json: { subjectId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
   )
 }
 
@@ -788,156 +800,345 @@ export async function getTargetAccMappingCurrent(
 // the small, read-only projections it renders.
 export async function queryTargetAccBooks(csrfToken: string) {
   return unwrapTarget(
-    await (await client.acc.book.query.$post({ json: {} }, csrfHeaders(csrfToken))).json(),
+    await (
+      await client.acc.book.query.$post({ json: {} }, csrfHeaders(csrfToken))
+    ).json(),
   )
 }
 
-export async function createTargetAccBook(csrfToken: string, input: PostJson<(typeof client.acc.book.create)['$post']>) {
+export async function createTargetAccBook(
+  csrfToken: string,
+  input: PostJson<(typeof client.acc.book.create)['$post']>,
+) {
   return unwrapTarget(
-    await (await client.acc.book.create.$post({ json: input }, csrfHeaders(csrfToken))).json(),
+    await (
+      await client.acc.book.create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
   )
 }
 
-export async function saveTargetAccBook(csrfToken: string, input: PostJson<(typeof client.acc.book.save)['$post']>) {
+export async function saveTargetAccBook(
+  csrfToken: string,
+  input: PostJson<(typeof client.acc.book.save)['$post']>,
+) {
   return unwrapTarget(
-    await (await client.acc.book.save.$post({ json: input }, csrfHeaders(csrfToken))).json(),
+    await (
+      await client.acc.book.save.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
   )
 }
 
-export async function deleteTargetAccBook(csrfToken: string, input: PostJson<(typeof client.acc.book.delete)['$post']>) {
+export async function deleteTargetAccBook(
+  csrfToken: string,
+  input: PostJson<(typeof client.acc.book.delete)['$post']>,
+) {
   return unwrapTarget(
-    await (await client.acc.book.delete.$post({ json: input }, csrfHeaders(csrfToken))).json(),
+    await (
+      await client.acc.book.delete.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
   )
 }
 
-export async function queryTargetAccSubjects(csrfToken: string, bookId: string) {
+export async function queryTargetAccSubjects(
+  csrfToken: string,
+  bookId: string,
+) {
   return unwrapTarget(
-    await (await client.acc.subject.query.$post({ json: { bookId } }, csrfHeaders(csrfToken))).json(),
+    await (
+      await client.acc.subject.query.$post(
+        { json: { bookId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
   )
 }
 
-export async function saveTargetAccSubject(csrfToken: string, input: PostJson<(typeof client.acc.subject.save)['$post']>) {
+export async function createTargetAccSubject(
+  csrfToken: string,
+  input: PostJson<(typeof client.acc.subject.create)['$post']>,
+) {
   return unwrapTarget(
-    await (await client.acc.subject.save.$post({ json: input }, csrfHeaders(csrfToken))).json(),
+    await (
+      await client.acc.subject.create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
   )
 }
 
-export async function deleteTargetAccSubject(csrfToken: string, input: PostJson<(typeof client.acc.subject.delete)['$post']>) {
+export async function saveTargetAccSubject(
+  csrfToken: string,
+  input: PostJson<(typeof client.acc.subject.save)['$post']>,
+) {
   return unwrapTarget(
-    await (await client.acc.subject.delete.$post({ json: input }, csrfHeaders(csrfToken))).json(),
+    await (
+      await client.acc.subject.save.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function deleteTargetAccSubject(
+  csrfToken: string,
+  input: PostJson<(typeof client.acc.subject.delete)['$post']>,
+) {
+  return unwrapTarget(
+    await (
+      await client.acc.subject.delete.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
   )
 }
 
 export async function queryTargetAccOpening(csrfToken: string, bookId: string) {
   return unwrapTarget(
-    await (await client.acc.opening.query.$post({ json: { bookId } }, csrfHeaders(csrfToken))).json(),
+    await (
+      await client.acc.opening.query.$post(
+        { json: { bookId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
   )
 }
 
-export async function submitTargetAccOpening(csrfToken: string, input: PostJson<(typeof client.acc.opening['submit-new'])['$post']>) {
+export async function submitTargetAccOpening(
+  csrfToken: string,
+  input: PostJson<(typeof client.acc.opening)['submit-new']['$post']>,
+) {
   return unwrapTarget(
-    await (await client.acc.opening['submit-new'].$post({ json: input }, csrfHeaders(csrfToken))).json(),
+    await (
+      await client.acc.opening['submit-new'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
   )
 }
 
-export async function reviewTargetAccOpening(csrfToken: string, action: ApprovalAction, input: Record<string, unknown>) {
+export async function reviewTargetAccOpening(
+  csrfToken: string,
+  action: ApprovalAction,
+  input: Record<string, unknown>,
+) {
   const endpoint = client.acc.opening[action]
   return unwrapTarget(
-    await (await endpoint.$post({ json: input } as never, csrfHeaders(csrfToken))).json(),
+    await (
+      await endpoint.$post({ json: input } as never, csrfHeaders(csrfToken))
+    ).json(),
   )
 }
 
-export async function deleteTargetAccOpening(csrfToken: string, input: PostJson<(typeof client.acc.opening.delete)['$post']>) {
+export async function deleteTargetAccOpening(
+  csrfToken: string,
+  input: PostJson<(typeof client.acc.opening.delete)['$post']>,
+) {
   return unwrapTarget(
-    await (await client.acc.opening.delete.$post({ json: input }, csrfHeaders(csrfToken))).json(),
+    await (
+      await client.acc.opening.delete.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
   )
 }
 
 export async function queryTargetAccPeriods(csrfToken: string, bookId: string) {
   return unwrapTarget(
-    await (await client.acc.period.query.$post({ json: { bookId } }, csrfHeaders(csrfToken))).json(),
+    await (
+      await client.acc.period.query.$post(
+        { json: { bookId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
   )
 }
 
-export async function setTargetAccPeriod(csrfToken: string, action: 'lock' | 'unlock', input: Record<string, unknown>) {
+export async function setTargetAccPeriod(
+  csrfToken: string,
+  action: 'lock' | 'unlock',
+  input: Record<string, unknown>,
+) {
   return unwrapTarget(
-    await (await client.acc.period[action].$post({ json: input } as never, csrfHeaders(csrfToken))).json(),
+    await (
+      await client.acc.period[action].$post(
+        { json: input } as never,
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
   )
 }
 
 export async function queryTargetWflDefinitions(csrfToken: string) {
   return unwrapTarget(
-    await (await client.dcl['wfl-process-definition'].query.$post({ json: {} }, csrfHeaders(csrfToken))).json(),
+    await (
+      await client.dcl['wfl-process-definition'].query.$post(
+        { json: {} },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
   )
 }
 
-export async function getTargetWflDefinition(csrfToken: string, subjectId: string) {
+export async function getTargetWflDefinition(
+  csrfToken: string,
+  subjectId: string,
+) {
   return unwrapTarget(
-    await (await client.dcl['wfl-process-definition'].get.$post({ json: { subjectId } }, csrfHeaders(csrfToken))).json(),
+    await (
+      await client.dcl['wfl-process-definition'].get.$post(
+        { json: { subjectId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
   )
 }
 
-export async function submitTargetWflDefinition(csrfToken: string, mode: 'NEW' | 'CHANGE', input: Record<string, unknown>) {
-  const endpoint = mode === 'NEW'
-    ? client.dcl['wfl-process-definition']['submit-new']
-    : client.dcl['wfl-process-definition']['submit-change']
+export async function submitTargetWflDefinition(
+  csrfToken: string,
+  mode: 'NEW' | 'CHANGE',
+  input: Record<string, unknown>,
+) {
+  const endpoint =
+    mode === 'NEW'
+      ? client.dcl['wfl-process-definition']['submit-new']
+      : client.dcl['wfl-process-definition']['submit-change']
   return unwrapTarget(
-    await (await endpoint.$post({ json: input } as never, csrfHeaders(csrfToken))).json(),
+    await (
+      await endpoint.$post({ json: input } as never, csrfHeaders(csrfToken))
+    ).json(),
   )
 }
 
-export async function reviewTargetWflDefinition(csrfToken: string, action: ApprovalAction, input: Record<string, unknown>) {
+export async function reviewTargetWflDefinition(
+  csrfToken: string,
+  action: ApprovalAction,
+  input: Record<string, unknown>,
+) {
   const endpoint = client.dcl['wfl-process-definition'][action]
   return unwrapTarget(
-    await (await endpoint.$post({ json: input } as never, csrfHeaders(csrfToken))).json(),
+    await (
+      await endpoint.$post({ json: input } as never, csrfHeaders(csrfToken))
+    ).json(),
   )
 }
 
-export async function deleteTargetWflDefinition(csrfToken: string, input: PostJson<(typeof client.dcl)['wfl-process-definition']['delete']['$post']>) {
+export async function deleteTargetWflDefinition(
+  csrfToken: string,
+  input: PostJson<
+    (typeof client.dcl)['wfl-process-definition']['delete']['$post']
+  >,
+) {
   return unwrapTarget(
-    await (await client.dcl['wfl-process-definition'].delete.$post({ json: input }, csrfHeaders(csrfToken))).json(),
+    await (
+      await client.dcl['wfl-process-definition'].delete.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
   )
 }
 
-export async function setTargetWflDefinitionEnabled(csrfToken: string, action: 'enable' | 'disable', input: Record<string, unknown>) {
+export async function setTargetWflDefinitionEnabled(
+  csrfToken: string,
+  action: 'enable' | 'disable',
+  input: Record<string, unknown>,
+) {
   return unwrapTarget(
-    await (await client.dcl['wfl-process-definition'][action].$post({ json: input } as never, csrfHeaders(csrfToken))).json(),
+    await (
+      await client.dcl['wfl-process-definition'][action].$post(
+        { json: input } as never,
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
   )
 }
 
-export async function trialTargetWflDefinition(csrfToken: string, input: Record<string, unknown>) {
+export async function trialTargetWflDefinition(
+  csrfToken: string,
+  input: Record<string, unknown>,
+) {
   return unwrapTarget(
-    await (await client.wfl['process-definition'].trial.$post({ json: input } as never, csrfHeaders(csrfToken))).json(),
+    await (
+      await client.wfl['process-definition'].trial.$post(
+        { json: input } as never,
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
   )
 }
 
 export async function queryTargetWflCurrentDefinitions(csrfToken: string) {
   return unwrapTarget(
-    await (await client.wfl['process-definition'].query.$post({ json: { page: 1, pageSize: 20 } }, csrfHeaders(csrfToken))).json(),
+    await (
+      await client.wfl['process-definition'].query.$post(
+        { json: { page: 1, pageSize: 20 } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
   )
 }
 
-export async function getTargetWflCurrentDefinition(csrfToken: string, code: string) {
+export async function getTargetWflCurrentDefinition(
+  csrfToken: string,
+  code: string,
+) {
   return unwrapTarget(
-    await (await client.wfl['process-definition'].get.$post({ json: { code } }, csrfHeaders(csrfToken))).json(),
+    await (
+      await client.wfl['process-definition'].get.$post(
+        { json: { code } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
   )
 }
 
 export async function queryTargetWflInstances(csrfToken: string) {
   return unwrapTarget(
-    await (await client.wfl['process-instance'].query.$post({ json: { page: 1, pageSize: 20 } }, csrfHeaders(csrfToken))).json(),
+    await (
+      await client.wfl['process-instance'].query.$post(
+        { json: { page: 1, pageSize: 20 } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
   )
 }
 
-export async function getTargetWflInstance(csrfToken: string, processId: string) {
+export async function getTargetWflInstance(
+  csrfToken: string,
+  processId: string,
+) {
   return unwrapTarget(
-    await (await client.wfl['process-instance'].get.$post({ json: { processId } }, csrfHeaders(csrfToken))).json(),
+    await (
+      await client.wfl['process-instance'].get.$post(
+        { json: { processId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
   )
 }
 
-export async function actionTargetWflInstance(csrfToken: string, input: Record<string, unknown>) {
+export async function actionTargetWflInstance(
+  csrfToken: string,
+  input: Record<string, unknown>,
+) {
   return unwrapTarget(
-    await (await client.wfl['process-instance'].action.$post({ json: input } as never, csrfHeaders(csrfToken))).json(),
+    await (
+      await client.wfl['process-instance'].action.$post(
+        { json: input } as never,
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
   )
 }
 

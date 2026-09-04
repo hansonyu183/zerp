@@ -24,11 +24,15 @@ test.afterAll(async () => effectPool.end())
 
 function postsJournal(entity: VouEntity) {
   return vouEntityInputDescriptors[entity].some(
-    (field) => field.kind === 'decimal' || field.kind === 'integer' || (
-      field.kind === 'array' && field.required && field.key !== 'attachments' && field.item?.some(
-        (item) => item.kind === 'decimal' || item.kind === 'integer',
-      )
-    ),
+    (field) =>
+      field.kind === 'decimal' ||
+      field.kind === 'integer' ||
+      (field.kind === 'array' &&
+        field.required &&
+        field.key !== 'attachments' &&
+        field.item?.some(
+          (item) => item.kind === 'decimal' || item.kind === 'integer',
+        )),
   )
 }
 
@@ -38,7 +42,8 @@ async function vouEffectCounts(approvalEntryId: string) {
     journal_lines: string
     registers: string
     containers: string
-  }>(`
+  }>(
+    `
     SELECT
       (SELECT count(*) FROM acc_journal_entries WHERE vou_approval_entry_id = $1)::text AS journals,
       (SELECT count(*) FROM acc_journal_lines line JOIN acc_journal_entries journal ON journal.id = line.journal_entry_id WHERE journal.vou_approval_entry_id = $1)::text AS journal_lines,
@@ -48,7 +53,9 @@ async function vouEffectCounts(approvalEntryId: string) {
         (SELECT count(*) FROM acc_bill_registers WHERE state_vou_approval_entry_id = $1)
       )::text AS registers,
       (SELECT count(*) FROM acc_container_entries WHERE vou_approval_entry_id = $1)::text AS containers
-  `, [approvalEntryId])
+  `,
+    [approvalEntryId],
+  )
   const row = result.rows[0]!
   return {
     journals: Number(row.journals),
@@ -95,7 +102,13 @@ interface AccountingFacts {
 
 interface AccUiFacts {
   book: { id: string; code: string; name: string; startMonth: string }
-  subjects: Array<{ id: string; code: string; name: string; balanceDirection: string; requiredDimensions: string[] }>
+  subjects: Array<{
+    id: string
+    code: string
+    name: string
+    balanceDirection: string
+    requiredDimensions: string[]
+  }>
 }
 
 interface VouReferenceFact {
@@ -173,7 +186,11 @@ function readAccUiFacts(): AccUiFacts {
   const source = process.env.TARGET_E2E_ACC_UI_FACTS_JSON
   if (!source) throw new Error('缺少 TARGET_E2E_ACC_UI_FACTS_JSON')
   const parsed: unknown = JSON.parse(source)
-  if (!isRecord(parsed) || !isRecord(parsed.book) || !Array.isArray(parsed.subjects))
+  if (
+    !isRecord(parsed) ||
+    !isRecord(parsed.book) ||
+    !Array.isArray(parsed.subjects)
+  )
     throw new Error('TARGET_E2E_ACC_UI_FACTS_JSON 无效')
   return {
     book: {
@@ -188,9 +205,14 @@ function readAccUiFacts(): AccUiFacts {
         id: requiredString(item.id, 'ACC UI 科目标识'),
         code: requiredString(item.code, 'ACC UI 科目编码'),
         name: requiredString(item.name, 'ACC UI 科目名称'),
-        balanceDirection: requiredString(item.balanceDirection, 'ACC UI 科目方向'),
+        balanceDirection: requiredString(
+          item.balanceDirection,
+          'ACC UI 科目方向',
+        ),
         requiredDimensions: Array.isArray(item.requiredDimensions)
-          ? item.requiredDimensions.map((value) => requiredString(value, 'ACC UI 科目维度'))
+          ? item.requiredDimensions.map((value) =>
+              requiredString(value, 'ACC UI 科目维度'),
+            )
           : [],
       }
     }),
@@ -208,10 +230,7 @@ function readVouReferenceFacts(): Record<string, VouReferenceFact> {
     return [
       key,
       {
-        entity: requiredString(
-          value.entity,
-          `${key} 实体`,
-        ),
+        entity: requiredString(value.entity, `${key} 实体`),
         objectId: requiredString(value.objectId, `${key} 标识`),
         approvalEntryId: requiredString(
           value.approvalEntryId,
@@ -247,11 +266,18 @@ function readVouAccObjectFacts(): Record<'asset' | 'bill', VouAccObjectFact> {
   }
 }
 
-function readVouSourceFacts(): Record<'saleOrder' | 'purchaseOrder', VouSourceFact> {
+function readVouSourceFacts(): Record<
+  'saleOrder' | 'purchaseOrder',
+  VouSourceFact
+> {
   const source = process.env.TARGET_E2E_VOU_SOURCE_FACTS_JSON
   if (!source) throw new Error('缺少 TARGET_E2E_VOU_SOURCE_FACTS_JSON')
   const parsed: unknown = JSON.parse(source)
-  if (!isRecord(parsed) || !isRecord(parsed.saleOrder) || !isRecord(parsed.purchaseOrder))
+  if (
+    !isRecord(parsed) ||
+    !isRecord(parsed.saleOrder) ||
+    !isRecord(parsed.purchaseOrder)
+  )
     throw new Error('TARGET_E2E_VOU_SOURCE_FACTS_JSON 无效')
   const fact = (value: Record<string, unknown>, label: string) => ({
     documentId: requiredString(value.documentId, `${label}单据标识`),
@@ -650,11 +676,11 @@ function vouReferenceFact(
       ? 'operatingEntity'
       : entity === 'customer-subunit'
         ? 'customerSubunit'
-      : entity === 'fund-account'
-        ? 'fundAccount'
-        : entity === 'other-unit'
-          ? 'otherUnit'
-          : entity
+        : entity === 'fund-account'
+          ? 'fundAccount'
+          : entity === 'other-unit'
+            ? 'otherUnit'
+            : entity
   return (key && facts[key]) || fallbackVouFact(facts)
 }
 
@@ -669,23 +695,28 @@ async function fillCompleteVouDraft(
     const reference = vouReferenceFact(entry, facts)
     if (leaf === 'objectId' || leaf === 'assetId' || leaf === 'billId') {
       const candidates = draft.getByTestId(`${vouInputTestId(entry)}-candidate`)
-      await expect.poll(() => candidates.locator('option').count()).toBeGreaterThan(1)
+      await expect
+        .poll(() => candidates.locator('option').count())
+        .toBeGreaterThan(1)
       await candidates.selectOption({ index: 1 })
       continue
     }
     const control = draft.getByTestId(vouInputTestId(entry))
     if (
       (entry.referenceEntity || entry.allowedEntities?.length) &&
-      ['approvalEntryId', 'selectionOrigin', 'entity', 'code', 'name'].includes(leaf)
-    ) continue
+      ['approvalEntryId', 'selectionOrigin', 'entity', 'code', 'name'].includes(
+        leaf,
+      )
+    )
+      continue
     const value =
       leaf === 'approvalEntryId'
-          ? reference.approvalEntryId
-          : leaf === 'code'
-            ? reference.code
-            : leaf === 'name'
-              ? reference.name
-              : `目标-${entry.path.join('-')}`
+        ? reference.approvalEntryId
+        : leaf === 'code'
+          ? reference.code
+          : leaf === 'name'
+            ? reference.name
+            : `目标-${entry.path.join('-')}`
     if (entry.field.kind === 'enum') {
       if (leaf === 'entity' && entry.field.enumValues?.includes('product'))
         await control.selectOption('product')
@@ -725,8 +756,12 @@ async function fillCompleteVouDraft(
   if (entity === 'purchase-inbound') {
     const source = readVouSourceFacts().purchaseOrder
     await draft.getByTestId('vou-field-parentEntity').fill('purchase-order')
-    await draft.getByTestId('vou-field-parentDocumentId').fill(source.documentId)
-    await draft.getByTestId('vou-field-sourceLines-0-sourceLineId').fill(source.lineId)
+    await draft
+      .getByTestId('vou-field-parentDocumentId')
+      .fill(source.documentId)
+    await draft
+      .getByTestId('vou-field-sourceLines-0-sourceLineId')
+      .fill(source.lineId)
   }
   if (entity === 'sale-signoff')
     await draft.getByTestId('vou-field-expectedSolventContainers').fill('1')
@@ -738,16 +773,20 @@ async function createCompleteVouDraft(
   facts: Record<string, VouReferenceFact>,
   accObjectFacts: Record<'asset' | 'bill', VouAccObjectFact>,
 ) {
-  const accCandidateEntity = entity.startsWith('asset-')
-    && entity !== 'asset-acquisition'
-    ? 'asset'
-    : entity === 'bill-payment' || entity === 'bill-discount' || entity === 'bill-maturity'
-      ? 'bill'
-      : null
+  const accCandidateEntity =
+    entity.startsWith('asset-') && entity !== 'asset-acquisition'
+      ? 'asset'
+      : entity === 'bill-payment' ||
+          entity === 'bill-discount' ||
+          entity === 'bill-maturity'
+        ? 'bill'
+        : null
   const accCandidateResponse = accCandidateEntity
-    ? page.waitForResponse((response) =>
-        new URL(response.url()).pathname === '/vou/reference/query' &&
-        response.request().postDataJSON()?.entity === accCandidateEntity)
+    ? page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === '/vou/reference/query' &&
+          response.request().postDataJSON()?.entity === accCandidateEntity,
+      )
     : null
   await page.goto(`/vou/${entity}`)
   if (accCandidateResponse) {
@@ -806,7 +845,10 @@ test('every user-creatable VOU completes its server-authorized approve to unappr
   ])
   const lifecycleEntities = userCreatableVouEntities
     .filter((candidate) => candidate !== 'service-acceptance')
-    .map((entity, index) => ({ entity, order: consumerFirst.get(entity) ?? 10 + index }))
+    .map((entity, index) => ({
+      entity,
+      order: consumerFirst.get(entity) ?? 10 + index,
+    }))
     .sort((left, right) => left.order - right.order)
     .map(({ entity }) => entity)
   for (const entity of lifecycleEntities) {
@@ -827,10 +869,15 @@ test('every user-creatable VOU completes its server-authorized approve to unappr
     const responseBody = await response.json()
     expect(
       responseBody.code,
-      JSON.stringify({ responseBody, request: response.request().postDataJSON() }),
+      JSON.stringify({
+        responseBody,
+        request: response.request().postDataJSON(),
+      }),
     ).toBe(0)
     await expect(region.getByTestId('vou-local-draft')).toHaveCount(0)
-    await expect(region.getByTestId('vou-submission')).toHaveCount(priorSubmissions + 1)
+    await expect(region.getByTestId('vou-submission')).toHaveCount(
+      priorSubmissions + 1,
+    )
     const submitterSubmission = region
       .getByTestId('vou-submission')
       .filter({ hasText: '待批准' })
@@ -866,12 +913,26 @@ test('every user-creatable VOU completes its server-authorized approve to unappr
     const approvedEffects = await vouEffectCounts(submissionId)
     if (postsJournal(entity)) {
       expect(approvedEffects.journals, `${entity} journal`).toBe(1)
-      expect(approvedEffects.journalLines, `${entity} journal lines`).toBeGreaterThanOrEqual(2)
+      expect(
+        approvedEffects.journalLines,
+        `${entity} journal lines`,
+      ).toBeGreaterThanOrEqual(2)
     } else expect(approvedEffects.journals, `${entity} UN_POST`).toBe(0)
-    if (entity === 'asset-acquisition' || entity === 'asset-sale' || entity === 'asset-liquidation' || entity.startsWith('bill-'))
-      expect(approvedEffects.registers, `${entity} register effect`).toBeGreaterThanOrEqual(1)
+    if (
+      entity === 'asset-acquisition' ||
+      entity === 'asset-sale' ||
+      entity === 'asset-liquidation' ||
+      entity.startsWith('bill-')
+    )
+      expect(
+        approvedEffects.registers,
+        `${entity} register effect`,
+      ).toBeGreaterThanOrEqual(1)
     if (entity === 'sale-signoff')
-      expect(approvedEffects.containers, `${entity} container effect`).toBeGreaterThanOrEqual(1)
+      expect(
+        approvedEffects.containers,
+        `${entity} container effect`,
+      ).toBeGreaterThanOrEqual(1)
     await reviewerSubmission.getByLabel('审批原因').fill('逐类反批准验收')
     const unapprove = reviewerPage.waitForResponse(
       (candidate) =>
@@ -895,7 +956,10 @@ test('every user-creatable VOU completes its server-authorized approve to unappr
     await clickForTargetResponse(
       page,
       `/vou/${entity}/delete`,
-      submitterDeletion.getByRole('button', { name: '删除提交件', exact: true }),
+      submitterDeletion.getByRole('button', {
+        name: '删除提交件',
+        exact: true,
+      }),
     )
     await expect(submitterDeletion).toHaveCount(0)
   }
@@ -932,7 +996,9 @@ test('VOU drafts recover attachments locally, retain them after a failed submit,
   await recoveredFailedDraft
     .getByRole('button', { name: '提交', exact: true })
     .click()
-  expect((await (await failedResponse).json()).errorKey).toBe('validation_failed')
+  expect((await (await failedResponse).json()).errorKey).toBe(
+    'validation_failed',
+  )
   await expect(recoveredFailedDraft).toContainText('本地附件：1')
 
   await page.goto('/vou/sale-pricing')
@@ -993,22 +1059,30 @@ test('VOU drafts recover attachments locally, retain them after a failed submit,
   await expect(reviewerSubmission).toContainText('已批准')
   await reviewerSubmission.getByLabel('审批原因').fill('测试反批准')
   const unapproveAttachment = reviewerPage.waitForResponse(
-    (response) => new URL(response.url()).pathname === '/vou/sale-pricing/unapprove',
+    (response) =>
+      new URL(response.url()).pathname === '/vou/sale-pricing/unapprove',
   )
   await reviewerSubmission
     .getByRole('button', { name: '反批准', exact: true })
     .click()
   const unapproveAttachmentBody = await (await unapproveAttachment).json()
-  expect(unapproveAttachmentBody.code, JSON.stringify(unapproveAttachmentBody)).toBe(0)
+  expect(
+    unapproveAttachmentBody.code,
+    JSON.stringify(unapproveAttachmentBody),
+  ).toBe(0)
   await expect(reviewerSubmission).toContainText('待批准')
 
   await page.goto('/vou/sale-pricing')
-  const deletableSubmission = vouRegion(page)
-    .locator(`[data-vou-submission-id="${attachmentSubmissionId}"]`)
+  const deletableSubmission = vouRegion(page).locator(
+    `[data-vou-submission-id="${attachmentSubmissionId}"]`,
+  )
   await clickForTargetResponse(
     page,
     '/vou/sale-pricing/delete',
-    deletableSubmission.getByRole('button', { name: '删除提交件', exact: true }),
+    deletableSubmission.getByRole('button', {
+      name: '删除提交件',
+      exact: true,
+    }),
   )
   await expect(page.getByRole('status')).toContainText('开放提交件已删除。')
   await expect(deletableSubmission).toHaveCount(0)
@@ -1022,7 +1096,10 @@ test('VOU drafts recover attachments locally, retain them after a failed submit,
   await clickForTargetResponse(
     page,
     '/vou/service-contract/submit-new',
-    serviceContractDraft.draft.getByRole('button', { name: '提交', exact: true }),
+    serviceContractDraft.draft.getByRole('button', {
+      name: '提交',
+      exact: true,
+    }),
   )
   const submittedServiceContract = serviceContractDraft.region
     .getByTestId('vou-submission')
@@ -1090,7 +1167,9 @@ test('VOU drafts recover attachments locally, retain them after a failed submit,
     reviewerAcceptance.getByRole('button', { name: '批准', exact: true }),
   )
   await expect(reviewerAcceptance).toContainText('已批准')
-  const approvedAcceptanceEffects = await vouEffectCounts(acceptanceSubmissionId)
+  const approvedAcceptanceEffects = await vouEffectCounts(
+    acceptanceSubmissionId,
+  )
   if (postsJournal('service-acceptance')) {
     expect(approvedAcceptanceEffects.journals).toBe(1)
     expect(approvedAcceptanceEffects.journalLines).toBeGreaterThanOrEqual(2)
@@ -1118,7 +1197,10 @@ test('VOU drafts recover attachments locally, retain them after a failed submit,
   await clickForTargetResponse(
     page,
     '/vou/service-acceptance/delete',
-    submitterAcceptance.getByRole('button', { name: '删除提交件', exact: true }),
+    submitterAcceptance.getByRole('button', {
+      name: '删除提交件',
+      exact: true,
+    }),
   )
   await reviewerPage.goto('/vou/service-contract')
   const serviceContractForCleanup = vouRegion(reviewerPage).locator(
@@ -1142,7 +1224,10 @@ test('VOU drafts recover attachments locally, retain them after a failed submit,
   await clickForTargetResponse(
     page,
     '/vou/service-contract/delete',
-    submitterServiceContract.getByRole('button', { name: '删除提交件', exact: true }),
+    submitterServiceContract.getByRole('button', {
+      name: '删除提交件',
+      exact: true,
+    }),
   )
   await reviewerContext.close()
   await context.close()
@@ -1175,42 +1260,66 @@ for (const entity of systemGeneratedVouEntities) {
         selectionOrigin: 'CURRENT' as const,
       }
     }
-    const payload = entity === 'sale-signoff'
-      ? {
-          businessDate: '2026-08-01', currency: 'CNY', attachments: [],
-          parentEntity: 'sale-order' as const,
-          parentDocumentId: sources.saleOrder.documentId,
-          customerSubunit: versioned('customerSubunit'),
-          expectedSolventContainers: 1, expectedResinContainers: 0,
-          returnedSolventContainers: 0, returnedResinContainers: 0,
-          signoffLines: [{ sourceLineId: sources.saleOrder.lineId, signedBaseQuantity: '1.00', rejectedBaseQuantity: '0.00' }],
-        }
-      : entity === 'expense-payment'
+    const payload =
+      entity === 'sale-signoff'
         ? {
-            businessDate: '2026-08-01', currency: 'CNY', attachments: [],
-            employee: versioned('employee'), fundAccount: versioned('fundAccount'),
-            handler: versioned('employee'), amount: '1.00',
+            businessDate: '2026-08-01',
+            currency: 'CNY',
+            attachments: [],
+            parentEntity: 'sale-order' as const,
+            parentDocumentId: sources.saleOrder.documentId,
+            customerSubunit: versioned('customerSubunit'),
+            expectedSolventContainers: 1,
+            expectedResinContainers: 0,
+            returnedSolventContainers: 0,
+            returnedResinContainers: 0,
+            signoffLines: [
+              {
+                sourceLineId: sources.saleOrder.lineId,
+                signedBaseQuantity: '1.00',
+                rejectedBaseQuantity: '0.00',
+              },
+            ],
           }
-        : {
-            businessDate: '2026-08-01', currency: 'CNY', attachments: [],
-            sourceLines: [{ sourceLineId: sources.saleOrder.lineId, baseQuantity: '1.00' }],
-          }
-    const response = await page.context().request.post(
-      `${process.env.TARGET_API_BASE_URL}/vou/${entity}/submit-new`,
-      {
-        headers: {
-          'X-ZERP-Model-Build': modelBuildId,
-          'X-CSRF-Token': session.csrfToken,
+        : entity === 'expense-payment'
+          ? {
+              businessDate: '2026-08-01',
+              currency: 'CNY',
+              attachments: [],
+              employee: versioned('employee'),
+              fundAccount: versioned('fundAccount'),
+              handler: versioned('employee'),
+              amount: '1.00',
+            }
+          : {
+              businessDate: '2026-08-01',
+              currency: 'CNY',
+              attachments: [],
+              sourceLines: [
+                {
+                  sourceLineId: sources.saleOrder.lineId,
+                  baseQuantity: '1.00',
+                },
+              ],
+            }
+    const response = await page
+      .context()
+      .request.post(
+        `${process.env.TARGET_API_BASE_URL}/vou/${entity}/submit-new`,
+        {
+          headers: {
+            'X-ZERP-Model-Build': modelBuildId,
+            'X-CSRF-Token': session.csrfToken,
+          },
+          data: {
+            documentId: targetId(),
+            submissionId,
+            idempotencyKey: submissionId,
+            expectedRevision: null,
+            payload,
+          },
         },
-        data: {
-          documentId: targetId(),
-          submissionId,
-          idempotencyKey: submissionId,
-          expectedRevision: null,
-          payload,
-        },
-      },
-    )
+      )
     expect(response.ok()).toBe(true)
     expect((await response.json()).errorKey).toBe('approval_invalid_action')
   })
@@ -1250,7 +1359,7 @@ test('ACC current page is read-only and loads no DCL or warehouse surface', asyn
   expect(unrelatedPosts).toEqual([])
 })
 
-test('ACC book saves and deletes through its target HTTP actions', async ({
+test('ACC book and subject save and delete through their target HTTP actions', async ({
   page,
 }) => {
   await signIn(
@@ -1265,7 +1374,9 @@ test('ACC book saves and deletes through its target HTTP actions', async ({
   )
   await books.getByRole('button', { name: '新建账簿' }).click()
   expect((await (await createBook).json()).code).toBe(0)
-  const createdBook = books.getByTestId('acc-book').filter({ hasText: '本地新账簿' })
+  const createdBook = books
+    .getByTestId('acc-book')
+    .filter({ hasText: '本地新账簿' })
   const bookId = requiredString(
     await createdBook.getAttribute('data-acc-book-id'),
     '新建账簿标识',
@@ -1279,6 +1390,40 @@ test('ACC book saves and deletes through its target HTTP actions', async ({
   expect((await (await saveBook).json()).code).toBe(0)
   await expect(book).toContainText('保存后的目标账簿')
 
+  await book.getByRole('button', { name: '选择账簿' }).click()
+  await page.goto('/acc/subject')
+  const subjects = page.getByRole('region', { name: '会计科目' })
+  await subjects.getByLabel('账簿').selectOption(bookId)
+  await subjects.getByLabel('新科目编码').fill('1999')
+  await subjects.getByLabel('新科目名称').fill('本地借方科目')
+  const createSubject = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === '/acc/subject/create',
+  )
+  await subjects.getByRole('button', { name: '新建科目' }).click()
+  expect((await (await createSubject).json()).code).toBe(0)
+  const createdSubject = subjects
+    .getByTestId('acc-subject')
+    .filter({ hasText: '本地借方科目' })
+  const subjectId = requiredString(
+    await createdSubject.getAttribute('data-acc-subject-id'),
+    '新建科目标识',
+  )
+  const subject = subjects.locator(`[data-acc-subject-id="${subjectId}"]`)
+  await subject.getByLabel('名称').fill('保存后的目标科目')
+  const saveSubject = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === '/acc/subject/save',
+  )
+  await subject.getByRole('button', { name: '保存科目' }).click()
+  expect((await (await saveSubject).json()).code).toBe(0)
+  await expect(subject).toContainText('保存后的目标科目')
+  const deleteSubject = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === '/acc/subject/delete',
+  )
+  await subject.getByRole('button', { name: '删除科目' }).click()
+  expect((await (await deleteSubject).json()).code).toBe(0)
+  await expect(subject).toHaveCount(0)
+
+  await page.goto('/acc/book')
   const savedBook = page
     .getByRole('region', { name: '会计账簿' })
     .getByTestId('acc-book')
@@ -1321,90 +1466,112 @@ test('ACC Opening stays local until submit, then completes approval and period l
   await equity.getByLabel('金额').fill('300.00')
   await draft.getByRole('button', { name: '新增期初明细' }).click()
   await draft.getByRole('button', { name: '新增期初明细' }).click()
-  const assetSubject = facts.subjects.find((subject) => subject.requiredDimensions.length === 0)!
-  const billSubject = facts.subjects.find((subject) => subject.requiredDimensions.includes('BILL'))!
+  const assetSubject = facts.subjects.find(
+    (subject) => subject.requiredDimensions.length === 0,
+  )!
+  const billSubject = facts.subjects.find((subject) =>
+    subject.requiredDimensions.includes('BILL'),
+  )!
   const assetLine = draft.locator('fieldset').nth(2)
   await assetLine.getByLabel('科目').selectOption(assetSubject.id)
   await assetLine.getByLabel('金额').fill('100.00')
-  await assetLine.getByLabel('辅助维度（JSON）').fill(JSON.stringify({ ASSET: openingAssetId }))
+  await assetLine
+    .getByLabel('辅助维度（JSON）')
+    .fill(JSON.stringify({ ASSET: openingAssetId }))
   await assetLine.getByLabel('辅助维度（JSON）').press('Tab')
   const billLine = draft.locator('fieldset').nth(3)
   await billLine.getByLabel('科目').selectOption(billSubject.id)
   await billLine.getByLabel('金额').fill('100.00')
-  await billLine.getByLabel('辅助维度（JSON）').fill(JSON.stringify({ BILL: openingBillId }))
+  await billLine
+    .getByLabel('辅助维度（JSON）')
+    .fill(JSON.stringify({ BILL: openingBillId }))
   await billLine.getByLabel('辅助维度（JSON）').press('Tab')
-  await draft
-    .getByTestId('opening-assets')
-    .fill(JSON.stringify([{
-      assetId: openingAssetId,
-      assetNo: `AST-${openingAssetId.slice(0, 8)}`,
-      name: '目标期初资产',
-      categoryId: assetCategory.id,
-      departmentId: department.id,
-      usefulLifeMonths: 60,
-      residualRate: '0.00',
-      acquiredOn: '2026-08-01',
-      currency: 'CNY',
-      originalValue: '100.00',
-      accumulatedDepreciation: '0.00',
-    }]))
-  await draft.getByTestId('opening-assets').press('Tab')
-  await draft
-    .getByTestId('opening-bills')
-    .fill(JSON.stringify([{
-      billId: openingBillId,
-      billNo: `BIL-${openingBillId.slice(0, 8)}`,
-      billType: 'CHECK',
-      positionType: 'ASSET',
-      medium: 'PAPER',
-      currency: 'CNY',
-      faceAmount: '100.00',
-      issueDate: '2026-08-01',
-      maturityDate: '2026-09-01',
-      drawer: '目标出票人',
-      acceptor: '目标承兑人',
-      payee: '目标收款人',
-      annualRateBps: 0,
-      interestDays: 0,
-      interestAmount: '0.00',
-      customerCostAmount: '0.00',
-      valueAmount: '100.00',
-      originatingCounterparty: {
-        entity: 'supplier',
-        objectId: supplier.objectId,
-        approvalEntryId: supplier.approvalEntryId,
-        code: supplier.code,
-        name: supplier.name,
+  await draft.getByTestId('opening-assets').fill(
+    JSON.stringify([
+      {
+        assetId: openingAssetId,
+        assetNo: `AST-${openingAssetId.slice(0, 8)}`,
+        name: '目标期初资产',
+        categoryId: assetCategory.id,
+        departmentId: department.id,
+        usefulLifeMonths: 60,
+        residualRate: '0.00',
+        acquiredOn: '2026-08-01',
+        currency: 'CNY',
+        originalValue: '100.00',
+        accumulatedDepreciation: '0.00',
       },
-    }]))
+    ]),
+  )
+  await draft.getByTestId('opening-assets').press('Tab')
+  await draft.getByTestId('opening-bills').fill(
+    JSON.stringify([
+      {
+        billId: openingBillId,
+        billNo: `BIL-${openingBillId.slice(0, 8)}`,
+        billType: 'CHECK',
+        positionType: 'ASSET',
+        medium: 'PAPER',
+        currency: 'CNY',
+        faceAmount: '100.00',
+        issueDate: '2026-08-01',
+        maturityDate: '2026-09-01',
+        drawer: '目标出票人',
+        acceptor: '目标承兑人',
+        payee: '目标收款人',
+        annualRateBps: 0,
+        interestDays: 0,
+        interestAmount: '0.00',
+        customerCostAmount: '0.00',
+        valueAmount: '100.00',
+        originatingCounterparty: {
+          entity: 'supplier',
+          objectId: supplier.objectId,
+          approvalEntryId: supplier.approvalEntryId,
+          code: supplier.code,
+          name: supplier.name,
+        },
+      },
+    ]),
+  )
   await draft.getByTestId('opening-bills').press('Tab')
   const customerSubunit = readVouReferenceFacts().customerSubunit!
-  await draft
-    .getByTestId('opening-containers')
-    .fill(JSON.stringify([{
-      subunit: {
-        entity: 'customer-subunit',
-        objectId: customerSubunit.objectId,
-        customerId: readVouReferenceFacts().customer!.objectId,
-        approvalEntryId: customerSubunit.approvalEntryId,
-        code: customerSubunit.code,
-        name: customerSubunit.name,
+  await draft.getByTestId('opening-containers').fill(
+    JSON.stringify([
+      {
+        subunit: {
+          entity: 'customer-subunit',
+          objectId: customerSubunit.objectId,
+          customerId: readVouReferenceFacts().customer!.objectId,
+          approvalEntryId: customerSubunit.approvalEntryId,
+          code: customerSubunit.code,
+          name: customerSubunit.name,
+        },
+        containerType: 'SOLVENT',
+        quantity: 2,
       },
-      containerType: 'SOLVENT',
-      quantity: 2,
-    }]))
+    ]),
+  )
   await draft.getByTestId('opening-containers').press('Tab')
   await draft.getByRole('button', { name: '保存到本机' }).click()
   await submitterPage.reload()
   await opening.getByLabel('账簿').selectOption(facts.book.id)
   await expect(opening.getByTestId('opening-local-draft')).toHaveCount(1)
   const submit = submitterPage.waitForResponse(
-    (response) => new URL(response.url()).pathname === '/acc/opening/submit-new',
+    (response) =>
+      new URL(response.url()).pathname === '/acc/opening/submit-new',
   )
-  await opening.getByTestId('opening-local-draft').getByRole('button', { name: '提交' }).click()
+  await opening
+    .getByTestId('opening-local-draft')
+    .getByRole('button', { name: '提交' })
+    .click()
   const submitted = await submit
   const submittedBody: unknown = await submitted.json()
-  if (!isRecord(submittedBody) || !isRecord(submittedBody.data) || !isRecord(submittedBody.data.payload))
+  if (
+    !isRecord(submittedBody) ||
+    !isRecord(submittedBody.data) ||
+    !isRecord(submittedBody.data.payload)
+  )
     throw new Error('期初提交响应缺少完整 snapshot')
   expect(submittedBody.code).toBe(0)
   expect(submittedBody.data.payload.assets).toHaveLength(1)
@@ -1413,7 +1580,9 @@ test('ACC Opening stays local until submit, then completes approval and period l
   expect(submittedBody.data.payload.bills[0].billId).toBe(openingBillId)
   expect(submittedBody.data.payload.containers).toHaveLength(1)
   await expect(opening.getByTestId('opening-local-draft')).toHaveCount(0)
-  await expect(opening.getByTestId('acc-opening-submission')).toContainText('待批准')
+  await expect(opening.getByTestId('acc-opening-submission')).toContainText(
+    '待批准',
+  )
 
   const reviewerContext = await browser.newContext()
   const reviewerPage = await reviewerContext.newPage()
@@ -1443,15 +1612,21 @@ test('ACC Opening stays local until submit, then completes approval and period l
     '/acc/period/lock',
     period.getByRole('button', { name: '锁定期间', exact: true }),
   )
-  await expect(reviewerPage.getByRole('status')).toContainText('会计期间已锁定。')
-  const locked = period.getByTestId('acc-period').filter({ hasText: facts.book.startMonth })
+  await expect(reviewerPage.getByRole('status')).toContainText(
+    '会计期间已锁定。',
+  )
+  const locked = period
+    .getByTestId('acc-period')
+    .filter({ hasText: facts.book.startMonth })
   await expect(locked).toContainText('已锁定')
   await clickForTargetResponse(
     reviewerPage,
     '/acc/period/unlock',
     locked.getByRole('button', { name: '解锁', exact: true }),
   )
-  await expect(reviewerPage.getByRole('status')).toContainText('会计期间已解锁。')
+  await expect(reviewerPage.getByRole('status')).toContainText(
+    '会计期间已解锁。',
+  )
   await expect(locked).toContainText('未锁定')
   await reviewerContext.close()
   await submitterContext.close()
@@ -1500,7 +1675,10 @@ test('WFL definition stays local until trial and submit, then exposes current de
        WHERE approval_entry_id = $1 ORDER BY line_no LIMIT 1`,
       [rootSubmissionId],
     )
-    const rootLineId = requiredString(rootLine.rows[0]?.line_id, 'WFL 根销售订单行标识')
+    const rootLineId = requiredString(
+      rootLine.rows[0]?.line_id,
+      'WFL 根销售订单行标识',
+    )
 
     await submitterPage.goto('/dcl/wfl-process-definition')
     const definitions = submitterPage.getByRole('region', {
@@ -1512,12 +1690,14 @@ test('WFL definition stays local until trial and submit, then exposes current de
       await draft.getAttribute('data-wfl-submission-id'),
       '流程定义提交件标识',
     )
-    await draft.getByLabel('脚本').fill(
-      `root = node(key="root", name="销售订单", entity="sale-order")\n` +
-      `outbound = node(key="outbound", name="销售出库", entity="sale-outbound")\n` +
-      `delivery = node(key="delivery", name="销售送货", entity="sale-delivery")\n` +
-      `workflow(code="local-flow", name="本地流程", root=root, edges=[edge(source=root, target=outbound, relation="outbound", action=sale_outbound(initial={"businessDate":"2026-09-04","currency":"CNY","attachments":[],"sourceLines":[{"sourceLineId":"${rootLineId}","baseQuantity":"1"}]})), edge(source=outbound, target=delivery, relation="delivery", action=sale_delivery(initial={"businessDate":"2026-09-04","currency":"CNY","attachments":[],"sourceLines":[{"sourceLineId":"${rootLineId}","baseQuantity":"1"}]}))])`,
-    )
+    await draft
+      .getByLabel('脚本')
+      .fill(
+        `root = node(key="root", name="销售订单", entity="sale-order")\n` +
+          `outbound = node(key="outbound", name="销售出库", entity="sale-outbound")\n` +
+          `delivery = node(key="delivery", name="销售送货", entity="sale-delivery")\n` +
+          `workflow(code="local-flow", name="本地流程", root=root, edges=[edge(source=root, target=outbound, relation="outbound", action=sale_outbound(initial={"businessDate":"2026-09-04","currency":"CNY","attachments":[],"sourceLines":[{"sourceLineId":"${rootLineId}","baseQuantity":"1"}]})), edge(source=outbound, target=delivery, relation="delivery", action=sale_delivery(initial={"businessDate":"2026-09-04","currency":"CNY","attachments":[],"sourceLines":[{"sourceLineId":"${rootLineId}","baseQuantity":"1"}]}))])`,
+      )
     await draft.getByLabel('试运行单据标识').fill(rootDocumentId)
     await draft.getByRole('button', { name: '保存到本机' }).click()
     await submitterPage.reload()
@@ -1559,14 +1739,32 @@ test('WFL definition stays local until trial and submit, then exposes current de
       `[data-wfl-submission-id="${definitionSubmissionId}"]`,
     )
     await definition.getByLabel('审批原因').fill('流程定义驳回验证')
-    await clickForTargetResponse(reviewerPage, '/dcl/wfl-process-definition/reject', definition.getByRole('button', { name: '驳回', exact: true }))
+    await clickForTargetResponse(
+      reviewerPage,
+      '/dcl/wfl-process-definition/reject',
+      definition.getByRole('button', { name: '驳回', exact: true }),
+    )
     await expect(definition).toContainText('已驳回')
-    await clickForTargetResponse(reviewerPage, '/dcl/wfl-process-definition/unreject', definition.getByRole('button', { name: '恢复审核', exact: true }))
+    await clickForTargetResponse(
+      reviewerPage,
+      '/dcl/wfl-process-definition/unreject',
+      definition.getByRole('button', { name: '恢复审核', exact: true }),
+    )
     await expect(definition).toContainText('待批准')
-    await clickForTargetResponse(reviewerPage, '/dcl/wfl-process-definition/approve', definition.getByRole('button', { name: '批准', exact: true }))
+    await clickForTargetResponse(
+      reviewerPage,
+      '/dcl/wfl-process-definition/approve',
+      definition.getByRole('button', { name: '批准', exact: true }),
+    )
     await expect(definition).toContainText('已批准')
-    await clickForTargetResponse(reviewerPage, '/dcl/wfl-process-definition/enable', definition.getByRole('button', { name: '启用', exact: true }))
-    await expect(definition.getByRole('button', { name: '停用', exact: true })).toBeVisible()
+    await clickForTargetResponse(
+      reviewerPage,
+      '/dcl/wfl-process-definition/enable',
+      definition.getByRole('button', { name: '启用', exact: true }),
+    )
+    await expect(
+      definition.getByRole('button', { name: '停用', exact: true }),
+    ).toBeVisible()
 
     await reviewerPage.goto('/wfl/process-definition')
     const current = reviewerPage.getByRole('region', { name: '当前流程定义' })
@@ -1590,36 +1788,62 @@ test('WFL definition stays local until trial and submit, then exposes current de
 
     await submitterPage.goto('/wfl/process-instance')
     const instances = submitterPage.getByRole('region', { name: '流程实例' })
-    const instance = instances.getByTestId('wfl-instance').filter({ hasText: '本地流程' })
+    const instance = instances
+      .getByTestId('wfl-instance')
+      .filter({ hasText: '本地流程' })
     await instance.getByRole('button', { name: '查看实例' }).click()
     const detail = instances.getByTestId('wfl-instance-detail')
     const root = detail.locator('fieldset').filter({ hasText: '销售订单' })
-    await clickForTargetResponse(submitterPage, '/wfl/process-instance/action', root.getByRole('button', { name: '打开单据' }))
-    await clickForTargetResponse(submitterPage, '/wfl/process-instance/action', root.getByRole('button', { name: '创建 销售出库' }))
+    await clickForTargetResponse(
+      submitterPage,
+      '/wfl/process-instance/action',
+      root.getByRole('button', { name: '打开单据' }),
+    )
+    await clickForTargetResponse(
+      submitterPage,
+      '/wfl/process-instance/action',
+      root.getByRole('button', { name: '创建 销售出库' }),
+    )
 
     await reviewerPage.goto('/wfl/process-instance')
-    const reviewerInstances = reviewerPage.getByRole('region', { name: '流程实例' })
+    const reviewerInstances = reviewerPage.getByRole('region', {
+      name: '流程实例',
+    })
     await reviewerInstances
       .getByTestId('wfl-instance')
       .filter({ hasText: '本地流程' })
       .getByRole('button', { name: '查看实例' })
       .click()
     let reviewerDetail = reviewerInstances.getByTestId('wfl-instance-detail')
-    let outbound = reviewerDetail.locator('fieldset').filter({ hasText: '销售出库' })
-    await clickForTargetResponse(reviewerPage, '/wfl/process-instance/action', outbound.getByRole('button', { name: '批准下游单据' }))
+    let outbound = reviewerDetail
+      .locator('fieldset')
+      .filter({ hasText: '销售出库' })
+    await clickForTargetResponse(
+      reviewerPage,
+      '/wfl/process-instance/action',
+      outbound.getByRole('button', { name: '批准下游单据' }),
+    )
 
     await submitterPage.goto('/wfl/process-instance')
-    const submitterInstances = submitterPage.getByRole('region', { name: '流程实例' })
+    const submitterInstances = submitterPage.getByRole('region', {
+      name: '流程实例',
+    })
     await submitterInstances
       .getByTestId('wfl-instance')
       .filter({ hasText: '本地流程' })
       .getByRole('button', { name: '查看实例' })
       .click()
-    const submitterDetail = submitterInstances.getByTestId('wfl-instance-detail')
+    const submitterDetail = submitterInstances.getByTestId(
+      'wfl-instance-detail',
+    )
     const approvedOutbound = submitterDetail
       .locator('fieldset')
       .filter({ hasText: '销售出库' })
-    await clickForTargetResponse(submitterPage, '/wfl/process-instance/action', approvedOutbound.getByRole('button', { name: '创建 销售送货' }))
+    await clickForTargetResponse(
+      submitterPage,
+      '/wfl/process-instance/action',
+      approvedOutbound.getByRole('button', { name: '创建 销售送货' }),
+    )
 
     await reviewerPage.goto('/wfl/process-instance')
     await reviewerInstances
@@ -1628,14 +1852,32 @@ test('WFL definition stays local until trial and submit, then exposes current de
       .getByRole('button', { name: '查看实例' })
       .click()
     reviewerDetail = reviewerInstances.getByTestId('wfl-instance-detail')
-    let delivery = reviewerDetail.locator('fieldset').filter({ hasText: '销售送货' })
+    let delivery = reviewerDetail
+      .locator('fieldset')
+      .filter({ hasText: '销售送货' })
     await delivery.getByLabel('原因').fill('流程节点驳回验证')
-    await clickForTargetResponse(reviewerPage, '/wfl/process-instance/action', delivery.getByRole('button', { name: '驳回下游单据' }))
-    delivery = reviewerDetail.locator('fieldset').filter({ hasText: '销售送货' })
-    await clickForTargetResponse(reviewerPage, '/wfl/process-instance/action', delivery.getByRole('button', { name: '重新提交下游单据' }))
-    delivery = reviewerDetail.locator('fieldset').filter({ hasText: '销售送货' })
+    await clickForTargetResponse(
+      reviewerPage,
+      '/wfl/process-instance/action',
+      delivery.getByRole('button', { name: '驳回下游单据' }),
+    )
+    delivery = reviewerDetail
+      .locator('fieldset')
+      .filter({ hasText: '销售送货' })
+    await clickForTargetResponse(
+      reviewerPage,
+      '/wfl/process-instance/action',
+      delivery.getByRole('button', { name: '重新提交下游单据' }),
+    )
+    delivery = reviewerDetail
+      .locator('fieldset')
+      .filter({ hasText: '销售送货' })
     await delivery.getByLabel('原因').fill('流程节点取消验证')
-    await clickForTargetResponse(reviewerPage, '/wfl/process-instance/action', delivery.getByRole('button', { name: '驳回下游单据' }))
+    await clickForTargetResponse(
+      reviewerPage,
+      '/wfl/process-instance/action',
+      delivery.getByRole('button', { name: '驳回下游单据' }),
+    )
 
     await submitterPage.goto('/wfl/process-instance')
     await submitterInstances
@@ -1647,7 +1889,11 @@ test('WFL definition stays local until trial and submit, then exposes current de
       .getByTestId('wfl-instance-detail')
       .locator('fieldset')
       .filter({ hasText: '销售送货' })
-    await clickForTargetResponse(submitterPage, '/wfl/process-instance/action', cancelDelivery.getByRole('button', { name: '取消下游单据' }))
+    await clickForTargetResponse(
+      submitterPage,
+      '/wfl/process-instance/action',
+      cancelDelivery.getByRole('button', { name: '取消下游单据' }),
+    )
   } finally {
     await Promise.allSettled([
       reviewerContext.close(),
@@ -2128,7 +2374,9 @@ test('each supported archive submits through the browser and is read back by the
     )
     for (const targetPage of [submitterPage, reviewerPage]) {
       const mappingRegion = await selectArchiveEntity(targetPage, 'acc-mapping')
-      await mappingRegion.getByLabel('账簿筛选').selectOption(accountingFacts.book.id)
+      await mappingRegion
+        .getByLabel('账簿筛选')
+        .selectOption(accountingFacts.book.id)
       await mappingRegion
         .getByLabel('凭证类型筛选')
         .selectOption(accountingFacts.vouEntity.code)

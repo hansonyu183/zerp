@@ -60,7 +60,6 @@ test('isolated target schema contains every target typed aggregate', async () =>
     'dcl_archive_idempotency',
     'dcl_customer_attachment_staging',
     'dcl_customer_attachments',
-    'dcl_warehouse_manager_reference_facts',
     'dcl_warehouse_reference_facts',
     'dcl_warehouse_usage_facts',
     'acc_books',

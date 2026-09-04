@@ -20,8 +20,6 @@
     "generate:check": "pnpm generate && git diff --exit-code -- src/generated",
     "check:catalog": "node scripts/check-target-catalog.ts",
     "validate:rpt": "node scripts/validate-rpt-definitions.ts",
-    "cutover:inventory": "node scripts/cutover-inventory.ts inventory",
-    "cutover:transform": "node scripts/cutover-transform.ts",
     "sync:catalog": "node scripts/sync-target-catalog.ts",
     "e2e": "node scripts/run-target-e2e.ts"
   },

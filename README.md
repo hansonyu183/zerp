@@ -82,8 +82,6 @@ ZERP 前端仅通过 Cloudflare Pages 部署。API 基址、Origin、Cookie、�
 
 生产形态 Compose 在数据库健康后先运行一次 `zerp-rpt-validate-published`，只有全部启用 definition 的 latest `APPROVED + VALID` 版本均通过当前数据库基线校验后才启动 API。需要独立预检时，使用 `make -C backend rpt-validate-published`；任一无法通过校验的 definition 会返回非零状态并输出其 stable code、definition ID 与 Approval Entry ID。
 
-#366 的生产冻结、配对快照、一次性转换、验收与完整回滚顺序见 [架构总切换运行手册](docs/operations/issue-366-cutover-runbook.md)。该流程在只读 inventory 仍报告服务端 Draft 或未映射非空业务表时必须停止，不得进入 destructive transform。
-
 ## 文档
 
 版本化申报统一从 DCL 写入：DCL subject 保存 stable ID、code 与创建审计，中央 Approval 只提供版本头、状态与审计；BOB 只读 typed latest-approved snapshot，RPT 只拥有有效性、执行与运行审计，WFL 保留既有 current 开关，AUX 使用无审批的 Stable-ID Direct CRUD；权威边界见 [ADR-0047](docs/adr/0047-dcl-subject-is-the-stable-identity-authority.md)。

@@ -208,7 +208,11 @@ export class AttachmentStore {
       const storageKey = key.join('/')
       if (!referencedKeys.has(storageKey)) {
         const stat = await lstat(path)
-        if (Date.now() - stat.mtimeMs < this.orphanGraceMs) continue
+        if (
+          this.orphanGraceMs > 0 &&
+          Date.now() - stat.mtimeMs < this.orphanGraceMs
+        )
+          continue
         await rm(path, { force: true })
         deleted += 1
       }

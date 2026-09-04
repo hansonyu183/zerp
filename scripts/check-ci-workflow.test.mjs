@@ -61,6 +61,10 @@ test('CI exposes independently diagnosable jobs through repository commands', as
       ],
     ],
     ['frontend', ['pnpm contracts:bundle', 'make check-frontend']],
+    [
+      'target-foundation',
+      ['TARGET_POSTGRES_PASSWORD=zerp-target-ci make target-e2e'],
+    ],
     ['shell', ['make check-shell']],
     ['e2e', ['make e2e']],
   ])
@@ -77,6 +81,16 @@ test('CI exposes independently diagnosable jobs through repository commands', as
   assert.match(
     jobBlock(workflow, 'backend-unit'),
     /^    env:\n      BACKEND_ENV: \.env\.example$/m,
+  )
+  const targetFoundation = jobBlock(workflow, 'target-foundation')
+  assert.match(
+    targetFoundation,
+    /^          go-version-file: backend\/go\.mod$/m,
+  )
+  assert.match(targetFoundation, /^            backend\/go\.sum$/m)
+  assert.match(
+    targetFoundation,
+    /^            packages\/wfl-starlark\/go\/go\.sum$/m,
   )
 })
 
@@ -96,11 +110,16 @@ test('the workflow contract is a local gate and disposable resources are always 
   )
   assert.match(makefile, /^check-ci-workflow:\n\tpnpm check:ci-workflow$/m)
 
-  for (const jobId of ['backend-integration', 'e2e']) {
+  const cleanupCommands = new Map([
+    ['backend-integration', 'down --volumes --remove-orphans'],
+    ['target-foundation', 'make target-down'],
+    ['e2e', 'down --volumes --remove-orphans'],
+  ])
+  for (const [jobId, cleanupCommand] of cleanupCommands) {
     const block = jobBlock(workflow, jobId)
     assert.match(block, /^        if: always\(\)$/m)
     assert.ok(
-      block.includes('down --volumes --remove-orphans'),
+      block.includes(cleanupCommand),
       `${jobId} must always remove disposable resources`,
     )
   }

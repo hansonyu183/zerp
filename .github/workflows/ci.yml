@@ -166,8 +166,10 @@ jobs:
           cache: pnpm
       - uses: actions/setup-go@v6
         with:
-          go-version-file: packages/wfl-starlark/go/go.mod
-          cache-dependency-path: packages/wfl-starlark/go/go.sum
+          go-version-file: backend/go.mod
+          cache-dependency-path: |
+            backend/go.sum
+            packages/wfl-starlark/go/go.sum
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @zerp/frontend exec playwright install --with-deps chromium
       - run: TARGET_POSTGRES_PASSWORD=zerp-target-ci make target-e2e

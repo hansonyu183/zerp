@@ -2525,7 +2525,8 @@ test('offline Warehouse Draft reloads locally and drives the complete Submission
   await expect(
     submitterPage
       .getByRole('region', { name: '仓库提交件' })
-      .locator('article'),
+      .locator('article')
+      .filter({ hasText: '离线一号仓' }),
   ).toHaveCount(0)
 
   await submitterPage

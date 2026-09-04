@@ -10,6 +10,7 @@ import { ulid } from 'ulid'
 import { createApp } from '../../src/app.ts'
 import { SessionService } from '../../src/app/session.ts'
 import { createDatabase } from '../../src/db/database.ts'
+import { ArchiveService } from '../../src/dcl/archives.ts'
 import { WarehouseService } from '../../src/dcl/warehouse.ts'
 import { loadConfig } from '../../src/platform/config.ts'
 
@@ -42,6 +43,7 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
   const reviewerRoleId = ulid()
   const managerEmployeeId = ulid()
   const managerApprovalEntryId = ulid()
+  const previousManagerApprovalEntryId = ulid()
   const submitterUsername = `warehouse-submitter-${randomBytes(5).toString('hex')}`
   const reviewerUsername = `warehouse-reviewer-${randomBytes(5).toString('hex')}`
   const submitterPassword = randomBytes(18).toString('base64url')
@@ -51,10 +53,6 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
     try {
       await db.deleteFrom('dcl_warehouse_reference_facts').execute()
       await db.deleteFrom('dcl_warehouse_usage_facts').execute()
-      await db
-        .deleteFrom('dcl_warehouse_manager_reference_facts')
-        .where('employee_id', '=', managerEmployeeId)
-        .execute()
       await db.deleteFrom('dcl_warehouse_idempotency').execute()
       await db
         .deleteFrom('approval_events')
@@ -162,6 +160,101 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
     ])
     .execute()
 
+  await db
+    .insertInto('dcl_subjects')
+    .values({
+      id: managerEmployeeId,
+      entity: 'employee',
+      code: 'EMP-0001',
+      created_at: new Date(),
+      created_by: submitterId,
+    })
+    .execute()
+  await db
+    .insertInto('approval_entries')
+    .values([
+      {
+        id: previousManagerApprovalEntryId,
+        domain: 'dcl',
+        entity: 'employee',
+        subject_id: managerEmployeeId,
+        version_no: 1,
+        status: 'APPROVED',
+        revision: '1',
+        submitted_by: submitterId,
+        submitted_at: new Date(),
+        approved_by: reviewerId,
+        approved_at: new Date(),
+        rejected_by: null,
+        rejected_at: null,
+        rejection_reason: null,
+        updated_by: reviewerId,
+        updated_at: new Date(),
+      },
+      {
+        id: managerApprovalEntryId,
+        domain: 'dcl',
+        entity: 'employee',
+        subject_id: managerEmployeeId,
+        version_no: 2,
+        status: 'APPROVED',
+        revision: '1',
+        submitted_by: submitterId,
+        submitted_at: new Date(),
+        approved_by: reviewerId,
+        approved_at: new Date(),
+        rejected_by: null,
+        rejected_at: null,
+        rejection_reason: null,
+        updated_by: reviewerId,
+        updated_at: new Date(),
+      },
+    ])
+    .execute()
+  await db
+    .insertInto('dcl_employee_versions')
+    .values([
+      {
+        approval_entry_id: previousManagerApprovalEntryId,
+        display_name: '权威负责人 V1',
+        legal_name: null,
+        legal_identifier: null,
+        employee_category_id: null,
+        department_id: null,
+        position_id: null,
+        operating_entity_id: null,
+        operating_entity_approval_entry_id: null,
+        operating_entity_code: null,
+        operating_entity_name: null,
+        work_phone: null,
+        work_email: null,
+        hired_on: null,
+        remark: null,
+        source_snapshots: {},
+        enabled: true,
+      },
+      {
+        approval_entry_id: managerApprovalEntryId,
+        display_name: '权威负责人 V2',
+        legal_name: null,
+        legal_identifier: null,
+        employee_category_id: null,
+        department_id: null,
+        position_id: null,
+        operating_entity_id: null,
+        operating_entity_approval_entry_id: null,
+        operating_entity_code: null,
+        operating_entity_name: null,
+        work_phone: null,
+        work_email: null,
+        hired_on: null,
+        remark: null,
+        source_snapshots: {},
+        enabled: true,
+      },
+    ])
+    .execute()
+
   const config = loadConfig({
     DATABASE_URL: databaseUrl,
     APP_SESSION_COOKIE_SECURE: 'false',
@@ -244,7 +337,7 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
       contactName: null,
       contactPhone: null,
       managerEmployeeId,
-      managerEmployeeApprovalEntryId: managerApprovalEntryId,
+      managerEmployeeApprovalEntryId: previousManagerApprovalEntryId,
       managerEmployeeCode: 'FORGED-CODE',
       managerEmployeeName: '伪造负责人',
       remark: null,
@@ -277,17 +370,6 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
   )
   assert.equal(partialManager.errorKey, 'validation_failed')
 
-  await db
-    .insertInto('dcl_warehouse_manager_reference_facts')
-    .values({
-      employee_id: managerEmployeeId,
-      latest_approved_entry_id: managerApprovalEntryId,
-      code: 'EMP-0001',
-      name: '权威负责人',
-      enabled: true,
-    })
-    .execute()
-
   const submitNewPermission = allWarehousePermissions.find(
     (permission) => permission.path === '/dcl/warehouse/submit-new',
   )
@@ -313,6 +395,33 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
     managerFactWithSubmitPermission.data.latestApprovedEntryId,
     managerApprovalEntryId,
   )
+  assert.equal(managerFactWithSubmitPermission.data.displayName, '权威负责人 V2')
+  const archiveService = new ArchiveService(db, {
+    validate: async () => undefined,
+  })
+  await archiveService.review(
+    'employee',
+    'unapprove',
+    {
+      subjectId: managerEmployeeId,
+      submissionId: managerApprovalEntryId,
+      expectedRevision: '1',
+      reason: '负责人版本回落',
+    },
+    { id: reviewerId, permissions: [], trusted: true },
+    ulid(),
+  )
+  const managerFactAfterUnapprove = await post(
+    '/dcl/warehouse/manager-reference',
+    { employeeId: managerEmployeeId, action: 'submit-new' },
+    submitter,
+  )
+  assert.equal(managerFactAfterUnapprove.code, 0)
+  assert.equal(
+    managerFactAfterUnapprove.data.latestApprovedEntryId,
+    previousManagerApprovalEntryId,
+  )
+  assert.equal(managerFactAfterUnapprove.data.displayName, '权威负责人 V1')
   const wrongSubmitPermission = await post(
     '/dcl/warehouse/manager-reference',
     { employeeId: managerEmployeeId, action: 'submit-change' },
@@ -338,8 +447,9 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
   assert.equal(submitted.data.status, 'PENDING')
   assert.equal(submitted.data.versionNo, 1)
   assert.equal(submitted.data.snapshot.name, '一号仓')
+  assert.equal(submitted.data.snapshot.managerEmployeeApprovalEntryId, previousManagerApprovalEntryId)
   assert.equal(submitted.data.snapshot.managerEmployeeCode, 'EMP-0001')
-  assert.equal(submitted.data.snapshot.managerEmployeeName, '权威负责人')
+  assert.equal(submitted.data.snapshot.managerEmployeeName, '权威负责人 V1')
   assert.equal(
     await db
       .selectFrom('dcl_subjects')

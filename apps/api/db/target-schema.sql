@@ -662,14 +662,6 @@ CREATE TABLE dcl_customer_attachments (
     PRIMARY KEY (approval_entry_id, file_id)
 );
 
-CREATE TABLE dcl_warehouse_manager_reference_facts (
-    employee_id varchar(26) PRIMARY KEY,
-    latest_approved_entry_id varchar(26) NOT NULL,
-    code varchar(64) NOT NULL,
-    name varchar(200) NOT NULL,
-    enabled boolean NOT NULL
-);
-
 -- These tables are the isolated Warehouse slice's typed input facts. Later
 -- slices replace their fixture writers with their owning transaction-connected
 -- domains; the Warehouse service only reads them.

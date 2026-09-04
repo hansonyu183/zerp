@@ -1000,11 +1000,6 @@ export class ArchiveService {
             WHERE approval_entry_id = ${entry.id}`.execute(tx)
       }
       if (
-        entity === 'employee' &&
-        (plan.toStatus === 'APPROVED' || plan.fromStatus === 'APPROVED')
-      )
-        await this.syncWarehouseManagerReference(tx, entry.subjectId)
-      if (
         entity === 'rpt-definition' &&
         (plan.toStatus === 'APPROVED' || plan.fromStatus === 'APPROVED')
       )
@@ -1096,89 +1091,92 @@ export class ArchiveService {
       throw new ArchiveApplicationError('customer_attachment_invalid_content')
     const now = new Date(),
       expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000)
-    const storageKey = await this.attachmentStore.stage({
-      ownerId: actor.id,
-      stagingId: input.stagingId,
-      content,
-    })
+    let storageKey: string | undefined
     try {
       return await this.db.transaction().execute(async (tx) => {
-      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:customer:attachment:${input.stagingId}`}, 0))`.execute(
-        tx,
-      )
-      const existing = await tx
-        .selectFrom('dcl_customer_attachment_staging')
-        .selectAll()
-        .where('id', '=', input.stagingId)
-        .executeTakeFirst()
-      if (existing) {
-        if (
-          existing.owner_user_id !== actor.id ||
-          existing.file_id !== input.fileId ||
-          existing.file_name !== input.fileName ||
-          existing.mime_type !== input.mimeType ||
-          existing.digest !== input.digest ||
-          existing.size_bytes !== input.size
+        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:customer:attachment:${input.stagingId}`}, 0))`.execute(
+          tx,
         )
-          throw new ArchiveApplicationError(
-            'customer_attachment_staging_conflict',
-          )
-        if (existing.expires_at <= now)
-          await tx
-            .updateTable('dcl_customer_attachment_staging')
-            .set({
-              storage_key: storageKey,
-              created_at: now,
-              expires_at: expiresAt,
-            })
-            .where('id', '=', existing.id)
-            .executeTakeFirstOrThrow()
-        return {
-          stagingId: existing.id,
-          fileId: existing.file_id,
-          fileName: existing.file_name,
-          mimeType: existing.mime_type,
-          size: existing.size_bytes,
-          digest: existing.digest,
-          expiresAt: (existing.expires_at <= now
-            ? expiresAt
-            : existing.expires_at
-          ).toISOString(),
-        }
-      }
-      await tx
-        .insertInto('dcl_customer_attachment_staging')
-        .values({
-          id: input.stagingId,
-          file_id: input.fileId,
-          owner_user_id: actor.id,
-          file_name: input.fileName,
-          mime_type: input.mimeType,
-          size_bytes: input.size,
-          digest: input.digest,
-          storage_key: storageKey,
-          created_at: now,
-          expires_at: expiresAt,
+        storageKey = await this.attachmentStore.stage({
+          ownerId: actor.id,
+          stagingId: input.stagingId,
+          content,
         })
-        .execute()
-      return {
-        stagingId: input.stagingId,
-        fileId: input.fileId,
-        fileName: input.fileName,
-        mimeType: input.mimeType,
-        size: input.size,
-        digest: input.digest,
-        expiresAt: expiresAt.toISOString(),
-      }
+        const existing = await tx
+          .selectFrom('dcl_customer_attachment_staging')
+          .selectAll()
+          .where('id', '=', input.stagingId)
+          .executeTakeFirst()
+        if (existing) {
+          if (
+            existing.owner_user_id !== actor.id ||
+            existing.file_id !== input.fileId ||
+            existing.file_name !== input.fileName ||
+            existing.mime_type !== input.mimeType ||
+            existing.digest !== input.digest ||
+            existing.size_bytes !== input.size
+          )
+            throw new ArchiveApplicationError(
+              'customer_attachment_staging_conflict',
+            )
+          if (existing.expires_at <= now)
+            await tx
+              .updateTable('dcl_customer_attachment_staging')
+              .set({
+                storage_key: storageKey,
+                created_at: now,
+                expires_at: expiresAt,
+              })
+              .where('id', '=', existing.id)
+              .executeTakeFirstOrThrow()
+          return {
+            stagingId: existing.id,
+            fileId: existing.file_id,
+            fileName: existing.file_name,
+            mimeType: existing.mime_type,
+            size: existing.size_bytes,
+            digest: existing.digest,
+            expiresAt: (existing.expires_at <= now
+              ? expiresAt
+              : existing.expires_at
+            ).toISOString(),
+          }
+        }
+        await tx
+          .insertInto('dcl_customer_attachment_staging')
+          .values({
+            id: input.stagingId,
+            file_id: input.fileId,
+            owner_user_id: actor.id,
+            file_name: input.fileName,
+            mime_type: input.mimeType,
+            size_bytes: input.size,
+            digest: input.digest,
+            storage_key: storageKey,
+            created_at: now,
+            expires_at: expiresAt,
+          })
+          .execute()
+        return {
+          stagingId: input.stagingId,
+          fileId: input.fileId,
+          fileName: input.fileName,
+          mimeType: input.mimeType,
+          size: input.size,
+          digest: input.digest,
+          expiresAt: expiresAt.toISOString(),
+        }
       })
     } catch (error) {
-      const existing = await this.db
-        .selectFrom('dcl_customer_attachment_staging')
-        .select('storage_key')
-        .where('id', '=', input.stagingId)
-        .executeTakeFirst()
-      if (existing?.storage_key !== storageKey)
-        await this.attachmentStore.remove(storageKey)
+      if (storageKey) {
+        const existing = await this.db
+          .selectFrom('dcl_customer_attachment_staging')
+          .select('storage_key')
+          .where('id', '=', input.stagingId)
+          .executeTakeFirst()
+        if (existing?.storage_key !== storageKey)
+          await this.attachmentStore.remove(storageKey)
+      }
       throw error
     }
   }
@@ -1187,25 +1185,36 @@ export class ArchiveService {
     actor: ApprovalActor,
   ): Promise<{ deleted: number }> {
     requirePermission(actor, '/dcl/customer/attachment-cleanup')
-    const expired = await this.db.transaction().execute(async (tx) => {
-      const rows = await tx
-        .selectFrom('dcl_customer_attachment_staging')
-        .select('id')
-        .where('expires_at', '<=', new Date())
-        .forUpdate()
-        .execute()
-      if (rows.length === 0) return rows
-      await tx
-        .deleteFrom('dcl_customer_attachment_staging')
-        .where(
-          'id',
-          'in',
-          rows.map((attachment) => attachment.id),
+    const expired = await this.db
+      .selectFrom('dcl_customer_attachment_staging')
+      .select('id')
+      .where('expires_at', '<=', new Date())
+      .execute()
+    let deleted = 0
+    for (const attachment of expired) {
+      const removed = await this.db.transaction().execute(async (tx) => {
+        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:customer:attachment:${attachment.id}`}, 0))`.execute(
+          tx,
         )
-        .execute()
-      return rows
-    })
-    return { deleted: expired.length }
+        const staged = await tx
+          .selectFrom('dcl_customer_attachment_staging')
+          .select(['id', 'storage_key', 'expires_at'])
+          .where('id', '=', attachment.id)
+          .forUpdate()
+          .executeTakeFirst()
+        if (!staged || staged.expires_at > new Date()) return false
+        await this.attachmentStore.remove(staged.storage_key)
+        const result = await tx
+          .deleteFrom('dcl_customer_attachment_staging')
+          .where('id', '=', staged.id)
+          .executeTakeFirst()
+        if (Number(result.numDeletedRows) !== 1)
+          throw new ArchiveApplicationError('customer_attachment_staging_invalid')
+        return true
+      })
+      if (removed) deleted += 1
+    }
+    return { deleted }
   }
 
   private async prepare(
@@ -3112,49 +3121,6 @@ export class ArchiveService {
         approval_entry_id, subject_id
       ) VALUES (${approvalEntryId}, ${subjectId})
       ON CONFLICT DO NOTHING`.execute(tx)
-  }
-
-  private async syncWarehouseManagerReference(
-    tx: Executor,
-    employeeId: string,
-  ): Promise<void> {
-    const current = await sql<{
-      approval_entry_id: string
-      code: string
-      name: string
-      enabled: boolean
-    }>`
-      SELECT e.id AS approval_entry_id, s.code, v.display_name AS name, v.enabled
-      FROM approval_entries e
-      JOIN dcl_subjects s ON s.id = e.subject_id
-      JOIN dcl_employee_versions v ON v.approval_entry_id = e.id
-      WHERE e.domain = 'dcl'
-        AND e.entity = 'employee'
-        AND e.subject_id = ${employeeId}
-        AND e.status = 'APPROVED'
-      ORDER BY e.version_no DESC
-      LIMIT 1
-    `.execute(tx)
-    const fact = current.rows[0]
-    if (!fact) {
-      await tx
-        .deleteFrom('dcl_warehouse_manager_reference_facts')
-        .where('employee_id', '=', employeeId)
-        .execute()
-      return
-    }
-    await sql`
-      INSERT INTO dcl_warehouse_manager_reference_facts (
-        employee_id, latest_approved_entry_id, code, name, enabled
-      ) VALUES (
-        ${employeeId}, ${fact.approval_entry_id}, ${fact.code}, ${fact.name}, ${fact.enabled}
-      )
-      ON CONFLICT (employee_id) DO UPDATE SET
-        latest_approved_entry_id = EXCLUDED.latest_approved_entry_id,
-        code = EXCLUDED.code,
-        name = EXCLUDED.name,
-        enabled = EXCLUDED.enabled
-    `.execute(tx)
   }
 
   private async accMappingReferenceBlockers(

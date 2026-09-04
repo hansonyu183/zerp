@@ -908,6 +908,11 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     },
     submitter,
   )
+  const failedStaging = await db
+    .selectFrom('dcl_customer_attachment_staging')
+    .select('storage_key')
+    .where('id', '=', failedStagingId)
+    .executeTakeFirstOrThrow()
   const failedSubjectId = ulid(),
     failedSubmissionId = ulid()
   subjectIds.push(failedSubjectId)
@@ -968,6 +973,18 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     .set({ created_at: new Date(-1_000), expires_at: new Date(0) })
     .where('id', '=', failedStagingId)
     .execute()
+  assert.deepEqual(await service.cleanupCustomerAttachments(submitter), {
+    deleted: 1,
+  })
+  await assert.rejects(attachmentStore.read(failedStaging.storage_key))
+  assert.equal(
+    await db
+      .selectFrom('dcl_customer_attachment_staging')
+      .select('id')
+      .where('id', '=', failedStagingId)
+      .executeTakeFirst(),
+    undefined,
+  )
   const restaged = await service.stageCustomerAttachment(
     {
       stagingId: failedStagingId,
@@ -988,6 +1005,9 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     .execute()
   assert.deepEqual(await service.cleanupCustomerAttachments(submitter), {
     deleted: 1,
+  })
+  assert.deepEqual(await service.cleanupCustomerAttachments(submitter), {
+    deleted: 0,
   })
   const customer = await submitAndApprove('customer', {
     identityKind: 'OTHER',

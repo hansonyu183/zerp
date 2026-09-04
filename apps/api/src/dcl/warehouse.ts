@@ -335,26 +335,7 @@ export class WarehouseService {
     actor: ApprovalActor,
   ) {
     requirePermission(actor, `/dcl/warehouse/${action}`)
-    const row = await this.db
-      .selectFrom('dcl_warehouse_manager_reference_facts')
-      .select([
-        'employee_id',
-        'latest_approved_entry_id',
-        'code',
-        'name',
-        'enabled',
-      ])
-      .where('employee_id', '=', employeeId.trim())
-      .executeTakeFirst()
-    return row
-      ? {
-          employeeId: row.employee_id,
-          latestApprovedEntryId: row.latest_approved_entry_id,
-          code: row.code,
-          displayName: row.name,
-          enabled: row.enabled,
-        }
-      : null
+    return this.currentManagerReference(this.db, employeeId.trim())
   }
 
   async submit(
@@ -413,25 +394,11 @@ export class WarehouseService {
             }
           | undefined
         if (input.snapshot.managerEmployeeId) {
-          const row = await transaction
-            .selectFrom('dcl_warehouse_manager_reference_facts')
-            .select([
-              'employee_id',
-              'latest_approved_entry_id',
-              'code',
-              'name',
-              'enabled',
-            ])
-            .where('employee_id', '=', input.snapshot.managerEmployeeId)
-            .executeTakeFirst()
-          if (row)
-            manager = {
-              employeeId: row.employee_id,
-              latestApprovedEntryId: row.latest_approved_entry_id,
-              code: row.code,
-              displayName: row.name,
-              enabled: row.enabled,
-            }
+          manager =
+            (await this.currentManagerReference(
+              transaction,
+              input.snapshot.managerEmployeeId,
+            )) ?? undefined
         }
         const occurredAt = new Date().toISOString()
         const decision = prepareWarehouseSubmit(
@@ -820,6 +787,53 @@ export class WarehouseService {
           : {}),
       },
     }
+  }
+
+  private async currentManagerReference(
+    executor: Executor,
+    employeeId: string,
+  ): Promise<
+    | {
+        employeeId: string
+        latestApprovedEntryId: string
+        code: string
+        displayName: string
+        enabled: boolean
+      }
+    | null
+  > {
+    const row = await sql<{
+      employee_id: string
+      latest_approved_entry_id: string
+      code: string
+      display_name: string
+      enabled: boolean
+    }>`
+      SELECT e.subject_id AS employee_id,
+        e.id AS latest_approved_entry_id,
+        s.code,
+        v.display_name,
+        v.enabled
+      FROM approval_entries e
+      JOIN dcl_subjects s ON s.id = e.subject_id
+      JOIN dcl_employee_versions v ON v.approval_entry_id = e.id
+      WHERE e.domain = 'dcl'
+        AND e.entity = 'employee'
+        AND e.subject_id = ${employeeId}
+        AND e.status = 'APPROVED'
+      ORDER BY e.version_no DESC
+      LIMIT 1
+    `.execute(executor)
+    const current = row.rows[0]
+    return current
+      ? {
+          employeeId: current.employee_id,
+          latestApprovedEntryId: current.latest_approved_entry_id,
+          code: current.code,
+          displayName: current.display_name,
+          enabled: current.enabled,
+        }
+      : null
   }
 
   private async readSubmission(

@@ -750,14 +750,6 @@ export interface DclWarehouseIdempotency {
   submission_id: string;
 }
 
-export interface DclWarehouseManagerReferenceFacts {
-  code: string;
-  employee_id: string;
-  enabled: boolean;
-  latest_approved_entry_id: string;
-  name: string;
-}
-
 export interface DclWarehouseReferenceFacts {
   approval_entry_id: string;
   business_code: string;
@@ -1685,7 +1677,6 @@ export interface DB {
   dcl_supplier_versions: DclSupplierVersions;
   dcl_vehicle_versions: DclVehicleVersions;
   dcl_warehouse_idempotency: DclWarehouseIdempotency;
-  dcl_warehouse_manager_reference_facts: DclWarehouseManagerReferenceFacts;
   dcl_warehouse_reference_facts: DclWarehouseReferenceFacts;
   dcl_warehouse_usage_facts: DclWarehouseUsageFacts;
   dcl_warehouse_versions: DclWarehouseVersions;

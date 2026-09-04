@@ -501,10 +501,6 @@ async function deleteAccFixtureBooks(bookIds: readonly string[]) {
 async function deleteE2ECatalogFacts() {
   await database.transaction().execute(async (transaction) => {
     await transaction
-      .deleteFrom('dcl_warehouse_manager_reference_facts')
-      .where('employee_id', '=', managerEmployeeId)
-      .execute()
-    await transaction
       .deleteFrom('dcl_acc_subject_facts')
       .where(
         'id',

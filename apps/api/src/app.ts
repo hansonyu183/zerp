@@ -19,6 +19,7 @@ import type { VouService } from './vou/service.ts'
 import type { AccService } from './acc/service.ts'
 import type { WflService } from './wfl/service.ts'
 import type { RptService } from './rpt/service.ts'
+import type { WorkbenchService } from './app/workbench.ts'
 
 export interface DatabaseReadiness {
   ping(): Promise<void>
@@ -41,6 +42,7 @@ export interface CreateAppOptions {
   acc?: AccService
   wfl?: WflService
   rpt?: RptService
+  workbench?: WorkbenchService
   registerRoutes?: (
     router: OpenAPIHono<{ Variables: { requestId: string } }>,
   ) => void
@@ -150,6 +152,7 @@ export function createApp(options: CreateAppOptions = {}) {
       options.acc,
       options.wfl,
       options.rpt,
+      options.workbench,
     )
   options.registerRoutes?.(app)
   app.onError((error, context) => {

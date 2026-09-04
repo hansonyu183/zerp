@@ -443,7 +443,7 @@ test('target OpenAPI contains the complete issue 363 APP, AUX, and BOB inventory
 
   for (const path of [...appPaths, ...auxPaths, ...bobPaths])
     assert.ok(paths.has(path), `missing issue #363 target path ${path}`)
-  assert.ok(!paths.has('/app/workbench/query'), 'APP Workbench belongs to #366')
+  assert.ok(paths.has('/app/workbench/query'), 'missing issue #366 APP Workbench path')
 })
 
 test('target OpenAPI contains every issue 364 DCL lifecycle route', async () => {

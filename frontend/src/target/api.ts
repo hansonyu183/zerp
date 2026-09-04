@@ -9,10 +9,6 @@ const client = createTargetApiClient({
 type PostJson<Post extends (...args: never[]) => unknown> =
   Parameters<Post>[0] extends { json: infer Json } ? Json : never
 
-export type TargetWorkbenchQueryInput = PostJson<
-  (typeof client.app.workbench.query)['$post']
->
-
 type WarehouseSubmitInput = PostJson<
   (typeof client.dcl.warehouse)['submit-new']['$post']
 >
@@ -334,20 +330,6 @@ export async function queryTargetUsers(csrfToken: string) {
       payload.requestId,
     )
   return payload.data
-}
-
-export async function queryTargetWorkbench(
-  csrfToken: string,
-  input: TargetWorkbenchQueryInput,
-) {
-  return unwrapTarget(
-    await (
-      await client.app.workbench.query.$post(
-        { json: input },
-        csrfHeaders(csrfToken),
-      )
-    ).json(),
-  )
 }
 
 type TargetSuccessData<T> = T extends { code: 0; data: infer Data }
@@ -831,12 +813,6 @@ export async function deleteTargetAccBook(csrfToken: string, input: PostJson<(ty
 export async function queryTargetAccSubjects(csrfToken: string, bookId: string) {
   return unwrapTarget(
     await (await client.acc.subject.query.$post({ json: { bookId } }, csrfHeaders(csrfToken))).json(),
-  )
-}
-
-export async function createTargetAccSubject(csrfToken: string, input: PostJson<(typeof client.acc.subject.create)['$post']>) {
-  return unwrapTarget(
-    await (await client.acc.subject.create.$post({ json: input }, csrfHeaders(csrfToken))).json(),
   )
 }
 

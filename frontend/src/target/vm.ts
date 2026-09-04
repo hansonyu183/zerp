@@ -1,4 +1,4 @@
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import {
   approvalActionPresentation,
   projectWarehouseViewState,
@@ -17,9 +17,7 @@ import {
 
 import {
   deleteTargetWarehouseSubmission,
-  deleteTargetWflDefinition,
   queryTargetUsers,
-  queryTargetWorkbench,
   queryTargetWarehouses,
   getTargetWarehouse,
   restoreTargetSession,
@@ -49,7 +47,6 @@ import {
   type TargetArchiveDeleteRequest,
   type TargetArchiveReviewRequest,
   type TargetWarehouseAction,
-  type TargetWorkbenchQueryInput,
   stageTargetVouAttachment,
   submitTargetVou,
   queryTargetVou,
@@ -59,7 +56,6 @@ import {
   deleteTargetVou,
   actionTargetWflInstance,
   createTargetAccBook,
-  createTargetAccSubject,
   deleteTargetAccBook,
   deleteTargetAccOpening,
   deleteTargetAccSubject,
@@ -140,47 +136,6 @@ interface VouSubmissionView {
   payload: VouPayload
   availableApprovalActions: ApprovalAction[]
   canDelete: boolean
-}
-
-type WorkbenchReviewAction = Extract<ApprovalAction, 'reject' | 'approve' | 'unreject'>
-type WorkbenchAction = 'view' | 'edit' | 'delete' | WorkbenchReviewAction
-type WorkbenchTab = 'DOCUMENT' | 'ARCHIVE'
-
-interface WorkbenchTabState {
-  keyword: string
-  entity: string
-  status: Extract<ApprovalStatus, 'PENDING' | 'REJECTED'> | ''
-  page: number
-  items: WorkbenchItemView[]
-  total: number
-  queryError: string | null
-  actionError: string | null
-}
-
-interface WorkbenchItemView {
-  domain: 'dcl' | 'vou'
-  entity: string
-  subjectOrDocumentId: string
-  submissionId: string
-  code: string
-  name: string
-  status: Extract<ApprovalStatus, 'PENDING' | 'REJECTED'>
-  revision: string
-  availableActions: WorkbenchAction[]
-  updatedAt: string
-}
-
-function newWorkbenchTabState(): WorkbenchTabState {
-  return {
-    keyword: '',
-    entity: '',
-    status: '',
-    page: 1,
-    items: [],
-    total: 0,
-    queryError: null,
-    actionError: null,
-  }
 }
 
 interface AccBookView {
@@ -379,6 +334,87 @@ const targetErrorPresentation: Readonly<Record<string, string>> = {
   wfl_vou_port_invalid_result: '流程单据协作返回无效结果。',
 }
 
+const targetWireValuePresentation: Readonly<Record<string, string>> = {
+  false: '否',
+  true: '是',
+  CURRENT: '当前版本',
+  HISTORICAL: '历史版本',
+  CNY: '人民币',
+  'customer-subunit': '客户子单位',
+  supplier: '供应商',
+  'other-unit': '其他往来单位',
+  employee: '员工',
+  'sales-partner': '销售合作伙伴',
+  product: '产品',
+  COMMISSION: '佣金',
+  INTERMEDIARY: '中介',
+  BANK_DEDUCTED: '银行代扣',
+  THIRD_PARTY_PAYABLE: '第三方应付',
+  RECEIPT: '收款',
+  PAYMENT: '付款',
+  PACKAGED: '包装品',
+  BULK_LIQUID: '散装液体',
+  RAW_SELF: '自有原料',
+  PRODUCT_FIXED: '产品固定',
+  CUSTOMER_LATEST: '客户当前',
+  MANUAL: '手工录入',
+  IN: '流入',
+  OUT: '流出',
+  PRINCIPAL: '本金',
+  INTEREST: '利息',
+  FEE: '手续费',
+  MARGIN: '保证金',
+  OTHER: '其他',
+  PRIMARY: '主业务',
+  CHANGE: '变更',
+  ASSET: '资产',
+  LIABILITY: '负债',
+  BANK_ACCEPTANCE: '银行承兑汇票',
+  COMMERCIAL_ACCEPTANCE: '商业承兑汇票',
+  CHECK: '支票',
+  PAPER: '纸质',
+  ELECTRONIC: '电子',
+  PAYABLE: '应付',
+  RECEIVABLE: '应收',
+  SALE: '销售',
+  RETURN_ADJUSTMENT: '退货调整',
+  INTERNAL_EMPLOYEE: '内部员工',
+  EXTERNAL_PART_TIME: '外聘兼职',
+  CHANNEL_PARTNER: '渠道合作伙伴',
+  NOT_REQUIRED: '不需要',
+  MISSING: '缺失',
+  APPLICABLE: '适用',
+  RAW_MATERIAL: '原材料',
+  STANDARD_FINISHED: '标准产成品',
+  CUSTOM_FINISHED: '定制产成品',
+  PACKAGING: '包装材料',
+  OPEN_DOCUMENT: '打开单据',
+  CREATE_CHILD: '创建下游单据',
+  APPROVE_CHILD: '批准下游单据',
+  REJECT_CHILD: '驳回下游单据',
+  RETRY_CHILD: '重新提交下游单据',
+  CANCEL_CHILD: '取消下游单据',
+  'asset-primary': '资产期初',
+  'change': '变更',
+  'payment-primary': '付款期初',
+  'liability-primary': '负债期初',
+  'discount-primary': '贴现期初',
+  'maturity-primary': '到期期初',
+}
+
+export function targetWireValueLabel(value: string): string {
+  return targetWireValuePresentation[value] ?? value
+}
+
+export function hasCompleteTargetPermissions(
+  grantedPermissions: readonly string[],
+  requiredPermissions: readonly string[],
+) {
+  return requiredPermissions.every((permission) =>
+    grantedPermissions.includes(permission),
+  )
+}
+
 export function useTargetProbe() {
   const username = ref('')
   const password = ref('')
@@ -439,13 +475,6 @@ export function useTargetProbe() {
   const accBookId = ref('')
   const accVouEntity = ref('')
   const targetPath = window.location.pathname
-  const workbenchPage = ref(targetPath === '/home/dashboard')
-  const workbenchActiveTab = ref<WorkbenchTab>('DOCUMENT')
-  const workbenchDocumentState = reactive<WorkbenchTabState>(newWorkbenchTabState())
-  const workbenchArchiveState = reactive<WorkbenchTabState>(newWorkbenchTabState())
-  const workbenchRequestVersions: Record<WorkbenchTab, number> = { DOCUMENT: 0, ARCHIVE: 0 }
-  const workbenchActiveState = computed(() => workbenchState(workbenchActiveTab.value))
-  const workbenchReasons = ref<Record<string, string>>({})
   const accBookPage = ref(targetPath === '/acc/book')
   const accSubjectPage = ref(targetPath === '/acc/subject')
   const accOpeningPage = ref(targetPath === '/acc/opening')
@@ -468,6 +497,9 @@ export function useTargetProbe() {
   const wflInstance = ref<WflInstanceView | null>(null)
   const wflReasons = ref<Record<string, string>>({})
   const wflRequestKeys = ref<Record<string, string>>({})
+  function canCompleteAction(...requiredPermissions: string[]) {
+    return hasCompleteTargetPermissions(permissions.value, requiredPermissions)
+  }
   const canQueryAccMapping = computed(() =>
     permissions.value.includes('/acc/mapping/query'),
   )
@@ -478,14 +510,17 @@ export function useTargetProbe() {
     permissions.value.includes('/acc/book/query'),
   )
   const canCreateAccBook = computed(() =>
-    ['/acc/book/query', '/acc/book/create'].every((permission) =>
-      permissions.value.includes(permission),
-    ),
+    canCompleteAction('/acc/book/query', '/acc/book/create'),
   )
-  const canCreateAccSubject = computed(() =>
+  const canSaveAccBook = computed(() =>
+    canCompleteAction('/acc/book/query', '/acc/book/save'),
+  )
+  const canSaveAccSubject = computed(() =>
     !!accBookId.value &&
-    ['/acc/book/query', '/acc/subject/query', '/acc/subject/create'].every(
-      (permission) => permissions.value.includes(permission),
+    canCompleteAction(
+      '/acc/book/query',
+      '/acc/subject/query',
+      '/acc/subject/save',
     ),
   )
   const canCreateOpeningDraft = computed(() =>
@@ -550,10 +585,6 @@ export function useTargetProbe() {
     currentUser.value = session.user
     permissions.value = session.permissions
     message.value = `当前用户：${session.user.displayName}`
-    if (workbenchPage.value) {
-      await queryWorkbench('DOCUMENT', 1)
-      return
-    }
     if (accMappingReadPage.value) {
       await loadAccMappingCatalog()
       return
@@ -624,175 +655,6 @@ export function useTargetProbe() {
       message.value = `已查询 ${page.items.length} 位用户。`
     } catch (error) {
       setError(error, '查询失败。')
-    }
-  }
-
-  function workbenchState(tab: WorkbenchTab) {
-    return tab === 'DOCUMENT' ? workbenchDocumentState : workbenchArchiveState
-  }
-
-  function currentWorkbenchQuery(
-    tab: WorkbenchTab,
-    page: number,
-  ): TargetWorkbenchQueryInput {
-    const state = workbenchState(tab)
-    const filters = {
-      kind: tab,
-      ...(state.entity.trim() ? { entity: state.entity.trim() } : {}),
-      ...(state.status ? { status: state.status } : {}),
-      ...(state.keyword.trim() ? { keyword: state.keyword.trim() } : {}),
-    }
-    return {
-      page,
-      pageSize: 20,
-      ...(Object.keys(filters).length ? { filters } : {}),
-    }
-  }
-
-  async function queryWorkbench(
-    tab: WorkbenchTab = workbenchActiveTab.value,
-    page = workbenchState(tab).page,
-    correctingExpiredPage = false,
-  ) {
-    const state = workbenchState(tab)
-    const requestVersion = ++workbenchRequestVersions[tab]
-    try {
-      const result = await queryTargetWorkbench(
-        csrfToken.value,
-        currentWorkbenchQuery(tab, page),
-      )
-      if (requestVersion !== workbenchRequestVersions[tab]) return
-      const lastPage = Math.max(1, Math.ceil(result.total / 20))
-      if (!correctingExpiredPage && result.page > lastPage)
-        return queryWorkbench(tab, lastPage, true)
-      state.items = result.items as WorkbenchItemView[]
-      state.total = result.total
-      state.page = result.page
-      state.queryError = null
-      message.value = `已查询 ${result.total} 项待办。`
-    } catch (error) {
-      if (requestVersion !== workbenchRequestVersions[tab]) return
-      state.queryError = targetErrorMessage(error, '工作台查询失败。', '请重新登录。')
-      requestId.value = targetErrorRequestId(error)
-    }
-  }
-
-  async function switchWorkbenchTab(tab: WorkbenchTab) {
-    workbenchActiveTab.value = tab
-    const state = workbenchState(tab)
-    await queryWorkbench(tab, state.page)
-  }
-
-  async function applyWorkbenchFilters() {
-    const state = workbenchActiveState.value
-    state.page = 1
-    await queryWorkbench(workbenchActiveTab.value, 1)
-  }
-
-  async function resetWorkbenchFilters() {
-    const state = workbenchActiveState.value
-    state.keyword = ''
-    state.entity = ''
-    state.status = ''
-    state.page = 1
-    await queryWorkbench(workbenchActiveTab.value, 1)
-  }
-
-  async function retryWorkbench() {
-    await queryWorkbench(workbenchActiveTab.value, workbenchActiveState.value.page)
-  }
-
-  function workbenchItemHref(item: WorkbenchItemView, mode: 'view' | 'edit'): string {
-    const parameters = new URLSearchParams({ mode })
-    if (item.domain === 'vou') parameters.set('documentId', item.subjectOrDocumentId)
-    else {
-      parameters.set('objectId', item.subjectOrDocumentId)
-      parameters.set('approvalEntryId', item.submissionId)
-      parameters.set('code', item.code)
-    }
-    return `/${item.domain}/${item.entity}?${parameters.toString()}`
-  }
-
-  function visibleWorkbenchActions(item: WorkbenchItemView): WorkbenchAction[] {
-    return item.availableActions.filter((action) => action !== 'view' || !item.availableActions.includes('edit'))
-  }
-
-  function workbenchActionLabel(action: WorkbenchAction): string {
-    if (action === 'view') return '查看'
-    if (action === 'edit') return '编辑'
-    if (action === 'delete') return '撤回'
-    return approvalActionPresentation[action].label
-  }
-
-  async function reviewWorkbench(item: WorkbenchItemView, action: WorkbenchReviewAction) {
-    const tab = workbenchActiveTab.value
-    const state = workbenchState(tab)
-    const reason = workbenchReasons.value[item.submissionId]?.trim()
-    state.actionError = null
-    if (action === 'reject' && !reason) {
-      state.actionError = '请填写驳回原因。'
-      return
-    }
-    try {
-      if (item.domain === 'dcl') {
-        const input = {
-          subjectId: item.subjectOrDocumentId,
-          submissionId: item.submissionId,
-          expectedRevision: item.revision,
-          ...(action === 'reject' ? { reason: reason ?? '' } : {}),
-        }
-        if (item.entity === 'warehouse')
-          await reviewTargetWarehouse(
-            csrfToken.value,
-            action as TargetWarehouseAction,
-            input,
-          )
-        else if (item.entity === 'wfl-process-definition')
-          await reviewTargetWflDefinition(csrfToken.value, action, input)
-        else
-          await reviewTargetArchive(csrfToken.value, {
-            entity: item.entity as TargetArchiveEntity,
-            action,
-            input,
-          } as TargetArchiveReviewRequest)
-      } else {
-        await reviewTargetVou(csrfToken.value, item.entity as VouEntity, action, {
-          documentId: item.subjectOrDocumentId,
-          submissionId: item.submissionId,
-          expectedRevision: item.revision,
-          ...(action === 'reject' ? { reason: reason ?? '' } : {}),
-        } as Parameters<typeof reviewTargetVou>[3])
-      }
-      message.value = `${approvalActionPresentation[action].label}已提交，已刷新待办。`
-    } catch (error) {
-      state.actionError = targetErrorMessage(error, '待办处理失败。', '请重新登录。')
-      requestId.value = targetErrorRequestId(error)
-    } finally {
-      await queryWorkbench(tab, state.page)
-    }
-  }
-
-  async function deleteWorkbench(item: WorkbenchItemView) {
-    const tab = workbenchActiveTab.value
-    const state = workbenchState(tab)
-    state.actionError = null
-    try {
-      const input = { subjectId: item.subjectOrDocumentId, submissionId: item.submissionId, expectedRevision: item.revision }
-      if (item.domain === 'vou')
-        await deleteTargetVou(csrfToken.value, item.entity as VouEntity, {
-          documentId: item.subjectOrDocumentId, submissionId: item.submissionId, expectedRevision: item.revision,
-        })
-      else if (item.entity === 'warehouse') await deleteTargetWarehouseSubmission(csrfToken.value, input)
-      else if (item.entity === 'wfl-process-definition') await deleteTargetWflDefinition(csrfToken.value, input)
-      else await deleteTargetArchive(csrfToken.value, {
-        entity: item.entity as TargetArchiveEntity, input,
-      } as TargetArchiveDeleteRequest)
-      message.value = '撤回已提交，已刷新待办。'
-    } catch (error) {
-      state.actionError = targetErrorMessage(error, '撤回失败。', '请重新登录。')
-      requestId.value = targetErrorRequestId(error)
-    } finally {
-      await queryWorkbench(tab, state.page)
     }
   }
 
@@ -1318,7 +1180,7 @@ export function useTargetProbe() {
   }
 
   async function saveAccBook(book: AccBookView) {
-    if (!permissions.value.includes('/acc/book/save')) return
+    if (!canSaveAccBook.value) return
     try {
       await saveTargetAccBook(csrfToken.value, {
         id: book.id,
@@ -1378,30 +1240,8 @@ export function useTargetProbe() {
     }
   }
 
-  async function createAccSubject(direction: 'DEBIT' | 'CREDIT') {
-    if (!canCreateAccSubject.value) return
-    try {
-      await createTargetAccSubject(csrfToken.value, {
-        id: createTargetId(),
-        bookId: accBookId.value,
-        code: direction === 'DEBIT' ? `100${accSubjects.value.length}` : `400${accSubjects.value.length}`,
-        name: direction === 'DEBIT' ? '本地借方科目' : '本地贷方科目',
-        parentId: null,
-        balanceDirection: direction,
-        enabled: true,
-        requiredDimensions: [],
-        inventoryQuantity: false,
-        settlementPurpose: 'NONE',
-      })
-      await loadAccSubjects()
-      message.value = '会计科目已创建。'
-    } catch (error) {
-      setError(error, '会计科目创建失败。')
-    }
-  }
-
   async function saveAccSubject(subject: AccSubjectView) {
-    if (!permissions.value.includes('/acc/subject/save')) return
+    if (!canSaveAccSubject.value) return
     try {
       await saveTargetAccSubject(csrfToken.value, {
         id: subject.id,
@@ -2679,31 +2519,15 @@ export function useTargetProbe() {
     username,
     password,
     message,
-  requestId,
-  users,
-  workbenchPage,
-  workbenchActiveTab,
-  workbenchDocumentState,
-  workbenchArchiveState,
-  workbenchActiveState,
-  workbenchReasons,
+    requestId,
+    users,
     warehouses,
     drafts,
     reason,
     signedIn,
     modelCorpusResult,
-  signIn,
-  queryUsers,
-  queryWorkbench,
-  switchWorkbenchTab,
-  applyWorkbenchFilters,
-  resetWorkbenchFilters,
-    retryWorkbench,
-    reviewWorkbench,
-    deleteWorkbench,
-    workbenchItemHref,
-    visibleWorkbenchActions,
-    workbenchActionLabel,
+    signIn,
+    queryUsers,
     newDraft,
     saveDraft,
     deleteDraft,
@@ -2744,6 +2568,7 @@ export function useTargetProbe() {
     vouArrayInputs,
     vouInputTestId,
     vouInputLabel,
+    targetWireValueLabel,
     vouInputCandidates,
     vouInputValue,
     updateVouInput,
@@ -2786,7 +2611,8 @@ export function useTargetProbe() {
     canGetAccMapping,
     canQueryAccBooks,
     canCreateAccBook,
-    canCreateAccSubject,
+    canSaveAccBook,
+    canSaveAccSubject,
     canCreateOpeningDraft,
     canQueryWflDefinitions,
     canCreateWflDefinitionDraft,
@@ -2797,7 +2623,6 @@ export function useTargetProbe() {
     saveAccBook,
     deleteAccBook,
     selectAccBook,
-    createAccSubject,
     saveAccSubject,
     deleteAccSubject,
     newOpeningDraft,

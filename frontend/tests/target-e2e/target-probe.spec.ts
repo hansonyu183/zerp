@@ -569,100 +569,6 @@ async function signIn(
   await page.waitForLoadState('networkidle')
 }
 
-test('APP workbench renders only server-returned actions and refreshes after a review', async ({
-  browser,
-}) => {
-  const submitterContext = await browser.newContext()
-  const reviewerContext = await browser.newContext()
-  try {
-    const submitterPage = await submitterContext.newPage()
-    await signIn(
-      submitterPage,
-      process.env.TARGET_E2E_USERNAME!,
-      process.env.TARGET_E2E_PASSWORD!,
-      '/dcl/operating-entity',
-    )
-    const submitterRegion = archiveRegion(submitterPage)
-    await submitterRegion.getByRole('button', { name: '新建本地草稿' }).click()
-    const draft = submitterRegion.locator('[data-archive-draft-id]').last()
-    await draft
-      .getByLabel('统一社会信用代码')
-      .fill(targetId().slice(0, 18))
-    await clickForTargetResponse(
-      submitterPage,
-      '/dcl/operating-entity/submit-new',
-      submitterRegion.getByRole('button', { name: '提交', exact: true }),
-    )
-    const pending = submitterRegion
-      .locator('[data-archive-submission-id]')
-      .filter({ hasText: '待批准' })
-      .last()
-    const submissionId = requiredString(
-      await pending.getAttribute('data-archive-submission-id'),
-      '工作台提交件标识',
-    )
-
-    const reviewerPage = await reviewerContext.newPage()
-    const workbenchQueries: unknown[] = []
-    reviewerPage.on('request', (request) => {
-      if (
-        request.method() === 'POST' &&
-        new URL(request.url()).pathname === '/app/workbench/query'
-      )
-        workbenchQueries.push(request.postDataJSON())
-    })
-    await signIn(
-      reviewerPage,
-      process.env.TARGET_E2E_REVIEWER_USERNAME!,
-      process.env.TARGET_E2E_REVIEWER_PASSWORD!,
-      '/home/dashboard',
-    )
-    const workbench = reviewerPage.getByRole('region', { name: '审批工作台' })
-    await expect(workbench.getByRole('button', { name: '待办单据', exact: true })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
-    expect(workbenchQueries).toEqual([
-      { page: 1, pageSize: 20, filters: { kind: 'DOCUMENT' } },
-    ])
-    await clickForTargetResponse(
-      reviewerPage,
-      '/app/workbench/query',
-      workbench.getByRole('button', { name: '待办资料', exact: true }),
-    )
-    expect(workbenchQueries).toContainEqual(
-      { page: 1, pageSize: 20, filters: { kind: 'ARCHIVE' } },
-    )
-    const item = workbench.locator(
-      `[data-workbench-submission-id="${submissionId}"]`,
-    )
-    await expect(item).toBeVisible()
-    const viewLink = item.getByRole('link', { name: '查看', exact: true })
-    await expect(viewLink).toHaveAttribute(
-      'href',
-      new RegExp(`^/dcl/operating-entity\\?mode=view&objectId=.+&approvalEntryId=${submissionId}&code=.+$`),
-    )
-    const viewPage = await reviewerContext.newPage()
-    const detailResponse = viewPage.waitForResponse((response) =>
-      response.request().method() === 'POST' &&
-      new URL(response.url()).pathname === '/dcl/operating-entity/get',
-    )
-    await viewPage.goto((await viewLink.getAttribute('href'))!)
-    await detailResponse
-    await expect(viewPage.getByRole('region', { name: '档案详情与历史' })).toBeVisible()
-    await viewPage.close()
-    await expect(item.getByRole('button', { name: '批准', exact: true })).toBeVisible()
-    await clickForTargetResponse(
-      reviewerPage,
-      '/dcl/operating-entity/approve',
-      item.getByRole('button', { name: '批准', exact: true }),
-    )
-    await expect(item).toHaveCount(0)
-  } finally {
-    await Promise.allSettled([submitterContext.close(), reviewerContext.close()])
-  }
-})
-
 test('each DCL archive has a directly addressable target page', async ({
   page,
 }) => {
@@ -1344,7 +1250,7 @@ test('ACC current page is read-only and loads no DCL or warehouse surface', asyn
   expect(unrelatedPosts).toEqual([])
 })
 
-test('ACC book and subject save and delete through their target HTTP actions', async ({
+test('ACC book saves and deletes through its target HTTP actions', async ({
   page,
 }) => {
   await signIn(
@@ -1373,38 +1279,6 @@ test('ACC book and subject save and delete through their target HTTP actions', a
   expect((await (await saveBook).json()).code).toBe(0)
   await expect(book).toContainText('保存后的目标账簿')
 
-  await book.getByRole('button', { name: '选择账簿' }).click()
-  await page.goto('/acc/subject')
-  const subjects = page.getByRole('region', { name: '会计科目' })
-  await subjects.getByLabel('账簿').selectOption(bookId)
-  const createSubject = page.waitForResponse(
-    (response) => new URL(response.url()).pathname === '/acc/subject/create',
-  )
-  await subjects.getByRole('button', { name: '新建借方科目' }).click()
-  expect((await (await createSubject).json()).code).toBe(0)
-  const createdSubject = subjects
-    .getByTestId('acc-subject')
-    .filter({ hasText: '本地借方科目' })
-  const subjectId = requiredString(
-    await createdSubject.getAttribute('data-acc-subject-id'),
-    '新建科目标识',
-  )
-  const subject = subjects.locator(`[data-acc-subject-id="${subjectId}"]`)
-  await subject.getByLabel('名称').fill('保存后的目标科目')
-  const saveSubject = page.waitForResponse(
-    (response) => new URL(response.url()).pathname === '/acc/subject/save',
-  )
-  await subject.getByRole('button', { name: '保存科目' }).click()
-  expect((await (await saveSubject).json()).code).toBe(0)
-  await expect(subject).toContainText('保存后的目标科目')
-  const deleteSubject = page.waitForResponse(
-    (response) => new URL(response.url()).pathname === '/acc/subject/delete',
-  )
-  await subject.getByRole('button', { name: '删除科目' }).click()
-  expect((await (await deleteSubject).json()).code).toBe(0)
-  await expect(subject).toHaveCount(0)
-
-  await page.goto('/acc/book')
   const savedBook = page
     .getByRole('region', { name: '会计账簿' })
     .getByTestId('acc-book')
@@ -1720,7 +1594,7 @@ test('WFL definition stays local until trial and submit, then exposes current de
     await instance.getByRole('button', { name: '查看实例' }).click()
     const detail = instances.getByTestId('wfl-instance-detail')
     const root = detail.locator('fieldset').filter({ hasText: '销售订单' })
-    await clickForTargetResponse(submitterPage, '/wfl/process-instance/action', root.getByRole('button', { name: 'OPEN_DOCUMENT' }))
+    await clickForTargetResponse(submitterPage, '/wfl/process-instance/action', root.getByRole('button', { name: '打开单据' }))
     await clickForTargetResponse(submitterPage, '/wfl/process-instance/action', root.getByRole('button', { name: '创建 销售出库' }))
 
     await reviewerPage.goto('/wfl/process-instance')
@@ -1732,7 +1606,7 @@ test('WFL definition stays local until trial and submit, then exposes current de
       .click()
     let reviewerDetail = reviewerInstances.getByTestId('wfl-instance-detail')
     let outbound = reviewerDetail.locator('fieldset').filter({ hasText: '销售出库' })
-    await clickForTargetResponse(reviewerPage, '/wfl/process-instance/action', outbound.getByRole('button', { name: 'APPROVE_CHILD' }))
+    await clickForTargetResponse(reviewerPage, '/wfl/process-instance/action', outbound.getByRole('button', { name: '批准下游单据' }))
 
     await submitterPage.goto('/wfl/process-instance')
     const submitterInstances = submitterPage.getByRole('region', { name: '流程实例' })
@@ -1756,12 +1630,12 @@ test('WFL definition stays local until trial and submit, then exposes current de
     reviewerDetail = reviewerInstances.getByTestId('wfl-instance-detail')
     let delivery = reviewerDetail.locator('fieldset').filter({ hasText: '销售送货' })
     await delivery.getByLabel('原因').fill('流程节点驳回验证')
-    await clickForTargetResponse(reviewerPage, '/wfl/process-instance/action', delivery.getByRole('button', { name: 'REJECT_CHILD' }))
+    await clickForTargetResponse(reviewerPage, '/wfl/process-instance/action', delivery.getByRole('button', { name: '驳回下游单据' }))
     delivery = reviewerDetail.locator('fieldset').filter({ hasText: '销售送货' })
-    await clickForTargetResponse(reviewerPage, '/wfl/process-instance/action', delivery.getByRole('button', { name: 'RETRY_CHILD' }))
+    await clickForTargetResponse(reviewerPage, '/wfl/process-instance/action', delivery.getByRole('button', { name: '重新提交下游单据' }))
     delivery = reviewerDetail.locator('fieldset').filter({ hasText: '销售送货' })
     await delivery.getByLabel('原因').fill('流程节点取消验证')
-    await clickForTargetResponse(reviewerPage, '/wfl/process-instance/action', delivery.getByRole('button', { name: 'REJECT_CHILD' }))
+    await clickForTargetResponse(reviewerPage, '/wfl/process-instance/action', delivery.getByRole('button', { name: '驳回下游单据' }))
 
     await submitterPage.goto('/wfl/process-instance')
     await submitterInstances
@@ -1773,7 +1647,7 @@ test('WFL definition stays local until trial and submit, then exposes current de
       .getByTestId('wfl-instance-detail')
       .locator('fieldset')
       .filter({ hasText: '销售送货' })
-    await clickForTargetResponse(submitterPage, '/wfl/process-instance/action', cancelDelivery.getByRole('button', { name: 'CANCEL_CHILD' }))
+    await clickForTargetResponse(submitterPage, '/wfl/process-instance/action', cancelDelivery.getByRole('button', { name: '取消下游单据' }))
   } finally {
     await Promise.allSettled([
       reviewerContext.close(),

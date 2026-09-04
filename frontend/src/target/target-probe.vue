@@ -15,10 +15,6 @@ const {
   message,
   requestId,
   users,
-  workbenchPage,
-  workbenchActiveTab,
-  workbenchActiveState,
-  workbenchReasons,
   warehouses,
   drafts,
   reason,
@@ -26,16 +22,6 @@ const {
   modelCorpusResult,
   signIn,
   queryUsers,
-  queryWorkbench,
-  switchWorkbenchTab,
-  applyWorkbenchFilters,
-  resetWorkbenchFilters,
-  retryWorkbench,
-  reviewWorkbench,
-  deleteWorkbench,
-  workbenchItemHref,
-  visibleWorkbenchActions,
-  workbenchActionLabel,
   newDraft,
   saveDraft,
   deleteDraft,
@@ -75,6 +61,7 @@ const {
   vouArrayInputs,
   vouInputTestId,
   vouInputLabel,
+  targetWireValueLabel,
   vouInputCandidates,
   vouInputValue,
   updateVouInput,
@@ -116,7 +103,8 @@ const {
   canQueryAccMapping,
   canGetAccMapping,
   canCreateAccBook,
-  canCreateAccSubject,
+  canSaveAccBook,
+  canSaveAccSubject,
   canCreateOpeningDraft,
   canCreateWflDefinitionDraft,
   canSubmitWflDefinitionDraft,
@@ -126,7 +114,6 @@ const {
   saveAccBook,
   deleteAccBook,
   selectAccBook,
-  createAccSubject,
   saveAccSubject,
   deleteAccSubject,
   newOpeningDraft,
@@ -208,67 +195,7 @@ const {
     </form>
 
     <template v-else>
-      <section v-if="workbenchPage" aria-label="审批工作台">
-        <h2>审批工作台</h2>
-        <nav aria-label="工作台页签">
-          <button
-            type="button"
-            :aria-pressed="workbenchActiveTab === 'DOCUMENT'"
-            @click="switchWorkbenchTab('DOCUMENT')"
-          >待办单据</button>
-          <button
-            type="button"
-            :aria-pressed="workbenchActiveTab === 'ARCHIVE'"
-            @click="switchWorkbenchTab('ARCHIVE')"
-          >待办资料</button>
-        </nav>
-        <form aria-label="工作台查询条件" @submit.prevent="applyWorkbenchFilters">
-          <label>关键词<input v-model="workbenchActiveState.keyword" maxlength="200" /></label>
-          <label>
-            实体
-            <input v-model="workbenchActiveState.entity" maxlength="64" />
-          </label>
-          <label>
-            状态
-            <select v-model="workbenchActiveState.status">
-              <option value="">全部</option>
-              <option value="PENDING">待批准</option>
-              <option value="REJECTED">已驳回</option>
-            </select>
-          </label>
-          <button type="submit">查询</button>
-          <button type="button" @click="applyWorkbenchFilters">应用筛选</button>
-          <button type="button" @click="resetWorkbenchFilters">重置筛选</button>
-        </form>
-        <p v-if="workbenchActiveState.queryError" role="alert">
-          {{ workbenchActiveState.queryError }}
-          <button type="button" @click="retryWorkbench">重新查询</button>
-        </p>
-        <p v-if="workbenchActiveState.actionError" role="alert">{{ workbenchActiveState.actionError }}</p>
-        <p>待办：{{ workbenchActiveState.total }}</p>
-        <p v-if="!workbenchActiveState.queryError && workbenchActiveState.items.length === 0">暂无可处理待办。</p>
-        <article
-          v-for="item in workbenchActiveState.items"
-          :key="item.submissionId"
-          data-testid="workbench-item"
-          :data-workbench-submission-id="item.submissionId"
-        >
-          <h3>{{ item.code }} · {{ item.name }}</h3>
-          <p>{{ item.domain === 'dcl' ? '资料' : '单据' }} · {{ item.entity }} · {{ approvalStatusPresentation[item.status].label }}</p>
-          <label v-if="item.availableActions.includes('reject')">
-            驳回原因
-            <input v-model="workbenchReasons[item.submissionId]" maxlength="1000" />
-          </label>
-          <template v-for="action in visibleWorkbenchActions(item)" :key="action">
-            <a v-if="action === 'view' || action === 'edit'" :href="workbenchItemHref(item, action)">{{ workbenchActionLabel(action) }}</a>
-            <button v-else-if="action === 'delete'" type="button" @click="deleteWorkbench(item)">{{ workbenchActionLabel(action) }}</button>
-            <button v-else type="button" @click="reviewWorkbench(item, action)">{{ workbenchActionLabel(action) }}</button>
-          </template>
-        </article>
-        <button type="button" :disabled="workbenchActiveState.page <= 1" @click="queryWorkbench(workbenchActiveTab, workbenchActiveState.page - 1)">上一页</button>
-        <button type="button" :disabled="workbenchActiveState.page * 20 >= workbenchActiveState.total" @click="queryWorkbench(workbenchActiveTab, workbenchActiveState.page + 1)">下一页</button>
-      </section>
-      <section v-else-if="vouEntity" aria-label="目标单据">
+      <section v-if="vouEntity" aria-label="目标单据">
         <h2>{{ vouEntityPresentation[vouEntity].label }}</h2>
         <p>
           草稿正文与附件只保存在当前浏览器；提交成功后才创建服务器业务记录。
@@ -293,7 +220,7 @@ const {
               :value="vouInputValue(draft, entry)"
               @change="updateVouInput(draft, entry, $event)"
             >
-              <option v-for="value in entry.field.kind === 'boolean' ? ['false', 'true'] : entry.field.enumValues" :key="value" :value="value">{{ value }}</option>
+              <option v-for="value in entry.field.kind === 'boolean' ? ['false', 'true'] : entry.field.enumValues" :key="value" :value="value">{{ targetWireValueLabel(value) }}</option>
             </select>
             <template v-else>
               <select
@@ -331,7 +258,7 @@ const {
                 v-for="variant in entry.field.variants"
                 :key="variant.id"
                 :value="variant.id"
-              >{{ variant.id }}</option>
+              >{{ targetWireValueLabel(variant.id) }}</option>
             </select>
           </label>
           <label
@@ -403,7 +330,7 @@ const {
           <label>说明<textarea v-model="book.description" /></label>
           <label>本位币<input v-model="book.baseCurrency" maxlength="3" /></label>
           <p>{{ book.startMonth }}</p>
-          <button type="button" @click="saveAccBook(book)">保存账簿</button>
+          <button type="button" :disabled="!canSaveAccBook" @click="saveAccBook(book)">保存账簿</button>
           <button type="button" @click="deleteAccBook(book)">删除账簿</button>
           <button type="button" @click="selectAccBook(book.id)">选择账簿</button>
         </article>
@@ -414,15 +341,13 @@ const {
           <option value="">请选择</option>
           <option v-for="book in accBooks" :key="book.id" :value="book.id">{{ book.code }} · {{ book.name }}</option>
         </select></label>
-        <button type="button" :disabled="!canCreateAccSubject" @click="createAccSubject('DEBIT')">新建借方科目</button>
-        <button type="button" :disabled="!canCreateAccSubject" @click="createAccSubject('CREDIT')">新建贷方科目</button>
         <article v-for="subject in accSubjects" :key="subject.id" data-testid="acc-subject" :data-acc-subject-id="subject.id">
           <h3>{{ subject.code }} · {{ subject.name }}</h3>
-          <label>编码<input v-model="subject.code" /></label>
+          <p>编码：{{ subject.code }}</p>
           <label>名称<input v-model="subject.name" /></label>
           <label>方向<select v-model="subject.balanceDirection"><option value="DEBIT">借方</option><option value="CREDIT">贷方</option></select></label>
           <label>启用<input v-model="subject.enabled" type="checkbox" /></label>
-          <button type="button" @click="saveAccSubject(subject)">保存科目</button>
+          <button type="button" :disabled="!canSaveAccSubject" @click="saveAccSubject(subject)">保存科目</button>
           <button type="button" @click="deleteAccSubject(subject)">删除科目</button>
         </article>
       </section>
@@ -518,7 +443,7 @@ const {
             <p v-if="node.status">{{ approvalStatusPresentation[node.status].label }}</p>
             <label>原因<input v-model="wflReasons[node.nodeId]" maxlength="1000" /></label>
             <label>请求标识<input v-model="wflRequestKeys[node.nodeId]" minlength="16" maxlength="64" /></label>
-            <button v-for="action in node.availableActions.filter((value) => value !== 'CREATE_CHILD')" :key="action" type="button" :disabled="!canActionWflInstance(node, action)" @click="actionWflInstance(node, action)">{{ action }}</button>
+            <button v-for="action in node.availableActions.filter((value) => value !== 'CREATE_CHILD')" :key="action" type="button" :disabled="!canActionWflInstance(node, action)" @click="actionWflInstance(node, action)">{{ targetWireValueLabel(action) }}</button>
             <button v-for="target in wflInstance.availableTargets.filter((item) => item.parentNodeId === node.nodeId && canActionWflInstance(node, 'CREATE_CHILD'))" :key="target.targetNodeKey" type="button" @click="actionWflInstance(node, 'CREATE_CHILD', target.targetNodeKey)">创建 {{ target.targetNodeName }}</button>
           </fieldset>
         </article>

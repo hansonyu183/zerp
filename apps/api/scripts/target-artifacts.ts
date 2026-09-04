@@ -89,7 +89,9 @@ function executableTargetPaths() {
   return {
     document,
     paths: paths.filter((entry) =>
-      [' /app/', ' /dcl/', ' /bob/'].some((prefix) => entry.includes(prefix)),
+      [' /app/', ' /aux/', ' /dcl/', ' /bob/'].some((prefix) =>
+        entry.includes(prefix),
+      ),
     ),
   }
 }

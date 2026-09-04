@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
+import {
+  auxRouteBinding,
+  bobRouteBinding,
+} from '../src/app/independent-contract.ts'
 import { validateTargetRouteMetadata } from './target-artifacts.ts'
+
+const generatedOpenApi = new URL(
+  '../src/generated/openapi.json',
+  import.meta.url,
+)
 
 const userQuery = {
   method: 'post',
@@ -77,4 +87,96 @@ test('target artifact gate emits action permissions without creating duplicate m
       },
     ],
   )
+})
+
+test('independent route bindings carry the exact registered permission', () => {
+  assert.deepEqual(auxRouteBinding('department', 'create'), {
+    entity: 'department',
+    action: 'create',
+    permission: '/aux/department/create',
+  })
+  assert.deepEqual(bobRouteBinding('employee', 'get'), {
+    entity: 'employee',
+    action: 'get',
+    permission: '/bob/employee/get',
+  })
+})
+
+test('target OpenAPI contains the complete issue 363 APP, AUX, and BOB inventory', async () => {
+  const document = JSON.parse(await readFile(generatedOpenApi, 'utf8')) as {
+    paths: Record<string, unknown>
+  }
+  const paths = new Set(Object.keys(document.paths))
+  const appPaths = [
+    '/app/branding/get',
+    '/app/menu/activate',
+    '/app/menu/get',
+    '/app/menu/reset-business',
+    '/app/menu/save-business',
+    '/app/permission/get',
+    '/app/permission/query',
+    '/app/role/create',
+    '/app/role/disable',
+    '/app/role/enable',
+    '/app/role/get',
+    '/app/role/query',
+    '/app/role/save',
+    '/app/system-parameter/get',
+    '/app/system-parameter/query',
+    '/app/system-parameter/reset',
+    '/app/system-parameter/save',
+    '/app/user/change-password',
+    '/app/user/create',
+    '/app/user/disable',
+    '/app/user/enable',
+    '/app/user/get',
+    '/app/user/profile',
+    '/app/user/query',
+    '/app/user/reset-password',
+    '/app/user/save',
+    '/app/user/session',
+    '/app/user/signin',
+    '/app/user/signout',
+  ]
+  const auxEntities = [
+    'product-category',
+    'product-type',
+    'employee-category',
+    'department',
+    'position',
+    'settlement-method',
+    'payment-method',
+    'dictionary-type',
+    'dictionary-item',
+    'measurement-unit',
+    'income-expense-type',
+    'asset-category',
+  ]
+  const auxPaths = auxEntities.flatMap((entity) =>
+    ['query', 'get', 'save', 'enable', 'disable', 'create', 'delete']
+      .filter(
+        (action) =>
+          entity !== 'settlement-method' ||
+          (action !== 'create' && action !== 'delete'),
+      )
+      .map((action) => `/aux/${entity}/${action}`),
+  )
+  auxPaths.push('/aux/reference/query')
+  const bobPaths = [
+    'customer',
+    'supplier',
+    'employee',
+    'other-unit',
+    'sales-partner',
+    'product',
+    'warehouse',
+    'vehicle',
+    'fund-account',
+    'operating-entity',
+  ].flatMap((entity) => [`/bob/${entity}/query`, `/bob/${entity}/get`])
+  bobPaths.push('/bob/reference/query')
+
+  for (const path of [...appPaths, ...auxPaths, ...bobPaths])
+    assert.ok(paths.has(path), `missing issue #363 target path ${path}`)
+  assert.ok(!paths.has('/app/workbench/query'), 'APP Workbench belongs to #366')
 })

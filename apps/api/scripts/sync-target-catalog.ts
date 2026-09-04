@@ -12,7 +12,7 @@ if (!new URL(databaseUrl).pathname.slice(1).endsWith('_test'))
 
 const database = createDatabase(databaseUrl)
 try {
-  await new TargetBootstrapService(database).replacePermissionCatalog(
+  await new TargetBootstrapService(database).migratePermissionCatalog(
     await readTargetPermissionCatalog(),
   )
 } finally {

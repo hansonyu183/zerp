@@ -1,5 +1,195 @@
 [
   {
+    "id": "01J60CD5D69F1423D2AD343396",
+    "path": "/app/menu/activate",
+    "domain": "app",
+    "entity": "menu",
+    "action": "activate",
+    "title": "切换菜单模式",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JE7A8F8FAD82BBA4E15D69E0",
+    "path": "/app/menu/reset-business",
+    "domain": "app",
+    "entity": "menu",
+    "action": "reset-business",
+    "title": "重置业务菜单",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JAE78671A674535D3147D89B",
+    "path": "/app/menu/save-business",
+    "domain": "app",
+    "entity": "menu",
+    "action": "save-business",
+    "title": "保存业务菜单",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JBF6BA14A349E1991BF9C556",
+    "path": "/app/permission/get",
+    "domain": "app",
+    "entity": "permission",
+    "action": "get",
+    "title": "查看权限",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J8399E05506D0101F2897FC4",
+    "path": "/app/permission/query",
+    "domain": "app",
+    "entity": "permission",
+    "action": "query",
+    "title": "查询权限目录",
+    "group": "系统管理",
+    "order": 30
+  },
+  {
+    "id": "01JD443AB2BED9E0444E2F1AAB",
+    "path": "/app/role/create",
+    "domain": "app",
+    "entity": "role",
+    "action": "create",
+    "title": "创建角色",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JAEEEB9C1929BF22F46C0B2E",
+    "path": "/app/role/disable",
+    "domain": "app",
+    "entity": "role",
+    "action": "disable",
+    "title": "停用角色",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J3DE15B9887B5452F198CB5C",
+    "path": "/app/role/enable",
+    "domain": "app",
+    "entity": "role",
+    "action": "enable",
+    "title": "启用角色",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J991CB37647AF92B29ADDD51",
+    "path": "/app/role/get",
+    "domain": "app",
+    "entity": "role",
+    "action": "get",
+    "title": "查看角色",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF104EAC5C3CA89B25A1F26D",
+    "path": "/app/role/query",
+    "domain": "app",
+    "entity": "role",
+    "action": "query",
+    "title": "查询角色",
+    "group": "系统管理",
+    "order": 20
+  },
+  {
+    "id": "01J877F4DE6574ED8895139201",
+    "path": "/app/role/save",
+    "domain": "app",
+    "entity": "role",
+    "action": "save",
+    "title": "修改角色",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J059370F521EC3B51C587DCF",
+    "path": "/app/system-parameter/get",
+    "domain": "app",
+    "entity": "system-parameter",
+    "action": "get",
+    "title": "查看系统参数",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JBEA082FEEB69D9D2EED50F0",
+    "path": "/app/system-parameter/query",
+    "domain": "app",
+    "entity": "system-parameter",
+    "action": "query",
+    "title": "查询系统参数",
+    "group": "系统管理",
+    "order": 40
+  },
+  {
+    "id": "01J35D5C608ECE6AF0BFF716E4",
+    "path": "/app/system-parameter/reset",
+    "domain": "app",
+    "entity": "system-parameter",
+    "action": "reset",
+    "title": "重置系统参数",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA9903D59B2E93689F25F96A",
+    "path": "/app/system-parameter/save",
+    "domain": "app",
+    "entity": "system-parameter",
+    "action": "save",
+    "title": "修改系统参数",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J4C2C5D858B292F4EFC10ED6",
+    "path": "/app/user/create",
+    "domain": "app",
+    "entity": "user",
+    "action": "create",
+    "title": "创建用户",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J2C2D6E6352836808226D043",
+    "path": "/app/user/disable",
+    "domain": "app",
+    "entity": "user",
+    "action": "disable",
+    "title": "停用用户",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JB7F6BA191420861C4DF7E29",
+    "path": "/app/user/enable",
+    "domain": "app",
+    "entity": "user",
+    "action": "enable",
+    "title": "启用用户",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5306AEC932A2E955F8866B6",
+    "path": "/app/user/get",
+    "domain": "app",
+    "entity": "user",
+    "action": "get",
+    "title": "查看用户",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J4C89A32EE3460059789A73F",
     "path": "/app/user/query",
     "domain": "app",
@@ -8,6 +198,1066 @@
     "title": "用户管理",
     "group": "系统管理",
     "order": 10
+  },
+  {
+    "id": "01J45C15564B81DD7323162ACB",
+    "path": "/app/user/reset-password",
+    "domain": "app",
+    "entity": "user",
+    "action": "reset-password",
+    "title": "重置用户密码",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JE67464FB9E465080D48F221",
+    "path": "/app/user/save",
+    "domain": "app",
+    "entity": "user",
+    "action": "save",
+    "title": "修改用户",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J129AB2FA45F51F0A410DDE9",
+    "path": "/aux/asset-category/create",
+    "domain": "aux",
+    "entity": "asset-category",
+    "action": "create",
+    "title": "创建资产分类",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JFE272A7CDC6BA9E33CFFA76",
+    "path": "/aux/asset-category/delete",
+    "domain": "aux",
+    "entity": "asset-category",
+    "action": "delete",
+    "title": "删除资产分类",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J033856CB92CB758AD98C31B",
+    "path": "/aux/asset-category/disable",
+    "domain": "aux",
+    "entity": "asset-category",
+    "action": "disable",
+    "title": "停用资产分类",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5317B421310BFD7FB73862C",
+    "path": "/aux/asset-category/enable",
+    "domain": "aux",
+    "entity": "asset-category",
+    "action": "enable",
+    "title": "启用资产分类",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JB15920004DFFCFDF4E5C18E",
+    "path": "/aux/asset-category/get",
+    "domain": "aux",
+    "entity": "asset-category",
+    "action": "get",
+    "title": "查看资产分类",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J87FA9984EB8D198D3191CC7",
+    "path": "/aux/asset-category/query",
+    "domain": "aux",
+    "entity": "asset-category",
+    "action": "query",
+    "title": "查询资产分类",
+    "group": "辅助资料",
+    "order": 210
+  },
+  {
+    "id": "01J6D57EC5C5467AED68FCEAF6",
+    "path": "/aux/asset-category/save",
+    "domain": "aux",
+    "entity": "asset-category",
+    "action": "save",
+    "title": "保存资产分类",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JEC0FAEFAEE036351E661468",
+    "path": "/aux/department/create",
+    "domain": "aux",
+    "entity": "department",
+    "action": "create",
+    "title": "创建部门",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J894A795E797638E3C0E701C",
+    "path": "/aux/department/delete",
+    "domain": "aux",
+    "entity": "department",
+    "action": "delete",
+    "title": "删除部门",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J714B51DCD4649F9B7612F93",
+    "path": "/aux/department/disable",
+    "domain": "aux",
+    "entity": "department",
+    "action": "disable",
+    "title": "停用部门",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J774F55CBF2DC7D55ACF2BD3",
+    "path": "/aux/department/enable",
+    "domain": "aux",
+    "entity": "department",
+    "action": "enable",
+    "title": "启用部门",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JD34D21EA17AC51A701311EC",
+    "path": "/aux/department/get",
+    "domain": "aux",
+    "entity": "department",
+    "action": "get",
+    "title": "查看部门",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J1E3839C237B2CB9BEDFB8C9",
+    "path": "/aux/department/query",
+    "domain": "aux",
+    "entity": "department",
+    "action": "query",
+    "title": "查询部门",
+    "group": "辅助资料",
+    "order": 130
+  },
+  {
+    "id": "01J383519FF3DFE872A78D72DC",
+    "path": "/aux/department/save",
+    "domain": "aux",
+    "entity": "department",
+    "action": "save",
+    "title": "保存部门",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JEB0E858B59072F957C65231",
+    "path": "/aux/dictionary-item/create",
+    "domain": "aux",
+    "entity": "dictionary-item",
+    "action": "create",
+    "title": "创建字典项",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JD6C2F131BB734BF0005E7EB",
+    "path": "/aux/dictionary-item/delete",
+    "domain": "aux",
+    "entity": "dictionary-item",
+    "action": "delete",
+    "title": "删除字典项",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J7BEF92FE6CFFEF5D051B865",
+    "path": "/aux/dictionary-item/disable",
+    "domain": "aux",
+    "entity": "dictionary-item",
+    "action": "disable",
+    "title": "停用字典项",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JEC203B6FD609FFE9191E9EA",
+    "path": "/aux/dictionary-item/enable",
+    "domain": "aux",
+    "entity": "dictionary-item",
+    "action": "enable",
+    "title": "启用字典项",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5837BA80EBFD57F3597F343",
+    "path": "/aux/dictionary-item/get",
+    "domain": "aux",
+    "entity": "dictionary-item",
+    "action": "get",
+    "title": "查看字典项",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JACD114F5190FFA9FC355673",
+    "path": "/aux/dictionary-item/query",
+    "domain": "aux",
+    "entity": "dictionary-item",
+    "action": "query",
+    "title": "查询字典项",
+    "group": "辅助资料",
+    "order": 180
+  },
+  {
+    "id": "01JCBBC0D2C8365F89C49C82B6",
+    "path": "/aux/dictionary-item/save",
+    "domain": "aux",
+    "entity": "dictionary-item",
+    "action": "save",
+    "title": "保存字典项",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5967CCDE39FF77784B48934",
+    "path": "/aux/dictionary-type/create",
+    "domain": "aux",
+    "entity": "dictionary-type",
+    "action": "create",
+    "title": "创建字典类型",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JB45851EEAB851E4D5330C52",
+    "path": "/aux/dictionary-type/delete",
+    "domain": "aux",
+    "entity": "dictionary-type",
+    "action": "delete",
+    "title": "删除字典类型",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA10304E0DD3652C7DBE4DF5",
+    "path": "/aux/dictionary-type/disable",
+    "domain": "aux",
+    "entity": "dictionary-type",
+    "action": "disable",
+    "title": "停用字典类型",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J40A189CB670CBA9D1AFD38F",
+    "path": "/aux/dictionary-type/enable",
+    "domain": "aux",
+    "entity": "dictionary-type",
+    "action": "enable",
+    "title": "启用字典类型",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC44D7E537A90822C9F111BF",
+    "path": "/aux/dictionary-type/get",
+    "domain": "aux",
+    "entity": "dictionary-type",
+    "action": "get",
+    "title": "查看字典类型",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA269A97B334CCCC4EEAE7E8",
+    "path": "/aux/dictionary-type/query",
+    "domain": "aux",
+    "entity": "dictionary-type",
+    "action": "query",
+    "title": "查询字典类型",
+    "group": "辅助资料",
+    "order": 170
+  },
+  {
+    "id": "01J4BB3E480A106581E5D9524E",
+    "path": "/aux/dictionary-type/save",
+    "domain": "aux",
+    "entity": "dictionary-type",
+    "action": "save",
+    "title": "保存字典类型",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J148F9374E187228587F5D4F",
+    "path": "/aux/employee-category/create",
+    "domain": "aux",
+    "entity": "employee-category",
+    "action": "create",
+    "title": "创建员工分类",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J9B7FFE20ABAC86C1640D3CB",
+    "path": "/aux/employee-category/delete",
+    "domain": "aux",
+    "entity": "employee-category",
+    "action": "delete",
+    "title": "删除员工分类",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J697BE38B3A01EA6953566AD",
+    "path": "/aux/employee-category/disable",
+    "domain": "aux",
+    "entity": "employee-category",
+    "action": "disable",
+    "title": "停用员工分类",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JB16FEBEF90E06A2C5069E38",
+    "path": "/aux/employee-category/enable",
+    "domain": "aux",
+    "entity": "employee-category",
+    "action": "enable",
+    "title": "启用员工分类",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JF53DAFE27DC1C684DBF40BA",
+    "path": "/aux/employee-category/get",
+    "domain": "aux",
+    "entity": "employee-category",
+    "action": "get",
+    "title": "查看员工分类",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J43797157D73C64DAC7E56D1",
+    "path": "/aux/employee-category/query",
+    "domain": "aux",
+    "entity": "employee-category",
+    "action": "query",
+    "title": "查询员工分类",
+    "group": "辅助资料",
+    "order": 120
+  },
+  {
+    "id": "01J5E9740C6B5CC7D409CE301F",
+    "path": "/aux/employee-category/save",
+    "domain": "aux",
+    "entity": "employee-category",
+    "action": "save",
+    "title": "保存员工分类",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J2D6071B62D3BB994D1F7D6D",
+    "path": "/aux/income-expense-type/create",
+    "domain": "aux",
+    "entity": "income-expense-type",
+    "action": "create",
+    "title": "创建收支类型",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JABAF8041618D227F44C2501",
+    "path": "/aux/income-expense-type/delete",
+    "domain": "aux",
+    "entity": "income-expense-type",
+    "action": "delete",
+    "title": "删除收支类型",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J939D1DC8B0FFF42FFA3D168",
+    "path": "/aux/income-expense-type/disable",
+    "domain": "aux",
+    "entity": "income-expense-type",
+    "action": "disable",
+    "title": "停用收支类型",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JCFEA79EC4A51D8F25507EBA",
+    "path": "/aux/income-expense-type/enable",
+    "domain": "aux",
+    "entity": "income-expense-type",
+    "action": "enable",
+    "title": "启用收支类型",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JD092580E7321FF1B4B22C3D",
+    "path": "/aux/income-expense-type/get",
+    "domain": "aux",
+    "entity": "income-expense-type",
+    "action": "get",
+    "title": "查看收支类型",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J88CE9BC8EEE214F8EBD628D",
+    "path": "/aux/income-expense-type/query",
+    "domain": "aux",
+    "entity": "income-expense-type",
+    "action": "query",
+    "title": "查询收支类型",
+    "group": "辅助资料",
+    "order": 200
+  },
+  {
+    "id": "01JB5B5F5D6D9D119494CC0629",
+    "path": "/aux/income-expense-type/save",
+    "domain": "aux",
+    "entity": "income-expense-type",
+    "action": "save",
+    "title": "保存收支类型",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J98C11F498D5777C02B30AB6",
+    "path": "/aux/measurement-unit/create",
+    "domain": "aux",
+    "entity": "measurement-unit",
+    "action": "create",
+    "title": "创建计量单位",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J8581C7299E5684B13E2D581",
+    "path": "/aux/measurement-unit/delete",
+    "domain": "aux",
+    "entity": "measurement-unit",
+    "action": "delete",
+    "title": "删除计量单位",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J41A385E0E4AC28962BE2C78",
+    "path": "/aux/measurement-unit/disable",
+    "domain": "aux",
+    "entity": "measurement-unit",
+    "action": "disable",
+    "title": "停用计量单位",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J181C3C461F3CB3FFF291CF7",
+    "path": "/aux/measurement-unit/enable",
+    "domain": "aux",
+    "entity": "measurement-unit",
+    "action": "enable",
+    "title": "启用计量单位",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J607E32F231DCC7CE73511A5",
+    "path": "/aux/measurement-unit/get",
+    "domain": "aux",
+    "entity": "measurement-unit",
+    "action": "get",
+    "title": "查看计量单位",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC8ECF41FA6AB6370C68A439",
+    "path": "/aux/measurement-unit/query",
+    "domain": "aux",
+    "entity": "measurement-unit",
+    "action": "query",
+    "title": "查询计量单位",
+    "group": "辅助资料",
+    "order": 190
+  },
+  {
+    "id": "01J4EC223FA4CDC4134DCABA02",
+    "path": "/aux/measurement-unit/save",
+    "domain": "aux",
+    "entity": "measurement-unit",
+    "action": "save",
+    "title": "保存计量单位",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J483862F670E450DEAAEC662",
+    "path": "/aux/payment-method/create",
+    "domain": "aux",
+    "entity": "payment-method",
+    "action": "create",
+    "title": "创建收款方式",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J35BF714C2D4C2DC8627A876",
+    "path": "/aux/payment-method/delete",
+    "domain": "aux",
+    "entity": "payment-method",
+    "action": "delete",
+    "title": "删除收款方式",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J36D0273CAADBF67BAE84518",
+    "path": "/aux/payment-method/disable",
+    "domain": "aux",
+    "entity": "payment-method",
+    "action": "disable",
+    "title": "停用收款方式",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J8E67D03B72D5BE880AB5D7C",
+    "path": "/aux/payment-method/enable",
+    "domain": "aux",
+    "entity": "payment-method",
+    "action": "enable",
+    "title": "启用收款方式",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J18A54B9687D39A2CDBCC105",
+    "path": "/aux/payment-method/get",
+    "domain": "aux",
+    "entity": "payment-method",
+    "action": "get",
+    "title": "查看收款方式",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JABD0585E55EA4DF35B363E7",
+    "path": "/aux/payment-method/query",
+    "domain": "aux",
+    "entity": "payment-method",
+    "action": "query",
+    "title": "查询收款方式",
+    "group": "辅助资料",
+    "order": 160
+  },
+  {
+    "id": "01J9FB09C74E4577F3E85B2DA5",
+    "path": "/aux/payment-method/save",
+    "domain": "aux",
+    "entity": "payment-method",
+    "action": "save",
+    "title": "保存收款方式",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J95412E2BB540B7C147AB4DC",
+    "path": "/aux/position/create",
+    "domain": "aux",
+    "entity": "position",
+    "action": "create",
+    "title": "创建岗位",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JAAFD5C19453426DB8CA9AD9",
+    "path": "/aux/position/delete",
+    "domain": "aux",
+    "entity": "position",
+    "action": "delete",
+    "title": "删除岗位",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J754E53DEE85D77CF90C9A9F",
+    "path": "/aux/position/disable",
+    "domain": "aux",
+    "entity": "position",
+    "action": "disable",
+    "title": "停用岗位",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J628370D8522A08050021116",
+    "path": "/aux/position/enable",
+    "domain": "aux",
+    "entity": "position",
+    "action": "enable",
+    "title": "启用岗位",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JE7D72B975CBA1C3C75DF07E",
+    "path": "/aux/position/get",
+    "domain": "aux",
+    "entity": "position",
+    "action": "get",
+    "title": "查看岗位",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J636D122E112F3A379A61F2F",
+    "path": "/aux/position/query",
+    "domain": "aux",
+    "entity": "position",
+    "action": "query",
+    "title": "查询岗位",
+    "group": "辅助资料",
+    "order": 140
+  },
+  {
+    "id": "01JA1EDEEE40F1311C7658A078",
+    "path": "/aux/position/save",
+    "domain": "aux",
+    "entity": "position",
+    "action": "save",
+    "title": "保存岗位",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J99363F1DDEEDFCA8BFAD6C9",
+    "path": "/aux/product-category/create",
+    "domain": "aux",
+    "entity": "product-category",
+    "action": "create",
+    "title": "创建产品分类",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA3E21C4E136DAE9FC10217D",
+    "path": "/aux/product-category/delete",
+    "domain": "aux",
+    "entity": "product-category",
+    "action": "delete",
+    "title": "删除产品分类",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JEF98486DBD3E3A1D0D45A25",
+    "path": "/aux/product-category/disable",
+    "domain": "aux",
+    "entity": "product-category",
+    "action": "disable",
+    "title": "停用产品分类",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC9A47D5F424D67F596962ED",
+    "path": "/aux/product-category/enable",
+    "domain": "aux",
+    "entity": "product-category",
+    "action": "enable",
+    "title": "启用产品分类",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5D78EC14953EA68EA24C745",
+    "path": "/aux/product-category/get",
+    "domain": "aux",
+    "entity": "product-category",
+    "action": "get",
+    "title": "查看产品分类",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC780195C677CF1B765332DE",
+    "path": "/aux/product-category/query",
+    "domain": "aux",
+    "entity": "product-category",
+    "action": "query",
+    "title": "查询产品分类",
+    "group": "辅助资料",
+    "order": 100
+  },
+  {
+    "id": "01J7D1711983CACFECCF4ACC72",
+    "path": "/aux/product-category/save",
+    "domain": "aux",
+    "entity": "product-category",
+    "action": "save",
+    "title": "保存产品分类",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5CEDA58EBF65F4A09C96925",
+    "path": "/aux/product-type/create",
+    "domain": "aux",
+    "entity": "product-type",
+    "action": "create",
+    "title": "创建产品类型",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JE9EFCE39581799CAF35A660",
+    "path": "/aux/product-type/delete",
+    "domain": "aux",
+    "entity": "product-type",
+    "action": "delete",
+    "title": "删除产品类型",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J51EC8123E98C5580F05DA31",
+    "path": "/aux/product-type/disable",
+    "domain": "aux",
+    "entity": "product-type",
+    "action": "disable",
+    "title": "停用产品类型",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J453A54A5745AAC5BDFC1E65",
+    "path": "/aux/product-type/enable",
+    "domain": "aux",
+    "entity": "product-type",
+    "action": "enable",
+    "title": "启用产品类型",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J2DECCDBC0654FA5C8DF3D96",
+    "path": "/aux/product-type/get",
+    "domain": "aux",
+    "entity": "product-type",
+    "action": "get",
+    "title": "查看产品类型",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J49149F3DB0EBEB861AD4068",
+    "path": "/aux/product-type/query",
+    "domain": "aux",
+    "entity": "product-type",
+    "action": "query",
+    "title": "查询产品类型",
+    "group": "辅助资料",
+    "order": 110
+  },
+  {
+    "id": "01J091D97133B6421D000B9EE7",
+    "path": "/aux/product-type/save",
+    "domain": "aux",
+    "entity": "product-type",
+    "action": "save",
+    "title": "保存产品类型",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J29DD7AE9C28674BB5F0BA65",
+    "path": "/aux/reference/query",
+    "domain": "aux",
+    "entity": "reference",
+    "action": "query",
+    "title": "查询 AUX 最小引用候选",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J7D7D8004828DEF813DAA0CD",
+    "path": "/aux/settlement-method/disable",
+    "domain": "aux",
+    "entity": "settlement-method",
+    "action": "disable",
+    "title": "停用结算方式",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J7D69B3F6BD53C3F9CC4DA09",
+    "path": "/aux/settlement-method/enable",
+    "domain": "aux",
+    "entity": "settlement-method",
+    "action": "enable",
+    "title": "启用结算方式",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JAF4BA7A9EB384B4219E36AC",
+    "path": "/aux/settlement-method/get",
+    "domain": "aux",
+    "entity": "settlement-method",
+    "action": "get",
+    "title": "查看结算方式",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JEC26B8672ECEBCCECC1881E",
+    "path": "/aux/settlement-method/query",
+    "domain": "aux",
+    "entity": "settlement-method",
+    "action": "query",
+    "title": "查询结算方式",
+    "group": "辅助资料",
+    "order": 150
+  },
+  {
+    "id": "01J3C9FDFBD6F1A10D7C490DCF",
+    "path": "/aux/settlement-method/save",
+    "domain": "aux",
+    "entity": "settlement-method",
+    "action": "save",
+    "title": "保存结算方式",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JCC2D59FDC2B4A1DE81D0149",
+    "path": "/bob/customer/get",
+    "domain": "bob",
+    "entity": "customer",
+    "action": "get",
+    "title": "查看客户",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J1536D4AD2DA891D11EE95CE",
+    "path": "/bob/customer/query",
+    "domain": "bob",
+    "entity": "customer",
+    "action": "query",
+    "title": "查询客户",
+    "group": "业务资料",
+    "order": 300
+  },
+  {
+    "id": "01JCC8B8C42FA75B4CD173B071",
+    "path": "/bob/employee/get",
+    "domain": "bob",
+    "entity": "employee",
+    "action": "get",
+    "title": "查看员工",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J287DF3EDFC42EB2741C322C",
+    "path": "/bob/employee/query",
+    "domain": "bob",
+    "entity": "employee",
+    "action": "query",
+    "title": "查询员工",
+    "group": "业务资料",
+    "order": 320
+  },
+  {
+    "id": "01J308DA5017E09C1370E6F3DE",
+    "path": "/bob/fund-account/get",
+    "domain": "bob",
+    "entity": "fund-account",
+    "action": "get",
+    "title": "查看资金账户",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J942CCCDFD065C821D881A5F",
+    "path": "/bob/fund-account/query",
+    "domain": "bob",
+    "entity": "fund-account",
+    "action": "query",
+    "title": "查询资金账户",
+    "group": "业务资料",
+    "order": 380
+  },
+  {
+    "id": "01J7050C7E9E371641CE861832",
+    "path": "/bob/operating-entity/get",
+    "domain": "bob",
+    "entity": "operating-entity",
+    "action": "get",
+    "title": "查看经营主体",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JE7E89F40305511A6555C20B",
+    "path": "/bob/operating-entity/query",
+    "domain": "bob",
+    "entity": "operating-entity",
+    "action": "query",
+    "title": "查询经营主体",
+    "group": "业务资料",
+    "order": 390
+  },
+  {
+    "id": "01J12069514CDA1F89CECEEF3D",
+    "path": "/bob/other-unit/get",
+    "domain": "bob",
+    "entity": "other-unit",
+    "action": "get",
+    "title": "查看其他单位",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J65326E1588ED0BC25F34DA3",
+    "path": "/bob/other-unit/query",
+    "domain": "bob",
+    "entity": "other-unit",
+    "action": "query",
+    "title": "查询其他单位",
+    "group": "业务资料",
+    "order": 330
+  },
+  {
+    "id": "01J5DD205F4B0DAF0CBCAF67A1",
+    "path": "/bob/product/get",
+    "domain": "bob",
+    "entity": "product",
+    "action": "get",
+    "title": "查看产品",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JA30C40DE6D895E497409014",
+    "path": "/bob/product/query",
+    "domain": "bob",
+    "entity": "product",
+    "action": "query",
+    "title": "查询产品",
+    "group": "业务资料",
+    "order": 350
+  },
+  {
+    "id": "01J560D6C8B6290F677202E82D",
+    "path": "/bob/reference/query",
+    "domain": "bob",
+    "entity": "reference",
+    "action": "query",
+    "title": "查询 BOB 最小引用候选",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01JC1AA985FAF3B603908AB1EE",
+    "path": "/bob/sales-partner/get",
+    "domain": "bob",
+    "entity": "sales-partner",
+    "action": "get",
+    "title": "查看销售合作方",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J9EDDEF73AC7A11EE31C6736",
+    "path": "/bob/sales-partner/query",
+    "domain": "bob",
+    "entity": "sales-partner",
+    "action": "query",
+    "title": "查询销售合作方",
+    "group": "业务资料",
+    "order": 340
+  },
+  {
+    "id": "01J3D47EE834BB2802276753C7",
+    "path": "/bob/supplier/get",
+    "domain": "bob",
+    "entity": "supplier",
+    "action": "get",
+    "title": "查看供应商",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J1F44D688A9C3DA293D53B73",
+    "path": "/bob/supplier/query",
+    "domain": "bob",
+    "entity": "supplier",
+    "action": "query",
+    "title": "查询供应商",
+    "group": "业务资料",
+    "order": 310
+  },
+  {
+    "id": "01JEF7A0AF6498BEE4FBFF8455",
+    "path": "/bob/vehicle/get",
+    "domain": "bob",
+    "entity": "vehicle",
+    "action": "get",
+    "title": "查看车辆",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J048D754EB3763584C7E8F7E",
+    "path": "/bob/vehicle/query",
+    "domain": "bob",
+    "entity": "vehicle",
+    "action": "query",
+    "title": "查询车辆",
+    "group": "业务资料",
+    "order": 370
+  },
+  {
+    "id": "01J1EB6E395D1EF55846BC599B",
+    "path": "/bob/warehouse/get",
+    "domain": "bob",
+    "entity": "warehouse",
+    "action": "get",
+    "title": "查看仓库",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J7FEC2898B72E645974FFCAC",
+    "path": "/bob/warehouse/query",
+    "domain": "bob",
+    "entity": "warehouse",
+    "action": "query",
+    "title": "查询仓库",
+    "group": "业务资料",
+    "order": 360
   },
   {
     "id": "01J38C8D37781AE22E1F88B245",

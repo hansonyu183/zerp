@@ -2,6 +2,9 @@ import { serve } from '@hono/node-server'
 
 import { createApp } from './app.ts'
 import { SessionService } from './app/session.ts'
+import { ManagementService } from './app/management.ts'
+import { AuxService } from './aux/service.ts'
+import { BobService } from './bob/service.ts'
 import { createDatabase } from './db/database.ts'
 import { loadConfig } from './platform/config.ts'
 import { jsonLogger } from './platform/logging.ts'
@@ -21,6 +24,9 @@ const app = createApp({
         .then(() => undefined),
   },
   session: new SessionService(database, config),
+  management: new ManagementService(database, config),
+  aux: new AuxService(database),
+  bob: new BobService(database),
   warehouse: new WarehouseService(database),
   config,
   corsAllowedOrigins: config.corsAllowedOrigins,

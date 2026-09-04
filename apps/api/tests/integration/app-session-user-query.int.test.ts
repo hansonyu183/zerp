@@ -6,6 +6,7 @@ import { serve } from '@hono/node-server'
 import { argon2idAsync } from '@noble/hashes/argon2.js'
 
 import { createApp } from '../../src/app.ts'
+import { ManagementService } from '../../src/app/management.ts'
 import { SessionService } from '../../src/app/session.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { loadConfig } from '../../src/platform/config.ts'
@@ -54,6 +55,7 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
       password_hash: encoded,
       status: 'ENABLED',
       password_changed_at: new Date(),
+      password_change_required: false,
     })
     .execute()
   const config = loadConfig({
@@ -71,6 +73,7 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
           .then(() => undefined),
     },
     session: new SessionService(db, config),
+    management: new ManagementService(db, config),
     config,
   })
   let listening: (() => void) | undefined
@@ -147,6 +150,20 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
         .executeTakeFirstOrThrow()
     ).idle_expires_at > beforeRestore,
   )
+
+  const invalidProfile = await fetch(`${origin}/app/user/profile`, {
+    method: 'POST',
+    headers: {
+      ...headers,
+      cookie,
+      'x-csrf-token': sessionPayload.data.csrfToken,
+    },
+    body: JSON.stringify({
+      avatarUrl: 'https://images.example.com/avatar.png',
+    }),
+  })
+  assert.equal(invalidProfile.status, 200)
+  assert.equal((await invalidProfile.json()).errorKey, 'validation_failed')
 
   const query = {
     page: 1,

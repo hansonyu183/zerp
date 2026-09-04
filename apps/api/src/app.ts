@@ -7,6 +7,9 @@ import { currentRequestId, requestId } from './platform/request-id.ts'
 import type { TargetConfig } from './platform/config.ts'
 import { registerAppRoutes } from './app/routes.ts'
 import type { SessionService } from './app/session.ts'
+import type { ManagementService } from './app/management.ts'
+import type { AuxService } from './aux/service.ts'
+import type { BobService } from './bob/service.ts'
 import { noopLogger, type AppLogger } from './platform/logging.ts'
 import type { WarehouseService } from './dcl/warehouse.ts'
 
@@ -19,6 +22,9 @@ export interface CreateAppOptions {
   corsAllowedOrigins?: string[]
   database?: DatabaseReadiness
   session?: SessionService
+  management?: ManagementService
+  aux?: AuxService
+  bob?: BobService
   config?: TargetConfig
   logger?: AppLogger
   warehouse?: WarehouseService
@@ -125,7 +131,15 @@ export function createApp(options: CreateAppOptions = {}) {
     }
   })
   if (options.session && options.config)
-    registerAppRoutes(app, options.session, options.config, options.warehouse)
+    registerAppRoutes(
+      app,
+      options.session,
+      options.config,
+      options.warehouse,
+      options.management,
+      options.aux,
+      options.bob,
+    )
   options.registerRoutes?.(app)
   app.onError((error, context) => {
     if (error instanceof HTTPException) {

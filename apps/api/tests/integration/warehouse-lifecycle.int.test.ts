@@ -99,6 +99,7 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
         password_hash: await passwordHash(submitterPassword),
         status: 'ENABLED',
         password_changed_at: new Date(),
+        password_change_required: false,
       },
       {
         id: reviewerId,
@@ -107,6 +108,7 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
         password_hash: await passwordHash(reviewerPassword),
         status: 'ENABLED',
         password_changed_at: new Date(),
+        password_change_required: false,
       },
     ])
     .execute()

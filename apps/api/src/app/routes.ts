@@ -3,6 +3,8 @@ import { getCookie, setCookie } from 'hono/cookie'
 
 import type { TargetConfig } from '../platform/config.ts'
 import { currentRequestId } from '../platform/request-id.ts'
+import type { AuxService } from '../aux/service.ts'
+import type { BobService } from '../bob/service.ts'
 import {
   WarehouseApplicationError,
   type WarehouseService,
@@ -12,19 +14,17 @@ import {
   targetRouteMetadata,
   type TargetRouteEnvironment,
 } from './contract.ts'
-import { SessionError, type Principal, type SessionService } from './session.ts'
+import { createIndependentHandlers } from './independent-routes.ts'
+import type { ManagementService } from './management.ts'
+import { applicationFailure } from './response.ts'
+import {
+  AppServiceError,
+  SessionError,
+  type Principal,
+  type SessionService,
+} from './session.ts'
 
 export { targetRouteMetadata }
-
-function failure(requestId: string, errorKey: string, message: string) {
-  const code: 1001 | 1002 | 3001 =
-    errorKey === 'unauthenticated'
-      ? 1001
-      : errorKey === 'forbidden'
-        ? 1002
-        : 3001
-  return { code, errorKey, message, data: null, requestId }
-}
 
 function sessionPayload(principal: Principal) {
   return {
@@ -47,12 +47,8 @@ function cookieOptions(config: TargetConfig) {
 }
 
 function sessionFailure(error: unknown, requestId: string) {
-  if (!(error instanceof SessionError)) throw error
-  return failure(
-    requestId,
-    error.errorKey,
-    error.errorKey === 'forbidden' ? 'permission denied' : 'session expired',
-  )
+  if (!(error instanceof AppServiceError)) throw error
+  return applicationFailure(requestId, error, null)
 }
 
 function warehouseFailure(requestId: string, error: WarehouseApplicationError) {
@@ -71,10 +67,13 @@ export function registerAppRoutes(
   service: SessionService,
   config: TargetConfig,
   warehouse?: WarehouseService,
+  management?: ManagementService,
+  aux?: AuxService,
+  bob?: BobService,
 ) {
   async function executeWarehouse<T>(
     context: {
-      req: { header(name: string): string | undefined }
+      req: { header(name: string): string | undefined; path: string }
     },
     token: string | undefined,
     requestId: string,
@@ -86,6 +85,7 @@ export function registerAppRoutes(
         token,
         context.req.header('X-CSRF-Token'),
         true,
+        context.req.path,
       )
       return {
         code: 0 as const,
@@ -105,6 +105,13 @@ export function registerAppRoutes(
     }
   }
   return registerTargetRoutes(app, {
+    independent: createIndependentHandlers({
+      session: service,
+      config,
+      management,
+      aux,
+      bob,
+    }),
     signin: async (context) => {
       const input = context.req.valid('json')
       try {
@@ -129,13 +136,9 @@ export function registerAppRoutes(
           200,
         )
       } catch (error) {
-        if (!(error instanceof SessionError)) throw error
+        if (!(error instanceof AppServiceError)) throw error
         return context.json(
-          failure(
-            currentRequestId(context),
-            'unauthenticated',
-            '用户名或密码错误。',
-          ),
+          sessionFailure(error, currentRequestId(context)),
           200,
         )
       }
@@ -166,10 +169,13 @@ export function registerAppRoutes(
     },
     queryUsers: async (context) => {
       try {
+        if (!management)
+          throw new Error('APP management service is unavailable')
         const principal = await service.authenticate(
           getCookie(context, config.sessionCookieName),
           context.req.header('X-CSRF-Token'),
           true,
+          '/app/user/query',
         )
         if (!principal.permissions.includes('/app/user/query')) {
           throw new SessionError('forbidden')
@@ -179,7 +185,10 @@ export function registerAppRoutes(
             code: 0 as const,
             errorKey: '' as const,
             message: 'ok' as const,
-            data: await service.queryUsers(context.req.valid('json')),
+            data: await management.queryUsers(
+              context.req.valid('json'),
+              principal,
+            ),
             requestId: currentRequestId(context),
           },
           200,

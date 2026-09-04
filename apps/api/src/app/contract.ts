@@ -5,6 +5,12 @@ import {
   z,
 } from '@hono/zod-openapi'
 
+import {
+  independentRouteMetadata,
+  registerIndependentRoutes,
+  type IndependentRouteHandlers,
+} from './independent-contract.ts'
+
 export type TargetRouteEnvironment = {
   Variables: { requestId: string }
 }
@@ -512,9 +518,11 @@ export const targetRouteMetadata = [
     permission: '/bob/warehouse/reference',
     title: '引用仓库',
   },
+  ...independentRouteMetadata,
 ] as const
 
 export interface TargetRouteHandlers {
+  independent: IndependentRouteHandlers
   signin: RouteHandler<typeof signinRoute, TargetRouteEnvironment>
   restore: RouteHandler<typeof restoreRoute, TargetRouteEnvironment>
   queryUsers: RouteHandler<typeof queryUsersRoute, TargetRouteEnvironment>
@@ -573,7 +581,7 @@ export function registerTargetRoutes(
   app: OpenAPIHono<TargetRouteEnvironment>,
   handlers: TargetRouteHandlers,
 ) {
-  return app.openapiRoutes([
+  const base = app.openapiRoutes([
     { route: signinRoute, handler: handlers.signin },
     { route: restoreRoute, handler: handlers.restore },
     { route: queryUsersRoute, handler: handlers.queryUsers },
@@ -597,6 +605,7 @@ export function registerTargetRoutes(
     { route: warehouseDeleteRoute, handler: handlers.warehouseDelete },
     { route: warehouseReferenceRoute, handler: handlers.warehouseReference },
   ] as const)
+  return registerIndependentRoutes(base, handlers.independent)
 }
 
 export type TargetAppType = ReturnType<typeof registerTargetRoutes>

@@ -8,7 +8,7 @@
 
 ## 仓库边界
 
-- 本仓库是 ZERP 的唯一开发仓库；前端位于 `frontend/`，后端位于 `backend/`。
+- 本仓库是 ZERP 的唯一开发仓库；live 前端位于 `frontend/`，live Go 后端位于 `backend/`。架构切换期间，未接入生产流量的 TypeScript target 后端位于 `apps/api/`，共享包位于 `packages/`；这些目录只服务隔离 target 拓扑，在 #366 切换前不得代理、组合或改变 live Go API。
 - `contracts/openapi/` 是 HTTP 线协议的唯一事实来源，`docs/domains/` 是业务规则的唯一事实来源。
 - `docs/use-cases/` 按页面记录前端编排、后端协作流程、异常分支和验收场景；用例文档必须引用领域规则和 OpenAPI，不得复制或改写它们。
 - 禁止在 `frontend/` 或 `backend/` 下复制领域文档或维护第二套接口说明。
@@ -26,6 +26,7 @@
 - `frontend/src/api/generated/`、`backend/internal/api/generated/`、`contracts/openapi/dist/` 均为生成物，禁止手工编辑。
 - 业务接口继续使用 `POST application/json` 和 `/{domain}/{entity}/{action}`，响应包络为 `{code, errorKey, message, data, requestId}`；失败响应使用稳定 `errorKey` 表达业务语义，前端只按 `errorKey` 分支或映射用户提示，`message` 仅用于诊断和默认说明。
 - 前端业务代码只能通过 `src/api/client.ts` 及其领域封装调用生成客户端，不得直接使用 `fetch` 或拼接任意 API 路径。
+- 隔离 target 页面通过 `frontend/src/target/api.ts` 消费 `packages/api-client/` 从可执行 Hono 路由推导的客户端，并把状态与动作放在同目录 `vm.ts`；该例外不得被 live 页面引用。
 - 新增或修改用户可见的状态、枚举、类型、实体标识或后端业务错误前，先列出完整 wire value 集合并确定最小共享范围的中文映射；选择项从同一映射派生，已知值不得回退显示协议原码。
 - 后端 Handler 只做协议适配、权限、校验和领域模型映射；事务及业务规则继续位于领域 Service。
 

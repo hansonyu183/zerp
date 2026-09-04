@@ -4,7 +4,7 @@
 
 - 路由：`/home/dashboard`
 - 领域规则：[APP 工作台待办](../../domains/app.md#工作台待办)、[Approval Action Availability](../../domains/approval.md#32-approval-action-availability)、[DCL 原子性与引用](../../domains/dcl.md#4-原子性与引用) 与 [VOU 生命周期](../../domains/vou.md#22-生命周期)
-- 线协议：[OpenAPI](../../../contracts/openapi/openapi.yaml) 与 [APP Schema](../../../contracts/openapi/schemas/app.yaml)
+- 目标线协议：从可执行 Hono/Zod 路由生成的 target OpenAPI；#366 前 live OpenAPI 仍不变且不与 target 组合
 - 全站筛选和行操作规范：[前端工程约束](../../../frontend/AGENTS.md)
 
 ## `WKB-01` 打开工作台查看待办
@@ -43,7 +43,7 @@
 
 1. 前端只展示后端 `availableActions` 返回的动作。同一行同时包含 `view` 和 `edit` 时只显示“编辑”，编辑页面本身承担查看内容并按权限修改的入口；没有 `edit` 时才显示“查看”。
 2. 查看或编辑跳转到对应资料或单据页面，携带稳定的 `objectId` 或 `documentId` 以及 `view/edit` 模式；详情仍由目标页面通过所属领域 `get` 接口读取。
-3. “提交”和“批准”在用户点击后直接调用对应领域动作，不增加二次确认；“驳回”必须先填写非空原因；“撤回”直接执行且不显示、不发送原因。
+3. 工作台不展示本地 Draft 或“提交”。“批准”和“恢复审核”在用户点击后直接调用对应领域动作，不增加二次确认；“驳回”必须先填写非空原因；“撤回”只调用目标 Domain 的开放 Submission 删除资源动作，不显示、不发送原因。
 4. 动作请求使用工作台行返回的稳定 ID、版本 ID 和 revision。前端不乐观修改本地状态；动作成功后按 `WKB-01` 重新查询当前页签并显示成功结果。
 5. 动作失败时显示错误并重新查询当前页签。revision 冲突或状态已经变化时不得用响应中的最新 revision 自动重试，用户必须基于刷新后的状态重新判断并主动操作。
 6. 操作排列遵循前端公共行操作模块：调用方提供按业务优先级排列的动作列表；不超过 3 个时全部直接显示，超过 3 个时前三个直接显示，其余进入“更多”。
@@ -64,7 +64,7 @@
 - 并发变化使页码失效时自动回到新的最后一页，总数为零时回到第 1 页；
 - 行操作只来自后端 `availableActions`，并遵循全站公共行操作组件的数量分流规则。
 - 同时可查看和编辑时只显示“编辑”，只有不可编辑时才显示“查看”；
-- “状态”显示真实 Approval Status；`SUBMIT` 与 `APPROVE` 只作为 Workbench Pending Stage 筛选和任务文案；
-- 提交和批准直接执行；驳回要求非空原因；撤回直接执行且不要求或发送原因；
+- “状态”显示真实 Approval Status；本地 Draft 不进入 Workbench；
+- 批准和恢复审核直接执行；驳回要求非空原因；撤回直接执行且不要求或发送原因；
 - 状态或 revision 冲突后刷新列表且不自动重试，用户基于最新状态重新操作。
 - 待办资料的 `domain` 固定为 `dcl`，查看、编辑和所有动作深链到对应 `/dcl/{entity}`；ACC Mapping、RPT Definition、WFL Definition 等已登记实体不得遗漏或误路由，BOB 只读 current 不进入待办。

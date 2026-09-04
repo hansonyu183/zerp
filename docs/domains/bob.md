@@ -136,7 +136,7 @@ Customer Version 的客户子单位使用 `pricingPolicy` 保存上述完整封�
 
 应付款日期只按客户子单位结算快照和实际业务日期计算。销售订单的打印数期从同一客户子单位上一张合格订单取得默认值，保存后成为订单事实。
 
-客户身份及税务附件归 Customer，合同、价格和交付等业务附件归客户子单位；两者都随同一个 Customer candidate 复制和审批。只有 `DRAFT` candidate 可以新增、移除或改类，已批准和历史版本只读。附件类别保存 AUX stable ID、编码和名称快照，来源后续变化不改写历史。
+客户身份及税务附件归 Customer，合同、价格和交付等业务附件归客户子单位；两者都在同一个 Customer 本地 Draft 中编辑，并随 submit 创建的同一 Submission 冻结和审批。已持久化 Submission 与历史版本只读。附件类别保存 AUX stable ID、编码和名称快照，来源后续变化不改写历史。
 
 服务相关附件分两层保存：Other Unit 的身份、税务及合作资格资料归其 DCL version；正式合同、补充协议、履约证据和验收材料归对应 VOU 单据。两层不得复制形成第二份事实。
 
@@ -218,7 +218,7 @@ BOB 不建立 `bob_versions`、BOB Approval Entry、版本协调器或审批事�
 
 ## 4. 当前有效资料读取
 
-BOB 没有公开生命周期状态机。所有实体的 `DRAFT`、`PENDING`、`APPROVED`、候选换版、启停申请、版本与审计属于 DCL 和中央 Approval：
+BOB 没有公开生命周期状态机。所有实体的本地 Draft、`PENDING`、`APPROVED`、`REJECTED`、换版 Submission、启停申请、版本与审计属于 DCL 和中央 Approval：
 
 - V1 批准前，BOB typed query 无结果；
 - V1 批准后，BOB typed query 读取 V1；
@@ -255,7 +255,7 @@ BOB `reference/query` 只返回当前启用对象的最小引用资料。新业�
 
 ### 6.3 不存在的公开写动作
 
-BOB 不注册 `create/save/enable/disable/submit/unsubmit/reject/approve/unapprove/delete/versions/audit-history` 路由或权限，也不保留任何路径别名、隐藏页面分支或失败替代数据。所有维护深链进入对应 DCL 页面。
+BOB 不注册 `create/save/enable/disable/submit/reject/approve/unreject/unapprove/delete/versions/audit-history` 路由或权限，也不保留任何路径别名、隐藏页面分支或失败替代数据。所有维护深链进入对应 DCL 页面。
 
 ## 7. 并发与事务规则
 

@@ -7,6 +7,15 @@ const workflowsDirectory = new URL('../.github/workflows/', import.meta.url)
 const packagePath = new URL('../package.json', import.meta.url)
 const makefilePath = new URL('../Makefile', import.meta.url)
 const composePath = new URL('../compose.yaml', import.meta.url)
+const backendGoModPath = new URL('../backend/go.mod', import.meta.url)
+const wflGoModPath = new URL(
+  '../packages/wfl-starlark/go/go.mod',
+  import.meta.url,
+)
+const wflBuildPath = new URL(
+  '../packages/wfl-starlark/scripts/build-wasm.mjs',
+  import.meta.url,
+)
 
 function jobBlock(workflow, jobId) {
   const jobs = [...workflow.matchAll(/^  ([a-z0-9-]+):\n/gm)]
@@ -61,6 +70,10 @@ test('CI exposes independently diagnosable jobs through repository commands', as
       ],
     ],
     ['frontend', ['pnpm contracts:bundle', 'make check-frontend']],
+    [
+      'target-foundation',
+      ['TARGET_POSTGRES_PASSWORD=zerp-target-ci make target-e2e'],
+    ],
     ['shell', ['make check-shell']],
     ['e2e', ['make e2e']],
   ])
@@ -77,6 +90,16 @@ test('CI exposes independently diagnosable jobs through repository commands', as
   assert.match(
     jobBlock(workflow, 'backend-unit'),
     /^    env:\n      BACKEND_ENV: \.env\.example$/m,
+  )
+  const targetFoundation = jobBlock(workflow, 'target-foundation')
+  assert.match(
+    targetFoundation,
+    /^          go-version-file: backend\/go\.mod$/m,
+  )
+  assert.match(targetFoundation, /^            backend\/go\.sum$/m)
+  assert.match(
+    targetFoundation,
+    /^            packages\/wfl-starlark\/go\/go\.sum$/m,
   )
 })
 
@@ -96,11 +119,16 @@ test('the workflow contract is a local gate and disposable resources are always 
   )
   assert.match(makefile, /^check-ci-workflow:\n\tpnpm check:ci-workflow$/m)
 
-  for (const jobId of ['backend-integration', 'e2e']) {
+  const cleanupCommands = new Map([
+    ['backend-integration', 'down --volumes --remove-orphans'],
+    ['target-foundation', 'make target-down'],
+    ['e2e', 'down --volumes --remove-orphans'],
+  ])
+  for (const [jobId, cleanupCommand] of cleanupCommands) {
     const block = jobBlock(workflow, jobId)
     assert.match(block, /^        if: always\(\)$/m)
     assert.ok(
-      block.includes('down --volumes --remove-orphans'),
+      block.includes(cleanupCommand),
       `${jobId} must always remove disposable resources`,
     )
   }
@@ -112,5 +140,29 @@ test('PostgreSQL readiness waits for the final TCP server', async () => {
   assert.match(
     compose,
     /pg_isready -h 127\.0\.0\.1 -U \$\$\{POSTGRES_USER\} -d \$\$\{POSTGRES_DB\}/,
+  )
+})
+
+test('target Go toolchain stays aligned across backend, WFL WASM, and CI', async () => {
+  const [workflow, backendGoMod, wflGoMod, wflBuild] = await Promise.all([
+    readFile(workflowPath, 'utf8'),
+    readFile(backendGoModPath, 'utf8'),
+    readFile(wflGoModPath, 'utf8'),
+    readFile(wflBuildPath, 'utf8'),
+  ])
+  const backendVersion = backendGoMod.match(/^go (\S+)$/m)?.[1]
+  const wflVersion = wflGoMod.match(/^go (\S+)$/m)?.[1]
+
+  assert.ok(backendVersion, 'backend/go.mod must declare a Go version')
+  assert.equal(wflVersion, backendVersion)
+  assert.ok(
+    wflBuild.includes(
+      `goVersion.startsWith('go version go${backendVersion} ')`,
+    ),
+    'WFL WASM build must enforce the shared Go version',
+  )
+  assert.match(
+    jobBlock(workflow, 'target-foundation'),
+    /^          go-version-file: backend\/go\.mod$/m,
   )
 })

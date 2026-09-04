@@ -11,6 +11,7 @@
 node_modules
 coverage/
 dist/
+frontend/dist-target/
 test-results/
 playwright-report/
 blob-report/

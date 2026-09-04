@@ -1,19 +1,21 @@
 # DCL 经营主体变更页面用例
 
-权威业务规则见 [DCL 经营主体申报](../../domains/dcl.md)、[BOB 领域职责](../../domains/bob.md#2-领域职责与边界)与 [Approval Version](../../domains/approval.md#6-approval-version)，线协议见 [OpenAPI DCL Schema](../../../contracts/openapi/schemas/dcl.yaml)。
+权威业务规则见 [DCL 经营主体申报](../../domains/dcl.md)、[BOB 领域职责](../../domains/bob.md#2-领域职责与边界)与 [Approval Version](../../domains/approval.md#6-approval-version)。目标线 HTTP 由可执行 Hono/Zod 路由提供；#366 前 live Go/OpenAPI 不变且不与 target 组合。
 
 ## 1. 页面与列表
 
+目标线 HTTP 由可执行 Hono/Zod 路由提供；#366 前 live Go/OpenAPI 不变且不与 target 组合。页面使用 `query|get|versions|audit-history|submit-new|submit-change|approve|reject|unreject|unapprove|delete` 路由。
+
 1. 页面入口为 `/dcl/operating-entity`，使用独立 DCL 菜单项和 ViewModel；APP 工作台、审批待办与审批记录中的经营主体深链都进入该页面。
 2. 列表调用 `POST /dcl/operating-entity/query`，同时展示 latest approved 与唯一开放候选；已知审批状态使用共享中文映射。
-3. 新建、编辑、启停、提交、撤回、驳回、批准、反批准、删除、版本和审计动作分别检查对应 `/dcl/operating-entity/*` 精确权限。页面不调用 BOB 写路径，也不借用 BOB ViewModel 路由跨域请求。
+3. 每个目标路由检查对应 `/dcl/operating-entity/*` 精确权限。页面不调用 BOB 写路径，也不借用 BOB ViewModel 路由跨域请求。
 
 ## 2. 新建与编辑
 
-1. 新建只填写法定名称，以及可选简称、税号、地址、电话和备注；编码由服务端分配，初始 `enabled=true`。
-2. V1 草稿可保存、提交或删除；批准前不会出现在 BOB 只读列表或交易候选中。删除草稿会删除 subject，但已经分配的编码永久跳过。
-3. 编辑 latest approved 时，页面提交完整 DCL 快照并创建唯一候选；候选待审期间 BOB 继续读取旧正式版本。
-4. 启用或停用生成带目标 `enabled` 的新候选，不触发 BOB 写入。页面明确提示“已生成草稿”，由用户继续正常审批。
+1. 新建和编辑均先在 IndexedDB 建立当前用户/设备命名空间内的本地 Draft；同一页面可并存多个 Draft，刷新恢复、克隆和删除均不发送业务 HTTP。
+2. 本地 Draft 保存完整快照、客户端标识和未发送输入；“提交”按 Draft View State 选择目标 Hono `submit-new` 或 `submit-change`。请求携带 `expectedLatestApprovedSubmissionId` 与 `expectedLatestApprovedRevision`，服务端依据历史决定 V1/Vn 并创建 `PENDING` Submission。
+3. Submission 不可编辑；页面只按服务端 `availableApprovalActions` 展示 `approve|reject|unreject|unapprove`，开放候选删除由 `delete` 承担。候选待审期间 BOB 继续读取旧正式版本。
+4. 启用或停用只修改本地 Draft 的 `enabled`，提交后由最高 `APPROVED` 推导当前态；失败保留 Draft，成功后才移除对应本地 Draft。
 
 ## 3. 审批与回落
 

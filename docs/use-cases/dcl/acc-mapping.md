@@ -1,17 +1,19 @@
 # DCL 会计映射变更页面用例
 
-权威业务规则见 [DCL 会计映射申报](../../domains/dcl.md#38-会计映射申报)、[ACC 当前记账映射](../../domains/acc.md#7-当前记账映射) 与 [Approval Version](../../domains/approval.md#6-approval-version)，线协议见 [OpenAPI DCL Schema](../../../contracts/openapi/schemas/dcl.yaml) 与 [OpenAPI ACC Schema](../../../contracts/openapi/schemas/acc.yaml)。
+权威业务规则见 [DCL 会计映射申报](../../domains/dcl.md#38-会计映射申报)、[ACC 当前记账映射](../../domains/acc.md#7-当前记账映射) 与 [Approval Version](../../domains/approval.md#6-approval-version)。目标线 HTTP 由可执行 Hono/Zod 路由提供；#366 前 live Go/OpenAPI 不变且不与 target 组合。
 
 ## 1. 页面与权限边界
 
-1. `/dcl/acc-mapping` 是会计映射唯一维护入口，覆盖新建、编辑、提交、撤回、驳回、批准、反批准、删除、版本和审计。
-2. 列表调用 `POST /dcl/acc-mapping/query`，按账簿和 VOU 类型筛选并区分 latest approved 与 open candidate。
+页面使用目标 Hono `query|get|versions|audit-history|submit-new|submit-change|approve|reject|unreject|unapprove|delete` 路由。
+
+1. `/dcl/acc-mapping` 是会计映射本地 Draft、Submission、版本和审计的唯一维护入口。
+2. 列表调用目标 Hono `POST /dcl/acc-mapping/query`，按账簿和 VOU 类型筛选并区分 latest approved 与 open candidate。
 3. 每个动作检查精确 `/dcl/acc-mapping/*` 权限，不调用 ACC 写路径。
 
-## 2. 新建与保存
+## 2. 本地 Draft 与提交
 
-1. 新建映射选择账簿和 VOU 类型，稳定主体为 `(bookId, vouEntity)`。
-2. 每次保存提交完整 snapshot，包含 `defaultResult`、条件规则、凭证模板和可选资产配置。
+1. 新建映射先在 IndexedDB 建立本地 Draft；同一页面可并存多个 Draft，稳定主体为 `(bookId, vouEntity)`。
+2. 提交发送完整 snapshot（`defaultResult`、条件规则、凭证模板和可选资产配置）到 `submit-new` 或 `submit-change`，携带 `expectedLatestApprovedSubmissionId` 与 `expectedLatestApprovedRevision`；服务端按历史分配 V1/Vn 并创建 `PENDING`。
 3. 字段目录来自 `/acc/mapping/catalog`，固定科目必须是本账簿启用的末级科目。
 
 ## 3. 审批与 ACC 当前解释

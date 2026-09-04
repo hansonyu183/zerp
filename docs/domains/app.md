@@ -423,15 +423,15 @@ CSRF Token 按 Cookie 会话固定，并由服务端从随机会话令牌单向�
 
 工作台通过会话级 `POST /app/workbench/query` 聚合当前用户可处理的业务资料与业务单据。该接口不新增独立权限；后端必须从当前会话权限推导实体范围，不接受调用方指定实体或动作集合。
 
-- Workbench Pending Stage 只有 `SUBMIT` 与 `APPROVE`，分别表示待提交和待批准任务。它只用于待办筛选与展示，不是 Approval Status；每行“状态”始终返回并显示真实的 `DRAFT` 或 `PENDING` Approval Status。
-- 资料和单据草稿只在同时拥有对应实体 `query` 且中央 [Approval Action Availability](approval.md#32-approval-action-availability) 返回 `submit` 时进入 `SUBMIT`；待批准条目只在拥有 `query` 且中央动作资格返回 `unsubmit`、`reject` 或 `approve` 至少一项时进入 `APPROVE`。`APPROVED` 不产生工作台人工待办。
-- 聚合响应只返回列表摘要和当前会话动作快照。APP 只组合 `view`、`edit` 等资源动作，`submit`、`unsubmit`、`reject`、`approve` 生命周期动作必须原样来自中央 Approval 的确定顺序，不能在 APP 或前端按状态、提交人或权限再次推断。
+- 目标 Workbench Pending Stage 只有 `APPROVE`：本地 Draft 是设备内编辑状态，不进入服务器工作台。它不是 Approval Status；每行“状态”只显示真实的 `PENDING` 或 `REJECTED` Approval Status。
+- 待批准 Submission 只在拥有 `query` 且中央 [Approval Action Availability](approval.md#32-approval-action-availability) 返回 `reject`、`approve` 或 `unreject` 至少一项时进入 `APPROVE`。`APPROVED` 不产生工作台人工待办。
+- 聚合响应只返回列表摘要和当前会话动作快照。APP 只组合 `view`、`edit`、`delete` 等资源动作，`reject`、`approve`、`unreject`、`unapprove` 生命周期动作必须原样来自中央 Approval 的确定顺序，不能在 APP 或前端按状态、提交人或权限再次推断。
 - 资料详情必须通过对应 DCL `get` 读取，当前正式档案浏览才使用 BOB `get`，单据详情使用 VOU `get`；正向和反向处理调用行所属 DCL/VOU 动作接口。ACC Mapping、RPT Definition、WFL Definition 与其他已登记 DCL 实体都使用自身 `/dcl/{entity}/{action}`，不得按展示分类改路由。
 - 强类型业务档案待办显示该 candidate 自己的名称；Customer 的账户变更只产生一个 Customer 待办，不产生账户独立待办。名称缺失时回退显示档案编码。
 - 列表按更新时间倒序进行服务端分页；关键词只匹配资料编码/名称或单据号/往来方。
 - 资料和单据均可按实体类型与待办状态进行服务端筛选；客户端提交的实体筛选只用于缩小结果集，后端仍必须先按当前会话权限推导可见实体并取交集，不能将筛选值视为权限范围。
 
-待办行的生命周期动作限定为仍处于待办状态的直接流转。`unsubmit` 不要求也不接受 reason；`reject` 要求非空 reason；`submit` 与 `approve` 不要求也不接受 reason。DCL 和 VOU 的 `APPROVED` 不属于待办，不为提供 `unapprove` 而进入工作台；BOB 与 AUX 不产生 Approval 待办，也不提供 lifecycle 动作。
+待办行的生命周期动作限定为仍处于待办状态的直接流转。`reject` 要求非空 reason；`approve` 与 `unreject` 不要求也不接受 reason。界面“撤回”是目标 Domain 的开放 Submission 删除资源动作，不是 lifecycle status 或 `unsubmit`。DCL 和 VOU 的 `APPROVED` 不属于待办，不为提供 `unapprove` 而进入工作台；BOB 与 AUX 不产生 Approval 待办，也不提供 lifecycle 动作。
 
 `availableActions` 是查询快照而不是授权凭证。目标 DCL/VOU 动作接口仍重新校验会话、精确权限、Approval 状态、revision、职责分离和既有 Domain blocker；成功或失败后客户端都刷新当前页，revision、状态或权限冲突不得自动重试。
 

@@ -1,0 +1,261 @@
+[
+  {
+    "name": "compiles the fixed typed graph",
+    "request": { "operation": "compile" },
+    "source": "root = node(key=\"root\", name=\"销售订单\", entity=\"sale-order\")\nchild = node(key=\"outbound\", name=\"销售出库\", entity=\"sale-outbound\")\nworkflow(code=\"safe-flow\", name=\"安全流程\", root=root, edges=[edge(source=root, target=child, relation=\"outbound\", action=sale_outbound(initial={}))])",
+    "expect": {
+      "graph": {
+        "code": "safe-flow",
+        "name": "安全流程",
+        "rootKey": "root",
+        "nodes": [
+          { "key": "root", "name": "销售订单", "entity": "sale-order" },
+          { "key": "outbound", "name": "销售出库", "entity": "sale-outbound" }
+        ],
+        "edges": [
+          {
+            "sourceKey": "root",
+            "targetKey": "outbound",
+            "actionName": "sale_outbound",
+            "relation": "outbound"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "compiles static action expense_payment",
+    "request": { "operation": "compile" },
+    "source": "root = node(key=\"root\", name=\"来源\", entity=\"expense-reimbursement\")\nchild = node(key=\"child\", name=\"下级\", entity=\"expense-payment\")\nworkflow(code=\"expense-payment-flow\", name=\"静态动作\", root=root, edges=[edge(source=root, target=child, relation=\"generated\", action=expense_payment(initial={}))])",
+    "expect": {
+      "graph": {
+        "code": "expense-payment-flow",
+        "name": "静态动作",
+        "rootKey": "root",
+        "nodes": [
+          { "key": "root", "name": "来源", "entity": "expense-reimbursement" },
+          { "key": "child", "name": "下级", "entity": "expense-payment" }
+        ],
+        "edges": [
+          {
+            "sourceKey": "root",
+            "targetKey": "child",
+            "actionName": "expense_payment",
+            "relation": "generated"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "compiles static action purchase_inbound",
+    "request": { "operation": "compile" },
+    "source": "root = node(key=\"root\", name=\"来源\", entity=\"purchase-order\")\nchild = node(key=\"child\", name=\"下级\", entity=\"purchase-inbound\")\nworkflow(code=\"purchase-inbound-flow\", name=\"静态动作\", root=root, edges=[edge(source=root, target=child, relation=\"generated\", action=purchase_inbound(initial={}))])",
+    "expect": {
+      "graph": {
+        "code": "purchase-inbound-flow",
+        "name": "静态动作",
+        "rootKey": "root",
+        "nodes": [
+          { "key": "root", "name": "来源", "entity": "purchase-order" },
+          { "key": "child", "name": "下级", "entity": "purchase-inbound" }
+        ],
+        "edges": [
+          {
+            "sourceKey": "root",
+            "targetKey": "child",
+            "actionName": "purchase_inbound",
+            "relation": "generated"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "compiles static action sale_outbound",
+    "request": { "operation": "compile" },
+    "source": "root = node(key=\"root\", name=\"来源\", entity=\"sale-order\")\nchild = node(key=\"child\", name=\"下级\", entity=\"sale-outbound\")\nworkflow(code=\"sale-outbound-flow\", name=\"静态动作\", root=root, edges=[edge(source=root, target=child, relation=\"generated\", action=sale_outbound(initial={}))])",
+    "expect": {
+      "graph": {
+        "code": "sale-outbound-flow",
+        "name": "静态动作",
+        "rootKey": "root",
+        "nodes": [
+          { "key": "root", "name": "来源", "entity": "sale-order" },
+          { "key": "child", "name": "下级", "entity": "sale-outbound" }
+        ],
+        "edges": [
+          {
+            "sourceKey": "root",
+            "targetKey": "child",
+            "actionName": "sale_outbound",
+            "relation": "generated"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "compiles static action sale_delivery",
+    "request": { "operation": "compile" },
+    "source": "root = node(key=\"root\", name=\"来源\", entity=\"sale-outbound\")\nchild = node(key=\"child\", name=\"下级\", entity=\"sale-delivery\")\nworkflow(code=\"sale-delivery-flow\", name=\"静态动作\", root=root, edges=[edge(source=root, target=child, relation=\"generated\", action=sale_delivery(initial={}))])",
+    "expect": {
+      "graph": {
+        "code": "sale-delivery-flow",
+        "name": "静态动作",
+        "rootKey": "root",
+        "nodes": [
+          { "key": "root", "name": "来源", "entity": "sale-outbound" },
+          { "key": "child", "name": "下级", "entity": "sale-delivery" }
+        ],
+        "edges": [
+          {
+            "sourceKey": "root",
+            "targetKey": "child",
+            "actionName": "sale_delivery",
+            "relation": "generated"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "compiles static action sale_signoff",
+    "request": { "operation": "compile" },
+    "source": "root = node(key=\"root\", name=\"来源\", entity=\"sale-delivery\")\nchild = node(key=\"child\", name=\"下级\", entity=\"sale-signoff\")\nworkflow(code=\"sale-signoff-flow\", name=\"静态动作\", root=root, edges=[edge(source=root, target=child, relation=\"generated\", action=sale_signoff(initial={}))])",
+    "expect": {
+      "graph": {
+        "code": "sale-signoff-flow",
+        "name": "静态动作",
+        "rootKey": "root",
+        "nodes": [
+          { "key": "root", "name": "来源", "entity": "sale-delivery" },
+          { "key": "child", "name": "下级", "entity": "sale-signoff" }
+        ],
+        "edges": [
+          {
+            "sourceKey": "root",
+            "targetKey": "child",
+            "actionName": "sale_signoff",
+            "relation": "generated"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "compiles static action sale_return",
+    "request": { "operation": "compile" },
+    "source": "root = node(key=\"root\", name=\"来源\", entity=\"sale-signoff\")\nchild = node(key=\"child\", name=\"下级\", entity=\"sale-return\")\nworkflow(code=\"sale-return-flow\", name=\"静态动作\", root=root, edges=[edge(source=root, target=child, relation=\"generated\", action=sale_return(initial={}))])",
+    "expect": {
+      "graph": {
+        "code": "sale-return-flow",
+        "name": "静态动作",
+        "rootKey": "root",
+        "nodes": [
+          { "key": "root", "name": "来源", "entity": "sale-signoff" },
+          { "key": "child", "name": "下级", "entity": "sale-return" }
+        ],
+        "edges": [
+          {
+            "sourceKey": "root",
+            "targetKey": "child",
+            "actionName": "sale_return",
+            "relation": "generated"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "evaluates conditions and source-derived initial values deterministically",
+    "request": {
+      "operation": "evaluate",
+      "sourceNodeKey": "expense",
+      "input": {
+        "approved": true,
+        "amount": 5,
+        "fundAccountObjectId": "01J00000000000000000000001",
+        "remark": "报销"
+      }
+    },
+    "source": "root = node(key=\"expense\", name=\"费用报销\", entity=\"expense-reimbursement\")\npayment = node(key=\"payment\", name=\"费用付款\", entity=\"expense-payment\")\nignored = node(key=\"ignored\", name=\"未命中付款\", entity=\"expense-payment\")\nworkflow(code=\"expense-flow\", name=\"费用流程\", root=root, when=lambda source: source[\"approved\"], edges=[\n  edge(source=root, target=payment, relation=\"payment\", when=lambda source: source[\"amount\"] > 0, action=expense_payment(initial=lambda source: {\"fundAccountObjectId\": source[\"fundAccountObjectId\"], \"remark\": source[\"remark\"]})),\n  edge(source=root, target=ignored, relation=\"ignored\", when=lambda source: False, action=expense_payment(initial={})),\n])",
+    "expect": {
+      "deterministic": true,
+      "evaluation": {
+        "rootMatched": true,
+        "branches": [
+          {
+            "targetKey": "payment",
+            "matched": true,
+            "initial": {
+              "fundAccountObjectId": "01J00000000000000000000001",
+              "remark": "报销"
+            }
+          },
+          { "targetKey": "ignored", "matched": false }
+        ]
+      }
+    }
+  },
+  {
+    "name": "rejects imports",
+    "request": { "operation": "compile" },
+    "source": "load(\"remote.star\", \"workflow\")",
+    "expect": { "error": "imports are not allowed" }
+  },
+  {
+    "name": "reports Starlark source locations for syntax failures",
+    "request": { "operation": "compile" },
+    "source": "root = node(\n",
+    "expect": { "error": "workflow.star:2:1" }
+  },
+  {
+    "name": "rejects disconnected graph",
+    "request": { "operation": "compile" },
+    "source": "root = node(key=\"root\", name=\"销售订单\", entity=\"sale-order\")\nnode(key=\"extra\", name=\"采购订单\", entity=\"purchase-order\")\nworkflow(code=\"safe-flow\", name=\"安全流程\", root=root)",
+    "expect": { "error": "disconnected" }
+  },
+  {
+    "name": "rejects mutated nodes",
+    "request": { "operation": "compile" },
+    "source": "root = node(key=\"root\", name=\"销售订单\", entity=\"sale-order\")\nroot[\"entity\"] = \"unknown-document\"\nworkflow(code=\"safe-flow\", name=\"安全流程\", root=root)",
+    "expect": { "error": "node is invalid" }
+  },
+  {
+    "name": "rejects multiple parents",
+    "request": { "operation": "compile" },
+    "source": "root = node(key=\"root\", name=\"销售订单\", entity=\"sale-order\")\nsecond = node(key=\"second\", name=\"另一个销售订单\", entity=\"sale-order\")\ntarget = node(key=\"outbound\", name=\"销售出库\", entity=\"sale-outbound\")\nworkflow(code=\"safe-flow\", name=\"安全流程\", root=root, edges=[edge(source=root, target=target, relation=\"outbound\", action=sale_outbound(initial={})), edge(source=second, target=target, relation=\"outbound\", action=sale_outbound(initial={}))])",
+    "expect": { "error": "multiple parents" }
+  },
+  {
+    "name": "rejects dynamic actions",
+    "request": { "operation": "compile" },
+    "source": "root = node(key=\"root\", name=\"来源\", entity=\"expense-reimbursement\")\nchild = node(key=\"child\", name=\"下级\", entity=\"expense-payment\")\nworkflow(code=\"dynamic-action\", name=\"动态动作\", root=root, edges=[edge(source=root, target=child, relation=\"generated\", action=call_action(name=\"expense_payment\"))])",
+    "expect": { "error": "undefined: call_action" }
+  },
+  {
+    "name": "rejects script size above 128 KiB",
+    "request": { "operation": "compile" },
+    "source": { "repeat": { "text": "x", "count": 131073 } },
+    "expect": { "error": "exceeds 131072 bytes" }
+  },
+  {
+    "name": "rejects more than 100 nodes",
+    "request": { "operation": "compile" },
+    "source": { "nodes": 101 },
+    "expect": { "error": "exceeds 100 nodes" }
+  },
+  {
+    "name": "rejects more than 200 edges",
+    "request": { "operation": "compile" },
+    "source": { "edges": 201 },
+    "expect": { "error": "exceeds 200 edges" }
+  },
+  {
+    "name": "enforces the 100000-step budget",
+    "request": { "operation": "compile" },
+    "source": "def burn():\n    for value in range(1000000):\n        pass\nburn()",
+    "expect": { "error": "too many steps" }
+  }
+]

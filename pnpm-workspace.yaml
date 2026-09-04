@@ -1,5 +1,7 @@
 packages:
+  - apps/*
   - frontend
+  - packages/*
 
 overrides:
   glob: 10.5.0

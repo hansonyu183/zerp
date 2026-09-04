@@ -35,6 +35,7 @@ const externalWebServer = Boolean(process.env.E2E_APP_BASE_URL)
 
 export default defineConfig({
   testDir: './tests/e2e',
+  testIgnore: 'wfl-starlark-parity.spec.ts',
   fullyParallel: true,
   workers: 3,
   forbidOnly: Boolean(process.env.CI),

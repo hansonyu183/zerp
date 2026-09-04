@@ -1,26 +1,28 @@
 # DCL 产品变更页面用例
 
-权威业务规则见 [DCL 产品申报](../../domains/dcl.md#34-产品申报)、[BOB 产品业务字段](../../domains/bob.md#21-业务字段)、[AUX 产品与计量对象](../../domains/aux.md) 与 [Approval Version](../../domains/approval.md#6-approval-version)，线协议见 [OpenAPI DCL Schema](../../../contracts/openapi/schemas/dcl.yaml)。
+权威业务规则见 [DCL 产品申报](../../domains/dcl.md#34-产品申报)、[BOB 产品业务字段](../../domains/bob.md#21-业务字段)、[AUX 产品与计量对象](../../domains/aux.md) 与 [Approval Version](../../domains/approval.md#6-approval-version)。目标线 HTTP 由可执行 Hono/Zod 路由提供；#366 前 live Go/OpenAPI 不变且不与 target 组合。
 
 ## 1. 页面、权限与版本边界
 
-1. 页面入口为 `/dcl/product`，是产品新建、编辑、启停、提交、撤回、驳回、批准、反批准、删除、版本和审计的唯一维护入口；工作台、审批待办和审批记录中的产品深链进入本页。
-2. 列表调用 `POST /dcl/product/query`，每个 stable product 显示一行并区分 latest approved 与 open candidate。查看、编辑或历史详情必须调用 `get` 或 `versions`，不得用列表行拼装完整 snapshot。
+目标线 HTTP 由可执行 Hono/Zod 路由提供；#366 前 live Go/OpenAPI 不变且不与 target 组合。页面使用 `query|get|versions|audit-history|submit-new|submit-change|approve|reject|unreject|unapprove|delete` 路由。
+
+1. 页面入口为 `/dcl/product`，是产品 Draft、Submission、版本和审计的唯一维护入口；工作台、审批待办和审批记录中的产品深链进入本页。
+2. 列表调用目标 Hono `POST /dcl/product/query`，每个 stable product 显示一行并区分 latest approved 与 open candidate。查看或历史详情必须调用 `get` 或 `versions`，不得用列表行拼装完整 snapshot。
 3. 每个动作检查精确 `/dcl/product/*` 权限。页面不调用 BOB 写路径；`/bob/product/query|get|reference` 仅供内部当前正式资料读取，不存在独立 BOB 页面。
 
-## 2. 新建、保存与产品类型切换
+## 2. 本地 Draft 与产品类型切换
 
-1. 新建产品填写名称并选择当前启用的 AUX 产品类型；编码由服务端生成。草稿可以暂缺默认包装规格、单位配置和自制成品固定配方，创建或保存后重新读取服务端完整版本。
-2. 每次保存提交完整 snapshot，不发送 diff。snapshot 包含基础字段、产品类型与分类来源、单位换算、默认录入单位、计价单位、默认包装规格、可回收标志、固定配方、备注和 `enabled`。
+1. 新建和编辑均先在 IndexedDB 保存本地 Draft；同一页面可并存多个 Draft，刷新恢复、克隆和删除均不发送业务 HTTP。Draft 可暂缺默认包装规格、单位配置和自制成品固定配方。
+2. “提交”发送完整 snapshot（不发送 diff）到目标 Hono `submit-new` 或 `submit-change`，携带 `expectedLatestApprovedSubmissionId` 与 `expectedLatestApprovedRevision`；服务端按历史分配 V1/Vn 并创建 `PENDING`。
 3. 产品类型使用“编码 · 名称”的扁平选择项。跨行为模板改选时，页面明确列出并确认将清除的固定配方、默认包装规格或包装物字段；取消保持全部输入，确认后允许候选暂时不完整。
-4. 选择 AUX 来源时页面只传 stable ID，服务端按 [DCL 产品申报](../../domains/dcl.md#34-产品申报) 固化来源证据；保存已存在的草稿可以保留后来失效的来源，提交和批准必须拒绝来源漂移。
+4. 选择 AUX 来源时页面只传 stable ID，服务端按 [DCL 产品申报](../../domains/dcl.md#34-产品申报) 固化来源证据；本地 Draft 可以保留后来失效的来源，submit 和批准必须拒绝来源漂移。
 
 ## 3. 单位换算与固定配方
 
-1. 单位换算随产品版本整体维护。每项选择一个当前启用的 AUX 计量单位并填写大于零的定点换算系数；后端把 stable ID、code、name、symbol、`quantityScale` 保存进产品 snapshot，不保存 AUX Approval Entry。换算项重复与默认引用完整性按 [BOB 产品业务字段](../../domains/bob.md#21-业务字段) 检查。
+1. 单位换算随产品版本整体维护。每项选择一个当前启用的 AUX 计量单位并填写大于零的定点换算系数；后端把 stable ID、code、name、symbol、`quantityScale` 固化进产品 snapshot，不保存 AUX Approval Entry。换算项重复与默认引用完整性按 [BOB 产品业务字段](../../domains/bob.md#21-业务字段) 检查。
 2. 页面只按“录入数量 × 换算系数”显示建议基准数量，用户确认的基准数量才是权威事实。删除默认单位对应换算项时，经确认同步清空选择；取消时保持输入。
-3. 自制成品固定配方随同一 snapshot 保存。输出和每行原料同时保存录入数量、包含 `quantityScale` 的单位审计快照与已确认基准数量；原料只允许当前启用且 latest approved 行为为原材料的产品，同一原料不得重复。
-4. 从 latest approved 创建候选时，服务端按原料 stable ID 更新到其 latest approved entry，同时保持原有基准产量与基准用量。不可用原料保留为待处理，不自动删除；更新后的录入单位与数量必须重新确认后才能提交。
+3. 自制成品固定配方随同一 snapshot 提交。输出和每行原料同时携带录入数量、包含 `quantityScale` 的单位审计快照与已确认基准数量；原料只允许当前启用且 latest approved 行为为原材料的产品，同一原料不得重复。
+4. 从 latest approved 克隆本地 Draft 时，服务端在 submit 阶段按原料 stable ID 更新到其 latest approved entry，同时保持原有基准产量与基准用量。不可用原料保留为待处理，不自动删除；更新后的录入单位与数量必须重新确认后才能提交。
 
 ## 4. 提交、批准与当前有效资料
 
@@ -32,8 +34,8 @@
 ## 5. 查询、历史与异常恢复
 
 1. 列表筛选包括关键词、状态、产品类型和产品分类；分页、显式查询触发和编码升序采用全站规则。详情分别展示正在变更与当前交易使用的完整 snapshot，不跨版本合并字段。
-2. 版本历史按版本号倒序，审计按发生时间倒序；历史详情只显示当时保存的类型、分类、单位、默认包装规格和配方快照，不按当前 AUX 或产品重新解释。
-3. 保存或动作失败时保留当前输入、筛选和页面位置，展示稳定业务消息与 `requestId`。
+2. 版本历史按版本号倒序，审计按发生时间倒序；历史详情只显示当时冻结的类型、分类、单位、默认包装规格和配方快照，不按当前 AUX 或产品重新解释。
+3. submit 或动作失败时保留当前本地 Draft、筛选和页面位置，展示稳定业务消息与 `requestId`。
 
 ## 6. 验收场景
 

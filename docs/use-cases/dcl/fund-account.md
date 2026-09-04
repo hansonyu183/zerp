@@ -1,19 +1,21 @@
 # DCL 资金账户变更页面用例
 
-权威业务规则见 [DCL 资金账户申报](../../domains/dcl.md#33-资金账户申报)、[BOB 对象与引用规则](../../domains/bob.md#2-领域职责与边界) 与 [Approval Version](../../domains/approval.md#6-approval-version)，线协议见 [OpenAPI DCL Schema](../../../contracts/openapi/schemas/dcl.yaml)。
+权威业务规则见 [DCL 资金账户申报](../../domains/dcl.md#33-资金账户申报)、[BOB 对象与引用规则](../../domains/bob.md#2-领域职责与边界) 与 [Approval Version](../../domains/approval.md#6-approval-version)。目标线 HTTP 由可执行 Hono/Zod 路由提供；#366 前 live Go/OpenAPI 不变且不与 target 组合。
 
 ## 1. 页面与列表
 
+目标线 HTTP 由可执行 Hono/Zod 路由提供；#366 前 live Go/OpenAPI 不变且不与 target 组合。页面使用 `query|get|versions|audit-history|submit-new|submit-change|approve|reject|unreject|unapprove|delete` 路由。
+
 1. 页面入口为 `/dcl/fund-account`；它是资金账户唯一维护入口。工作台、审批待办和审批记录中的资金账户深链都进入该页面。
-2. 列表调用 `POST /dcl/fund-account/query`，展示最新已批准版本和唯一开放候选。新建、保存、启停、提交、撤回、驳回、批准、反批准、删除、版本及审计分别检查精确 `/dcl/fund-account/*` 权限。
+2. 列表调用目标 Hono `POST /dcl/fund-account/query`，展示最新已批准版本和唯一开放候选。每个目标路由分别检查精确 `/dcl/fund-account/*` 权限。
 3. 页面不调用 BOB 写路径；`/bob/fund-account/query|get|reference` 仅供内部当前正式资料读取，不存在独立 BOB 页面。
 
 ## 2. 新建、编辑与启停申请
 
-1. 新建或保存提交完整资金账户快照：名称、币种、经营主体、户名、银行、支行、账号、备注与 `enabled`；编码由服务端生成。
-2. 经营主体只选择当前可用的 BOB 只读候选。页面不接受 Approval Entry 手工输入；后端在创建/保存时快照 latest approved，提交/批准时校验来源未漂移。
+1. 新建和编辑均先在 IndexedDB 保存本地 Draft；同一页面可并存多个 Draft，Draft 携带完整资金账户快照和客户端标识，刷新恢复、克隆和删除均不发送业务 HTTP。
+2. 经营主体只选择当前可用的 BOB 只读候选。页面不接受 Approval Entry 手工输入；Draft 记录引用快照，submit/批准时服务端校验来源未漂移。
 3. 账号输入移除空白和连字符并转为大写；页面以服务端规范化结果为准。非空账号冲突返回稳定 `fund_account_identifier_conflict`，不自动改号、迁移或清空。
-4. 启用或停用都通过 `POST /dcl/fund-account/save` 建立完整候选，不触发 BOB 写入。
+4. 启用或停用只修改本地 Draft 的 `enabled`；submit 选择 `POST /dcl/fund-account/submit-new` 或 `submit-change`，携带 `expectedLatestApprovedSubmissionId` 与 `expectedLatestApprovedRevision` 并创建 `PENDING`，不触发 BOB 写入。
 
 ## 3. 审批、引用阻断与历史
 

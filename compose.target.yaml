@@ -1,0 +1,75 @@
+name: zerp-target
+
+services:
+  target-db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: zerp_target_test
+      POSTGRES_USER: zerp_target
+      POSTGRES_PASSWORD: ${TARGET_POSTGRES_PASSWORD:?set TARGET_POSTGRES_PASSWORD}
+    ports:
+      - '127.0.0.1:${TARGET_POSTGRES_PORT:-55439}:5432'
+    volumes:
+      - ./apps/api/db/target-schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -h 127.0.0.1 -U zerp_target -d zerp_target_test',
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  target-api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      DATABASE_URL: postgres://zerp_target:${TARGET_POSTGRES_PASSWORD}@target-db:5432/zerp_target_test?sslmode=disable
+      HTTP_ADDRESS: 0.0.0.0:8080
+      CORS_ALLOWED_ORIGINS: ${TARGET_CORS_ALLOWED_ORIGINS:-http://127.0.0.1:18083}
+      APP_SESSION_COOKIE_NAME: zerp_target_session
+      APP_SESSION_COOKIE_SECURE: 'false'
+      APP_SESSION_COOKIE_SAME_SITE: lax
+      HTTP_BODY_LIMIT_BYTES: '15728640'
+      ATTACHMENT_STORAGE_ROOT: /var/lib/zerp/attachments
+    ports:
+      - '127.0.0.1:${TARGET_API_PORT:-18082}:8080'
+    volumes:
+      - target-attachment-data:/var/lib/zerp/attachments
+    depends_on:
+      target-db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "fetch(\"http://127.0.0.1:8080/healthz\").then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"',
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  target-web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile.target
+      args:
+        VITE_TARGET_API_BASE_URL: ${TARGET_API_BROWSER_URL:-http://127.0.0.1:18082}
+    ports:
+      - '127.0.0.1:${TARGET_WEB_PORT:-18083}:80'
+    depends_on:
+      target-api:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -O /dev/null http://127.0.0.1/']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+volumes:
+  target-attachment-data:

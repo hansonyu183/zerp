@@ -190,13 +190,25 @@ const {
 </script>
 
 <template>
-  <main>
-    <h1>ZERP 目标业务档案与仓库</h1>
-    <p role="status">{{ message }}</p>
-    <small v-if="requestId">请求标识：{{ requestId }}</small>
+  <main :class="{ authenticated: signedIn }">
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">ZERP</p>
+        <h1>企业资源管理系统</h1>
+      </div>
+      <div class="system-status">
+        <p role="status">{{ message }}</p>
+        <small v-if="requestId">请求标识：{{ requestId }}</small>
+      </div>
+    </header>
     <output data-testid="model-corpus" hidden>{{ modelCorpusResult }}</output>
 
-    <form v-if="!signedIn" @submit.prevent="signIn">
+    <form v-if="!signedIn" class="signin-card" @submit.prevent="signIn">
+      <div class="signin-heading">
+        <p class="eyebrow">欢迎回来</p>
+        <h2>登录系统</h2>
+        <p>请输入分配给你的账号和密码。</p>
+      </div>
       <label>
         用户名
         <input v-model="username" autocomplete="username" required />
@@ -221,15 +233,26 @@ const {
             type="button"
             :aria-pressed="workbenchActiveTab === 'DOCUMENT'"
             @click="switchWorkbenchTab('DOCUMENT')"
-          >待办单据</button>
+          >
+            待办单据
+          </button>
           <button
             type="button"
             :aria-pressed="workbenchActiveTab === 'ARCHIVE'"
             @click="switchWorkbenchTab('ARCHIVE')"
-          >待办资料</button>
+          >
+            待办资料
+          </button>
         </nav>
-        <form aria-label="工作台查询条件" @submit.prevent="applyWorkbenchFilters">
-          <label>关键词<input v-model="workbenchActiveState.keyword" maxlength="200" /></label>
+        <form
+          aria-label="工作台查询条件"
+          @submit.prevent="applyWorkbenchFilters"
+        >
+          <label
+            >关键词<input
+              v-model="workbenchActiveState.keyword"
+              maxlength="200"
+          /></label>
           <label>
             实体
             <input v-model="workbenchActiveState.entity" maxlength="64" />
@@ -250,9 +273,18 @@ const {
           {{ workbenchActiveState.queryError }}
           <button type="button" @click="retryWorkbench">重新查询</button>
         </p>
-        <p v-if="workbenchActiveState.actionError" role="alert">{{ workbenchActiveState.actionError }}</p>
+        <p v-if="workbenchActiveState.actionError" role="alert">
+          {{ workbenchActiveState.actionError }}
+        </p>
         <p>待办：{{ workbenchActiveState.total }}</p>
-        <p v-if="!workbenchActiveState.queryError && workbenchActiveState.items.length === 0">暂无可处理待办。</p>
+        <p
+          v-if="
+            !workbenchActiveState.queryError &&
+            workbenchActiveState.items.length === 0
+          "
+        >
+          暂无可处理待办。
+        </p>
         <article
           v-for="item in workbenchActiveState.items"
           :key="item.submissionId"
@@ -260,19 +292,58 @@ const {
           :data-workbench-submission-id="item.submissionId"
         >
           <h3>{{ item.code }} · {{ item.name }}</h3>
-          <p>{{ item.domain === 'dcl' ? '资料' : '单据' }} · {{ item.entity }} · {{ approvalStatusPresentation[item.status].label }}</p>
+          <p>
+            {{ item.domain === 'dcl' ? '资料' : '单据' }} · {{ item.entity }} ·
+            {{ approvalStatusPresentation[item.status].label }}
+          </p>
           <label v-if="item.availableActions.includes('reject')">
             驳回原因
-            <input v-model="workbenchReasons[item.submissionId]" maxlength="1000" />
+            <input
+              v-model="workbenchReasons[item.submissionId]"
+              maxlength="1000"
+            />
           </label>
-          <template v-for="action in visibleWorkbenchActions(item)" :key="action">
-            <a v-if="action === 'view' || action === 'edit'" :href="workbenchItemHref(item, action)">{{ workbenchActionLabel(action) }}</a>
-            <button v-else-if="action === 'delete'" type="button" @click="deleteWorkbench(item)">{{ workbenchActionLabel(action) }}</button>
-            <button v-else type="button" @click="reviewWorkbench(item, action)">{{ workbenchActionLabel(action) }}</button>
+          <template
+            v-for="action in visibleWorkbenchActions(item)"
+            :key="action"
+          >
+            <a
+              v-if="action === 'view' || action === 'edit'"
+              :href="workbenchItemHref(item, action)"
+              >{{ workbenchActionLabel(action) }}</a
+            >
+            <button
+              v-else-if="action === 'delete'"
+              type="button"
+              @click="deleteWorkbench(item)"
+            >
+              {{ workbenchActionLabel(action) }}
+            </button>
+            <button v-else type="button" @click="reviewWorkbench(item, action)">
+              {{ workbenchActionLabel(action) }}
+            </button>
           </template>
         </article>
-        <button type="button" :disabled="workbenchActiveState.page <= 1" @click="queryWorkbench(workbenchActiveTab, workbenchActiveState.page - 1)">上一页</button>
-        <button type="button" :disabled="workbenchActiveState.page * 20 >= workbenchActiveState.total" @click="queryWorkbench(workbenchActiveTab, workbenchActiveState.page + 1)">下一页</button>
+        <button
+          type="button"
+          :disabled="workbenchActiveState.page <= 1"
+          @click="
+            queryWorkbench(workbenchActiveTab, workbenchActiveState.page - 1)
+          "
+        >
+          上一页
+        </button>
+        <button
+          type="button"
+          :disabled="
+            workbenchActiveState.page * 20 >= workbenchActiveState.total
+          "
+          @click="
+            queryWorkbench(workbenchActiveTab, workbenchActiveState.page + 1)
+          "
+        >
+          下一页
+        </button>
       </section>
       <section v-else-if="vouEntity" aria-label="目标单据">
         <h2>{{ vouEntityPresentation[vouEntity].label }}</h2>
@@ -1394,49 +1465,357 @@ const {
 </template>
 
 <style scoped>
+:global(*) {
+  box-sizing: border-box;
+}
+
+:global(html) {
+  min-width: 20rem;
+  color: #172033;
+  background: #eef2f8;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+}
+
+:global(body) {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 12% 8%, rgb(59 130 246 / 14%), transparent 28rem),
+    linear-gradient(160deg, #f8fafc 0%, #edf2f9 55%, #e8eef8 100%);
+}
+
+:global(button),
+:global(input),
+:global(select),
+:global(textarea) {
+  font: inherit;
+}
+
 main {
-  max-width: 56rem;
+  width: min(100% - 2rem, 74rem);
+  min-height: 100vh;
   margin: 0 auto;
-  padding: 2rem;
-  font-family: system-ui, sans-serif;
+  padding: clamp(1.25rem, 3vw, 3rem) 0;
+}
+
+.app-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  padding: 1.4rem clamp(1.25rem, 3vw, 2.25rem);
+  color: #fff;
+  background:
+    linear-gradient(135deg, rgb(30 64 175 / 96%), rgb(15 23 42 / 98%)), #14213d;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 1.25rem;
+  box-shadow: 0 1.25rem 3rem rgb(15 23 42 / 16%);
+}
+
+.app-header h1,
+.app-header p {
+  margin: 0;
+}
+
+.app-header h1 {
+  margin-top: 0.25rem;
+  font-size: clamp(1.55rem, 4vw, 2.25rem);
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+}
+
+.eyebrow {
+  color: #2563eb;
+  font-size: 0.75rem;
+  font-weight: 750;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.app-header .eyebrow {
+  color: #bfdbfe;
+}
+
+.system-status {
+  max-width: 32rem;
+  color: #dbeafe;
+  font-size: 0.875rem;
+  text-align: right;
+}
+
+.system-status small {
+  display: block;
+  margin-top: 0.35rem;
+  color: #93c5fd;
+  overflow-wrap: anywhere;
+}
+
+.signin-card {
+  width: min(100%, 29rem);
+  margin: clamp(3rem, 10vh, 7rem) auto 0;
+  padding: clamp(1.5rem, 4vw, 2.25rem);
+  background: rgb(255 255 255 / 94%);
+  border: 1px solid rgb(148 163 184 / 24%);
+  border-radius: 1.25rem;
+  box-shadow:
+    0 1.5rem 4rem rgb(15 23 42 / 12%),
+    0 0.125rem 0.5rem rgb(15 23 42 / 5%);
+  backdrop-filter: blur(1rem);
+}
+
+.signin-heading {
+  margin-bottom: 0.5rem;
+}
+
+.signin-heading h2 {
+  margin: 0.3rem 0 0.45rem;
+  color: #0f172a;
+  font-size: 1.65rem;
+  letter-spacing: -0.025em;
+}
+
+.signin-heading p:last-child {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.9rem;
 }
 
 section,
 article {
-  display: grid;
-  gap: 0.75rem;
-  margin-block: 1rem;
-  padding: 1rem;
-  border: 1px solid #d5d9e0;
-  border-radius: 0.75rem;
+  border: 1px solid #d9e1ec;
+  border-radius: 1rem;
 }
 
-header,
+section {
+  display: grid;
+  gap: 1rem;
+  margin-block: 1rem;
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+  background: rgb(255 255 255 / 88%);
+  box-shadow: 0 0.75rem 2rem rgb(15 23 42 / 7%);
+}
+
+article {
+  display: grid;
+  gap: 0.8rem;
+  margin-block: 0.75rem;
+  padding: 1rem;
+  background: #f8fafc;
+}
+
+section > h2,
+article > h3,
+article > h4 {
+  margin: 0;
+  color: #0f172a;
+}
+
+section > p,
+article > p {
+  margin-block: 0;
+  color: #526176;
+}
+
+section > header,
 article > div {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.75rem;
   align-items: center;
   justify-content: space-between;
 }
 
+form:not(.signin-card) {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.85rem;
+  align-items: end;
+  padding: 1rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.8rem;
+}
+
 label {
   display: grid;
-  gap: 0.25rem;
+  gap: 0.4rem;
+  color: #334155;
+  font-size: 0.875rem;
+  font-weight: 650;
 }
 
 input,
-textarea,
-button {
-  font: inherit;
-}
-
-input,
+select,
 textarea {
-  padding: 0.5rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.75rem;
+  color: #0f172a;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.65rem;
+  outline: none;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+
+input[type='checkbox'] {
+  width: 1.1rem;
+  min-height: auto;
+  accent-color: #2563eb;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 0.2rem rgb(37 99 235 / 14%);
 }
 
 button {
   width: fit-content;
-  padding: 0.5rem 0.75rem;
+  min-height: 2.6rem;
+  padding: 0.55rem 0.9rem;
+  color: #fff;
+  font-weight: 700;
+  background: #2563eb;
+  border: 1px solid #2563eb;
+  border-radius: 0.65rem;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+button:hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  box-shadow: 0 0.35rem 0.9rem rgb(37 99 235 / 22%);
+  transform: translateY(-1px);
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 0.2rem solid rgb(37 99 235 / 35%);
+  outline-offset: 0.15rem;
+}
+
+button:disabled {
+  color: #94a3b8;
+  background: #e2e8f0;
+  border-color: #e2e8f0;
+  cursor: not-allowed;
+}
+
+button[aria-pressed='true'] {
+  color: #1d4ed8;
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
+a {
+  color: #1d4ed8;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+nav a {
+  padding: 0.4rem 0.65rem;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+}
+
+nav a[aria-current='page'] {
+  color: #fff;
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+ul {
+  margin-block: 0;
+  padding-left: 1.25rem;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.45fr) 1fr;
+  gap: 0.45rem 1rem;
+  margin: 0;
+}
+
+dt {
+  color: #64748b;
+  font-weight: 650;
+}
+
+dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+[role='alert'] {
+  padding: 0.75rem 0.9rem;
+  color: #991b1b;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 0.65rem;
+}
+
+@media (max-width: 42rem) {
+  main {
+    width: min(100% - 1rem, 74rem);
+    padding-block: 0.5rem 1.5rem;
+  }
+
+  .app-header {
+    align-items: flex-start;
+    flex-direction: column;
+    margin-bottom: 1rem;
+    border-radius: 0.9rem;
+  }
+
+  .system-status {
+    text-align: left;
+  }
+
+  .signin-card {
+    margin-top: 1.5rem;
+  }
+
+  form:not(.signin-card) {
+    grid-template-columns: 1fr;
+  }
+
+  dl {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

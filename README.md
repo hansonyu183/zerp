@@ -44,7 +44,7 @@ make target-down
 
 `compose.yaml` 与 `compose.production.yaml` 发布 Hono API 和 target Web。生产配置从根目录 `.env.production.example` 派生；数据库连接必须显式使用 `TARGET_DATABASE_SCOPE=production`，隔离检查仍只接受 `*_test` 数据库。
 
-API 启动前同步生成的权限目录，`/readyz` 同时验证数据库和全部启用的 RPT definition。Web 构建通过 `TARGET_API_BROWSER_URL` 注入浏览器可访问的 HTTPS API 地址，API 与 Web 使用同一完整 `ZERP_RELEASE_SHA`。
+API 启动前先同步生成的权限目录，再从 `APP_TEST_ADMIN_PASSWORD_FILE` 和 `APP_TESTER_PASSWORD_FILE` 指向的凭证文件重复校准 `test-admin`、`tester` 两个线上测试用户及其 `superadmin` 角色。数据库首次创建和后续重启都执行同一流程；密码变化会更新哈希并撤销旧会话。`/readyz` 同时验证数据库和全部启用的 RPT definition。Web 构建通过 `TARGET_API_BROWSER_URL` 注入浏览器可访问的 HTTPS API 地址，API 与 Web 使用同一完整 `ZERP_RELEASE_SHA`。
 
 #366 的开发测试环境数据库重建、验收和整体回滚见[切换运行手册](docs/operations/issue-366-cutover-runbook.md)。网络、Cookie 与联调细节见[前端 API 配置](docs/operations/frontend-api-configuration.md)。
 

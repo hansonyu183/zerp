@@ -3,6 +3,7 @@ import { ulid } from 'ulid'
 
 import type { TargetPermissionCatalogEntry } from '../../scripts/target-artifacts.ts'
 import type { DB } from '../db/generated.ts'
+import { hashPassword, verifyPassword } from './session.ts'
 
 export interface TargetE2EPrincipal {
   userId: string
@@ -11,16 +12,16 @@ export interface TargetE2EPrincipal {
   passwordHash: string
 }
 
-export interface TargetInitialAdministrator {
+export interface TargetOnlineTestUser {
   username: string
   displayName: string
-  passwordHash: string
+  password: string
 }
 
-export interface TargetInitialAdministratorReport {
-  userId: string
+export interface TargetOnlineTestUserSeedReport {
   roleId: string
-  permissionCatalog: PermissionCatalogMigrationReport
+  createdUsers: number
+  updatedUsers: number
 }
 
 export interface PermissionCatalogMigrationReport {
@@ -124,8 +125,8 @@ function assertAuthorityPreserved(
 }
 
 /**
- * Application service for the disposable target database. Operational scripts
- * call this boundary instead of writing APP business tables themselves.
+ * Application service for target-runtime setup. Operational scripts call this
+ * boundary instead of writing APP business tables themselves.
  */
 export class TargetBootstrapService {
   private readonly db: Kysely<DB>
@@ -145,30 +146,30 @@ export class TargetBootstrapService {
   }
 
   /**
-   * Creates the only administrator allowed for an empty target database. The
-   * catalog update and the user/role graph share one transaction so a rejected
-   * repeat invocation changes neither.
+   * Reconciles the two fixed online-test accounts before the API starts. The
+   * credential files never enter the database adapter or repository.
    */
-  async bootstrapInitialAdministrator(
-    catalog: readonly TargetPermissionCatalogEntry[],
-    administrator: TargetInitialAdministrator,
-  ): Promise<TargetInitialAdministratorReport> {
+  async seedOnlineTestUsers(
+    users: readonly TargetOnlineTestUser[],
+  ): Promise<TargetOnlineTestUserSeedReport> {
+    const usernames = users.map((user) => user.username).sort()
+    if (
+      JSON.stringify(usernames) !== JSON.stringify(['test-admin', 'tester']) ||
+      users.some((user) => !user.displayName.trim() || !user.password)
+    )
+      throw new Error('online-test seed requires test-admin and tester')
+
+    const preparedUsers = await Promise.all(
+      users.map(async (user) => ({
+        ...user,
+        passwordHash: await hashPassword(user.password),
+      })),
+    )
+
     return this.db.transaction().execute(async (transaction) => {
-      await sql`SELECT pg_advisory_xact_lock(hashtextextended('app:initial-administrator-bootstrap', 0))`.execute(
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended('app:online-test-user-seed', 0))`.execute(
         transaction,
       )
-      const existing = await transaction
-        .selectFrom('app_users')
-        .select('id')
-        .limit(1)
-        .executeTakeFirst()
-      if (existing)
-        throw new Error(
-          'initial administrator bootstrap requires an empty app_users table',
-        )
-
-      const permissionCatalog =
-        await this.migratePermissionCatalogInTransaction(transaction, catalog)
       const permission = await transaction
         .selectFrom('app_permissions')
         .select('id')
@@ -176,38 +177,118 @@ export class TargetBootstrapService {
         .executeTakeFirst()
       if (!permission)
         throw new Error(
-          'initial administrator bootstrap requires a non-empty target permission catalog',
+          'online-test seed requires a non-empty target permission catalog',
         )
 
-      const userId = ulid()
-      const roleId = ulid()
       const now = new Date()
-      await transaction
-        .insertInto('app_users')
-        .values({
-          id: userId,
-          username: administrator.username,
-          display_name: administrator.displayName,
-          password_hash: administrator.passwordHash,
-          status: 'ENABLED',
-          password_changed_at: now,
-        })
-        .execute()
-      await transaction
-        .insertInto('app_roles')
-        .values({
-          id: roleId,
-          code: 'superadmin',
-          name: '超级管理员',
-          description: '系统初始管理员',
-          status: 'ENABLED',
-        })
-        .execute()
-      await transaction
-        .insertInto('app_user_roles')
-        .values({ user_id: userId, role_id: roleId })
-        .execute()
-      return { userId, roleId, permissionCatalog }
+      let role = await transaction
+        .selectFrom('app_roles')
+        .select(['id', 'status'])
+        .where('code', '=', 'superadmin')
+        .forUpdate()
+        .executeTakeFirst()
+      if (!role) {
+        role = { id: ulid(), status: 'ENABLED' }
+        await transaction
+          .insertInto('app_roles')
+          .values({
+            id: role.id,
+            code: 'superadmin',
+            name: '超级管理员',
+            description: '线上测试环境管理员',
+            status: 'ENABLED',
+          })
+          .execute()
+      } else if (role.status !== 'ENABLED') {
+        await transaction
+          .updateTable('app_roles')
+          .set({
+            status: 'ENABLED',
+            updated_at: now,
+            revision: sql`revision + 1`,
+          })
+          .where('id', '=', role.id)
+          .execute()
+      }
+
+      let createdUsers = 0
+      let updatedUsers = 0
+      for (const user of preparedUsers) {
+        const existing = await transaction
+          .selectFrom('app_users')
+          .select([
+            'id',
+            'username',
+            'display_name',
+            'password_hash',
+            'status',
+            'password_change_required',
+          ])
+          .where(sql`lower(username)`, '=', user.username.toLowerCase())
+          .forUpdate()
+          .executeTakeFirst()
+        const userId = existing?.id ?? ulid()
+        if (existing) {
+          const matches =
+            existing.username === user.username &&
+            existing.display_name === user.displayName &&
+            existing.status === 'ENABLED' &&
+            !existing.password_change_required &&
+            (await verifyPassword(existing.password_hash, user.password))
+          if (!matches) {
+            await transaction
+              .deleteFrom('app_sessions')
+              .where('user_id', '=', userId)
+              .execute()
+            await transaction
+              .updateTable('app_users')
+              .set({
+                username: user.username,
+                display_name: user.displayName,
+                password_hash: user.passwordHash,
+                status: 'ENABLED',
+                password_change_required: false,
+                password_changed_at: now,
+                updated_at: now,
+                revision: sql`revision + 1`,
+              })
+              .where('id', '=', userId)
+              .execute()
+            updatedUsers += 1
+          }
+        } else {
+          await transaction
+            .insertInto('app_users')
+            .values({
+              id: userId,
+              username: user.username,
+              display_name: user.displayName,
+              password_hash: user.passwordHash,
+              status: 'ENABLED',
+              password_change_required: false,
+              password_changed_at: now,
+            })
+            .execute()
+          createdUsers += 1
+        }
+        const assignment = await transaction
+          .selectFrom('app_user_roles')
+          .select('user_id')
+          .where('user_id', '=', userId)
+          .where('role_id', '=', role.id)
+          .executeTakeFirst()
+        if (!assignment)
+          await transaction
+            .insertInto('app_user_roles')
+            .values({ user_id: userId, role_id: role.id })
+            .execute()
+      }
+
+      return {
+        roleId: role.id,
+        createdUsers,
+        updatedUsers,
+      }
     })
   }
 

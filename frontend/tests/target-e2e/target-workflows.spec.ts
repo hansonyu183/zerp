@@ -11,6 +11,7 @@ import {
   modelBuildId,
   systemGeneratedVouEntities,
   vouEntityInputDescriptors,
+  vouEntityPresentation,
   userCreatableVouEntities,
   type VouEntity,
 } from '@zerp/model'
@@ -66,6 +67,27 @@ async function vouEffectCounts(approvalEntryId: string) {
 
 function targetId() {
   return randomBytes(13).toString('hex').toUpperCase()
+}
+
+const unifiedSocialCreditCodeAlphabet = '0123456789ABCDEFGHJKLMNPQRTUWXY'
+const unifiedSocialCreditCodeWeights = [
+  1, 3, 9, 27, 19, 26, 16, 17, 20, 29, 25, 13, 8, 24, 10, 30, 28,
+]
+
+function customerLegalIdentifier(runId: string) {
+  const body = runId.slice(0, 17)
+  if (!/^[0-9A-HJ-NPQRTUWXY]{17}$/.test(body))
+    throw new Error(`无效的测试运行标识: ${runId}`)
+  const sum = body
+    .split('')
+    .reduce(
+      (total, digit, index) =>
+        total +
+        unifiedSocialCreditCodeAlphabet.indexOf(digit) *
+          unifiedSocialCreditCodeWeights[index]!,
+      0,
+    )
+  return `${body}${unifiedSocialCreditCodeAlphabet[(31 - (sum % 31)) % 31]}`
 }
 
 type ArchiveEntity =
@@ -358,23 +380,31 @@ async function queryArchiveEntity(
   page: Page,
   entity: ArchiveEntity | 'warehouse',
 ) {
-  const queryButton = archiveRegion(page).getByRole('button', {
-    name: '查询',
-    exact: true,
-  })
-  if ((await queryButton.count()) === 0) {
+  if (entity === 'acc-mapping' || entity === 'rpt-definition') {
+    // These pages query automatically after async draft-store operations.
+    // Close the previous document before observing the fresh mount, so its
+    // delayed query cannot be captured and then canceled by navigation.
+    await page.goto('about:blank')
     const queryResponse = page.waitForResponse(
       (response) =>
         response.request().method() === 'POST' &&
         new URL(response.url()).pathname === `/dcl/${entity}/query`,
       { timeout: 5_000 },
     )
-    await page.reload()
+    await page.goto(`/dcl/${entity}`)
     const response = await queryResponse
     expect(response.ok()).toBe(true)
     expect((await response.json()).code).toBe(0)
+    await expect(
+      archiveRegion(page).locator('.v-data-table-rows-loading'),
+    ).toHaveCount(0)
     return
   }
+  const queryButton = archiveRegion(page).getByRole('button', {
+    name: '查询',
+    exact: true,
+  })
+  await expect(queryButton).toBeVisible()
   await expect(queryButton).toBeEnabled()
   const queryResponse = page.waitForResponse(
     (response) =>
@@ -853,6 +883,18 @@ test('each DCL archive has a directly addressable target page', async ({
   await expect(archiveRegion(page)).toContainText('车辆申报')
   await expect(archiveRegion(page)).toContainText('当前设备的本地草稿')
   await queryArchiveEntity(page, 'vehicle')
+})
+
+test('per-run customer enterprise legal identifiers use the accepted checksum', () => {
+  expect(customerLegalIdentifier('91350211M000100Y4')).toBe(
+    '91350211M000100Y46',
+  )
+  const identifiers = [
+    customerLegalIdentifier('00000000000000001'),
+    customerLegalIdentifier('00000000000000002'),
+  ]
+  expect(new Set(identifiers).size).toBe(identifiers.length)
+  expect(identifiers.every((identifier) => identifier.length === 18)).toBe(true)
 })
 
 function vouRegion(page: Page) {
@@ -2647,7 +2689,11 @@ test('each supported archive submits through the browser and is read back by the
           '显示名称',
           `测试客户-${runId.slice(0, 6)}`,
         )
-        await fillArchiveField(draft, '法定识别号', '91350211M000100Y46')
+        await fillArchiveField(
+          draft,
+          '法定识别号',
+          customerLegalIdentifier(runId),
+        )
         await fillArchiveField(
           draft,
           '子单位名称',
@@ -2725,6 +2771,12 @@ test('each supported archive submits through the browser and is read back by the
       salesPartner,
     )
 
+    const mappingEntity =
+      userCreatableVouEntities[
+        test.info().repeatEachIndex * (test.info().project.retries + 1) +
+          test.info().retry
+      ]
+    if (!mappingEntity) throw new Error('会计映射测试尝试数超出独立单据类型数')
     const mapping = await createAndSubmitArchive(
       submitterPage,
       'acc-mapping',
@@ -2737,7 +2789,7 @@ test('each supported archive submits through the browser and is read back by the
         await selectVuetifyOption(
           submitterPage,
           draft.getByLabel('VOU 单据类型'),
-          accountingFacts.vouEntity.name,
+          vouEntityPresentation[mappingEntity].label,
         )
       },
     )

@@ -216,7 +216,7 @@ test('isolated target schema contains every target typed aggregate', async () =>
   assert.doesNotMatch(compose, /backend\/db\/schema\.sql/)
 })
 
-test('production compose runs the Hono topology after catalog synchronization', async () => {
+test('production compose runs the Hono topology after catalog and online-test seeding', async () => {
   const compose = await readFile(new URL('compose.yaml', root), 'utf8')
   const productionCompose = await readFile(
     new URL('compose.production.yaml', root),
@@ -226,12 +226,39 @@ test('production compose runs the Hono topology after catalog synchronization', 
     new URL('frontend/Dockerfile.target', root),
     'utf8',
   )
+  const apiPackage = await readFile(
+    new URL('apps/api/package.json', root),
+    'utf8',
+  )
   const productionTopology = `${compose}\n${productionCompose}`
 
   assert.match(productionTopology, /dockerfile: apps\/api\/Dockerfile/)
   assert.match(productionTopology, /apps\/api\/db\/target-schema\.sql/)
   assert.match(productionTopology, /catalog-sync/)
   assert.match(productionTopology, /pnpm', 'sync:catalog/)
+  assert.match(productionTopology, /online-test-seed/)
+  assert.match(productionTopology, /pnpm', 'seed:online-test/)
+  assert.match(
+    productionTopology,
+    /APP_TEST_ADMIN_PASSWORD_FILE: \/run\/secrets\/test-admin-password/,
+  )
+  assert.match(
+    productionTopology,
+    /APP_TESTER_PASSWORD_FILE: \/run\/secrets\/tester-password/,
+  )
+  assert.match(
+    productionTopology,
+    /test-admin-password:[\s\S]*file: \$\{APP_TEST_ADMIN_PASSWORD_FILE:\?set APP_TEST_ADMIN_PASSWORD_FILE\}/,
+  )
+  assert.match(
+    productionTopology,
+    /tester-password:[\s\S]*file: \$\{APP_TESTER_PASSWORD_FILE:\?set APP_TESTER_PASSWORD_FILE\}/,
+  )
+  assert.match(
+    apiPackage,
+    /"seed:online-test": "node scripts\/seed-online-test-users\.ts"/,
+  )
+  assert.doesNotMatch(apiPackage, /bootstrap:admin/)
   assert.match(productionTopology, /TARGET_DATABASE_SCOPE: production/)
   assert.match(productionTopology, /frontend\/Dockerfile\.target/)
   assert.match(

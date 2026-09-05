@@ -5,6 +5,7 @@ import {
   z,
 } from '@hono/zod-openapi'
 import type { TargetRouteEnvironment } from '../app/contract.ts'
+import { archiveEntityPresentation } from '@zerp/model'
 
 export const archiveEntities = [
   'operating-entity',
@@ -64,6 +65,7 @@ const identityKind = z.enum([
 const operatingEntitySnapshot = z
   .object({
     legalName: z.string().min(1).max(200),
+    shortName: z.string().max(100),
     legalIdentifier: z.string().max(128),
     registeredAddress: z.string().max(500),
     contactName: z.string().max(100),
@@ -122,8 +124,50 @@ const fundAccountSnapshot = z
   })
   .strict()
 
-const quantityUnit = auxSnapshot.extend({ quantityScale: z.number().int() })
-const productType = auxSnapshot.extend({ behaviorProfile: z.string().min(1) })
+const quantityUnit = auxSnapshot
+  .extend({
+    symbol: z.string().min(1).max(32),
+    quantityScale: z.number().int().min(0).max(12),
+  })
+  .strict()
+const productType = auxSnapshot
+  .extend({
+    behaviorProfile: z.enum([
+      'RAW_MATERIAL',
+      'STANDARD_FINISHED',
+      'CUSTOM_FINISHED',
+      'PACKAGING',
+    ]),
+  })
+  .strict()
+const positiveDecimal = z
+  .string()
+  .regex(/^(?:0*[1-9]\d*)(?:\.\d+)?$|^0*\.\d*[1-9]\d*$/)
+const productQuantity = z
+  .object({
+    enteredQuantity: positiveDecimal,
+    enteredUnit: quantityUnit,
+    baseQuantity: positiveDecimal,
+  })
+  .strict()
+const productFixedFormula = z
+  .object({
+    output: productQuantity,
+    components: z
+      .array(
+        z
+          .object({
+            material: exactReference,
+            quantity: productQuantity,
+            resolutionStatus: z.enum(['CURRENT', 'UNRESOLVED']),
+            requiresConfirmation: z.boolean(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(200),
+  })
+  .strict()
 const productSnapshot = z
   .object({
     name: z.string().min(1).max(200),
@@ -134,8 +178,12 @@ const productSnapshot = z
     productCategory: auxSnapshot,
     pricingUnit: quantityUnit,
     defaultInputUnit: quantityUnit,
-    defaultPackageSpec: z.string().max(200),
+    unitConversions: z
+      .array(z.object({ unit: quantityUnit, factor: positiveDecimal }).strict())
+      .min(1),
+    defaultPackagingSpec: z.string().max(64),
     recyclable: z.boolean(),
+    fixedFormula: productFixedFormula.nullable(),
     remark: z.string().max(1000),
     enabled: z.boolean(),
   })
@@ -187,6 +235,33 @@ const settlementSnapshot = auxSnapshot.extend({
   dayOfMonth: z.number().int().min(0).max(31).optional(),
   dayOffset: z.number().int().min(0).max(30).optional(),
 })
+const customerSettlementSnapshot = settlementSnapshot
+  .extend({
+    termCode: z.enum([
+      'PREPAID',
+      'CASH_ON_DELIVERY',
+      'ARRIVAL_3',
+      'ARRIVAL_5',
+      'ARRIVAL_7',
+      'ARRIVAL_15',
+      'ARRIVAL_30',
+      'MONTHLY_CURRENT',
+      'MONTHLY_30',
+      'MONTHLY_60',
+      'MONTHLY_90',
+    ]),
+    ruleType: z.enum(['RELATIVE_DAYS', 'MONTH_END']),
+    monthOffset: z.number().int().min(0).max(3),
+    dayOfMonth: z.number().int().min(0).max(31),
+    dayOffset: z.number().int().min(0).max(30),
+    defaultSalesSurcharge: z.string().regex(/^(?:0|[1-9]\d*)\.\d{2}$/),
+  })
+  .strict()
+const paymentMethodSnapshot = auxSnapshot
+  .extend({
+    defaultSalesSurcharge: z.string().regex(/^(?:0|[1-9]\d*)\.\d{2}$/),
+  })
+  .strict()
 const archiveIdentityBase = {
   identityKind: z.enum(['PERSON', 'ORGANIZATION']),
   legalName: z.string().min(1).max(200),
@@ -234,24 +309,68 @@ const attachmentMetadata = z
   })
   .strict()
 
+const pricingCostItem = z.discriminatedUnion('calculationBasis', [
+  z
+    .object({
+      name: z.string().trim().min(1).max(200),
+      calculationBasis: z.literal('UNIT_PRICE'),
+      unitPrice: z.string().regex(/^(?:0*[1-9]\d*)\.\d{2}$/),
+    })
+    .strict(),
+  z
+    .object({
+      name: z.string().trim().min(1).max(200),
+      calculationBasis: z.literal('ORDER_AMOUNT'),
+      orderAmount: z.string().regex(/^(?:0*[1-9]\d*)\.\d{2}$/),
+    })
+    .strict(),
+])
+const pricingPolicy = z
+  .object({
+    defaultPremiumUnitPrice: z.string().regex(/^(?:0|[1-9]\d*)\.\d{2}$/),
+    defaultDiscountUnitPrice: z.string().regex(/^(?:0|[1-9]\d*)\.\d{2}$/),
+    costItems: z.array(pricingCostItem),
+    thirdPartyIntermediaryFixedUnitCost: z
+      .string()
+      .regex(/^(?:0|[1-9]\d*)\.\d{2}$/),
+    thirdPartyIntermediaryVariableUnitCost: z
+      .string()
+      .regex(/^(?:0|[1-9]\d*)\.\d{2}$/),
+  })
+  .strict()
+const customerSalesAttribution = exactReference
+  .extend({
+    type: z.enum([
+      'INTERNAL_EMPLOYEE',
+      'EXTERNAL_PART_TIME',
+      'CHANNEL_PARTNER',
+    ]),
+  })
+  .strict()
 const customerSubunitBase = {
   id: z.string().length(26),
   name: z.string().min(1).max(200),
   contactName: z.string().max(100),
   address: z.string().max(500),
-  customerType: z.string().max(64),
-  settlementMethod: settlementSnapshot.nullable(),
-  receiptMethod: z.string().max(64),
-  transportMethod: z.string().max(64),
-  pricePolicy: z.string().max(64),
+  customerType: auxSnapshot,
+  settlementMethod: customerSettlementSnapshot.nullable(),
+  paymentMethod: paymentMethodSnapshot.nullable(),
+  transportPolicy: z
+    .object({
+      methodCode: z.string().min(1).max(64),
+      methodName: z.string().min(1).max(200),
+      surcharge: z.string().regex(/^(?:0|[1-9]\d*)\.\d{2}$/),
+    })
+    .strict(),
+  pricingPolicy,
   creditLimits: z.array(
     z
       .object({ currency: z.string().min(1).max(16), amount: z.string() })
       .strict(),
   ),
-  salesAttribution: exactReference.nullable(),
+  primarySalesAttribution: customerSalesAttribution,
   internalReminder: z.string().max(1000),
-  defaultOrderRemark: z.string().max(1000),
+  defaultSalesOrderRemark: z.string().max(1000),
   attachments: z.array(attachmentMetadata),
   enabled: z.boolean(),
 } as const
@@ -407,11 +526,24 @@ const rptDefinitionSnapshot = z
           required: z.boolean(),
           defaultValue: z.unknown().optional(),
           enumValues: z.array(z.string().min(1).max(200)).min(1).optional(),
-          referenceType: z.enum([
-            'ACCOUNTING_BOOK', 'ACCOUNT_SUBJECT', 'CUSTOMER_SUBUNIT', 'SUPPLIER',
-            'OTHER_UNIT', 'EMPLOYEE', 'SALES_PARTNER', 'DEPARTMENT', 'PRODUCT',
-            'WAREHOUSE', 'FUND_ACCOUNT', 'ASSET', 'BILL', 'COUNTERPARTY',
-          ]).optional(),
+          referenceType: z
+            .enum([
+              'ACCOUNTING_BOOK',
+              'ACCOUNT_SUBJECT',
+              'CUSTOMER_SUBUNIT',
+              'SUPPLIER',
+              'OTHER_UNIT',
+              'EMPLOYEE',
+              'SALES_PARTNER',
+              'DEPARTMENT',
+              'PRODUCT',
+              'WAREHOUSE',
+              'FUND_ACCOUNT',
+              'ASSET',
+              'BILL',
+              'COUNTERPARTY',
+            ])
+            .optional(),
         })
         .strict(),
     ),
@@ -787,9 +919,18 @@ export const archiveRouteMetadata: Array<{
     method: archiveRouteSets[entity][action].method,
     path: archiveRouteSets[entity][action].path,
     permission: `/dcl/${entity}/${action}`,
-    title: `${action} ${entity}`,
+    title:
+      action === 'query'
+        ? archiveEntityPresentation[entity].label
+        : `${action} ${entity}`,
     ...(action === 'query'
-      ? { menu: { title: entity, group: '申报控制', order: 30 + entityIndex } }
+      ? {
+          menu: {
+            title: archiveEntityPresentation[entity].label,
+            group: '申报控制',
+            order: 30 + entityIndex,
+          },
+        }
       : {}),
   })),
 )

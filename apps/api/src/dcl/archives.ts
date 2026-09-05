@@ -19,6 +19,7 @@ import {
   type ApprovalEntry,
   type ApprovalStatus,
   type ProductReferenceFact,
+  type ProductMaterialFact,
   type ReferenceBlocker,
 } from '@zerp/model'
 import { sql, type Kysely, type Transaction } from 'kysely'
@@ -51,8 +52,15 @@ type ApprovedArchiveFact = {
   name: string
 }
 
+type AuxiliaryField =
+  | ProductReferenceFact['field']
+  | 'vehicleType'
+  | 'settlementMethod'
+  | 'paymentMethod'
+  | 'customerType'
+  | 'measurementUnit'
 type AuxiliaryFact = {
-  field: ProductReferenceFact['field'] | 'vehicleType' | 'settlementMethod'
+  field: AuxiliaryField
   objectId: string
   available: boolean
   code: string
@@ -60,7 +68,7 @@ type AuxiliaryFact = {
   data: Record<string, unknown>
 }
 
-const auxiliaryEntities: Record<AuxiliaryFact['field'], string> = {
+const auxiliaryEntities: Record<AuxiliaryField, string> = {
   vehicleType: 'dictionary-item',
   productType: 'product-type',
   productCategory: 'product-category',
@@ -70,6 +78,19 @@ const auxiliaryEntities: Record<AuxiliaryFact['field'], string> = {
   department: 'department',
   position: 'position',
   settlementMethod: 'settlement-method',
+  paymentMethod: 'payment-method',
+  customerType: 'dictionary-item',
+  measurementUnit: 'measurement-unit',
+}
+
+function fixedAuxMoney(value: unknown, errorKey: string): string {
+  if (
+    typeof value !== 'string' ||
+    !/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(value.trim())
+  )
+    throw new ArchiveApplicationError(errorKey)
+  const [whole, fraction = ''] = value.trim().split('.')
+  return `${whole}.${fraction.padEnd(2, '0')}`
 }
 
 type ReferenceBlockerRow = {
@@ -727,10 +748,18 @@ export class ArchiveService {
           .forUpdate()
           .execute()
         const occurredAt = new Date()
+        const authoritativeInput = {
+          ...input,
+          snapshot: await this.freezeAuthoritativeReferences(
+            tx,
+            entity,
+            input.snapshot,
+          ),
+        }
         const prepared = await this.prepare(
           entity,
           action,
-          input,
+          authoritativeInput,
           actor,
           requestId,
           occurredAt.toISOString(),
@@ -747,11 +776,6 @@ export class ArchiveService {
             prepared.blockers,
           )
         const plan = prepared.plan
-        plan.data = await this.freezeAuthoritativeReferences(
-          tx,
-          entity,
-          plan.data,
-        )
         await this.ensureNoDuplicateBusinessKey(
           tx,
           entity,
@@ -1462,6 +1486,12 @@ export class ArchiveService {
               ['pricingUnit', record(data.pricingUnit).id],
               ['defaultInputUnit', record(data.defaultInputUnit).id],
             ]),
+            materials: await this.productMaterialFacts(
+              tx,
+              array(record(data.fixedFormula).components).map((component) =>
+                record(record(component).material),
+              ),
+            ),
           } as never,
         )
       case 'employee':
@@ -1509,6 +1539,57 @@ export class ArchiveService {
               tx,
               'operating-entity',
               String(record(data.defaultOperatingEntity).objectId ?? ''),
+            ),
+            customerTypes: (
+              await this.auxFacts(
+                tx,
+                array(data.subunits).map((value) => [
+                  'customerType',
+                  record(record(value).customerType).id,
+                ]),
+              )
+            ).map((fact) => ({
+              objectId: fact.objectId,
+              available: fact.available,
+            })),
+            salesAttributions: await Promise.all(
+              array(data.subunits).map(async (value) => {
+                const attribution = record(
+                  record(value).primarySalesAttribution,
+                )
+                const type = String(attribution.type ?? '') as
+                  'INTERNAL_EMPLOYEE' | 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER'
+                const entity =
+                  type === 'INTERNAL_EMPLOYEE' ? 'employee' : 'sales-partner'
+                const fact = await this.approvedFact(
+                  tx,
+                  entity,
+                  String(attribution.objectId ?? ''),
+                )
+                if (!fact)
+                  return {
+                    objectId: String(attribution.objectId ?? ''),
+                    latestApprovedEntryId: '',
+                    enabled: false,
+                    type,
+                  }
+                let enabled = fact.enabled
+                if (entity === 'sales-partner') {
+                  const snapshot = await this.readSnapshot(
+                    tx,
+                    entity,
+                    fact.latestApprovedEntryId,
+                  )
+                  enabled =
+                    enabled && array(snapshot.capabilities).includes(type)
+                }
+                return {
+                  objectId: fact.objectId,
+                  latestApprovedEntryId: fact.latestApprovedEntryId,
+                  enabled,
+                  type,
+                }
+              }),
             ),
           } as never,
         )
@@ -1802,6 +1883,38 @@ export class ArchiveService {
     }))
   }
 
+  private async productMaterialFacts(
+    tx: Executor,
+    references: Array<Record<string, unknown>>,
+  ): Promise<ProductMaterialFact[]> {
+    return Promise.all(
+      references.map(async (reference) => {
+        const objectId = String(reference.objectId ?? '')
+        const fact = await this.approvedFact(tx, 'product', objectId)
+        if (!fact)
+          return {
+            objectId,
+            latestApprovedEntryId: '',
+            enabled: false,
+            behaviorProfile: 'RAW_MATERIAL',
+          }
+        const snapshot = await this.readSnapshot(
+          tx,
+          'product',
+          fact.latestApprovedEntryId,
+        )
+        return {
+          objectId: fact.objectId,
+          latestApprovedEntryId: fact.latestApprovedEntryId,
+          enabled: fact.enabled,
+          behaviorProfile: String(
+            record(snapshot.productType).behaviorProfile ?? '',
+          ) as ProductMaterialFact['behaviorProfile'],
+        }
+      }),
+    )
+  }
+
   private displayName(
     entity: ArchiveEntity,
     snapshot: ArchiveSnapshot,
@@ -1837,7 +1950,7 @@ export class ArchiveService {
 
   private async freezeAuxiliaryReference(
     tx: Executor,
-    field: AuxiliaryFact['field'],
+    field: AuxiliaryField,
     reference: unknown,
     errorKey: string,
   ): Promise<Record<string, unknown>> {
@@ -1854,6 +1967,10 @@ export class ArchiveService {
       const monthOffset = fact.data.monthOffset
       const dayOfMonth = fact.data.dayOfMonth
       const dayOffset = fact.data.dayOffset
+      const defaultSalesSurcharge = fixedAuxMoney(
+        fact.data.defaultSalesSurcharge,
+        errorKey,
+      )
       if (
         ![
           'PREPAID',
@@ -1883,19 +2000,69 @@ export class ArchiveService {
         monthOffset,
         dayOfMonth,
         dayOffset,
+        defaultSalesSurcharge,
       }
     }
+    if (field === 'paymentMethod')
+      return {
+        id: fact.objectId,
+        code: fact.code,
+        name: fact.name,
+        defaultSalesSurcharge: fixedAuxMoney(
+          fact.data.defaultSalesSurcharge,
+          errorKey,
+        ),
+      }
+    if (auxiliaryEntities[field] === 'measurement-unit') {
+      const symbol = fact.data.symbol
+      const quantityScale = fact.data.quantityScale
+      if (
+        typeof symbol !== 'string' ||
+        !symbol.trim() ||
+        !Number.isInteger(quantityScale) ||
+        Number(quantityScale) < 0 ||
+        Number(quantityScale) > 6
+      )
+        throw new ArchiveApplicationError(errorKey)
+      return {
+        id: fact.objectId,
+        code: fact.code,
+        name: fact.name,
+        symbol: symbol.trim(),
+        quantityScale,
+      }
+    }
+    if (field === 'productType') {
+      const behaviorProfile = fact.data.behaviorProfile
+      if (
+        behaviorProfile !== 'RAW_MATERIAL' &&
+        behaviorProfile !== 'STANDARD_FINISHED' &&
+        behaviorProfile !== 'CUSTOM_FINISHED' &&
+        behaviorProfile !== 'PACKAGING'
+      )
+        throw new ArchiveApplicationError(errorKey)
+      return {
+        id: fact.objectId,
+        code: fact.code,
+        name: fact.name,
+        behaviorProfile,
+      }
+    }
+    return { id: fact.objectId, code: fact.code, name: fact.name }
+  }
+
+  private async freezeProductQuantity(
+    tx: Executor,
+    quantity: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
     return {
-      ...requested,
-      id: fact.objectId,
-      code: fact.code,
-      name: fact.name,
-      ...(typeof fact.data.quantityScale === 'number'
-        ? { quantityScale: fact.data.quantityScale }
-        : {}),
-      ...(typeof fact.data.behaviorProfile === 'string'
-        ? { behaviorProfile: fact.data.behaviorProfile }
-        : {}),
+      ...quantity,
+      enteredUnit: await this.freezeAuxiliaryReference(
+        tx,
+        'measurementUnit',
+        quantity.enteredUnit,
+        'product_reference_unavailable',
+      ),
     }
   }
 
@@ -1993,6 +2160,49 @@ export class ArchiveService {
             snapshot.defaultInputUnit,
             'product_reference_unavailable',
           ),
+          unitConversions: await Promise.all(
+            array(snapshot.unitConversions).map(async (value) => {
+              const conversion = record(value)
+              return {
+                ...conversion,
+                unit: await this.freezeAuxiliaryReference(
+                  tx,
+                  'measurementUnit',
+                  conversion.unit,
+                  'product_reference_unavailable',
+                ),
+              }
+            }),
+          ),
+          fixedFormula:
+            snapshot.fixedFormula === null
+              ? null
+              : {
+                  ...record(snapshot.fixedFormula),
+                  output: await this.freezeProductQuantity(
+                    tx,
+                    record(record(snapshot.fixedFormula).output),
+                  ),
+                  components: await Promise.all(
+                    array(record(snapshot.fixedFormula).components).map(
+                      async (value) => {
+                        const component = record(value)
+                        return {
+                          ...component,
+                          material: await this.freezeApprovedReference(
+                            tx,
+                            'product',
+                            component.material,
+                          ),
+                          quantity: await this.freezeProductQuantity(
+                            tx,
+                            record(component.quantity),
+                          ),
+                        }
+                      },
+                    ),
+                  ),
+                },
         }
       case 'supplier':
       case 'other-unit':
@@ -2042,8 +2252,16 @@ export class ArchiveService {
           subunits: await Promise.all(
             array(snapshot.subunits).map(async (item) => {
               const subunit = record(item)
+              const attribution = record(subunit.primarySalesAttribution)
+              const attributionType = String(attribution.type ?? '')
               return {
                 ...subunit,
+                customerType: await this.freezeAuxiliaryReference(
+                  tx,
+                  'customerType',
+                  subunit.customerType,
+                  'customer_invalid_data',
+                ),
                 settlementMethod:
                   subunit.settlementMethod === null
                     ? null
@@ -2053,14 +2271,25 @@ export class ArchiveService {
                         subunit.settlementMethod,
                         'customer_invalid_data',
                       ),
-                salesAttribution:
-                  subunit.salesAttribution === null
+                paymentMethod:
+                  subunit.paymentMethod === null
                     ? null
-                    : await this.freezeApprovedReference(
+                    : await this.freezeAuxiliaryReference(
                         tx,
-                        'sales-partner',
-                        subunit.salesAttribution,
+                        'paymentMethod',
+                        subunit.paymentMethod,
+                        'customer_invalid_data',
                       ),
+                primarySalesAttribution: {
+                  ...(await this.freezeApprovedReference(
+                    tx,
+                    attributionType === 'INTERNAL_EMPLOYEE'
+                      ? 'employee'
+                      : 'sales-partner',
+                    attribution,
+                  )),
+                  type: attributionType,
+                },
               }
             }),
           ),
@@ -2084,6 +2313,7 @@ export class ArchiveService {
           .values({
             approval_entry_id: id,
             legal_name: String(d.legalName ?? ''),
+            short_name: String(d.shortName ?? ''),
             legal_identifier: nullable(d.legalIdentifier),
             registered_address: String(d.registeredAddress ?? ''),
             contact_name: String(d.contactName ?? ''),
@@ -2181,12 +2411,13 @@ export class ArchiveService {
               pricingUnit: d.pricingUnit,
               defaultInputUnit: d.defaultInputUnit,
             }),
-            unit_conversions: json([]),
+            unit_conversions: json(array(d.unitConversions)),
             default_packaging_snapshot: json({
-              defaultPackageSpec: d.defaultPackageSpec,
+              defaultPackagingSpec: d.defaultPackagingSpec,
             }),
             recyclable: d.recyclable === true,
-            fixed_formula: null,
+            fixed_formula:
+              d.fixedFormula === null ? null : json(record(d.fixedFormula)),
             remark: nullable(d.remark),
             enabled: d.enabled === true,
           })
@@ -2431,36 +2662,36 @@ export class ArchiveService {
           contact_name: nullable(s.contactName),
           contact_phone: null,
           business_address: nullable(s.address),
-          customer_type_id: nullable(s.customerType),
-          settlement_method_id: nullable(record(s.settlementMethod).objectId),
+          customer_type_id: String(record(s.customerType).id),
+          customer_type_snapshot: json(record(s.customerType)),
+          settlement_method_id: nullable(record(s.settlementMethod).id),
           settlement_snapshot:
             s.settlementMethod === null
               ? null
               : json(record(s.settlementMethod)),
-          payment_snapshot: json({ receiptMethod: s.receiptMethod }),
-          transport_snapshot: json({ transportMethod: s.transportMethod }),
-          pricing_snapshot: json({ pricePolicy: s.pricePolicy }),
+          payment_snapshot:
+            s.paymentMethod === null ? null : json(record(s.paymentMethod)),
+          transport_snapshot: json(record(s.transportPolicy)),
+          pricing_snapshot: json(record(s.pricingPolicy)),
           credit_limits: json(array(s.creditLimits)),
-          primary_sales_attribution_type:
-            s.salesAttribution === null ? null : 'REFERENCE',
+          primary_sales_attribution_type: nullable(
+            record(s.primarySalesAttribution).type,
+          ),
           primary_sales_attribution_object_id: nullable(
-            record(s.salesAttribution).objectId,
+            record(s.primarySalesAttribution).objectId,
           ),
           primary_sales_attribution_approval_entry_id: nullable(
-            record(s.salesAttribution).approvalEntryId,
+            record(s.primarySalesAttribution).approvalEntryId,
           ),
           primary_sales_attribution_code: nullable(
-            record(s.salesAttribution).code,
+            record(s.primarySalesAttribution).code,
           ),
           primary_sales_attribution_name: nullable(
-            record(s.salesAttribution).name,
+            record(s.primarySalesAttribution).name,
           ),
-          sales_attribution_snapshot:
-            s.salesAttribution === null
-              ? null
-              : json(record(s.salesAttribution)),
+          sales_attribution_snapshot: json(record(s.primarySalesAttribution)),
           internal_reminder: nullable(s.internalReminder),
-          default_order_remark: nullable(s.defaultOrderRemark),
+          default_order_remark: nullable(s.defaultSalesOrderRemark),
           business_attachments: json(array(s.attachments)),
           enabled: s.enabled === true,
         })
@@ -2676,6 +2907,7 @@ export class ArchiveService {
           .executeTakeFirstOrThrow()
         return {
           legalName: r.legal_name,
+          shortName: r.short_name,
           legalIdentifier: r.legal_identifier ?? '',
           registeredAddress: r.registered_address,
           contactName: r.contact_name,
@@ -2762,9 +2994,12 @@ export class ArchiveService {
           productCategory: record(sources.productCategory),
           pricingUnit: record(sources.pricingUnit),
           defaultInputUnit: record(sources.defaultInputUnit),
-          defaultPackageSpec:
-            record(r.default_packaging_snapshot).defaultPackageSpec ?? '',
+          unitConversions: array(r.unit_conversions),
+          defaultPackagingSpec:
+            record(r.default_packaging_snapshot).defaultPackagingSpec ?? '',
           recyclable: r.recyclable,
+          fixedFormula:
+            r.fixed_formula === null ? null : record(r.fixed_formula),
           remark: r.remark ?? '',
           enabled: r.enabled,
         }
@@ -2956,23 +3191,24 @@ export class ArchiveService {
         name: s.name,
         contactName: s.contact_name ?? '',
         address: s.business_address ?? '',
-        customerType: s.customer_type_id ?? '',
+        customerType: record(s.customer_type_snapshot),
         settlementMethod: s.settlement_snapshot,
-        receiptMethod: record(s.payment_snapshot).receiptMethod ?? '',
-        transportMethod: record(s.transport_snapshot).transportMethod ?? '',
-        pricePolicy: record(s.pricing_snapshot).pricePolicy ?? '',
+        paymentMethod: s.payment_snapshot,
+        transportPolicy: record(s.transport_snapshot),
+        pricingPolicy: record(s.pricing_snapshot),
         creditLimits: array(s.credit_limits),
-        salesAttribution: s.primary_sales_attribution_object_id
+        primarySalesAttribution: s.primary_sales_attribution_object_id
           ? {
+              type: s.primary_sales_attribution_type,
               objectId: s.primary_sales_attribution_object_id,
               approvalEntryId:
                 s.primary_sales_attribution_approval_entry_id ?? '',
               code: s.primary_sales_attribution_code ?? '',
               name: s.primary_sales_attribution_name ?? '',
             }
-          : null,
+          : {},
         internalReminder: s.internal_reminder ?? '',
-        defaultOrderRemark: s.default_order_remark ?? '',
+        defaultSalesOrderRemark: s.default_order_remark ?? '',
         attachments: array(s.business_attachments),
         enabled: s.enabled,
       })),

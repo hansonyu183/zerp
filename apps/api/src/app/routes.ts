@@ -31,11 +31,23 @@ import {
   type VouRouteAction,
 } from '../vou/contract.ts'
 import { AccApplicationError, type AccService } from '../acc/service.ts'
-import { registerAccRoutes, accRouteMetadata, type AccRouteAction } from '../acc/contract.ts'
+import {
+  registerAccRoutes,
+  accRouteMetadata,
+  type AccRouteAction,
+} from '../acc/contract.ts'
 import { WflApplicationError, type WflService } from '../wfl/service.ts'
-import { registerWflRoutes, wflRouteMetadata, type WflRouteAction } from '../wfl/contract.ts'
+import {
+  registerWflRoutes,
+  wflRouteMetadata,
+  type WflRouteAction,
+} from '../wfl/contract.ts'
 import { RptApplicationError, type RptService } from '../rpt/service.ts'
-import { registerRptRoutes, rptRouteMetadata, type RptRouteAction } from '../rpt/contract.ts'
+import {
+  registerRptRoutes,
+  rptRouteMetadata,
+  type RptRouteAction,
+} from '../rpt/contract.ts'
 import { healthRouteMetadata } from './health-contract.ts'
 import type { WorkbenchService } from './workbench.ts'
 import {
@@ -45,7 +57,10 @@ import {
 } from './contract.ts'
 import { createIndependentHandlers } from './independent-routes.ts'
 import type { ManagementService } from './management.ts'
-import { applicationFailure } from './response.ts'
+import {
+  applicationFailure,
+  clearUnauthenticatedSessionCookie,
+} from './response.ts'
 import {
   AppServiceError,
   SessionError,
@@ -281,15 +296,42 @@ export function registerAppRoutes(
       throw error
     }
   }
-  async function executeCore<T>(context: any, operation: (actor: { id: string; permissions: string[] }) => Promise<T>) {
+  async function executeCore<T>(
+    context: any,
+    operation: (actor: { id: string; permissions: string[] }) => Promise<T>,
+  ) {
     const requestId = currentRequestId(context)
     try {
-      const current = await service.authenticate(getCookie(context, config.sessionCookieName), context.req.header('X-CSRF-Token'), true, context.req.path)
-      return { code: 0 as const, errorKey: '' as const, message: 'ok' as const, data: await operation({ id: current.user.id, permissions: current.permissions }), requestId }
+      const current = await service.authenticate(
+        getCookie(context, config.sessionCookieName),
+        context.req.header('X-CSRF-Token'),
+        true,
+        context.req.path,
+      )
+      return {
+        code: 0 as const,
+        errorKey: '' as const,
+        message: 'ok' as const,
+        data: await operation({
+          id: current.user.id,
+          permissions: current.permissions,
+        }),
+        requestId,
+      }
     } catch (error) {
       if (error instanceof SessionError) return sessionFailure(error, requestId)
-      if (error instanceof AccApplicationError || error instanceof WflApplicationError || error instanceof RptApplicationError)
-        return { code: 3001 as const, errorKey: error.errorKey, message: error.errorKey, data: 'data' in error ? error.data : null, requestId }
+      if (
+        error instanceof AccApplicationError ||
+        error instanceof WflApplicationError ||
+        error instanceof RptApplicationError
+      )
+        return {
+          code: 3001 as const,
+          errorKey: error.errorKey,
+          message: error.errorKey,
+          data: 'data' in error ? error.data : null,
+          requestId,
+        }
       throw error
     }
   }
@@ -455,6 +497,7 @@ export function registerAppRoutes(
           200,
         )
       } catch (error) {
+        clearUnauthenticatedSessionCookie(context, config, error)
         return context.json(
           sessionFailure(error, currentRequestId(context)),
           200,
@@ -530,8 +573,7 @@ export function registerAppRoutes(
           getCookie(context, config.sessionCookieName),
           currentRequestId(context),
           async (actor) => {
-            const items = await warehouse!.query(actor)
-            return { items, total: items.length }
+            return warehouse!.query(context.req.valid('json'), actor)
           },
         ),
         200,
@@ -714,6 +756,26 @@ export function registerAppRoutes(
   const withVou = registerVouRoutes(
     target,
     async (action: VouRouteAction, context: any) => {
+      if (action === 'attachment-download') {
+        try {
+          const attachment = await vou!.consumeAttachmentDownload(
+            context.req.valid('param').token,
+          )
+          return context.body(attachment.content, 200, {
+            'Content-Type': attachment.mime_type,
+            'Content-Length': String(attachment.size_bytes),
+            'Content-Disposition': attachmentContentDisposition(
+              attachment.file_name,
+            ),
+            'X-Content-Type-Options': 'nosniff',
+            'Cache-Control': 'no-store',
+          })
+        } catch (error) {
+          if (error instanceof VouApplicationError)
+            return context.body(null, 404)
+          throw error
+        }
+      }
       if (action === 'reference') {
         const body = context.req.valid('json')
         const response = await executeVou<unknown>(context, (actor) =>
@@ -721,10 +783,17 @@ export function registerAppRoutes(
         )
         return context.json(response as never, 200)
       }
+      if (action === 'source-line') {
+        const body = context.req.valid('json')
+        const response = await executeVou<unknown>(context, (actor) =>
+          vou!.querySourceLineCandidates(body, actor),
+        )
+        return context.json(response as never, 200)
+      }
       const entity = context.req.valid('param').entity as VouEntity
       const body = context.req.valid('json')
       const response = await executeVou<unknown>(context, (actor) => {
-        if (action === 'query') return vou!.query(entity, actor)
+        if (action === 'query') return vou!.query(entity, body, actor)
         if (action === 'get') return vou!.get(entity, body.documentId, actor)
         if (action === 'audit-history')
           return vou!.auditHistory(entity, body.documentId, actor)
@@ -738,6 +807,8 @@ export function registerAppRoutes(
           )
         if (action === 'attachment-stage')
           return vou!.stageAttachment(entity, body, actor)
+        if (action === 'attachment-read')
+          return vou!.issueAttachmentDownload(entity, body, actor)
         if (action === 'attachment-cleanup')
           return vou!.cleanupAttachments(entity, actor)
         if (action === 'delete')
@@ -750,70 +821,165 @@ export function registerAppRoutes(
           currentRequestId(context),
         )
       })
+      if (action === 'attachment-read' && response.code === 0) {
+        const issued = response.data as { token: string; expiresAt: string }
+        return context.json(
+          {
+            ...response,
+            data: {
+              downloadUrl: new URL(
+                `/vou/attachment-download/${issued.token}`,
+                context.req.url,
+              ).toString(),
+              expiresAt: issued.expiresAt,
+            },
+          } as never,
+          200,
+        )
+      }
       return context.json(response as never, 200)
     },
   )
-  const withAcc = registerAccRoutes(withVou, async (action: AccRouteAction, context: any) => {
-    if (!acc) throw new Error('ACC service is unavailable')
-    const input = context.req.valid('json')
-    const response = await executeCore<unknown>(context, (actor) => {
-      if (action === 'bookQuery') return acc.queryBooks(actor)
-      if (action === 'bookGet') return acc.getBook(input.id, actor)
-      if (action === 'bookCreate') return acc.createBook(input, actor)
-      if (action === 'bookSave') return acc.saveBook(input, actor)
-      if (action === 'bookDelete') return acc.deleteBook(input.id, input.expectedRevision, actor)
-      if (action === 'subjectQuery') return acc.querySubjects(input.bookId, actor)
-      if (action === 'subjectGet') return acc.getSubject(input.id, actor)
-      if (action === 'subjectCreate') return acc.createSubject(input, actor)
-      if (action === 'subjectSave') return acc.saveSubject(input, actor)
-      if (action === 'subjectDelete') return acc.deleteSubject(input.id, input.expectedRevision, actor)
-      if (action === 'openingQuery') return acc.getOpening(input.bookId, actor)
-      if (action === 'openingSubmit') return acc.submitOpening(input, actor, currentRequestId(context))
-      if (action === 'openingDelete') return acc.deleteOpening(input, actor, currentRequestId(context))
-      if (action === 'openingApprove') return acc.reviewOpening('approve', input, actor, currentRequestId(context))
-      if (action === 'openingReject') return acc.reviewOpening('reject', input, actor, currentRequestId(context))
-      if (action === 'openingUnreject') return acc.reviewOpening('unreject', input, actor, currentRequestId(context))
-      if (action === 'openingUnapprove') return acc.reviewOpening('unapprove', input, actor, currentRequestId(context))
-      if (action === 'periodQuery') return acc.queryPeriods(input.bookId, actor)
-      return acc.setPeriod(input, action === 'periodLock', actor)
-    })
-    return context.json(response as never, 200)
-  })
-  const withWfl = registerWflRoutes(withAcc, async (action: WflRouteAction, context: any) => {
-    if (!wfl) throw new Error('WFL service is unavailable')
-    const input = context.req.valid('json')
-    const response = await executeCore<unknown>(context, (actor) => {
-      if (action === 'submitNew' || action === 'submitChange') return wfl.submit(action === 'submitNew' ? 'submit-new' : 'submit-change', input, actor, currentRequestId(context))
-      if (action === 'approve') return wfl.review('approve', input, actor, currentRequestId(context))
-      if (action === 'reject') return wfl.review('reject', input, actor, currentRequestId(context))
-      if (action === 'unreject') return wfl.review('unreject', input, actor, currentRequestId(context))
-      if (action === 'unapprove') return wfl.review('unapprove', input, actor, currentRequestId(context))
-      if (action === 'query') return wfl.query(actor)
-      if (action === 'get') return wfl.get(input.subjectId, actor, input.approvalEntryId)
-      if (action === 'versions') return wfl.versions(input.subjectId, actor)
-      if (action === 'auditHistory') return wfl.auditHistory(input.subjectId, actor)
-      if (action === 'delete') return wfl.delete(input, actor, currentRequestId(context))
-      if (action === 'enable' || action === 'disable') return wfl.setEnabled(input, action === 'enable', actor)
-      if (action === 'currentQuery') return wfl.queryCurrentDefinitions(input, actor)
-      if (action === 'current') return wfl.current(input.code, actor)
-      if (action === 'trial') return wfl.trial(input, actor)
-      if (action === 'instanceQuery') return wfl.queryInstances(input, actor)
-      if (action === 'instanceGet') return wfl.getInstance(input.processId, actor)
-      if (action === 'instanceAuditHistory') return wfl.instanceAuditHistory(input.processId, actor)
-      return wfl.executeNodeAction(input, actor, currentRequestId(context))
-    })
-    return context.json(response as never, 200)
-  })
-  return registerRptRoutes(withWfl, async (action: RptRouteAction, context: any) => {
-    if (!rpt) throw new Error('RPT service is unavailable')
-    const input = context.req.valid('json')
-    const response = await executeCore<unknown>(context, (actor) => {
-      if (action === 'directory') return rpt.directory(actor)
-      const code = context.req.valid('param').code
-      if (action === 'query') return rpt.query(code, input, actor, currentRequestId(context))
-      if (action === 'referenceQuery') return rpt.referenceQuery(code, input, actor)
-      return rpt.export(code, input.parameters, actor, currentRequestId(context))
-    })
-    return context.json(response as never, 200)
-  })
+  const withAcc = registerAccRoutes(
+    withVou,
+    async (action: AccRouteAction, context: any) => {
+      if (!acc) throw new Error('ACC service is unavailable')
+      const input = context.req.valid('json')
+      const response = await executeCore<unknown>(context, (actor) => {
+        if (action === 'bookQuery') return acc.queryBooks(input, actor)
+        if (action === 'bookGet') return acc.getBook(input.id, actor)
+        if (action === 'bookCreate') return acc.createBook(input, actor)
+        if (action === 'bookSave') return acc.saveBook(input, actor)
+        if (action === 'bookDelete')
+          return acc.deleteBook(input.id, input.expectedRevision, actor)
+        if (action === 'subjectQuery') return acc.querySubjects(input, actor)
+        if (action === 'subjectGet') return acc.getSubject(input.id, actor)
+        if (action === 'subjectCreate') return acc.createSubject(input, actor)
+        if (action === 'subjectSave') return acc.saveSubject(input, actor)
+        if (action === 'subjectDelete')
+          return acc.deleteSubject(input.id, input.expectedRevision, actor)
+        if (action === 'openingQuery')
+          return acc.getOpening(input.bookId, actor)
+        if (action === 'openingSubmit')
+          return acc.submitOpening(input, actor, currentRequestId(context))
+        if (action === 'openingDelete')
+          return acc.deleteOpening(input, actor, currentRequestId(context))
+        if (action === 'openingApprove')
+          return acc.reviewOpening(
+            'approve',
+            input,
+            actor,
+            currentRequestId(context),
+          )
+        if (action === 'openingReject')
+          return acc.reviewOpening(
+            'reject',
+            input,
+            actor,
+            currentRequestId(context),
+          )
+        if (action === 'openingUnreject')
+          return acc.reviewOpening(
+            'unreject',
+            input,
+            actor,
+            currentRequestId(context),
+          )
+        if (action === 'openingUnapprove')
+          return acc.reviewOpening(
+            'unapprove',
+            input,
+            actor,
+            currentRequestId(context),
+          )
+        if (action === 'periodQuery')
+          return acc.queryPeriods(input.bookId, actor)
+        return acc.setPeriod(input, action === 'periodLock', actor)
+      })
+      return context.json(response as never, 200)
+    },
+  )
+  const withWfl = registerWflRoutes(
+    withAcc,
+    async (action: WflRouteAction, context: any) => {
+      if (!wfl) throw new Error('WFL service is unavailable')
+      const input = context.req.valid('json')
+      const response = await executeCore<unknown>(context, (actor) => {
+        if (action === 'submitNew' || action === 'submitChange')
+          return wfl.submit(
+            action === 'submitNew' ? 'submit-new' : 'submit-change',
+            input,
+            actor,
+            currentRequestId(context),
+          )
+        if (action === 'approve')
+          return wfl.review('approve', input, actor, currentRequestId(context))
+        if (action === 'reject')
+          return wfl.review('reject', input, actor, currentRequestId(context))
+        if (action === 'unreject')
+          return wfl.review('unreject', input, actor, currentRequestId(context))
+        if (action === 'unapprove')
+          return wfl.review(
+            'unapprove',
+            input,
+            actor,
+            currentRequestId(context),
+          )
+        if (action === 'query') return wfl.query(input, actor)
+        if (action === 'get')
+          return wfl.get(input.subjectId, actor, input.approvalEntryId)
+        if (action === 'versions') return wfl.versions(input.subjectId, actor)
+        if (action === 'auditHistory')
+          return wfl.auditHistory(input.subjectId, actor)
+        if (action === 'delete')
+          return wfl.delete(input, actor, currentRequestId(context))
+        if (action === 'enable' || action === 'disable')
+          return wfl.setEnabled(input, action === 'enable', actor)
+        if (action === 'currentQuery')
+          return wfl.queryCurrentDefinitions(input, actor)
+        if (action === 'current') return wfl.current(input.code, actor)
+        if (action === 'trial') return wfl.trial(input, actor)
+        if (action === 'instanceQuery') return wfl.queryInstances(input, actor)
+        if (action === 'instanceGet')
+          return wfl.getInstance(input.processId, actor)
+        if (action === 'instanceAuditHistory')
+          return wfl.instanceAuditHistory(input.processId, actor)
+        return wfl.executeNodeAction(input, actor, currentRequestId(context))
+      })
+      return context.json(response as never, 200)
+    },
+  )
+  return registerRptRoutes(
+    withWfl,
+    async (action: RptRouteAction, context: any) => {
+      if (!rpt) throw new Error('RPT service is unavailable')
+      const input = context.req.valid('json')
+      const response = await executeCore<unknown>(context, (actor) => {
+        if (action === 'directory') return rpt.directory(actor)
+        const code = context.req.valid('param').code
+        if (action === 'query')
+          return rpt.query(code, input, actor, currentRequestId(context))
+        if (action === 'referenceQuery')
+          return rpt.referenceQuery(code, input, actor)
+        return rpt.export(
+          code,
+          input.parameters,
+          actor,
+          currentRequestId(context),
+        )
+      })
+      return context.json(response as never, 200)
+    },
+  )
+}
+
+function attachmentContentDisposition(fileName: string): string {
+  const fallback =
+    fileName.replace(/[\\"\r\n]/g, '_').replace(/[^\x20-\x7e]/g, '_') ||
+    'attachment'
+  const encoded = encodeURIComponent(fileName).replace(
+    /['()*]/g,
+    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+  )
+  return `attachment; filename="${fallback}"; filename*=UTF-8''${encoded}`
 }

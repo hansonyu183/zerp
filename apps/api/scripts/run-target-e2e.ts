@@ -30,7 +30,10 @@ if (!new URL(databaseUrl).pathname.slice(1).endsWith('_test'))
   throw new Error('target E2E only accepts a disposable *_test database')
 
 const suffix = randomBytes(8).toString('hex')
-async function principal(kind: 'submitter' | 'reviewer', index: number) {
+async function principal(
+  kind: 'submitter' | 'reviewer' | 'report',
+  index: number,
+) {
   const password = randomBytes(24).toString('base64url')
   const salt = randomBytes(16)
   const hash = Buffer.from(
@@ -63,6 +66,7 @@ const vou = new VouService(database, {
 })
 const submitter = await principal('submitter', 1)
 const reviewer = await principal('reviewer', 2)
+const reportAdmin = await principal('report', 3)
 const managerEmployeeId = `M${suffix}`
   .toUpperCase()
   .padEnd(26, '0')
@@ -96,8 +100,7 @@ function vouPostingSource(entity: VouEntity): {
   const fields = vouEntityInputDescriptors[entity]
   const headerAmount = fields.find(
     (field) =>
-      field.required &&
-      (field.kind === 'decimal' || field.kind === 'integer'),
+      field.required && (field.kind === 'decimal' || field.kind === 'integer'),
   )
   if (headerAmount)
     return {
@@ -107,7 +110,7 @@ function vouPostingSource(entity: VouEntity): {
         headerFields: ['currency', headerAmount.key],
         lineFields: [],
       },
-  }
+    }
   for (const field of fields) {
     if (
       field.kind !== 'array' ||
@@ -206,7 +209,7 @@ const archiveFacts = {
       id: fixtureId('X', 2),
       entity: 'product-type' as const,
       code: auxCode('PTY'),
-      data: { name: '目标产成品', behaviorProfile: 'STANDARD_FINISHED' },
+      data: { name: '目标定制成品', behaviorProfile: 'CUSTOM_FINISHED' },
     },
     {
       id: fixtureId('X', 3),
@@ -502,18 +505,19 @@ async function deleteE2ECatalogFacts() {
   await database.transaction().execute(async (transaction) => {
     await transaction
       .deleteFrom('dcl_acc_subject_facts')
-      .where(
-        'id',
-        'in',
-        [
-          ...archiveFacts.accounting.subjects.map((subject) => subject.id),
-          ...accUiFacts.subjects.map((subject) => subject.id),
-        ],
-      )
+      .where('id', 'in', [
+        ...archiveFacts.accounting.subjects.map((subject) => subject.id),
+        ...accUiFacts.subjects.map((subject) => subject.id),
+        ...accMappingUiFacts.subjects.map((subject) => subject.id),
+      ])
       .execute()
     await transaction
       .deleteFrom('dcl_acc_book_facts')
-      .where('id', 'in', [archiveFacts.accounting.book.id, accUiFacts.book.id])
+      .where('id', 'in', [
+        archiveFacts.accounting.book.id,
+        accUiFacts.book.id,
+        accMappingUiFacts.book.id,
+      ])
       .execute()
     await transaction
       .deleteFrom('aux_objects')
@@ -579,6 +583,7 @@ async function seedVouReferences(
   const operatingEntity = reference('operatingEntity')
   await seedArchiveReference(archives, 'operating-entity', operatingEntity, {
     legalName: '目标经营主体有限公司',
+    shortName: '目标经营主体',
     legalIdentifier: `91${suffix.toUpperCase()}`,
     registeredAddress: '上海市',
     contactName: '目标联系人',
@@ -685,15 +690,31 @@ async function seedVouReferences(
         name: '目标客户默认结算单位',
         contactName: '',
         address: '',
-        customerType: '',
+        customerType: auxReference('dictionary-item'),
         settlementMethod: auxReference('settlement-method'),
-        receiptMethod: '',
-        transportMethod: '',
-        pricePolicy: '',
+        paymentMethod: null,
+        transportPolicy: {
+          methodCode: 'DELIVERY',
+          methodName: '送货',
+          surcharge: '0.00',
+        },
+        pricingPolicy: {
+          defaultPremiumUnitPrice: '0.00',
+          defaultDiscountUnitPrice: '0.00',
+          costItems: [],
+          thirdPartyIntermediaryFixedUnitCost: '0.00',
+          thirdPartyIntermediaryVariableUnitCost: '0.00',
+        },
         creditLimits: [{ currency: 'CNY', amount: '1000000.00' }],
-        salesAttribution: null,
+        primarySalesAttribution: {
+          type: 'INTERNAL_EMPLOYEE',
+          objectId: manager.objectId,
+          approvalEntryId: manager.approvalEntryId,
+          code: manager.code,
+          name: manager.name,
+        },
         internalReminder: '',
-        defaultOrderRemark: '',
+        defaultSalesOrderRemark: '',
         attachments: [],
         enabled: true,
       },
@@ -758,10 +779,29 @@ async function seedVouReferences(
     model: '',
     productType: auxReference('product-type'),
     productCategory: auxReference('product-category'),
-    pricingUnit: auxReference('measurement-unit'),
-    defaultInputUnit: auxReference('measurement-unit'),
-    defaultPackageSpec: '',
+    pricingUnit: {
+      ...auxReference('measurement-unit'),
+      symbol: '件',
+      quantityScale: 0,
+    },
+    defaultInputUnit: {
+      ...auxReference('measurement-unit'),
+      symbol: '件',
+      quantityScale: 0,
+    },
+    unitConversions: [
+      {
+        unit: {
+          ...auxReference('measurement-unit'),
+          symbol: '件',
+          quantityScale: 0,
+        },
+        factor: '1.000000',
+      },
+    ],
+    defaultPackagingSpec: '1.000000',
     recyclable: false,
+    fixedFormula: null,
     remark: '',
     enabled: true,
   })
@@ -804,6 +844,9 @@ async function seedAccFacts(acc: AccService) {
         description: 'Target E2E ACC fixture',
         startMonth: book.startMonth,
         baseCurrency: 'CNY',
+        subjectTemplate: 'EMPTY',
+        queryUserIds: [],
+        operateUserIds: [],
       },
       submitterActor,
     )
@@ -891,96 +934,103 @@ async function seedApprovedOpeningAndMappings() {
     { book: accUiFacts.book, subjects: accUiFacts.subjects },
   ]
   for (const [bookIndex, mappedBook] of mappedBooks.entries()) {
-    for (const [index, vouEntity] of archiveFacts.accounting.vouEntities.entries()) {
-    const mappingIndex = bookIndex * archiveFacts.accounting.vouEntities.length + index + 1
-    const subjectId = fixtureId('G', mappingIndex)
-    const mappingSubmissionId = fixtureId('H', mappingIndex)
-    const posting = vouPostingSource(vouEntity.code as VouEntity)
-    const [debitSubject, creditSubject] = mappedBook.subjects
-    if (!debitSubject || !creditSubject)
-      throw new Error('target E2E effect book requires two posting subjects')
-    const mapping = await archives.submit(
-      'acc-mapping',
-      'submit-new',
-      {
-        subjectId,
-        submissionId: mappingSubmissionId,
-        idempotencyKey: mappingSubmissionId,
-        expectedLatestApprovedSubmissionId: null,
-        expectedLatestApprovedRevision: null,
-        snapshot: {
-          book: {
-            id: mappedBook.book.id,
-            code: mappedBook.book.code,
-            name: mappedBook.book.name,
-          },
-          vouEntity: {
-            id: vouEntity.id,
-            code: vouEntity.code,
-            name: vouEntity.name,
-          },
-          defaultResult: posting ? 'POST' : 'UN_POST',
-          definition: {
-            defaultTemplateId: posting ? 'e2e-effect' : null,
-            rules: [],
-            templates: posting ? [
-              {
-                templateId: 'e2e-effect',
-                collection: posting.collection,
-                lines: [
-                  {
-                    subjectSource: 'FIXED',
-                    subjectValue: debitSubject.id,
-                    direction: 'DEBIT',
-                    amountField: posting.amountField,
-                    currencyField: 'currency',
-                    dimensions: {},
-                    quantityField: null,
-                    costCounterpartSubjectId: null,
-                    costCounterpartDimensions: {},
-                  },
-                  {
-                    subjectSource: 'FIXED',
-                    subjectValue: creditSubject.id,
-                    direction: 'CREDIT',
-                    amountField: posting.amountField,
-                    currencyField: 'currency',
-                    dimensions: {},
-                    quantityField: null,
-                    costCounterpartSubjectId: null,
-                    costCounterpartDimensions: {},
-                  },
-                ],
-              },
-            ] : [],
-            assetConfiguration:
-              bookIndex === 1 && vouEntity.code === 'asset-acquisition'
-                ? {
-                    assetSubjectId: accUiFacts.subjects[0]!.id,
-                    assetDimensions: {},
-                    accumulatedDepreciationSubjectId: accUiFacts.subjects[1]!.id,
-                    accumulatedDepreciationDimensions: {},
-                    depreciationExpenseSubjectId: accUiFacts.subjects[1]!.id,
-                    depreciationExpenseDimensions: {},
-                  }
-                : null,
+    for (const [
+      index,
+      vouEntity,
+    ] of archiveFacts.accounting.vouEntities.entries()) {
+      const mappingIndex =
+        bookIndex * archiveFacts.accounting.vouEntities.length + index + 1
+      const subjectId = fixtureId('G', mappingIndex)
+      const mappingSubmissionId = fixtureId('H', mappingIndex)
+      const posting = vouPostingSource(vouEntity.code as VouEntity)
+      const [debitSubject, creditSubject] = mappedBook.subjects
+      if (!debitSubject || !creditSubject)
+        throw new Error('target E2E effect book requires two posting subjects')
+      const mapping = await archives.submit(
+        'acc-mapping',
+        'submit-new',
+        {
+          subjectId,
+          submissionId: mappingSubmissionId,
+          idempotencyKey: mappingSubmissionId,
+          expectedLatestApprovedSubmissionId: null,
+          expectedLatestApprovedRevision: null,
+          snapshot: {
+            book: {
+              id: mappedBook.book.id,
+              code: mappedBook.book.code,
+              name: mappedBook.book.name,
+            },
+            vouEntity: {
+              id: vouEntity.id,
+              code: vouEntity.code,
+              name: vouEntity.name,
+            },
+            defaultResult: posting ? 'POST' : 'UN_POST',
+            definition: {
+              defaultTemplateId: posting ? 'e2e-effect' : null,
+              rules: [],
+              templates: posting
+                ? [
+                    {
+                      templateId: 'e2e-effect',
+                      collection: posting.collection,
+                      lines: [
+                        {
+                          subjectSource: 'FIXED',
+                          subjectValue: debitSubject.id,
+                          direction: 'DEBIT',
+                          amountField: posting.amountField,
+                          currencyField: 'currency',
+                          dimensions: {},
+                          quantityField: null,
+                          costCounterpartSubjectId: null,
+                          costCounterpartDimensions: {},
+                        },
+                        {
+                          subjectSource: 'FIXED',
+                          subjectValue: creditSubject.id,
+                          direction: 'CREDIT',
+                          amountField: posting.amountField,
+                          currencyField: 'currency',
+                          dimensions: {},
+                          quantityField: null,
+                          costCounterpartSubjectId: null,
+                          costCounterpartDimensions: {},
+                        },
+                      ],
+                    },
+                  ]
+                : [],
+              assetConfiguration:
+                bookIndex === 1 && vouEntity.code === 'asset-acquisition'
+                  ? {
+                      assetSubjectId: accUiFacts.subjects[0]!.id,
+                      assetDimensions: {},
+                      accumulatedDepreciationSubjectId:
+                        accUiFacts.subjects[1]!.id,
+                      accumulatedDepreciationDimensions: {},
+                      depreciationExpenseSubjectId: accUiFacts.subjects[1]!.id,
+                      depreciationExpenseDimensions: {},
+                    }
+                  : null,
+            },
           },
         },
-      },
-      submitterActor,
-      `e2e-acc-mapping-${vouEntity.code}-submit`,
-    )
-    await archives.review(
-      'acc-mapping',
-      'approve',
-      {
-        subjectId,
-        submissionId: mappingSubmissionId,
-        expectedRevision: mapping.revision,
-      },
-      reviewerActor,
-      `e2e-acc-mapping-${vouEntity.code}-approve`,
-    )
+        submitterActor,
+        `e2e-acc-mapping-${vouEntity.code}-submit`,
+      )
+      await archives.review(
+        'acc-mapping',
+        'approve',
+        {
+          subjectId,
+          submissionId: mappingSubmissionId,
+          expectedRevision: mapping.revision,
+        },
+        reviewerActor,
+        `e2e-acc-mapping-${vouEntity.code}-approve`,
+      )
     }
   }
 }
@@ -998,6 +1048,9 @@ async function seedApprovedSourceOrders() {
   const warehouseReference = vouReferenceFacts.references.find(
     (reference) => reference.key === 'warehouse',
   )!
+  const operatingEntityReference = vouReferenceFacts.references.find(
+    (reference) => reference.key === 'operatingEntity',
+  )!
   const unit = auxReference('measurement-unit')
   const warehouseSnapshot = {
     objectId: warehouseReference.objectId,
@@ -1011,6 +1064,24 @@ async function seedApprovedSourceOrders() {
     enteredUnit: { objectId: unit.id },
     baseQuantity: '10',
     unitPrice: '12.50',
+    formula: {
+      sourceType: 'MANUAL' as const,
+      output: {
+        enteredQuantity: '1',
+        enteredUnit: { objectId: unit.id },
+        baseQuantity: '1',
+      },
+      components: [
+        {
+          material: { objectId: product.objectId },
+          quantity: {
+            enteredQuantity: '1',
+            enteredUnit: { objectId: unit.id },
+            baseQuantity: '1',
+          },
+        },
+      ],
+    },
   })
   const orders = [
     {
@@ -1023,6 +1094,11 @@ async function seedApprovedSourceOrders() {
         customerSubunit: {
           objectId: customerSubunit.objectId,
           approvalEntryId: customerSubunit.approvalEntryId,
+          selectionOrigin: 'HISTORICAL' as const,
+        },
+        operatingEntity: {
+          objectId: operatingEntityReference.objectId,
+          approvalEntryId: operatingEntityReference.approvalEntryId,
           selectionOrigin: 'HISTORICAL' as const,
         },
         warehouse: warehouseSnapshot,
@@ -1084,27 +1160,37 @@ async function verifyTrustedSystemVouLifecycle() {
       selectionOrigin: 'CURRENT' as const,
     }
   }
-  const sourceLines = [{
-    sourceLineId: vouSourceFacts.saleOrder.lineId,
-    baseQuantity: '1.000000',
-  }]
+  const sourceLines = [
+    {
+      sourceLineId: vouSourceFacts.saleOrder.lineId,
+      baseQuantity: '1.000000',
+    },
+  ]
   const cases: Array<{ entity: VouEntity; payload: VouPayload }> = [
     {
       entity: 'sale-outbound',
       payload: {
-        businessDate: '2026-09-04', currency: 'CNY', attachments: [], sourceLines,
+        businessDate: '2026-09-04',
+        currency: 'CNY',
+        attachments: [],
+        sourceLines,
       } satisfies VouPayloadFor<'sale-outbound'>,
     },
     {
       entity: 'sale-delivery',
       payload: {
-        businessDate: '2026-09-04', currency: 'CNY', attachments: [], sourceLines,
+        businessDate: '2026-09-04',
+        currency: 'CNY',
+        attachments: [],
+        sourceLines,
       } satisfies VouPayloadFor<'sale-delivery'>,
     },
     {
       entity: 'sale-signoff',
       payload: {
-        businessDate: '2026-09-04', currency: 'CNY', attachments: [],
+        businessDate: '2026-09-04',
+        currency: 'CNY',
+        attachments: [],
         parentEntity: 'sale-order',
         parentDocumentId: vouSourceFacts.saleOrder.documentId,
         customerSubunit: reference('customerSubunit'),
@@ -1112,17 +1198,21 @@ async function verifyTrustedSystemVouLifecycle() {
         expectedResinContainers: 0,
         returnedSolventContainers: 0,
         returnedResinContainers: 0,
-        signoffLines: [{
-          sourceLineId: vouSourceFacts.saleOrder.lineId,
-          signedBaseQuantity: '1.000000',
-          rejectedBaseQuantity: '0.000000',
-        }],
+        signoffLines: [
+          {
+            sourceLineId: vouSourceFacts.saleOrder.lineId,
+            signedBaseQuantity: '1.000000',
+            rejectedBaseQuantity: '0.000000',
+          },
+        ],
       } satisfies VouPayloadFor<'sale-signoff'>,
     },
     {
       entity: 'expense-payment',
       payload: {
-        businessDate: '2026-09-04', currency: 'CNY', attachments: [],
+        businessDate: '2026-09-04',
+        currency: 'CNY',
+        attachments: [],
         employee: reference('employee'),
         fundAccount: reference('fundAccount'),
         handler: reference('employee'),
@@ -1153,36 +1243,120 @@ async function verifyTrustedSystemVouLifecycle() {
       serviceActor(reviewer.userId),
       `e2e-trusted-${item.entity}-approve`,
     )
-    const journalCount = await database.selectFrom('acc_journal_entries')
-      .select('id').where('vou_approval_entry_id', '=', submissionId).execute()
+    const journalCount = await database
+      .selectFrom('acc_journal_entries')
+      .select('id')
+      .where('vou_approval_entry_id', '=', submissionId)
+      .execute()
     if (journalCount.length !== 1)
-      throw new Error(`${item.entity} trusted approve did not post exactly once`)
+      throw new Error(
+        `${item.entity} trusted approve did not post exactly once`,
+      )
     if (item.entity === 'sale-signoff') {
-      const containers = await database.selectFrom('acc_container_entries')
-        .select('id').where('vou_approval_entry_id', '=', submissionId).execute()
+      const containers = await database
+        .selectFrom('acc_container_entries')
+        .select('id')
+        .where('vou_approval_entry_id', '=', submissionId)
+        .execute()
       if (containers.length !== 1)
-        throw new Error('trusted sale-signoff did not persist its container effect')
+        throw new Error(
+          'trusted sale-signoff did not persist its container effect',
+        )
     }
     const unapproved = await vou.review(
       item.entity,
       'unapprove',
-      { documentId, submissionId, expectedRevision: approved.revision, reason: 'trusted lifecycle reversal' },
+      {
+        documentId,
+        submissionId,
+        expectedRevision: approved.revision,
+        reason: 'trusted lifecycle reversal',
+      },
       serviceActor(reviewer.userId),
       `e2e-trusted-${item.entity}-unapprove`,
     )
     if (unapproved.status !== 'PENDING')
-      throw new Error(`${item.entity} trusted unapprove did not return to PENDING`)
+      throw new Error(
+        `${item.entity} trusted unapprove did not return to PENDING`,
+      )
     const remaining = await Promise.all([
-      database.selectFrom('acc_journal_entries').select('id').where('vou_approval_entry_id', '=', submissionId).execute(),
-      database.selectFrom('acc_register_entries').select('id').where('vou_approval_entry_id', '=', submissionId).execute(),
-      database.selectFrom('acc_container_entries').select('id').where('vou_approval_entry_id', '=', submissionId).execute(),
+      database
+        .selectFrom('acc_journal_entries')
+        .select('id')
+        .where('vou_approval_entry_id', '=', submissionId)
+        .execute(),
+      database
+        .selectFrom('acc_register_entries')
+        .select('id')
+        .where('vou_approval_entry_id', '=', submissionId)
+        .execute(),
+      database
+        .selectFrom('acc_container_entries')
+        .select('id')
+        .where('vou_approval_entry_id', '=', submissionId)
+        .execute(),
     ])
     if (remaining.some((rows) => rows.length !== 0))
       throw new Error(`${item.entity} trusted reversal left an ACC effect`)
-    const actions = (await vou.auditHistory(item.entity, documentId, serviceActor(submitter.userId))).map((event) => event.action)
-    if (!['SUBMITTED', 'APPROVED', 'UNAPPROVED'].every((action) => actions.includes(action)))
+    const actions = (
+      await vou.auditHistory(
+        item.entity,
+        documentId,
+        serviceActor(submitter.userId),
+      )
+    ).map((event) => event.action)
+    if (
+      !['SUBMITTED', 'APPROVED', 'UNAPPROVED'].every((action) =>
+        actions.includes(action),
+      )
+    )
       throw new Error(`${item.entity} trusted lifecycle audit is incomplete`)
+    if (item.entity === 'sale-signoff') {
+      await vou.review(
+        item.entity,
+        'approve',
+        { documentId, submissionId, expectedRevision: unapproved.revision },
+        serviceActor(reviewer.userId),
+        'e2e-sale-return-source-approve',
+      )
+    }
   }
+  const documentId = fixtureId('J', 5)
+  const submissionId = fixtureId('L', 5)
+  const inbound = await vou.submit(
+    'purchase-inbound',
+    'submit-new',
+    {
+      documentId,
+      submissionId,
+      idempotencyKey: submissionId,
+      expectedRevision: null,
+      payload: {
+        businessDate: '2026-09-04',
+        currency: 'CNY',
+        attachments: [],
+        supplier: reference('supplier'),
+        warehouse: reference('warehouse'),
+        parentEntity: 'purchase-order',
+        parentDocumentId: vouSourceFacts.purchaseOrder.documentId,
+        sourceLines: [
+          {
+            sourceLineId: vouSourceFacts.purchaseOrder.lineId,
+            baseQuantity: '1.000000',
+          },
+        ],
+      },
+    },
+    serviceActor(submitter.userId),
+    'e2e-purchase-return-source-submit',
+  )
+  await vou.review(
+    'purchase-inbound',
+    'approve',
+    { documentId, submissionId, expectedRevision: inbound.revision },
+    serviceActor(reviewer.userId),
+    'e2e-purchase-return-source-approve',
+  )
 }
 
 async function seedVouAccObjects() {
@@ -1316,6 +1490,7 @@ async function seedVouAccObjects() {
 try {
   await bootstrap.createE2EPrincipal(submitter)
   await bootstrap.createE2EPrincipal(reviewer)
+  await bootstrap.createE2EPrincipal(reportAdmin, true)
   await seedAuxFacts(aux)
   await seedAccFacts(acc)
   await seedVouReferences(archives, warehouse)
@@ -1324,53 +1499,63 @@ try {
   await seedApprovedSourceOrders()
   await verifyTrustedSystemVouLifecycle()
 
-  const result = spawnSync('pnpm', ['--dir', 'frontend', 'test:target'], {
-    cwd: resolve(import.meta.dirname, '../../..'),
-    stdio: 'inherit',
-    env: {
-      ...process.env,
-      TARGET_E2E_USERNAME: submitter.username,
-      TARGET_E2E_PASSWORD: submitter.password,
-      TARGET_E2E_REVIEWER_USERNAME: reviewer.username,
-      TARGET_E2E_REVIEWER_PASSWORD: reviewer.password,
-      TARGET_E2E_MANAGER_EMPLOYEE_ID: managerEmployeeId,
-      TARGET_E2E_MANAGER_APPROVAL_ENTRY_ID: managerApprovalEntryId,
-      TARGET_E2E_STALE_MANAGER_APPROVAL_ENTRY_ID: staleManagerApprovalEntryId,
-      TARGET_E2E_AUX_FACTS_JSON: JSON.stringify([
-        ...archiveFacts.auxObjects,
-        {
-          id: e2eAssetCategory!.objectId,
-          entity: 'asset-category',
-          code: 'AST-E2E',
-          data: { name: '目标资产类别' },
-        },
-      ]),
-      TARGET_E2E_ACC_FACTS_JSON: JSON.stringify({
-        book: accMappingUiFacts.book,
-        vouEntity: archiveFacts.accounting.vouEntity,
-      }),
-      TARGET_E2E_VOU_REFERENCE_FACTS_JSON: JSON.stringify(
-        Object.fromEntries(
-          vouReferenceFacts.references.map((reference) => [
-            reference.key,
-            {
-              entity: reference.entity,
-              objectId: reference.objectId,
-              approvalEntryId: reference.approvalEntryId,
-              code: reference.code,
-              name: reference.name,
-            },
-          ]),
+  const playwrightArgs = process.argv.slice(2).filter((arg) => arg !== '--')
+  const result = spawnSync(
+    'pnpm',
+    ['--dir', 'frontend', 'test:target', ...playwrightArgs],
+    {
+      cwd: resolve(import.meta.dirname, '../../..'),
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        TARGET_E2E_USERNAME: submitter.username,
+        TARGET_E2E_PASSWORD: submitter.password,
+        TARGET_E2E_REVIEWER_USERNAME: reviewer.username,
+        TARGET_E2E_REVIEWER_PASSWORD: reviewer.password,
+        TARGET_E2E_REPORT_USERNAME: reportAdmin.username,
+        TARGET_E2E_REPORT_PASSWORD: reportAdmin.password,
+        TARGET_E2E_MANAGER_EMPLOYEE_ID: managerEmployeeId,
+        TARGET_E2E_MANAGER_APPROVAL_ENTRY_ID: managerApprovalEntryId,
+        TARGET_E2E_STALE_MANAGER_APPROVAL_ENTRY_ID: staleManagerApprovalEntryId,
+        TARGET_E2E_AUX_FACTS_JSON: JSON.stringify([
+          ...archiveFacts.auxObjects,
+          {
+            id: e2eAssetCategory!.objectId,
+            entity: 'asset-category',
+            code: 'AST-E2E',
+            data: { name: '目标资产类别' },
+          },
+        ]),
+        TARGET_E2E_ACC_FACTS_JSON: JSON.stringify({
+          book: accMappingUiFacts.book,
+          vouEntity: archiveFacts.accounting.vouEntity,
+        }),
+        TARGET_E2E_VOU_REFERENCE_FACTS_JSON: JSON.stringify(
+          Object.fromEntries(
+            vouReferenceFacts.references.map((reference) => [
+              reference.key,
+              {
+                entity: reference.entity,
+                objectId: reference.objectId,
+                approvalEntryId: reference.approvalEntryId,
+                code: reference.code,
+                name: reference.name,
+              },
+            ]),
+          ),
         ),
-      ),
-      TARGET_E2E_VOU_ACC_OBJECT_FACTS_JSON: JSON.stringify({
-        asset: { entity: 'asset', objectId: vouAccObjectFacts.asset.objectId },
-        bill: { entity: 'bill', objectId: vouAccObjectFacts.bill.objectId },
-      }),
-      TARGET_E2E_VOU_SOURCE_FACTS_JSON: JSON.stringify(vouSourceFacts),
-      TARGET_E2E_ACC_UI_FACTS_JSON: JSON.stringify(accUiFacts),
+        TARGET_E2E_VOU_ACC_OBJECT_FACTS_JSON: JSON.stringify({
+          asset: {
+            entity: 'asset',
+            objectId: vouAccObjectFacts.asset.objectId,
+          },
+          bill: { entity: 'bill', objectId: vouAccObjectFacts.bill.objectId },
+        }),
+        TARGET_E2E_VOU_SOURCE_FACTS_JSON: JSON.stringify(vouSourceFacts),
+        TARGET_E2E_ACC_UI_FACTS_JSON: JSON.stringify(accUiFacts),
+      },
     },
-  })
+  )
   if (result.error) throw result.error
   if (result.status !== 0) process.exitCode = result.status ?? 1
 } finally {
@@ -1384,7 +1569,10 @@ try {
     )
   `.execute(database)
   try {
-    let opening = await acc.getOpening(accUiFacts.book.id, serviceActor(submitter.userId))
+    let opening = await acc.getOpening(
+      accUiFacts.book.id,
+      serviceActor(submitter.userId),
+    )
     if (opening.approval.status === 'APPROVED')
       opening = await acc.reviewOpening(
         'unapprove',
@@ -1421,11 +1609,53 @@ try {
     if (!(error instanceof Error) || error.message !== 'approval_not_found')
       throw error
   }
+  const reportSubjects = await database
+    .selectFrom('dcl_subjects')
+    .select('code')
+    .where('entity', '=', 'rpt-definition')
+    .where('created_by', '=', submitter.userId)
+    .execute()
   await bootstrap.deleteE2EWarehouseFixtures(submitter.userId)
+  const reportPaths = reportSubjects.flatMap(({ code }) =>
+    code ? [`/rpt/${code}/query`, `/rpt/${code}/export`] : [],
+  )
+  if (reportPaths.length > 0) {
+    const permissions = await database
+      .selectFrom('app_permissions')
+      .select('id')
+      .where('path', 'in', reportPaths)
+      .execute()
+    if (permissions.length > 0) {
+      await database
+        .deleteFrom('app_role_permissions')
+        .where(
+          'permission_id',
+          'in',
+          permissions.map(({ id }) => id),
+        )
+        .execute()
+      await database
+        .deleteFrom('app_permissions')
+        .where(
+          'id',
+          'in',
+          permissions.map(({ id }) => id),
+        )
+        .execute()
+    }
+  }
+  const browserCreatedBooks = await database
+    .selectFrom('acc_books')
+    .select('id')
+    .where('created_by', '=', submitter.userId)
+    .execute()
   await deleteAccFixtureBooks([
-    archiveFacts.accounting.book.id,
-    accUiFacts.book.id,
-    accMappingUiFacts.book.id,
+    ...new Set([
+      archiveFacts.accounting.book.id,
+      accUiFacts.book.id,
+      accMappingUiFacts.book.id,
+      ...browserCreatedBooks.map((book) => book.id),
+    ]),
   ])
   if (e2eAssetCategory) {
     await aux.delete(
@@ -1440,6 +1670,7 @@ try {
   }
   await deleteE2ECatalogFacts()
   await bootstrap.deleteE2EPrincipal(reviewer)
+  await bootstrap.deleteE2EPrincipal(reportAdmin)
   await bootstrap.deleteE2EPrincipal(submitter)
   await rptValidationPool.end()
   await database.destroy()

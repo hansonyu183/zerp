@@ -381,8 +381,18 @@ export class TargetBootstrapService {
     }
   }
 
-  async createE2EPrincipal(principal: TargetE2EPrincipal): Promise<void> {
+  async createE2EPrincipal(
+    principal: TargetE2EPrincipal,
+    superadmin = false,
+  ): Promise<void> {
     await this.db.transaction().execute(async (transaction) => {
+      const inheritedAdmin = superadmin
+        ? await transaction
+            .selectFrom('app_roles')
+            .select('id')
+            .where('code', '=', 'superadmin')
+            .executeTakeFirst()
+        : undefined
       const permissions = await transaction
         .selectFrom('app_permissions')
         .select('id')
@@ -405,7 +415,8 @@ export class TargetBootstrapService {
         .insertInto('app_roles')
         .values({
           id: principal.roleId,
-          code: principal.username,
+          code:
+            superadmin && !inheritedAdmin ? 'superadmin' : principal.username,
           name: 'Target E2E Role',
           status: 'ENABLED',
         })
@@ -423,6 +434,11 @@ export class TargetBootstrapService {
         .insertInto('app_user_roles')
         .values({ user_id: principal.userId, role_id: principal.roleId })
         .execute()
+      if (inheritedAdmin)
+        await transaction
+          .insertInto('app_user_roles')
+          .values({ user_id: principal.userId, role_id: inheritedAdmin.id })
+          .execute()
     })
   }
 
@@ -431,6 +447,24 @@ export class TargetBootstrapService {
   ): Promise<void> {
     await this.db.transaction().execute(async (transaction) => {
       await this.deleteFixtureRelations(transaction, principal)
+      await transaction.deleteFrom('app_audit_events').where('actor_user_id', '=', principal.userId).execute()
+      await transaction
+        .deleteFrom('aux_objects')
+        .where('created_by', '=', principal.userId)
+        .execute()
+      await transaction
+        .deleteFrom('app_business_menu_items')
+        .where('created_by', '=', principal.userId)
+        .execute()
+      await transaction
+        .updateTable('app_menu_settings')
+        .set({ updated_by: null })
+        .where('updated_by', '=', principal.userId)
+        .execute()
+      await transaction
+        .deleteFrom('app_roles')
+        .where('created_by', '=', principal.userId)
+        .execute()
       await transaction
         .deleteFrom('app_roles')
         .where('id', '=', principal.roleId)
@@ -444,6 +478,7 @@ export class TargetBootstrapService {
 
   async deleteE2EWarehouseFixtures(createdByUserId: string): Promise<void> {
     await this.db.transaction().execute(async (transaction) => {
+      await transaction.deleteFrom('rpt_execution_audits').where('definition_subject_id', 'in', transaction.selectFrom('dcl_subjects').select('id').where('created_by', '=', createdByUserId)).execute()
       await transaction
         .deleteFrom('dcl_customer_attachment_staging')
         .where('owner_user_id', '=', createdByUserId)

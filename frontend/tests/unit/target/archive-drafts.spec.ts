@@ -21,7 +21,7 @@ describe('target archive drafts', () => {
 
     expect(operatingEntity.snapshot).toMatchObject({
       legalName: '新经营主体',
-      legalIdentifier: '91350211M000100Y4J',
+      legalIdentifier: '91350211M000100Y46',
       registeredAddress: '',
       contactName: '',
       contactPhone: '',
@@ -35,7 +35,7 @@ describe('target archive drafts', () => {
     })
     expect(customer.snapshot).toMatchObject({
       identityKind: 'MAINLAND_ENTERPRISE',
-      legalIdentifier: '91350211M000100Y4J',
+      legalIdentifier: '91350211M000100Y46',
       phone: '',
       email: '',
       enabled: true,
@@ -77,7 +77,6 @@ describe('target archive drafts', () => {
           [
             `/dcl/${entity}/submit-change`,
             ...archiveReferencePermissions(entity),
-            ...(entity === 'customer' ? ['/dcl/customer/save-subunits'] : []),
           ],
           entity,
           'CHANGE',
@@ -88,10 +87,15 @@ describe('target archive drafts', () => {
     expect(archiveSubmitPermissions('customer', 'NEW')).toEqual([
       '/dcl/customer/submit-new',
       '/aux/reference/query',
+      '/aux/dictionary-item/query',
       '/aux/settlement-method/query',
+      '/aux/payment-method/query',
       '/bob/reference/query',
       '/dcl/customer/save-subunits',
     ])
+    expect(archiveSubmitPermissions('customer', 'CHANGE')).not.toContain(
+      '/dcl/customer/save-subunits',
+    )
     expect(
       canSubmitArchive(['/dcl/customer/submit-new'], 'customer', 'NEW'),
     ).toBe(false)

@@ -8,6 +8,9 @@ import {
   type ApprovalActor,
   type ApprovalEntry,
   type ApprovalStatus,
+  type AccBookTemplate,
+  type AccSettlementPurpose,
+  type AccSubjectDimension,
   type VouPayload,
   type VouPayloadFor,
 } from '@zerp/model'
@@ -27,6 +30,9 @@ export interface AccBookInput {
   description: string
   startMonth: string
   baseCurrency: string
+  subjectTemplate: AccBookTemplate
+  queryUserIds: string[]
+  operateUserIds: string[]
 }
 
 export interface AccSubjectInput {
@@ -37,9 +43,9 @@ export interface AccSubjectInput {
   parentId: string | null
   balanceDirection: 'DEBIT' | 'CREDIT'
   enabled: boolean
-  requiredDimensions: string[]
+  requiredDimensions: AccSubjectDimension[]
   inventoryQuantity: boolean
-  settlementPurpose: string
+  settlementPurpose: AccSettlementPurpose
 }
 
 export interface AccOpeningInput {
@@ -184,11 +190,117 @@ type FundFact = {
   currency: string
 }
 
-export type AccSettlementPurpose =
-  | 'RECEIVABLE'
-  | 'ADVANCE_RECEIPT'
-  | 'PAYABLE'
-  | 'PREPAID'
+export type { AccSettlementPurpose } from '@zerp/model'
+type AccControlSettlementPurpose = Exclude<AccSettlementPurpose, 'NONE' | 'OTHER'>
+
+export interface AccSubjectTemplateLine {
+  code: string
+  name: string
+  parentCode?: string
+  balanceDirection: 'DEBIT' | 'CREDIT'
+  requiredDimensions: AccSubjectDimension[]
+  inventoryQuantity: boolean
+  settlementPurpose: AccSettlementPurpose
+}
+
+const templateLine = (
+  code: string,
+  name: string,
+  balanceDirection: 'DEBIT' | 'CREDIT',
+  options: Partial<Pick<AccSubjectTemplateLine, 'parentCode' | 'requiredDimensions' | 'inventoryQuantity' | 'settlementPurpose'>> = {},
+): AccSubjectTemplateLine => ({
+  code,
+  name,
+  balanceDirection,
+  requiredDimensions: options.requiredDimensions ?? [],
+  inventoryQuantity: options.inventoryQuantity ?? false,
+  settlementPurpose: options.settlementPurpose ?? 'NONE',
+  ...(options.parentCode ? { parentCode: options.parentCode } : {}),
+})
+
+/**
+ * Restored verbatim from the last Go implementation at f856118f
+ * (`backend/internal/domains/acc/subject_templates.go`). Its six settlement
+ * values and dimension rules remain identical to docs/domains/acc.md.
+ */
+export const accSubjectTemplates: Readonly<Record<AccBookTemplate, readonly AccSubjectTemplateLine[]>> = {
+  ENTERPRISE: [
+    templateLine('1000', '资产类', 'DEBIT'),
+    templateLine('1001', '库存现金', 'DEBIT', { parentCode: '1000', requiredDimensions: ['FUND_ACCOUNT'] }),
+    templateLine('1002', '银行存款', 'DEBIT', { parentCode: '1000', requiredDimensions: ['FUND_ACCOUNT'] }),
+    templateLine('1012', '其他货币资金', 'DEBIT', { parentCode: '1000', requiredDimensions: ['FUND_ACCOUNT'] }),
+    templateLine('1121', '应收票据', 'DEBIT', { parentCode: '1000', requiredDimensions: ['CUSTOMER_SUBUNIT', 'BILL'], settlementPurpose: 'RECEIVABLE' }),
+    templateLine('1122', '应收账款', 'DEBIT', { parentCode: '1000', requiredDimensions: ['CUSTOMER_SUBUNIT'], settlementPurpose: 'RECEIVABLE' }),
+    templateLine('1123', '预付账款', 'DEBIT', { parentCode: '1000', requiredDimensions: ['SUPPLIER'], settlementPurpose: 'PREPAID' }),
+    templateLine('1221', '其他应收款', 'DEBIT', { parentCode: '1000' }),
+    templateLine('122101', '员工借款', 'DEBIT', { parentCode: '1221', requiredDimensions: ['EMPLOYEE'], settlementPurpose: 'OTHER' }),
+    templateLine('122102', '服务往来', 'DEBIT', { parentCode: '1221', requiredDimensions: ['OTHER_UNIT'], settlementPurpose: 'OTHER' }),
+    templateLine('1405', '库存商品', 'DEBIT', { parentCode: '1000', requiredDimensions: ['PRODUCT', 'WAREHOUSE'], inventoryQuantity: true }),
+    templateLine('1601', '固定资产', 'DEBIT', { parentCode: '1000', requiredDimensions: ['ASSET'] }),
+    templateLine('1602', '累计折旧', 'CREDIT', { parentCode: '1000', requiredDimensions: ['ASSET'] }),
+    templateLine('2000', '负债类', 'CREDIT'),
+    templateLine('2201', '应付票据', 'CREDIT', { parentCode: '2000', requiredDimensions: ['SUPPLIER', 'BILL'], settlementPurpose: 'PAYABLE' }),
+    templateLine('2202', '应付账款', 'CREDIT', { parentCode: '2000', requiredDimensions: ['SUPPLIER'], settlementPurpose: 'PAYABLE' }),
+    templateLine('2203', '预收账款', 'CREDIT', { parentCode: '2000', requiredDimensions: ['CUSTOMER_SUBUNIT'], settlementPurpose: 'ADVANCE_RECEIPT' }),
+    templateLine('2241', '销售合作应付款', 'CREDIT', { parentCode: '2000', requiredDimensions: ['SALES_PARTNER'], settlementPurpose: 'OTHER' }),
+    templateLine('3000', '所有者权益类', 'CREDIT'),
+    templateLine('4001', '实收资本', 'CREDIT', { parentCode: '3000' }),
+    templateLine('5000', '成本类', 'DEBIT'),
+    templateLine('5001', '生产成本', 'DEBIT', { parentCode: '5000', requiredDimensions: ['PRODUCT'] }),
+    templateLine('6000', '损益类', 'CREDIT'),
+    templateLine('6001', '主营业务收入', 'CREDIT', { parentCode: '6000', requiredDimensions: ['DEPARTMENT'] }),
+    templateLine('6401', '主营业务成本', 'DEBIT', { parentCode: '6000', requiredDimensions: ['DEPARTMENT'] }),
+    templateLine('6601', '销售费用', 'DEBIT', { parentCode: '6000', requiredDimensions: ['DEPARTMENT'] }),
+    templateLine('6602', '管理费用', 'DEBIT', { parentCode: '6000', requiredDimensions: ['DEPARTMENT'] }),
+    templateLine('660201', '折旧费', 'DEBIT', { parentCode: '6602', requiredDimensions: ['DEPARTMENT'] }),
+  ],
+  SMALL_BUSINESS: [
+    templateLine('1000', '资产类', 'DEBIT'),
+    templateLine('1001', '库存现金', 'DEBIT', { parentCode: '1000', requiredDimensions: ['FUND_ACCOUNT'] }),
+    templateLine('1002', '银行存款', 'DEBIT', { parentCode: '1000', requiredDimensions: ['FUND_ACCOUNT'] }),
+    templateLine('1101', '短期投资', 'DEBIT', { parentCode: '1000' }),
+    templateLine('1121', '应收票据', 'DEBIT', { parentCode: '1000', requiredDimensions: ['CUSTOMER_SUBUNIT', 'BILL'], settlementPurpose: 'RECEIVABLE' }),
+    templateLine('1122', '应收账款', 'DEBIT', { parentCode: '1000', requiredDimensions: ['CUSTOMER_SUBUNIT'], settlementPurpose: 'RECEIVABLE' }),
+    templateLine('1123', '预付账款', 'DEBIT', { parentCode: '1000', requiredDimensions: ['SUPPLIER'], settlementPurpose: 'PREPAID' }),
+    templateLine('1221', '其他应收款', 'DEBIT', { parentCode: '1000' }),
+    templateLine('122101', '员工借款', 'DEBIT', { parentCode: '1221', requiredDimensions: ['EMPLOYEE'], settlementPurpose: 'OTHER' }),
+    templateLine('122102', '服务往来', 'DEBIT', { parentCode: '1221', requiredDimensions: ['OTHER_UNIT'], settlementPurpose: 'OTHER' }),
+    templateLine('1405', '库存商品', 'DEBIT', { parentCode: '1000', requiredDimensions: ['PRODUCT', 'WAREHOUSE'], inventoryQuantity: true }),
+    templateLine('1601', '固定资产', 'DEBIT', { parentCode: '1000', requiredDimensions: ['ASSET'] }),
+    templateLine('1602', '累计折旧', 'CREDIT', { parentCode: '1000', requiredDimensions: ['ASSET'] }),
+    templateLine('2000', '负债类', 'CREDIT'),
+    templateLine('2201', '应付票据', 'CREDIT', { parentCode: '2000', requiredDimensions: ['SUPPLIER', 'BILL'], settlementPurpose: 'PAYABLE' }),
+    templateLine('2202', '应付账款', 'CREDIT', { parentCode: '2000', requiredDimensions: ['SUPPLIER'], settlementPurpose: 'PAYABLE' }),
+    templateLine('2203', '预收账款', 'CREDIT', { parentCode: '2000', requiredDimensions: ['CUSTOMER_SUBUNIT'], settlementPurpose: 'ADVANCE_RECEIPT' }),
+    templateLine('2241', '销售合作应付款', 'CREDIT', { parentCode: '2000', requiredDimensions: ['SALES_PARTNER'], settlementPurpose: 'OTHER' }),
+    templateLine('3000', '所有者权益类', 'CREDIT'),
+    templateLine('3001', '实收资本', 'CREDIT', { parentCode: '3000' }),
+    templateLine('5000', '成本类', 'DEBIT'),
+    templateLine('5001', '生产成本', 'DEBIT', { parentCode: '5000', requiredDimensions: ['PRODUCT'] }),
+    templateLine('5002', '主营业务成本', 'DEBIT', { parentCode: '5000', requiredDimensions: ['DEPARTMENT'] }),
+    templateLine('5003', '税金及附加', 'DEBIT', { parentCode: '5000' }),
+    templateLine('6000', '损益类', 'CREDIT'),
+    templateLine('6001', '主营业务收入', 'CREDIT', { parentCode: '6000', requiredDimensions: ['DEPARTMENT'] }),
+    templateLine('5601', '销售费用', 'DEBIT', { parentCode: '6000', requiredDimensions: ['DEPARTMENT'] }),
+    templateLine('5602', '管理费用', 'DEBIT', { parentCode: '6000', requiredDimensions: ['DEPARTMENT'] }),
+    templateLine('560201', '折旧费', 'DEBIT', { parentCode: '5602', requiredDimensions: ['DEPARTMENT'] }),
+  ],
+  EMPTY: [],
+}
+
+export function validateAccSubjectAttributes(input: Pick<AccSubjectInput, 'requiredDimensions' | 'inventoryQuantity' | 'settlementPurpose'>): void {
+  const dimensions = new Set(input.requiredDimensions)
+  if (input.inventoryQuantity && (!dimensions.has('PRODUCT') || !dimensions.has('WAREHOUSE')))
+    throw new AccApplicationError('acc_subject_inventory_dimension_required')
+  const customer = input.settlementPurpose === 'RECEIVABLE' || input.settlementPurpose === 'ADVANCE_RECEIPT'
+  const supplier = input.settlementPurpose === 'PAYABLE' || input.settlementPurpose === 'PREPAID'
+  const other = input.settlementPurpose === 'OTHER'
+  if (
+    (customer && !dimensions.has('CUSTOMER_SUBUNIT')) ||
+    (supplier && !dimensions.has('SUPPLIER')) ||
+    (other && !['CUSTOMER_SUBUNIT', 'SUPPLIER', 'OTHER_UNIT', 'EMPLOYEE', 'SALES_PARTNER'].some((dimension) => dimensions.has(dimension as AccSubjectDimension)))
+  ) throw new AccApplicationError('acc_subject_settlement_dimension_required')
+}
 
 export interface AccControlBalancePort {
   partyBalance(
@@ -197,7 +309,7 @@ export interface AccControlBalancePort {
       counterpartyDimension: 'CUSTOMER_SUBUNIT' | 'SUPPLIER'
       counterpartyObjectId: string
       currency: string
-      settlementPurpose: AccSettlementPurpose
+      settlementPurpose: AccControlSettlementPurpose
       asOfDate: string
     },
   ): Promise<bigint>
@@ -458,7 +570,7 @@ export class AccService
       counterpartyDimension: 'CUSTOMER_SUBUNIT' | 'SUPPLIER'
       counterpartyObjectId: string
       currency: string
-      settlementPurpose: AccSettlementPurpose
+      settlementPurpose: AccControlSettlementPurpose
       asOfDate: string
     },
   ): Promise<bigint> {
@@ -919,13 +1031,11 @@ export class AccService
         updated_at: now,
         updated_by: actor.id,
       }).execute()
-      await tx.insertInto('acc_book_access').values({
-        book_id: input.id,
-        user_id: actor.id,
-        can_query: true,
-        can_operate: true,
-      }).execute()
-      return { ...input, code, controlBook, revision: '1' }
+      const access = this.bookAccessMap(input.queryUserIds, input.operateUserIds)
+      access.set(actor.id, { canQuery: true, canOperate: true })
+      await this.replaceBookAccess(tx, input.id, access)
+      await this.copySubjectTemplate(tx, input.id, input.subjectTemplate, actor.id, now)
+      return this.readBookView(tx, input.id)
     })
   }
 
@@ -944,13 +1054,18 @@ export class AccService
     })
   }
 
-  async queryBooks(actor: ApprovalActor) {
+  async queryBooks(input: { page?: number; pageSize?: number; keyword?: string }, actor: ApprovalActor) {
     requirePermission(actor, '/acc/book/query')
     let query = this.db.selectFrom('acc_books as b').selectAll('b').orderBy('b.code', 'asc')
     if (actor.trusted !== true)
       query = query.innerJoin('acc_book_access as a', 'a.book_id', 'b.id')
         .where('a.user_id', '=', actor.id).where('a.can_query', '=', true)
-    return (await query.execute()).map((row) => this.bookView(row))
+    const keyword = input.keyword?.trim().toLowerCase()
+    const rows = (await query.execute()).filter((row) => !keyword || row.code.toLowerCase().includes(keyword) || row.name.toLowerCase().includes(keyword))
+    const page = input.page ?? 1
+    const pageSize = input.pageSize ?? 20
+    const selected = rows.slice((page - 1) * pageSize, page * pageSize)
+    return { items: await Promise.all(selected.map((row) => this.bookViewWithAccess(this.db, row))), total: rows.length, page, pageSize }
   }
 
   async getBook(bookId: string, actor: ApprovalActor) {
@@ -958,21 +1073,27 @@ export class AccService
     await this.requireBookAccess(this.db, bookId, actor, false)
     const row = await this.db.selectFrom('acc_books').selectAll().where('id', '=', bookId).executeTakeFirst()
     if (!row) throw new AccApplicationError('acc_book_not_found')
-    return this.bookView(row)
+    return this.bookViewWithAccess(this.db, row)
   }
 
-  async saveBook(input: { id: string; expectedRevision: string; name: string; description: string; baseCurrency: string }, actor: ApprovalActor) {
+  async saveBook(input: { id: string; expectedRevision: string; name: string; description: string; baseCurrency: string; queryUserIds: string[]; operateUserIds: string[] }, actor: ApprovalActor) {
     requirePermission(actor, '/acc/book/save')
     return this.db.transaction().execute(async (tx) => {
       await this.requireBookAccess(tx, input.id, actor, true)
       const row = await tx.selectFrom('acc_books').selectAll().where('id', '=', input.id).forUpdate().executeTakeFirstOrThrow()
       if (String(row.revision) !== input.expectedRevision) throw new AccApplicationError('approval_stale_revision')
+      const actorAccess = await tx.selectFrom('acc_book_access').select(['can_query', 'can_operate'])
+        .where('book_id', '=', input.id).where('user_id', '=', actor.id).executeTakeFirst()
       const revision = BigInt(row.revision) + 1n
       await tx.updateTable('acc_books').set({
         name: input.name.trim(), description: input.description.trim(), base_currency: input.baseCurrency,
         revision, updated_at: new Date(), updated_by: actor.id,
       }).where('id', '=', input.id).where('revision', '=', row.revision).executeTakeFirstOrThrow()
-      return this.bookView({ ...row, name: input.name.trim(), description: input.description.trim(), base_currency: input.baseCurrency, revision })
+      const access = this.bookAccessMap(input.queryUserIds, input.operateUserIds)
+      const requestedActor = access.get(actor.id) ?? { canQuery: false, canOperate: false }
+      access.set(actor.id, { canQuery: requestedActor.canQuery || actorAccess?.can_query === true, canOperate: requestedActor.canOperate || actorAccess?.can_operate === true })
+      await this.replaceBookAccess(tx, input.id, access)
+      return this.bookViewWithAccess(tx, { ...row, name: input.name.trim(), description: input.description.trim(), base_currency: input.baseCurrency, revision })
     })
   }
 
@@ -997,6 +1118,7 @@ export class AccService
     requirePermission(actor, '/acc/subject/create')
     return this.db.transaction().execute(async (tx) => {
       await this.requireBookAccess(tx, input.bookId, actor, true)
+      validateAccSubjectAttributes(input)
       if (input.parentId) {
         const parent = await tx.selectFrom('acc_subjects').select('book_id')
           .where('id', '=', input.parentId).executeTakeFirst()
@@ -1024,11 +1146,15 @@ export class AccService
     })
   }
 
-  async querySubjects(bookId: string, actor: ApprovalActor) {
+  async querySubjects(input: { bookId: string; page?: number; pageSize?: number; keyword?: string }, actor: ApprovalActor) {
     requirePermission(actor, '/acc/subject/query')
-    await this.requireBookAccess(this.db, bookId, actor, false)
-    const rows = await this.db.selectFrom('acc_subjects').selectAll().where('book_id', '=', bookId).orderBy('code', 'asc').execute()
-    return rows.map((row) => this.subjectView(row))
+    await this.requireBookAccess(this.db, input.bookId, actor, false)
+    const keyword = input.keyword?.trim().toLowerCase()
+    const rows = (await this.db.selectFrom('acc_subjects').selectAll().where('book_id', '=', input.bookId).orderBy('code', 'asc').execute())
+      .filter((row) => !keyword || row.code.toLowerCase().includes(keyword) || row.name.toLowerCase().includes(keyword))
+    const page = input.page ?? 1
+    const pageSize = input.pageSize ?? 20
+    return { items: rows.slice((page - 1) * pageSize, page * pageSize).map((row) => this.subjectView(row)), total: rows.length, page, pageSize }
   }
 
   async getSubject(id: string, actor: ApprovalActor) {
@@ -1043,6 +1169,7 @@ export class AccService
     requirePermission(actor, '/acc/subject/save')
     return this.db.transaction().execute(async (tx) => {
       await this.requireBookAccess(tx, input.bookId, actor, true)
+      validateAccSubjectAttributes(input)
       const row = await tx.selectFrom('acc_subjects').selectAll().where('id', '=', input.id).forUpdate().executeTakeFirst()
       if (!row || row.book_id !== input.bookId) throw new AccApplicationError('acc_subject_not_found')
       if (String(row.revision) !== input.expectedRevision) throw new AccApplicationError('approval_stale_revision')
@@ -1804,6 +1931,90 @@ export class AccService
 
   private bookView(row: { id: string; code: string; name: string; description: string; start_month: string; base_currency: string; control_book: boolean; revision: string | number | bigint }) {
     return { id: row.id, code: row.code, name: row.name, description: row.description, startMonth: row.start_month, baseCurrency: row.base_currency, controlBook: row.control_book, revision: String(row.revision) }
+  }
+
+  private async bookViewWithAccess(
+    executor: Executor,
+    row: { id: string; code: string; name: string; description: string; start_month: string; base_currency: string; control_book: boolean; revision: string | number | bigint },
+  ) {
+    const access = await executor.selectFrom('acc_book_access').select(['user_id', 'can_query', 'can_operate'])
+      .where('book_id', '=', row.id).orderBy('user_id', 'asc').execute()
+    return {
+      ...this.bookView(row),
+      queryUserIds: access.filter((item) => item.can_query).map((item) => item.user_id),
+      operateUserIds: access.filter((item) => item.can_operate).map((item) => item.user_id),
+    }
+  }
+
+  private async readBookView(executor: Executor, bookId: string) {
+    const row = await executor.selectFrom('acc_books').selectAll().where('id', '=', bookId).executeTakeFirstOrThrow()
+    return this.bookViewWithAccess(executor, row)
+  }
+
+  private bookAccessMap(queryUserIds: readonly string[], operateUserIds: readonly string[]) {
+    const access = new Map<string, { canQuery: boolean; canOperate: boolean }>()
+    for (const userId of queryUserIds) {
+      const current = access.get(userId) ?? { canQuery: false, canOperate: false }
+      access.set(userId, { ...current, canQuery: true })
+    }
+    for (const userId of operateUserIds) {
+      const current = access.get(userId) ?? { canQuery: false, canOperate: false }
+      access.set(userId, { ...current, canOperate: true })
+    }
+    return access
+  }
+
+  private async replaceBookAccess(
+    tx: Transaction<DB>,
+    bookId: string,
+    access: ReadonlyMap<string, { canQuery: boolean; canOperate: boolean }>,
+  ) {
+    const rows = [...access.entries()].filter(([, value]) => value.canQuery || value.canOperate).sort(([left], [right]) => left.localeCompare(right))
+    if (rows.length > 0) {
+      const users = await tx.selectFrom('app_users').select(['id', 'status']).where('id', 'in', rows.map(([userId]) => userId)).execute()
+      const enabled = new Set(users.filter((user) => user.status === 'ENABLED').map((user) => user.id))
+      if (rows.some(([userId]) => !enabled.has(userId))) throw new AccApplicationError('acc_book_access_user_not_found')
+    }
+    await tx.deleteFrom('acc_book_access').where('book_id', '=', bookId).execute()
+    if (rows.length > 0) await tx.insertInto('acc_book_access').values(rows.map(([userId, value]) => ({
+      book_id: bookId,
+      user_id: userId,
+      can_query: value.canQuery,
+      can_operate: value.canOperate,
+    }))).execute()
+  }
+
+  private async copySubjectTemplate(
+    tx: Transaction<DB>,
+    bookId: string,
+    template: AccBookTemplate,
+    actorId: string,
+    now: Date,
+  ) {
+    const ids = new Map<string, string>()
+    for (const line of accSubjectTemplates[template]) {
+      validateAccSubjectAttributes(line)
+      const parentId = line.parentCode ? ids.get(line.parentCode) : undefined
+      if (line.parentCode && !parentId) throw new AccApplicationError('acc_subject_template_parent_missing')
+      const id = ulid()
+      await tx.insertInto('acc_subjects').values({
+        id,
+        book_id: bookId,
+        code: line.code,
+        name: line.name,
+        parent_id: parentId ?? null,
+        balance_direction: line.balanceDirection,
+        enabled: true,
+        required_dimensions: JSON.stringify(line.requiredDimensions) as unknown as JsonValue,
+        inventory_quantity: line.inventoryQuantity,
+        settlement_purpose: line.settlementPurpose,
+        created_at: now,
+        created_by: actorId,
+        updated_at: now,
+        updated_by: actorId,
+      }).execute()
+      ids.set(line.code, id)
+    }
   }
 
   private subjectView(row: { id: string; book_id: string; code: string; name: string; parent_id: string | null; balance_direction: string; enabled: boolean; required_dimensions: JsonValue; inventory_quantity: boolean; settlement_purpose: string; revision: string | number | bigint }) {

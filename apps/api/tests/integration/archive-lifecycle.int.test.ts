@@ -42,6 +42,7 @@ test('business-key and referenced-entry locks admit at most one concurrent write
   const subjectIds: string[] = []
   const snapshot = (legalIdentifier: string) => ({
     legalName: '并发锁经营主体',
+    shortName: '并发锁主体',
     legalIdentifier,
     registeredAddress: '上海市',
     contactName: '锁测试',
@@ -357,6 +358,7 @@ test('typed DCL archives persist idempotent V1/V2 lifecycle and derive current f
 
   const snapshot = {
     legalName: '  上海目标科技有限公司  ',
+    shortName: '上海目标科技',
     legalIdentifier: '91310000MA1K12345X',
     registeredAddress: '上海市',
     contactName: '张三',
@@ -544,7 +546,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     trusted: true,
   }
   const subjectIds: string[] = []
-  const auxIds = Array.from({ length: 8 }, () => ulid())
+  const auxIds = Array.from({ length: 10 }, () => ulid())
   const bookId = ulid()
   const vouEntityId = ulid()
   const accountId = ulid()
@@ -624,6 +626,8 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     'employee-category',
     'department',
     'position',
+    'settlement-method',
+    'payment-method',
   ] as const
   await db
     .insertInto('aux_objects')
@@ -635,7 +639,23 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
         data: JSON.stringify({
           name: `测试引用 ${index + 1}`,
           ...(index === 1 ? { behaviorProfile: 'RAW_MATERIAL' } : {}),
-          ...(index === 3 || index === 4 ? { quantityScale: 3 } : {}),
+          ...(index === 3 || index === 4
+            ? { symbol: 'kg', quantityScale: 3 }
+            : {}),
+          ...(index === 8
+            ? {
+                termCode: 'MONTHLY_30',
+                ruleType: 'MONTH_END',
+                monthOffset: 1,
+                dayOfMonth: 0,
+                dayOffset: 0,
+                defaultSalesSurcharge: '0.10',
+                description: '',
+              }
+            : {}),
+          ...(index === 9
+            ? { defaultSalesSurcharge: '0.05', description: '' }
+            : {}),
         }),
         enabled: true,
         created_by: submitterId,
@@ -695,7 +715,8 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
 
   const operatingEntity = await submitAndApprove('operating-entity', {
     legalName: '全聚合经营主体',
-    legalIdentifier: '91350211M000100Y4J',
+    shortName: '全聚合主体',
+    legalIdentifier: '91350211M000100Y46',
     registeredAddress: '厦门市',
     contactName: '联系人',
     contactPhone: '13800000000',
@@ -713,6 +734,16 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     code: operatingEntity.code!,
     name: '全聚合经营主体',
   }
+  assert.equal(
+    (
+      await db
+        .selectFrom('dcl_operating_entity_versions')
+        .select('short_name')
+        .where('approval_entry_id', '=', operatingEntity.submissionId)
+        .executeTakeFirstOrThrow()
+    ).short_name,
+    '全聚合主体',
+  )
 
   const wrongTypeSubjectId = ulid()
   const wrongTypeSubmissionId = ulid()
@@ -799,16 +830,31 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       id: auxIds[3],
       code: 'FORGED-PRICING',
       name: '伪造计价单位',
+      symbol: 'FORGED',
       quantityScale: 0,
     },
     defaultInputUnit: {
-      id: auxIds[4],
+      id: auxIds[3],
       code: 'FORGED-INPUT',
       name: '伪造默认单位',
+      symbol: 'FORGED',
       quantityScale: 0,
     },
-    defaultPackageSpec: '袋',
+    unitConversions: [
+      {
+        unit: {
+          id: auxIds[3],
+          code: 'FORGED-PRICING',
+          name: '伪造计价单位',
+          symbol: 'FORGED',
+          quantityScale: 0,
+        },
+        factor: '1.000000',
+      },
+    ],
+    defaultPackagingSpec: '1.000000',
     recyclable: false,
+    fixedFormula: null,
     remark: '',
     enabled: true,
   })
@@ -822,8 +868,198 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     id: auxIds[3],
     code: 'TST-0004',
     name: '测试引用 4',
+    symbol: 'kg',
     quantityScale: 3,
   })
+  assert.deepEqual(product.snapshot.unitConversions, [
+    {
+      unit: {
+        id: auxIds[3],
+        code: 'TST-0004',
+        name: '测试引用 4',
+        symbol: 'kg',
+        quantityScale: 3,
+      },
+      factor: '1.000000',
+    },
+  ])
+  await db
+    .updateTable('aux_objects')
+    .set({
+      data: JSON.stringify({
+        name: '测试引用 2',
+        behaviorProfile: 'STANDARD_FINISHED',
+        description: '',
+      }),
+    })
+    .where('id', '=', auxIds[1]!)
+    .execute()
+  const formulaSnapshot = {
+    name: '固定配方成品',
+    barcode: 'barcode-002',
+    specification: '1kg',
+    model: 'F1',
+    productType: {
+      id: auxIds[1],
+      code: 'FORGED-PRODUCT-TYPE',
+      name: '伪造产品类型',
+      behaviorProfile: 'RAW_MATERIAL',
+    },
+    productCategory: {
+      id: auxIds[2],
+      code: 'FORGED-CATEGORY',
+      name: '伪造分类',
+    },
+    pricingUnit: {
+      id: auxIds[3],
+      code: 'FORGED-UNIT',
+      name: '伪造单位',
+      symbol: 'FORGED',
+      quantityScale: 0,
+    },
+    defaultInputUnit: {
+      id: auxIds[3],
+      code: 'FORGED-UNIT',
+      name: '伪造单位',
+      symbol: 'FORGED',
+      quantityScale: 0,
+    },
+    unitConversions: [
+      {
+        unit: {
+          id: auxIds[3],
+          code: 'FORGED-UNIT',
+          name: '伪造单位',
+          symbol: 'FORGED',
+          quantityScale: 0,
+        },
+        factor: '1.000000',
+      },
+    ],
+    defaultPackagingSpec: '1.000000',
+    recyclable: false,
+    fixedFormula: {
+      output: {
+        enteredQuantity: '1.000000',
+        enteredUnit: {
+          id: auxIds[3],
+          code: 'FORGED-UNIT',
+          name: '伪造单位',
+          symbol: 'FORGED',
+          quantityScale: 0,
+        },
+        baseQuantity: '1.000000',
+      },
+      components: [
+        {
+          material: {
+            objectId: product.subjectId,
+            approvalEntryId: product.submissionId,
+            code: 'FORGED-MATERIAL',
+            name: '伪造原料名',
+          },
+          quantity: {
+            enteredQuantity: '0.500000',
+            enteredUnit: {
+              id: auxIds[3],
+              code: 'FORGED-UNIT',
+              name: '伪造单位',
+              symbol: 'FORGED',
+              quantityScale: 0,
+            },
+            baseQuantity: '0.500000',
+          },
+          resolutionStatus: 'CURRENT',
+          requiresConfirmation: false,
+        },
+      ],
+    },
+    remark: '',
+    enabled: true,
+  }
+  const formulaProduct = await submitAndApprove('product', formulaSnapshot)
+  assert.equal(
+    (formulaProduct.snapshot.fixedFormula as Record<string, unknown>) !== null,
+    true,
+  )
+  assert.deepEqual(formulaProduct.snapshot.productType, {
+    id: auxIds[1],
+    code: 'TST-0002',
+    name: '测试引用 2',
+    behaviorProfile: 'STANDARD_FINISHED',
+  })
+  const persistedFormula = await db
+    .selectFrom('dcl_product_versions')
+    .select(['unit_conversions', 'fixed_formula'])
+    .where('approval_entry_id', '=', formulaProduct.submissionId)
+    .executeTakeFirstOrThrow()
+  assert.equal(Array.isArray(persistedFormula.unit_conversions), true)
+  assert.equal(persistedFormula.fixed_formula !== null, true)
+  const invalidProductSubjectId = ulid()
+  subjectIds.push(invalidProductSubjectId)
+  await assert.rejects(
+    service.submit(
+      'product',
+      'submit-new',
+      {
+        subjectId: invalidProductSubjectId,
+        submissionId: ulid(),
+        idempotencyKey: ulid(),
+        expectedLatestApprovedSubmissionId: null,
+        expectedLatestApprovedRevision: null,
+        snapshot: {
+          ...formulaSnapshot,
+          productCategory: {
+            id: ulid(),
+            code: 'MISSING',
+            name: '不存在',
+          },
+        },
+      },
+      submitter,
+      ulid(),
+    ),
+    (error: unknown) =>
+      error instanceof ArchiveApplicationError &&
+      error.errorKey === 'product_reference_unavailable',
+  )
+  await db
+    .updateTable('aux_objects')
+    .set({ data: JSON.stringify({ name: '损坏单位', quantityScale: 3 }) })
+    .where('id', '=', auxIds[3]!)
+    .execute()
+  const malformedUnitSubjectId = ulid()
+  subjectIds.push(malformedUnitSubjectId)
+  await assert.rejects(
+    service.submit(
+      'product',
+      'submit-new',
+      {
+        subjectId: malformedUnitSubjectId,
+        submissionId: ulid(),
+        idempotencyKey: ulid(),
+        expectedLatestApprovedSubmissionId: null,
+        expectedLatestApprovedRevision: null,
+        snapshot: { ...formulaSnapshot, barcode: 'barcode-003' },
+      },
+      submitter,
+      ulid(),
+    ),
+    (error: unknown) =>
+      error instanceof ArchiveApplicationError &&
+      error.errorKey === 'product_reference_unavailable',
+  )
+  await db
+    .updateTable('aux_objects')
+    .set({
+      data: JSON.stringify({
+        name: '测试引用 4',
+        symbol: 'kg',
+        quantityScale: 3,
+      }),
+    })
+    .where('id', '=', auxIds[3]!)
+    .execute()
   const employee = await submitAndApprove('employee', {
     identityKind: 'PERSON',
     legalName: '采购员甲',
@@ -1080,22 +1316,162 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
         name: '总部',
         contactName: '客户联系人',
         address: '厦门市',
-        customerType: 'DIRECT',
-        settlementMethod: null,
-        receiptMethod: 'TRANSFER',
-        transportMethod: 'DELIVERY',
-        pricePolicy: 'STANDARD',
+        customerType: {
+          id: auxIds[0],
+          code: 'FORGED-CUSTOMER-TYPE',
+          name: '伪造客户类型',
+        },
+        settlementMethod: {
+          id: auxIds[8],
+          code: 'FORGED-SETTLEMENT',
+          name: '伪造结算方式',
+          termCode: 'PREPAID',
+          ruleType: 'RELATIVE_DAYS',
+          monthOffset: 0,
+          dayOfMonth: 0,
+          dayOffset: 0,
+          defaultSalesSurcharge: '99.99',
+        },
+        paymentMethod: {
+          id: auxIds[9],
+          code: 'FORGED-PAYMENT',
+          name: '伪造收款方式',
+          defaultSalesSurcharge: '99.99',
+        },
+        transportPolicy: {
+          methodCode: 'DELIVERY',
+          methodName: '送货',
+          surcharge: '0.00',
+        },
+        pricingPolicy: {
+          defaultPremiumUnitPrice: '0.00',
+          defaultDiscountUnitPrice: '0.00',
+          costItems: [],
+          thirdPartyIntermediaryFixedUnitCost: '0.00',
+          thirdPartyIntermediaryVariableUnitCost: '0.00',
+        },
         creditLimits: [{ currency: 'CNY', amount: '10000.00' }],
-        salesAttribution: null,
+        primarySalesAttribution: {
+          type: 'INTERNAL_EMPLOYEE',
+          objectId: employee.subjectId,
+          approvalEntryId: employee.submissionId,
+          code: 'FORGED-EMPLOYEE',
+          name: '伪造业务员',
+        },
         internalReminder: '',
-        defaultOrderRemark: '',
+        defaultSalesOrderRemark: '',
         attachments: [],
         enabled: true,
       },
     ],
     enabled: true,
   }
+  for (const malformed of [
+    {
+      id: auxIds[8]!,
+      data: {
+        name: '测试引用 9',
+        termCode: 'MONTHLY_30',
+        ruleType: 'MONTH_END',
+        monthOffset: 1,
+        dayOfMonth: 0,
+        dayOffset: 0,
+        description: '',
+      },
+      restored: {
+        name: '测试引用 9',
+        termCode: 'MONTHLY_30',
+        ruleType: 'MONTH_END',
+        monthOffset: 1,
+        dayOfMonth: 0,
+        dayOffset: 0,
+        defaultSalesSurcharge: '0.10',
+        description: '',
+      },
+    },
+    {
+      id: auxIds[9]!,
+      data: {
+        name: '测试引用 10',
+        defaultSalesSurcharge: 'invalid',
+        description: '',
+      },
+      restored: {
+        name: '测试引用 10',
+        defaultSalesSurcharge: '0.05',
+        description: '',
+      },
+    },
+  ]) {
+    await db
+      .updateTable('aux_objects')
+      .set({ data: JSON.stringify(malformed.data) })
+      .where('id', '=', malformed.id)
+      .execute()
+    const malformedSubjectId = ulid()
+    const malformedSubmissionId = ulid()
+    subjectIds.push(malformedSubjectId)
+    await assert.rejects(
+      service.submit(
+        'customer',
+        'submit-new',
+        {
+          subjectId: malformedSubjectId,
+          submissionId: malformedSubmissionId,
+          idempotencyKey: malformedSubmissionId,
+          expectedLatestApprovedSubmissionId: null,
+          expectedLatestApprovedRevision: null,
+          snapshot: customerSnapshot,
+        },
+        submitter,
+        ulid(),
+      ),
+      (error: unknown) =>
+        error instanceof ArchiveApplicationError &&
+        error.errorKey === 'customer_invalid_data',
+    )
+    await db
+      .updateTable('aux_objects')
+      .set({ data: JSON.stringify(malformed.restored) })
+      .where('id', '=', malformed.id)
+      .execute()
+  }
   const customer = await submitAndApprove('customer', customerSnapshot)
+  const customerSubunit = (
+    customer.snapshot.subunits as Array<Record<string, unknown>>
+  )[0]!
+  assert.deepEqual(customerSubunit.customerType, {
+    id: auxIds[0],
+    code: 'TST-0001',
+    name: '测试引用 1',
+  })
+  assert.deepEqual(customerSubunit.settlementMethod, {
+    id: auxIds[8],
+    code: 'TST-0009',
+    name: '测试引用 9',
+    termCode: 'MONTHLY_30',
+    ruleType: 'MONTH_END',
+    monthOffset: 1,
+    dayOfMonth: 0,
+    dayOffset: 0,
+    defaultSalesSurcharge: '0.10',
+  })
+  assert.deepEqual(customerSubunit.paymentMethod, {
+    id: auxIds[9],
+    code: 'TST-0010',
+    name: '测试引用 10',
+    defaultSalesSurcharge: '0.05',
+  })
+  const persistedCustomerType = await db
+    .selectFrom('dcl_customer_version_subunits')
+    .select('customer_type_snapshot')
+    .where('customer_approval_entry_id', '=', customer.submissionId)
+    .executeTakeFirstOrThrow()
+  assert.deepEqual(persistedCustomerType.customer_type_snapshot, {
+    id: auxIds[0],
+    code: 'TST-0001',
+    name: '测试引用 1',
+  })
   assert.equal(
     await db
       .selectFrom('dcl_customer_attachments')

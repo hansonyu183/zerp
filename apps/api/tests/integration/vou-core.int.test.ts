@@ -22,6 +22,7 @@ import {
 } from '../../src/vou/service.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
+const customerTypeId = '01J00000000000000000000103'
 
 type HttpSession = { cookie: string; csrfToken: string }
 
@@ -57,8 +58,13 @@ async function signin(
   }
 }
 
-async function post(origin: string, session: HttpSession, body: unknown) {
-  const response = await fetch(`${origin}/vou/reference/query`, {
+async function post(
+  origin: string,
+  session: HttpSession,
+  body: unknown,
+  path = '/vou/reference/query',
+) {
+  const response = await fetch(`${origin}${path}`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -264,6 +270,12 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
       customer_approval_entry_id: customerApprovalId,
       subunit_id: customerSubunitId,
       name: '历史子单位',
+      customer_type_id: customerTypeId,
+      customer_type_snapshot: JSON.stringify({
+        id: customerTypeId,
+        code: 'CUSTOMER-TYPE-TEST',
+        name: '测试客户类型',
+      }),
       enabled: true,
     })
     .execute()
@@ -907,11 +919,133 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     undefined,
   )
   assert.equal(
-    (await service.query('sale-pricing', actor)).some(
-      (item) => item.documentId === documentId,
-    ),
+    (
+      await service.query('sale-pricing', { page: 1, pageSize: 20 }, actor)
+    ).items.some((item) => item.documentId === documentId),
     false,
   )
+
+  const assetDocuments = await Promise.all(
+    Array.from({ length: 21 }, async (_, index) => {
+      const assetDocumentId = ulid()
+      const assetSubmissionId = ulid()
+      const assetPayload = {
+        businessDate: '2099-12-31',
+        currency: 'CNY',
+        attachments: [],
+        counterparty: {
+          objectId: customerSubunitId,
+          approvalEntryId: customerApprovalId,
+          selectionOrigin: 'CURRENT' as const,
+        },
+        counterpartyType: 'customer-subunit' as const,
+        assetSaleLines: [{ assetId: ulid(), saleAmount: `${index + 1}.00` }],
+      }
+      const pending = await service.submit(
+        'asset-sale',
+        'submit-new',
+        {
+          documentId: assetDocumentId,
+          submissionId: assetSubmissionId,
+          idempotencyKey: assetSubmissionId,
+          expectedRevision: null,
+          payload: assetPayload,
+        },
+        actor,
+        `asset-sale-${index}`,
+      )
+      assert.deepEqual(
+        (await service.get('asset-sale', assetDocumentId, actor)).payload,
+        assetPayload,
+      )
+      return { pending, payload: assetPayload }
+    }),
+  )
+  const historicalAssetSubmissionId = ulid()
+  await assert.rejects(
+    db
+      .insertInto('approval_entries')
+      .values({
+        id: historicalAssetSubmissionId,
+        domain: 'vou',
+        entity: 'asset-sale',
+        subject_id: assetDocuments[0]!.pending.documentId,
+        version_no: null,
+        status: 'APPROVED',
+        revision: 1,
+        submitted_by: actorId,
+        submitted_at: new Date('2026-01-01T00:00:00.000Z'),
+        approved_by: reviewerId,
+        approved_at: new Date('2026-01-01T00:01:00.000Z'),
+        updated_by: reviewerId,
+        updated_at: new Date('2026-01-01T00:01:00.000Z'),
+      })
+      .execute(),
+    (error: unknown) =>
+      typeof error === 'object' &&
+      error !== null &&
+      'constraint' in error &&
+      error.constraint === 'approval_entries_unversioned_subject_unique',
+  )
+  assert.equal(
+    (
+      await service.get(
+        'asset-sale',
+        assetDocuments[0]!.pending.documentId,
+        actor,
+      )
+    ).submissionId,
+    assetDocuments[0]!.pending.submissionId,
+  )
+  const firstPage = await service.query(
+    'asset-sale',
+    {
+      page: 1,
+      pageSize: 20,
+      filters: {
+        dateFrom: '2099-12-31',
+        dateTo: '2099-12-31',
+        counterpartyObjectId: customerSubunitId,
+      },
+      sort: [{ field: 'documentNo', order: 'desc' }],
+    },
+    actor,
+  )
+  assert.equal(firstPage.total, 21)
+  assert.equal(firstPage.items.length, 20)
+  assert.equal(firstPage.page, 1)
+  assert.equal(firstPage.pageSize, 20)
+  assert.equal(
+    firstPage.items[0]?.documentNo,
+    assetDocuments
+      .map((item) => item.pending.documentNo)
+      .sort((left, right) => right.localeCompare(left))[0],
+  )
+  const secondPage = await service.query(
+    'asset-sale',
+    {
+      page: 2,
+      pageSize: 20,
+      filters: { dateFrom: '2099-12-31', dateTo: '2099-12-31' },
+      sort: [{ field: 'documentNo', order: 'desc' }],
+    },
+    actor,
+  )
+  assert.equal(secondPage.total, 21)
+  assert.equal(secondPage.items.length, 1)
+  const approvedAssetSale = await service.review(
+    'asset-sale',
+    'approve',
+    {
+      documentId: assetDocuments[0]!.pending.documentId,
+      submissionId: assetDocuments[0]!.pending.submissionId,
+      expectedRevision: assetDocuments[0]!.pending.revision,
+    },
+    reviewer,
+    'asset-sale-approve',
+  )
+  assert.equal(approvedAssetSale.status, 'APPROVED')
+  assert.deepEqual(approvedAssetSale.payload, assetDocuments[0]!.payload)
 })
 
 test('VOU attachment staging validates ownership, promotion, retry and cleanup', async (context) => {
@@ -1237,7 +1371,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
     ),
     /attachment_not_found/,
   )
-  await service.submit(
+  const retried = await service.submit(
     'sale-pricing',
     'submit-new',
     {
@@ -1253,6 +1387,63 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
   await assert.rejects(
     attachmentStore.read(rollbackStaging.rows[0]!.storage_key),
     /attachment_not_found/,
+  )
+  const issuedDownload = await service.issueAttachmentDownload(
+    'sale-pricing',
+    {
+      documentId: retried.documentId,
+      submissionId: retried.submissionId,
+      fileId: rollback.fileId,
+    },
+    owner,
+  )
+  const downloaded = await service.consumeAttachmentDownload(
+    issuedDownload.token,
+  )
+  assert.equal(downloaded.file_name, rollback.fileName)
+  assert.deepEqual(downloaded.content, content)
+  await assert.rejects(
+    service.consumeAttachmentDownload(issuedDownload.token),
+    (error: unknown) =>
+      error instanceof VouApplicationError &&
+      error.errorKey === 'vou_attachment_download_not_found',
+  )
+  const expiredDownload = await service.issueAttachmentDownload(
+    'sale-pricing',
+    {
+      documentId: retried.documentId,
+      submissionId: retried.submissionId,
+      fileId: rollback.fileId,
+    },
+    owner,
+  )
+  const expiredDownloadTokenHash = createHash('sha256')
+    .update(expiredDownload.token)
+    .digest('hex')
+  const expiredDownloadAt = new Date(Date.now() - 1_000)
+  await db
+    .updateTable('vou_attachment_download_tokens')
+    .set({
+      created_at: new Date(expiredDownloadAt.getTime() - 60_000),
+      expires_at: expiredDownloadAt,
+    })
+    .where('token_hash', '=', expiredDownloadTokenHash)
+    .execute()
+  assert.equal(
+    await service.cleanupAttachments('sale-pricing', {
+      id: ownerId,
+      permissions: ['/vou/sale-pricing/attachment-cleanup'],
+    }),
+    1,
+  )
+  assert.equal(
+    await db
+      .selectFrom('vou_attachment_download_tokens')
+      .select(({ fn }) => fn.countAll<number>().as('count'))
+      .where('token_hash', '=', expiredDownloadTokenHash)
+      .executeTakeFirstOrThrow()
+      .then(({ count }) => Number(count)),
+    0,
   )
   const mismatchSubmissionId = ulid()
   await assert.rejects(
@@ -1423,12 +1614,24 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
         customer_approval_entry_id: customerOldApprovalId,
         subunit_id: subunitId,
         name: '历史子单位',
+        customer_type_id: customerTypeId,
+        customer_type_snapshot: JSON.stringify({
+          id: customerTypeId,
+          code: 'CUSTOMER-TYPE-TEST',
+          name: '测试客户类型',
+        }),
         enabled: true,
       },
       {
         customer_approval_entry_id: customerCurrentApprovalId,
         subunit_id: subunitId,
         name: '当前子单位',
+        customer_type_id: customerTypeId,
+        customer_type_snapshot: JSON.stringify({
+          id: customerTypeId,
+          code: 'CUSTOMER-TYPE-TEST',
+          name: '测试客户类型',
+        }),
         enabled: true,
       },
     ])
@@ -1715,11 +1918,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
       .then(() => 1),
     1,
   )
-  await service.stageAttachment(
-    'sale-pricing',
-    physicalDeleteFailure,
-    owner,
-  )
+  await service.stageAttachment('sale-pricing', physicalDeleteFailure, owner)
   assert.equal(
     await service.cleanupAttachments('sale-pricing', {
       ...ordinaryActor,
@@ -1808,6 +2007,12 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
       if (allApprovalIds.length > 0)
         await db
           .deleteFrom('approval_entries')
+          .where('domain', '=', 'vou')
+          .where('id', 'in', allApprovalIds)
+          .execute()
+      if (allApprovalIds.length > 0)
+        await db
+          .deleteFrom('approval_entries')
           .where('id', 'in', allApprovalIds)
           .execute()
       if (documentIds.length > 0)
@@ -1837,6 +2042,10 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
         .where('role_id', '=', actorRoleId)
         .execute()
       await db.deleteFrom('app_roles').where('id', '=', actorRoleId).execute()
+      await db
+        .deleteFrom('approval_events')
+        .where('actor_id', 'in', [actorId, deniedId])
+        .execute()
       await db
         .deleteFrom('app_users')
         .where('id', 'in', [actorId, deniedId])
@@ -1897,9 +2106,21 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
       status: 'ENABLED',
     })
     .execute()
+  const readPermissions = await db
+    .selectFrom('app_permissions')
+    .select(['id', 'path'])
+    .where('path', 'in', ['/vou/sale-pricing/query', '/vou/sale-pricing/get'])
+    .execute()
+  assert.equal(readPermissions.length, 2)
   await db
     .insertInto('app_role_permissions')
-    .values({ role_id: actorRoleId, permission_id: permissionId })
+    .values([
+      { role_id: actorRoleId, permission_id: permissionId },
+      ...readPermissions.map((permission) => ({
+        role_id: actorRoleId,
+        permission_id: permission.id,
+      })),
+    ])
     .execute()
   await db
     .insertInto('app_user_roles')
@@ -2022,6 +2243,73 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
       },
     ])
     .execute()
+  const customerId = ulid(),
+    customerApprovalId = ulid(),
+    customerSubunitId = ulid()
+  const customerKeyword = `VOU 候选客户-${customerId.slice(-6)}`
+  const customerCode = `CUS-${referenceProductCode.slice(4)}`
+  subjectIds.push(customerId)
+  allApprovalIds.push(customerApprovalId)
+  await db
+    .insertInto('dcl_subjects')
+    .values({
+      id: customerId,
+      entity: 'customer',
+      code: customerCode,
+      created_at: now,
+      created_by: actorId,
+    })
+    .execute()
+  await db
+    .insertInto('approval_entries')
+    .values({
+      id: customerApprovalId,
+      domain: 'dcl',
+      entity: 'customer',
+      subject_id: customerId,
+      version_no: 1,
+      status: 'APPROVED',
+      revision: 1,
+      submitted_by: actorId,
+      submitted_at: now,
+      approved_by: actorId,
+      approved_at: now,
+      updated_by: actorId,
+      updated_at: now,
+    })
+    .execute()
+  await db
+    .insertInto('dcl_customer_versions')
+    .values({
+      approval_entry_id: customerApprovalId,
+      kind: 'MAINLAND_ENTERPRISE',
+      display_name: customerKeyword,
+      enabled: true,
+    })
+    .execute()
+  await db
+    .insertInto('dcl_customer_subunit_roots')
+    .values({
+      subunit_id: customerSubunitId,
+      customer_id: customerId,
+      code: `SUB-${customerSubunitId.slice(-6)}`,
+    })
+    .execute()
+  await db
+    .insertInto('dcl_customer_version_subunits')
+    .values({
+      customer_approval_entry_id: customerApprovalId,
+      subunit_id: customerSubunitId,
+      name: `${customerKeyword}总部`,
+      customer_type_id: customerTypeId,
+      customer_type_snapshot: JSON.stringify({
+        id: customerTypeId,
+        code: 'CUSTOMER-TYPE-TEST',
+        name: '测试客户类型',
+      }),
+      enabled: true,
+    })
+    .execute()
   const unitId = ulid(),
     disabledUnitId = ulid()
   await db
@@ -2124,6 +2412,37 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
   }
   const activeAssetId = await addRegisterSource(false)
   const reversedAssetId = await addRegisterSource(true)
+  const httpDocumentId = ulid()
+  const httpSubmissionId = ulid()
+  documentIds.push(httpDocumentId)
+  allApprovalIds.push(httpSubmissionId)
+  const httpView = await vou.submit(
+    'sale-pricing',
+    'submit-new',
+    {
+      documentId: httpDocumentId,
+      submissionId: httpSubmissionId,
+      idempotencyKey: httpSubmissionId,
+      expectedRevision: null,
+      payload: {
+        businessDate: '2099-11-30',
+        currency: 'CNY',
+        attachments: [],
+        priceLines: [
+          {
+            product: {
+              objectId: productId,
+              approvalEntryId: currentProductApprovalId,
+              selectionOrigin: 'CURRENT',
+            },
+            unitPrice: '88.00',
+          },
+        ],
+      },
+    },
+    { id: actorId, permissions: [], trusted: true },
+    'http-vou-query-readback',
+  )
   const allowed = await signin(origin, username, password)
   const deniedUsername = (
     await db
@@ -2154,6 +2473,20 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
     ),
     false,
   )
+  const customerSubunits = await post(origin, allowed, {
+    entity: 'customer-subunit',
+    keyword: customerKeyword,
+  })
+  assert.deepEqual(customerSubunits.data.items, [
+    {
+      entity: 'customer-subunit',
+      objectId: customerSubunitId,
+      customerId,
+      approvalEntryId: customerApprovalId,
+      code: `SUB-${customerSubunitId.slice(-6)}`,
+      name: `${customerKeyword}总部`,
+    },
+  ])
   const units = await post(origin, allowed, {
     entity: 'measurement-unit',
     keyword: 'VOU',
@@ -2174,6 +2507,35 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
   assert.equal(
     assets.data.items.some((item) => item.objectId === reversedAssetId),
     false,
+  )
+  const queried = await post(
+    origin,
+    allowed,
+    {
+      page: 1,
+      pageSize: 20,
+      filters: { keyword: httpView.documentNo, status: ['PENDING'] },
+      sort: [{ field: 'documentNo', order: 'desc' }],
+    },
+    '/vou/sale-pricing/query',
+  )
+  assert.equal(queried.code, 0)
+  assert.deepEqual(
+    (
+      queried.data as unknown as { items: Array<{ documentId: string }> }
+    ).items.map((item) => item.documentId),
+    [httpDocumentId],
+  )
+  const fetched = await post(
+    origin,
+    allowed,
+    { documentId: httpDocumentId },
+    '/vou/sale-pricing/get',
+  )
+  assert.equal(fetched.code, 0)
+  assert.equal(
+    (fetched.data as unknown as { documentId: string }).documentId,
+    httpDocumentId,
   )
   await addRegisterSource(false, activeAssetId)
   const canonicalAssets = await post(origin, allowed, { entity: 'asset' })

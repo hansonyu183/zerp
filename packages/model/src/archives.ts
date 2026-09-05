@@ -6,6 +6,20 @@ import {
 } from './submission.ts'
 import type { ApprovalStatus } from './approval.ts'
 
+export const archiveEntityPresentation = {
+  'operating-entity': { label: '经营主体', draftLabel: '经营主体资料' },
+  vehicle: { label: '车辆', draftLabel: '车辆资料' },
+  'fund-account': { label: '资金账户', draftLabel: '资金账户资料' },
+  product: { label: '产品', draftLabel: '产品资料' },
+  employee: { label: '员工', draftLabel: '员工资料' },
+  supplier: { label: '供应商', draftLabel: '供应商资料' },
+  customer: { label: '客户', draftLabel: '客户资料' },
+  'other-unit': { label: '其他单位', draftLabel: '其他单位资料' },
+  'sales-partner': { label: '销售合作方', draftLabel: '销售合作方资料' },
+  'acc-mapping': { label: '记账映射', draftLabel: '记账映射规则' },
+  'rpt-definition': { label: '报表定义', draftLabel: '报表定义资料' },
+} as const
+
 type Text = string
 const trim = (value: string): string => value.trim()
 const hasText = (value: string): boolean => trim(value).length > 0
@@ -54,6 +68,14 @@ export interface SettlementMethodSnapshot extends AuxSnapshot {
   monthOffset: number
   dayOfMonth: number
   dayOffset: number
+}
+
+export interface CustomerSettlementMethodSnapshot extends SettlementMethodSnapshot {
+  defaultSalesSurcharge: string
+}
+
+export interface PaymentMethodSnapshot extends AuxSnapshot {
+  defaultSalesSurcharge: string
 }
 
 export interface ReferenceBlocker {
@@ -156,6 +178,7 @@ function exactReference(
 
 export interface OperatingEntityData {
   legalName: Text
+  shortName: Text
   legalIdentifier: Text
   registeredAddress: Text
   contactName: Text
@@ -185,6 +208,7 @@ function normalizeOperatingEntity(
   return {
     ...data,
     legalName,
+    shortName: trim(data.shortName),
     legalIdentifier,
     registeredAddress: trim(data.registeredAddress),
     contactName: trim(data.contactName),
@@ -449,6 +473,34 @@ export interface ProductAuxReference {
   behaviorProfile?:
     'RAW_MATERIAL' | 'STANDARD_FINISHED' | 'CUSTOM_FINISHED' | 'PACKAGING'
 }
+export interface ProductUnitSnapshot extends AuxSnapshot {
+  symbol: string
+  quantityScale: number
+}
+export type ProductBehaviorProfile =
+  'RAW_MATERIAL' | 'STANDARD_FINISHED' | 'CUSTOM_FINISHED' | 'PACKAGING'
+export interface ProductUnitConversion {
+  unit: ProductUnitSnapshot
+  factor: string
+}
+export interface ProductQuantitySnapshot {
+  enteredQuantity: string
+  enteredUnit: ProductUnitSnapshot
+  baseQuantity: string
+}
+export interface ProductFormulaComponent {
+  material: ExactReference
+  quantity: ProductQuantitySnapshot
+  resolutionStatus: 'CURRENT' | 'UNRESOLVED'
+  requiresConfirmation: boolean
+}
+export interface ProductFixedFormula {
+  output: ProductQuantitySnapshot
+  components: readonly ProductFormulaComponent[]
+}
+export interface ProductMaterialFact extends ExactReferenceFact {
+  behaviorProfile: ProductBehaviorProfile
+}
 export interface ProductReferenceFact {
   field:
     | 'productType'
@@ -468,19 +520,24 @@ export interface ProductData {
   model: Text
   productType: ProductAuxReference
   productCategory: ProductAuxReference
-  pricingUnit: ProductAuxReference
-  defaultInputUnit: ProductAuxReference
-  defaultPackageSpec: Text
+  pricingUnit: ProductUnitSnapshot
+  defaultInputUnit: ProductUnitSnapshot
+  unitConversions: readonly ProductUnitConversion[]
+  defaultPackagingSpec: Text
   recyclable: boolean
+  fixedFormula: ProductFixedFormula | null
   remark: Text
   enabled: boolean
 }
 export interface ProductSubmitCommand extends ArchiveCommand<ProductData> {}
 export interface ProductSubmitFacts extends ArchiveFacts {
   references: readonly ProductReferenceFact[]
+  materials: readonly ProductMaterialFact[]
 }
 export type ProductSubmitErrorKey =
-  'product_invalid_data' | 'product_reference_unavailable'
+  | 'product_invalid_data'
+  | 'product_reference_unavailable'
+  | 'product_reference_stale'
 export type ProductSubmissionPlan = ArchivePlan<ProductData>
 export type ProductSubmitDecision = ArchiveDecision<
   ProductData,
@@ -508,17 +565,112 @@ function normalizeProductReference(
     return undefined
   return normalized
 }
+const positiveDecimal = /^(?:0*[1-9]\d*)(?:\.\d+)?$|^0*\.\d*[1-9]\d*$/
+function normalizeProductUnit(
+  unit: ProductUnitSnapshot,
+): ProductUnitSnapshot | undefined {
+  const normalized = normalizeProductReference(unit, true)
+  const symbol = trim(unit.symbol)
+  return normalized && symbol
+    ? {
+        id: normalized.id,
+        code: normalized.code,
+        name: normalized.name,
+        symbol,
+        quantityScale: normalized.quantityScale!,
+      }
+    : undefined
+}
+function normalizeProductQuantity(
+  quantity: ProductQuantitySnapshot,
+): ProductQuantitySnapshot | undefined {
+  const enteredQuantity = trim(quantity.enteredQuantity)
+  const enteredUnit = normalizeProductUnit(quantity.enteredUnit)
+  const baseQuantity = trim(quantity.baseQuantity)
+  return enteredUnit &&
+    positiveDecimal.test(enteredQuantity) &&
+    positiveDecimal.test(baseQuantity)
+    ? { enteredQuantity, enteredUnit, baseQuantity }
+    : undefined
+}
 function normalizeProduct(data: ProductData): ProductData | undefined {
   const productType = normalizeProductReference(data.productType, false),
     productCategory = normalizeProductReference(data.productCategory, false),
-    pricingUnit = normalizeProductReference(data.pricingUnit, true),
-    defaultInputUnit = normalizeProductReference(data.defaultInputUnit, true)
+    pricingUnit = normalizeProductUnit(data.pricingUnit),
+    defaultInputUnit = normalizeProductUnit(data.defaultInputUnit)
+  const unitIds = new Set<string>()
+  const unitConversions: ProductUnitConversion[] = []
+  for (const conversion of data.unitConversions) {
+    const unit = normalizeProductUnit(conversion.unit)
+    const factor = trim(conversion.factor)
+    if (!unit || !positiveDecimal.test(factor) || unitIds.has(unit.id))
+      return undefined
+    unitIds.add(unit.id)
+    unitConversions.push({ unit, factor })
+  }
   if (
     !hasText(data.name) ||
     !productType ||
     !productCategory ||
     !pricingUnit ||
-    !defaultInputUnit
+    !defaultInputUnit ||
+    !unitConversions.length ||
+    !unitIds.has(pricingUnit.id) ||
+    !unitIds.has(defaultInputUnit.id)
+  )
+    return undefined
+  const behaviorProfile = productType.behaviorProfile
+  const defaultPackagingSpec = trim(data.defaultPackagingSpec)
+  if (
+    !behaviorProfile ||
+    (behaviorProfile === 'PACKAGING'
+      ? defaultPackagingSpec !== '' || pricingUnit.id !== defaultInputUnit.id
+      : !positiveDecimal.test(defaultPackagingSpec))
+  )
+    return undefined
+  let fixedFormula: ProductFixedFormula | null = null
+  if (data.fixedFormula) {
+    const output = normalizeProductQuantity(data.fixedFormula.output)
+    const materialIds = new Set<string>()
+    const components: ProductFormulaComponent[] = []
+    if (
+      !output ||
+      data.fixedFormula.components.length < 1 ||
+      data.fixedFormula.components.length > 200
+    )
+      return undefined
+    for (const component of data.fixedFormula.components) {
+      const material = {
+        objectId: trim(component.material.objectId),
+        approvalEntryId: trim(component.material.approvalEntryId),
+        code: trim(component.material.code),
+        name: trim(component.material.name),
+      }
+      const quantity = normalizeProductQuantity(component.quantity)
+      if (
+        !material.objectId ||
+        !material.approvalEntryId ||
+        !material.code ||
+        !material.name ||
+        !quantity ||
+        materialIds.has(material.objectId) ||
+        component.resolutionStatus !== 'CURRENT' ||
+        component.requiresConfirmation
+      )
+        return undefined
+      materialIds.add(material.objectId)
+      components.push({
+        material,
+        quantity,
+        resolutionStatus: 'CURRENT',
+        requiresConfirmation: false,
+      })
+    }
+    fixedFormula = { output, components }
+  }
+  if (
+    (behaviorProfile === 'STANDARD_FINISHED' && !fixedFormula) ||
+    (behaviorProfile !== 'STANDARD_FINISHED' && fixedFormula)
   )
     return undefined
   return {
@@ -531,7 +683,9 @@ function normalizeProduct(data: ProductData): ProductData | undefined {
     productCategory,
     pricingUnit,
     defaultInputUnit,
-    defaultPackageSpec: trim(data.defaultPackageSpec),
+    unitConversions,
+    defaultPackagingSpec,
+    fixedFormula,
     remark: trim(data.remark),
   }
 }
@@ -567,6 +721,31 @@ export function prepareProductSubmit(
         expectedApprovalEntryId: '',
       })
   }
+  for (const [index, component] of (
+    data.fixedFormula?.components ?? []
+  ).entries()) {
+    const fact = facts.materials.find(
+      (candidate) => candidate.objectId === component.material.objectId,
+    )
+    const checked = exactReference(
+      `fixedFormula.components[${index}].material`,
+      component.material,
+      fact,
+    )
+    if (!checked.ok)
+      return block(
+        checked.stale
+          ? 'product_reference_stale'
+          : 'product_reference_unavailable',
+        checked.blocker,
+      )
+    if (!fact || fact.behaviorProfile !== 'RAW_MATERIAL')
+      return block('product_reference_unavailable', {
+        field: `fixedFormula.components[${index}].material`,
+        objectId: component.material.objectId,
+        expectedApprovalEntryId: component.material.approvalEntryId,
+      })
+  }
   return { ok: true, plan: { ...common, data } }
 }
 export function projectProductViewState(
@@ -590,15 +769,51 @@ export interface IdentityArchiveData {
   remark: Text
   enabled: boolean
 }
+function validUnifiedSocialCreditCode(value: string): boolean {
+  const alphabet = '0123456789ABCDEFGHJKLMNPQRTUWXY'
+  const weights = [
+    1, 3, 9, 27, 19, 26, 16, 17, 20, 29, 25, 13, 8, 24, 10, 30, 28,
+  ]
+  if (!/^[0-9A-HJ-NPQRTUWXY]{18}$/.test(value)) return false
+  let sum = 0
+  for (let index = 0; index < 17; index += 1) {
+    const digit = alphabet.indexOf(value[index]!)
+    if (digit < 0) return false
+    sum += digit * weights[index]!
+  }
+  return alphabet[(31 - (sum % 31)) % 31] === value[17]
+}
+function validMainlandIdentityCard(value: string): boolean {
+  if (!/^\d{17}[0-9X]$/.test(value)) return false
+  const birthday = value.slice(6, 14)
+  const date = new Date(
+    `${birthday.slice(0, 4)}-${birthday.slice(4, 6)}-${birthday.slice(6, 8)}T00:00:00.000Z`,
+  )
+  if (
+    Number.isNaN(date.valueOf()) ||
+    date.toISOString().slice(0, 10).replaceAll('-', '') !== birthday
+  )
+    return false
+  const weights = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2]
+  const checks = '10X98765432'
+  const sum = value
+    .slice(0, 17)
+    .split('')
+    .reduce((total, digit, index) => total + Number(digit) * weights[index]!, 0)
+  return checks[sum % 11] === value[17]
+}
 function normalizedIdentifier(
   kind: IdentityKind | CustomerIdentityKind,
   value: string,
 ): string | undefined {
   const normalized = kind === 'OTHER' ? trim(value) : upperCompact(value)
   if (!normalized) return undefined
-  if (kind === 'MAINLAND_ENTERPRISE' && !/^[0-9A-Z]{18}$/.test(normalized))
+  if (
+    kind === 'MAINLAND_ENTERPRISE' &&
+    !validUnifiedSocialCreditCode(normalized)
+  )
     return undefined
-  if (kind === 'MAINLAND_INDIVIDUAL' && !/^\d{17}[0-9X]$/.test(normalized))
+  if (kind === 'MAINLAND_INDIVIDUAL' && !validMainlandIdentityCard(normalized))
     return undefined
   return normalized
 }
@@ -1015,22 +1230,50 @@ export interface AttachmentMetadata {
   contentType: string
   sizeBytes: number
   sha256: string
+  stagingId?: string
+}
+export interface CustomerTransportPolicy {
+  methodCode: string
+  methodName: string
+  surcharge: string
+}
+export type CustomerPricingCostItem =
+  | {
+      name: string
+      calculationBasis: 'UNIT_PRICE'
+      unitPrice: string
+    }
+  | {
+      name: string
+      calculationBasis: 'ORDER_AMOUNT'
+      orderAmount: string
+    }
+export interface CustomerPricingPolicy {
+  defaultPremiumUnitPrice: string
+  defaultDiscountUnitPrice: string
+  costItems: readonly CustomerPricingCostItem[]
+  thirdPartyIntermediaryFixedUnitCost: string
+  thirdPartyIntermediaryVariableUnitCost: string
+}
+export type CustomerSalesAttributionType =
+  'INTERNAL_EMPLOYEE' | 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER'
+export interface CustomerSalesAttribution extends ExactReference {
+  type: CustomerSalesAttributionType
 }
 interface CustomerSubunitBase {
   id: string
   name: string
   contactName: string
   address: string
-  customerType: string
-  /** Input is only an AUX identity; ArchiveService replaces it with an authoritative snapshot. */
-  settlementMethod: (AuxSnapshot | SettlementMethodSnapshot) | null
-  receiptMethod: string
-  transportMethod: string
-  pricePolicy: string
+  customerType: AuxSnapshot
+  settlementMethod: CustomerSettlementMethodSnapshot | null
+  paymentMethod: PaymentMethodSnapshot | null
+  transportPolicy: CustomerTransportPolicy
+  pricingPolicy: CustomerPricingPolicy
   creditLimits: readonly { currency: string; amount: string }[]
-  salesAttribution: ExactReference | null
+  primarySalesAttribution: CustomerSalesAttribution
   internalReminder: string
-  defaultOrderRemark: string
+  defaultSalesOrderRemark: string
   attachments: readonly AttachmentMetadata[]
   enabled: boolean
 }
@@ -1070,6 +1313,10 @@ export interface CustomerData {
 export interface CustomerSubmitCommand extends ArchiveCommand<CustomerData> {}
 export interface CustomerSubmitFacts extends ArchiveFacts {
   defaultOperatingEntity?: ExactReferenceFact
+  customerTypes: readonly { objectId: string; available: boolean }[]
+  salesAttributions: readonly (ExactReferenceFact & {
+    type: CustomerSalesAttributionType
+  })[]
 }
 export type CustomerSubmitErrorKey =
   | 'customer_invalid_data'
@@ -1095,9 +1342,119 @@ function normalizeAttachment(
     normalized.contentType &&
     Number.isInteger(normalized.sizeBytes) &&
     normalized.sizeBytes >= 0 &&
-    /^[a-f0-9]{3,64}$/.test(normalized.sha256)
+    /^[a-f0-9]{64}$/.test(normalized.sha256)
     ? normalized
     : undefined
+}
+const money = /^(?:0|[1-9]\d*)\.\d{2}$/
+const positiveMoney = /^(?:0*[1-9]\d*)\.\d{2}$/
+function normalizeAuxSnapshot(value: AuxSnapshot): AuxSnapshot | undefined {
+  const normalized = {
+    id: trim(value.id),
+    code: trim(value.code),
+    name: trim(value.name),
+  }
+  return normalized.id && normalized.code && normalized.name
+    ? normalized
+    : undefined
+}
+function normalizeCustomerSettlement(
+  value: CustomerSettlementMethodSnapshot | null,
+): CustomerSettlementMethodSnapshot | null | undefined {
+  if (value === null) return null
+  const aux = normalizeAuxSnapshot(value)
+  const surcharge = trim(value.defaultSalesSurcharge)
+  if (
+    !aux ||
+    !money.test(surcharge) ||
+    ![
+      'PREPAID',
+      'CASH_ON_DELIVERY',
+      'ARRIVAL_3',
+      'ARRIVAL_5',
+      'ARRIVAL_7',
+      'ARRIVAL_15',
+      'ARRIVAL_30',
+      'MONTHLY_CURRENT',
+      'MONTHLY_30',
+      'MONTHLY_60',
+      'MONTHLY_90',
+    ].includes(value.termCode) ||
+    !['RELATIVE_DAYS', 'MONTH_END'].includes(value.ruleType) ||
+    !Number.isInteger(value.monthOffset) ||
+    !Number.isInteger(value.dayOfMonth) ||
+    !Number.isInteger(value.dayOffset)
+  )
+    return undefined
+  return { ...aux, ...value, defaultSalesSurcharge: surcharge }
+}
+function normalizePaymentMethod(
+  value: PaymentMethodSnapshot | null,
+): PaymentMethodSnapshot | null | undefined {
+  if (value === null) return null
+  const aux = normalizeAuxSnapshot(value)
+  const surcharge = trim(value.defaultSalesSurcharge)
+  return aux && money.test(surcharge)
+    ? { ...aux, defaultSalesSurcharge: surcharge }
+    : undefined
+}
+function normalizeTransportPolicy(
+  value: CustomerTransportPolicy,
+): CustomerTransportPolicy | undefined {
+  const result = {
+    methodCode: trim(value.methodCode),
+    methodName: trim(value.methodName),
+    surcharge: trim(value.surcharge),
+  }
+  return result.methodCode && result.methodName && money.test(result.surcharge)
+    ? result
+    : undefined
+}
+function normalizePricingPolicy(
+  value: CustomerPricingPolicy,
+): CustomerPricingPolicy | undefined {
+  const defaultPremiumUnitPrice = trim(value.defaultPremiumUnitPrice)
+  const defaultDiscountUnitPrice = trim(value.defaultDiscountUnitPrice)
+  const thirdPartyIntermediaryFixedUnitCost = trim(
+    value.thirdPartyIntermediaryFixedUnitCost,
+  )
+  const thirdPartyIntermediaryVariableUnitCost = trim(
+    value.thirdPartyIntermediaryVariableUnitCost,
+  )
+  if (
+    ![
+      defaultPremiumUnitPrice,
+      defaultDiscountUnitPrice,
+      thirdPartyIntermediaryFixedUnitCost,
+      thirdPartyIntermediaryVariableUnitCost,
+    ].every((amount) => money.test(amount))
+  )
+    return undefined
+  const names = new Set<string>()
+  const costItems: CustomerPricingCostItem[] = []
+  for (const item of value.costItems) {
+    const name = trim(item.name)
+    const normalizedName = name.toLocaleUpperCase()
+    if (!name || names.has(normalizedName)) return undefined
+    names.add(normalizedName)
+    if (item.calculationBasis === 'UNIT_PRICE') {
+      const unitPrice = trim(item.unitPrice)
+      if (!positiveMoney.test(unitPrice)) return undefined
+      costItems.push({ name, calculationBasis: 'UNIT_PRICE', unitPrice })
+    } else {
+      const orderAmount = trim(item.orderAmount)
+      if (!positiveMoney.test(orderAmount)) return undefined
+      costItems.push({ name, calculationBasis: 'ORDER_AMOUNT', orderAmount })
+    }
+  }
+  costItems.sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'))
+  return {
+    defaultPremiumUnitPrice,
+    defaultDiscountUnitPrice,
+    costItems,
+    thirdPartyIntermediaryFixedUnitCost,
+    thirdPartyIntermediaryVariableUnitCost,
+  }
 }
 function normalizeCustomer(data: CustomerData): CustomerData | undefined {
   const legalIdentifier = normalizedIdentifier(
@@ -1117,9 +1474,21 @@ function normalizeCustomer(data: CustomerData): CustomerData | undefined {
     const id = trim(subunit.id),
       name = trim(subunit.name)
     const attachments = subunit.attachments.map(normalizeAttachment)
+    const customerType = normalizeAuxSnapshot(subunit.customerType)
+    const settlementMethod = normalizeCustomerSettlement(
+      subunit.settlementMethod,
+    )
+    const paymentMethod = normalizePaymentMethod(subunit.paymentMethod)
+    const transportPolicy = normalizeTransportPolicy(subunit.transportPolicy)
+    const pricingPolicy = normalizePricingPolicy(subunit.pricingPolicy)
     if (
       !id ||
       !name ||
+      !customerType ||
+      settlementMethod === undefined ||
+      paymentMethod === undefined ||
+      !transportPolicy ||
+      !pricingPolicy ||
       subunitIds.has(id) ||
       attachments.some((attachment) => !attachment)
     )
@@ -1139,14 +1508,21 @@ function normalizeCustomer(data: CustomerData): CustomerData | undefined {
       name,
       contactName: trim(subunit.contactName),
       address: trim(subunit.address),
-      customerType: trim(subunit.customerType),
-      settlementMethod: subunit.settlementMethod,
-      receiptMethod: trim(subunit.receiptMethod),
-      transportMethod: trim(subunit.transportMethod),
-      pricePolicy: trim(subunit.pricePolicy),
-      salesAttribution: subunit.salesAttribution,
+      customerType,
+      settlementMethod,
+      paymentMethod,
+      transportPolicy,
+      pricingPolicy,
+      primarySalesAttribution: {
+        ...subunit.primarySalesAttribution,
+        type: subunit.primarySalesAttribution.type,
+        objectId: trim(subunit.primarySalesAttribution.objectId),
+        approvalEntryId: trim(subunit.primarySalesAttribution.approvalEntryId),
+        code: trim(subunit.primarySalesAttribution.code),
+        name: trim(subunit.primarySalesAttribution.name),
+      },
       internalReminder: trim(subunit.internalReminder),
-      defaultOrderRemark: trim(subunit.defaultOrderRemark),
+      defaultSalesOrderRemark: trim(subunit.defaultSalesOrderRemark),
       attachments: attachments as AttachmentMetadata[],
       creditLimits: subunit.creditLimits.map((limit) => ({
         currency: trim(limit.currency).toUpperCase(),
@@ -1163,6 +1539,25 @@ function normalizeCustomer(data: CustomerData): CustomerData | undefined {
           }
         : { ...normalized, intent: 'NEW', code: null },
     )
+  }
+  for (const subunit of subunits) {
+    if (
+      !subunit.primarySalesAttribution.objectId ||
+      !subunit.primarySalesAttribution.approvalEntryId ||
+      !subunit.primarySalesAttribution.code ||
+      !subunit.primarySalesAttribution.name
+    )
+      return undefined
+    const currencies = new Set<string>()
+    for (const limit of subunit.creditLimits) {
+      if (
+        !/^[A-Z]{3}$/.test(limit.currency) ||
+        !money.test(limit.amount) ||
+        currencies.has(limit.currency)
+      )
+        return undefined
+      currencies.add(limit.currency)
+    }
   }
   if (
     subunits.length === 0 ||
@@ -1228,6 +1623,35 @@ export function prepareCustomerSubmit(
       'defaultOperatingEntity',
       data.defaultOperatingEntity,
       facts.defaultOperatingEntity,
+    )
+    if (!checked.ok)
+      return block(
+        checked.stale
+          ? 'customer_reference_stale'
+          : 'customer_reference_unavailable',
+        checked.blocker,
+      )
+  }
+  for (const subunit of data.subunits) {
+    if (
+      !facts.customerTypes.some(
+        (fact) => fact.objectId === subunit.customerType.id && fact.available,
+      )
+    )
+      return block('customer_reference_unavailable', {
+        field: 'subunits.customerType',
+        objectId: subunit.customerType.id,
+        expectedApprovalEntryId: '',
+      })
+    const fact = facts.salesAttributions.find(
+      (candidate) =>
+        candidate.objectId === subunit.primarySalesAttribution.objectId &&
+        candidate.type === subunit.primarySalesAttribution.type,
+    )
+    const checked = exactReference(
+      'subunits.primarySalesAttribution',
+      subunit.primarySalesAttribution,
+      fact,
     )
     if (!checked.ok)
       return block(
@@ -1761,18 +2185,48 @@ export interface RptDefinitionData {
 
 function validRptDate(value: string): boolean {
   const parsed = new Date(`${value}T00:00:00.000Z`)
-  return !Number.isNaN(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === value
+  return (
+    !Number.isNaN(parsed.valueOf()) &&
+    parsed.toISOString().slice(0, 10) === value
+  )
 }
 
-function validRptParameterValue(parameter: RptParameter, value: unknown): boolean {
+function validRptParameterValue(
+  parameter: RptParameter,
+  value: unknown,
+): boolean {
   if (value === null) return !parameter.required
   if (parameter.type === 'TEXT') return typeof value === 'string'
-  if (parameter.type === 'INTEGER') return typeof value === 'number' && Number.isSafeInteger(value)
-  if (parameter.type === 'DECIMAL') return typeof value === 'string' && /^-?(?:0|[1-9]\d*)(?:\.\d+)?$/.test(value)
+  if (parameter.type === 'INTEGER')
+    return typeof value === 'number' && Number.isSafeInteger(value)
+  if (parameter.type === 'DECIMAL')
+    return (
+      typeof value === 'string' && /^-?(?:0|[1-9]\d*)(?:\.\d+)?$/.test(value)
+    )
   if (parameter.type === 'BOOLEAN') return typeof value === 'boolean'
-  if (parameter.type === 'DATE') return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && validRptDate(value)
-  if (parameter.type === 'DATE_RANGE') return Array.isArray(value) && value.length === 2 && value.every((item) => typeof item === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item) && validRptDate(item)) && value[0]! <= value[1]!
-  if (parameter.type === 'ENUM') return typeof value === 'string' && parameter.enumValues?.includes(value) === true
+  if (parameter.type === 'DATE')
+    return (
+      typeof value === 'string' &&
+      /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+      validRptDate(value)
+    )
+  if (parameter.type === 'DATE_RANGE')
+    return (
+      Array.isArray(value) &&
+      value.length === 2 &&
+      value.every(
+        (item) =>
+          typeof item === 'string' &&
+          /^\d{4}-\d{2}-\d{2}$/.test(item) &&
+          validRptDate(item),
+      ) &&
+      value[0]! <= value[1]!
+    )
+  if (parameter.type === 'ENUM')
+    return (
+      typeof value === 'string' &&
+      parameter.enumValues?.includes(value) === true
+    )
   return typeof value === 'string' && /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(value)
 }
 /** Technical SQL validity is a separate RPT fact, never an Approval status. */
@@ -1863,12 +2317,18 @@ export function prepareRptDefinitionSubmit(
         (parameter.type === 'ENUM' &&
           (!parameter.enumValues ||
             parameter.enumValues.length === 0 ||
-            parameter.enumValues.some((value) => !hasText(value) || value.length > 200) ||
-            new Set(parameter.enumValues).size !== parameter.enumValues.length)) ||
+            parameter.enumValues.some(
+              (value) => !hasText(value) || value.length > 200,
+            ) ||
+            new Set(parameter.enumValues).size !==
+              parameter.enumValues.length)) ||
         (parameter.type !== 'ENUM' && parameter.enumValues !== undefined) ||
-        (parameter.type === 'REFERENCE' && parameter.referenceType === undefined) ||
-        (parameter.type !== 'REFERENCE' && parameter.referenceType !== undefined) ||
-        (parameter.defaultValue !== undefined && !validRptParameterValue(parameter, parameter.defaultValue)),
+        (parameter.type === 'REFERENCE' &&
+          parameter.referenceType === undefined) ||
+        (parameter.type !== 'REFERENCE' &&
+          parameter.referenceType !== undefined) ||
+        (parameter.defaultValue !== undefined &&
+          !validRptParameterValue(parameter, parameter.defaultValue)),
     ) ||
     columns.length === 0 ||
     columns.some(
@@ -1881,11 +2341,18 @@ export function prepareRptDefinitionSubmit(
         !Number.isInteger(column.width) ||
         column.width < 60 ||
         column.width > 1000 ||
-        !['TEXT', 'INTEGER', 'DECIMAL', 'BOOLEAN', 'DATE', 'DATETIME', 'ID'].includes(
-          column.type,
-        ) ||
+        ![
+          'TEXT',
+          'INTEGER',
+          'DECIMAL',
+          'BOOLEAN',
+          'DATE',
+          'DATETIME',
+          'ID',
+        ].includes(column.type) ||
         (column.format !== undefined && column.format.length > 100) ||
-        (column.drilldownEntity !== undefined && column.drilldownEntity !== 'VOU') ||
+        (column.drilldownEntity !== undefined &&
+          column.drilldownEntity !== 'VOU') ||
         aliases.has(column.alias) ||
         orders.has(column.order) ||
         !aliases.add(column.alias) ||

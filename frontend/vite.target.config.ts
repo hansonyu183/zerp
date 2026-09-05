@@ -2,6 +2,7 @@ import { fileURLToPath, URL } from 'node:url'
 
 import vue from '@vitejs/plugin-vue'
 import { defineConfig, type Plugin } from 'vite'
+import vuetify from 'vite-plugin-vuetify'
 
 function releaseMarker(): Plugin {
   const releaseSha = process.env.CF_PAGES_COMMIT_SHA ?? process.env.GITHUB_SHA
@@ -24,7 +25,7 @@ function releaseMarker(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [releaseMarker(), vue()],
+  plugins: [releaseMarker(), vue(), vuetify({ autoImport: true })],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

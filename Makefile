@@ -75,6 +75,9 @@ target-check: target-generate-check target-wfl-parity
 	pnpm --filter @zerp/api typecheck
 	pnpm --filter @zerp/api-client typecheck
 	pnpm --filter @zerp/model typecheck
+	pnpm --filter @zerp/frontend typecheck
+	pnpm --filter @zerp/frontend lint
+	pnpm --filter @zerp/frontend format:check
 	pnpm --filter @zerp/frontend build:target
 
 target-test: target-check

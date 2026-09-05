@@ -306,7 +306,8 @@ CREATE TABLE dcl_customer_version_subunits (
     contact_name varchar(100),
     contact_phone varchar(32),
     business_address varchar(500),
-    customer_type_id varchar(26),
+    customer_type_id varchar(26) NOT NULL,
+    customer_type_snapshot jsonb NOT NULL CHECK (jsonb_typeof(customer_type_snapshot) = 'object'),
     settlement_method_id varchar(26),
     primary_sales_attribution_type varchar(32),
     primary_sales_attribution_object_id varchar(26),
@@ -501,6 +502,7 @@ CREATE TABLE dcl_fund_account_versions (
 CREATE TABLE dcl_operating_entity_versions (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     legal_name varchar(200) NOT NULL,
+    short_name varchar(100) NOT NULL,
     legal_identifier varchar(128),
     registered_address varchar(500) NOT NULL,
     contact_name varchar(100) NOT NULL,
@@ -1310,6 +1312,7 @@ CREATE TABLE vou_signoff_line_snapshots (
 CREATE TABLE vou_return_line_snapshots (
     approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
     line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    source_document_id varchar(26) NOT NULL REFERENCES vou_documents(id) ON DELETE RESTRICT,
     source_line_id varchar(128) NOT NULL,
     base_quantity_micros bigint NOT NULL,
     remark text,
@@ -1560,6 +1563,19 @@ CREATE TABLE vou_attachments (
     created_at timestamptz NOT NULL,
     PRIMARY KEY (approval_entry_id, file_id)
 );
+
+CREATE TABLE vou_attachment_download_tokens (
+    token_hash varchar(64) PRIMARY KEY CHECK (token_hash ~ '^[0-9a-f]{64}$'),
+    approval_entry_id varchar(26) NOT NULL,
+    file_id varchar(26) NOT NULL,
+    created_at timestamptz NOT NULL,
+    expires_at timestamptz NOT NULL,
+    FOREIGN KEY (approval_entry_id, file_id)
+        REFERENCES vou_attachments (approval_entry_id, file_id) ON DELETE CASCADE,
+    CHECK (expires_at > created_at)
+);
+CREATE INDEX vou_attachment_download_tokens_expires_idx
+    ON vou_attachment_download_tokens (expires_at);
 
 CREATE TABLE acc_journal_entries (
     id varchar(26) PRIMARY KEY,

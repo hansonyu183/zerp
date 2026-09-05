@@ -433,11 +433,13 @@ export class SessionService {
         .select('avatar_url')
         .where('user_id', '=', current.id)
         .executeTakeFirst()
-      if (current.display_name !== profile.displayName)
+      const displayNameChanged = current.display_name !== profile.displayName
+      const avatarChanged = (stored?.avatar_url ?? null) !== profile.avatarUrl
+      if (displayNameChanged || avatarChanged)
         await tx
           .updateTable('app_users')
           .set({
-            display_name: profile.displayName,
+            ...(displayNameChanged && { display_name: profile.displayName }),
             updated_at: new Date(),
             updated_by: current.id,
             revision: sql`revision + 1`,
@@ -469,8 +471,8 @@ export class SessionService {
           )
           .execute()
       if (
-        current.display_name !== profile.displayName ||
-        stored?.avatar_url !== profile.avatarUrl
+        displayNameChanged ||
+        avatarChanged
       )
         await this.audit(
           tx,
@@ -480,14 +482,14 @@ export class SessionService {
           current.id,
           requestId,
           {
-            displayNameChanged: current.display_name !== profile.displayName,
-            avatarChanged: stored?.avatar_url !== profile.avatarUrl,
+            displayNameChanged,
+            avatarChanged,
           },
         )
       const changed =
-        current.display_name === profile.displayName
-          ? current.revision
-          : BigInt(current.revision) + 1n
+        displayNameChanged || avatarChanged
+          ? BigInt(current.revision) + 1n
+          : current.revision
       return {
         id: current.id,
         username: current.username,

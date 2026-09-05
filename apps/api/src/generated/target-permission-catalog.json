@@ -450,16 +450,6 @@
     "order": null
   },
   {
-    "id": "01J8E472AA75C132A3F2093205",
-    "path": "/app/workbench/query",
-    "domain": "app",
-    "entity": "workbench",
-    "action": "query",
-    "title": "查询审批工作台",
-    "group": null,
-    "order": null
-  },
-  {
     "id": "01J129AB2FA45F51F0A410DDE9",
     "path": "/aux/asset-category/create",
     "domain": "aux",
@@ -1555,7 +1545,7 @@
     "domain": "dcl",
     "entity": "acc-mapping",
     "action": "query",
-    "title": "query acc-mapping",
+    "title": "记账映射",
     "group": "申报控制",
     "order": 39
   },
@@ -1685,7 +1675,7 @@
     "domain": "dcl",
     "entity": "customer",
     "action": "query",
-    "title": "query customer",
+    "title": "客户",
     "group": "申报控制",
     "order": 36
   },
@@ -1805,7 +1795,7 @@
     "domain": "dcl",
     "entity": "employee",
     "action": "query",
-    "title": "query employee",
+    "title": "员工",
     "group": "申报控制",
     "order": 34
   },
@@ -1915,7 +1905,7 @@
     "domain": "dcl",
     "entity": "fund-account",
     "action": "query",
-    "title": "query fund-account",
+    "title": "资金账户",
     "group": "申报控制",
     "order": 32
   },
@@ -2025,7 +2015,7 @@
     "domain": "dcl",
     "entity": "operating-entity",
     "action": "query",
-    "title": "query operating-entity",
+    "title": "经营主体",
     "group": "申报控制",
     "order": 30
   },
@@ -2135,7 +2125,7 @@
     "domain": "dcl",
     "entity": "other-unit",
     "action": "query",
-    "title": "query other-unit",
+    "title": "其他单位",
     "group": "申报控制",
     "order": 37
   },
@@ -2245,7 +2235,7 @@
     "domain": "dcl",
     "entity": "product",
     "action": "query",
-    "title": "query product",
+    "title": "产品",
     "group": "申报控制",
     "order": 33
   },
@@ -2355,7 +2345,7 @@
     "domain": "dcl",
     "entity": "rpt-definition",
     "action": "query",
-    "title": "query rpt-definition",
+    "title": "报表定义",
     "group": "申报控制",
     "order": 40
   },
@@ -2465,7 +2455,7 @@
     "domain": "dcl",
     "entity": "sales-partner",
     "action": "query",
-    "title": "query sales-partner",
+    "title": "销售合作方",
     "group": "申报控制",
     "order": 38
   },
@@ -2575,7 +2565,7 @@
     "domain": "dcl",
     "entity": "supplier",
     "action": "query",
-    "title": "query supplier",
+    "title": "供应商",
     "group": "申报控制",
     "order": 35
   },
@@ -2685,7 +2675,7 @@
     "domain": "dcl",
     "entity": "vehicle",
     "action": "query",
-    "title": "query vehicle",
+    "title": "车辆",
     "group": "申报控制",
     "order": 31
   },
@@ -3020,6 +3010,16 @@
     "order": null
   },
   {
+    "id": "01JDF8E5AAB0D411B7F2AF0599",
+    "path": "/vou/asset-acquisition/attachment-read",
+    "domain": "vou",
+    "entity": "asset-acquisition",
+    "action": "attachment-read",
+    "title": "asset-acquisition attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01JA23ECAC11CDBCF0A2476118",
     "path": "/vou/asset-acquisition/attachment-stage",
     "domain": "vou",
@@ -3065,7 +3065,7 @@
     "domain": "vou",
     "entity": "asset-acquisition",
     "action": "query",
-    "title": "asset-acquisition query",
+    "title": "资产购置单",
     "group": null,
     "order": null
   },
@@ -3140,6 +3140,16 @@
     "order": null
   },
   {
+    "id": "01J2245845B9091C015B61E804",
+    "path": "/vou/asset-liquidation/attachment-read",
+    "domain": "vou",
+    "entity": "asset-liquidation",
+    "action": "attachment-read",
+    "title": "asset-liquidation attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J6D5529DB6AB143F2E42469C",
     "path": "/vou/asset-liquidation/attachment-stage",
     "domain": "vou",
@@ -3185,7 +3195,7 @@
     "domain": "vou",
     "entity": "asset-liquidation",
     "action": "query",
-    "title": "asset-liquidation query",
+    "title": "资产清理单",
     "group": null,
     "order": null
   },
@@ -3260,6 +3270,16 @@
     "order": null
   },
   {
+    "id": "01JCA08BE7583E41A004F9FF5E",
+    "path": "/vou/asset-sale/attachment-read",
+    "domain": "vou",
+    "entity": "asset-sale",
+    "action": "attachment-read",
+    "title": "asset-sale attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J0FBC9828816B79613353E44",
     "path": "/vou/asset-sale/attachment-stage",
     "domain": "vou",
@@ -3305,7 +3325,7 @@
     "domain": "vou",
     "entity": "asset-sale",
     "action": "query",
-    "title": "asset-sale query",
+    "title": "资产出售单",
     "group": null,
     "order": null
   },
@@ -3380,6 +3400,16 @@
     "order": null
   },
   {
+    "id": "01J25021DB92CE26EC6E7AE901",
+    "path": "/vou/bill-discount/attachment-read",
+    "domain": "vou",
+    "entity": "bill-discount",
+    "action": "attachment-read",
+    "title": "bill-discount attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01JB09647D1305FBEB4E2F5FF1",
     "path": "/vou/bill-discount/attachment-stage",
     "domain": "vou",
@@ -3425,7 +3455,7 @@
     "domain": "vou",
     "entity": "bill-discount",
     "action": "query",
-    "title": "bill-discount query",
+    "title": "票据贴现单",
     "group": null,
     "order": null
   },
@@ -3500,6 +3530,16 @@
     "order": null
   },
   {
+    "id": "01J1B7C8440D90F227EB85F0B6",
+    "path": "/vou/bill-issue/attachment-read",
+    "domain": "vou",
+    "entity": "bill-issue",
+    "action": "attachment-read",
+    "title": "bill-issue attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01JF511AB7AD29341C1B499A6D",
     "path": "/vou/bill-issue/attachment-stage",
     "domain": "vou",
@@ -3545,7 +3585,7 @@
     "domain": "vou",
     "entity": "bill-issue",
     "action": "query",
-    "title": "bill-issue query",
+    "title": "开票单",
     "group": null,
     "order": null
   },
@@ -3620,6 +3660,16 @@
     "order": null
   },
   {
+    "id": "01JCDA8BD7C1DFE54E3AA1E5CB",
+    "path": "/vou/bill-maturity/attachment-read",
+    "domain": "vou",
+    "entity": "bill-maturity",
+    "action": "attachment-read",
+    "title": "bill-maturity attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J1383204A84AF64E70992CDF",
     "path": "/vou/bill-maturity/attachment-stage",
     "domain": "vou",
@@ -3665,7 +3715,7 @@
     "domain": "vou",
     "entity": "bill-maturity",
     "action": "query",
-    "title": "bill-maturity query",
+    "title": "票据到期单",
     "group": null,
     "order": null
   },
@@ -3740,6 +3790,16 @@
     "order": null
   },
   {
+    "id": "01JAB3C5C955AFFBB3CF365627",
+    "path": "/vou/bill-payment/attachment-read",
+    "domain": "vou",
+    "entity": "bill-payment",
+    "action": "attachment-read",
+    "title": "bill-payment attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J093BB446066399BA35BAE48",
     "path": "/vou/bill-payment/attachment-stage",
     "domain": "vou",
@@ -3785,7 +3845,7 @@
     "domain": "vou",
     "entity": "bill-payment",
     "action": "query",
-    "title": "bill-payment query",
+    "title": "付票单",
     "group": null,
     "order": null
   },
@@ -3860,6 +3920,16 @@
     "order": null
   },
   {
+    "id": "01J26C7D3DA24C68F9BC2A8865",
+    "path": "/vou/bill-receipt/attachment-read",
+    "domain": "vou",
+    "entity": "bill-receipt",
+    "action": "attachment-read",
+    "title": "bill-receipt attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01JCA284BFB81802BA32285797",
     "path": "/vou/bill-receipt/attachment-stage",
     "domain": "vou",
@@ -3905,7 +3975,7 @@
     "domain": "vou",
     "entity": "bill-receipt",
     "action": "query",
-    "title": "bill-receipt query",
+    "title": "收票单",
     "group": null,
     "order": null
   },
@@ -3980,6 +4050,16 @@
     "order": null
   },
   {
+    "id": "01J895B51A5435527777709973",
+    "path": "/vou/employee-loan-writeoff/attachment-read",
+    "domain": "vou",
+    "entity": "employee-loan-writeoff",
+    "action": "attachment-read",
+    "title": "employee-loan-writeoff attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J81B103B9EA7EBAAB29C4C06",
     "path": "/vou/employee-loan-writeoff/attachment-stage",
     "domain": "vou",
@@ -4025,7 +4105,7 @@
     "domain": "vou",
     "entity": "employee-loan-writeoff",
     "action": "query",
-    "title": "employee-loan-writeoff query",
+    "title": "员工借款核销单",
     "group": null,
     "order": null
   },
@@ -4100,6 +4180,16 @@
     "order": null
   },
   {
+    "id": "01J16F3219A809719ACF60B9A4",
+    "path": "/vou/employee-loan/attachment-read",
+    "domain": "vou",
+    "entity": "employee-loan",
+    "action": "attachment-read",
+    "title": "employee-loan attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J0E756972DEC78BFA2A2F956",
     "path": "/vou/employee-loan/attachment-stage",
     "domain": "vou",
@@ -4145,7 +4235,7 @@
     "domain": "vou",
     "entity": "employee-loan",
     "action": "query",
-    "title": "employee-loan query",
+    "title": "员工借款单",
     "group": null,
     "order": null
   },
@@ -4220,6 +4310,16 @@
     "order": null
   },
   {
+    "id": "01JDB50D23C212DDA5DB54F44C",
+    "path": "/vou/employee-repayment/attachment-read",
+    "domain": "vou",
+    "entity": "employee-repayment",
+    "action": "attachment-read",
+    "title": "employee-repayment attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J2A20691F20F1378FAC28C3E",
     "path": "/vou/employee-repayment/attachment-stage",
     "domain": "vou",
@@ -4265,7 +4365,7 @@
     "domain": "vou",
     "entity": "employee-repayment",
     "action": "query",
-    "title": "employee-repayment query",
+    "title": "员工还款单",
     "group": null,
     "order": null
   },
@@ -4340,6 +4440,16 @@
     "order": null
   },
   {
+    "id": "01JA13AFD11F19329D9FE6AACA",
+    "path": "/vou/expense-payment/attachment-read",
+    "domain": "vou",
+    "entity": "expense-payment",
+    "action": "attachment-read",
+    "title": "expense-payment attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01JD35A58552EC7AD05CC5E993",
     "path": "/vou/expense-payment/attachment-stage",
     "domain": "vou",
@@ -4385,7 +4495,7 @@
     "domain": "vou",
     "entity": "expense-payment",
     "action": "query",
-    "title": "expense-payment query",
+    "title": "费用付款单",
     "group": null,
     "order": null
   },
@@ -4440,6 +4550,16 @@
     "order": null
   },
   {
+    "id": "01J453A24BA8210D7A176D28C8",
+    "path": "/vou/expense-reimbursement/attachment-read",
+    "domain": "vou",
+    "entity": "expense-reimbursement",
+    "action": "attachment-read",
+    "title": "expense-reimbursement attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01JB723A74199861C732AB6943",
     "path": "/vou/expense-reimbursement/attachment-stage",
     "domain": "vou",
@@ -4485,7 +4605,7 @@
     "domain": "vou",
     "entity": "expense-reimbursement",
     "action": "query",
-    "title": "expense-reimbursement query",
+    "title": "费用报销单",
     "group": null,
     "order": null
   },
@@ -4560,6 +4680,16 @@
     "order": null
   },
   {
+    "id": "01J1F356C7475BDA58407952EE",
+    "path": "/vou/intermediary-calculation/attachment-read",
+    "domain": "vou",
+    "entity": "intermediary-calculation",
+    "action": "attachment-read",
+    "title": "intermediary-calculation attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J2AFA5F876F84321AC6E924D",
     "path": "/vou/intermediary-calculation/attachment-stage",
     "domain": "vou",
@@ -4605,7 +4735,7 @@
     "domain": "vou",
     "entity": "intermediary-calculation",
     "action": "query",
-    "title": "intermediary-calculation query",
+    "title": "居间计算单",
     "group": null,
     "order": null
   },
@@ -4680,6 +4810,16 @@
     "order": null
   },
   {
+    "id": "01JF896D96FDC71A0F4CC57C9F",
+    "path": "/vou/inventory-count/attachment-read",
+    "domain": "vou",
+    "entity": "inventory-count",
+    "action": "attachment-read",
+    "title": "inventory-count attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J67F75CF6EF8DFD8C3EE7B21",
     "path": "/vou/inventory-count/attachment-stage",
     "domain": "vou",
@@ -4725,7 +4865,7 @@
     "domain": "vou",
     "entity": "inventory-count",
     "action": "query",
-    "title": "inventory-count query",
+    "title": "库存盘点单",
     "group": null,
     "order": null
   },
@@ -4800,6 +4940,16 @@
     "order": null
   },
   {
+    "id": "01JF3B8F07981C2FAEEF7A87FF",
+    "path": "/vou/order-production/attachment-read",
+    "domain": "vou",
+    "entity": "order-production",
+    "action": "attachment-read",
+    "title": "order-production attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J03C13964A8FFFCFE843BF34",
     "path": "/vou/order-production/attachment-stage",
     "domain": "vou",
@@ -4845,7 +4995,7 @@
     "domain": "vou",
     "entity": "order-production",
     "action": "query",
-    "title": "order-production query",
+    "title": "生产配货单",
     "group": null,
     "order": null
   },
@@ -4920,6 +5070,16 @@
     "order": null
   },
   {
+    "id": "01J3AA52382FAFFB9DE104C1C2",
+    "path": "/vou/other-income/attachment-read",
+    "domain": "vou",
+    "entity": "other-income",
+    "action": "attachment-read",
+    "title": "other-income attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J160737E96DBA4F28A9825E1",
     "path": "/vou/other-income/attachment-stage",
     "domain": "vou",
@@ -4965,7 +5125,7 @@
     "domain": "vou",
     "entity": "other-income",
     "action": "query",
-    "title": "other-income query",
+    "title": "其他收入单",
     "group": null,
     "order": null
   },
@@ -5040,6 +5200,16 @@
     "order": null
   },
   {
+    "id": "01J0105F2E3AD9E1DFD891AEAB",
+    "path": "/vou/other-payment/attachment-read",
+    "domain": "vou",
+    "entity": "other-payment",
+    "action": "attachment-read",
+    "title": "other-payment attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J160111B1C5B64CAA724E4D4",
     "path": "/vou/other-payment/attachment-stage",
     "domain": "vou",
@@ -5085,7 +5255,7 @@
     "domain": "vou",
     "entity": "other-payment",
     "action": "query",
-    "title": "other-payment query",
+    "title": "其他付款单",
     "group": null,
     "order": null
   },
@@ -5160,6 +5330,16 @@
     "order": null
   },
   {
+    "id": "01JB7340AAFFAA6FE4F076B85D",
+    "path": "/vou/other-receipt/attachment-read",
+    "domain": "vou",
+    "entity": "other-receipt",
+    "action": "attachment-read",
+    "title": "other-receipt attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J07728D9EFFFB55B6DAB7932",
     "path": "/vou/other-receipt/attachment-stage",
     "domain": "vou",
@@ -5205,7 +5385,7 @@
     "domain": "vou",
     "entity": "other-receipt",
     "action": "query",
-    "title": "other-receipt query",
+    "title": "其他收款单",
     "group": null,
     "order": null
   },
@@ -5280,6 +5460,16 @@
     "order": null
   },
   {
+    "id": "01J9633B26BE19939C62EECD23",
+    "path": "/vou/purchase-inbound/attachment-read",
+    "domain": "vou",
+    "entity": "purchase-inbound",
+    "action": "attachment-read",
+    "title": "purchase-inbound attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J6ACB3C720DEC2008519C874",
     "path": "/vou/purchase-inbound/attachment-stage",
     "domain": "vou",
@@ -5325,7 +5515,7 @@
     "domain": "vou",
     "entity": "purchase-inbound",
     "action": "query",
-    "title": "purchase-inbound query",
+    "title": "采购入库单",
     "group": null,
     "order": null
   },
@@ -5400,6 +5590,16 @@
     "order": null
   },
   {
+    "id": "01J792AC7869EF149C6F788E95",
+    "path": "/vou/purchase-inquiry/attachment-read",
+    "domain": "vou",
+    "entity": "purchase-inquiry",
+    "action": "attachment-read",
+    "title": "purchase-inquiry attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01JB84C33A3B73F3C8938388D2",
     "path": "/vou/purchase-inquiry/attachment-stage",
     "domain": "vou",
@@ -5445,7 +5645,7 @@
     "domain": "vou",
     "entity": "purchase-inquiry",
     "action": "query",
-    "title": "purchase-inquiry query",
+    "title": "采购询价单",
     "group": null,
     "order": null
   },
@@ -5520,6 +5720,16 @@
     "order": null
   },
   {
+    "id": "01JAE5CF8F1B8C1B2E374BDD6F",
+    "path": "/vou/purchase-order/attachment-read",
+    "domain": "vou",
+    "entity": "purchase-order",
+    "action": "attachment-read",
+    "title": "purchase-order attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J0B2CA6792F4959BBA8BFF67",
     "path": "/vou/purchase-order/attachment-stage",
     "domain": "vou",
@@ -5565,7 +5775,7 @@
     "domain": "vou",
     "entity": "purchase-order",
     "action": "query",
-    "title": "purchase-order query",
+    "title": "采购订单",
     "group": null,
     "order": null
   },
@@ -5640,6 +5850,16 @@
     "order": null
   },
   {
+    "id": "01JFB68D737267EA98C9770FE8",
+    "path": "/vou/purchase-payment/attachment-read",
+    "domain": "vou",
+    "entity": "purchase-payment",
+    "action": "attachment-read",
+    "title": "purchase-payment attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01JB195A94FE20A7B6F38B2F6B",
     "path": "/vou/purchase-payment/attachment-stage",
     "domain": "vou",
@@ -5685,7 +5905,7 @@
     "domain": "vou",
     "entity": "purchase-payment",
     "action": "query",
-    "title": "purchase-payment query",
+    "title": "采购付款单",
     "group": null,
     "order": null
   },
@@ -5760,6 +5980,16 @@
     "order": null
   },
   {
+    "id": "01J80AA43EC5A412C68756594E",
+    "path": "/vou/purchase-refund/attachment-read",
+    "domain": "vou",
+    "entity": "purchase-refund",
+    "action": "attachment-read",
+    "title": "purchase-refund attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01JCD1FA1CEB38AE375F733FD8",
     "path": "/vou/purchase-refund/attachment-stage",
     "domain": "vou",
@@ -5805,7 +6035,7 @@
     "domain": "vou",
     "entity": "purchase-refund",
     "action": "query",
-    "title": "purchase-refund query",
+    "title": "采购退款单",
     "group": null,
     "order": null
   },
@@ -5880,6 +6110,16 @@
     "order": null
   },
   {
+    "id": "01J868B1C6085B4D943DBB0CF8",
+    "path": "/vou/purchase-return/attachment-read",
+    "domain": "vou",
+    "entity": "purchase-return",
+    "action": "attachment-read",
+    "title": "purchase-return attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J875049AD69E6CBCC146D191",
     "path": "/vou/purchase-return/attachment-stage",
     "domain": "vou",
@@ -5925,7 +6165,7 @@
     "domain": "vou",
     "entity": "purchase-return",
     "action": "query",
-    "title": "purchase-return query",
+    "title": "采购退货单",
     "group": null,
     "order": null
   },
@@ -6010,6 +6250,16 @@
     "order": null
   },
   {
+    "id": "01J3CF08EAD8A164990A095093",
+    "path": "/vou/sale-delivery/attachment-read",
+    "domain": "vou",
+    "entity": "sale-delivery",
+    "action": "attachment-read",
+    "title": "sale-delivery attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J49D78A77915EBE4A5096E6D",
     "path": "/vou/sale-delivery/attachment-stage",
     "domain": "vou",
@@ -6055,7 +6305,7 @@
     "domain": "vou",
     "entity": "sale-delivery",
     "action": "query",
-    "title": "sale-delivery query",
+    "title": "销售送货单",
     "group": null,
     "order": null
   },
@@ -6120,6 +6370,16 @@
     "order": null
   },
   {
+    "id": "01J8E107ABFAE3DB53A9BF1697",
+    "path": "/vou/sale-order/attachment-read",
+    "domain": "vou",
+    "entity": "sale-order",
+    "action": "attachment-read",
+    "title": "sale-order attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J3DD44F9E48566C0F2AB3C59",
     "path": "/vou/sale-order/attachment-stage",
     "domain": "vou",
@@ -6165,7 +6425,7 @@
     "domain": "vou",
     "entity": "sale-order",
     "action": "query",
-    "title": "sale-order query",
+    "title": "销售订单",
     "group": null,
     "order": null
   },
@@ -6240,6 +6500,16 @@
     "order": null
   },
   {
+    "id": "01J44BD647882A99E420AE9187",
+    "path": "/vou/sale-outbound/attachment-read",
+    "domain": "vou",
+    "entity": "sale-outbound",
+    "action": "attachment-read",
+    "title": "sale-outbound attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J8FCFEC5723E38772CC07BF7",
     "path": "/vou/sale-outbound/attachment-stage",
     "domain": "vou",
@@ -6285,7 +6555,7 @@
     "domain": "vou",
     "entity": "sale-outbound",
     "action": "query",
-    "title": "sale-outbound query",
+    "title": "销售出库单",
     "group": null,
     "order": null
   },
@@ -6340,6 +6610,16 @@
     "order": null
   },
   {
+    "id": "01J6CC10A07714D06C7788FB73",
+    "path": "/vou/sale-pricing/attachment-read",
+    "domain": "vou",
+    "entity": "sale-pricing",
+    "action": "attachment-read",
+    "title": "sale-pricing attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01JABFC0E370AF80E61E970891",
     "path": "/vou/sale-pricing/attachment-stage",
     "domain": "vou",
@@ -6385,7 +6665,7 @@
     "domain": "vou",
     "entity": "sale-pricing",
     "action": "query",
-    "title": "sale-pricing query",
+    "title": "销售定价单",
     "group": null,
     "order": null
   },
@@ -6460,6 +6740,16 @@
     "order": null
   },
   {
+    "id": "01J2D7DA4A58997BC10E5403DE",
+    "path": "/vou/sale-return/attachment-read",
+    "domain": "vou",
+    "entity": "sale-return",
+    "action": "attachment-read",
+    "title": "sale-return attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J0958F000B3FCDE5DC635216",
     "path": "/vou/sale-return/attachment-stage",
     "domain": "vou",
@@ -6505,7 +6795,7 @@
     "domain": "vou",
     "entity": "sale-return",
     "action": "query",
-    "title": "sale-return query",
+    "title": "销售退货单",
     "group": null,
     "order": null
   },
@@ -6580,6 +6870,16 @@
     "order": null
   },
   {
+    "id": "01J99EAD78FA61456D4EDAD9FB",
+    "path": "/vou/sale-signoff/attachment-read",
+    "domain": "vou",
+    "entity": "sale-signoff",
+    "action": "attachment-read",
+    "title": "sale-signoff attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01JAA390BEB3999C1A4E0197B7",
     "path": "/vou/sale-signoff/attachment-stage",
     "domain": "vou",
@@ -6625,7 +6925,7 @@
     "domain": "vou",
     "entity": "sale-signoff",
     "action": "query",
-    "title": "sale-signoff query",
+    "title": "销售签收单",
     "group": null,
     "order": null
   },
@@ -6680,6 +6980,16 @@
     "order": null
   },
   {
+    "id": "01JD0BD6A7402CCB66C73A7F97",
+    "path": "/vou/sales-receipt/attachment-read",
+    "domain": "vou",
+    "entity": "sales-receipt",
+    "action": "attachment-read",
+    "title": "sales-receipt attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01JB111AB7AE48D3F7EF798259",
     "path": "/vou/sales-receipt/attachment-stage",
     "domain": "vou",
@@ -6725,7 +7035,7 @@
     "domain": "vou",
     "entity": "sales-receipt",
     "action": "query",
-    "title": "sales-receipt query",
+    "title": "销售收款单",
     "group": null,
     "order": null
   },
@@ -6800,6 +7110,16 @@
     "order": null
   },
   {
+    "id": "01J3B5AD59B1793E1FDFE78EC3",
+    "path": "/vou/sales-refund/attachment-read",
+    "domain": "vou",
+    "entity": "sales-refund",
+    "action": "attachment-read",
+    "title": "sales-refund attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J98E9C7B90E05BDA2C18EDE2",
     "path": "/vou/sales-refund/attachment-stage",
     "domain": "vou",
@@ -6845,7 +7165,7 @@
     "domain": "vou",
     "entity": "sales-refund",
     "action": "query",
-    "title": "sales-refund query",
+    "title": "销售退款单",
     "group": null,
     "order": null
   },
@@ -6920,6 +7240,16 @@
     "order": null
   },
   {
+    "id": "01JB5274C9BF1404086A0B95D1",
+    "path": "/vou/self-production/attachment-read",
+    "domain": "vou",
+    "entity": "self-production",
+    "action": "attachment-read",
+    "title": "self-production attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01J44E61C28CD271E2D394D872",
     "path": "/vou/self-production/attachment-stage",
     "domain": "vou",
@@ -6965,7 +7295,7 @@
     "domain": "vou",
     "entity": "self-production",
     "action": "query",
-    "title": "self-production query",
+    "title": "生产自制品单",
     "group": null,
     "order": null
   },
@@ -7040,6 +7370,16 @@
     "order": null
   },
   {
+    "id": "01J92F9F9C4D3464B8B153F2D4",
+    "path": "/vou/service-acceptance/attachment-read",
+    "domain": "vou",
+    "entity": "service-acceptance",
+    "action": "attachment-read",
+    "title": "service-acceptance attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01JF891FA8FDF397D92A9126DF",
     "path": "/vou/service-acceptance/attachment-stage",
     "domain": "vou",
@@ -7085,7 +7425,7 @@
     "domain": "vou",
     "entity": "service-acceptance",
     "action": "query",
-    "title": "service-acceptance query",
+    "title": "履约验收单",
     "group": null,
     "order": null
   },
@@ -7160,6 +7500,16 @@
     "order": null
   },
   {
+    "id": "01J46598DCFFBDBE74B4BA11D3",
+    "path": "/vou/service-contract/attachment-read",
+    "domain": "vou",
+    "entity": "service-contract",
+    "action": "attachment-read",
+    "title": "service-contract attachment-read",
+    "group": null,
+    "order": null
+  },
+  {
     "id": "01JFEF54316CB6E5A1635D3D8F",
     "path": "/vou/service-contract/attachment-stage",
     "domain": "vou",
@@ -7205,7 +7555,7 @@
     "domain": "vou",
     "entity": "service-contract",
     "action": "query",
-    "title": "service-contract query",
+    "title": "服务合同",
     "group": null,
     "order": null
   },
@@ -7256,6 +7606,16 @@
     "entity": "service-contract",
     "action": "unreject",
     "title": "service-contract unreject",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J34AF35315CFACB1E963E687",
+    "path": "/vou/source-line/query",
+    "domain": "vou",
+    "entity": "source-line",
+    "action": "query",
+    "title": "VOU source-line query",
     "group": null,
     "order": null
   },

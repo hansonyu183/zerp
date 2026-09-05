@@ -535,7 +535,8 @@ export interface DclCustomerVersionSubunits {
   contact_phone: string | null;
   credit_limits: Generated<Json>;
   customer_approval_entry_id: string;
-  customer_type_id: string | null;
+  customer_type_id: string;
+  customer_type_snapshot: Json;
   default_order_remark: string | null;
   enabled: boolean;
   internal_reminder: string | null;
@@ -605,6 +606,7 @@ export interface DclOperatingEntityVersions {
   legal_name: string;
   registered_address: string;
   remark: string | null;
+  short_name: string;
 }
 
 export interface DclOtherUnitVersionOperatingEntities {
@@ -876,6 +878,14 @@ export interface VouAssetSaleDetails {
   parent_entity: string | null;
   remark: string | null;
   total_amount_minor: Int8;
+}
+
+export interface VouAttachmentDownloadTokens {
+  approval_entry_id: string;
+  created_at: Timestamp;
+  expires_at: Timestamp;
+  file_id: string;
+  token_hash: string;
 }
 
 export interface VouAttachments {
@@ -1395,6 +1405,7 @@ export interface VouReturnLineSnapshots {
   base_quantity_micros: Int8;
   line_no: number;
   remark: string | null;
+  source_document_id: string;
   source_line_id: string;
 }
 
@@ -1695,6 +1706,7 @@ export interface DB {
   vou_asset_disposal_line_snapshots: VouAssetDisposalLineSnapshots;
   vou_asset_liquidation_details: VouAssetLiquidationDetails;
   vou_asset_sale_details: VouAssetSaleDetails;
+  vou_attachment_download_tokens: VouAttachmentDownloadTokens;
   vou_attachment_staging: VouAttachmentStaging;
   vou_attachments: VouAttachments;
   vou_bill_cash_line_snapshots: VouBillCashLineSnapshots;

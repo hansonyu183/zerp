@@ -79,6 +79,24 @@ export interface AuxReferenceCandidate {
   behaviorProfile?:
     'RAW_MATERIAL' | 'STANDARD_FINISHED' | 'CUSTOM_FINISHED' | 'PACKAGING'
   quantityScale?: number
+  symbol?: string
+  termCode?:
+    | 'PREPAID'
+    | 'CASH_ON_DELIVERY'
+    | 'ARRIVAL_3'
+    | 'ARRIVAL_5'
+    | 'ARRIVAL_7'
+    | 'ARRIVAL_15'
+    | 'ARRIVAL_30'
+    | 'MONTHLY_CURRENT'
+    | 'MONTHLY_30'
+    | 'MONTHLY_60'
+    | 'MONTHLY_90'
+  ruleType?: 'RELATIVE_DAYS' | 'MONTH_END'
+  monthOffset?: number
+  dayOfMonth?: number
+  dayOffset?: number
+  defaultSalesSurcharge?: string
 }
 
 export class AuxApplicationError extends Error {
@@ -217,6 +235,41 @@ function money(value: unknown): string {
   return value.trim()
 }
 
+function fixedMoney(value: unknown): string {
+  const normalized = money(value)
+  const [whole, fraction = ''] = normalized.split('.')
+  return `${whole}.${fraction.padEnd(2, '0')}`
+}
+
+const settlementTermCodes = [
+  'PREPAID',
+  'CASH_ON_DELIVERY',
+  'ARRIVAL_3',
+  'ARRIVAL_5',
+  'ARRIVAL_7',
+  'ARRIVAL_15',
+  'ARRIVAL_30',
+  'MONTHLY_CURRENT',
+  'MONTHLY_30',
+  'MONTHLY_60',
+  'MONTHLY_90',
+] as const
+
+function settlementTermCode(
+  value: unknown,
+): (typeof settlementTermCodes)[number] {
+  return (
+    settlementTermCodes.find((candidate) => candidate === value) ??
+    applicationError('validation_failed')
+  )
+}
+
+function settlementRuleType(value: unknown): 'RELATIVE_DAYS' | 'MONTH_END' {
+  if (value !== 'RELATIVE_DAYS' && value !== 'MONTH_END')
+    applicationError('validation_failed')
+  return value
+}
+
 function percentage(value: unknown): string {
   const normalized = money(value)
   if (Number(normalized) > 99.99) applicationError('validation_failed')
@@ -348,7 +401,7 @@ function normaliseData(entity: AuxEntity, source: unknown): AuxData {
       only(data, ['name', 'defaultSalesSurcharge', 'description'])
       return {
         name,
-        defaultSalesSurcharge: money(data.defaultSalesSurcharge ?? '0.00'),
+        defaultSalesSurcharge: money(data.defaultSalesSurcharge),
         description: optionalString(data.description),
       }
     case 'income-expense-type': {
@@ -366,6 +419,21 @@ function normaliseData(entity: AuxEntity, source: unknown): AuxData {
       }
     }
   }
+}
+
+/**
+ * Dictionary items persist their resolved dictionary identity beside the
+ * client-supplied fields.  Reference reads still validate the invariant
+ * fields, without treating those server-derived fields as client input.
+ */
+function normaliseReferenceData(entity: AuxEntity, source: unknown): AuxData {
+  if (entity !== 'dictionary-item') return normaliseData(entity, source)
+  const data = asRecord(source)
+  return normaliseData(entity, {
+    name: data.name,
+    dictionaryTypeId: data.dictionaryTypeId,
+    sortOrder: data.sortOrder,
+  })
 }
 
 function parseRow(row: StoredAuxObject): AuxObjectView {
@@ -703,23 +771,61 @@ export class AuxService {
       name: string
       behavior_profile: AuxReferenceCandidate['behaviorProfile'] | null
       quantity_scale: number | null
-    }>`SELECT id, code, COALESCE(data->>'name', '') AS name,
+      symbol: string | null
+      data: unknown
+    }>`SELECT id, code, data, COALESCE(data->>'name', '') AS name,
       CASE WHEN entity = 'product-type' THEN data->>'behaviorProfile' END AS behavior_profile,
-      CASE WHEN entity = 'measurement-unit' THEN NULLIF(data->>'quantityScale', '')::integer END AS quantity_scale
+      CASE WHEN entity = 'measurement-unit' THEN NULLIF(data->>'quantityScale', '')::integer END AS quantity_scale,
+      CASE WHEN entity = 'measurement-unit' THEN data->>'symbol' END AS symbol
       FROM aux_objects WHERE ${sql.join(where, sql` AND `)} ORDER BY COALESCE((data->>'sortOrder')::integer, 2147483647), code, id LIMIT 20`.execute(
       this.db,
     )
-    return result.rows.map((row) => ({
-      objectId: row.id,
-      code: row.code,
-      name: row.name,
-      ...(row.behavior_profile === null
-        ? {}
-        : { behaviorProfile: row.behavior_profile }),
-      ...(row.quantity_scale === null
-        ? {}
-        : { quantityScale: row.quantity_scale }),
-    }))
+    return result.rows.map((row) => {
+      const data = normaliseReferenceData(entity, row.data)
+      const common = {
+        objectId: row.id,
+        code: row.code,
+        name: row.name,
+      }
+      if (entity === 'product-type') {
+        const behaviorProfile = data.behaviorProfile
+        if (
+          behaviorProfile !== 'RAW_MATERIAL' &&
+          behaviorProfile !== 'STANDARD_FINISHED' &&
+          behaviorProfile !== 'CUSTOM_FINISHED' &&
+          behaviorProfile !== 'PACKAGING'
+        )
+          applicationError('validation_failed')
+        return { ...common, behaviorProfile }
+      }
+      if (entity === 'measurement-unit') {
+        if (row.quantity_scale === null || row.symbol === null)
+          applicationError('validation_failed')
+        const symbol = optionalString(row.symbol, 64)
+        if (!symbol) applicationError('validation_failed')
+        return {
+          ...common,
+          quantityScale: row.quantity_scale,
+          symbol,
+        }
+      }
+      if (entity === 'settlement-method')
+        return {
+          ...common,
+          termCode: settlementTermCode(data.termCode),
+          ruleType: settlementRuleType(data.ruleType),
+          monthOffset: integer(data.monthOffset, 0, 3),
+          dayOfMonth: integer(data.dayOfMonth, 0, 31),
+          dayOffset: integer(data.dayOffset, 0, 30),
+          defaultSalesSurcharge: fixedMoney(data.defaultSalesSurcharge),
+        }
+      if (entity === 'payment-method')
+        return {
+          ...common,
+          defaultSalesSurcharge: fixedMoney(data.defaultSalesSurcharge),
+        }
+      return common
+    })
   }
 
   private async setEnabled(

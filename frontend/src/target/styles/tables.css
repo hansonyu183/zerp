@@ -1,0 +1,30 @@
+/*
+ * Vuetify already scrolls `.v-table__wrapper`. On a narrow viewport, however,
+ * its default table width lets business columns collapse into one-character
+ * fragments. Keep data cells intact and make the existing horizontal scroll
+ * discoverable instead of replacing tables with a second mobile presentation.
+ */
+@media (max-width: 900px) {
+  .v-table > .v-table__wrapper {
+    scrollbar-color: rgb(var(--v-theme-primary)) transparent;
+    scrollbar-width: thin;
+  }
+
+  .v-table > .v-table__wrapper > table {
+    min-width: 100%;
+    width: max-content;
+  }
+
+  .v-table > .v-table__wrapper > table :is(th, td) {
+    white-space: nowrap;
+  }
+
+  .v-table::after {
+    color: rgb(var(--v-theme-on-surface-variant));
+    content: '← 左右滑动查看全部列 →';
+    display: block;
+    font-size: 0.75rem;
+    padding: 4px 16px 8px;
+    text-align: center;
+  }
+}

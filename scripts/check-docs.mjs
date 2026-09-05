@@ -819,9 +819,9 @@ function useCaseCoverage(pages, documentedKeys, orphanKeys) {
     '',
     '<!-- 此文件由 `pnpm docs:coverage` 生成，请勿手工编辑。 -->',
     '',
-    '数据来源：[`frontend/index.html`](../../frontend/index.html)，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。',
+    '数据来源：[`frontend/src/target/router/index.ts`](../../frontend/src/target/router/index.ts) 的带标题路由，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。',
     '',
-    '统计口径：页面入口只统计 target HTML 入口；运行时业务面板和具体业务对象实例不单独计数。',
+    '统计口径：每个带 `meta.title` 的正式 target 路由必须声明 `meta.useCaseKey`；layout 与重定向不单独计数。',
     '',
     `- 页面入口：${pages.length}`,
     `- 已覆盖入口：${coveredPages.length}`,
@@ -975,14 +975,18 @@ for (const file of domainFiles) {
 }
 
 const useCaseRoot = path.join(root, 'docs', 'use-cases')
+export function isUseCasePageFile(file) {
+  return path.basename(file) !== 'README.md'
+}
+
 const documentedUseCases = new Set(
   fs
     .readdirSync(useCaseRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .flatMap((entry) =>
-      markdownFiles(path.join(useCaseRoot, entry.name)).map(
-        (file) => `${entry.name}/${path.basename(file, '.md')}`,
-      ),
+      markdownFiles(path.join(useCaseRoot, entry.name))
+        .filter(isUseCasePageFile)
+        .map((file) => `${entry.name}/${path.basename(file, '.md')}`),
     ),
 )
 
@@ -997,44 +1001,190 @@ failures.push(
 export function parseTargetEntryPage(source) {
   const failures = []
   const title = source.match(/<title>([^<]+)<\/title>/u)?.[1]?.trim()
-  const useCaseKey = source.match(
-    /<body\b[^>]*\bdata-use-case="([a-z][a-z0-9-]*\/[a-z][a-z0-9-]*)"/u,
-  )?.[1]
   const entryModule = source.match(
     /<script\b[^>]*\btype="module"[^>]*\bsrc="([^"]+)"[^>]*><\/script>/u,
   )?.[1]
 
   if (!title) failures.push('frontend/index.html 缺少 title')
-  if (!useCaseKey) {
-    failures.push('frontend/index.html 缺少 data-use-case 页面用例映射')
-  }
   if (entryModule !== '/src/target/main.ts') {
     failures.push(
       'frontend/index.html 必须以 /src/target/main.ts 作为 module 入口',
     )
   }
 
-  return {
-    failures,
-    pages:
-      failures.length === 0
-        ? [
-            {
-              title,
-              route: '/',
-              source: '[应用入口](../../frontend/index.html)',
-              useCaseKey,
-            },
-          ]
-        : [],
+  return { failures, pages: [] }
+}
+
+function matchingObjectEnd(source, start) {
+  let depth = 0
+  let quote = null
+  for (let index = start; index < source.length; index += 1) {
+    const character = source[index]
+    if (quote) {
+      if (character === '\\') index += 1
+      else if (character === quote) quote = null
+      continue
+    }
+    if (character === "'" || character === '"' || character === '`') {
+      quote = character
+      continue
+    }
+    if (character === '{') depth += 1
+    if (character === '}') {
+      depth -= 1
+      if (depth === 0) return index
+    }
   }
+  return -1
+}
+
+function directPropertyRange(source, start, end, property) {
+  let depth = 0
+  let quote = null
+  for (let index = start + 1; index < end; index += 1) {
+    const character = source[index]
+    if (quote) {
+      if (character === '\\') index += 1
+      else if (character === quote) quote = null
+      continue
+    }
+    if (character === "'" || character === '"' || character === '`') {
+      quote = character
+      continue
+    }
+    if (character === '{' || character === '[' || character === '(') {
+      depth += 1
+      continue
+    }
+    if (character === '}' || character === ']' || character === ')') {
+      depth -= 1
+      continue
+    }
+    if (
+      depth === 0 &&
+      source.startsWith(property, index) &&
+      !/[A-Za-z0-9_$]/u.test(source[index - 1] ?? '') &&
+      !/[A-Za-z0-9_$]/u.test(source[index + property.length] ?? '')
+    ) {
+      let cursor = index + property.length
+      while (/\s/u.test(source[cursor] ?? '')) cursor += 1
+      if (source[cursor] === ':') return [cursor + 1, end]
+    }
+  }
+  return null
+}
+
+function directStringProperty(source, start, end, property) {
+  const range = directPropertyRange(source, start, end, property)
+  if (!range) return null
+  const [valueStart, valueEnd] = range
+  const value = source.slice(valueStart, valueEnd).match(/^\s*'([^']*)'/u)
+  return value?.[1] ?? null
+}
+
+function directObjectProperty(source, start, end, property) {
+  const range = directPropertyRange(source, start, end, property)
+  if (!range) return null
+  const [valueStart, valueEnd] = range
+  const objectStart = source.indexOf('{', valueStart)
+  if (objectStart < 0 || objectStart >= valueEnd) return null
+  const objectEnd = matchingObjectEnd(source, objectStart)
+  return objectEnd > objectStart && objectEnd <= valueEnd
+    ? [objectStart, objectEnd]
+    : null
+}
+
+function hasDirectProperty(source, start, end, property) {
+  return directPropertyRange(source, start, end, property) !== null
+}
+
+export function parseTargetRouterPages(source) {
+  const failures = []
+  const pages = []
+  const seenRoutes = new Set()
+  const seenUseCaseKeys = new Set()
+
+  for (let start = 0; start < source.length; start += 1) {
+    if (source[start] !== '{') continue
+    const end = matchingObjectEnd(source, start)
+    if (end < 0) {
+      failures.push('frontend/src/target/router/index.ts 存在未闭合对象')
+      break
+    }
+    const routePath = directStringProperty(source, start, end, 'path')
+    const meta = directObjectProperty(source, start, end, 'meta')
+    if (!routePath || !meta) continue
+    const [metaStart, metaEnd] = meta
+    const title = directStringProperty(source, metaStart, metaEnd, 'title')
+    if (!title) continue
+    const route = routePath.startsWith('/') ? routePath : `/${routePath}`
+    const useCaseKey = directStringProperty(
+      source,
+      metaStart,
+      metaEnd,
+      'useCaseKey',
+    )
+    if (!useCaseKey) {
+      failures.push(`${route} 缺少 meta.useCaseKey`)
+      continue
+    }
+    if (!/^[a-z][a-z0-9-]*\/[a-z][a-z0-9-]*$/u.test(useCaseKey)) {
+      failures.push(`${route} 的 meta.useCaseKey 不合法：${useCaseKey}`)
+      continue
+    }
+    if (!hasDirectProperty(source, start, end, 'component')) {
+      failures.push(`${route} 的带标题路由缺少 component`)
+      continue
+    }
+    if (seenRoutes.has(route)) {
+      failures.push(`目标路由重复：${route}`)
+      continue
+    }
+    if (seenUseCaseKeys.has(useCaseKey)) {
+      failures.push(`目标路由 useCaseKey 重复：${useCaseKey}`)
+      continue
+    }
+    seenRoutes.add(route)
+    seenUseCaseKeys.add(useCaseKey)
+    pages.push({
+      title,
+      route,
+      source: '[目标路由](../../frontend/src/target/router/index.ts)',
+      useCaseKey,
+    })
+  }
+
+  if (pages.length === 0 && failures.length === 0)
+    failures.push('frontend/src/target/router/index.ts 未发现带标题页面路由')
+  return { failures, pages }
+}
+
+export function validateTargetRouteUseCases(pages, documentedUseCases) {
+  return pages
+    .filter(({ useCaseKey }) => !documentedUseCases.has(useCaseKey))
+    .map(({ route, useCaseKey }) => `${route} 缺少页面用例：${useCaseKey}`)
+}
+
+export function validateOrphanUseCases(pages, documentedUseCases) {
+  const expected = new Set(pages.map(({ useCaseKey }) => useCaseKey))
+  const orphan = [...documentedUseCases]
+    .filter((key) => !expected.has(key))
+    .sort()
+  return orphan.length > 0 ? [`页面用例孤儿文档：${orphan.join('、')}`] : []
 }
 
 const targetEntryPage = parseTargetEntryPage(
   fs.readFileSync(path.join(root, 'frontend', 'index.html'), 'utf8'),
 )
 failures.push(...targetEntryPage.failures)
-const expectedUseCasePages = targetEntryPage.pages
+const targetRouterPages = parseTargetRouterPages(
+  fs.readFileSync(
+    path.join(root, 'frontend', 'src', 'target', 'router', 'index.ts'),
+    'utf8',
+  ),
+)
+failures.push(...targetRouterPages.failures)
+const expectedUseCasePages = targetRouterPages.pages
 const expectedUseCaseKeys = expectedUseCasePages.map(
   ({ useCaseKey }) => useCaseKey,
 )
@@ -1045,11 +1195,16 @@ const orphanUseCases = [...documentedUseCases].filter(
 
 orphanUseCases.sort()
 if (!writeUseCaseCoverage && orphanUseCases.length > 0) {
-  failures.push(`页面用例孤儿文档：${orphanUseCases.join('、')}`)
+  failures.push(
+    ...validateOrphanUseCases(expectedUseCasePages, documentedUseCases),
+  )
 }
 const missingUseCaseKeys = [...expectedUseCaseKeySet]
   .filter((key) => !documentedUseCases.has(key))
   .sort()
+failures.push(
+  ...validateTargetRouteUseCases(expectedUseCasePages, documentedUseCases),
+)
 const useCaseMissingBaselineFile = path.join(
   useCaseRoot,
   'MISSING-BASELINE.json',

@@ -20,7 +20,11 @@ import {
 import type { IndependentRouteHandlers } from './independent-contract.ts'
 import type { TargetRouteEnvironment } from './contract.ts'
 import type { ManagementService, PageInput } from './management.ts'
-import { applicationFailure, clearSessionCookie } from './response.ts'
+import {
+  applicationFailure,
+  clearSessionCookie,
+  clearUnauthenticatedSessionCookie,
+} from './response.ts'
 import {
   AppServiceError,
   type Principal,
@@ -309,6 +313,7 @@ export function createIndependentHandlers(
         }
         return context.json(success(requestId, data), 200)
       } catch (error) {
+        clearUnauthenticatedSessionCookie(context, services.config, error)
         return context.json(independentFailure(requestId, error), 200)
       }
     },

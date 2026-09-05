@@ -1,15 +1,57 @@
 import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
 import type { Schema } from 'hono'
-import { vouEntities, userCreatableVouEntities, vouReferenceCandidateEntities } from '@zerp/model'
+import {
+  vouEntities,
+  vouEntityPresentation,
+  userCreatableVouEntities,
+  vouReferenceCandidateEntities,
+  vouSourceLineSourceEntities,
+  vouSourceLineTargetEntities,
+  type VouPayload,
+} from '@zerp/model'
 
 import type { TargetRouteEnvironment } from '../app/contract.ts'
 
 const entityParameter = z.object({ entity: z.enum(vouEntities) })
 const identity = z.object({ documentId: z.string().length(26) }).strict()
-const referenceQuery = z.object({
-  entity: z.enum(vouReferenceCandidateEntities),
-  keyword: z.string().trim().min(1).max(200).optional(),
-}).strict()
+const referenceCandidateEntity = z.enum(vouReferenceCandidateEntities)
+const referenceQuery = z
+  .object({
+    entity: referenceCandidateEntity,
+    keyword: z.string().trim().min(1).max(200).optional(),
+  })
+  .strict()
+const referenceCandidateBase = {
+  objectId: z.string(),
+  approvalEntryId: z.string().optional(),
+  code: z.string(),
+  name: z.string(),
+}
+const referenceCandidate = z.discriminatedUnion('entity', [
+  z
+    .object({
+      ...referenceCandidateBase,
+      entity: z.literal('customer-subunit'),
+      customerId: z.string().length(26),
+      approvalEntryId: z.string().length(26),
+    })
+    .strict(),
+  z
+    .object({
+      ...referenceCandidateBase,
+      entity: referenceCandidateEntity.exclude(['customer-subunit']),
+    })
+    .strict(),
+])
+const sourceLineQuery = z
+  .object({
+    targetEntity: z.enum(vouSourceLineTargetEntities),
+    page: z.number().int().positive(),
+    pageSize: z.literal(20),
+    keyword: z.string().trim().min(1).max(200).optional(),
+    sourceDocumentId: z.string().length(26).optional(),
+  })
+  .strict()
 const objectReference = z.object({ objectId: z.string().length(26) }).strict()
 // selectionOrigin is the one target-only fact: OpenAPI already owns the IDs,
 // while the target must retain whether they were selected now or inherited.
@@ -105,6 +147,9 @@ const sourceLine = z
     baseQuantity: quantity,
     remark: z.string().max(1000).optional(),
   })
+  .strict()
+const returnLine = sourceLine
+  .extend({ sourceDocumentId: z.string().length(26) })
   .strict()
 const signoffLine = z
   .object({
@@ -352,6 +397,7 @@ export const vouPayloadSchemaByEntity = {
   'sale-pricing': payload({ priceLines: z.array(priceLine).min(1).max(200) }),
   'sale-order': payload({
     customerSubunit: versionedReference,
+    operatingEntity: versionedReference,
     salesperson: versionedReference.optional(),
     warehouse: versionedReference,
     productLines: z.array(productLine).min(1).max(200),
@@ -377,7 +423,7 @@ export const vouPayloadSchemaByEntity = {
   'sale-return': payload({
     warehouse: versionedReference,
     returnReason: z.string().min(1).max(1000),
-    returnLines: z.array(sourceLine).min(1).max(200),
+    returnLines: z.array(returnLine).min(1).max(200),
   }),
   'purchase-inquiry': payload({
     supplier: versionedReference,
@@ -398,7 +444,7 @@ export const vouPayloadSchemaByEntity = {
     supplier: versionedReference,
     warehouse: versionedReference,
     returnReason: z.string().min(1).max(1000),
-    returnLines: z.array(sourceLine).min(1).max(200),
+    returnLines: z.array(returnLine).min(1).max(200),
   }),
   'order-production': payload({
     materialWarehouse: versionedReference,
@@ -493,7 +539,8 @@ export const vouPayloadSchemaByEntity = {
       .max(200),
   }),
   'asset-sale': payload({
-    customer: versionedReference,
+    counterparty: versionedReference,
+    counterpartyType: z.enum(['customer-subunit', 'other-unit']),
     assetSaleLines: z
       .array(
         z
@@ -594,7 +641,7 @@ const payloadUnion = z.union(
     z.ZodType,
     ...z.ZodType[],
   ],
-)
+) as z.ZodType<VouPayload>
 export const vouSubmitRequestSchema = z
   .object({
     documentId: z.string().length(26),
@@ -617,6 +664,12 @@ const review = z
 const reviewReason = review
   .extend({ reason: z.string().trim().min(1).max(1000) })
   .strict()
+const attachmentRead = identity
+  .extend({
+    submissionId: z.string().length(26),
+    fileId: z.string().length(26),
+  })
+  .strict()
 const stage = z
   .object({
     stagingId: z.string().length(26),
@@ -628,15 +681,189 @@ const stage = z
     contentBase64: z.string().min(1),
   })
   .strict()
-const envelope = z.object({
-  code: z.number().int(),
-  errorKey: z.string(),
-  message: z.string(),
-  data: z.unknown().nullable(),
-  requestId: z.string(),
-})
+const approvalStatus = z.enum(['PENDING', 'APPROVED', 'REJECTED'])
+const approvalAction = z.enum(['reject', 'approve', 'unreject', 'unapprove'])
+const vouView = z
+  .object({
+    entity: z.enum(vouEntities),
+    documentId: z.string().length(26),
+    documentNo: z.string().min(1),
+    stableRevision: z.string().regex(/^[1-9]\d*$/),
+    submissionId: z.string().length(26),
+    status: approvalStatus,
+    revision: z.string().regex(/^[1-9]\d*$/),
+    submittedBy: z.string().length(26),
+    submittedAt: z.string().datetime(),
+    approvedBy: z.string().length(26).nullable(),
+    approvedAt: z.string().datetime().nullable(),
+    rejectedBy: z.string().length(26).nullable(),
+    rejectedAt: z.string().datetime().nullable(),
+    rejectionReason: z.string().nullable(),
+    payload: payloadUnion,
+    availableApprovalActions: z.array(approvalAction),
+    canDelete: z.boolean(),
+  })
+  .strict()
+const auditEvent = z
+  .object({
+    id: z.string().length(26),
+    submissionId: z.string().length(26),
+    action: z.enum([
+      'SUBMITTED',
+      'APPROVED',
+      'REJECTED',
+      'UNREJECTED',
+      'UNAPPROVED',
+      'DELETED',
+    ]),
+    fromStatus: approvalStatus.nullable(),
+    toStatus: approvalStatus.nullable(),
+    fromRevision: z
+      .string()
+      .regex(/^[1-9]\d*$/)
+      .nullable(),
+    toRevision: z
+      .string()
+      .regex(/^[1-9]\d*$/)
+      .nullable(),
+    actorId: z.string().length(26),
+    reason: z.string().nullable(),
+    createdAt: z.string().datetime(),
+  })
+  .strict()
+const queryFilters = z
+  .object({
+    keyword: z.string().trim().min(1).max(200).optional(),
+    status: z.array(approvalStatus).min(1).max(3).optional(),
+    dateFrom: z.string().date().optional(),
+    dateTo: z.string().date().optional(),
+    counterpartyObjectId: z.string().length(26).optional(),
+  })
+  .strict()
+const querySort = z
+  .object({
+    field: z.enum([
+      'updatedAt',
+      'documentNo',
+      'businessDate',
+      'status',
+      'amount',
+    ]),
+    order: z.enum(['asc', 'desc']),
+  })
+  .strict()
+export const vouQueryRequestSchema = z
+  .object({
+    page: z.number().int().positive(),
+    pageSize: z.literal(20),
+    filters: queryFilters.optional(),
+    sort: z.array(querySort).min(1).max(1).optional(),
+  })
+  .strict()
+const vouPage = z
+  .object({
+    items: z.array(vouView),
+    total: z.number().int().nonnegative(),
+    page: z.number().int().positive(),
+    pageSize: z.literal(20),
+  })
+  .strict()
+const deleteResult = z
+  .object({
+    documentId: z.string().length(26),
+    submissionId: z.string().length(26),
+    deleted: z.literal(true),
+  })
+  .strict()
+const stageResult = z
+  .object({
+    stagingId: z.string().length(26),
+    fileId: z.string().length(26),
+    fileName: z.string().min(1).max(255),
+    mimeType: z.enum(['application/pdf', 'image/jpeg', 'image/png']),
+    size: z.number().int().positive().max(10_485_760),
+    digest: z.string().regex(/^[0-9a-f]{64}$/),
+    expiresAt: z.string().datetime(),
+  })
+  .strict()
+const attachmentContent = z
+  .object({
+    downloadUrl: z.string().url(),
+    expiresAt: z.string().datetime(),
+  })
+  .strict()
 
-function route(action: string, request: z.ZodType) {
+export const vouAttachmentDownloadRoute = createRoute({
+  method: 'get',
+  path: '/vou/attachment-download/{token}',
+  request: { params: z.object({ token: z.string().min(40).max(128) }) },
+  responses: {
+    200: {
+      description: 'One-time VOU attachment download',
+      content: {
+        'application/pdf': {
+          schema: z.string().openapi({ format: 'binary' }),
+        },
+        'image/jpeg': {
+          schema: z.string().openapi({ format: 'binary' }),
+        },
+        'image/png': {
+          schema: z.string().openapi({ format: 'binary' }),
+        },
+      },
+    },
+    404: { description: 'Expired or consumed download token' },
+  },
+})
+const failureEnvelope = z
+  .object({
+    code: z.number().int().min(1),
+    errorKey: z.string().min(1),
+    message: z.string(),
+    data: z.unknown().nullable(),
+    requestId: z.string(),
+  })
+  .strict()
+function envelope<Data extends z.ZodType>(data: Data) {
+  return z.union([
+    z
+      .object({
+        code: z.literal(0),
+        errorKey: z.literal(''),
+        message: z.literal('ok'),
+        data,
+        requestId: z.string(),
+      })
+      .strict(),
+    failureEnvelope,
+  ])
+}
+
+const sourceLineCandidate = z
+  .object({
+    sourceDocumentId: z.string().length(26),
+    sourceDocumentNo: z.string().min(1),
+    sourceEntity: z.enum(vouSourceLineSourceEntities),
+    rootDocumentId: z.string().length(26),
+    rootEntity: z.enum(['sale-order', 'purchase-order']),
+    businessDate: z.string().date(),
+    sourceLineId: z.string().min(1),
+    product: z
+      .object({
+        objectId: z.string().length(26),
+        code: z.string(),
+        name: z.string(),
+      })
+      .strict(),
+    availableBaseQuantity: quantity,
+  })
+  .strict()
+
+function route<
+  Action extends string,
+  Request extends z.ZodType,
+  Response extends z.ZodType,
+>(action: Action, request: Request, response: Response) {
   return createRoute({
     method: 'post',
     path: `/vou/{entity}/${action}`,
@@ -647,7 +874,7 @@ function route(action: string, request: z.ZodType) {
     responses: {
       200: {
         description: `VOU ${action}`,
-        content: { 'application/json': { schema: envelope } },
+        content: { 'application/json': { schema: envelope(response) } },
       },
     },
   })
@@ -657,49 +884,90 @@ export const vouRouteSet = {
   reference: createRoute({
     method: 'post',
     path: '/vou/reference/query',
-    request: { body: { content: { 'application/json': { schema: referenceQuery } } } },
+    request: {
+      body: { content: { 'application/json': { schema: referenceQuery } } },
+    },
     responses: {
       200: {
         description: 'VOU reference candidates',
         content: {
           'application/json': {
-            schema: z.object({
-              code: z.number(), errorKey: z.string(), message: z.string(),
-              data: z.object({ items: z.array(z.object({ objectId: z.string(), approvalEntryId: z.string().optional(), code: z.string(), name: z.string() })) }),
-              requestId: z.string(),
-            }),
+            schema: envelope(
+              z.object({
+                items: z.array(referenceCandidate),
+              }),
+            ),
           },
         },
       },
     },
   }),
-  query: route(
-    'query',
-    z
-      .object({
-        page: z.literal(1).default(1),
-        pageSize: z.literal(20).default(20),
-      })
-      .strict(),
+  'source-line': createRoute({
+    method: 'post',
+    path: '/vou/source-line/query',
+    request: {
+      body: { content: { 'application/json': { schema: sourceLineQuery } } },
+    },
+    responses: {
+      200: {
+        description: 'VOU eligible source-line candidates',
+        content: {
+          'application/json': {
+            schema: envelope(
+              z
+                .object({
+                  items: z.array(sourceLineCandidate),
+                  total: z.number().int().nonnegative(),
+                  page: z.number().int().positive(),
+                  pageSize: z.literal(20),
+                })
+                .strict(),
+            ),
+          },
+        },
+      },
+    },
+  }),
+  query: route('query', vouQueryRequestSchema, vouPage),
+  get: route('get', identity, vouView),
+  'audit-history': route('audit-history', identity, z.array(auditEvent)),
+  'submit-new': route('submit-new', vouSubmitRequestSchema, vouView),
+  'submit-change': route('submit-change', vouSubmitRequestSchema, vouView),
+  approve: route('approve', review, vouView),
+  reject: route('reject', reviewReason, vouView),
+  unreject: route('unreject', review, vouView),
+  unapprove: route('unapprove', reviewReason, vouView),
+  delete: route('delete', review, deleteResult),
+  'attachment-stage': route('attachment-stage', stage, stageResult),
+  'attachment-read': route(
+    'attachment-read',
+    attachmentRead,
+    attachmentContent,
   ),
-  get: route('get', identity),
-  'audit-history': route('audit-history', identity),
-  'submit-new': route('submit-new', vouSubmitRequestSchema),
-  'submit-change': route('submit-change', vouSubmitRequestSchema),
-  approve: route('approve', review),
-  reject: route('reject', reviewReason),
-  unreject: route('unreject', review),
-  unapprove: route('unapprove', reviewReason),
-  delete: route('delete', review),
-  'attachment-stage': route('attachment-stage', stage),
-  'attachment-cleanup': route('attachment-cleanup', z.object({}).strict()),
+  'attachment-cleanup': route(
+    'attachment-cleanup',
+    z.object({}).strict(),
+    z.number().int().nonnegative(),
+  ),
 } as const
 
-export const vouRouteMetadata = Object.keys(vouRouteSet).map((action) => ({
-  method: 'post',
-  path: action === 'reference' ? '/vou/reference/query' : `/vou/{entity}/${action}`,
-  title: `VOU ${action}`,
-}))
+export const vouRouteMetadata = [
+  ...Object.keys(vouRouteSet).map((action) => ({
+    method: 'post',
+    path:
+      action === 'reference'
+        ? '/vou/reference/query'
+        : action === 'source-line'
+          ? '/vou/source-line/query'
+          : `/vou/{entity}/${action}`,
+    title: `VOU ${action}`,
+  })),
+  {
+    method: 'get',
+    path: '/vou/attachment-download/{token}',
+    title: 'VOU attachment-download',
+  },
+]
 
 const publicActions = [
   'query',
@@ -711,10 +979,12 @@ const publicActions = [
   'unapprove',
   'delete',
   'attachment-stage',
+  'attachment-read',
   'attachment-cleanup',
 ] as const
 export const vouCapabilityPermissionMetadata = [
   { permission: '/vou/reference/query', title: 'VOU reference query' },
+  { permission: '/vou/source-line/query', title: 'VOU source-line query' },
   {
     permission: '/vou/sale-order/approve-over-credit-limit',
     title: 'VOU sale-order approve over credit limit',
@@ -722,7 +992,10 @@ export const vouCapabilityPermissionMetadata = [
   ...vouEntities.flatMap((entity) =>
     publicActions.map((action) => ({
       permission: `/vou/${entity}/${action}`,
-      title: `${entity} ${action}`,
+      title:
+        action === 'query'
+          ? vouEntityPresentation[entity].label
+          : `${entity} ${action}`,
     })),
   ),
   ...userCreatableVouEntities.flatMap((entity) =>
@@ -733,7 +1006,7 @@ export const vouCapabilityPermissionMetadata = [
   ),
 ]
 
-export type VouRouteAction = keyof typeof vouRouteSet
+export type VouRouteAction = keyof typeof vouRouteSet | 'attachment-download'
 export type VouRouteHandler = (
   action: VouRouteAction,
   context: any,
@@ -746,8 +1019,15 @@ export function registerVouRoutes<
   app: OpenAPIHono<TargetRouteEnvironment, AppSchema, BasePath>,
   handler: VouRouteHandler,
 ) {
-  const reference = app.openapi(vouRouteSet.reference, (c) => handler('reference', c) as never)
-  const query = reference.openapi(
+  const reference = app.openapi(
+    vouRouteSet.reference,
+    (c) => handler('reference', c) as never,
+  )
+  const sourceLine = reference.openapi(
+    vouRouteSet['source-line'],
+    (c) => handler('source-line', c) as never,
+  )
+  const query = sourceLine.openapi(
     vouRouteSet.query,
     (c) => handler('query', c) as never,
   )
@@ -788,7 +1068,15 @@ export function registerVouRoutes<
     vouRouteSet['attachment-stage'],
     (c) => handler('attachment-stage', c) as never,
   )
-  return staged.openapi(
+  const readable = staged.openapi(
+    vouRouteSet['attachment-read'],
+    (c) => handler('attachment-read', c) as never,
+  )
+  const download = readable.openapi(
+    vouAttachmentDownloadRoute,
+    (c) => handler('attachment-download', c) as never,
+  )
+  return download.openapi(
     vouRouteSet['attachment-cleanup'],
     (c) => handler('attachment-cleanup', c) as never,
   )

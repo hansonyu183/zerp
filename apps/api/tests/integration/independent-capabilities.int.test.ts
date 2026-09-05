@@ -15,6 +15,7 @@ import { createDatabase } from '../../src/db/database.ts'
 import { loadConfig } from '../../src/platform/config.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
+const customerTypeId = '01J00000000000000000000102'
 
 test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreSQL', async (context) => {
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
@@ -163,6 +164,12 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
       customer_approval_entry_id: customerEntryId,
       subunit_id: subunitId,
       name: `Target Customer East ${suffix}`,
+      customer_type_id: customerTypeId,
+      customer_type_snapshot: JSON.stringify({
+        id: customerTypeId,
+        code: 'CUSTOMER-TYPE-TEST',
+        name: '测试客户类型',
+      }),
       enabled: true,
     })
     .execute()
@@ -348,6 +355,40 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   assert.ok(Array.isArray(menu.data.businessMenu.items))
   assert.ok(Array.isArray(menu.data.navigation.items))
   assert.ok(Array.isArray(menu.data.availableRoutes))
+  const workbenchItems = menu.data.navigation.items.filter(
+    (item: { routePath: string | null }) =>
+      item.routePath === '/home/dashboard',
+  )
+  assert.equal(workbenchItems.length, 1)
+  assert.equal(menu.data.navigation.items[0], workbenchItems[0])
+  assert.ok(
+    menu.data.navigation.items.some(
+      (item: { routePath: string | null; permissionCode: string | null }) =>
+        item.routePath === '/app/menu' &&
+        item.permissionCode === '/app/menu/save-business',
+    ),
+    'menu administrators must be able to discover the formal menu-management page',
+  )
+  assert.deepEqual(
+    {
+      parentId: workbenchItems[0].parentId,
+      type: workbenchItems[0].type,
+      level: workbenchItems[0].level,
+      displayName: workbenchItems[0].displayName,
+      routeKey: workbenchItems[0].routeKey,
+      routePath: workbenchItems[0].routePath,
+      permissionCode: workbenchItems[0].permissionCode,
+    },
+    {
+      parentId: null,
+      type: 'ROUTE',
+      level: 1,
+      displayName: '工作台',
+      routeKey: 'home/dashboard',
+      routePath: '/home/dashboard',
+      permissionCode: null,
+    },
+  )
   assert.ok(
     menu.data.availableRoutes.some(
       (route: { routeKey: string }) => route.routeKey === 'aux/department',
@@ -475,6 +516,110 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     repeatedSettlementMethod.objectId,
     seededSettlementMethod.objectId,
   )
+  await assert.rejects(
+    () =>
+      auxService.create(
+        'payment-method',
+        { name: `缺失附加费 ${suffix}`, description: '' },
+        {
+          id: principal.userId,
+          permissions: ['/aux/payment-method/create'],
+        },
+      ),
+    (error) =>
+      error instanceof AuxApplicationError &&
+      error.errorKey === 'validation_failed',
+  )
+  const paymentMethod = await auxService.create(
+    'payment-method',
+    {
+      name: `E2E 银行转账 ${suffix}`,
+      defaultSalesSurcharge: '0.05',
+      description: '',
+    },
+    { id: principal.userId, permissions: ['/aux/payment-method/create'] },
+  )
+  const measurementUnit = await auxService.create(
+    'measurement-unit',
+    { name: `E2E 千克 ${suffix}`, symbol: 'kg', quantityScale: 3 },
+    { id: principal.userId, permissions: ['/aux/measurement-unit/create'] },
+  )
+  const dictionaryType = await auxService.create(
+    'dictionary-type',
+    { name: `E2E 字典类型 ${suffix}`, description: '' },
+    { id: principal.userId, permissions: ['/aux/dictionary-type/create'] },
+  )
+  const dictionaryItem = await auxService.create(
+    'dictionary-item',
+    {
+      name: `E2E 字典项 ${suffix}`,
+      dictionaryTypeId: dictionaryType.objectId,
+      sortOrder: 1,
+    },
+    { id: principal.userId, permissions: ['/aux/dictionary-item/create'] },
+  )
+  createdAuxIds.push(
+    paymentMethod.objectId,
+    measurementUnit.objectId,
+    dictionaryType.objectId,
+    dictionaryItem.objectId,
+  )
+  const settlementReferences = await post('/aux/reference/query', {
+    entity: 'settlement-method',
+    keyword: suffix,
+  })
+  assert.equal(
+    settlementReferences.data[0].objectId,
+    seededSettlementMethod.objectId,
+  )
+  assert.equal(settlementReferences.data[0].name, settlementMethod.name)
+  assert.equal(settlementReferences.data[0].termCode, 'MONTHLY_30')
+  assert.equal(settlementReferences.data[0].ruleType, 'MONTH_END')
+  assert.equal(settlementReferences.data[0].monthOffset, 1)
+  assert.equal(settlementReferences.data[0].dayOfMonth, 0)
+  assert.equal(settlementReferences.data[0].dayOffset, 0)
+  assert.equal(settlementReferences.data[0].defaultSalesSurcharge, '0.00')
+  const paymentReferences = await post('/aux/reference/query', {
+    entity: 'payment-method',
+    keyword: suffix,
+  })
+  assert.equal(paymentReferences.data[0].objectId, paymentMethod.objectId)
+  assert.equal(paymentReferences.data[0].name, `E2E 银行转账 ${suffix}`)
+  assert.equal(paymentReferences.data[0].defaultSalesSurcharge, '0.05')
+  const unitReferences = await post('/aux/reference/query', {
+    entity: 'measurement-unit',
+    keyword: suffix,
+  })
+  assert.equal(unitReferences.data[0].objectId, measurementUnit.objectId)
+  assert.equal(unitReferences.data[0].name, `E2E 千克 ${suffix}`)
+  assert.equal(unitReferences.data[0].symbol, 'kg')
+  assert.equal(unitReferences.data[0].quantityScale, 3)
+  const dictionaryItemReferences = await post('/aux/reference/query', {
+    entity: 'dictionary-item',
+  })
+  assert.equal(dictionaryItemReferences.code, 0)
+  assert.ok(
+    dictionaryItemReferences.data.some(
+      (candidate: { objectId: string; name: string }) =>
+        candidate.objectId === dictionaryItem.objectId &&
+        candidate.name === `E2E 字典项 ${suffix}`,
+    ),
+  )
+  await db
+    .updateTable('aux_objects')
+    .set({
+      data: JSON.stringify({
+        name: `E2E 银行转账 ${suffix}`,
+        description: '',
+      }),
+    })
+    .where('id', '=', paymentMethod.objectId)
+    .execute()
+  const malformedPaymentReferences = await post('/aux/reference/query', {
+    entity: 'payment-method',
+    keyword: suffix,
+  })
+  assert.equal(malformedPaymentReferences.errorKey, 'validation_failed')
 
   const bobQuery = await post('/bob/employee/query', {
     page: 1,

@@ -83,6 +83,58 @@ export function cloneArchiveDraft(
   } as AnyArchiveDraft
 }
 
+export function archiveDraftReady(draft: AnyArchiveDraft): boolean {
+  const data = draft.snapshot as Record<string, unknown>
+  const auxiliarySelected = (value: unknown) =>
+    !!value &&
+    typeof value === 'object' &&
+    typeof (value as { id?: unknown }).id === 'string' &&
+    !!(value as { id: string }).id
+  const approvedObjectSelected = (value: unknown) =>
+    !!value &&
+    typeof value === 'object' &&
+    typeof (value as { objectId?: unknown }).objectId === 'string' &&
+    !!(value as { objectId: string }).objectId &&
+    typeof (value as { approvalEntryId?: unknown }).approvalEntryId ===
+      'string' &&
+    !!(value as { approvalEntryId: string }).approvalEntryId
+
+  if (draft.entity === 'vehicle') {
+    const carrier = data.carrier as {
+      kind?: string
+      operatingEntityId?: string
+      otherUnitId?: string
+      approvalEntryId?: string
+    }
+    return (
+      auxiliarySelected(data.vehicleType) &&
+      !!carrier.approvalEntryId &&
+      !!(carrier.kind === 'INTERNAL'
+        ? carrier.operatingEntityId
+        : carrier.otherUnitId)
+    )
+  }
+  if (draft.entity === 'fund-account')
+    return approvedObjectSelected(data.operatingEntity)
+  if (draft.entity === 'product')
+    return (
+      auxiliarySelected(data.productType) &&
+      auxiliarySelected(data.productCategory) &&
+      auxiliarySelected(data.pricingUnit) &&
+      auxiliarySelected(data.defaultInputUnit)
+    )
+  if (draft.entity === 'employee')
+    return (
+      auxiliarySelected(data.employeeCategory) &&
+      auxiliarySelected(data.department) &&
+      auxiliarySelected(data.position) &&
+      approvedObjectSelected(data.operatingEntity)
+    )
+  if (draft.entity === 'acc-mapping')
+    return auxiliarySelected(data.book) && auxiliarySelected(data.vouEntity)
+  return true
+}
+
 const reference = {
   objectId: '',
   approvalEntryId: '',
@@ -103,7 +155,8 @@ export function initialArchiveSnapshot<Entity extends TargetArchiveEntity>(
   if (entity === 'operating-entity')
     return asSnapshot<'operating-entity'>({
       legalName: '新经营主体',
-      legalIdentifier: '91350211M000100Y4J',
+      shortName: '',
+      legalIdentifier: '91350211M000100Y46',
       registeredAddress: '',
       contactName: '',
       contactPhone: '',
@@ -150,12 +203,14 @@ export function initialArchiveSnapshot<Entity extends TargetArchiveEntity>(
       barcode: '',
       specification: '',
       model: '',
-      productType: { ...auxReference, behaviorProfile: 'STANDARD_FINISHED' },
+      productType: { ...auxReference, behaviorProfile: 'RAW_MATERIAL' },
       productCategory: auxReference,
-      pricingUnit: { ...auxReference, quantityScale: 0 },
-      defaultInputUnit: { ...auxReference, quantityScale: 0 },
-      defaultPackageSpec: '',
+      pricingUnit: { ...auxReference, symbol: '', quantityScale: 0 },
+      defaultInputUnit: { ...auxReference, symbol: '', quantityScale: 0 },
+      unitConversions: [],
+      defaultPackagingSpec: '',
       recyclable: false,
+      fixedFormula: null,
       remark: '',
       enabled: true,
     }) as ArchiveSnapshot<Entity>
@@ -199,7 +254,7 @@ export function initialArchiveSnapshot<Entity extends TargetArchiveEntity>(
       identityKind: 'MAINLAND_ENTERPRISE',
       legalName: '新客户',
       displayName: '新客户',
-      legalIdentifier: '91350211M000100Y4J',
+      legalIdentifier: '91350211M000100Y46',
       phone: '',
       email: '',
       address: '',
@@ -219,15 +274,28 @@ export function initialArchiveSnapshot<Entity extends TargetArchiveEntity>(
           name: '总部',
           contactName: '',
           address: '',
-          customerType: '',
+          customerType: auxReference,
           settlementMethod: null,
-          receiptMethod: '',
-          transportMethod: '',
-          pricePolicy: '',
+          paymentMethod: null,
+          transportPolicy: {
+            methodCode: '',
+            methodName: '',
+            surcharge: '0.00',
+          },
+          pricingPolicy: {
+            defaultPremiumUnitPrice: '0.00',
+            defaultDiscountUnitPrice: '0.00',
+            costItems: [],
+            thirdPartyIntermediaryFixedUnitCost: '0.00',
+            thirdPartyIntermediaryVariableUnitCost: '0.00',
+          },
           creditLimits: [],
-          salesAttribution: null,
+          primarySalesAttribution: {
+            type: 'INTERNAL_EMPLOYEE',
+            ...reference,
+          },
           internalReminder: '',
-          defaultOrderRemark: '',
+          defaultSalesOrderRemark: '',
           attachments: [],
           enabled: true,
         },

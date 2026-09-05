@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 
 import {
   availableApprovalActions,
@@ -12,6 +12,9 @@ import {
   type VouPayload,
   type VouPayloadFor,
   type VouReferenceCandidateEntity,
+  type VouSourceLineCandidate,
+  type VouSourceLineSourceEntity,
+  type VouSourceLineTargetEntity,
   vouDocumentPrefixes,
   vouPayloadReferences,
 } from '@zerp/model'
@@ -173,11 +176,51 @@ export interface VouView {
   canDelete: boolean
 }
 
-export type VouReferenceCandidate = {
+export interface VouQueryInput {
+  page: number
+  pageSize: 20
+  filters?: {
+    keyword?: string
+    status?: ApprovalStatus[]
+    dateFrom?: string
+    dateTo?: string
+    counterpartyObjectId?: string
+  }
+  sort?: Array<{
+    field: 'updatedAt' | 'documentNo' | 'businessDate' | 'status' | 'amount'
+    order: 'asc' | 'desc'
+  }>
+}
+
+export interface VouPage {
+  items: VouView[]
+  total: number
+  page: number
+  pageSize: 20
+}
+
+type VouReferenceCandidateBase = {
   objectId: string
   approvalEntryId?: string
   code: string
   name: string
+}
+export type VouReferenceCandidate =
+  | (VouReferenceCandidateBase & {
+      entity: 'customer-subunit'
+      customerId: string
+      approvalEntryId: string
+    })
+  | (VouReferenceCandidateBase & {
+      entity: Exclude<VouReferenceCandidateEntity, 'customer-subunit'>
+    })
+
+export type VouSourceLineQueryInput = {
+  targetEntity: VouSourceLineTargetEntity
+  page: number
+  pageSize: 20
+  keyword?: string
+  sourceDocumentId?: string
 }
 
 export interface VouAttachmentStageInput {
@@ -188,6 +231,12 @@ export interface VouAttachmentStageInput {
   size: number
   digest: string
   contentBase64: string
+}
+
+export interface VouAttachmentReadInput {
+  documentId: string
+  submissionId: string
+  fileId: string
 }
 
 export interface VouEffects {
@@ -452,40 +501,130 @@ export class VouService implements WflVouPort {
     }
   }
 
+  async issueAttachmentDownload(
+    entity: VouEntity,
+    input: VouAttachmentReadInput,
+    actor: ApprovalActor,
+  ) {
+    requirePermission(actor, `/vou/${entity}/attachment-read`)
+    const attachment = await this.db
+      .selectFrom('vou_attachments as attachment')
+      .innerJoin(
+        'approval_entries as entry',
+        'entry.id',
+        'attachment.approval_entry_id',
+      )
+      .innerJoin('vou_documents as document', 'document.id', 'entry.subject_id')
+      .select('attachment.file_id')
+      .where('entry.domain', '=', 'vou')
+      .where('entry.entity', '=', entity)
+      .where('document.id', '=', input.documentId)
+      .where('entry.id', '=', input.submissionId)
+      .where('attachment.file_id', '=', input.fileId)
+      .executeTakeFirst()
+    if (!attachment) throw new VouApplicationError('vou_attachment_not_found')
+    const token = randomBytes(32).toString('base64url')
+    const tokenHash = createHash('sha256').update(token).digest('hex')
+    const now = new Date()
+    const expiresAt = new Date(now.getTime() + 5 * 60 * 1000)
+    await sql`
+      INSERT INTO vou_attachment_download_tokens (
+        token_hash, approval_entry_id, file_id, created_at, expires_at
+      ) VALUES (
+        ${tokenHash}, ${input.submissionId}, ${attachment.file_id}, ${now}, ${expiresAt}
+      )
+    `.execute(this.db)
+    return {
+      token,
+      expiresAt: expiresAt.toISOString(),
+    }
+  }
+
+  async consumeAttachmentDownload(token: string) {
+    const tokenHash = createHash('sha256').update(token).digest('hex')
+    const attachment = await this.db.transaction().execute(async (tx) => {
+      const row = await sql<{
+        approval_entry_id: string
+        file_id: string
+      }>`
+        SELECT approval_entry_id, file_id
+        FROM vou_attachment_download_tokens
+        WHERE token_hash = ${tokenHash} AND expires_at > NOW()
+        FOR UPDATE
+      `.execute(tx)
+      const tokenRow = row.rows[0]
+      if (!tokenRow)
+        throw new VouApplicationError('vou_attachment_download_not_found')
+      const found = await sql<{
+        file_name: string
+        mime_type: 'application/pdf' | 'image/jpeg' | 'image/png'
+        size_bytes: number
+        digest: string
+        storage_key: string
+      }>`
+        SELECT file_name, mime_type, size_bytes, digest, storage_key
+        FROM vou_attachments
+        WHERE approval_entry_id = ${tokenRow.approval_entry_id}
+          AND file_id = ${tokenRow.file_id}
+      `.execute(tx)
+      await sql`DELETE FROM vou_attachment_download_tokens WHERE token_hash = ${tokenHash}`.execute(
+        tx,
+      )
+      const foundAttachment = found.rows[0]
+      if (!foundAttachment)
+        throw new VouApplicationError('vou_attachment_download_not_found')
+      return foundAttachment
+    })
+    const content = await this.attachmentStore.read(attachment.storage_key)
+    if (
+      content.length !== attachment.size_bytes ||
+      createHash('sha256').update(content).digest('hex') !== attachment.digest
+    )
+      throw new VouApplicationError('vou_attachment_invalid')
+    return { ...attachment, content }
+  }
+
   async cleanupAttachments(
     entity: VouEntity,
     actor: ApprovalActor,
   ): Promise<number> {
     requirePermission(actor, `/vou/${entity}/attachment-cleanup`)
     await drainAttachmentDeletions(this.db, this.attachmentStore)
+    const now = new Date()
     const expired = await this.db.transaction().execute(async (tx) => {
+      const tokens = await tx
+        .deleteFrom('vou_attachment_download_tokens')
+        .where('expires_at', '<=', now)
+        .returning('token_hash')
+        .execute()
       const rows = await tx
         .selectFrom('vou_attachment_staging')
         .select(['id', 'storage_key'])
-        .where('expires_at', '<=', new Date())
+        .where('expires_at', '<=', now)
         .forUpdate()
         .execute()
-      if (rows.length === 0) return rows
-      await tx
-        .deleteFrom('vou_attachment_staging')
-        .where(
-          'id',
-          'in',
-          rows.map((row) => row.id),
+      if (rows.length > 0) {
+        await tx
+          .deleteFrom('vou_attachment_staging')
+          .where(
+            'id',
+            'in',
+            rows.map((row) => row.id),
+          )
+          .execute()
+        await enqueueAttachmentDeletions(
+          tx,
+          rows.map((row) => row.storage_key),
         )
-        .execute()
-      await enqueueAttachmentDeletions(
-        tx,
-        rows.map((row) => row.storage_key),
-      )
-      return rows
+      }
+      return { rows, count: rows.length + tokens.length }
     })
     await drainAttachmentDeletions(
       this.db,
       this.attachmentStore,
-      expired.map((row) => row.storage_key),
+      expired.rows.map((row) => row.storage_key),
     )
-    return expired.length
+    return expired.count
   }
 
   async submit(
@@ -611,6 +750,12 @@ export class VouService implements WflVouPort {
       throw new VouApplicationError('vou_reference_unavailable', [
         ...referenceValidation.blockers,
       ])
+    await this.validateReturnSources(
+      tx,
+      entity,
+      input.documentId,
+      input.payload,
+    )
     const now = new Date()
     let documentNo = document?.document_no
     if (!document) {
@@ -910,23 +1055,90 @@ export class VouService implements WflVouPort {
     return this.readView(this.db, entity, documentId, actor)
   }
 
-  async query(entity: VouEntity, actor: ApprovalActor): Promise<VouView[]> {
+  async query(
+    entity: VouEntity,
+    input: VouQueryInput,
+    actor: ApprovalActor,
+  ): Promise<VouPage> {
     requirePermission(actor, `/vou/${entity}/query`)
-    const rows = await this.db
-      .selectFrom('vou_documents as d')
-      .innerJoin('approval_entries as e', (join) =>
-        join
-          .onRef('e.subject_id', '=', 'd.id')
-          .onRef('e.entity', '=', 'd.entity')
-          .on('e.domain', '=', 'vou'),
+    const filters = input.filters
+    const conditions = [sql`d.entity = ${entity}`]
+    if (filters?.keyword)
+      conditions.push(sql`d.document_no ILIKE ${`%${filters.keyword}%`}`)
+    if (filters?.status?.length)
+      conditions.push(
+        sql`e.status IN (${sql.join(filters.status.map((status) => sql`${status}`))})`,
       )
-      .select('d.id')
-      .where('d.entity', '=', entity)
-      .orderBy('d.document_no', 'desc')
-      .execute()
-    return Promise.all(
-      rows.map((row) => this.readView(this.db, entity, row.id, actor)),
-    )
+    if (filters?.dateFrom)
+      conditions.push(sql`detail.business_date >= ${filters.dateFrom}::date`)
+    if (filters?.dateTo)
+      conditions.push(sql`detail.business_date <= ${filters.dateTo}::date`)
+    if (filters?.counterpartyObjectId)
+      conditions.push(sql`EXISTS (
+        SELECT 1 FROM vou_reference_snapshots reference
+        WHERE reference.approval_entry_id = e.id
+          AND reference.line_no = 0
+          AND reference.item_no = 0
+          AND reference.field IN ('customerSubunit', 'customer', 'supplier', 'counterparty', 'employee')
+          AND reference.object_id = ${filters.counterpartyObjectId}
+      )`)
+    const where = sql.join(conditions, sql` AND `)
+    const detailTable = sql.raw(vouEntityDetailTables[entity])
+    const count = await sql<{ total: string }>`
+      SELECT COUNT(*)::text AS total
+      FROM vou_documents d
+      JOIN LATERAL (
+        SELECT candidate.*
+        FROM approval_entries candidate
+        WHERE candidate.subject_id = d.id
+          AND candidate.entity = d.entity
+          AND candidate.domain = 'vou'
+        ORDER BY
+          CASE WHEN candidate.status IN ('PENDING', 'REJECTED') THEN 0 ELSE 1 END,
+          candidate.submitted_at DESC,
+          candidate.id DESC
+        LIMIT 1
+      ) e ON TRUE
+      JOIN ${detailTable} detail ON detail.approval_entry_id = e.id
+      WHERE ${where}
+    `.execute(this.db)
+    const sort = input.sort?.[0] ?? { field: 'documentNo', order: 'desc' }
+    const orderBy = {
+      updatedAt: sql`e.updated_at`,
+      documentNo: sql`d.document_no`,
+      businessDate: sql`detail.business_date`,
+      status: sql`e.status`,
+      amount: sql`detail.total_amount_minor`,
+    }[sort.field]
+    const direction = sort.order === 'asc' ? sql`ASC` : sql`DESC`
+    const rows = await sql<{ id: string }>`
+      SELECT d.id
+      FROM vou_documents d
+      JOIN LATERAL (
+        SELECT candidate.*
+        FROM approval_entries candidate
+        WHERE candidate.subject_id = d.id
+          AND candidate.entity = d.entity
+          AND candidate.domain = 'vou'
+        ORDER BY
+          CASE WHEN candidate.status IN ('PENDING', 'REJECTED') THEN 0 ELSE 1 END,
+          candidate.submitted_at DESC,
+          candidate.id DESC
+        LIMIT 1
+      ) e ON TRUE
+      JOIN ${detailTable} detail ON detail.approval_entry_id = e.id
+      WHERE ${where}
+      ORDER BY ${orderBy} ${direction}, d.id ${direction}
+      LIMIT 20 OFFSET ${(input.page - 1) * 20}
+    `.execute(this.db)
+    return {
+      items: await Promise.all(
+        rows.rows.map((row) => this.readView(this.db, entity, row.id, actor)),
+      ),
+      total: Number(count.rows[0]?.total ?? 0),
+      page: input.page,
+      pageSize: 20,
+    }
   }
 
   async queryReferenceCandidates(
@@ -934,21 +1146,39 @@ export class VouService implements WflVouPort {
     actor: ApprovalActor,
   ): Promise<{ items: VouReferenceCandidate[] }> {
     requirePermission(actor, '/vou/reference/query')
+    const entity = input.entity
     const keyword = input.keyword?.trim()
     const filter = keyword
       ? sql`WHERE code ILIKE ${`%${keyword}%`} OR name ILIKE ${`%${keyword}%`}`
       : sql``
-    const source = this.referenceCandidateSource(input.entity)
+    const source = this.referenceCandidateSource(entity)
     const result = await sql<{
       object_id: string
       approval_entry_id: string | null
+      customer_id: string | null
       code: string
       name: string
     }>`
       SELECT * FROM (${sql.raw(source)}) AS candidate ${filter} ORDER BY code, object_id LIMIT 200
     `.execute(this.db)
+    if (entity === 'customer-subunit')
+      return {
+        items: result.rows.map((row) => {
+          if (!row.customer_id || !row.approval_entry_id)
+            throw new VouApplicationError('vou_reference_unavailable')
+          return {
+            entity: 'customer-subunit',
+            objectId: row.object_id,
+            customerId: row.customer_id,
+            approvalEntryId: row.approval_entry_id,
+            code: row.code,
+            name: row.name,
+          }
+        }),
+      }
     return {
       items: result.rows.map((row) => ({
+        entity,
         objectId: row.object_id,
         ...(row.approval_entry_id
           ? { approvalEntryId: row.approval_entry_id }
@@ -959,11 +1189,320 @@ export class VouService implements WflVouPort {
     }
   }
 
+  async querySourceLineCandidates(
+    input: VouSourceLineQueryInput,
+    actor: ApprovalActor,
+  ): Promise<{
+    items: VouSourceLineCandidate[]
+    total: number
+    page: number
+    pageSize: 20
+  }> {
+    requirePermission(actor, '/vou/source-line/query')
+
+    const plan = {
+      'sale-return': {
+        sourceEntity: 'sale-signoff',
+        rootEntity: 'sale-order',
+        sourceDetailTable: 'vou_sale_signoff_details',
+        sourceLineTable: 'vou_signoff_line_snapshots',
+        sourceLineId: 'source_line_id',
+        sourceQuantity: 'signed_quantity_micros',
+        usageTable: 'vou_return_line_snapshots',
+        usageLineId: 'source_line_id',
+        usageQuantity: 'base_quantity_micros',
+        usageDocumentId: 'usage.source_document_id',
+        usageDocumentGroup: ', usage.source_document_id',
+        sourceEligibility: 'TRUE',
+      },
+      'purchase-inbound': {
+        sourceEntity: 'purchase-order',
+        rootEntity: 'purchase-order',
+        sourceDetailTable: 'vou_purchase_order_details',
+        sourceLineTable: 'vou_product_line_snapshots',
+        sourceLineId: 'line_id',
+        sourceQuantity: 'base_quantity_micros',
+        usageTable: 'vou_source_line_snapshots',
+        usageLineId: 'source_line_id',
+        usageQuantity: 'base_quantity_micros',
+        usageDocumentId: 'NULL::varchar',
+        usageDocumentGroup: '',
+        sourceEligibility: 'TRUE',
+      },
+      'purchase-return': {
+        sourceEntity: 'purchase-inbound',
+        rootEntity: 'purchase-order',
+        sourceDetailTable: 'vou_purchase_inbound_details',
+        sourceLineTable: 'vou_source_line_snapshots',
+        sourceLineId: 'source_line_id',
+        sourceQuantity: 'base_quantity_micros',
+        usageTable: 'vou_return_line_snapshots',
+        usageLineId: 'source_line_id',
+        usageQuantity: 'base_quantity_micros',
+        usageDocumentId: 'usage.source_document_id',
+        usageDocumentGroup: ', usage.source_document_id',
+        sourceEligibility: 'TRUE',
+      },
+      'order-production': {
+        sourceEntity: 'sale-order',
+        rootEntity: 'sale-order',
+        sourceDetailTable: 'vou_sale_order_details',
+        sourceLineTable: 'vou_product_line_snapshots',
+        sourceLineId: 'line_id',
+        sourceQuantity: 'base_quantity_micros',
+        usageTable: 'vou_production_line_snapshots',
+        usageLineId: 'source_order_line_id',
+        usageQuantity: 'base_quantity_micros',
+        usageDocumentId: 'NULL::varchar',
+        usageDocumentGroup: '',
+        sourceEligibility: 'source_line.formula_source_type IS NOT NULL',
+      },
+    }[input.targetEntity]
+    const keyword = input.keyword?.trim()
+    const targetDetailTable = vouEntityDetailTables[input.targetEntity]
+    const result = await sql<{
+      source_document_id: string
+      source_document_no: string
+      source_entity: VouSourceLineSourceEntity
+      root_document_id: string
+      root_entity: 'sale-order' | 'purchase-order'
+      business_date: string
+      source_line_id: string
+      product_id: string
+      product_code: string
+      product_name: string
+      available_quantity_micros: string
+      total: string
+    }>`
+      WITH RECURSIVE approved_source_documents AS (
+        SELECT document.id, document.document_no, document.entity, approval.id AS approval_entry_id,
+          detail.business_date
+        FROM vou_documents document
+        JOIN LATERAL (
+          SELECT candidate.id, candidate.status
+          FROM approval_entries candidate
+          WHERE candidate.domain = 'vou'
+            AND candidate.entity = document.entity
+            AND candidate.subject_id = document.id
+          ORDER BY
+            CASE WHEN candidate.status IN ('PENDING', 'REJECTED') THEN 0 ELSE 1 END,
+            candidate.submitted_at DESC,
+            candidate.id DESC
+          LIMIT 1
+        ) approval ON TRUE
+        JOIN ${sql.raw(plan.sourceDetailTable)} detail ON detail.approval_entry_id = approval.id
+        WHERE document.entity = ${plan.sourceEntity}
+          AND approval.status = 'APPROVED'
+      ),
+      source_roots AS (
+        SELECT document.id AS source_document_id, document.entity,
+          document.id AS root_document_id, document.entity AS root_entity,
+          document.approval_entry_id, 0 AS depth
+        FROM approved_source_documents document
+        UNION ALL
+        SELECT source.source_document_id, parent.entity,
+          parent.id AS root_document_id, parent.entity AS root_entity,
+          approval.id AS approval_entry_id, source.depth + 1
+        FROM source_roots source
+        JOIN LATERAL (
+          SELECT detail.parent_entity, detail.parent_document_id
+          FROM vou_sale_signoff_details detail
+          WHERE source.root_entity = 'sale-signoff'
+            AND detail.approval_entry_id = source.approval_entry_id
+          UNION ALL
+          SELECT detail.parent_entity, detail.parent_document_id
+          FROM vou_sale_delivery_details detail
+          WHERE source.root_entity = 'sale-delivery'
+            AND detail.approval_entry_id = source.approval_entry_id
+          UNION ALL
+          SELECT detail.parent_entity, detail.parent_document_id
+          FROM vou_sale_outbound_details detail
+          WHERE source.root_entity = 'sale-outbound'
+            AND detail.approval_entry_id = source.approval_entry_id
+          UNION ALL
+          SELECT detail.parent_entity, detail.parent_document_id
+          FROM vou_purchase_inbound_details detail
+          WHERE source.root_entity = 'purchase-inbound'
+            AND detail.approval_entry_id = source.approval_entry_id
+          UNION ALL
+          SELECT detail.parent_entity, detail.parent_document_id
+          FROM vou_purchase_return_details detail
+          WHERE source.root_entity = 'purchase-return'
+            AND detail.approval_entry_id = source.approval_entry_id
+        ) header ON TRUE
+        JOIN vou_documents parent ON parent.id = header.parent_document_id
+          AND parent.entity = header.parent_entity
+        JOIN LATERAL (
+          SELECT candidate.id, candidate.status
+          FROM approval_entries candidate
+          WHERE candidate.domain = 'vou'
+            AND candidate.entity = parent.entity
+            AND candidate.subject_id = parent.id
+          ORDER BY
+            CASE WHEN candidate.status IN ('PENDING', 'REJECTED') THEN 0 ELSE 1 END,
+            candidate.submitted_at DESC,
+            candidate.id DESC
+          LIMIT 1
+        ) approval ON TRUE
+        WHERE source.root_entity NOT IN ('sale-order', 'purchase-order')
+          AND source.depth < 8
+          AND approval.status = 'APPROVED'
+      ),
+      root_documents AS (
+        SELECT DISTINCT ON (source_document_id) source_document_id,
+          root_document_id, root_entity
+        FROM source_roots
+        WHERE root_entity = ${plan.rootEntity}
+        ORDER BY source_document_id, depth DESC
+      ),
+      source_rows AS (
+        SELECT source_document.id AS source_document_id,
+          source_document.document_no AS source_document_no,
+          source_document.entity AS source_entity,
+          source_document.business_date,
+          source_line.${sql.ref(plan.sourceLineId)} AS source_line_id,
+          source_line.${sql.ref(plan.sourceQuantity)} AS source_quantity_micros
+        FROM approved_source_documents source_document
+        JOIN ${sql.raw(plan.sourceLineTable)} source_line
+          ON source_line.approval_entry_id = source_document.approval_entry_id
+        WHERE ${sql.raw(plan.sourceEligibility)}
+      ),
+      selected_target_entries AS (
+        SELECT approval.id AS approval_entry_id
+        FROM vou_documents document
+        JOIN LATERAL (
+          SELECT candidate.id
+          FROM approval_entries candidate
+          WHERE candidate.domain = 'vou'
+            AND candidate.entity = document.entity
+            AND candidate.subject_id = document.id
+          ORDER BY
+            CASE WHEN candidate.status IN ('PENDING', 'REJECTED') THEN 0 ELSE 1 END,
+            candidate.submitted_at DESC,
+            candidate.id DESC
+          LIMIT 1
+        ) approval ON TRUE
+        JOIN ${sql.raw(targetDetailTable)} detail ON detail.approval_entry_id = approval.id
+        WHERE document.entity = ${input.targetEntity}
+      ),
+      used_quantities AS (
+        SELECT ${sql.raw(plan.usageDocumentId)} AS source_document_id,
+          usage.${sql.ref(plan.usageLineId)} AS source_line_id,
+          SUM(usage.${sql.ref(plan.usageQuantity)}) AS quantity_micros
+        FROM selected_target_entries target
+        JOIN ${sql.raw(plan.usageTable)} usage ON usage.approval_entry_id = target.approval_entry_id
+        WHERE usage.${sql.ref(plan.usageLineId)} IS NOT NULL
+        GROUP BY usage.${sql.ref(plan.usageLineId)}${sql.raw(plan.usageDocumentGroup)}
+      ),
+      approved_purchase_returns AS (
+        SELECT approval.id AS approval_entry_id
+        FROM vou_documents document
+        JOIN LATERAL (
+          SELECT candidate.id, candidate.status
+          FROM approval_entries candidate
+          WHERE candidate.domain = 'vou'
+            AND candidate.entity = 'purchase-return'
+            AND candidate.subject_id = document.id
+          ORDER BY
+            CASE WHEN candidate.status IN ('PENDING', 'REJECTED') THEN 0 ELSE 1 END,
+            candidate.submitted_at DESC,
+            candidate.id DESC
+          LIMIT 1
+        ) approval ON TRUE
+        WHERE document.entity = 'purchase-return'
+          AND approval.status = 'APPROVED'
+      ),
+      restored_quantities AS (
+        SELECT returned.source_line_id, SUM(returned.base_quantity_micros) AS quantity_micros
+        FROM approved_purchase_returns approval
+        JOIN vou_return_line_snapshots returned ON returned.approval_entry_id = approval.approval_entry_id
+        GROUP BY returned.source_line_id
+      ),
+      root_products AS (
+        SELECT DISTINCT ON (line.line_id) line.line_id, reference.object_id,
+          COALESCE(reference.reference_code, reference.object_id) AS code,
+          COALESCE(reference.reference_name, reference.reference_code, reference.object_id) AS name
+        FROM vou_documents document
+        JOIN approval_entries approval
+          ON approval.domain = 'vou'
+          AND approval.entity = document.entity
+          AND approval.subject_id = document.id
+          AND approval.status = 'APPROVED'
+        JOIN vou_product_line_snapshots line ON line.approval_entry_id = approval.id
+        JOIN vou_reference_snapshots reference
+          ON reference.approval_entry_id = approval.id
+          AND reference.field = 'product'
+          AND reference.line_no = line.line_no
+          AND reference.item_no = 0
+        WHERE document.entity IN ('sale-order', 'purchase-order')
+        ORDER BY line.line_id, approval.version_no DESC, approval.id DESC
+      ),
+      available_rows AS (
+        SELECT source.*, root.root_document_id, root.root_entity,
+          product.object_id AS product_id, product.code AS product_code, product.name AS product_name,
+          source.source_quantity_micros
+            - COALESCE(used.quantity_micros, 0)
+            + CASE WHEN ${input.targetEntity} = 'purchase-inbound'
+                THEN COALESCE(restored.quantity_micros, 0) ELSE 0 END AS available_quantity_micros
+        FROM source_rows source
+        JOIN root_documents root
+          ON root.source_document_id = source.source_document_id
+        JOIN root_products product ON product.line_id = source.source_line_id
+        LEFT JOIN used_quantities used ON used.source_line_id = source.source_line_id
+          AND (used.source_document_id IS NULL OR used.source_document_id = source.source_document_id)
+        LEFT JOIN restored_quantities restored ON restored.source_line_id = source.source_line_id
+      )
+      SELECT source_document_id, source_document_no, source_entity,
+        root_document_id, root_entity,
+        business_date::text AS business_date, source_line_id, product_id, product_code,
+        product_name, available_quantity_micros::text AS available_quantity_micros,
+        COUNT(*) OVER ()::text AS total
+      FROM available_rows
+      WHERE available_quantity_micros > 0
+        AND (${input.sourceDocumentId ?? null}::varchar IS NULL OR source_document_id = ${input.sourceDocumentId ?? null})
+        AND (${keyword ?? null}::varchar IS NULL
+          OR source_document_no ILIKE ${keyword ? `%${keyword}%` : null}
+          OR product_code ILIKE ${keyword ? `%${keyword}%` : null}
+          OR product_name ILIKE ${keyword ? `%${keyword}%` : null})
+      ORDER BY business_date DESC, source_document_no DESC, source_line_id
+      LIMIT 20 OFFSET ${(input.page - 1) * 20}
+    `.execute(this.db)
+    const total = result.rows[0]
+      ? Number(result.rows[0].total)
+      : input.page === 1
+        ? 0
+        : (await this.querySourceLineCandidates({ ...input, page: 1 }, actor))
+            .total
+    return {
+      items: result.rows.map((row) => ({
+        sourceDocumentId: row.source_document_id,
+        sourceDocumentNo: row.source_document_no,
+        sourceEntity: row.source_entity,
+        rootDocumentId: row.root_document_id,
+        rootEntity: row.root_entity,
+        businessDate: row.business_date,
+        sourceLineId: row.source_line_id,
+        product: {
+          objectId: row.product_id,
+          code: row.product_code,
+          name: row.product_name,
+        },
+        availableBaseQuantity: fixedDecimal(
+          BigInt(row.available_quantity_micros),
+          6,
+        ),
+      })),
+      total,
+      page: input.page,
+      pageSize: 20,
+    }
+  }
+
   private referenceCandidateSource(
     entity: VouReferenceCandidateEntity,
   ): string {
     const dcl = (name: string, table: string, label: string) => `
-      SELECT subject.id AS object_id, approval.id AS approval_entry_id, subject.code, ${label} AS name
+      SELECT subject.id AS object_id, approval.id AS approval_entry_id, NULL::varchar AS customer_id, subject.code, ${label} AS name
       FROM dcl_subjects subject
       JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'dcl' AND entry.entity = '${name}' AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
       JOIN ${table} version ON version.approval_entry_id = approval.id AND version.enabled
@@ -1003,7 +1542,7 @@ export class VouService implements WflVouPort {
         return dcl('product', 'dcl_product_versions', 'version.name')
       case 'customer-subunit':
         return `
-        SELECT root.subunit_id AS object_id, approval.id AS approval_entry_id, root.code, subunit.name
+        SELECT root.subunit_id AS object_id, approval.id AS approval_entry_id, root.customer_id, root.code, subunit.name
         FROM dcl_customer_subunit_roots root
         JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'dcl' AND entry.entity = 'customer' AND entry.subject_id = root.customer_id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
         JOIN dcl_customer_versions customer ON customer.approval_entry_id = approval.id AND customer.enabled
@@ -1012,13 +1551,13 @@ export class VouService implements WflVouPort {
       case 'measurement-unit':
       case 'asset-category':
       case 'department':
-        return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, code, COALESCE(data->>'name', code) AS name FROM aux_objects WHERE entity = '${entity}' AND enabled`
+        return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, code, COALESCE(data->>'name', code) AS name FROM aux_objects WHERE entity = '${entity}' AND enabled`
       case 'asset':
-        return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, asset_no AS code, name FROM acc_asset_registers WHERE status = 'ACTIVE'`
+        return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, asset_no AS code, name FROM acc_asset_registers WHERE status = 'ACTIVE'`
       case 'bill':
-        return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, bill_no AS code, bill_no AS name FROM acc_bill_registers WHERE status = 'AVAILABLE'`
+        return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, bill_no AS code, bill_no AS name FROM acc_bill_registers WHERE status = 'AVAILABLE'`
       case 'service-contract':
-        return `SELECT document.id AS object_id, approval.id AS approval_entry_id, document.document_no AS code, document.document_no AS name FROM vou_documents document JOIN approval_entries approval ON approval.subject_id = document.id AND approval.domain = 'vou' AND approval.entity = 'service-contract' AND approval.status = 'APPROVED'`
+        return `SELECT document.id AS object_id, approval.id AS approval_entry_id, NULL::varchar AS customer_id, document.document_no AS code, document.document_no AS name FROM vou_documents document JOIN approval_entries approval ON approval.subject_id = document.id AND approval.domain = 'vou' AND approval.entity = 'service-contract' AND approval.status = 'APPROVED'`
     }
   }
 
@@ -1322,6 +1861,22 @@ export class VouService implements WflVouPort {
       ])
       .where('d.id', '=', documentId)
       .where('d.entity', '=', entity)
+      .where(
+        'e.id',
+        '=',
+        sql<string>`(
+          SELECT candidate.id
+          FROM approval_entries candidate
+          WHERE candidate.subject_id = d.id
+            AND candidate.entity = d.entity
+            AND candidate.domain = 'vou'
+          ORDER BY
+            CASE WHEN candidate.status IN ('PENDING', 'REJECTED') THEN 0 ELSE 1 END,
+            candidate.submitted_at DESC,
+            candidate.id DESC
+          LIMIT 1
+        )`,
+      )
       .executeTakeFirst()
     if (!row) throw new VouApplicationError('vou_not_found')
     const entry = entryFromRow({
@@ -1443,6 +1998,180 @@ export class VouService implements WflVouPort {
     return blockers.length === 0 ? { ok: true } : { ok: false, blockers }
   }
 
+  private async validateReturnSources(
+    transaction: Transaction<DB>,
+    entity: VouEntity,
+    targetDocumentId: string,
+    payload: VouPayload,
+  ): Promise<void> {
+    if (
+      (entity !== 'sale-return' && entity !== 'purchase-return') ||
+      !('returnLines' in payload)
+    )
+      return
+
+    const sourceEntity =
+      entity === 'sale-return' ? 'sale-signoff' : 'purchase-inbound'
+    const rootEntity =
+      entity === 'sale-return' ? 'sale-order' : 'purchase-order'
+    const requested = new Map<string, bigint>()
+    for (const line of payload.returnLines) {
+      const key = `${line.sourceDocumentId}:${line.sourceLineId}`
+      requested.set(
+        key,
+        (requested.get(key) ?? 0n) +
+          (decimalToFixed(line.baseQuantity, 6) ?? 0n),
+      )
+    }
+
+    const roots = new Set<string>()
+    for (const key of [...requested.keys()].sort()) {
+      const separator = key.indexOf(':')
+      const sourceDocumentId = key.slice(0, separator)
+      const sourceLineId = key.slice(separator + 1)
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`vou:document:${sourceDocumentId}`}, 0))`.execute(
+        transaction,
+      )
+      const source = await this.currentVouEntry(
+        transaction,
+        sourceDocumentId,
+        sourceEntity,
+      )
+      if (!source || source.status !== 'APPROVED')
+        throw new VouApplicationError('vou_source_line_unavailable')
+      const header = await this.readDetailHeader(
+        transaction,
+        sourceEntity,
+        source.id,
+      )
+      if (payload.businessDate < header.businessDate)
+        throw new VouApplicationError('vou_source_line_unavailable')
+      const rootDocumentId = await this.vouRootDocument(
+        transaction,
+        sourceEntity,
+        sourceDocumentId,
+        source.id,
+        rootEntity,
+      )
+      roots.add(rootDocumentId)
+
+      const sourceQuantity =
+        entity === 'sale-return'
+          ? await sql<{ quantity_micros: string }>`
+              SELECT signed_quantity_micros::text AS quantity_micros
+              FROM vou_signoff_line_snapshots
+              WHERE approval_entry_id = ${source.id}
+                AND source_line_id = ${sourceLineId}
+            `.execute(transaction)
+          : await sql<{ quantity_micros: string }>`
+              SELECT base_quantity_micros::text AS quantity_micros
+              FROM vou_source_line_snapshots
+              WHERE approval_entry_id = ${source.id}
+                AND source_line_id = ${sourceLineId}
+            `.execute(transaction)
+      const available = sourceQuantity.rows[0]?.quantity_micros
+      if (available === undefined)
+        throw new VouApplicationError('vou_source_line_unavailable')
+      const occupied = await sql<{ quantity_micros: string }>`
+        SELECT COALESCE(SUM(returned.base_quantity_micros), 0)::text AS quantity_micros
+        FROM vou_documents document
+        JOIN LATERAL (
+          SELECT candidate.id
+          FROM approval_entries candidate
+          WHERE candidate.domain = 'vou'
+            AND candidate.entity = ${entity}
+            AND candidate.subject_id = document.id
+          ORDER BY
+            CASE WHEN candidate.status IN ('PENDING', 'REJECTED') THEN 0 ELSE 1 END,
+            candidate.submitted_at DESC,
+            candidate.id DESC
+          LIMIT 1
+        ) approval ON TRUE
+        JOIN vou_return_line_snapshots returned
+          ON returned.approval_entry_id = approval.id
+        WHERE document.entity = ${entity}
+          AND document.id <> ${targetDocumentId}
+          AND returned.source_document_id = ${sourceDocumentId}
+          AND returned.source_line_id = ${sourceLineId}
+      `.execute(transaction)
+      if (
+        (requested.get(key) ?? 0n) +
+          BigInt(occupied.rows[0]?.quantity_micros ?? '0') >
+        BigInt(available)
+      )
+        throw new VouApplicationError('vou_source_line_quantity_exceeded')
+    }
+
+    if (
+      roots.size !== 1 ||
+      payload.parentEntity !== rootEntity ||
+      !payload.parentDocumentId ||
+      !roots.has(payload.parentDocumentId)
+    )
+      throw new VouApplicationError('vou_parent_invalid')
+  }
+
+  private async currentVouEntry(
+    transaction: Transaction<DB>,
+    documentId: string,
+    entity: VouEntity,
+  ): Promise<{ id: string; status: ApprovalStatus } | undefined> {
+    const row = await transaction
+      .selectFrom('approval_entries')
+      .select(['id', 'status'])
+      .where('domain', '=', 'vou')
+      .where('entity', '=', entity)
+      .where('subject_id', '=', documentId)
+      .orderBy(
+        sql`CASE WHEN status IN ('PENDING', 'REJECTED') THEN 0 ELSE 1 END`,
+      )
+      .orderBy('submitted_at', 'desc')
+      .orderBy('id', 'desc')
+      .forUpdate()
+      .executeTakeFirst()
+    if (!row) return undefined
+    if (
+      row.status !== 'PENDING' &&
+      row.status !== 'REJECTED' &&
+      row.status !== 'APPROVED'
+    )
+      throw new VouApplicationError('vou_source_line_unavailable')
+    return { id: row.id, status: row.status }
+  }
+
+  private async vouRootDocument(
+    transaction: Transaction<DB>,
+    startEntity: VouEntity,
+    startDocumentId: string,
+    startApprovalEntryId: string,
+    rootEntity: 'sale-order' | 'purchase-order',
+  ): Promise<string> {
+    let entity = startEntity
+    let documentId = startDocumentId
+    let approvalEntryId = startApprovalEntryId
+    for (let depth = 0; depth < 8; depth += 1) {
+      if (entity === rootEntity) return documentId
+      const header = await this.readDetailHeader(
+        transaction,
+        entity,
+        approvalEntryId,
+      )
+      if (!header.parentEntity || !header.parentDocumentId)
+        throw new VouApplicationError('vou_source_line_unavailable')
+      const parent = await this.currentVouEntry(
+        transaction,
+        header.parentDocumentId,
+        header.parentEntity,
+      )
+      if (!parent || parent.status !== 'APPROVED')
+        throw new VouApplicationError('vou_source_line_unavailable')
+      entity = header.parentEntity
+      documentId = header.parentDocumentId
+      approvalEntryId = parent.id
+    }
+    throw new VouApplicationError('vou_source_line_unavailable')
+  }
+
   private async validHistoricalReference(
     transaction: Transaction<DB>,
     entity: VouReferenceCandidateEntity,
@@ -1516,7 +2245,12 @@ export class VouService implements WflVouPort {
         ${payload.parentDocumentId ?? null}, ${payload.remark ?? null}
       )
     `.execute(transaction)
-    await this.writeReferenceSnapshots(transaction, approvalEntryId, payload)
+    await this.writeReferenceSnapshots(
+      transaction,
+      approvalEntryId,
+      entity,
+      payload,
+    )
     if (entity === 'bill-issue')
       await this.writeReferenceSnapshot(
         transaction,
@@ -1800,6 +2534,7 @@ export class VouService implements WflVouPort {
     transaction: Transaction<DB>,
     approvalEntryId: string,
     lines: readonly {
+      sourceDocumentId: string
       sourceLineId: string
       baseQuantity: string
       remark?: string
@@ -1807,24 +2542,30 @@ export class VouService implements WflVouPort {
   ) {
     for (const [index, line] of lines.entries())
       await sql`
-        INSERT INTO vou_return_line_snapshots (approval_entry_id, line_no, source_line_id, base_quantity_micros, remark)
-        VALUES (${approvalEntryId}, ${index + 1}, ${line.sourceLineId}, ${decimalToFixed(line.baseQuantity, 6)!}, ${line.remark ?? null})
+        INSERT INTO vou_return_line_snapshots (approval_entry_id, line_no, source_document_id, source_line_id, base_quantity_micros, remark)
+        VALUES (${approvalEntryId}, ${index + 1}, ${line.sourceDocumentId}, ${line.sourceLineId}, ${decimalToFixed(line.baseQuantity, 6)!}, ${line.remark ?? null})
       `.execute(transaction)
   }
 
   private async writeReferenceSnapshots(
     transaction: Transaction<DB>,
     approvalEntryId: string,
+    entity: VouEntity,
     payload: VouPayload,
   ) {
-    for (const { field, reference } of vouPayloadReferences(payload))
+    for (const { field, candidateEntity, reference } of vouPayloadReferences(
+      payload,
+    ))
       await this.writeReferenceSnapshot(
         transaction,
         approvalEntryId,
         field,
         0,
         0,
-        reference,
+        field === 'counterparty' &&
+          (entity === 'asset-sale' || entity === 'service-contract')
+          ? { ...reference, entity: candidateEntity }
+          : reference,
       )
   }
 
@@ -2517,6 +3258,7 @@ export class VouService implements WflVouPort {
         entity === 'sale-order'
           ? {
               customerSubunit: reference('customerSubunit'),
+              operatingEntity: reference('operatingEntity'),
               ...(refs.has('salesperson:0:0')
                 ? { salesperson: reference('salesperson') }
                 : {}),
@@ -2689,6 +3431,7 @@ export class VouService implements WflVouPort {
         )
       ).rows[0]!
       const lines = await rows<{
+        source_document_id: string
         source_line_id: string
         base_quantity_micros: string
         remark: string | null
@@ -2703,6 +3446,7 @@ export class VouService implements WflVouPort {
             }),
         returnReason: detail.return_reason,
         returnLines: lines.map((line) => ({
+          sourceDocumentId: line.source_document_id,
           sourceLineId: line.source_line_id,
           baseQuantity: fixed(line.base_quantity_micros, 6),
           ...(line.remark ? { remark: line.remark } : {}),
@@ -2811,11 +3555,12 @@ export class VouService implements WflVouPort {
           executor,
         )
       ).rows[0]!
-      const counterparty = reference('counterparty')
+      const storedCounterparty = reference('counterparty')
+      const { entity: counterpartyType, ...counterparty } = storedCounterparty
       return {
         ...base,
         counterparty,
-        counterpartyType: counterparty.entity,
+        counterpartyType,
         employee: reference('employee'),
         serviceContract: {
           ...(detail.capabilities ? { capabilities: detail.capabilities } : {}),
@@ -2893,16 +3638,20 @@ export class VouService implements WflVouPort {
         disposal_expense_minor: string | null
         remark: string | null
       }>('vou_asset_disposal_line_snapshots')
-      if (entity === 'asset-sale')
+      if (entity === 'asset-sale') {
+        const storedCounterparty = reference('counterparty')
+        const { entity: counterpartyType, ...counterparty } = storedCounterparty
         return {
           ...base,
-          customer: reference('customer'),
+          counterparty,
+          counterpartyType,
           assetSaleLines: lines.map((line) => ({
             assetId: line.asset_id,
             saleAmount: fixed(line.sale_amount_minor!, 2),
             ...(line.remark ? { remark: line.remark } : {}),
           })),
         } as unknown as VouPayload
+      }
       return {
         ...base,
         assetLiquidationLines: lines.map((line) => ({

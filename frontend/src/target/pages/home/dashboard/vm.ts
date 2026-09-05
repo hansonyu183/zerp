@@ -1,6 +1,8 @@
 import { computed, reactive, ref } from 'vue'
 import {
   approvalActionPresentation,
+  archiveEntityPresentation,
+  vouEntityPresentation,
   type ApprovalAction,
   type ApprovalStatus,
   type VouEntity,
@@ -25,6 +27,31 @@ import {
 import { useTargetSession } from '../../../session/vm.ts'
 
 export type WorkbenchTab = 'DOCUMENT' | 'ARCHIVE'
+const workbenchArchivePresentation = {
+  ...archiveEntityPresentation,
+  warehouse: { label: '仓库' },
+  'wfl-process-definition': { label: '流程定义' },
+}
+
+export function workbenchEntityOptions(tab: WorkbenchTab) {
+  const presentation =
+    tab === 'DOCUMENT' ? vouEntityPresentation : workbenchArchivePresentation
+  return Object.entries(presentation).map(([value, { label }]) => ({
+    value,
+    title: label,
+  }))
+}
+
+export function workbenchEntityLabel(
+  domain: 'dcl' | 'vou',
+  entity: string,
+): string {
+  return (
+    workbenchEntityOptions(domain === 'vou' ? 'DOCUMENT' : 'ARCHIVE').find(
+      (option) => option.value === entity,
+    )?.title ?? '未知业务类型'
+  )
+}
 export type WorkbenchReviewAction = Extract<
   ApprovalAction,
   'reject' | 'approve' | 'unreject'
@@ -178,14 +205,20 @@ export function useDashboardViewModel() {
         expectedRevision: item.revision,
         ...(action === 'reject' ? { reason: reason ?? '' } : {}),
       }
-      if (item.domain === 'vou')
-        await reviewTargetVou(csrf(), item.entity as VouEntity, action, {
+      if (item.domain === 'vou') {
+        const input = {
           documentId: item.subjectOrDocumentId,
           submissionId: item.submissionId,
           expectedRevision: item.revision,
-          ...(action === 'reject' ? { reason: reason ?? '' } : {}),
-        } as Parameters<typeof reviewTargetVou>[3])
-      else if (item.entity === 'warehouse')
+        }
+        await reviewTargetVou(
+          csrf(),
+          item.entity as VouEntity,
+          action === 'reject'
+            ? { action, input: { ...input, reason: reason ?? '' } }
+            : { action, input },
+        )
+      } else if (item.entity === 'warehouse')
         await reviewTargetWarehouse(
           csrf(),
           action as TargetWarehouseAction,

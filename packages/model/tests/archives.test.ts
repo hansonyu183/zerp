@@ -5,6 +5,7 @@ import {
   prepareAccMappingSubmit,
   prepareCustomerSubmit,
   prepareFundAccountSubmit,
+  prepareOperatingEntitySubmit,
   prepareProductSubmit,
   prepareRptDefinitionSubmit,
   prepareSalesPartnerSubmit,
@@ -20,6 +21,7 @@ const actor: ApprovalActor = {
   permissions: [
     '/dcl/vehicle/submit-new',
     '/dcl/fund-account/submit-new',
+    '/dcl/operating-entity/submit-new',
     '/dcl/product/submit-new',
     '/dcl/product/submit-change',
     '/dcl/customer/submit-new',
@@ -44,6 +46,345 @@ function command(action: 'submit-new' | 'submit-change' = 'submit-new') {
 }
 
 const newFacts = { subject: { exists: false, history: [] } } as const
+
+test('freezes the operating entity short name in the canonical submission', () => {
+  const result = prepareOperatingEntitySubmit(
+    {
+      ...command(),
+      data: {
+        legalName: ' 上海测试科技有限公司 ',
+        shortName: ' 测试科技 ',
+        legalIdentifier: '91350211M000100Y46',
+        registeredAddress: '',
+        contactName: '',
+        contactPhone: '',
+        invoiceTitle: '',
+        invoiceAddress: '',
+        invoicePhone: '',
+        invoiceBank: '',
+        invoiceAccount: '',
+        remark: '',
+        enabled: true,
+      },
+    },
+    newFacts,
+  )
+
+  assert.equal(result.ok, true)
+  if (result.ok) assert.equal(result.plan.data.shortName, '测试科技')
+})
+
+test('requires a complete product unit snapshot and confirmed latest fixed formula', () => {
+  const data = {
+    name: ' 标准成品 ',
+    barcode: ' prd-01 ',
+    specification: '',
+    model: '',
+    productType: {
+      id: 'type-1',
+      code: 'FINISHED',
+      name: '自制成品',
+      behaviorProfile: 'STANDARD_FINISHED' as const,
+    },
+    productCategory: { id: 'category-1', code: 'CAT', name: '分类' },
+    pricingUnit: {
+      id: 'unit-kg',
+      code: 'KG',
+      name: '千克',
+      symbol: 'kg',
+      quantityScale: 3,
+    },
+    defaultInputUnit: {
+      id: 'unit-bag',
+      code: 'BAG',
+      name: '袋',
+      symbol: '袋',
+      quantityScale: 0,
+    },
+    unitConversions: [
+      {
+        unit: {
+          id: 'unit-kg',
+          code: 'KG',
+          name: '千克',
+          symbol: 'kg',
+          quantityScale: 3,
+        },
+        factor: '1.000000',
+      },
+      {
+        unit: {
+          id: 'unit-bag',
+          code: 'BAG',
+          name: '袋',
+          symbol: '袋',
+          quantityScale: 0,
+        },
+        factor: '25.000000',
+      },
+    ],
+    defaultPackagingSpec: '25.000000',
+    recyclable: false,
+    fixedFormula: {
+      output: {
+        enteredQuantity: '1.000000',
+        enteredUnit: {
+          id: 'unit-bag',
+          code: 'BAG',
+          name: '袋',
+          symbol: '袋',
+          quantityScale: 0,
+        },
+        baseQuantity: '25.000000',
+      },
+      components: [
+        {
+          material: {
+            objectId: 'material-1',
+            approvalEntryId: 'material-entry-2',
+            code: 'PRD-0002',
+            name: '原料',
+          },
+          quantity: {
+            enteredQuantity: '10.000000',
+            enteredUnit: {
+              id: 'unit-kg',
+              code: 'KG',
+              name: '千克',
+              symbol: 'kg',
+              quantityScale: 3,
+            },
+            baseQuantity: '10.000000',
+          },
+          resolutionStatus: 'CURRENT' as const,
+          requiresConfirmation: false,
+        },
+      ],
+    },
+    remark: '',
+    enabled: true,
+  }
+  const facts = {
+    ...newFacts,
+    references: [
+      { field: 'productType' as const, objectId: 'type-1', available: true },
+      {
+        field: 'productCategory' as const,
+        objectId: 'category-1',
+        available: true,
+      },
+      { field: 'pricingUnit' as const, objectId: 'unit-kg', available: true },
+      {
+        field: 'defaultInputUnit' as const,
+        objectId: 'unit-bag',
+        available: true,
+      },
+    ],
+    materials: [
+      {
+        objectId: 'material-1',
+        latestApprovedEntryId: 'material-entry-2',
+        enabled: true,
+        behaviorProfile: 'RAW_MATERIAL' as const,
+      },
+    ],
+  }
+  const result = prepareProductSubmit({ ...command(), data }, facts)
+  assert.equal(result.ok, true)
+  if (result.ok) {
+    assert.equal(result.plan.data.defaultPackagingSpec, '25.000000')
+    assert.equal(result.plan.data.unitConversions.length, 2)
+    assert.equal(result.plan.data.fixedFormula?.components.length, 1)
+  }
+
+  assert.deepEqual(
+    prepareProductSubmit(
+      {
+        ...command(),
+        data: {
+          ...data,
+          fixedFormula: {
+            ...data.fixedFormula,
+            components: [
+              {
+                ...data.fixedFormula.components[0]!,
+                material: {
+                  ...data.fixedFormula.components[0]!.material,
+                  approvalEntryId: 'material-entry-1',
+                },
+              },
+            ],
+          },
+        },
+      },
+      facts,
+    ),
+    {
+      ok: false,
+      error: {
+        errorKey: 'product_reference_stale',
+        blockers: [
+          {
+            field: 'fixedFormula.components[0].material',
+            objectId: 'material-1',
+            expectedApprovalEntryId: 'material-entry-1',
+            currentApprovalEntryId: 'material-entry-2',
+          },
+        ],
+      },
+    },
+  )
+})
+
+test('keeps the complete typed customer aggregate and rejects malformed pricing facts', () => {
+  const data = {
+    identityKind: 'MAINLAND_ENTERPRISE' as const,
+    legalName: ' 测试客户有限公司 ',
+    displayName: ' 测试客户 ',
+    legalIdentifier: '91350211M000100Y46',
+    phone: '021-12345678',
+    email: 'contact@example.com',
+    address: '上海',
+    invoiceTitle: '测试客户有限公司',
+    invoiceAddress: '上海',
+    invoicePhone: '021-12345678',
+    invoiceBank: '测试银行',
+    invoiceAccount: ' 6222 0001 ',
+    remittanceProfiles: [],
+    defaultOperatingEntity: null,
+    identityAttachments: [],
+    subunits: [
+      {
+        id: 'subunit-1',
+        intent: 'NEW' as const,
+        code: null,
+        name: ' 总部 ',
+        contactName: ' 联系人 ',
+        address: ' 业务地址 ',
+        customerType: {
+          id: 'customer-type-1',
+          code: 'DIRECT',
+          name: '直客',
+        },
+        settlementMethod: {
+          id: 'settlement-1',
+          code: 'MONTHLY_30',
+          name: '月结 30 天',
+          termCode: 'MONTHLY_30' as const,
+          ruleType: 'MONTH_END' as const,
+          monthOffset: 1,
+          dayOfMonth: 0,
+          dayOffset: 0,
+          defaultSalesSurcharge: '0.10',
+        },
+        paymentMethod: {
+          id: 'payment-1',
+          code: 'BANK_TRANSFER',
+          name: '银行转账',
+          defaultSalesSurcharge: '0.00',
+        },
+        transportPolicy: {
+          methodCode: 'DELIVERY',
+          methodName: '送货',
+          surcharge: '0.20',
+        },
+        pricingPolicy: {
+          defaultPremiumUnitPrice: '0.10',
+          defaultDiscountUnitPrice: '0.00',
+          costItems: [
+            {
+              name: '装卸',
+              calculationBasis: 'ORDER_AMOUNT' as const,
+              orderAmount: '20.00',
+            },
+          ],
+          thirdPartyIntermediaryFixedUnitCost: '0.00',
+          thirdPartyIntermediaryVariableUnitCost: '0.00',
+        },
+        creditLimits: [{ currency: 'cny', amount: '1000.00' }],
+        primarySalesAttribution: {
+          type: 'INTERNAL_EMPLOYEE' as const,
+          objectId: 'employee-1',
+          approvalEntryId: 'employee-entry-1',
+          code: 'EMP-0001',
+          name: '业务员',
+        },
+        internalReminder: '',
+        defaultSalesOrderRemark: '',
+        attachments: [],
+        enabled: true,
+      },
+    ],
+    enabled: true,
+  }
+  const facts = {
+    ...newFacts,
+    customerTypes: [{ objectId: 'customer-type-1', available: true }],
+    salesAttributions: [
+      {
+        objectId: 'employee-1',
+        latestApprovedEntryId: 'employee-entry-1',
+        enabled: true,
+        type: 'INTERNAL_EMPLOYEE' as const,
+      },
+    ],
+  }
+  const result = prepareCustomerSubmit({ ...command(), data }, facts)
+  assert.equal(result.ok, true)
+  if (result.ok) {
+    const subunit = result.plan.data.subunits[0]!
+    assert.equal(subunit.customerType.code, 'DIRECT')
+    assert.equal(subunit.paymentMethod?.defaultSalesSurcharge, '0.00')
+    assert.equal(subunit.transportPolicy.surcharge, '0.20')
+    assert.deepEqual(subunit.pricingPolicy.costItems, [
+      {
+        name: '装卸',
+        calculationBasis: 'ORDER_AMOUNT',
+        orderAmount: '20.00',
+      },
+    ])
+  }
+
+  const malformed = prepareCustomerSubmit(
+    {
+      ...command(),
+      data: {
+        ...data,
+        subunits: [
+          {
+            ...data.subunits[0]!,
+            pricingPolicy: {
+              ...data.subunits[0]!.pricingPolicy,
+              costItems: [
+                {
+                  name: '装卸',
+                  calculationBasis: 'ORDER_AMOUNT' as const,
+                  orderAmount: '0.00',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+    facts,
+  )
+  assert.deepEqual(malformed, {
+    ok: false,
+    error: { errorKey: 'customer_invalid_data' },
+  })
+
+  assert.deepEqual(
+    prepareCustomerSubmit(
+      {
+        ...command(),
+        data: { ...data, legalIdentifier: '91350211M000100Y40' },
+      },
+      facts,
+    ),
+    { ok: false, error: { errorKey: 'customer_invalid_data' } },
+  )
+})
 
 test('prepares typed archive submissions with canonical payloads and exact permissions', () => {
   const vehicle = prepareVehicleSubmit(
@@ -129,15 +470,70 @@ test('prepares typed archive submissions with canonical payloads and exact permi
           behaviorProfile: 'STANDARD_FINISHED',
         },
         productCategory: { id: 'category-1', code: 'CAT', name: '分类' },
-        pricingUnit: { id: 'unit-1', code: 'EA', name: '件', quantityScale: 0 },
+        pricingUnit: {
+          id: 'unit-1',
+          code: 'EA',
+          name: '件',
+          symbol: '件',
+          quantityScale: 0,
+        },
         defaultInputUnit: {
           id: 'unit-1',
           code: 'EA',
           name: '件',
+          symbol: '件',
           quantityScale: 0,
         },
-        defaultPackageSpec: ' 1 ',
+        unitConversions: [
+          {
+            unit: {
+              id: 'unit-1',
+              code: 'EA',
+              name: '件',
+              symbol: '件',
+              quantityScale: 0,
+            },
+            factor: '1.000000',
+          },
+        ],
+        defaultPackagingSpec: ' 1.000000 ',
         recyclable: false,
+        fixedFormula: {
+          output: {
+            enteredQuantity: '1.000000',
+            enteredUnit: {
+              id: 'unit-1',
+              code: 'EA',
+              name: '件',
+              symbol: '件',
+              quantityScale: 0,
+            },
+            baseQuantity: '1.000000',
+          },
+          components: [
+            {
+              material: {
+                objectId: 'material-1',
+                approvalEntryId: 'material-entry-1',
+                code: 'PRD-0002',
+                name: '原料',
+              },
+              quantity: {
+                enteredQuantity: '1.000000',
+                enteredUnit: {
+                  id: 'unit-1',
+                  code: 'EA',
+                  name: '件',
+                  symbol: '件',
+                  quantityScale: 0,
+                },
+                baseQuantity: '1.000000',
+              },
+              resolutionStatus: 'CURRENT',
+              requiresConfirmation: false,
+            },
+          ],
+        },
         remark: ' ',
         enabled: true,
       },
@@ -149,6 +545,14 @@ test('prepares typed archive submissions with canonical payloads and exact permi
         { field: 'productCategory', objectId: 'category-1', available: true },
         { field: 'pricingUnit', objectId: 'unit-1', available: true },
         { field: 'defaultInputUnit', objectId: 'unit-1', available: true },
+      ],
+      materials: [
+        {
+          objectId: 'material-1',
+          latestApprovedEntryId: 'material-entry-1',
+          enabled: true,
+          behaviorProfile: 'RAW_MATERIAL',
+        },
       ],
     },
   )
@@ -218,18 +622,38 @@ test('rechecks exact submit permission, one open version, latest approval revisi
         id: 'type',
         code: 'TYPE',
         name: '类型',
-        behaviorProfile: 'STANDARD_FINISHED',
+        behaviorProfile: 'RAW_MATERIAL',
       },
       productCategory: { id: 'category', code: 'CAT', name: '分类' },
-      pricingUnit: { id: 'unit', code: 'EA', name: '件', quantityScale: 0 },
+      pricingUnit: {
+        id: 'unit',
+        code: 'EA',
+        name: '件',
+        symbol: '件',
+        quantityScale: 0,
+      },
       defaultInputUnit: {
         id: 'unit',
         code: 'EA',
         name: '件',
+        symbol: '件',
         quantityScale: 0,
       },
-      defaultPackageSpec: '',
+      unitConversions: [
+        {
+          unit: {
+            id: 'unit',
+            code: 'EA',
+            name: '件',
+            symbol: '件',
+            quantityScale: 0,
+          },
+          factor: '1.000000',
+        },
+      ],
+      defaultPackagingSpec: '1.000000',
       recyclable: false,
+      fixedFormula: null,
       remark: '',
       enabled: true,
     },
@@ -256,6 +680,7 @@ test('rechecks exact submit permission, one open version, latest approval revisi
       { field: 'pricingUnit' as const, objectId: 'unit', available: true },
       { field: 'defaultInputUnit' as const, objectId: 'unit', available: true },
     ],
+    materials: [],
   }
   assert.equal(prepareProductSubmit(productCommand, productFacts).ok, true)
   assert.deepEqual(
@@ -321,7 +746,7 @@ test('enforces sales partner capabilities, customer subunits, and legal identifi
           identityKind: 'ORGANIZATION',
           legalName: '销售方',
           displayName: '销售方',
-          legalIdentifier: ' 91350211M000100Y4J ',
+          legalIdentifier: ' 91350211M000100Y46 ',
           contactName: '',
           phone: '',
           address: '',
@@ -343,7 +768,7 @@ test('enforces sales partner capabilities, customer subunits, and legal identifi
         identityKind: 'MAINLAND_ENTERPRISE',
         legalName: '客户',
         displayName: '客户',
-        legalIdentifier: ' 91350211M000100Y4J ',
+        legalIdentifier: ' 91350211M000100Y46 ',
         phone: '',
         email: '',
         address: '',
@@ -360,7 +785,7 @@ test('enforces sales partner capabilities, customer subunits, and legal identifi
             fileName: '执照.pdf',
             contentType: 'application/pdf',
             sizeBytes: 1,
-            sha256: 'abc',
+            sha256: 'a'.repeat(64),
           },
         ],
         subunits: [
@@ -371,15 +796,35 @@ test('enforces sales partner capabilities, customer subunits, and legal identifi
             name: '总部',
             contactName: '',
             address: '',
-            customerType: '',
+            customerType: {
+              id: 'customer-type-1',
+              code: 'DIRECT',
+              name: '直客',
+            },
             settlementMethod: null,
-            receiptMethod: '',
-            transportMethod: '',
-            pricePolicy: '',
+            paymentMethod: null,
+            transportPolicy: {
+              methodCode: 'DELIVERY',
+              methodName: '送货',
+              surcharge: '0.00',
+            },
+            pricingPolicy: {
+              defaultPremiumUnitPrice: '0.00',
+              defaultDiscountUnitPrice: '0.00',
+              costItems: [],
+              thirdPartyIntermediaryFixedUnitCost: '0.00',
+              thirdPartyIntermediaryVariableUnitCost: '0.00',
+            },
             creditLimits: [],
-            salesAttribution: null,
+            primarySalesAttribution: {
+              type: 'INTERNAL_EMPLOYEE',
+              objectId: 'employee-1',
+              approvalEntryId: 'employee-entry-1',
+              code: 'EMP-0001',
+              name: '业务员',
+            },
             internalReminder: '',
-            defaultOrderRemark: '',
+            defaultSalesOrderRemark: '',
             attachments: [],
             enabled: true,
           },
@@ -387,11 +832,22 @@ test('enforces sales partner capabilities, customer subunits, and legal identifi
         enabled: true,
       },
     },
-    newFacts,
+    {
+      ...newFacts,
+      customerTypes: [{ objectId: 'customer-type-1', available: true }],
+      salesAttributions: [
+        {
+          objectId: 'employee-1',
+          latestApprovedEntryId: 'employee-entry-1',
+          enabled: true,
+          type: 'INTERNAL_EMPLOYEE',
+        },
+      ],
+    },
   )
   assert.equal(customer.ok, true)
   if (customer.ok)
-    assert.equal(customer.plan.data.legalIdentifier, '91350211M000100Y4J')
+    assert.equal(customer.plan.data.legalIdentifier, '91350211M000100Y46')
 })
 
 test('keeps ACC and RPT payloads typed and frozen in their plans', () => {
@@ -430,8 +886,21 @@ test('keeps ACC and RPT payloads typed and frozen in their plans', () => {
         sql: 'SELECT 1 AS amount',
         parameters: [
           { key: 'asOf', name: '截至日', type: 'DATE', required: true },
-          { key: 'status', name: '状态', type: 'ENUM', required: false, defaultValue: 'OPEN', enumValues: ['OPEN', 'CLOSED'] },
-          { key: 'customerId', name: '客户子单位', type: 'REFERENCE', required: false, referenceType: 'CUSTOMER_SUBUNIT' },
+          {
+            key: 'status',
+            name: '状态',
+            type: 'ENUM',
+            required: false,
+            defaultValue: 'OPEN',
+            enumValues: ['OPEN', 'CLOSED'],
+          },
+          {
+            key: 'customerId',
+            name: '客户子单位',
+            type: 'REFERENCE',
+            required: false,
+            referenceType: 'CUSTOMER_SUBUNIT',
+          },
         ],
         columns: [
           {
@@ -451,22 +920,43 @@ test('keeps ACC and RPT payloads typed and frozen in their plans', () => {
   assert.equal(rpt.ok, true)
   if (rpt.ok) {
     assert.deepEqual(rpt.plan.data.parameters[1], {
-      key: 'status', name: '状态', type: 'ENUM', required: false,
-      defaultValue: 'OPEN', enumValues: ['OPEN', 'CLOSED'],
+      key: 'status',
+      name: '状态',
+      type: 'ENUM',
+      required: false,
+      defaultValue: 'OPEN',
+      enumValues: ['OPEN', 'CLOSED'],
     })
   }
   const invalidRpt = prepareRptDefinitionSubmit(
     {
       ...command(),
       data: {
-        name: '无效参数', description: '', enabled: true, sql: 'SELECT 1 AS total',
-        parameters: [{ key: 'status', name: '状态', type: 'ENUM', required: true }],
-        columns: [{ alias: 'total', name: '总数', order: 1, type: 'INTEGER', width: 120, visible: true }],
+        name: '无效参数',
+        description: '',
+        enabled: true,
+        sql: 'SELECT 1 AS total',
+        parameters: [
+          { key: 'status', name: '状态', type: 'ENUM', required: true },
+        ],
+        columns: [
+          {
+            alias: 'total',
+            name: '总数',
+            order: 1,
+            type: 'INTEGER',
+            width: 120,
+            visible: true,
+          },
+        ],
       },
     },
     newFacts,
   )
-  assert.deepEqual(invalidRpt, { ok: false, error: { errorKey: 'rpt_definition_invalid_data' } })
+  assert.deepEqual(invalidRpt, {
+    ok: false,
+    error: { errorKey: 'rpt_definition_invalid_data' },
+  })
 })
 
 test('rejects a fixed mapping subject whose dimensions do not match its required dimensions', () => {

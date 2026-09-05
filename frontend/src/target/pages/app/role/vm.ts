@@ -89,7 +89,7 @@ export function useRoleManagementViewModel() {
     do {
       const result = await queryTargetPermissions(csrf(), {
         page: nextPage,
-        pageSize: 100,
+        pageSize: 20,
         filters: { status: 'ENABLED' },
         sort: [{ field: 'path', order: 'asc' }],
       })

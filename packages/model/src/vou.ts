@@ -420,6 +420,7 @@ export interface VouPayloadShapes {
   'sale-pricing': PricePayload
   'sale-order': ProductPayload & {
     customerSubunit: VouVersionedReferenceInput
+    operatingEntity: VouVersionedReferenceInput
     salesperson?: VouVersionedReferenceInput
     warehouse: VouVersionedReferenceInput
     creditOverrideReason?: string
@@ -447,6 +448,7 @@ export interface VouPayloadShapes {
     warehouse: VouVersionedReferenceInput
     returnReason: string
     returnLines: readonly {
+      sourceDocumentId: string
       sourceLineId: string
       baseQuantity: string
       remark?: string
@@ -467,6 +469,7 @@ export interface VouPayloadShapes {
     warehouse: VouVersionedReferenceInput
     returnReason: string
     returnLines: readonly {
+      sourceDocumentId: string
       sourceLineId: string
       baseQuantity: string
       remark?: string
@@ -549,7 +552,8 @@ export interface VouPayloadShapes {
     }[]
   }
   'asset-sale': VouPayloadBase & {
-    customer: VouVersionedReferenceInput
+    counterparty: VouVersionedReferenceInput
+    counterpartyType: 'customer-subunit' | 'other-unit'
     assetSaleLines: readonly {
       assetId: string
       saleAmount: string
@@ -882,6 +886,14 @@ function canonicalPayload<Entity extends VouEntity>(
   )
     return undefined
   if (
+    entity === 'asset-sale' &&
+    (value as unknown as Record<string, unknown>).counterpartyType !==
+      'customer-subunit' &&
+    (value as unknown as Record<string, unknown>).counterpartyType !==
+      'other-unit'
+  )
+    return undefined
+  if (
     'productLines' in value &&
     !value.productLines.every(
       (line) =>
@@ -929,6 +941,7 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
   'sale-pricing': ['priceLines'],
   'sale-order': [
     'customerSubunit',
+    'operatingEntity',
     'salesperson',
     'warehouse',
     'productLines',
@@ -947,12 +960,7 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
   ],
   'sale-return': ['warehouse', 'returnReason', 'returnLines'],
   'purchase-inquiry': ['supplier', 'priceLines'],
-  'purchase-order': [
-    'supplier',
-    'purchaser',
-    'warehouse',
-    'productLines',
-  ],
+  'purchase-order': ['supplier', 'purchaser', 'warehouse', 'productLines'],
   'purchase-inbound': ['supplier', 'warehouse', 'sourceLines'],
   'purchase-return': ['supplier', 'warehouse', 'returnReason', 'returnLines'],
   'order-production': [
@@ -1007,7 +1015,7 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
     'amount',
   ],
   'asset-acquisition': ['supplier', 'assetAcquisitionLines'],
-  'asset-sale': ['customer', 'assetSaleLines'],
+  'asset-sale': ['counterparty', 'counterpartyType', 'assetSaleLines'],
   'asset-liquidation': ['assetLiquidationLines'],
   'bill-receipt': [
     'customer',
@@ -1115,6 +1123,40 @@ export const vouReferenceCandidateEntities = [
 ] as const
 export type VouReferenceCandidateEntity =
   (typeof vouReferenceCandidateEntities)[number]
+
+export const vouSourceLineTargetEntities = [
+  'sale-return',
+  'purchase-inbound',
+  'purchase-return',
+  'order-production',
+] as const satisfies readonly VouEntity[]
+export type VouSourceLineTargetEntity =
+  (typeof vouSourceLineTargetEntities)[number]
+
+export const vouSourceLineSourceEntities = [
+  'sale-signoff',
+  'purchase-order',
+  'purchase-inbound',
+  'sale-order',
+] as const satisfies readonly VouEntity[]
+export type VouSourceLineSourceEntity =
+  (typeof vouSourceLineSourceEntities)[number]
+
+export type VouSourceLineCandidate = Readonly<{
+  sourceDocumentId: string
+  sourceDocumentNo: string
+  sourceEntity: VouSourceLineSourceEntity
+  rootDocumentId: string
+  rootEntity: 'sale-order' | 'purchase-order'
+  businessDate: string
+  sourceLineId: string
+  product: Readonly<{
+    objectId: string
+    code: string
+    name: string
+  }>
+  availableBaseQuantity: string
+}>
 export type VouEntityFieldDescriptor = Readonly<{
   headerReferences: readonly Readonly<{
     key: string
@@ -1180,6 +1222,8 @@ function headerReferenceCandidatesForEntity(
 ): readonly VouReferenceCandidateEntity[] {
   if (key === 'counterparty' && entity === 'bill-discount')
     return ['other-unit']
+  if (key === 'counterparty' && entity === 'asset-sale')
+    return ['customer-subunit', 'other-unit']
   if (key === 'counterparty' && entity === 'service-contract')
     return ['other-unit', 'sales-partner']
   return headerReferenceCandidates[key] ?? []
@@ -1345,6 +1389,7 @@ export const vouLineFieldDescriptors: Readonly<
     { key: 'remark', required: false },
   ],
   return: [
+    { key: 'sourceDocumentId', required: true },
     { key: 'sourceLineId', required: true },
     { key: 'baseQuantity', required: true },
     { key: 'remark', required: false },
@@ -2165,7 +2210,10 @@ export function createVouDraftPayload<Entity extends VouEntity>(
   if ('productLines' in draft)
     return {
       ...draft,
-      productLines: draft.productLines.map((line) => ({ ...line, lineId: lineIdFactory() })),
+      productLines: draft.productLines.map((line) => ({
+        ...line,
+        lineId: lineIdFactory(),
+      })),
     } as VouPayloadFor<Entity>
   return draft
 }

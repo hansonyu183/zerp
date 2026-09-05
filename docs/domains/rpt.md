@@ -52,7 +52,7 @@ RPT 拥有以 `approvalEntryId` 键控的技术有效性（VALID/INVALID）、�
 
 `CUSTOMER_SUBUNIT` 候选只读取 Customer 最新 `APPROVED` 且 Customer 与子单位均启用的内嵌子单位快照；每项返回 subunit stable ID、subunit code/name 和所属 Customer code/display name。子单位 code 只在 Customer 内唯一，界面必须同时展示 Customer code 与子单位 code。
 
-结果列必须声明 SQL alias、显示名、顺序、数据类型、宽度、默认可见性和格式。批准时实际返回列必须与契约完全一致；页面和导出只按该 entry 的列契约展示，不能自行猜测字段含义。查询每页最多 100 条，导出最多 100,000 条；两者都有只读事务、超时和资源限制。预置 SQL 依赖的科目编码变更时，同次变更必须提供并批准兼容新版本或明确停用受影响定义；不保留兼容视图、别名或第二套口径。 <!-- docs-check: legacy-exception=release-gate ref=ADR-0026 -->
+结果列必须声明 SQL alias、显示名、顺序、数据类型、宽度、默认可见性和格式。批准时实际返回列必须与契约完全一致；页面和导出只按该 entry 的列契约展示，不能自行猜测字段含义。查询每页最多 100 条；服务端读取 `pageSize + 1` 条后只返回 `pageSize` 条，并以 `hasMore` 明确下一页，不为任意 SQL 追加高成本 COUNT。导出最多 100,000 条；两者都有只读事务、超时和资源限制。预置 SQL 依赖的科目编码变更时，同次变更必须提供并批准兼容新版本或明确停用受影响定义；不保留兼容视图、别名或第二套口径。 <!-- docs-check: legacy-exception=release-gate ref=ADR-0026 -->
 
 ## 5. 批准、执行与有效性
 

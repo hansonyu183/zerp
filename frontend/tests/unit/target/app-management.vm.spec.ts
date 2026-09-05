@@ -108,7 +108,7 @@ describe('remaining APP administration public seams', () => {
       items: [permission],
       total: 1,
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
     })
     vi.mocked(targetApi.getTargetRole)
       .mockResolvedValueOnce(role() as never)
@@ -127,6 +127,15 @@ describe('remaining APP administration public seams', () => {
       revision: 2,
     })
     expect(targetApi.getTargetRole).toHaveBeenCalledTimes(2)
+    expect(targetApi.queryTargetPermissions).toHaveBeenCalledWith(
+      'csrf-token',
+      {
+        page: 1,
+        pageSize: 20,
+        filters: { status: 'ENABLED' },
+        sort: [{ field: 'path', order: 'asc' }],
+      },
+    )
     expect(vm.detail.value?.revision).toBe('3')
   })
 

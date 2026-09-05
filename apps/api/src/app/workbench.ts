@@ -36,7 +36,9 @@ export type WorkbenchItem = {
   name: string
   status: 'PENDING' | 'REJECTED'
   revision: string
-  availableActions: Array<'view' | 'edit' | 'delete' | 'reject' | 'approve' | 'unreject'>
+  availableActions: Array<
+    'view' | 'edit' | 'delete' | 'reject' | 'approve' | 'unreject'
+  >
   updatedAt: string
 }
 
@@ -85,7 +87,10 @@ function entryFromRow(row: WorkbenchRow): ApprovalEntry {
         actorId: row.submitted_by,
         occurredAt: row.submitted_at.toISOString(),
       },
-      ...(row.status === 'REJECTED' && row.rejected_by && row.rejected_at && row.rejection_reason
+      ...(row.status === 'REJECTED' &&
+      row.rejected_by &&
+      row.rejected_at &&
+      row.rejection_reason
         ? {
             rejected: {
               actorId: row.rejected_by,
@@ -117,35 +122,50 @@ export class WorkbenchService {
     const items = rows
       .flat()
       .flatMap((row): WorkbenchItem[] => {
-        const lifecycleActions = availableApprovalActions(entryFromRow(row), actor)
-          .filter((action): action is 'reject' | 'approve' | 'unreject' => action !== 'unapprove')
+        const lifecycleActions = availableApprovalActions(
+          entryFromRow(row),
+          actor,
+        ).filter(
+          (action): action is 'reject' | 'approve' | 'unreject' =>
+            action !== 'unapprove',
+        )
         if (input.filters?.kind === 'ARCHIVE' && row.domain !== 'dcl') return []
-        if (input.filters?.kind === 'DOCUMENT' && row.domain !== 'vou') return []
-        if (input.filters?.entity && row.entity !== input.filters.entity) return []
-        if (input.filters?.status && row.status !== input.filters.status) return []
-        if (keyword && !`${row.code}\n${row.name}`.toLocaleLowerCase().includes(keyword)) return []
-        const resourceActions: Array<'view' | 'edit' | 'delete'> = []
+        if (input.filters?.kind === 'DOCUMENT' && row.domain !== 'vou')
+          return []
+        if (input.filters?.entity && row.entity !== input.filters.entity)
+          return []
+        if (input.filters?.status && row.status !== input.filters.status)
+          return []
+        if (
+          keyword &&
+          !`${row.code}\n${row.name}`.toLocaleLowerCase().includes(keyword)
+        )
+          return []
+        const resourceActions: Array<'view' | 'delete'> = []
         if (actor.permissions.includes(`/${row.domain}/${row.entity}/get`)) {
           resourceActions.push('view')
-          if (row.entity !== 'wfl-process-definition' && row.status === 'REJECTED' && actor.permissions.includes(`/${row.domain}/${row.entity}/submit-change`))
-            resourceActions.push('edit')
         }
-        if (row.submitted_by === actor.id && actor.permissions.includes(`/${row.domain}/${row.entity}/delete`))
+        if (
+          row.submitted_by === actor.id &&
+          actor.permissions.includes(`/${row.domain}/${row.entity}/delete`)
+        )
           resourceActions.push('delete')
         const availableActions = [...resourceActions, ...lifecycleActions]
         if (availableActions.length === 0) return []
-        return [{
-          domain: row.domain,
-          entity: row.entity,
-          subjectOrDocumentId: row.subject_id,
-          submissionId: row.id,
-          code: row.code,
-          name: row.name,
-          status: row.status as 'PENDING' | 'REJECTED',
-          revision: String(row.revision),
-          availableActions,
-          updatedAt: row.updated_at.toISOString(),
-        }]
+        return [
+          {
+            domain: row.domain,
+            entity: row.entity,
+            subjectOrDocumentId: row.subject_id,
+            submissionId: row.id,
+            code: row.code,
+            name: row.name,
+            status: row.status as 'PENDING' | 'REJECTED',
+            revision: String(row.revision),
+            availableActions,
+            updatedAt: row.updated_at.toISOString(),
+          },
+        ]
       })
       .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
     const offset = (input.page - 1) * input.pageSize

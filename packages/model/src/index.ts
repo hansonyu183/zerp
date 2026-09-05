@@ -5,6 +5,7 @@
 export const modelBuildId = 'zerp-model-0.3.0'
 
 export * from './approval.ts'
+export * from './acc.ts'
 export * from './warehouse.ts'
 export * from './submission.ts'
 export * from './archives.ts'

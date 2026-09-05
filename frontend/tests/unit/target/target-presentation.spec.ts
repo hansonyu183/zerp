@@ -1,58 +1,35 @@
 import { describe, expect, it } from 'vitest'
 import {
-  vouEntityInputDescriptors,
-  type VouInputFieldDescriptor,
+  approvalStatuses,
+  vouEntities,
+  vouEntityPresentation,
 } from '@zerp/model'
 
 import {
-  hasCompleteTargetPermissions,
-  targetWireValueLabel,
-} from '../../../src/target/vm.ts'
+  accDimensionOptions,
+  accSettlementOptions,
+} from '@/target/pages/acc/subject/vm.ts'
+import { openingActionLabel } from '@/target/pages/acc/opening/vm.ts'
+import { wflNodeActionLabel } from '@/target/pages/wfl/process-instance/vm.ts'
 
-describe('target presentation and complete-loop permissions', () => {
-  it('requires every permission in the save loop', () => {
-    const required = [
-      '/acc/book/query',
-      '/acc/subject/query',
-      '/acc/subject/save',
-    ]
-
-    expect(hasCompleteTargetPermissions(required, required)).toBe(true)
-    for (const missing of required)
-      expect(
-        hasCompleteTargetPermissions(
-          required.filter((permission) => permission !== missing),
-          required,
-        ),
-      ).toBe(false)
+describe('formal target page presentation seams', () => {
+  it('covers every ACC and WFL action wire value with a Chinese label', () => {
+    expect(accDimensionOptions).toHaveLength(11)
+    expect(accSettlementOptions.map((option) => option.value)).toEqual([
+      'NONE',
+      'RECEIVABLE',
+      'PREPAID',
+      'PAYABLE',
+      'ADVANCE_RECEIPT',
+      'OTHER',
+    ])
+    expect(openingActionLabel('unapprove')).toBe('反批准')
+    expect(wflNodeActionLabel('APPROVE_CHILD')).toBe('批准下级')
   })
 
-  it('presents every rendered VOU enum, boolean, variant, and WFL action in Chinese', () => {
-    const values = new Set<string>(['false', 'true'])
-    const collect = (fields: readonly VouInputFieldDescriptor[]) => {
-      for (const field of fields) {
-        for (const value of field.enumValues ?? []) values.add(value)
-        for (const variant of field.variants ?? []) values.add(variant.id)
-        if (field.fields) collect(field.fields)
-        if (field.item) collect(field.item)
-      }
-    }
-    for (const fields of Object.values(vouEntityInputDescriptors)) collect(fields)
-    for (const action of [
-      'OPEN_DOCUMENT',
-      'CREATE_CHILD',
-      'APPROVE_CHILD',
-      'REJECT_CHILD',
-      'RETRY_CHILD',
-      'CANCEL_CHILD',
-    ]) values.add(action)
-
-    for (const value of values)
-      expect(targetWireValueLabel(value), value).not.toBe(value)
-
-    expect(targetWireValueLabel('true')).toBe('是')
-    expect(targetWireValueLabel('CURRENT')).toBe('当前版本')
-    expect(targetWireValueLabel('APPROVE_CHILD')).toBe('批准下游单据')
-    expect(targetWireValueLabel('asset-primary')).toBe('资产期初')
+  it('presents every formal VOU page entity without wire-value fallback', () => {
+    expect(approvalStatuses).toEqual(['PENDING', 'APPROVED', 'REJECTED'])
+    for (const entity of vouEntities)
+      expect(vouEntityPresentation[entity].label).not.toBe(entity)
   })
 })

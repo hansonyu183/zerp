@@ -94,13 +94,21 @@ export function useUserManagementViewModel() {
   }
 
   async function loadRoles(): Promise<void> {
-    const result = await queryTargetRoles(csrf(), {
-      page: 1,
-      pageSize: 100,
-      filters: { status: 'ENABLED' },
-      sort: [{ field: 'code', order: 'asc' }],
-    })
-    roles.value = result.items
+    const all: RolePage['items'] = []
+    let nextPage = 1
+    let totalItems = 0
+    do {
+      const result = await queryTargetRoles(csrf(), {
+        page: nextPage,
+        pageSize: 20,
+        filters: { status: 'ENABLED' },
+        sort: [{ field: 'code', order: 'asc' }],
+      })
+      all.push(...result.items)
+      totalItems = result.total
+      nextPage += 1
+    } while (all.length < totalItems)
+    roles.value = all
   }
 
   function clearEditor(): void {

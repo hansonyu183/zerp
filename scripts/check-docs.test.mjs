@@ -4,11 +4,13 @@ import prettier from 'prettier'
 
 import {
   generateAdrIndex,
+  isUseCasePageFile,
   parseTargetEntryPage,
   parseTargetRouterPages,
   validateAdrDocuments,
   validateAdrIndex,
   validateTargetRouteUseCases,
+  validateOrphanUseCases,
   validateUseCaseMissingBaseline,
   validateUseCaseMissingBaselineReduction,
 } from './check-docs.mjs'
@@ -76,6 +78,25 @@ test('requires a document for every target route use-case key', () => {
       new Set(),
     ).join('\n'),
     /app\/signin/,
+  )
+})
+
+test('excludes directory README files from page coverage but still rejects ordinary orphan use cases', () => {
+  assert.equal(isUseCasePageFile('docs/use-cases/vou/README.md'), false)
+  assert.equal(isUseCasePageFile('docs/use-cases/vou/sale-order.md'), true)
+  assert.deepEqual(
+    validateOrphanUseCases(
+      [{ useCaseKey: 'vou/sale-order' }],
+      new Set(['vou/sale-order']),
+    ),
+    [],
+  )
+  assert.match(
+    validateOrphanUseCases(
+      [{ useCaseKey: 'vou/sale-order' }],
+      new Set(['vou/sale-order', 'vou/ghost-page']),
+    ).join('\n'),
+    /vou\/ghost-page/,
   )
 })
 

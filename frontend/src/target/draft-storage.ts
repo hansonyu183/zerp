@@ -8,6 +8,15 @@ export interface TargetDraftRecord {
   draftId: string
   ownerUserId: string
   updatedAt: string
+  /** Browser-local compare-and-set token. Legacy Drafts start at revision zero. */
+  localRevision?: number
+}
+
+export class TargetDraftConflictError extends Error {
+  constructor() {
+    super('草稿已在其他标签更新，请重新加载后再编辑。')
+    this.name = 'TargetDraftConflictError'
+  }
 }
 
 export interface LocalDraftAttachment {
@@ -68,14 +77,29 @@ export class TargetDraftRepository {
     const database = await this.open()
     try {
       const transaction = database.transaction(draftsStore, 'readwrite')
-      transaction.objectStore(draftsStore).put({
-        key: this.draftKey(draft.ownerUserId, draft.entity, draft.draftId),
+      const store = transaction.objectStore(draftsStore)
+      const key = this.draftKey(draft.ownerUserId, draft.entity, draft.draftId)
+      const stored = await requestResult<StoredDraft<T> | undefined>(
+        store.get(key),
+      )
+      const expectedRevision = localRevision(draft)
+      const actualRevision = stored ? localRevision(stored.draft) : 0
+      if (expectedRevision !== actualRevision) {
+        await transactionDone(transaction)
+        throw new TargetDraftConflictError()
+      }
+      const nextRevision = actualRevision + 1
+      store.put({
+        key,
         // Vue wraps records rendered by v-for in Proxies. IndexedDB and
         // structuredClone reject Proxy values, while Draft bodies are JSON by
         // contract and attachment bytes live in their own store.
-        draft: JSON.parse(JSON.stringify(draft)) as T,
+        draft: JSON.parse(
+          JSON.stringify({ ...draft, localRevision: nextRevision }),
+        ) as T,
       } satisfies StoredDraft<T>)
       await transactionDone(transaction)
+      draft.localRevision = nextRevision
     } finally {
       database.close()
     }
@@ -167,6 +191,90 @@ export class TargetDraftRepository {
     }
   }
 
+  async deleteAttachment(
+    draft: TargetDraftRecord,
+    attachmentId: string,
+  ): Promise<void> {
+    const database = await this.open()
+    try {
+      const draftKey = this.draftKey(
+        draft.ownerUserId,
+        draft.entity,
+        draft.draftId,
+      )
+      const transaction = database.transaction(attachmentsStore, 'readwrite')
+      transaction
+        .objectStore(attachmentsStore)
+        .delete(this.attachmentKey(draftKey, attachmentId))
+      await transactionDone(transaction)
+    } finally {
+      database.close()
+    }
+  }
+
+  async saveAndDeleteAttachments<T extends TargetDraftRecord>(
+    draft: T,
+    attachmentIds: readonly string[],
+  ): Promise<void> {
+    await this.saveWithAttachmentChanges(draft, [], attachmentIds)
+  }
+
+  async saveAndAddAttachment<T extends TargetDraftRecord>(
+    draft: T,
+    attachment: LocalDraftAttachment,
+  ): Promise<void> {
+    await this.saveWithAttachmentChanges(draft, [attachment], [])
+  }
+
+  private async saveWithAttachmentChanges<T extends TargetDraftRecord>(
+    draft: T,
+    added: readonly LocalDraftAttachment[],
+    removed: readonly string[],
+  ): Promise<void> {
+    const database = await this.open()
+    try {
+      const draftKey = this.draftKey(
+        draft.ownerUserId,
+        draft.entity,
+        draft.draftId,
+      )
+      const transaction = database.transaction(
+        [draftsStore, attachmentsStore],
+        'readwrite',
+      )
+      const draftStore = transaction.objectStore(draftsStore)
+      const stored = await requestResult<StoredDraft<T> | undefined>(
+        draftStore.get(draftKey),
+      )
+      const expectedRevision = localRevision(draft)
+      const actualRevision = stored ? localRevision(stored.draft) : 0
+      if (expectedRevision !== actualRevision) {
+        await transactionDone(transaction)
+        throw new TargetDraftConflictError()
+      }
+      const nextRevision = actualRevision + 1
+      draftStore.put({
+        key: draftKey,
+        draft: JSON.parse(
+          JSON.stringify({ ...draft, localRevision: nextRevision }),
+        ) as T,
+      } satisfies StoredDraft<T>)
+      const attachmentStore = transaction.objectStore(attachmentsStore)
+      for (const attachment of added)
+        attachmentStore.put({
+          key: this.attachmentKey(draftKey, attachment.attachmentId),
+          draftKey,
+          attachment: copyAttachment(attachment),
+        } satisfies StoredAttachment)
+      for (const attachmentId of removed)
+        attachmentStore.delete(this.attachmentKey(draftKey, attachmentId))
+      await transactionDone(transaction)
+      draft.localRevision = nextRevision
+    } finally {
+      database.close()
+    }
+  }
+
   async listAttachments(
     draft: TargetDraftRecord,
   ): Promise<LocalDraftAttachment[]> {
@@ -215,6 +323,12 @@ export class TargetDraftRepository {
       request.onsuccess = () => resolve(request.result)
     })
   }
+}
+
+function localRevision(draft: TargetDraftRecord): number {
+  return Number.isSafeInteger(draft.localRevision) && draft.localRevision! >= 0
+    ? draft.localRevision!
+    : 0
 }
 
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {

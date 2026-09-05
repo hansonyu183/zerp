@@ -2,18 +2,23 @@
 import { computed } from 'vue'
 
 import type { AnyArchiveDraft } from './archive-drafts.ts'
-import { archiveWirePresentation } from './archive-presentation.ts'
+import {
+  archiveWirePresentation,
+  type ArchiveField,
+} from './archive-presentation.ts'
 import ArchiveReferenceEditor from './archive-reference-editor.vue'
 import { createTargetId } from './warehouse-drafts.ts'
 
 const props = withDefaults(
   defineProps<{
     draft: AnyArchiveDraft
+    fields: readonly ArchiveField[]
     referenceOptions: Readonly<
       Record<string, readonly Record<string, unknown>[]>
     >
   }>(),
   {
+    fields: () => [],
     referenceOptions: () => ({}),
   },
 )
@@ -182,6 +187,58 @@ function dimensionsComplete(value: unknown, candidates: readonly string[]) {
 
 <template>
   <section class="structured-editor" :aria-label="`${draft.entity} 业务资料`">
+    <fieldset v-if="fields.length" class="common-fields">
+      <legend>基本资料</legend>
+      <label v-for="field in fields" :key="field.key">
+        <template v-if="field.kind === 'boolean'">
+          <input
+            type="checkbox"
+            :checked="Boolean(valueAt([field.key]))"
+            @change="
+              setValue([field.key], ($event.target as HTMLInputElement).checked)
+            "
+          />
+          {{ field.label }}
+        </template>
+        <template v-else>
+          {{ field.label }}
+          <select
+            v-if="field.kind === 'identity-kind'"
+            :value="valueAt([field.key])"
+            @change="
+              setValue([field.key], ($event.target as HTMLSelectElement).value)
+            "
+          >
+            <option value="ORGANIZATION">组织</option>
+            <option value="PERSON">个人</option>
+          </select>
+          <select
+            v-else-if="field.kind === 'mapping-result'"
+            :value="valueAt([field.key])"
+            @change="
+              setValue([field.key], ($event.target as HTMLSelectElement).value)
+            "
+          >
+            <option value="POST">记账</option>
+            <option value="UN_POST">不记账</option>
+          </select>
+          <input
+            v-else
+            :type="field.kind === 'number' ? 'number' : 'text'"
+            :value="String(valueAt([field.key]) ?? '')"
+            @input="
+              setValue(
+                [field.key],
+                field.kind === 'number'
+                  ? Number(($event.target as HTMLInputElement).value)
+                  : ($event.target as HTMLInputElement).value,
+              )
+            "
+          />
+        </template>
+      </label>
+    </fieldset>
+
     <template v-if="draft.entity === 'vehicle'">
       <ArchiveReferenceEditor
         label="车辆类型引用"

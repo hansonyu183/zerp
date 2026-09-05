@@ -1,13 +1,35 @@
 import { createTargetApiClient } from '@zerp/api-client'
-import { modelBuildId, type ApprovalAction, type VouEntity } from '@zerp/model'
+import {
+  modelBuildId,
+  type ApprovalAction,
+  type VouEntity,
+  type VouPayloadFor,
+} from '@zerp/model'
 
 const client = createTargetApiClient({
   baseUrl: import.meta.env.VITE_TARGET_API_BASE_URL ?? 'http://127.0.0.1:18082',
   modelBuildId,
 })
 
-type PostJson<Post extends (...args: never[]) => unknown> =
-  Parameters<Post>[0] extends { json: infer Json } ? Json : never
+type RequestJson<Input> = Input extends { json: infer Json } ? Json : never
+type PostJson<Post extends (...args: never[]) => unknown> = RequestJson<
+  Parameters<Post>[0]
+>
+type ClientRequestInput<ClientMethod> = ClientMethod extends (
+  ...args: infer Arguments
+) => unknown
+  ? NonNullable<Arguments[0]>
+  : never
+type ResponseJson<Response> = Response extends {
+  json(): Promise<infer Output>
+}
+  ? Output
+  : never
+type ClientResponseOutput<ClientMethod> = ClientMethod extends (
+  ...args: never[]
+) => Promise<infer Response>
+  ? ResponseJson<Response>
+  : never
 
 export type TargetWorkbenchQueryInput = PostJson<
   (typeof client.app.workbench.query)['$post']
@@ -43,6 +65,9 @@ export type TargetMenuSaveInput = PostJson<
 
 type WarehouseSubmitInput = PostJson<
   (typeof client.dcl.warehouse)['submit-new']['$post']
+>
+export type TargetWarehouseQueryInput = PostJson<
+  (typeof client.dcl.warehouse.query)['$post']
 >
 type WarehouseReviewInput = PostJson<
   (typeof client.dcl.warehouse)['approve']['$post']
@@ -185,6 +210,10 @@ export type TargetArchiveDeleteRequest = {
   }
 }[TargetArchiveEntity]
 
+export type TargetCustomerAttachmentStageInput = PostJson<
+  (typeof client.dcl.customer)['attachment-stage']['$post']
+>
+
 export class TargetApiError extends Error {
   readonly errorKey: string
   readonly requestId: string
@@ -197,39 +226,112 @@ export class TargetApiError extends Error {
   }
 }
 
-type VouSubmitInput = PostJson<
+export type TargetVouQueryInput = ClientRequestInput<
+  (typeof client.vou)[':entity']['query']['$post']
+>['json']
+export type TargetVouSubmitInput = ClientRequestInput<
   (typeof client.vou)[':entity']['submit-new']['$post']
->
-type VouReviewInput = PostJson<
+>['json']
+export type TargetVouSubmitInputFor<Entity extends VouEntity> = Omit<
+  TargetVouSubmitInput,
+  'payload'
+> & { payload: VouPayloadFor<Entity> }
+type TargetVouReviewWithoutReasonInput = ClientRequestInput<
   (typeof client.vou)[':entity']['approve']['$post']
->
+>['json']
+type TargetVouReviewWithReasonInput = ClientRequestInput<
+  (typeof client.vou)[':entity']['reject']['$post']
+>['json']
+export type TargetVouReviewRequest =
+  | {
+      action: 'approve'
+      input: TargetVouReviewWithoutReasonInput
+    }
+  | {
+      action: 'unreject'
+      input: TargetVouReviewWithoutReasonInput
+    }
+  | {
+      action: 'reject'
+      input: TargetVouReviewWithReasonInput
+    }
+  | {
+      action: 'unapprove'
+      input: TargetVouReviewWithReasonInput
+    }
 type VouStageInput = PostJson<
   (typeof client.vou)[':entity']['attachment-stage']['$post']
 >
-type VouDeleteInput = PostJson<
-  (typeof client.vou)[':entity']['delete']['$post']
+type VouAttachmentReadInput = PostJson<
+  (typeof client.vou)[':entity']['attachment-read']['$post']
 >
-type VouReferenceQueryInput = PostJson<
+export type TargetVouDeleteInput = ClientRequestInput<
+  (typeof client.vou)[':entity']['delete']['$post']
+>['json']
+export type TargetVouReferenceQueryInput = ClientRequestInput<
   (typeof client.vou.reference.query)['$post']
+>['json']
+export type TargetVouSourceLineQueryInput = ClientRequestInput<
+  (typeof client.vou)['source-line']['query']['$post']
+>['json']
+
+type SuccessfulData<Response> = Response extends { code: 0; data: infer Data }
+  ? Data
+  : never
+
+export type TargetVouView = SuccessfulData<
+  ClientResponseOutput<(typeof client.vou)[':entity']['get']['$post']>
+>
+export type TargetVouViewFor<Entity extends VouEntity> = Omit<
+  TargetVouView,
+  'entity' | 'payload'
+> & {
+  entity: Entity
+  payload: VouPayloadFor<Entity>
+}
+type TargetVouPage = SuccessfulData<
+  ClientResponseOutput<(typeof client.vou)[':entity']['query']['$post']>
+>
+export type TargetVouPageFor<Entity extends VouEntity> = Omit<
+  TargetVouPage,
+  'items'
+> & { items: TargetVouViewFor<Entity>[] }
+export type TargetVouReferenceResult = SuccessfulData<
+  ClientResponseOutput<(typeof client.vou.reference.query)['$post']>
+>
+export type TargetVouSourceLineResult = SuccessfulData<
+  ClientResponseOutput<(typeof client.vou)['source-line']['query']['$post']>
+>
+export type TargetVouAttachmentReadResult = SuccessfulData<
+  ClientResponseOutput<
+    (typeof client.vou)[':entity']['attachment-read']['$post']
+  >
 >
 
-export async function queryTargetVou(csrfToken: string, entity: VouEntity) {
-  return unwrapTarget(
+export async function queryTargetVou<Entity extends VouEntity>(
+  csrfToken: string,
+  entity: Entity,
+  input: TargetVouQueryInput,
+): Promise<TargetVouPageFor<Entity>> {
+  const result = await unwrapTarget(
     await (
       await client.vou[':entity'].query.$post(
-        { param: { entity }, json: { page: 1, pageSize: 20 } },
+        { param: { entity }, json: input },
         csrfHeaders(csrfToken),
       )
     ).json(),
   )
+  if (!vouPageMatchesEntity(result, entity))
+    throw invalidVouResponse('query entity mismatch')
+  return result
 }
 
-export async function getTargetVou(
+export async function getTargetVou<Entity extends VouEntity>(
   csrfToken: string,
-  entity: VouEntity,
+  entity: Entity,
   documentId: string,
-) {
-  return unwrapTarget(
+): Promise<TargetVouViewFor<Entity>> {
+  const result = await unwrapTarget(
     await (
       await client.vou[':entity'].get.$post(
         { param: { entity }, json: { documentId } },
@@ -237,15 +339,32 @@ export async function getTargetVou(
       )
     ).json(),
   )
+  if (!vouViewMatchesEntity(result, entity))
+    throw invalidVouResponse('get entity mismatch')
+  return result
 }
 
 export async function queryTargetVouReference(
   csrfToken: string,
-  input: VouReferenceQueryInput,
+  input: TargetVouReferenceQueryInput,
 ) {
   return unwrapTarget(
     await (
       await client.vou.reference.query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function queryTargetVouSourceLine(
+  csrfToken: string,
+  input: TargetVouSourceLineQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou['source-line'].query.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -268,19 +387,14 @@ export async function stageTargetVouAttachment(
   )
 }
 
-export async function submitTargetVou(
+export async function readTargetVouAttachment(
   csrfToken: string,
   entity: VouEntity,
-  mode: 'NEW' | 'CHANGE',
-  input: VouSubmitInput,
-) {
-  const endpoint =
-    mode === 'NEW'
-      ? client.vou[':entity']['submit-new']
-      : client.vou[':entity']['submit-change']
+  input: VouAttachmentReadInput,
+): Promise<TargetVouAttachmentReadResult> {
   return unwrapTarget(
     await (
-      await endpoint.$post(
+      await client.vou[':entity']['attachment-read'].$post(
         { param: { entity }, json: input },
         csrfHeaders(csrfToken),
       )
@@ -288,27 +402,64 @@ export async function submitTargetVou(
   )
 }
 
-export async function reviewTargetVou(
+export async function submitTargetVou<Entity extends VouEntity>(
   csrfToken: string,
-  entity: VouEntity,
-  action: ApprovalAction,
-  input: VouReviewInput & { reason?: string },
-) {
-  const endpoint = client.vou[':entity'][action]
-  return unwrapTarget(
+  entity: Entity,
+  mode: 'NEW' | 'CHANGE',
+  input: TargetVouSubmitInputFor<Entity>,
+): Promise<TargetVouViewFor<Entity>> {
+  const endpoint =
+    mode === 'NEW'
+      ? client.vou[':entity']['submit-new']
+      : client.vou[':entity']['submit-change']
+  const result = await unwrapTarget(
     await (
       await endpoint.$post(
-        { param: { entity }, json: input } as never,
+        { param: { entity }, json: input },
         csrfHeaders(csrfToken),
       )
     ).json(),
   )
+  if (!vouViewMatchesEntity(result, entity))
+    throw invalidVouResponse('submit entity mismatch')
+  return result
+}
+
+export async function reviewTargetVou<Entity extends VouEntity>(
+  csrfToken: string,
+  entity: Entity,
+  request: TargetVouReviewRequest,
+): Promise<TargetVouViewFor<Entity>> {
+  const response =
+    request.action === 'approve'
+      ? await client.vou[':entity'].approve.$post(
+          { param: { entity }, json: request.input },
+          csrfHeaders(csrfToken),
+        )
+      : request.action === 'unreject'
+        ? await client.vou[':entity'].unreject.$post(
+            { param: { entity }, json: request.input },
+            csrfHeaders(csrfToken),
+          )
+        : request.action === 'reject'
+          ? await client.vou[':entity'].reject.$post(
+              { param: { entity }, json: request.input },
+              csrfHeaders(csrfToken),
+            )
+          : await client.vou[':entity'].unapprove.$post(
+              { param: { entity }, json: request.input },
+              csrfHeaders(csrfToken),
+            )
+  const result = await unwrapTarget(await response.json())
+  if (!vouViewMatchesEntity(result, entity))
+    throw invalidVouResponse('review entity mismatch')
+  return result
 }
 
 export async function deleteTargetVou(
   csrfToken: string,
   entity: VouEntity,
-  input: VouDeleteInput,
+  input: TargetVouDeleteInput,
 ) {
   return unwrapTarget(
     await (
@@ -321,6 +472,35 @@ export async function deleteTargetVou(
       )
     ).json(),
   )
+}
+
+function vouViewMatchesEntity<Entity extends VouEntity>(
+  view: unknown,
+  entity: Entity,
+): view is TargetVouViewFor<Entity> {
+  return (
+    typeof view === 'object' &&
+    view !== null &&
+    'entity' in view &&
+    view.entity === entity
+  )
+}
+
+function vouPageMatchesEntity<Entity extends VouEntity>(
+  page: unknown,
+  entity: Entity,
+): page is TargetVouPageFor<Entity> {
+  return (
+    typeof page === 'object' &&
+    page !== null &&
+    'items' in page &&
+    Array.isArray(page.items) &&
+    page.items.every((item) => vouViewMatchesEntity(item, entity))
+  )
+}
+
+function invalidVouResponse(message: string): TargetApiError {
+  return new TargetApiError('invalid_response', message, '')
 }
 
 export async function restoreTargetSession() {
@@ -725,11 +905,14 @@ function csrfHeaders(csrfToken: string) {
   return { headers: { 'X-CSRF-Token': csrfToken } }
 }
 
-export async function queryTargetWarehouses(csrfToken: string) {
+export async function queryTargetWarehouses(
+  csrfToken: string,
+  input: TargetWarehouseQueryInput,
+) {
   return unwrapTarget(
     await (
       await client.dcl.warehouse.query.$post(
-        { json: {} },
+        { json: input },
         csrfHeaders(csrfToken),
       )
     ).json(),
@@ -754,6 +937,20 @@ export async function targetWarehouseVersions(
   return unwrapTarget(
     await (
       await client.dcl.warehouse.versions.$post(
+        { json: { subjectId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function targetWarehouseAuditHistory(
+  csrfToken: string,
+  subjectId: string,
+) {
+  return unwrapTarget(
+    await (
+      await client.dcl.warehouse['audit-history'].$post(
         { json: { subjectId } },
         csrfHeaders(csrfToken),
       )
@@ -1177,6 +1374,7 @@ export type TargetAuxReferenceEntity =
   | 'department'
   | 'position'
   | 'settlement-method'
+  | 'payment-method'
 export type TargetBobReferenceEntity =
   | 'customer-subunit'
   | 'employee'
@@ -1235,7 +1433,7 @@ export async function queryTargetAccMappingCatalog(csrfToken: string) {
 
 export async function queryTargetAccMappingCurrent(
   csrfToken: string,
-  input: { bookId: string; vouEntity?: string; page: number; pageSize: number },
+  input: PostJson<(typeof client.acc.mapping.query)['$post']>,
 ) {
   return unwrapTarget(
     await (
@@ -1249,7 +1447,7 @@ export async function queryTargetAccMappingCurrent(
 
 export async function getTargetAccMappingCurrent(
   csrfToken: string,
-  input: { bookId: string; vouEntity: string },
+  input: PostJson<(typeof client.acc.mapping.get)['$post']>,
 ) {
   return unwrapTarget(
     await (
@@ -1261,13 +1459,20 @@ export async function getTargetAccMappingCurrent(
   )
 }
 
-// ACC target pages deliberately use the executable Hono client.  The Hono
-// contracts carry `unknown` response payloads, so the target ViewModel owns
-// the small, read-only projections it renders.
-export async function queryTargetAccBooks(csrfToken: string) {
+export type TargetAccBookQueryInput = PostJson<
+  (typeof client.acc.book.query)['$post']
+>
+export type TargetAccSubjectQueryInput = PostJson<
+  (typeof client.acc.subject.query)['$post']
+>
+
+export async function queryTargetAccBooks(
+  csrfToken: string,
+  input: TargetAccBookQueryInput,
+) {
   return unwrapTarget(
     await (
-      await client.acc.book.query.$post({ json: {} }, csrfHeaders(csrfToken))
+      await client.acc.book.query.$post({ json: input }, csrfHeaders(csrfToken))
     ).json(),
   )
 }
@@ -1313,12 +1518,12 @@ export async function deleteTargetAccBook(
 
 export async function queryTargetAccSubjects(
   csrfToken: string,
-  bookId: string,
+  input: TargetAccSubjectQueryInput,
 ) {
   return unwrapTarget(
     await (
       await client.acc.subject.query.$post(
-        { json: { bookId } },
+        { json: input },
         csrfHeaders(csrfToken),
       )
     ).json(),
@@ -1367,11 +1572,14 @@ export async function deleteTargetAccSubject(
   )
 }
 
-export async function queryTargetAccOpening(csrfToken: string, bookId: string) {
+export async function queryTargetAccOpening(
+  csrfToken: string,
+  input: PostJson<(typeof client.acc.opening.query)['$post']>,
+) {
   return unwrapTarget(
     await (
       await client.acc.opening.query.$post(
-        { json: { bookId } },
+        { json: input },
         csrfHeaders(csrfToken),
       )
     ).json(),
@@ -1395,12 +1603,31 @@ export async function submitTargetAccOpening(
 export async function reviewTargetAccOpening(
   csrfToken: string,
   action: ApprovalAction,
-  input: Record<string, unknown>,
+  input:
+    | PostJson<(typeof client.acc.opening.approve)['$post']>
+    | PostJson<(typeof client.acc.opening.reject)['$post']>,
 ) {
-  const endpoint = client.acc.opening[action]
+  const options = csrfHeaders(csrfToken)
+  if (action === 'approve' || action === 'unreject')
+    return unwrapTarget(
+      await (
+        await client.acc.opening[action].$post(
+          {
+            json: {
+              bookId: input.bookId,
+              submissionId: input.submissionId,
+              expectedRevision: input.expectedRevision,
+            },
+          },
+          options,
+        )
+      ).json(),
+    )
+  if (!('reason' in input))
+    throw new Error('ACC opening review reason is required.')
   return unwrapTarget(
     await (
-      await endpoint.$post({ json: input } as never, csrfHeaders(csrfToken))
+      await client.acc.opening[action].$post({ json: input }, options)
     ).json(),
   )
 }
@@ -1419,11 +1646,14 @@ export async function deleteTargetAccOpening(
   )
 }
 
-export async function queryTargetAccPeriods(csrfToken: string, bookId: string) {
+export async function queryTargetAccPeriods(
+  csrfToken: string,
+  input: PostJson<(typeof client.acc.period.query)['$post']>,
+) {
   return unwrapTarget(
     await (
       await client.acc.period.query.$post(
-        { json: { bookId } },
+        { json: input },
         csrfHeaders(csrfToken),
       )
     ).json(),
@@ -1433,23 +1663,28 @@ export async function queryTargetAccPeriods(csrfToken: string, bookId: string) {
 export async function setTargetAccPeriod(
   csrfToken: string,
   action: 'lock' | 'unlock',
-  input: Record<string, unknown>,
+  input: PostJson<(typeof client.acc.period.lock)['$post']>,
 ) {
   return unwrapTarget(
     await (
       await client.acc.period[action].$post(
-        { json: input } as never,
+        { json: input },
         csrfHeaders(csrfToken),
       )
     ).json(),
   )
 }
 
-export async function queryTargetWflDefinitions(csrfToken: string) {
+export async function queryTargetWflDefinitions(
+  csrfToken: string,
+  input: PostJson<
+    (typeof client.dcl)['wfl-process-definition']['query']['$post']
+  >,
+) {
   return unwrapTarget(
     await (
       await client.dcl['wfl-process-definition'].query.$post(
-        { json: {} },
+        { json: input },
         csrfHeaders(csrfToken),
       )
     ).json(),
@@ -1473,7 +1708,9 @@ export async function getTargetWflDefinition(
 export async function submitTargetWflDefinition(
   csrfToken: string,
   mode: 'NEW' | 'CHANGE',
-  input: Record<string, unknown>,
+  input: PostJson<
+    (typeof client.dcl)['wfl-process-definition']['submit-new']['$post']
+  >,
 ) {
   const endpoint =
     mode === 'NEW'
@@ -1481,7 +1718,7 @@ export async function submitTargetWflDefinition(
       : client.dcl['wfl-process-definition']['submit-change']
   return unwrapTarget(
     await (
-      await endpoint.$post({ json: input } as never, csrfHeaders(csrfToken))
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
     ).json(),
   )
 }
@@ -1489,12 +1726,38 @@ export async function submitTargetWflDefinition(
 export async function reviewTargetWflDefinition(
   csrfToken: string,
   action: ApprovalAction,
-  input: Record<string, unknown>,
+  input:
+    | PostJson<
+        (typeof client.dcl)['wfl-process-definition']['approve']['$post']
+      >
+    | PostJson<
+        (typeof client.dcl)['wfl-process-definition']['reject']['$post']
+      >,
 ) {
-  const endpoint = client.dcl['wfl-process-definition'][action]
+  const options = csrfHeaders(csrfToken)
+  if (action === 'approve' || action === 'unreject')
+    return unwrapTarget(
+      await (
+        await client.dcl['wfl-process-definition'][action].$post(
+          {
+            json: {
+              subjectId: input.subjectId,
+              submissionId: input.submissionId,
+              expectedRevision: input.expectedRevision,
+            },
+          },
+          options,
+        )
+      ).json(),
+    )
+  if (!('reason' in input))
+    throw new Error('WFL definition review reason is required.')
   return unwrapTarget(
     await (
-      await endpoint.$post({ json: input } as never, csrfHeaders(csrfToken))
+      await client.dcl['wfl-process-definition'][action].$post(
+        { json: input },
+        options,
+      )
     ).json(),
   )
 }
@@ -1518,12 +1781,14 @@ export async function deleteTargetWflDefinition(
 export async function setTargetWflDefinitionEnabled(
   csrfToken: string,
   action: 'enable' | 'disable',
-  input: Record<string, unknown>,
+  input: PostJson<
+    (typeof client.dcl)['wfl-process-definition']['enable']['$post']
+  >,
 ) {
   return unwrapTarget(
     await (
       await client.dcl['wfl-process-definition'][action].$post(
-        { json: input } as never,
+        { json: input },
         csrfHeaders(csrfToken),
       )
     ).json(),
@@ -1532,23 +1797,30 @@ export async function setTargetWflDefinitionEnabled(
 
 export async function trialTargetWflDefinition(
   csrfToken: string,
-  input: Record<string, unknown>,
+  input: PostJson<(typeof client.wfl)['process-definition']['trial']['$post']>,
 ) {
   return unwrapTarget(
     await (
       await client.wfl['process-definition'].trial.$post(
-        { json: input } as never,
+        { json: input },
         csrfHeaders(csrfToken),
       )
     ).json(),
   )
 }
 
-export async function queryTargetWflCurrentDefinitions(csrfToken: string) {
+export type TargetWflQueryInput = PostJson<
+  (typeof client.wfl)['process-definition']['query']['$post']
+>
+
+export async function queryTargetWflCurrentDefinitions(
+  csrfToken: string,
+  input: TargetWflQueryInput,
+) {
   return unwrapTarget(
     await (
       await client.wfl['process-definition'].query.$post(
-        { json: { page: 1, pageSize: 20 } },
+        { json: input },
         csrfHeaders(csrfToken),
       )
     ).json(),
@@ -1569,11 +1841,14 @@ export async function getTargetWflCurrentDefinition(
   )
 }
 
-export async function queryTargetWflInstances(csrfToken: string) {
+export async function queryTargetWflInstances(
+  csrfToken: string,
+  input: PostJson<(typeof client.wfl)['process-instance']['query']['$post']>,
+) {
   return unwrapTarget(
     await (
       await client.wfl['process-instance'].query.$post(
-        { json: { page: 1, pageSize: 20 } },
+        { json: input },
         csrfHeaders(csrfToken),
       )
     ).json(),
@@ -1596,12 +1871,68 @@ export async function getTargetWflInstance(
 
 export async function actionTargetWflInstance(
   csrfToken: string,
-  input: Record<string, unknown>,
+  input: PostJson<(typeof client.wfl)['process-instance']['action']['$post']>,
 ) {
   return unwrapTarget(
     await (
       await client.wfl['process-instance'].action.$post(
-        { json: input } as never,
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function queryTargetRptDirectory(csrfToken: string) {
+  return unwrapTarget(
+    await (
+      await client.rpt.directory.query.$post(
+        { json: {} },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function queryTargetRpt(
+  csrfToken: string,
+  code: string,
+  input: PostJson<(typeof client.rpt)[':code']['query']['$post']>,
+) {
+  return unwrapTarget(
+    await (
+      await client.rpt[':code'].query.$post(
+        { param: { code }, json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function exportTargetRpt(
+  csrfToken: string,
+  code: string,
+  input: PostJson<(typeof client.rpt)[':code']['export']['$post']>,
+) {
+  return unwrapTarget(
+    await (
+      await client.rpt[':code'].export.$post(
+        { param: { code }, json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function queryTargetRptReference(
+  csrfToken: string,
+  code: string,
+  input: PostJson<(typeof client.rpt)[':code']['reference-query']['$post']>,
+) {
+  return unwrapTarget(
+    await (
+      await client.rpt[':code']['reference-query'].$post(
+        { param: { code }, json: input },
         csrfHeaders(csrfToken),
       )
     ).json(),
@@ -1729,7 +2060,7 @@ export async function submitTargetArchive(
 
 export async function stageTargetCustomerAttachment(
   csrfToken: string,
-  input: PostJson<(typeof client.dcl.customer)['attachment-stage']['$post']>,
+  input: TargetCustomerAttachmentStageInput,
 ) {
   return unwrapTarget(
     await (

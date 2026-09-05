@@ -1,3 +1,4 @@
+export { archiveEntityPresentation } from '@zerp/model'
 import type { TargetArchiveEntity } from './api.ts'
 
 export type ArchiveDraftMode = 'NEW' | 'CHANGE'
@@ -5,23 +6,6 @@ export type ArchiveDraftMode = 'NEW' | 'CHANGE'
 export interface ArchiveEntityPresentation {
   label: string
   draftLabel: string
-}
-
-export const archiveEntityPresentation: Record<
-  TargetArchiveEntity,
-  ArchiveEntityPresentation
-> = {
-  'operating-entity': { label: '经营主体', draftLabel: '经营主体资料' },
-  vehicle: { label: '车辆', draftLabel: '车辆资料' },
-  'fund-account': { label: '资金账户', draftLabel: '资金账户资料' },
-  product: { label: '产品', draftLabel: '产品资料' },
-  employee: { label: '员工', draftLabel: '员工资料' },
-  supplier: { label: '供应商', draftLabel: '供应商资料' },
-  customer: { label: '客户', draftLabel: '客户资料' },
-  'other-unit': { label: '其他单位', draftLabel: '其他单位资料' },
-  'sales-partner': { label: '销售合作方', draftLabel: '销售合作方资料' },
-  'acc-mapping': { label: '记账映射', draftLabel: '记账映射规则' },
-  'rpt-definition': { label: '报表定义', draftLabel: '报表定义资料' },
 }
 
 /** The only target-facing Chinese presentation for archive wire enums. */
@@ -82,7 +66,9 @@ export function archiveSubmitPermissions(
   return [
     archiveSubmitPermission(entity, mode),
     ...archiveReferencePermissions(entity),
-    ...(entity === 'customer' ? ['/dcl/customer/save-subunits'] : []),
+    ...(entity === 'customer' && mode === 'NEW'
+      ? ['/dcl/customer/save-subunits']
+      : []),
   ]
 }
 
@@ -107,8 +93,12 @@ export function archiveReferencePermissions(
         '/bob/reference/query',
       ]
     case 'supplier':
-    case 'customer':
       return [...aux('settlement-method'), '/bob/reference/query']
+    case 'customer':
+      return [
+        ...aux('dictionary-item', 'settlement-method', 'payment-method'),
+        '/bob/reference/query',
+      ]
     case 'other-unit':
       return [...aux('settlement-method'), '/bob/reference/query']
     case 'sales-partner':
@@ -173,6 +163,7 @@ const archiveEditorPresentation: Record<
   'operating-entity': {
     fields: [
       { key: 'legalName', label: '法定名称', kind: 'text' },
+      { key: 'shortName', label: '简称', kind: 'text' },
       { key: 'legalIdentifier', label: '统一社会信用代码', kind: 'text' },
       { key: 'registeredAddress', label: '注册地址', kind: 'text' },
       { key: 'contactName', label: '联系人', kind: 'text' },
@@ -216,7 +207,7 @@ const archiveEditorPresentation: Record<
       { key: 'barcode', label: '条码', kind: 'text' },
       { key: 'specification', label: '规格', kind: 'text' },
       { key: 'model', label: '型号', kind: 'text' },
-      { key: 'defaultPackageSpec', label: '默认包装规格', kind: 'text' },
+      { key: 'defaultPackagingSpec', label: '默认包装规格', kind: 'text' },
       { key: 'recyclable', label: '可回收', kind: 'boolean' },
       { key: 'remark', label: '备注', kind: 'text' },
       { key: 'enabled', label: '启用', kind: 'boolean' },

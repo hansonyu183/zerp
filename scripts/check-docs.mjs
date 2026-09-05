@@ -975,14 +975,18 @@ for (const file of domainFiles) {
 }
 
 const useCaseRoot = path.join(root, 'docs', 'use-cases')
+export function isUseCasePageFile(file) {
+  return path.basename(file) !== 'README.md'
+}
+
 const documentedUseCases = new Set(
   fs
     .readdirSync(useCaseRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .flatMap((entry) =>
-      markdownFiles(path.join(useCaseRoot, entry.name)).map(
-        (file) => `${entry.name}/${path.basename(file, '.md')}`,
-      ),
+      markdownFiles(path.join(useCaseRoot, entry.name))
+        .filter(isUseCasePageFile)
+        .map((file) => `${entry.name}/${path.basename(file, '.md')}`),
     ),
 )
 
@@ -1161,6 +1165,14 @@ export function validateTargetRouteUseCases(pages, documentedUseCases) {
     .map(({ route, useCaseKey }) => `${route} 缺少页面用例：${useCaseKey}`)
 }
 
+export function validateOrphanUseCases(pages, documentedUseCases) {
+  const expected = new Set(pages.map(({ useCaseKey }) => useCaseKey))
+  const orphan = [...documentedUseCases]
+    .filter((key) => !expected.has(key))
+    .sort()
+  return orphan.length > 0 ? [`页面用例孤儿文档：${orphan.join('、')}`] : []
+}
+
 const targetEntryPage = parseTargetEntryPage(
   fs.readFileSync(path.join(root, 'frontend', 'index.html'), 'utf8'),
 )
@@ -1183,7 +1195,9 @@ const orphanUseCases = [...documentedUseCases].filter(
 
 orphanUseCases.sort()
 if (!writeUseCaseCoverage && orphanUseCases.length > 0) {
-  failures.push(`页面用例孤儿文档：${orphanUseCases.join('、')}`)
+  failures.push(
+    ...validateOrphanUseCases(expectedUseCasePages, documentedUseCases),
+  )
 }
 const missingUseCaseKeys = [...expectedUseCaseKeySet]
   .filter((key) => !documentedUseCases.has(key))

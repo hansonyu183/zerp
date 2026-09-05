@@ -64,6 +64,39 @@ export interface WarehouseSubmissionView {
   canDelete: boolean
 }
 
+export type WarehouseSubmissionListItem = Omit<
+  WarehouseSubmissionView,
+  'snapshot'
+>
+
+export interface WarehouseQueryView {
+  entity: 'warehouse'
+  subjectId: string
+  code: string
+  name: string
+  enabled: boolean
+  managerName: string | null
+  latestApproved: WarehouseSubmissionListItem | null
+  openCandidate: WarehouseSubmissionListItem | null
+}
+
+function warehouseSubmissionListItem(
+  submission: WarehouseSubmissionView,
+): WarehouseSubmissionListItem {
+  const { snapshot: _snapshot, ...item } = submission
+  return item
+}
+
+export interface WarehouseQueryInput {
+  page: number
+  pageSize: 20
+  filters: {
+    keyword?: string
+    status?: ApprovalStatus
+    enabled?: boolean
+  }
+}
+
 interface WarehouseReferenceBlockerData {
   references: Array<{
     domain: string
@@ -198,27 +231,144 @@ export class WarehouseService {
     this.db = db
   }
 
-  async query(actor: ApprovalActor): Promise<WarehouseSubmissionView[]> {
+  async query(
+    input: WarehouseQueryInput,
+    actor: ApprovalActor,
+  ): Promise<{
+    items: WarehouseQueryView[]
+    total: number
+    page: number
+    pageSize: 20
+  }> {
     requirePermission(actor, '/dcl/warehouse/query')
-    const result = await sql<{ id: string }>`
-      WITH current_approved AS (
-        SELECT DISTINCT ON (subject_id) id
+    const keyword = input.filters.keyword?.trim() ?? null
+    const status = input.filters.status ?? null
+    const enabled = input.filters.enabled ?? null
+    const summaries = sql<{
+      subject_id: string
+      code: string
+      latest_approved_id: string | null
+      open_candidate_id: string | null
+      name: string
+      enabled: boolean
+      manager_name: string | null
+    }>`
+      WITH latest_approved AS (
+        SELECT DISTINCT ON (subject_id) *
         FROM approval_entries
         WHERE domain = 'dcl' AND entity = 'warehouse' AND status = 'APPROVED'
         ORDER BY subject_id, version_no DESC
+      ), open_candidate AS (
+        SELECT DISTINCT ON (subject_id) *
+        FROM approval_entries
+        WHERE domain = 'dcl'
+          AND entity = 'warehouse'
+          AND status IN ('PENDING', 'REJECTED')
+        ORDER BY subject_id, version_no DESC
       )
-      SELECT id
-      FROM approval_entries
-      WHERE domain = 'dcl'
-        AND entity = 'warehouse'
-        AND status IN ('PENDING', 'REJECTED')
-      UNION
-      SELECT id FROM current_approved
-      ORDER BY id
+      SELECT
+        s.id AS subject_id,
+        s.code,
+        approved.id AS latest_approved_id,
+        candidate.id AS open_candidate_id,
+        CASE WHEN candidate.id IS NOT NULL
+          THEN candidate_version.name ELSE approved_version.name END AS name,
+        CASE WHEN candidate.id IS NOT NULL
+          THEN candidate_version.enabled ELSE approved_version.enabled END AS enabled,
+        CASE WHEN candidate.id IS NOT NULL
+          THEN candidate_version.manager_employee_name
+          ELSE approved_version.manager_employee_name END AS manager_name
+      FROM dcl_subjects s
+      LEFT JOIN latest_approved approved ON approved.subject_id = s.id
+      LEFT JOIN dcl_warehouse_versions approved_version
+        ON approved_version.approval_entry_id = approved.id
+      LEFT JOIN open_candidate candidate ON candidate.subject_id = s.id
+      LEFT JOIN dcl_warehouse_versions candidate_version
+        ON candidate_version.approval_entry_id = candidate.id
+      WHERE s.entity = 'warehouse'
+        AND (approved.id IS NOT NULL OR candidate.id IS NOT NULL)
+        AND (
+          (
+            approved.id IS NOT NULL
+            AND (${status}::text IS NULL OR approved.status = ${status})
+            AND (${enabled}::boolean IS NULL OR approved_version.enabled = ${enabled})
+            AND (
+              ${keyword}::text IS NULL
+              OR lower(concat_ws(' ', s.code, approved_version.name,
+                approved_version.address, approved_version.contact_name,
+                approved_version.contact_phone,
+                approved_version.manager_employee_code,
+                approved_version.manager_employee_name))
+                LIKE '%' || lower(${keyword}) || '%'
+            )
+          )
+          OR (
+            candidate.id IS NOT NULL
+            AND (${status}::text IS NULL OR candidate.status = ${status})
+            AND (${enabled}::boolean IS NULL OR candidate_version.enabled = ${enabled})
+            AND (
+              ${keyword}::text IS NULL
+              OR lower(concat_ws(' ', s.code, candidate_version.name,
+                candidate_version.address, candidate_version.contact_name,
+                candidate_version.contact_phone,
+                candidate_version.manager_employee_code,
+                candidate_version.manager_employee_name))
+                LIKE '%' || lower(${keyword}) || '%'
+            )
+          )
+        )
+    `
+    const count = await sql<{ count: string }>`
+      WITH filtered AS (${summaries})
+      SELECT count(*)::text AS count FROM filtered
     `.execute(this.db)
-    return Promise.all(
-      result.rows.map((row) => this.readSubmission(this.db, row.id, actor)),
+    const offset = (input.page - 1) * input.pageSize
+    const result = await sql<{
+      subject_id: string
+      code: string
+      latest_approved_id: string | null
+      open_candidate_id: string | null
+      name: string
+      enabled: boolean
+      manager_name: string | null
+    }>`
+      WITH filtered AS (${summaries})
+      SELECT * FROM filtered
+      ORDER BY code ASC, subject_id ASC
+      LIMIT ${input.pageSize} OFFSET ${offset}
+    `.execute(this.db)
+    const items = await Promise.all(
+      result.rows.map(async (row) => {
+        const [latestApproved, openCandidate] = await Promise.all([
+          row.latest_approved_id
+            ? this.readSubmission(this.db, row.latest_approved_id, actor)
+            : null,
+          row.open_candidate_id
+            ? this.readSubmission(this.db, row.open_candidate_id, actor)
+            : null,
+        ])
+        return {
+          entity: 'warehouse',
+          subjectId: row.subject_id,
+          code: row.code,
+          name: row.name,
+          enabled: row.enabled,
+          managerName: row.manager_name,
+          latestApproved: latestApproved
+            ? warehouseSubmissionListItem(latestApproved)
+            : null,
+          openCandidate: openCandidate
+            ? warehouseSubmissionListItem(openCandidate)
+            : null,
+        } satisfies WarehouseQueryView
+      }),
     )
+    return {
+      items,
+      total: Number(count.rows[0]?.count ?? 0),
+      page: input.page,
+      pageSize: input.pageSize,
+    }
   }
 
   async get(
@@ -792,16 +942,13 @@ export class WarehouseService {
   private async currentManagerReference(
     executor: Executor,
     employeeId: string,
-  ): Promise<
-    | {
-        employeeId: string
-        latestApprovedEntryId: string
-        code: string
-        displayName: string
-        enabled: boolean
-      }
-    | null
-  > {
+  ): Promise<{
+    employeeId: string
+    latestApprovedEntryId: string
+    code: string
+    displayName: string
+    enabled: boolean
+  } | null> {
     const row = await sql<{
       employee_id: string
       latest_approved_entry_id: string

@@ -2,7 +2,11 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as targetApi from '@/target/api.ts'
-import { useDashboardViewModel } from '@/target/pages/home/dashboard/vm.ts'
+import {
+  useDashboardViewModel,
+  workbenchEntityLabel,
+  workbenchEntityOptions,
+} from '@/target/pages/home/dashboard/vm.ts'
 import { useTargetSession } from '@/target/session/vm.ts'
 
 vi.mock('@/target/api.ts', async (importOriginal) => ({
@@ -22,6 +26,18 @@ const page = (overrides: Record<string, unknown> = {}) => ({
 })
 
 describe('formal approval workbench view model', () => {
+  it('presents known document and archive kinds as Chinese choices and row labels', () => {
+    expect(workbenchEntityLabel('vou', 'expense-payment')).toBe('费用付款单')
+    expect(workbenchEntityLabel('dcl', 'product')).toBe('产品')
+    expect(workbenchEntityOptions('ARCHIVE')).toContainEqual({
+      title: '仓库',
+      value: 'warehouse',
+    })
+    expect(workbenchEntityOptions('DOCUMENT')).toContainEqual({
+      title: '销售订单',
+      value: 'sale-order',
+    })
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     setActivePinia(createPinia())

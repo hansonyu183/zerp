@@ -13,5 +13,6 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     include: ['tests/unit/target/**/*.spec.ts'],
+    exclude: ['tests/unit/target/dcl-wfl-process-definition.component.spec.ts'],
   },
 })

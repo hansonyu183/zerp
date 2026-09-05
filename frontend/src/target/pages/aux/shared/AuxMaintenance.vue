@@ -10,6 +10,16 @@ const props = defineProps<{ entity: TargetAuxEntity }>()
 const session = useTargetSession()
 const vm = reactive(useAuxMaintenanceViewModel(props.entity))
 
+const dateTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
+  dateStyle: 'short',
+  timeStyle: 'medium',
+})
+
+function displayDateTime(value: string): string {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : dateTimeFormatter.format(date)
+}
+
 function relationItems(field: AuxFieldConfig) {
   if (!field.relationEntity) return []
   return [
@@ -97,6 +107,9 @@ onMounted(() => void vm.query(1))
               item.enabled ? '启用' : '停用'
             }}</v-chip></template
           >
+          <template #item.updatedAt="{ item }">
+            {{ displayDateTime(item.updatedAt) }}
+          </template>
           <template #item.actions="{ item }"
             ><v-btn
               v-if="session.can(`/aux/${entity}/get`)"
@@ -173,7 +186,7 @@ onMounted(() => void vm.query(1))
           </template>
           <div v-if="vm.detail" class="detail-facts">
             <span>状态：{{ vm.detail.enabled ? '启用' : '停用' }}</span
-            ><span>revision：{{ vm.detail.objectRevision }}</span
+            ><span>修订版本：{{ vm.detail.objectRevision }}</span
             ><span>更新人：{{ vm.detail.updatedBy }}</span>
           </div>
         </v-card-text>

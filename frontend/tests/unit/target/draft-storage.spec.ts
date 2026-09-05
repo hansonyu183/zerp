@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { reactive } from 'vue'
 
 import {
+  TargetDraftConflictError,
   TargetDraftRepository,
   type LocalDraftAttachment,
   type TargetDraftRecord,
@@ -85,6 +86,67 @@ describe('TargetDraftRepository', () => {
     await expect(repository.listAttachments(clone)).resolves.toHaveLength(1)
   })
 
+  it('deletes one attachment without removing the Draft or its other bytes', async () => {
+    installIndexedDb()
+    const repository = new TargetDraftRepository('draft-attachment-delete')
+    const customer = draft('customer', 'owner-a', 'draft', 'Customer')
+    await repository.save(customer)
+    await repository.saveAttachment(customer, {
+      attachmentId: 'remove-me',
+      fileName: 'remove.pdf',
+      mimeType: 'application/pdf',
+      size: 6,
+      digest: 'remove-digest',
+      blob: new Blob(['remove']),
+    })
+    await repository.saveAttachment(customer, {
+      attachmentId: 'keep-me',
+      fileName: 'keep.pdf',
+      mimeType: 'application/pdf',
+      size: 4,
+      digest: 'keep-digest',
+      blob: new Blob(['keep']),
+    })
+
+    await repository.deleteAttachment(customer, 'remove-me')
+
+    await expect(repository.list('owner-a', 'customer')).resolves.toHaveLength(
+      1,
+    )
+    await expect(repository.listAttachments(customer)).resolves.toEqual([
+      expect.objectContaining({ attachmentId: 'keep-me' }),
+    ])
+  })
+
+  it('CAS-saves Draft metadata and deletes selected bytes in one operation', async () => {
+    installIndexedDb()
+    const repository = new TargetDraftRepository('draft-attachment-cas-delete')
+    const customer = draft('customer', 'owner-a', 'draft', 'Before')
+    await repository.save(customer)
+    await repository.saveAttachment(customer, {
+      attachmentId: 'remove-me',
+      fileName: 'remove.pdf',
+      mimeType: 'application/pdf',
+      size: 6,
+      digest: 'remove-digest',
+      blob: new Blob(['remove']),
+    })
+    const edited = structuredClone(customer)
+    edited.name = 'After metadata removal'
+
+    await repository.saveAndDeleteAttachments(edited, ['remove-me'])
+
+    await expect(
+      repository.list<ExampleDraft>('owner-a', 'customer'),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        name: 'After metadata removal',
+        localRevision: 2,
+      }),
+    ])
+    await expect(repository.listAttachments(edited)).resolves.toEqual([])
+  })
+
   it('persists Vue reactive Drafts as plain IndexedDB records', async () => {
     installIndexedDb()
     const repository = new TargetDraftRepository('draft-reactive')
@@ -95,7 +157,92 @@ describe('TargetDraftRepository', () => {
     await repository.save(reactiveDraft)
 
     await expect(repository.list('owner-a', 'vehicle')).resolves.toEqual([
-      draft('vehicle', 'owner-a', 'reactive', 'Reactive Vehicle'),
+      expect.objectContaining({
+        ...draft('vehicle', 'owner-a', 'reactive', 'Reactive Vehicle'),
+        localRevision: 1,
+      }),
+    ])
+  })
+
+  it('rejects a stale tab instead of silently overwriting a newer Draft', async () => {
+    installIndexedDb()
+    const repository = new TargetDraftRepository('draft-cas')
+    await repository.save(draft('customer', 'owner-a', 'shared', 'Original'))
+    const [firstTab] = await repository.list<ExampleDraft>(
+      'owner-a',
+      'customer',
+    )
+    const [secondTab] = await repository.list<ExampleDraft>(
+      'owner-a',
+      'customer',
+    )
+
+    firstTab!.name = 'First tab won'
+    await repository.save(firstTab!)
+    secondTab!.name = 'Second tab stale write'
+
+    await expect(repository.save(secondTab!)).rejects.toBeInstanceOf(
+      TargetDraftConflictError,
+    )
+    await expect(
+      repository.list<ExampleDraft>('owner-a', 'customer'),
+    ).resolves.toEqual([
+      expect.objectContaining({ name: 'First tab won', localRevision: 2 }),
+    ])
+  })
+
+  it('keeps attachment bytes when an atomic metadata removal loses the CAS race', async () => {
+    installIndexedDb()
+    const repository = new TargetDraftRepository('draft-cas-attachment')
+    const customer = draft('customer', 'owner-a', 'shared', 'Original')
+    await repository.save(customer)
+    await repository.saveAttachment(customer, {
+      attachmentId: 'keep-on-conflict',
+      fileName: 'identity.pdf',
+      mimeType: 'application/pdf',
+      size: 3,
+      digest: 'digest',
+      blob: new Blob(['pdf']),
+    })
+    const [winner] = await repository.list<ExampleDraft>('owner-a', 'customer')
+    const [stale] = await repository.list<ExampleDraft>('owner-a', 'customer')
+    winner!.name = 'Winner'
+    await repository.save(winner!)
+
+    await expect(
+      repository.saveAndDeleteAttachments(stale!, ['keep-on-conflict']),
+    ).rejects.toBeInstanceOf(TargetDraftConflictError)
+    await expect(repository.listAttachments(stale!)).resolves.toEqual([
+      expect.objectContaining({ attachmentId: 'keep-on-conflict' }),
+    ])
+  })
+
+  it('does not leave attachment bytes when an atomic add loses the CAS race', async () => {
+    installIndexedDb()
+    const repository = new TargetDraftRepository('draft-cas-attachment-add')
+    await repository.save(draft('customer', 'owner-a', 'shared', 'Original'))
+    const [winner] = await repository.list<ExampleDraft>('owner-a', 'customer')
+    const [stale] = await repository.list<ExampleDraft>('owner-a', 'customer')
+    winner!.name = 'Winner'
+    await repository.save(winner!)
+    stale!.name = 'Stale attachment metadata'
+
+    await expect(
+      repository.saveAndAddAttachment(stale!, {
+        attachmentId: 'must-not-remain',
+        fileName: 'stale.pdf',
+        mimeType: 'application/pdf',
+        size: 3,
+        digest: 'digest',
+        blob: new Blob(['pdf']),
+      }),
+    ).rejects.toBeInstanceOf(TargetDraftConflictError)
+
+    await expect(repository.listAttachments(stale!)).resolves.toEqual([])
+    await expect(
+      repository.list<ExampleDraft>('owner-a', 'customer'),
+    ).resolves.toEqual([
+      expect.objectContaining({ name: 'Winner', localRevision: 2 }),
     ])
   })
 })
@@ -189,6 +336,10 @@ class MemoryObjectStore {
 
   getAll() {
     return MemoryRequest.success([...this.values.values()])
+  }
+
+  get(key: string) {
+    return MemoryRequest.success(this.values.get(key))
   }
 
   put(value: { key: string }) {

@@ -403,8 +403,8 @@ const auxReferenceRequest = z
     dictionaryTypeCode: z.string().max(32).optional(),
   })
   .strict()
-const auxReferences = z.array(
-  z.object({
+export const auxReferenceCandidateSchema = z
+  .object({
     objectId: z.string(),
     code: z.string(),
     name: z.string(),
@@ -416,9 +416,34 @@ const auxReferences = z.array(
         'PACKAGING',
       ])
       .optional(),
+    symbol: z.string().min(1).max(64).optional(),
     quantityScale: z.number().int().nonnegative().optional(),
-  }),
-)
+    termCode: z
+      .enum([
+        'PREPAID',
+        'CASH_ON_DELIVERY',
+        'ARRIVAL_3',
+        'ARRIVAL_5',
+        'ARRIVAL_7',
+        'ARRIVAL_15',
+        'ARRIVAL_30',
+        'MONTHLY_CURRENT',
+        'MONTHLY_30',
+        'MONTHLY_60',
+        'MONTHLY_90',
+      ])
+      .optional(),
+    ruleType: z.enum(['RELATIVE_DAYS', 'MONTH_END']).optional(),
+    monthOffset: z.number().int().min(0).max(3).optional(),
+    dayOfMonth: z.number().int().min(0).max(31).optional(),
+    dayOffset: z.number().int().min(0).max(30).optional(),
+    defaultSalesSurcharge: z
+      .string()
+      .regex(/^(?:0|[1-9]\d*)\.\d{2}$/)
+      .optional(),
+  })
+  .strict()
+const auxReferences = z.array(auxReferenceCandidateSchema)
 
 function auxQueryRoute<const Path extends string>(path: Path) {
   return postRoute(path, auxQueryRequest, auxPage)

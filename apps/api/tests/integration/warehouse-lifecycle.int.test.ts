@@ -395,7 +395,10 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
     managerFactWithSubmitPermission.data.latestApprovedEntryId,
     managerApprovalEntryId,
   )
-  assert.equal(managerFactWithSubmitPermission.data.displayName, '权威负责人 V2')
+  assert.equal(
+    managerFactWithSubmitPermission.data.displayName,
+    '权威负责人 V2',
+  )
   const archiveService = new ArchiveService(db, {
     validate: async () => undefined,
   })
@@ -447,7 +450,10 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
   assert.equal(submitted.data.status, 'PENDING')
   assert.equal(submitted.data.versionNo, 1)
   assert.equal(submitted.data.snapshot.name, '一号仓')
-  assert.equal(submitted.data.snapshot.managerEmployeeApprovalEntryId, previousManagerApprovalEntryId)
+  assert.equal(
+    submitted.data.snapshot.managerEmployeeApprovalEntryId,
+    previousManagerApprovalEntryId,
+  )
   assert.equal(submitted.data.snapshot.managerEmployeeCode, 'EMP-0001')
   assert.equal(submitted.data.snapshot.managerEmployeeName, '权威负责人 V1')
   assert.equal(
@@ -550,13 +556,54 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
   assert.equal(rejected.data.status, 'REJECTED')
   assert.equal(rejected.data.revision, '2')
   assert.equal(rejected.data.rejectionReason, '地址待确认')
-  const rejectedQuery = await post('/dcl/warehouse/query', {}, reviewer)
-  assert.ok(
-    rejectedQuery.data.items.some(
-      (item: { submissionId: string; status: string }) =>
-        item.submissionId === submissionId && item.status === 'REJECTED',
-    ),
+  const rejectedQuery = await post(
+    '/dcl/warehouse/query',
+    {
+      page: 1,
+      pageSize: 20,
+      filters: { keyword: '一号', status: 'REJECTED', enabled: true },
+    },
+    reviewer,
   )
+  assert.equal(rejectedQuery.code, 0)
+  assert.equal(rejectedQuery.data.total, 1)
+  assert.equal(rejectedQuery.data.page, 1)
+  assert.equal(rejectedQuery.data.pageSize, 20)
+  assert.deepEqual(
+    rejectedQuery.data.items.map(
+      (item: {
+        name: string
+        enabled: boolean
+        managerName: string | null
+      }) => ({
+        name: item.name,
+        enabled: item.enabled,
+        managerName: item.managerName,
+      }),
+    ),
+    [{ name: '一号仓', enabled: true, managerName: '权威负责人 V1' }],
+  )
+  assert.deepEqual(
+    rejectedQuery.data.items.map(
+      (item: { openCandidate: { submissionId: string } }) =>
+        item.openCandidate.submissionId,
+    ),
+    [submissionId],
+  )
+  const emptyRejectedPage = await post(
+    '/dcl/warehouse/query',
+    {
+      page: 2,
+      pageSize: 20,
+      filters: { keyword: '一号', status: 'REJECTED', enabled: true },
+    },
+    reviewer,
+  )
+  assert.equal(emptyRejectedPage.code, 0)
+  assert.equal(emptyRejectedPage.data.total, 1)
+  assert.equal(emptyRejectedPage.data.page, 2)
+  assert.equal(emptyRejectedPage.data.pageSize, 20)
+  assert.deepEqual(emptyRejectedPage.data.items, [])
 
   const stale = await post(
     '/dcl/warehouse/unreject',
@@ -602,6 +649,30 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
   }
   const v2 = await post('/dcl/warehouse/submit-change', v2Input, submitter)
   assert.equal(v2.data.versionNo, 2)
+  const approvedLayerQuery = await post(
+    '/dcl/warehouse/query',
+    { page: 1, pageSize: 20, filters: { status: 'APPROVED' } },
+    reviewer,
+  )
+  assert.equal(approvedLayerQuery.data.total, 1)
+  assert.equal(
+    approvedLayerQuery.data.items[0].latestApproved.submissionId,
+    submissionId,
+  )
+  assert.equal(
+    approvedLayerQuery.data.items[0].openCandidate.submissionId,
+    v2Id,
+  )
+  const noCrossLayerMatch = await post(
+    '/dcl/warehouse/query',
+    {
+      page: 1,
+      pageSize: 20,
+      filters: { keyword: '二号', status: 'APPROVED' },
+    },
+    reviewer,
+  )
+  assert.equal(noCrossLayerMatch.data.total, 0)
   const openBlocked = await post(
     '/dcl/warehouse/unapprove',
     {

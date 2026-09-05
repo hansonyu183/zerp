@@ -21,9 +21,28 @@ export function createSessionGuard(session: Session): NavigationGuard {
       session.isKnownRoute(to.path)
     )
       return { name: 'forbidden' }
+    if (to.meta.requiresServerRoute === true && !session.isKnownRoute(to.path))
+      return { name: 'forbidden' }
     const permission = to.meta.requiredPermission
     if (typeof permission === 'string' && !session.can(permission))
       return { name: 'forbidden' }
+    if (to.meta.requiredDynamicPermission === 'wfl-query') {
+      const processCode = to.params.processCode
+      if (
+        typeof processCode !== 'string' ||
+        !/^[a-z][a-z0-9-]{1,62}[a-z0-9]$/.test(processCode)
+      )
+        return { name: 'forbidden' }
+    }
+    if (to.meta.requiredDynamicPermission === 'rpt-query') {
+      const reportCode = to.params.reportCode
+      if (
+        typeof reportCode !== 'string' ||
+        !/^rpt-[0-9]{6}$/.test(reportCode) ||
+        !session.can(`/rpt/${reportCode}/query`)
+      )
+        return { name: 'forbidden' }
+    }
     const anyPermissions = to.meta.requiredAnyPermissions
     if (
       Array.isArray(anyPermissions) &&

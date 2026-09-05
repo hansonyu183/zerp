@@ -168,23 +168,38 @@ const workbenchPageEnvelope = z.union([
     code: z.literal(0),
     errorKey: z.literal(''),
     message: z.literal('ok'),
-    data: z.object({
-      items: z.array(z.object({
-        domain: z.enum(['dcl', 'vou']),
-        entity: z.string(),
-        subjectOrDocumentId: z.string(),
-        submissionId: z.string(),
-        code: z.string(),
-        name: z.string(),
-        status: z.enum(['PENDING', 'REJECTED']),
-        revision: z.string(),
-        availableActions: z.array(z.enum(['view', 'edit', 'delete', 'reject', 'approve', 'unreject'])),
-        updatedAt: z.string().datetime(),
-      }).strict()),
-      total: z.number().int().nonnegative(),
-      page: z.number().int().positive(),
-      pageSize: z.literal(20),
-    }).strict(),
+    data: z
+      .object({
+        items: z.array(
+          z
+            .object({
+              domain: z.enum(['dcl', 'vou']),
+              entity: z.string(),
+              subjectOrDocumentId: z.string(),
+              submissionId: z.string(),
+              code: z.string(),
+              name: z.string(),
+              status: z.enum(['PENDING', 'REJECTED']),
+              revision: z.string(),
+              availableActions: z.array(
+                z.enum([
+                  'view',
+                  'edit',
+                  'delete',
+                  'reject',
+                  'approve',
+                  'unreject',
+                ]),
+              ),
+              updatedAt: z.string().datetime(),
+            })
+            .strict(),
+        ),
+        total: z.number().int().nonnegative(),
+        page: z.number().int().positive(),
+        pageSize: z.literal(20),
+      })
+      .strict(),
     requestId: z.string(),
   }),
   failureEnvelope,
@@ -309,6 +324,7 @@ const warehouseSubmission = z.object({
   ),
   canDelete: z.boolean(),
 })
+const warehouseSubmissionListItem = warehouseSubmission.omit({ snapshot: true })
 
 const warehouseEnvelope = z.union([
   z.object({
@@ -363,7 +379,39 @@ const warehouseQueryEnvelope = z.union([
     code: z.literal(0),
     errorKey: z.literal(''),
     message: z.literal('ok'),
-    data: z.object({ items: z.array(warehouseSubmission), total: z.number() }),
+    data: z.object({
+      items: z.array(
+        z
+          .object({
+            entity: z.literal('warehouse'),
+            subjectId: z.string(),
+            code: z.string(),
+            name: z.string(),
+            enabled: z.boolean(),
+            managerName: z.string().nullable(),
+            latestApproved: warehouseSubmissionListItem.nullable(),
+            openCandidate: warehouseSubmissionListItem.nullable(),
+          })
+          .strict(),
+      ),
+      total: z.number().int().nonnegative(),
+      page: z.number().int().positive(),
+      pageSize: z.literal(20),
+    }),
+    requestId: z.string(),
+  }),
+  failureEnvelope,
+])
+
+const warehouseSubmissionPageEnvelope = z.union([
+  z.object({
+    code: z.literal(0),
+    errorKey: z.literal(''),
+    message: z.literal('ok'),
+    data: z.object({
+      items: z.array(warehouseSubmission),
+      total: z.number().int().nonnegative(),
+    }),
     requestId: z.string(),
   }),
   failureEnvelope,
@@ -462,7 +510,19 @@ function warehouseRoute<
 
 export const warehouseQueryRoute = warehouseRoute(
   '/dcl/warehouse/query',
-  z.object({}).strict(),
+  z
+    .object({
+      page: z.number().int().positive(),
+      pageSize: z.literal(20),
+      filters: z
+        .object({
+          keyword: z.string().trim().min(1).max(200).optional(),
+          status: z.enum(['PENDING', 'APPROVED', 'REJECTED']).optional(),
+          enabled: z.boolean().optional(),
+        })
+        .strict(),
+    })
+    .strict(),
   warehouseQueryEnvelope,
 )
 export const warehouseGetRoute = warehouseRoute(
@@ -473,7 +533,7 @@ export const warehouseGetRoute = warehouseRoute(
 export const warehouseVersionsRoute = warehouseRoute(
   '/dcl/warehouse/versions',
   warehouseIdentity,
-  warehouseQueryEnvelope,
+  warehouseSubmissionPageEnvelope,
 )
 export const warehouseAuditRoute = warehouseRoute(
   '/dcl/warehouse/audit-history',

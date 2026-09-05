@@ -1,14 +1,35 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 
-import { createArchiveDraft } from '../../../src/target/archive-drafts.ts'
+import {
+  archiveDraftReady,
+  createArchiveDraft,
+} from '../../../src/target/archive-drafts.ts'
 import ArchiveReferenceEditor from '../../../src/target/archive-reference-editor.vue'
-import { archiveReadOnlySummary } from '../../../src/target/archive-presentation.ts'
+import {
+  archiveEditorFields,
+  archiveReadOnlySummary,
+} from '../../../src/target/archive-presentation.ts'
 import ArchiveStructuredEditor from '../../../src/target/archive-structured-editor.vue'
 import { normalizeTargetBobReferenceCandidate } from '../../../src/target/api.ts'
-import { archiveDraftReady } from '../../../src/target/vm.ts'
 
 describe('target archive structured editor', () => {
+  it('renders and saves the ordinary archive fields declared by the page matrix', async () => {
+    const draft = createArchiveDraft('owner-1', 'operating-entity')
+    const wrapper = mount(ArchiveStructuredEditor, {
+      props: {
+        draft,
+        fields: archiveEditorFields('operating-entity'),
+      },
+    })
+
+    const legalName = wrapper.get('input[type="text"]')
+    await legalName.setValue('目标经营主体')
+    expect(draft.snapshot.legalName).toBe('目标经营主体')
+    expect(wrapper.text()).toContain('统一社会信用代码')
+    expect(wrapper.emitted('save')).toHaveLength(1)
+  })
+
   it('renders ACC Mapping as typed Chinese controls instead of a JSON editor', async () => {
     const wrapper = mount(ArchiveStructuredEditor, {
       props: { draft: createArchiveDraft('owner-1', 'acc-mapping') },

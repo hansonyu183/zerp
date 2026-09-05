@@ -91,4 +91,55 @@ describe('formal router session guard', () => {
     await router.push('/app/menu')
     expect(router.currentRoute.value.name).toBe('page:app/menu')
   })
+
+  it('admits dynamic WFL and RPT routes only with exact server catalog and permissions', async () => {
+    const router = createTargetRouter(createMemoryHistory())
+    const session = useTargetSession()
+    session.initialized = true
+    session.user = {
+      id: 'u1',
+      username: 'tester',
+      displayName: '测试',
+      avatarUrl: null,
+    }
+    session.permissions = [
+      '/wfl/process-instance/query',
+      '/rpt/rpt-000001/query',
+    ]
+    session.menu = {
+      mode: 'DEFAULT',
+      revision: '1',
+      defaultMenu: { items: [] },
+      businessMenu: { items: [] },
+      navigation: { items: [] },
+      availableRoutes: [
+        {
+          routeKey: 'wfl/sale-flow',
+          routePath: '/wfl/sale-flow',
+          displayName: '销售流程',
+          permissionCode: '/wfl/process-instance/query',
+        },
+        {
+          routeKey: 'rpt/rpt-000001',
+          routePath: '/rpt/rpt-000001',
+          displayName: '销售报表',
+          permissionCode: '/rpt/rpt-000001/query',
+        },
+      ],
+    }
+    router.beforeEach(createSessionGuard(session))
+
+    await router.push('/wfl/sale-flow')
+    expect(router.currentRoute.value.name).toBe('page:wfl/dynamic-process')
+    await router.push('/rpt/rpt-000001')
+    expect(router.currentRoute.value.name).toBe('page:rpt/dynamic-report')
+    await router.push('/wfl/disabled-flow')
+    expect(router.currentRoute.value.name).toBe('forbidden')
+    await router.push('/wfl/UPPER')
+    expect(router.currentRoute.value.name).toBe('forbidden')
+
+    session.permissions = ['/wfl/process-instance/query']
+    await router.push('/rpt/rpt-000001')
+    expect(router.currentRoute.value.name).toBe('forbidden')
+  })
 })

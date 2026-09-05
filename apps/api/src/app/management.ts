@@ -1523,14 +1523,41 @@ export class ManagementService {
     return `ROL-${String(next).padStart(4, '0')}`
   }
   private async routeCatalog(db: AnyDb = this.db) {
-    const rows = await db
-      .selectFrom('app_permissions')
-      .select(['path', 'menu_group', 'menu_order', 'description'])
-      .where('status', '=', 'ENABLED')
-      .where('menu_order', 'is not', null)
-      .where('menu_group', 'is not', null)
-      .orderBy('menu_order', 'asc')
-      .execute()
+    const [rows, dynamicWorkflowDefinitions] = await Promise.all([
+      db
+        .selectFrom('app_permissions')
+        .select(['path', 'menu_group', 'menu_order', 'description'])
+        .where('status', '=', 'ENABLED')
+        .where('menu_order', 'is not', null)
+        .where('menu_group', 'is not', null)
+        .orderBy('menu_order', 'asc')
+        .execute(),
+      sql<{ code: string; name: string }>`
+        SELECT v.compiled_graph->>'code' AS code,
+          v.compiled_graph->>'name' AS name
+        FROM dcl_subjects s
+        JOIN wfl_definition_runtime_states r
+          ON r.subject_id = s.id AND r.enabled = TRUE
+        JOIN approval_entries e
+          ON e.subject_id = s.id
+          AND e.domain = 'dcl'
+          AND e.entity = 'wfl-process-definition'
+          AND e.status = 'APPROVED'
+        JOIN wfl_definition_versions v ON v.approval_entry_id = e.id
+        WHERE s.entity = 'wfl-process-definition'
+          AND s.code IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1
+            FROM approval_entries newer
+            WHERE newer.subject_id = e.subject_id
+              AND newer.domain = e.domain
+              AND newer.entity = e.entity
+              AND newer.status = 'APPROVED'
+              AND newer.version_no > e.version_no
+          )
+        ORDER BY v.compiled_graph->>'code'
+      `.execute(db),
+    ])
     const catalog = new Map<string, MenuRoute>(
       rows.map(
         (row) =>
@@ -1555,6 +1582,31 @@ export class ManagementService {
       group: '系统管理',
       order: 50,
     })
+    const reservedWorkflowCodes = new Set([
+      'process-definition',
+      'process-instance',
+    ])
+    for (const definition of dynamicWorkflowDefinitions.rows) {
+      if (reservedWorkflowCodes.has(definition.code)) continue
+      const routeKey = `wfl/${definition.code}`
+      catalog.set(routeKey, {
+        routeKey,
+        routePath: `/${routeKey}`,
+        permissionCode: '/wfl/process-instance/query',
+        displayName: definition.name,
+        group: '流程',
+        order:
+          800_000 +
+          (Number.parseInt(
+            createHash('sha256')
+              .update(definition.code)
+              .digest('hex')
+              .slice(0, 8),
+            16,
+          ) %
+            100_000),
+      })
+    }
     return catalog
   }
   private menuTree(

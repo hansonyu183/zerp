@@ -54,7 +54,7 @@ describe('APP user management public view-model seam', () => {
       items: [],
       total: 0,
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
     })
   })
 
@@ -71,6 +71,52 @@ describe('APP user management public view-model seam', () => {
       filters: { search: 'buyer', status: 'ENABLED' },
       sort: [{ field: 'username', order: 'asc' }],
     })
+  })
+
+  it('loads every enabled role using the service fixed pagination', async () => {
+    queryRoles
+      .mockResolvedValueOnce({
+        items: [
+          { id: 'role-1', code: 'ROL-0001', name: '采购', assignable: true },
+        ],
+        total: 2,
+        page: 1,
+        pageSize: 20,
+      } as never)
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: 'role-2',
+            code: 'ROL-0002',
+            name: '销售',
+            assignable: true,
+          },
+        ],
+        total: 2,
+        page: 2,
+        pageSize: 20,
+      } as never)
+    getUser.mockResolvedValue(userDetail() as never)
+    const vm = useUserManagementViewModel()
+
+    await vm.openEdit('user-1')
+
+    expect(queryRoles).toHaveBeenNthCalledWith(1, 'csrf-token', {
+      page: 1,
+      pageSize: 20,
+      filters: { status: 'ENABLED' },
+      sort: [{ field: 'code', order: 'asc' }],
+    })
+    expect(queryRoles).toHaveBeenNthCalledWith(2, 'csrf-token', {
+      page: 2,
+      pageSize: 20,
+      filters: { status: 'ENABLED' },
+      sort: [{ field: 'code', order: 'asc' }],
+    })
+    expect(vm.roleOptions.value).toEqual([
+      { title: 'ROL-0001 · 采购', value: 'role-1' },
+      { title: 'ROL-0002 · 销售', value: 'role-2' },
+    ])
   })
 
   it('creates a user then reads the committed server detail back', async () => {

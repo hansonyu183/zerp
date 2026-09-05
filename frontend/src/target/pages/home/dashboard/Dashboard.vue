@@ -4,6 +4,8 @@ import { approvalStatusPresentation } from '@zerp/model'
 import { useRouter } from 'vue-router'
 import {
   useDashboardViewModel,
+  workbenchEntityLabel,
+  workbenchEntityOptions,
   type WorkbenchAction,
   type WorkbenchItem,
 } from './vm.ts'
@@ -66,9 +68,13 @@ onMounted(() => vm.query('DOCUMENT', 1))
             label="编码或名称"
             hide-details
             variant="outlined"
-          /><v-text-field
+          /><v-select
             v-model="vm.activeState.entity"
             label="类型"
+            :items="[
+              { title: '全部', value: '' },
+              ...workbenchEntityOptions(vm.activeTab),
+            ]"
             hide-details
             variant="outlined"
           /><v-select
@@ -98,11 +104,17 @@ onMounted(() => vm.query('DOCUMENT', 1))
           :items-per-page="20"
           hide-default-footer
         >
+          <template #item.entity="{ item }">{{
+            workbenchEntityLabel(item.domain, item.entity)
+          }}</template>
           <template #item.status="{ item }">{{
             approvalStatusPresentation[item.status].label
           }}</template>
           <template #item.actions="{ item }"
-            ><div class="actions">
+            ><div
+              class="actions"
+              :data-workbench-submission-id="item.submissionId"
+            >
               <template v-for="action in vm.visibleActions(item)" :key="action"
                 ><v-text-field
                   v-if="action === 'reject'"

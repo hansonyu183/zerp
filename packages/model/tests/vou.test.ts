@@ -12,9 +12,12 @@ import {
   vouEntities,
   vouLineFieldDescriptors,
   vouPayloadReferences,
+  vouSourceLineSourceEntities,
+  vouSourceLineTargetEntities,
   type ApprovalActor,
   type ApprovalEntry,
   type VouInputFieldDescriptor,
+  type VouSourceLineCandidate,
   type VouSubmissionCommand,
 } from '../src/index.ts'
 import { vouSubmitRequestSchema } from '../../../apps/api/src/vou/contract.ts'
@@ -53,6 +56,7 @@ const base = {
     businessDate: '2026-09-04',
     currency: 'CNY',
     customerSubunit: reference,
+    operatingEntity: reference,
     salesperson: reference,
     warehouse: reference,
     productLines: [
@@ -78,6 +82,30 @@ test('VOU wire owns 36 entity-discriminated payloads and explicit system writers
     'sale-signoff',
     'expense-payment',
   ])
+  assert.deepEqual(vouSourceLineTargetEntities, [
+    'sale-return',
+    'purchase-inbound',
+    'purchase-return',
+    'order-production',
+  ])
+  assert.deepEqual(vouSourceLineSourceEntities, [
+    'sale-signoff',
+    'purchase-order',
+    'purchase-inbound',
+    'sale-order',
+  ])
+  const sourceCandidate: VouSourceLineCandidate = {
+    sourceDocumentId: id,
+    sourceDocumentNo: 'XSQS2026090001',
+    sourceEntity: 'sale-signoff',
+    rootDocumentId: '01J00000000000000000000003',
+    rootEntity: 'sale-order',
+    businessDate: '2026-09-05',
+    sourceLineId: '01J00000000000000000000004',
+    product: { objectId: '01J00000000000000000000005', code: 'P-01', name: '树脂' },
+    availableBaseQuantity: '1.000000',
+  }
+  assert.equal(sourceCandidate.rootEntity, 'sale-order')
   assert.deepEqual(vouEntityFieldDescriptors['sale-order'].collections, [
     { key: 'productLines', lineKind: 'product' },
   ])
@@ -159,7 +187,10 @@ test('VOU wire owns 36 entity-discriminated payloads and explicit system writers
     )?.kind,
     'object',
   )
-  const draft = createVouDraftPayload('sale-order', () => '01J00000000000000000000005')
+  const draft = createVouDraftPayload(
+    'sale-order',
+    () => '01J00000000000000000000005',
+  )
   assert.deepEqual(draft.productLines[0], {
     lineId: '01J00000000000000000000005',
     product: { objectId: '' },
@@ -341,6 +372,45 @@ test('local VOU drafts omit optional values until the user supplies them', () =>
   assert.equal('formula' in draft.productLines[0]!, false)
 })
 
+test('sale and purchase return lines require the exact source document and line pair', () => {
+  const returnLine = {
+    sourceDocumentId: id,
+    sourceLineId: '01J00000000000000000000002',
+    baseQuantity: '1.000000',
+  }
+  const common = {
+    businessDate: '2026-09-04',
+    currency: 'CNY',
+    parentEntity: 'sale-order',
+    parentDocumentId: '01J00000000000000000000003',
+    warehouse: reference,
+    returnReason: '精确来源回归',
+    returnLines: [returnLine],
+    attachments: [],
+  }
+  assert.equal(
+    vouPayloadSchemaByEntity['sale-return'].safeParse(common).success,
+    true,
+  )
+  assert.equal(
+    vouPayloadSchemaByEntity['sale-return'].safeParse({
+      ...common,
+      returnLines: [
+        { sourceLineId: returnLine.sourceLineId, baseQuantity: '1.000000' },
+      ],
+    }).success,
+    false,
+  )
+  assert.equal(
+    vouPayloadSchemaByEntity['purchase-return'].safeParse({
+      ...common,
+      parentEntity: 'purchase-order',
+      supplier: reference,
+    }).success,
+    true,
+  )
+})
+
 test('the target contract accepts rich sale-order facts and rejects the retired generic line bag', () => {
   const accepted = vouSubmitRequestSchema.safeParse(base)
   assert.equal(accepted.success, true)
@@ -356,6 +426,99 @@ test('the target contract accepts rich sale-order facts and rejects the retired 
     },
   })
   assert.equal(retired.success, false)
+})
+
+test('sale orders and asset sales own their authoritative business counterparties', () => {
+  const saleOrder = {
+    ...base.payload,
+    operatingEntity: reference,
+  }
+  assert.equal(
+    vouPayloadSchemaByEntity['sale-order'].safeParse(saleOrder).success,
+    true,
+  )
+  const { operatingEntity: _operatingEntity, ...missingOperatingEntity } =
+    saleOrder
+  assert.equal(
+    vouPayloadSchemaByEntity['sale-order'].safeParse(missingOperatingEntity)
+      .success,
+    false,
+  )
+
+  const assetSale = {
+    businessDate: '2026-09-04',
+    currency: 'CNY',
+    attachments: [],
+    counterparty: reference,
+    counterpartyType: 'other-unit' as const,
+    assetSaleLines: [{ assetId: id, saleAmount: '10.00' }],
+  }
+  assert.equal(
+    vouPayloadSchemaByEntity['asset-sale'].safeParse(assetSale).success,
+    true,
+  )
+  assert.equal(
+    vouPayloadSchemaByEntity['asset-sale'].safeParse({
+      ...assetSale,
+      counterpartyType: 'supplier',
+    }).success,
+    false,
+  )
+  assert.equal(
+    vouPayloadSchemaByEntity['asset-sale'].safeParse({
+      ...assetSale,
+      counterparty: undefined,
+      customer: reference,
+    }).success,
+    false,
+  )
+
+  const decision = prepareVouSubmission(
+    {
+      action: 'submit-new',
+      entity: 'asset-sale',
+      documentId: '01J00000000000000000000006',
+      submissionId: '01J00000000000000000000007',
+      idempotencyKey: '01J00000000000000000000007',
+      expectedRevision: null,
+      payload: { ...assetSale, counterpartyType: 'supplier' },
+    } as unknown as VouSubmissionCommand,
+    {
+      actor: submitter,
+      documentExists: false,
+      currentSubmissionId: null,
+      currentRevision: null,
+      referencesValid: true,
+      periodOpen: true,
+      trustedSystemActor: false,
+    },
+  )
+  assert.deepEqual(decision, { ok: false, errorKey: 'vou_invalid_payload' })
+})
+
+test('all four system-generated VOU entities reject an ordinary submitter', () => {
+  for (const entity of systemGeneratedVouEntities) {
+    const decision = prepareVouSubmission(
+      {
+        ...base,
+        action: 'submit-new',
+        entity,
+      } as unknown as VouSubmissionCommand,
+      {
+        actor: submitter,
+        documentExists: false,
+        currentSubmissionId: null,
+        currentRevision: null,
+        referencesValid: true,
+        periodOpen: true,
+        trustedSystemActor: false,
+      },
+    )
+    assert.deepEqual(decision, {
+      ok: false,
+      errorKey: 'vou_trusted_actor_required',
+    })
+  }
 })
 
 test('sale signoff owns an exact customer-subunit container fact', () => {
@@ -377,7 +540,10 @@ test('sale signoff owns an exact customer-subunit container fact', () => {
       },
     ],
   }
-  assert.equal(vouPayloadSchemaByEntity['sale-signoff'].safeParse(payload).success, true)
+  assert.equal(
+    vouPayloadSchemaByEntity['sale-signoff'].safeParse(payload).success,
+    true,
+  )
   assert.deepEqual(vouPayloadReferences(payload), [
     {
       field: 'customerSubunit',
@@ -386,13 +552,17 @@ test('sale signoff owns an exact customer-subunit container fact', () => {
     },
   ])
   assert.equal(
-    vouPayloadSchemaByEntity['sale-signoff']
-      .safeParse({ ...payload, expectedSolventContainers: -1 }).success,
+    vouPayloadSchemaByEntity['sale-signoff'].safeParse({
+      ...payload,
+      expectedSolventContainers: -1,
+    }).success,
     false,
   )
   assert.equal(
-    vouPayloadSchemaByEntity['sale-signoff']
-      .safeParse({ ...payload, returnedResinContainers: 1.5 }).success,
+    vouPayloadSchemaByEntity['sale-signoff'].safeParse({
+      ...payload,
+      returnedResinContainers: 1.5,
+    }).success,
     false,
   )
 })

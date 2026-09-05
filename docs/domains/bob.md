@@ -6,9 +6,7 @@
 
 BOB 使用固定领域标识 `bob`。本文只记录 OpenAPI 无法独立表达的 highest-approved typed query、引用和业务不变量；stable subject、business code、声明生命周期与 typed snapshot 由 DCL 拥有，版本头、状态和 revision 由中央 Approval 拥有。
 
-当前对外实体标识、字段与路径由 `apps/api/` 的可执行 Hono/Zod 路由生成；本文不维护其副本。数据库内部名称可以使用 `fund_account`，对外 wire value 以生成契约为准。
-
-BOB 查询与引用协议从 `apps/api/` 可执行 Hono/Zod 路由生成。
+当前对外实体标识、字段、查询与引用协议由 `apps/api/` 的可执行 Hono/Zod 路由生成；本文不维护其副本。数据库内部名称可以使用 `fund_account`，对外 wire value 以生成契约为准。
 
 ## 2. 领域职责与边界
 

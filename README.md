@@ -15,7 +15,7 @@ docs/use-cases/       页面编排与验收场景
 ## 环境与常用命令
 
 - Node.js 26、pnpm 10.34.5、TypeScript 7.0.2
-- Go 1.26.6 仅用于构建 WFL Starlark WASM parity runner
+- Go 1.26.6 仅用于构建 WFL Starlark WASM 运行时及 parity 验证
 - Docker、Docker Compose、GNU Make
 
 ```bash
@@ -28,7 +28,7 @@ make e2e
 make target-down
 ```
 
-`make dev` 启动可丢弃 target 数据库与 Hono API，再以前台 Vite 启动 SPA。`make generate` 从 Hono/Zod 路由和 target schema 生成 OpenAPI、权限目录、类型客户端与 Kysely 类型；生成物不得手工修改。`make e2e` 重建隔离数据库并运行生成、类型、单元、真实 PostgreSQL 与浏览器门禁。
+`make dev` 启动可丢弃 target 数据库与 Hono API，再以前台 Vite 启动 SPA。`make generate` 从 Hono/Zod 路由和 target schema 生成 OpenAPI、权限目录与 Kysely 类型；`packages/api-client/` 在编译期直接从同一 Hono route type 推导客户端类型。生成物不得手工修改。`make e2e` 重建隔离数据库并运行生成、类型、单元、真实 PostgreSQL 与浏览器门禁。
 
 ## 生产形态
 

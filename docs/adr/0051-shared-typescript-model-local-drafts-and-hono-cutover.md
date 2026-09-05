@@ -19,7 +19,7 @@ HTTP 契约由可执行 Hono/Zod 路由定义：内部客户端类型来自 Hono
 
 ## Topology and cutover boundary
 
-当前唯一生产路径是 frontend → generated Hono client → Hono → shared model → PostgreSQL。旧 Go API、旧 schema、手写 OpenAPI、旧生成客户端和旧权限目录已在 #366 删除。
+当前唯一生产路径是 frontend → Hono 类型推导客户端 → Hono → shared model → PostgreSQL。旧 Go API、旧 schema、手写 OpenAPI、旧生成客户端和旧权限目录已在 #366 删除。
 
 Approval、DCL、VOU、ACC、WFL 与 RPT 作为一个事务连接的切换单元。#366 的公网环境仅承载开发测试数据，因此保留整库与附件备份后直接重建 target schema，不迁移服务器 Draft 或旧业务事实。回滚恢复匹配备份与完整旧镜像；当前代码不实现旧 schema 的兼容读取、双读写、代理、别名或临时路由。
 

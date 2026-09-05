@@ -17,7 +17,7 @@
     "docs:coverage": "node scripts/check-docs.mjs --write-use-case-coverage",
     "docs:adr-index": "node scripts/check-docs.mjs --write-adr-index",
     "docs:check": "node scripts/check-docs.mjs && node --test scripts/check-docs.test.mjs",
-    "check:ci-workflow": "node --test scripts/check-ci-workflow.test.mjs",
+    "check:ci-workflow": "node --test scripts/check-ci-workflow.test.mjs scripts/ci/*.test.mjs",
     "format": "prettier --write \"*.json\" \"*.yaml\" \"*.md\" \".github/workflows/*.yml\" \"docs/**/*.md\" \"frontend/*.md\" \"scripts/**/*.mjs\"",
     "format:check": "prettier --check \"*.json\" \"*.yaml\" \"*.md\" \".github/workflows/*.yml\" \"docs/**/*.md\" \"frontend/*.md\" \"scripts/**/*.mjs\""
   },

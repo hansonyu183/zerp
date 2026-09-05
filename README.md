@@ -30,6 +30,16 @@ make target-down
 
 `make dev` 启动可丢弃 target 数据库与 Hono API，再以前台 Vite 启动 SPA。`make generate` 从 Hono/Zod 路由和 target schema 生成 OpenAPI、权限目录与 Kysely 类型；`packages/api-client/` 在编译期直接从同一 Hono route type 推导客户端类型。生成物不得手工修改。`make e2e` 重建隔离数据库并运行生成、类型、单元、真实 PostgreSQL 与浏览器门禁。
 
+## Pull Request 检查
+
+质量门禁只对 Pull Request 的测试合并提交运行；`main` 合并后不重复运行这套 CI。检查采用轻量路径白名单，混合变更取最高级，未知路径默认 L3：
+
+- L0：`docs/**/*.md`，以及明确列出的 `README.md`、`AGENTS.md`、`CONTEXT.md`、`frontend/README.md`、`frontend/AGENTS.md`。只运行公共检查。
+- L1：文档检查器、Prettier 配置、CI 分类与汇总脚本、测试及 `.github/workflows/ci.yml`。运行公共检查和工具/CI 行为测试。
+- L3：其余所有文件，包括 `.github/workflows/target.yml`、业务代码、SQL、依赖、运行配置和 Target 执行定义。运行公共检查、工具/CI 行为测试和完整 `make target-e2e`。
+
+重命名同时按变更前路径删除和变更后路径新增分类；修改分类规则时，基线规则与新规则分别计算并取较高等级。唯一必需检查为 `ci-required`，它会严格汇总各级必须运行的任务。开发者本地仍可用 `make check`、`make test` 和 `make e2e` 运行完整验证。
+
 ## 生产形态
 
 `compose.yaml` 与 `compose.production.yaml` 发布 Hono API 和 target Web。生产配置从根目录 `.env.production.example` 派生；数据库连接必须显式使用 `TARGET_DATABASE_SCOPE=production`，隔离检查仍只接受 `*_test` 数据库。

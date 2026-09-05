@@ -2,13 +2,13 @@
 
 ## 1. 文档目的
 
-本文定义 ZERP **BOB（Business Object）** 领域的业务模型、数据约束和事务边界，覆盖经营主体、仓库、车辆、资金账户、产品、员工、客户、供应商、其他单位与销售合作方的当前有效只读业务资料。上述版本化档案由 DCL 管理；客户子单位是 Customer Version 子项，不是独立 BOB/DCL 对象。#366 前的 live HTTP 路径和数据结构以根目录 OpenAPI 为准。
+本文定义 ZERP **BOB（Business Object）** 领域的业务模型、数据约束和事务边界，覆盖经营主体、仓库、车辆、资金账户、产品、员工、客户、供应商、其他单位与销售合作方的当前有效只读业务资料。上述版本化档案由 DCL 管理；客户子单位是 Customer Version 子项，不是独立 BOB/DCL 对象。HTTP 路径和数据结构由可执行 Hono/Zod 路由生成。
 
 BOB 使用固定领域标识 `bob`。本文只记录 OpenAPI 无法独立表达的 highest-approved typed query、引用和业务不变量；stable subject、business code、声明生命周期与 typed snapshot 由 DCL 拥有，版本头、状态和 revision 由中央 Approval 拥有。
 
-当前对外实体标识、字段与路径见 [OpenAPI BOB Schema](../../contracts/openapi/schemas/bob.yaml)；本文不维护其副本。数据库内部名称可以使用 `fund_account`，对外 wire value 仍以 OpenAPI 为准。
+当前对外实体标识、字段与路径由 `apps/api/` 的可执行 Hono/Zod 路由生成；本文不维护其副本。数据库内部名称可以使用 `fund_account`，对外 wire value 以生成契约为准。
 
-上述 OpenAPI 引用均指 #366 前的 live Go 线协议；隔离 target 的 BOB 查询与引用协议从 `apps/api/` 可执行 Hono/Zod 路由生成，不与 live 契约或权限目录组合。
+BOB 查询与引用协议从 `apps/api/` 可执行 Hono/Zod 路由生成。
 
 ## 2. 领域职责与边界
 
@@ -62,7 +62,7 @@ Customer 是付款识别、税务抬头和收款分摊根，并在同一版本�
 
 ### 2.1 业务字段
 
-BOB 实体使用类型化版本明细，不使用无约束 JSONB 保存正式业务数据。客户易变的定价策略是唯一例外：以本节严格定义、后端类型化校验的 `pricingPolicy` JSONB 值对象随客户版本保存；它不是任意扩展字段。完整 wire 字段以 [OpenAPI BOB Schema](../../contracts/openapi/schemas/bob.yaml) 为准。
+BOB 实体使用类型化版本明细，不使用无约束 JSONB 保存正式业务数据。客户易变的定价策略是唯一例外：以本节严格定义、后端类型化校验的 `pricingPolicy` JSONB 值对象随客户版本保存；它不是任意扩展字段。完整 wire 字段以 Hono 生成契约为准。
 
 客户保存一个当前启用经营主体作为新单据默认值，但不据此限制交易范围。每张销售单据必须明确选择当时有效的经营主体并保存其稳定对象、Approval Entry、编码、名称、税号、地址和电话快照；默认值及经营主体后续变化都不改写已有单据。
 
@@ -233,7 +233,7 @@ BOB `query/get/reference` 不接受 lifecycle status 或历史 entry 作为读�
 
 ## 5. 领域动作
 
-公开动作及路径以 [OpenAPI](../../contracts/openapi/openapi.yaml) 为准。BOB 每个实体只登记 `query/get`，共享引用入口登记 `reference/query`；每个动作都是独立 APP 权限。后端通过路由元数据绑定权限标识，不能由 Handler 以字符串前缀或角色名称推断。
+公开动作及路径由 Hono route metadata 生成。BOB 每个实体只登记 `query/get`，共享引用入口登记 `reference/query`；每个动作都是独立 APP 权限。后端通过路由元数据绑定权限标识，不能由 Handler 以字符串前缀或角色名称推断。
 
 每种业务档案使用自己的 BOB 读取权限和 DCL 维护权限，不因现实主体可能相同而隐式授权另一类型。BOB 不提供专用写接口。
 
@@ -241,7 +241,7 @@ BOB `query/get/reference` 不接受 lifecycle status 或历史 entry 作为读�
 
 ### 6.1 查询
 
-查询请求、筛选、排序和分页结构以 [OpenAPI BOB Schema](../../contracts/openapi/schemas/bob.yaml) 为准。各实体必须在后端定义允许的筛选、排序和关键词字段白名单；客户端字段名和排序方向不能直接拼接进 SQL。资金账号不能进入关键词搜索。
+查询请求、筛选、排序和分页结构以 Hono 生成契约为准。各实体必须在后端定义允许的筛选、排序和关键词字段白名单；客户端字段名和排序方向不能直接拼接进 SQL。资金账号不能进入关键词搜索。
 
 BOB `query` 永远只返回 current 行；DCL 候选状态不进入筛选或响应，候选待审也不改变当前可读结果。
 

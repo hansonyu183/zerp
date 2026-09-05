@@ -20,6 +20,7 @@
     "generate:check": "pnpm generate && git diff --exit-code -- src/generated",
     "check:catalog": "node scripts/check-target-catalog.ts",
     "validate:rpt": "node scripts/validate-rpt-definitions.ts",
+    "bootstrap:admin": "node scripts/bootstrap-target-admin.ts",
     "sync:catalog": "node scripts/sync-target-catalog.ts",
     "e2e": "node scripts/run-target-e2e.ts"
   },

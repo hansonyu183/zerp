@@ -8,11 +8,11 @@
 
 ## 仓库边界
 
-- 本仓库是 ZERP 的唯一开发仓库；live 前端位于 `frontend/`，live Go 后端位于 `backend/`。架构切换期间，未接入生产流量的 TypeScript target 后端位于 `apps/api/`，共享包位于 `packages/`；这些目录只服务隔离 target 拓扑，在 #366 切换前不得代理、组合或改变 live Go API。
-- #366 前，`contracts/openapi/` 是 live Go HTTP 线协议的唯一事实来源；隔离 target 的 HTTP 契约只从 `apps/api/` 的可执行 Hono/Zod 路由生成，二者不得组合。`docs/domains/` 是业务规则的唯一事实来源。
-- `docs/use-cases/` 按页面记录前端编排、后端协作流程、异常分支和验收场景；用例文档必须引用领域规则，并按所属运行线引用 live OpenAPI 或 target 可执行路由，不得复制或改写权威规则与线协议。
-- 禁止在 `frontend/` 或 `backend/` 下复制领域文档或维护第二套接口说明。
-- `frontend/AGENTS.md`、`backend/AGENTS.md` 只补充模块约束，不得覆盖本文件的全仓规则。
+- 本仓库是 ZERP 的唯一开发仓库；生产 SPA 位于 `frontend/`，Hono/Kysely API 位于 `apps/api/`，共享模型、客户端和 WFL 运行时位于 `packages/`。
+- HTTP 契约只从 `apps/api/` 的可执行 Hono/Zod 路由生成；`docs/domains/` 是业务规则的唯一事实来源。
+- `docs/use-cases/` 按页面记录前端编排、后端协作流程、异常分支和验收场景；用例文档必须引用领域规则和可执行路由，不得复制或改写权威规则与线协议。
+- 禁止在 `frontend/` 或 `apps/api/` 下复制领域文档或维护第二套接口说明。
+- `frontend/AGENTS.md` 只补充模块约束，不得覆盖本文件的全仓规则。
 - 模块任务默认只修改所属目录；跨端契约、领域文档、根级编排或质量检查任务可以按任务范围同时修改根目录和两个模块，无需把单仓边界误解为子目录隔离。
 - Agent 主动创建、修改或删除的文件必须位于解析真实路径后的仓库根目录内，禁止通过符号链接或路径穿越写入仓库外；仓库外只读检查和开发工具自动管理的缓存不受此限制。
 - 不得提交密码、Cookie、CSRF Token、数据库连接串、API Token、测试账号、附件或生产数据。
@@ -22,12 +22,10 @@
 
 ## 契约优先
 
-- 新增或修改 live Go 接口时先修改 OpenAPI 和领域文档，再运行 `make generate`。
-- 新增或修改隔离 target 接口时先修改 `apps/api/` 的可执行 Hono/Zod 路由及领域文档，再运行 `make target-generate`；#366 前不得借此改写或拼接 live OpenAPI。
-- `frontend/src/api/generated/`、`backend/internal/api/generated/`、`contracts/openapi/dist/` 均为生成物，禁止手工编辑。
+- 新增或修改接口时先修改 `apps/api/` 的可执行 Hono/Zod 路由及领域文档，再运行 `make generate`。
+- `apps/api/src/generated/`、`apps/api/src/db/generated.ts` 与 `packages/api-client/src/generated.ts` 均为生成物，禁止手工编辑。
 - 业务接口继续使用 `POST application/json` 和 `/{domain}/{entity}/{action}`，响应包络为 `{code, errorKey, message, data, requestId}`；失败响应使用稳定 `errorKey` 表达业务语义，前端只按 `errorKey` 分支或映射用户提示，`message` 仅用于诊断和默认说明。
-- 前端业务代码只能通过 `src/api/client.ts` 及其领域封装调用生成客户端，不得直接使用 `fetch` 或拼接任意 API 路径。
-- 隔离 target 页面通过 `frontend/src/target/api.ts` 消费 `packages/api-client/` 从可执行 Hono 路由推导的客户端，并把状态与动作放在同目录 `vm.ts`；该例外不得被 live 页面引用。
+- 前端业务代码只能通过 `frontend/src/target/api.ts` 消费 `packages/api-client/` 从可执行 Hono 路由推导的客户端，并把状态与动作放在同目录 `vm.ts`；不得直接使用 `fetch` 或拼接任意 API 路径。
 - 新增或修改用户可见的状态、枚举、类型、实体标识或后端业务错误前，先列出完整 wire value 集合并确定最小共享范围的中文映射；选择项从同一映射派生，已知值不得回退显示协议原码。
 - 后端 Handler 只做协议适配、权限、校验和领域模型映射；事务及业务规则继续位于领域 Service。
 
@@ -36,7 +34,7 @@
 - 数据库只负责业务事实的持久化、查询、事务原子性与隔离，以及 PK、FK、NOT NULL、UNIQUE、简单数据形状 CHECK、CAS revision、事务锁和原子计数器等持久化完整性能力。
 - 业务规则、状态转换、跨行或跨聚合决策、结构化 blocker 与稳定业务错误由 Domain Service 在其拥有的同一事务内完成。Handler、WFL、seed 和运维命令的业务写入必须经过对应 Domain Service；绕过应用直接写业务表不属于受支持的写入方式。
 - 当前数据库基线不得定义自定义数据库函数、存储过程或触发器。查询 SQL 可以使用 PostgreSQL 内置函数进行只读事实计算，包括 `SUM`、`GROUP BY`、`HAVING`、CTE 和窗口函数；SQL 只返回或持久化事实，不负责抛出业务异常、执行状态转换或编排领域流程。
-- 数据库边界调整直接更新当前基线及 sqlc 查询，只保留单一当前实现和单一写入路径。
+- 数据库边界调整直接更新 `apps/api/db/target-schema.sql` 与 Kysely 生成类型，只保留单一当前实现和单一写入路径。
 
 ## 复杂度预算
 
@@ -45,17 +43,17 @@
 - 执行接口能够在事务内返回完整冲突时，由执行接口直接检查并返回 blocker；独立 precheck 只用于主体合并等必须先由用户制定复杂处理方案的动作。
 - 新机制必须对应当前真实业务场景，并优先复用已有保证；仅为未来可能需求、旧版本、第二道完整验证或所谓通用化而增加的 switch、metadata、trigger、fallback 和兼容层不进入实现。
 - 删除机制时，同一变更必须删除其入口、契约、权限、生成类型、实现、专属测试、脚本和文档；权威文档只描述当前系统。
-- 高风险结构变更按可独立验收的切片分别提交，每个切片完成领域规则、OpenAPI、数据库、前后端、旧路径清理和完整验证后再进入下一片。
+- 高风险结构变更按可独立验收的切片分别提交，每个切片完成领域规则、Hono 契约、数据库、前后端、旧路径清理和完整验证后再进入下一片。
 
 ## 开发质量
 
-- 跨端契约变更必须同时包含 OpenAPI、后端适配、前端调用和对应测试。
-- SQL 修改后运行 `make generate`，不得手改 sqlc 生成代码。
+- 跨端契约变更必须同时包含 Hono/Zod 路由、服务适配、前端调用和对应测试。
+- SQL 修改后运行 `make generate`，不得手改 Kysely 生成类型。
 - 修改后运行与变更相关的生成、测试和静态检查；涉及运行环境时额外验证 Docker Compose 配置与服务健康。
 - 生产 API 发布成功并通过健康检查后，`zerp-production-api` 只保留当前运行 SHA 及最近的两个历史 SHA，每个镜像只保留规范 SHA 标签；删除更早标签和重复的 `rollback-*` 别名。清理前从运行容器解析实际镜像 ID，清理范围限于该镜像仓库，完成后回读三个 SHA 标签、容器镜像 ID 和健康状态。
 - 保留用户已有修改，只改任务相关文件。
 
-运行环境、统一命令和部署方式见根目录 `README.md`；模块细则见 `frontend/AGENTS.md` 和 `backend/AGENTS.md`。
+运行环境、统一命令和部署方式见根目录 `README.md`；前端细则见 `frontend/AGENTS.md`。
 
 ## Agent skills
 

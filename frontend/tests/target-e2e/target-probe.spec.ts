@@ -595,6 +595,100 @@ async function signIn(
   await page.waitForLoadState('networkidle')
 }
 
+test('APP workbench renders only server-returned actions and refreshes after a review', async ({
+  browser,
+}) => {
+  const submitterContext = await browser.newContext()
+  const reviewerContext = await browser.newContext()
+  try {
+    const submitterPage = await submitterContext.newPage()
+    await signIn(
+      submitterPage,
+      process.env.TARGET_E2E_USERNAME!,
+      process.env.TARGET_E2E_PASSWORD!,
+      '/dcl/operating-entity',
+    )
+    const submitterRegion = archiveRegion(submitterPage)
+    await submitterRegion.getByRole('button', { name: '新建本地草稿' }).click()
+    const draft = submitterRegion.locator('[data-archive-draft-id]').last()
+    await draft
+      .getByLabel('统一社会信用代码')
+      .fill(targetId().slice(0, 18))
+    await clickForTargetResponse(
+      submitterPage,
+      '/dcl/operating-entity/submit-new',
+      submitterRegion.getByRole('button', { name: '提交', exact: true }),
+    )
+    const pending = submitterRegion
+      .locator('[data-archive-submission-id]')
+      .filter({ hasText: '待批准' })
+      .last()
+    const submissionId = requiredString(
+      await pending.getAttribute('data-archive-submission-id'),
+      '工作台提交件标识',
+    )
+
+    const reviewerPage = await reviewerContext.newPage()
+    const workbenchQueries: unknown[] = []
+    reviewerPage.on('request', (request) => {
+      if (
+        request.method() === 'POST' &&
+        new URL(request.url()).pathname === '/app/workbench/query'
+      )
+        workbenchQueries.push(request.postDataJSON())
+    })
+    await signIn(
+      reviewerPage,
+      process.env.TARGET_E2E_REVIEWER_USERNAME!,
+      process.env.TARGET_E2E_REVIEWER_PASSWORD!,
+      '/home/dashboard',
+    )
+    const workbench = reviewerPage.getByRole('region', { name: '审批工作台' })
+    await expect(workbench.getByRole('button', { name: '待办单据', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(workbenchQueries).toEqual([
+      { page: 1, pageSize: 20, filters: { kind: 'DOCUMENT' } },
+    ])
+    await clickForTargetResponse(
+      reviewerPage,
+      '/app/workbench/query',
+      workbench.getByRole('button', { name: '待办资料', exact: true }),
+    )
+    expect(workbenchQueries).toContainEqual(
+      { page: 1, pageSize: 20, filters: { kind: 'ARCHIVE' } },
+    )
+    const item = workbench.locator(
+      `[data-workbench-submission-id="${submissionId}"]`,
+    )
+    await expect(item).toBeVisible()
+    const viewLink = item.getByRole('link', { name: '查看', exact: true })
+    await expect(viewLink).toHaveAttribute(
+      'href',
+      new RegExp(`^/dcl/operating-entity\\?mode=view&objectId=.+&approvalEntryId=${submissionId}&code=.+$`),
+    )
+    const viewPage = await reviewerContext.newPage()
+    const detailResponse = viewPage.waitForResponse((response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname === '/dcl/operating-entity/get',
+    )
+    await viewPage.goto((await viewLink.getAttribute('href'))!)
+    await detailResponse
+    await expect(viewPage.getByRole('region', { name: '档案详情与历史' })).toBeVisible()
+    await viewPage.close()
+    await expect(item.getByRole('button', { name: '批准', exact: true })).toBeVisible()
+    await clickForTargetResponse(
+      reviewerPage,
+      '/dcl/operating-entity/approve',
+      item.getByRole('button', { name: '批准', exact: true }),
+    )
+    await expect(item).toHaveCount(0)
+  } finally {
+    await Promise.allSettled([submitterContext.close(), reviewerContext.close()])
+  }
+})
+
 test('each DCL archive has a directly addressable target page', async ({
   page,
 }) => {

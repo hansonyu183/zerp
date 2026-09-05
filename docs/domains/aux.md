@@ -21,7 +21,7 @@ asset-category
 
 不具有明确业务语义和用途的“通用分类”或字典不得建立。字典只归集不参与业务逻辑的稳定选项；客户类型、车辆类型可由字典提供，币种仍是业务枚举。物流服务不再通过供应商类型表达。
 
-本文中的对象名称、字段和持久化规则只定义目标领域模型，不自行声明 HTTP 接口。#366 前，只有根目录 OpenAPI 已同步定义的实体、路径和数据结构才构成 live 线协议；隔离 target 的协议从 `apps/api/` 可执行 Hono/Zod 路由生成，二者不得组合。
+本文中的对象名称、字段和持久化规则只定义领域模型，不自行声明 HTTP 接口；协议从 `apps/api/` 可执行 Hono/Zod 路由生成。
 
 ## 2. Stable-ID Direct CRUD 生命周期
 
@@ -34,7 +34,7 @@ asset-category
 - 树形对象禁止自引用和循环引用；字典归属、同层唯一性、方向一致性和其他 typed 规则在同一事务内重新校验。AUX 写事务取得域写锁，保证校验与 current mutation 原子化。
 - 系统 baseline 直接写入同一 current 模型；系统身份不能绕过 typed 校验、stable identity、revision 或引用 blocker。
 
-#366 前的 live 公开动作、路径和请求响应结构以 [OpenAPI AUX Schema](../../contracts/openapi/schemas/aux.yaml) 为准；隔离 target 以可执行 Hono/Zod 路由为准。
+公开动作、路径和请求响应结构由 `apps/api/` 的可执行 Hono/Zod 路由生成。
 
 ## 3. 对象规则
 

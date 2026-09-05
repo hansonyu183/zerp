@@ -9,6 +9,10 @@ const client = createTargetApiClient({
 type PostJson<Post extends (...args: never[]) => unknown> =
   Parameters<Post>[0] extends { json: infer Json } ? Json : never
 
+export type TargetWorkbenchQueryInput = PostJson<
+  (typeof client.app.workbench.query)['$post']
+>
+
 type WarehouseSubmitInput = PostJson<
   (typeof client.dcl.warehouse)['submit-new']['$post']
 >
@@ -337,6 +341,20 @@ export async function queryTargetUsers(csrfToken: string) {
       payload.requestId,
     )
   return payload.data
+}
+
+export async function queryTargetWorkbench(
+  csrfToken: string,
+  input: TargetWorkbenchQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.app.workbench.query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
 }
 
 type TargetSuccessData<T> = T extends { code: 0; data: infer Data }

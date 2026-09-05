@@ -216,17 +216,31 @@ test('isolated target schema contains every target typed aggregate', async () =>
   assert.doesNotMatch(compose, /backend\/db\/schema\.sql/)
 })
 
-test('production compose remains on the live Go topology', async () => {
-  const liveCompose = await readFile(new URL('compose.yaml', root), 'utf8')
+test('production compose runs the Hono topology after catalog synchronization', async () => {
+  const compose = await readFile(new URL('compose.yaml', root), 'utf8')
   const productionCompose = await readFile(
     new URL('compose.production.yaml', root),
     'utf8',
   )
-  const productionTopology = `${liveCompose}\n${productionCompose}`
+  const webDockerfile = await readFile(
+    new URL('frontend/Dockerfile.target', root),
+    'utf8',
+  )
+  const productionTopology = `${compose}\n${productionCompose}`
 
-  assert.match(productionTopology, /context: backend/)
-  assert.match(productionTopology, /backend\/db\/schema\.sql/)
-  assert.doesNotMatch(productionTopology, /target-api|apps\/api|18082/)
+  assert.match(productionTopology, /dockerfile: apps\/api\/Dockerfile/)
+  assert.match(productionTopology, /apps\/api\/db\/target-schema\.sql/)
+  assert.match(productionTopology, /catalog-sync/)
+  assert.match(productionTopology, /pnpm', 'sync:catalog/)
+  assert.match(productionTopology, /TARGET_DATABASE_SCOPE: production/)
+  assert.match(productionTopology, /frontend\/Dockerfile\.target/)
+  assert.match(
+    webDockerfile,
+    /FROM nginx:[\s\S]*ARG VITE_TARGET_API_BASE_URL[\s\S]*ENV ZERP_API_BROWSER_URL=\$VITE_TARGET_API_BASE_URL/,
+  )
+  assert.doesNotMatch(webDockerfile, /mv .*target\.html/)
+  assert.doesNotMatch(productionTopology, /context: backend/)
+  assert.doesNotMatch(productionTopology, /backend\/db\/schema\.sql/)
 })
 
 test('target frontend consumes only the inferred Hono client', async () => {

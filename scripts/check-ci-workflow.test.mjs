@@ -6,16 +6,6 @@ const workflowPath = new URL('../.github/workflows/ci.yml', import.meta.url)
 const workflowsDirectory = new URL('../.github/workflows/', import.meta.url)
 const packagePath = new URL('../package.json', import.meta.url)
 const makefilePath = new URL('../Makefile', import.meta.url)
-const composePath = new URL('../compose.yaml', import.meta.url)
-const backendGoModPath = new URL('../backend/go.mod', import.meta.url)
-const wflGoModPath = new URL(
-  '../packages/wfl-starlark/go/go.mod',
-  import.meta.url,
-)
-const wflBuildPath = new URL(
-  '../packages/wfl-starlark/scripts/build-wasm.mjs',
-  import.meta.url,
-)
 
 function jobBlock(workflow, jobId) {
   const jobs = [...workflow.matchAll(/^  ([a-z0-9-]+):\n/gm)]
@@ -48,121 +38,56 @@ test('CI validates pull requests and every main SHA without cancelling main runs
   )
 })
 
-test('CI exposes independently diagnosable jobs through repository commands', async () => {
+test('CI only runs target topology checks and always cleans target resources', async () => {
   const workflow = await readFile(workflowPath, 'utf8')
-  const requiredCommands = new Map([
-    ['docs-format', ['make check-common']],
-    ['workflow-contract', ['make check-ci-workflow']],
-    ['openapi-generated', ['make check-openapi-generated']],
-    ['sqlc-generated', ['make check-sqlc-generated']],
-    [
-      'backend-unit',
-      [
-        'make check-runtime',
-        'make -C backend quality-format test-unit quality-vet-build quality-race quality-staticcheck quality-vuln quality-image',
-      ],
-    ],
-    [
-      'backend-integration',
-      [
-        'backend/scripts/run-integration-tests-test.sh',
-        'make -C backend ENV_FILE=.env.e2e.example TEST_POSTGRES_DB=zerp_ci_test test-integration',
-      ],
-    ],
-    ['frontend', ['pnpm contracts:bundle', 'make check-frontend']],
-    [
-      'target-foundation',
-      ['TARGET_POSTGRES_PASSWORD=zerp-target-ci make target-e2e'],
-    ],
-    ['shell', ['make check-shell']],
-    ['e2e', ['make e2e']],
-  ])
+  const target = jobBlock(workflow, 'target')
 
-  for (const [jobId, commands] of requiredCommands) {
-    const block = jobBlock(workflow, jobId)
-    assert.match(block, new RegExp(`^    name: ${jobId}$`, 'm'))
-    assert.match(block, /^          ref: \$\{\{ env\.CI_COMMIT_SHA \}\}$/m)
-    for (const command of commands) {
-      assert.ok(block.includes(command), `${jobId} must run: ${command}`)
-    }
+  assert.match(target, /^    name: target$/m)
+  assert.match(target, /^          ref: \$\{\{ env\.CI_COMMIT_SHA \}\}$/m)
+  assert.match(
+    target,
+    /^          go-version-file: packages\/wfl-starlark\/go\/go\.mod$/m,
+  )
+  assert.ok(
+    target.includes('TARGET_POSTGRES_PASSWORD=zerp-target-ci make target-e2e'),
+  )
+  assert.match(target, /^        if: always\(\)$/m)
+  assert.ok(target.includes('make target-down'))
+
+  for (const legacy of [
+    'backend-unit',
+    'backend-integration',
+    'openapi-generated',
+    'sqlc-generated',
+    'make e2e',
+    'make check-openapi-generated',
+  ]) {
+    assert.equal(
+      workflow.includes(legacy),
+      false,
+      `legacy CI residue: ${legacy}`,
+    )
   }
-
-  assert.match(
-    jobBlock(workflow, 'backend-unit'),
-    /^    env:\n      BACKEND_ENV: \.env\.example$/m,
-  )
-  const targetFoundation = jobBlock(workflow, 'target-foundation')
-  assert.match(
-    targetFoundation,
-    /^          go-version-file: backend\/go\.mod$/m,
-  )
-  assert.match(targetFoundation, /^            backend\/go\.sum$/m)
-  assert.match(
-    targetFoundation,
-    /^            packages\/wfl-starlark\/go\/go\.sum$/m,
-  )
 })
 
-test('the workflow contract is a local gate and disposable resources are always cleaned', async () => {
-  const [workflow, workflowFiles, packageText, makefile] = await Promise.all([
-    readFile(workflowPath, 'utf8'),
+test('workflow contract remains a local target-only gate', async () => {
+  const [workflowFiles, packageText, makefile] = await Promise.all([
     readdir(workflowsDirectory),
     readFile(packagePath, 'utf8'),
     readFile(makefilePath, 'utf8'),
   ])
   const packageJson = JSON.parse(packageText)
 
-  assert.equal(workflowFiles.includes('docs.yml'), false)
+  assert.deepEqual(workflowFiles.sort(), ['ci.yml'])
   assert.equal(
     packageJson.scripts['check:ci-workflow'],
     'node --test scripts/check-ci-workflow.test.mjs',
   )
   assert.match(makefile, /^check-ci-workflow:\n\tpnpm check:ci-workflow$/m)
-
-  const cleanupCommands = new Map([
-    ['backend-integration', 'down --volumes --remove-orphans'],
-    ['target-foundation', 'make target-down'],
-    ['e2e', 'down --volumes --remove-orphans'],
-  ])
-  for (const [jobId, cleanupCommand] of cleanupCommands) {
-    const block = jobBlock(workflow, jobId)
-    assert.match(block, /^        if: always\(\)$/m)
-    assert.ok(
-      block.includes(cleanupCommand),
-      `${jobId} must always remove disposable resources`,
-    )
-  }
-})
-
-test('PostgreSQL readiness waits for the final TCP server', async () => {
-  const compose = await readFile(composePath, 'utf8')
-
   assert.match(
-    compose,
-    /pg_isready -h 127\.0\.0\.1 -U \$\$\{POSTGRES_USER\} -d \$\$\{POSTGRES_DB\}/,
+    makefile,
+    /^check: check-common check-ci-workflow target-check$/m,
   )
-})
-
-test('target Go toolchain stays aligned across backend, WFL WASM, and CI', async () => {
-  const [workflow, backendGoMod, wflGoMod, wflBuild] = await Promise.all([
-    readFile(workflowPath, 'utf8'),
-    readFile(backendGoModPath, 'utf8'),
-    readFile(wflGoModPath, 'utf8'),
-    readFile(wflBuildPath, 'utf8'),
-  ])
-  const backendVersion = backendGoMod.match(/^go (\S+)$/m)?.[1]
-  const wflVersion = wflGoMod.match(/^go (\S+)$/m)?.[1]
-
-  assert.ok(backendVersion, 'backend/go.mod must declare a Go version')
-  assert.equal(wflVersion, backendVersion)
-  assert.ok(
-    wflBuild.includes(
-      `goVersion.startsWith('go version go${backendVersion} ')`,
-    ),
-    'WFL WASM build must enforce the shared Go version',
-  )
-  assert.match(
-    jobBlock(workflow, 'target-foundation'),
-    /^          go-version-file: backend\/go\.mod$/m,
-  )
+  assert.match(makefile, /^test: target-test$/m)
+  assert.match(makefile, /^e2e: target-e2e$/m)
 })

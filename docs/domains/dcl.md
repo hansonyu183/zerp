@@ -6,13 +6,13 @@ DCL（Declaration Control）拥有全部版本化业务对象的稳定 subject�
 
 ### 1.1 本地 Draft 与 Submission 生命周期
 
-全部 13 个 DCL 聚合采用同一目标生命周期：浏览器在当前登录用户和设备命名空间的 IndexedDB 中可同时保留多个本地 Draft。Draft 保存客户端生成的 draft/subject/submission 标识、未发送的完整表单、引用显示快照以及支持该聚合的附件 Blob 和元数据；刷新恢复、克隆和本地删除不写业务数据库。Draft 删除不请求 HTTP，也不属于 Approval。Warehouse 与 WFL Process Definition 的领域特有规则分别见下文；其 target 实现与其余 DCL 聚合一样只在隔离拓扑运行，#366 前完整 live Go 实现保持不变。
+全部 13 个 DCL 聚合采用同一生命周期：浏览器在当前登录用户和设备命名空间的 IndexedDB 中可同时保留多个本地 Draft。Draft 保存客户端生成的 draft/subject/submission 标识、未发送的完整表单、引用显示快照以及支持该聚合的附件 Blob 和元数据；刷新恢复、克隆和本地删除不写业务数据库。Draft 删除不请求 HTTP，也不属于 Approval。Warehouse 与 WFL Process Definition 的领域特有规则分别见下文。
 
 只有 `POST /dcl/{entity}/submit-new` 与 `POST /dcl/{entity}/submit-change`（可执行 Hono/Zod 目标路由）会在服务器事务中创建 Submission、版本 payload 和必要 stable subject。请求必须带 `expectedLatestApprovedSubmissionId` 与 `expectedLatestApprovedRevision`；服务端锁内重新读取历史和当前事实、权限及引用后决定这是 V1 还是最高已批准版本之后的 Vn，并拒绝与事实不符的 submit mode、过期 expected 值、重复开放候选或重复标识。浏览器规范化和决定只作提示，不能替代服务端复核。
 
 Submission 一旦持久化即不可编辑，唯一状态是 `PENDING | APPROVED | REJECTED`。有效动作只有 `approve`、`reject`、`unreject`、`unapprove` 和开放 Submission `delete`；“撤回”只是页面对 `delete` 的编排，不产生 `WITHDRAWN`、`REVOKED` 或 `unsubmit`。`reject` 和 `unapprove` 要求非空 reason，`unreject` 将 `REJECTED` 恢复为 `PENDING`，`unapprove` 在领域补偿或 blocker 检查通过后将 `APPROVED` 恢复为 `PENDING`，删除只允许开放 `PENDING`/`REJECTED` Submission。每次动作携带 expected revision 并递增 revision；提交人不得自审。
 
-当前有效态永远由最高 `APPROVED` 版本推导，不保存 current pointer。开放候选与当前态并存：`PENDING` 或 `REJECTED` 不会取代当前态，批准后自然切换，反批准最高版本后自然回落到上一最高批准版本，无批准版本时为空。目标路由、响应和权限目录从 Hono route metadata 生成；#366 前 live Go/OpenAPI 仍是生产权威，不与目标线组合。
+当前有效态永远由最高 `APPROVED` 版本推导，不保存 current pointer。开放候选与当前态并存：`PENDING` 或 `REJECTED` 不会取代当前态，批准后自然切换，反批准最高版本后自然回落到上一最高批准版本，无批准版本时为空。路由、响应和权限目录从 Hono route metadata 生成。
 
 `dcl_subjects` 是版本化业务对象唯一通用稳定身份，最小保存不可变 ID、entity、nullable code、createdAt 与 createdBy；非空 `(entity, upper(code))` 唯一。只有 ACC Mapping 是合法的无编码 subject。Operating Entity、Warehouse、Vehicle、Fund Account、Product、Employee、Customer、Supplier、Other Unit 与 Sales Partner 必须分别匹配 `OPE/WHS/VEH/FAC/PRD/EMP/CUS/SUP/OTU/SLP-[0-9]{4}`；客户子单位不占用 DCL subject 或全局编码空间，其稳定 ID 由 Customer 聚合持有，编码只在所属客户内大小写不敏感唯一。RPT 与 WFL 编码规则不变。DCL 不复制 Approval 版本头，不保存 current pointer 或第二套 revision，也不提供 BOB 写入别名、双写、过渡视图或失败回退。
 
@@ -20,7 +20,7 @@ Submission 一旦持久化即不可编辑，唯一状态是 `PENDING | APPROVED 
 
 `dcl_subjects` 保存经营主体唯一稳定 ID 与 `OPE-*` 业务编码；二者跨全部版本不可变。`dcl_operating_entity_versions` 以 `approvalEntryId` 为主键，保存该版本完整的法定名称、简称、税号、地址、电话、备注和 `enabled`。所有可变字段均随候选版本冻结；启用或停用同样通过本地 Draft 经 `submit-change` 形成新候选并审批，不存在 BOB current 写入。
 
-目标线协议由可执行 Hono/Zod 路由生成；#366 前 live OpenAPI 仍只描述 live Go 路径，二者不得组合。`/dcl/operating-entity` 是经营主体档案的唯一页面，Submission 查询、当前正式资料、详情和全部写动作固定使用 `/dcl/operating-entity/*`。`/bob/operating-entity/query|get` 只作为内部当前正式资料读取边界，不注册页面、菜单或深链。APP 工作台和审批深链固定进入 DCL 页面。
+HTTP 协议由可执行 Hono/Zod 路由生成。`/dcl/operating-entity` 是经营主体档案的唯一页面，Submission 查询、当前正式资料、详情和全部写动作固定使用 `/dcl/operating-entity/*`。`/bob/operating-entity/query|get` 只作为内部当前正式资料读取边界，不注册页面、菜单或深链。APP 工作台和审批深链固定进入 DCL 页面。
 
 ## 3. 版本与当前读取
 

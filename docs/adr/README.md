@@ -2,7 +2,7 @@
 
 <!-- 此文件由 pnpm docs:adr-index 生成，请勿手工编辑。 -->
 
-每份 ADR 的 frontmatter 与标题是此索引的唯一来源；现行领域规则以 docs/domains/ 为准。#366 前的 live HTTP 契约以 contracts/openapi/ 为准，隔离 target 契约从 apps/api/ 的可执行 Hono/Zod 路由生成。
+每份 ADR 的 frontmatter 与标题是此索引的唯一来源；现行领域规则以 docs/domains/ 为准，HTTP 契约从 apps/api/ 的可执行 Hono/Zod 路由生成。
 
 ## Accepted
 

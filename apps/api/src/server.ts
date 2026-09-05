@@ -18,6 +18,7 @@ import { VouService } from './vou/service.ts'
 import { AccService } from './acc/service.ts'
 import { WflService, type WflVouPort } from './wfl/service.ts'
 import { PgRptDefinitionValidator, RptService } from './rpt/service.ts'
+import { WorkbenchService } from './app/workbench.ts'
 import { createNodeWflStarlark } from '@zerp/wfl-starlark/node'
 
 const config = loadConfig()
@@ -64,6 +65,7 @@ const app = createApp({
   acc,
   wfl,
   rpt,
+  workbench: new WorkbenchService(database),
   config,
   corsAllowedOrigins: config.corsAllowedOrigins,
   bodyLimitBytes: config.bodyLimitBytes,

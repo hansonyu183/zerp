@@ -20,7 +20,7 @@ pnpm --dir packages/wfl-starlark test:browser
 
 ## Shared corpus
 
-`packages/wfl-starlark/tests/corpus.json` is the single machine-readable corpus consumed by the current Go WFL compiler/evaluator, Node and headless Chromium. `backend/internal/domains/wfl/target_parity_test.go` runs it first through the production implementation; the two target runners must then produce the same expected outcomes. This prevents the target host from declaring parity against self-authored behavior alone. It covers:
+`packages/wfl-starlark/tests/corpus.json` is the single machine-readable corpus consumed by Node and headless Chromium. Both maintained runners must produce the same expected outcomes. It covers:
 
 - valid graph compilation and the six static action boundary;
 - root and edge conditions, source-derived `initial` values, and repeated-result determinism;
@@ -31,4 +31,4 @@ The host compiles every request with the same configured predeclared WFL surface
 
 ## Scope of this gate
 
-This evidence establishes compiler and pure evaluation parity. The existing `backend/internal/domains/wfl/*_integration_test.go` tests remain the PostgreSQL transaction and pinned-revision proof; they are build-tagged integration tests and are not replaced by this browser/Node corpus. Any future WFL DSL surface change must first extend this shared corpus and pass all three runners.
+This evidence establishes compiler and pure evaluation parity. PostgreSQL integration tests remain the transaction and pinned-revision proof and are not replaced by this browser/Node corpus. Any future WFL DSL surface change must first extend this shared corpus and pass both runners.

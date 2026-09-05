@@ -15,12 +15,15 @@ COPY packages/model packages/model
 COPY apps/api apps/api
 
 ARG VITE_TARGET_API_BASE_URL
+ARG GITHUB_SHA
 ENV VITE_TARGET_API_BASE_URL=$VITE_TARGET_API_BASE_URL
+ENV GITHUB_SHA=$GITHUB_SHA
 RUN pnpm --filter @zerp/frontend build:target
 
 FROM nginx:1.29-alpine
 
+ARG VITE_TARGET_API_BASE_URL
+ENV ZERP_API_BROWSER_URL=$VITE_TARGET_API_BASE_URL
 COPY --from=build /workspace/frontend/dist-target /usr/share/nginx/html
-RUN mv /usr/share/nginx/html/target.html /usr/share/nginx/html/index.html
-COPY frontend/nginx.target.conf /etc/nginx/conf.d/default.conf
+COPY frontend/nginx.target.conf /etc/nginx/templates/default.conf.template
 EXPOSE 80

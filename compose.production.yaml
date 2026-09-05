@@ -5,13 +5,25 @@ services:
 
   api:
     image: ${ZERP_API_IMAGE:?set ZERP_API_IMAGE}
+    build: !reset null
     environment:
-      APP_ENV: production
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?set CORS_ALLOWED_ORIGINS}
-      APP_SESSION_COOKIE_NAME: ${APP_SESSION_COOKIE_NAME:-zerp_session}
+      TARGET_DATABASE_SCOPE: production
       APP_SESSION_COOKIE_SECURE: 'true'
-      APP_SESSION_COOKIE_SAME_SITE: lax
     ports:
       - '127.0.0.1:${API_PORT:-8080}:8080'
+    labels:
+      io.zerp.release: ${ZERP_RELEASE_SHA:?set ZERP_RELEASE_SHA}
+
+  catalog-sync:
+    image: ${ZERP_API_IMAGE:?set ZERP_API_IMAGE}
+    build: !reset null
+    labels:
+      io.zerp.release: ${ZERP_RELEASE_SHA:?set ZERP_RELEASE_SHA}
+
+  web:
+    image: ${ZERP_WEB_IMAGE:?set ZERP_WEB_IMAGE}
+    build: !reset null
+    ports:
+      - '127.0.0.1:${WEB_PORT:-8088}:80'
     labels:
       io.zerp.release: ${ZERP_RELEASE_SHA:?set ZERP_RELEASE_SHA}

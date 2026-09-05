@@ -6,7 +6,7 @@ ACC 负责 ZERP 的内部会计事实。当前实现 Accounting Book（会计账
 
 ACC 不作为法定会计软件，也不提供面向用户的查询报表。科目流水、科目余额、应收预收、应付预付、库存、票据、空桶和员工借款报表统一记录为 RPT 领域待办，由 RPT 直接查询 ACC 及其他领域的投影数据并单独授权。
 
-本页未特别标注的会计业务不变量同时适用于 live 与隔离 target；本地 Draft、Submission、shared TypeScript model 和 `PENDING | APPROVED | REJECTED` 专指 ADR-0051 的 target 语义。#366 前，live 动作和数据结构仍以 OpenAPI 为准，target 契约不与之组合。
+本页未特别标注的会计业务不变量适用于当前 Hono 运行时；本地 Draft、Submission、shared TypeScript model 和 `PENDING | APPROVED | REJECTED` 使用 ADR-0051 的语义。
 
 ## 2. 会计账簿
 
@@ -41,7 +41,7 @@ ACC 不作为法定会计软件，也不提供面向用户的查询报表。科�
 
 ## 4. 公开能力
 
-ACC 的动作、路径和数据结构以 [OpenAPI ACC Schema](../../contracts/openapi/schemas/acc.yaml) 为准。每个动作注册独立 APP 权限，并与本领域定义的账簿范围共同生效。
+ACC 的动作、路径和数据结构由 `apps/api/` 的可执行 Hono/Zod 路由生成。每个动作注册独立 APP 权限，并与本领域定义的账簿范围共同生效。
 
 ## 5. 会计科目
 

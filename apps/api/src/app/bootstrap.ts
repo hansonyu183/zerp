@@ -1,4 +1,5 @@
 import { sql, type Kysely, type Transaction } from 'kysely'
+import { ulid } from 'ulid'
 
 import type { TargetPermissionCatalogEntry } from '../../scripts/target-artifacts.ts'
 import type { DB } from '../db/generated.ts'
@@ -8,6 +9,18 @@ export interface TargetE2EPrincipal {
   roleId: string
   username: string
   passwordHash: string
+}
+
+export interface TargetInitialAdministrator {
+  username: string
+  displayName: string
+  passwordHash: string
+}
+
+export interface TargetInitialAdministratorReport {
+  userId: string
+  roleId: string
+  permissionCatalog: PermissionCatalogMigrationReport
 }
 
 export interface PermissionCatalogMigrationReport {
@@ -124,94 +137,167 @@ export class TargetBootstrapService {
   async migratePermissionCatalog(
     catalog: readonly TargetPermissionCatalogEntry[],
   ): Promise<PermissionCatalogMigrationReport> {
+    return this.db
+      .transaction()
+      .execute((transaction) =>
+        this.migratePermissionCatalogInTransaction(transaction, catalog),
+      )
+  }
+
+  /**
+   * Creates the only administrator allowed for an empty target database. The
+   * catalog update and the user/role graph share one transaction so a rejected
+   * repeat invocation changes neither.
+   */
+  async bootstrapInitialAdministrator(
+    catalog: readonly TargetPermissionCatalogEntry[],
+    administrator: TargetInitialAdministrator,
+  ): Promise<TargetInitialAdministratorReport> {
     return this.db.transaction().execute(async (transaction) => {
-      const desiredPaths = new Set(catalog.map((entry) => entry.path))
-      const authorityBefore = await effectiveAuthoritySnapshot(
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended('app:initial-administrator-bootstrap', 0))`.execute(
         transaction,
-        desiredPaths,
       )
-      const previousPermissions = await transaction
-        .selectFrom('app_permissions')
-        .select(['path', 'status'])
-        .execute()
-      const previousGrants = await transaction
-        .selectFrom('app_role_permissions as rp')
-        .innerJoin('app_permissions as p', 'p.id', 'rp.permission_id')
-        .select(['rp.role_id', 'p.path'])
-        .execute()
-      const desiredByPath = new Map(catalog.map((entry) => [entry.path, entry]))
-      const previousPermissionByPath = new Map(
-        previousPermissions.map((permission) => [permission.path, permission]),
-      )
-      const preserved = previousGrants.filter((grant) =>
-        desiredByPath.has(grant.path),
-      )
-      await transaction.deleteFrom('app_role_permissions').execute()
-      await transaction.deleteFrom('app_permissions').execute()
-      if (catalog.length > 0) {
-        await transaction
-          .insertInto('app_permissions')
-          .values(
-            catalog.map((entry) => ({
-              id: entry.id,
-              path: entry.path,
-              domain: entry.domain,
-              entity: entry.entity,
-              action: entry.action,
-              description: entry.title,
-              status:
-                previousPermissionByPath.get(entry.path)?.status ?? 'ENABLED',
-              menu_group: entry.group,
-              menu_order: entry.order,
-            })),
-          )
-          .execute()
-      }
-      const uniquePreserved = [
-        ...new Map(
-          preserved.map((grant) => [`${grant.role_id}\0${grant.path}`, grant]),
-        ).values(),
-      ]
-      if (uniquePreserved.length > 0) {
-        await transaction
-          .insertInto('app_role_permissions')
-          .values(
-            uniquePreserved.map((grant) => ({
-              role_id: grant.role_id,
-              permission_id: desiredByPath.get(grant.path)!.id,
-            })),
-          )
-          .execute()
-      }
-      const orphaned = await transaction
-        .selectFrom('app_role_permissions as rp')
-        .leftJoin('app_permissions as p', 'p.id', 'rp.permission_id')
-        .leftJoin('app_roles as r', 'r.id', 'rp.role_id')
-        .select((builder) => builder.fn.countAll<string>().as('count'))
-        .where((builder) =>
-          builder.or([
-            builder('p.id', 'is', null),
-            builder('r.id', 'is', null),
-          ]),
+      const existing = await transaction
+        .selectFrom('app_users')
+        .select('id')
+        .limit(1)
+        .executeTakeFirst()
+      if (existing)
+        throw new Error(
+          'initial administrator bootstrap requires an empty app_users table',
         )
-        .executeTakeFirstOrThrow()
-      const duplicates = await transaction
-        .selectFrom('app_role_permissions')
-        .select(['role_id', 'permission_id'])
-        .groupBy(['role_id', 'permission_id'])
-        .having((builder) => builder.fn.countAll(), '>', 1)
+
+      const permissionCatalog =
+        await this.migratePermissionCatalogInTransaction(transaction, catalog)
+      const permission = await transaction
+        .selectFrom('app_permissions')
+        .select('id')
+        .limit(1)
+        .executeTakeFirst()
+      if (!permission)
+        throw new Error(
+          'initial administrator bootstrap requires a non-empty target permission catalog',
+        )
+
+      const userId = ulid()
+      const roleId = ulid()
+      const now = new Date()
+      await transaction
+        .insertInto('app_users')
+        .values({
+          id: userId,
+          username: administrator.username,
+          display_name: administrator.displayName,
+          password_hash: administrator.passwordHash,
+          status: 'ENABLED',
+          password_changed_at: now,
+        })
         .execute()
-      assertAuthorityPreserved(
-        authorityBefore,
-        await effectiveAuthoritySnapshot(transaction, desiredPaths),
-      )
-      return {
-        preservedRoleGrants: uniquePreserved.length,
-        droppedStaleRoleGrants: previousGrants.length - preserved.length,
-        orphanedRoleGrants: Number(orphaned.count),
-        duplicateRoleGrants: duplicates.length,
-      }
+      await transaction
+        .insertInto('app_roles')
+        .values({
+          id: roleId,
+          code: 'superadmin',
+          name: '超级管理员',
+          description: '系统初始管理员',
+          status: 'ENABLED',
+        })
+        .execute()
+      await transaction
+        .insertInto('app_user_roles')
+        .values({ user_id: userId, role_id: roleId })
+        .execute()
+      return { userId, roleId, permissionCatalog }
     })
+  }
+
+  private async migratePermissionCatalogInTransaction(
+    transaction: Transaction<DB>,
+    catalog: readonly TargetPermissionCatalogEntry[],
+  ): Promise<PermissionCatalogMigrationReport> {
+    const desiredPaths = new Set(catalog.map((entry) => entry.path))
+    const authorityBefore = await effectiveAuthoritySnapshot(
+      transaction,
+      desiredPaths,
+    )
+    const previousPermissions = await transaction
+      .selectFrom('app_permissions')
+      .select(['path', 'status'])
+      .execute()
+    const previousGrants = await transaction
+      .selectFrom('app_role_permissions as rp')
+      .innerJoin('app_permissions as p', 'p.id', 'rp.permission_id')
+      .select(['rp.role_id', 'p.path'])
+      .execute()
+    const desiredByPath = new Map(catalog.map((entry) => [entry.path, entry]))
+    const previousPermissionByPath = new Map(
+      previousPermissions.map((permission) => [permission.path, permission]),
+    )
+    const preserved = previousGrants.filter((grant) =>
+      desiredByPath.has(grant.path),
+    )
+    await transaction.deleteFrom('app_role_permissions').execute()
+    await transaction.deleteFrom('app_permissions').execute()
+    if (catalog.length > 0) {
+      await transaction
+        .insertInto('app_permissions')
+        .values(
+          catalog.map((entry) => ({
+            id: entry.id,
+            path: entry.path,
+            domain: entry.domain,
+            entity: entry.entity,
+            action: entry.action,
+            description: entry.title,
+            status:
+              previousPermissionByPath.get(entry.path)?.status ?? 'ENABLED',
+            menu_group: entry.group,
+            menu_order: entry.order,
+          })),
+        )
+        .execute()
+    }
+    const uniquePreserved = [
+      ...new Map(
+        preserved.map((grant) => [`${grant.role_id}\0${grant.path}`, grant]),
+      ).values(),
+    ]
+    if (uniquePreserved.length > 0) {
+      await transaction
+        .insertInto('app_role_permissions')
+        .values(
+          uniquePreserved.map((grant) => ({
+            role_id: grant.role_id,
+            permission_id: desiredByPath.get(grant.path)!.id,
+          })),
+        )
+        .execute()
+    }
+    const orphaned = await transaction
+      .selectFrom('app_role_permissions as rp')
+      .leftJoin('app_permissions as p', 'p.id', 'rp.permission_id')
+      .leftJoin('app_roles as r', 'r.id', 'rp.role_id')
+      .select((builder) => builder.fn.countAll<string>().as('count'))
+      .where((builder) =>
+        builder.or([builder('p.id', 'is', null), builder('r.id', 'is', null)]),
+      )
+      .executeTakeFirstOrThrow()
+    const duplicates = await transaction
+      .selectFrom('app_role_permissions')
+      .select(['role_id', 'permission_id'])
+      .groupBy(['role_id', 'permission_id'])
+      .having((builder) => builder.fn.countAll(), '>', 1)
+      .execute()
+    assertAuthorityPreserved(
+      authorityBefore,
+      await effectiveAuthoritySnapshot(transaction, desiredPaths),
+    )
+    return {
+      preservedRoleGrants: uniquePreserved.length,
+      droppedStaleRoleGrants: previousGrants.length - preserved.length,
+      orphanedRoleGrants: Number(orphaned.count),
+      duplicateRoleGrants: duplicates.length,
+    }
   }
 
   async createE2EPrincipal(principal: TargetE2EPrincipal): Promise<void> {

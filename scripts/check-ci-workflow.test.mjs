@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import { readFile, readdir } from 'node:fs/promises'
 import test from 'node:test'
 
-const workflowPath = new URL('../.github/workflows/ci.yml', import.meta.url)
+const ciPath = new URL('../.github/workflows/ci.yml', import.meta.url)
+const targetPath = new URL('../.github/workflows/target.yml', import.meta.url)
 const workflowsDirectory = new URL('../.github/workflows/', import.meta.url)
 const packagePath = new URL('../package.json', import.meta.url)
 const makefilePath = new URL('../Makefile', import.meta.url)
@@ -17,33 +18,61 @@ function jobBlock(workflow, jobId) {
   return workflow.slice(start, end)
 }
 
-test('CI validates pull requests and every main SHA without cancelling main runs', async () => {
-  const workflow = await readFile(workflowPath, 'utf8')
+test('CI runs once for pull request merge commits and cancels superseded runs', async () => {
+  const workflow = await readFile(ciPath, 'utf8')
 
+  assert.match(workflow, /^on:\n  pull_request:$/m)
+  assert.doesNotMatch(workflow, /^  push:/m)
   assert.match(
     workflow,
-    /^on:\n  pull_request:\n  push:\n    branches:\n      - main$/m,
+    /^  group: ci-\$\{\{ github\.event\.pull_request\.number \}\}$/m,
   )
-  assert.match(
-    workflow,
-    /^concurrency:\n  group: .+\$\{\{ github\.ref \}\}.*$/m,
-  )
-  assert.match(
-    workflow,
-    /^  cancel-in-progress: \$\{\{ github\.ref != 'refs\/heads\/main' \}\}$/m,
-  )
-  assert.match(
-    workflow,
-    /^env:\n  CI_COMMIT_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}$/m,
-  )
+  assert.match(workflow, /^  cancel-in-progress: true$/m)
+  assert.doesNotMatch(workflow, /pull_request\.head\.sha/)
+  assert.doesNotMatch(workflow, /^\s+ref:/m)
 })
 
-test('CI only runs target topology checks and always cleans target resources', async () => {
-  const workflow = await readFile(workflowPath, 'utf8')
+test('changes classifies the tested merge against its base parent', async () => {
+  const workflow = await readFile(ciPath, 'utf8')
+  const changes = jobBlock(workflow, 'changes')
+
+  assert.match(changes, /^    outputs:\n      level: /m)
+  assert.match(changes, /^          fetch-depth: 0$/m)
+  assert.match(changes, /git rev-parse HEAD\^1/)
+  assert.match(changes, /--no-renames/)
+  assert.match(changes, /scripts\/ci\/classify\.mjs/)
+  assert.match(changes, /git show "\$base_sha:scripts\/ci\/classify\.mjs"/)
+  assert.match(changes, /L3:\*\|\*:L3\) level=L3/)
+  assert.match(changes, /L1:\*\|\*:L1\) level=L1/)
+  assert.match(changes, /baseline_level=L3/)
+  assert.match(changes, /GITHUB_OUTPUT/)
+})
+
+test('CI routes L1 and L3 work and always applies the required summary', async () => {
+  const workflow = await readFile(ciPath, 'utf8')
+  const tooling = jobBlock(workflow, 'tooling')
+  const target = jobBlock(workflow, 'target')
+  const common = jobBlock(workflow, 'common')
+  const required = jobBlock(workflow, 'ci-required')
+
+  assert.match(tooling, /needs\.changes\.outputs\.level != 'L0'/)
+  assert.match(tooling, /pnpm check:ci-workflow/)
+  assert.match(target, /needs\.changes\.outputs\.level == 'L3'/)
+  assert.match(target, /^    uses: \.\/\.github\/workflows\/target\.yml$/m)
+  assert.match(common, /make check-common/)
+  assert.match(common, /DOCS_USE_CASE_MISSING_BASELINE_BASE:/)
+  assert.match(required, /^    if: always\(\)$/m)
+  assert.match(required, /scripts\/ci\/required\.mjs/)
+  assert.match(required, /needs: \[changes, common, tooling, target\]/)
+})
+
+test('reusable target workflow owns the complete target E2E and cleanup only', async () => {
+  const workflow = await readFile(targetPath, 'utf8')
   const target = jobBlock(workflow, 'target')
 
-  assert.match(target, /^    name: target$/m)
-  assert.match(target, /^          ref: \$\{\{ env\.CI_COMMIT_SHA \}\}$/m)
+  assert.match(workflow, /^on:\n  workflow_call:$/m)
+  assert.doesNotMatch(workflow, /^  pull_request:/m)
+  assert.doesNotMatch(workflow, /^  push:/m)
   assert.match(
     target,
     /^          go-version-file: packages\/wfl-starlark\/go\/go\.mod$/m,
@@ -53,24 +82,9 @@ test('CI only runs target topology checks and always cleans target resources', a
   )
   assert.match(target, /^        if: always\(\)$/m)
   assert.ok(target.includes('make target-down'))
-
-  for (const legacy of [
-    'backend-unit',
-    'backend-integration',
-    'openapi-generated',
-    'sqlc-generated',
-    'make e2e',
-    'make check-openapi-generated',
-  ]) {
-    assert.equal(
-      workflow.includes(legacy),
-      false,
-      `legacy CI residue: ${legacy}`,
-    )
-  }
 })
 
-test('workflow contract remains a local target-only gate', async () => {
+test('local complete validation remains while CI behavior tests cover both workflows', async () => {
   const [workflowFiles, packageText, makefile] = await Promise.all([
     readdir(workflowsDirectory),
     readFile(packagePath, 'utf8'),
@@ -78,10 +92,10 @@ test('workflow contract remains a local target-only gate', async () => {
   ])
   const packageJson = JSON.parse(packageText)
 
-  assert.deepEqual(workflowFiles.sort(), ['ci.yml'])
+  assert.deepEqual(workflowFiles.sort(), ['ci.yml', 'target.yml'])
   assert.equal(
     packageJson.scripts['check:ci-workflow'],
-    'node --test scripts/check-ci-workflow.test.mjs',
+    'node --test scripts/check-ci-workflow.test.mjs scripts/ci/*.test.mjs',
   )
   assert.match(makefile, /^check-ci-workflow:\n\tpnpm check:ci-workflow$/m)
   assert.match(

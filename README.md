@@ -34,7 +34,7 @@ make target-down
 
 质量门禁只对 Pull Request 的测试合并提交运行；`main` 合并后不重复运行这套 CI。检查采用轻量路径白名单，混合变更取最高级，未知路径默认 L3：
 
-- L0：`docs/**/*.md`，以及明确列出的 `README.md`、`AGENTS.md`、`CONTEXT.md`、`frontend/README.md`、`frontend/AGENTS.md`。只运行公共检查。
+- L0：`docs/**/*.md`，以及明确列出的 `README.md`、`AGENTS.md`、`CONTEXT.md`、`frontend/README.md`、`frontend/AGENTS.md`。只运行公共检查，不安装 Go 或 Chromium，也不启动 Target 服务。
 - L1：文档检查器、Prettier 配置、CI 分类与汇总脚本、测试及 `.github/workflows/ci.yml`。运行公共检查和工具/CI 行为测试。
 - L3：其余所有文件，包括 `.github/workflows/target.yml`、业务代码、SQL、依赖、运行配置和 Target 执行定义。运行公共检查、工具/CI 行为测试和完整 `make target-e2e`。
 

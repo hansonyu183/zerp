@@ -1,7 +1,10 @@
 const defaultHttpAddress = '0.0.0.0:8080'
 
+export type TargetDatabaseScope = 'isolated' | 'production'
+
 export interface TargetConfig {
   databaseUrl: URL
+  databaseScope: TargetDatabaseScope
   httpAddress: string
   corsAllowedOrigins: string[]
   bodyLimitBytes: number
@@ -55,17 +58,37 @@ function durationMilliseconds(
   return number * multiplier
 }
 
+export function targetDatabaseScope(
+  value: string | undefined,
+): TargetDatabaseScope {
+  const scope = (value ?? 'isolated').toLowerCase()
+  if (scope === 'isolated' || scope === 'production') return scope
+  throw new Error('TARGET_DATABASE_SCOPE must be isolated or production')
+}
+
+export function assertTargetDatabaseBoundary(
+  databaseUrl: string,
+  scopeValue: string | undefined,
+): TargetDatabaseScope {
+  const scope = targetDatabaseScope(scopeValue)
+  const databaseName = new URL(databaseUrl).pathname.slice(1)
+  if (scope === 'isolated' && !databaseName.endsWith('_test')) {
+    throw new Error(
+      'isolated target runtime requires a disposable DATABASE_URL whose database name ends in _test',
+    )
+  }
+  return scope
+}
+
 export function loadConfig(
   environment: Environment = process.env,
 ): TargetConfig {
   if (!environment.DATABASE_URL) throw new Error('DATABASE_URL is required')
   const databaseUrl = new URL(environment.DATABASE_URL)
-  const databaseName = databaseUrl.pathname.slice(1)
-  if (!databaseName.endsWith('_test')) {
-    throw new Error(
-      'target runtime requires a disposable DATABASE_URL whose database name ends in _test',
-    )
-  }
+  const scope = assertTargetDatabaseBoundary(
+    databaseUrl.toString(),
+    environment.TARGET_DATABASE_SCOPE,
+  )
 
   const sessionCookieSameSite = (
     environment.APP_SESSION_COOKIE_SAME_SITE ?? 'lax'
@@ -101,6 +124,7 @@ export function loadConfig(
 
   return {
     databaseUrl,
+    databaseScope: scope,
     httpAddress: environment.HTTP_ADDRESS ?? defaultHttpAddress,
     corsAllowedOrigins: splitOrigins(environment.CORS_ALLOWED_ORIGINS),
     bodyLimitBytes,

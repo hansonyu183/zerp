@@ -19,5 +19,10 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts", "vitest.config.ts", "playwright.config.ts"]
+  "include": [
+    "vite.target.config.ts",
+    "vitest.config.ts",
+    "playwright.target.config.ts",
+    "wfl-starlark-parity.playwright.config.ts"
+  ]
 }

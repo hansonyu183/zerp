@@ -307,7 +307,7 @@ export function generateAdrIndex(documents) {
     '',
     '<!-- 此文件由 pnpm docs:adr-index 生成，请勿手工编辑。 -->',
     '',
-    '每份 ADR 的 frontmatter 与标题是此索引的唯一来源；现行领域规则以 docs/domains/ 为准。#366 前的 live HTTP 契约以 contracts/openapi/ 为准，隔离 target 契约从 apps/api/ 的可执行 Hono/Zod 路由生成。',
+    '每份 ADR 的 frontmatter 与标题是此索引的唯一来源；现行领域规则以 docs/domains/ 为准，HTTP 契约从 apps/api/ 的可执行 Hono/Zod 路由生成。',
     '',
   ]
 
@@ -676,7 +676,7 @@ function trackedFormalTerminologyFiles() {
     .filter((file) => /\.(?:go|sql|ya?ml|md|ts|vue|mjs|sh)$/u.test(file))
     .filter(
       (file) =>
-        !/^(?:backend\/internal\/(?:api\/generated|database\/sqlc)|frontend\/src\/api\/generated|contracts\/openapi\/dist|backend\/db\/(?:cutovers|fixtures\/cutovers))\//u.test(
+        !/^(?:apps\/api\/src\/(?:generated|db\/generated\.ts)|packages\/api-client\/src\/generated\.ts)/u.test(
           file,
         ),
     )
@@ -819,9 +819,9 @@ function useCaseCoverage(pages, documentedKeys, orphanKeys) {
     '',
     '<!-- 此文件由 `pnpm docs:coverage` 生成，请勿手工编辑。 -->',
     '',
-    '数据来源：[`frontend/src/router/registry.ts`](../../frontend/src/router/registry.ts)、[`frontend/src/router/index.ts`](../../frontend/src/router/index.ts)、[`frontend/target.html`](../../frontend/target.html)，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。',
+    '数据来源：[`frontend/index.html`](../../frontend/index.html)，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。',
     '',
-    '统计口径：页面入口统计 live 静态注册页面、隔离 target HTML 入口，并将 `/rpt/{code}` 计为一个动态路由；运行时菜单项和具体报表定义实例另行统计，不与本页入口数直接相加。',
+    '统计口径：页面入口只统计 target HTML 入口；运行时业务面板和具体业务对象实例不单独计数。',
     '',
     `- 页面入口：${pages.length}`,
     `- 已覆盖入口：${coveredPages.length}`,
@@ -974,136 +974,6 @@ for (const file of domainFiles) {
   }
 }
 
-const documentedDomains = new Set(
-  domainFiles.map((file) => path.basename(file, '.md')),
-)
-// Cross-domain platform capabilities own authoritative business rules without
-// exposing their own page or HTTP route. Their consumers remain the routed
-// business domains.
-const platformCapabilityDomains = new Set(['approval'])
-const registrySource = fs.readFileSync(
-  path.join(root, 'frontend', 'src', 'router', 'registry.ts'),
-  'utf8',
-)
-const pageRegistrations = [
-  ...registrySource.matchAll(
-    /registerPage\('([^']+)',\s*\{[\s\S]*?entity:\s*'([^']+)'[\s\S]*?entityTitle:\s*'([^']+)'/g,
-  ),
-].map((match) => ({
-  domain: match[1],
-  entity: match[2],
-  title: match[3],
-  key: `${match[1]}/${match[2]}`,
-}))
-const registeredDomains = new Set(['app'])
-for (const match of registrySource.matchAll(/registerPage\('([^']+)'/g)) {
-  registeredDomains.add(match[1])
-}
-const domainRegistrationSource = registrySource.match(
-  /const domainRegistrations[\s\S]*?= \{([\s\S]*?)\n\}/u,
-)?.[1]
-if (domainRegistrationSource) {
-  for (const match of domainRegistrationSource.matchAll(
-    /^\s{2}([a-z][a-z0-9-]*):\s*\{/gm,
-  )) {
-    registeredDomains.add(match[1])
-  }
-}
-const routerIndexSource = fs.readFileSync(
-  path.join(root, 'frontend', 'src', 'router', 'index.ts'),
-  'utf8',
-)
-if (/path:\s*'rpt\/:code\?'/u.test(routerIndexSource)) {
-  registeredDomains.add('rpt')
-}
-
-const vouRegistryEntities = [
-  ...registrySource.matchAll(
-    /registerPage\('vou',\s*\{[\s\S]*?entity:\s*'([^']+)'/g,
-  ),
-].map((match) => match[1])
-
-function registeredEntities(domain) {
-  return [
-    ...registrySource.matchAll(
-      new RegExp(
-        `registerPage\\('${domain}',\\s*\\{[\\s\\S]*?entity:\\s*'([^']+)'`,
-        'g',
-      ),
-    ),
-  ].map((match) => match[1])
-}
-
-const openapiSource = fs.readFileSync(
-  path.join(root, 'contracts', 'openapi', 'openapi.yaml'),
-  'utf8',
-)
-
-const contractDomains = new Set()
-for (const match of openapiSource.matchAll(/^\s+'\/([a-z][a-z0-9-]*)\//gm)) {
-  if (match[1] !== 'files') contractDomains.add(match[1])
-}
-
-for (const domain of [...registeredDomains, ...contractDomains].sort()) {
-  if (!documentedDomains.has(domain)) {
-    failures.push(`领域 ${domain} 缺少 docs/domains/${domain}.md`)
-  }
-}
-
-const internalReadDomains = new Set(['bob'])
-
-for (const domain of [...documentedDomains].sort()) {
-  if (platformCapabilityDomains.has(domain)) {
-    if (registeredDomains.has(domain)) {
-      failures.push(`平台能力领域 ${domain} 不应注册独立前端领域`)
-    }
-    if (contractDomains.has(domain)) {
-      failures.push(`平台能力领域 ${domain} 不应暴露独立 OpenAPI 路径`)
-    }
-    continue
-  }
-  if (internalReadDomains.has(domain)) {
-    if (registeredDomains.has(domain)) {
-      failures.push(`内部读取领域 ${domain} 不应注册独立前端领域`)
-    }
-    if (!contractDomains.has(domain)) {
-      failures.push(`领域文档 ${domain} 缺少 OpenAPI 路径`)
-    }
-    continue
-  }
-  if (!registeredDomains.has(domain)) {
-    failures.push(`领域文档 ${domain} 缺少前端领域注册`)
-  }
-  if (!contractDomains.has(domain)) {
-    failures.push(`领域文档 ${domain} 缺少 OpenAPI 路径`)
-  }
-}
-
-const vouSchemaSource = fs.readFileSync(
-  path.join(root, 'contracts', 'openapi', 'schemas', 'vou.yaml'),
-  'utf8',
-)
-
-compareSets('frontend BOB 页面注册', registeredEntities('bob'), [])
-
-const auxSchemaSource = fs.readFileSync(
-  path.join(root, 'contracts', 'openapi', 'schemas', 'aux.yaml'),
-  'utf8',
-)
-const auxEntities = extractPlainSchemaEnum(
-  auxSchemaSource,
-  'AuxEntity',
-  'contracts/openapi/schemas/aux.yaml',
-)
-compareSets('frontend AUX 页面注册', registeredEntities('aux'), auxEntities)
-
-const vouEntities = extractSchemaEnum(
-  vouSchemaSource,
-  'VouEntity',
-  'contracts/openapi/schemas/vou.yaml',
-)
-compareSets('frontend VOU 页面注册', vouRegistryEntities, vouEntities)
-
 const useCaseRoot = path.join(root, 'docs', 'use-cases')
 const documentedUseCases = new Set(
   fs
@@ -1124,68 +994,6 @@ failures.push(
   ),
 )
 
-const STATIC_ROUTE_USE_CASES = new Map([
-  ['signin', 'app/signin'],
-  // 强制改密没有独立页面用例：它是登录用例的受限会话分支。
-  ['change-password', 'app/signin'],
-  ['page:home/dashboard', 'app/workbench'],
-])
-const STATIC_ROUTE_EXEMPTIONS = new Set([
-  'app',
-  'app-home-redirect',
-  'forbidden',
-  'not-found',
-])
-
-function staticUseCaseKey(routeName) {
-  const explicit = STATIC_ROUTE_USE_CASES.get(routeName)
-  if (explicit) return explicit
-
-  const appPage = routeName.match(/^page:app\/([a-z0-9-]+)$/)
-  return appPage ? `app/${appPage[1]}-management` : null
-}
-
-function staticBusinessPages(source) {
-  const pages = []
-  const routePattern = /name:\s*'((?:page:)?[^']+)'/g
-
-  for (const match of source.matchAll(routePattern)) {
-    const routeName = match[1]
-    const useCaseKey = staticUseCaseKey(routeName)
-    if (!useCaseKey) {
-      if (!STATIC_ROUTE_EXEMPTIONS.has(routeName)) {
-        failures.push(
-          `frontend/src/router/index.ts 的静态业务页面 ${routeName} 缺少用例映射`,
-        )
-      }
-      continue
-    }
-
-    const pathStart = source.lastIndexOf('path:', match.index)
-    const pathMatch = source
-      .slice(pathStart, match.index)
-      .match(/path:\s*'([^']+)'\s*,\s*$/)
-    const titleMatch = source.slice(match.index).match(/title:\s*'([^']+)'/)
-    if (!pathMatch || !titleMatch) {
-      failures.push(
-        `frontend/src/router/index.ts 无法解析静态页面 ${routeName}`,
-      )
-      continue
-    }
-
-    const routePath = pathMatch[1]
-    const title = titleMatch[1]
-    pages.push({
-      title,
-      route: routePath.startsWith('/') ? routePath : `/${routePath}`,
-      source: '[静态路由](../../frontend/src/router/index.ts)',
-      useCaseKey,
-    })
-  }
-
-  return pages
-}
-
 export function parseTargetEntryPage(source) {
   const failures = []
   const title = source.match(/<title>([^<]+)<\/title>/u)?.[1]?.trim()
@@ -1196,13 +1004,13 @@ export function parseTargetEntryPage(source) {
     /<script\b[^>]*\btype="module"[^>]*\bsrc="([^"]+)"[^>]*><\/script>/u,
   )?.[1]
 
-  if (!title) failures.push('frontend/target.html 缺少 title')
+  if (!title) failures.push('frontend/index.html 缺少 title')
   if (!useCaseKey) {
-    failures.push('frontend/target.html 缺少 data-use-case 页面用例映射')
+    failures.push('frontend/index.html 缺少 data-use-case 页面用例映射')
   }
   if (entryModule !== '/src/target/main.ts') {
     failures.push(
-      'frontend/target.html 必须以 /src/target/main.ts 作为 module 入口',
+      'frontend/index.html 必须以 /src/target/main.ts 作为 module 入口',
     )
   }
 
@@ -1213,8 +1021,8 @@ export function parseTargetEntryPage(source) {
         ? [
             {
               title,
-              route: '/target.html',
-              source: '[target 入口](../../frontend/target.html)',
+              route: '/',
+              source: '[应用入口](../../frontend/index.html)',
               useCaseKey,
             },
           ]
@@ -1222,42 +1030,11 @@ export function parseTargetEntryPage(source) {
   }
 }
 
-function dynamicReportPage(source) {
-  const isRegistered =
-    source.includes("routeDomain === 'rpt' && routeEntity !== 'definition'") &&
-    source.includes("import('@/pages/rpt/Report.vue')")
-  if (!isRegistered) {
-    failures.push('frontend/src/router/registry.ts 缺少动态报表页面注册')
-    return []
-  }
-
-  return [
-    {
-      title: '动态报表',
-      route: '/rpt/{code}',
-      source: '[动态路由](../../frontend/src/router/registry.ts)',
-      useCaseKey: 'rpt/report',
-    },
-  ]
-}
-
-const staticPages = staticBusinessPages(routerIndexSource)
 const targetEntryPage = parseTargetEntryPage(
-  fs.readFileSync(path.join(root, 'frontend', 'target.html'), 'utf8'),
+  fs.readFileSync(path.join(root, 'frontend', 'index.html'), 'utf8'),
 )
 failures.push(...targetEntryPage.failures)
-const registryPages = pageRegistrations.map(({ domain, entity, title }) => ({
-  title,
-  route: `/${domain}/${entity}`,
-  source: '[页面注册表](../../frontend/src/router/registry.ts)',
-  useCaseKey: `${domain}/${entity}`,
-}))
-const expectedUseCasePages = [
-  ...staticPages,
-  ...registryPages,
-  ...dynamicReportPage(registrySource),
-  ...targetEntryPage.pages,
-]
+const expectedUseCasePages = targetEntryPage.pages
 const expectedUseCaseKeys = expectedUseCasePages.map(
   ({ useCaseKey }) => useCaseKey,
 )
@@ -1351,7 +1128,7 @@ if (isMain) {
     process.exitCode = 1
   } else {
     process.stdout.write(
-      `文档检查通过：${documentationFiles.length} 个纳入检查的 Markdown，${documentedDomains.size} 个领域，${operationFiles.length} 份运行手册，${expectedUseCasePages.length} 个页面入口。\n`,
+      `文档检查通过：${documentationFiles.length} 个纳入检查的 Markdown，${domainFiles.length} 个领域，${operationFiles.length} 份运行手册，${expectedUseCasePages.length} 个页面入口。\n`,
     )
   }
 }

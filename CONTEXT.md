@@ -2,7 +2,7 @@
 
 ZERP uses shared business terms across its auxiliary-data, business-object, voucher, workflow, and business-ledger domains. This glossary fixes the meaning of terms that cross those domain boundaries.
 
-架构切换期间，本词汇表中的 Draft、Submission、Hono 与共享 TypeScript model 描述 ADR-0051 的隔离 target 语义。#366 前，live Go/OpenAPI 仍是唯一线上实现与线协议；target 术语不得被解读为已经完成生产切换。
+本词汇表中的 Draft、Submission、Hono 与共享 TypeScript model 描述当前生产语义；HTTP 契约由 `apps/api/` 的可执行 Hono/Zod 路由生成。
 
 ## Authorization
 

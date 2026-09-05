@@ -4,7 +4,7 @@
 
 Approval 是跨领域的中央审批能力，唯一拥有持久化 Submission 的审批生命周期、操作授权、revision、审批元数据和审计事实。业务 Domain 仍拥有稳定主体、业务数据、业务校验、blocker 和业务效果；Approval 不认识任何 Domain 业务规则。浏览器本地 Draft 不属于 Approval。浏览器与 Hono 运行同一个纯 TypeScript Approval model，浏览器结果只用于交互提示，服务器基于重新读取并锁定的权威事实重新决策。
 
-本页的本地 Draft、Submission、Hono、Kysely 与 `PENDING | APPROVED | REJECTED` 描述隔离 target 的权威业务语义。#366 前，live Go/OpenAPI 仍以原有服务器 Draft 生命周期提供线上服务；两套运行时、schema、契约和权限目录不得组合。
+本页的本地 Draft、Submission、Hono、Kysely 与 `PENDING | APPROVED | REJECTED` 描述当前权威业务语义。服务器不持久化 Draft。
 
 中央能力同时提供 Approval-only 与 Approval Version 两种条目形态。VOU 和 ACC Opening 使用 Approval-only；实际写入 Approval Version 的业务 Domain 只有 DCL，其实体包括资料申报、ACC Mapping、RPT Definition 与 WFL Definition。BOB 只查询 DCL 当前有效的已批准资料，AUX 使用 Stable-ID Direct CRUD，两者均不注册 Approval subject；ACC、RPT 与 WFL 也不得为这些 DCL 实体另建 Approval subject。
 

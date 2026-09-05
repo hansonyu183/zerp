@@ -47,6 +47,7 @@ function targetConfig(): TargetConfig {
     databaseUrl: new URL(
       'postgres://target:target@127.0.0.1:5432/zerp_target_test',
     ),
+    databaseScope: 'isolated',
     httpAddress: '127.0.0.1:0',
     corsAllowedOrigins: [],
     bodyLimitBytes: 1_048_576,
@@ -108,9 +109,7 @@ function executableTargetPaths() {
         ' /vou/',
         ' /wfl/',
         ' /rpt/',
-      ].some((prefix) =>
-        entry.includes(prefix),
-      ),
+      ].some((prefix) => entry.includes(prefix)),
     ),
   }
 }
@@ -176,15 +175,11 @@ export function permissionCatalog(
 
 export async function generateTargetArtifacts(): Promise<void> {
   const { document, paths } = executableTargetPaths()
-  const catalog = validateTargetRouteMetadata(
-    paths,
-    targetRouteMetadata,
-    [
-      ...archiveCapabilityPermissionMetadata,
-      ...vouCapabilityPermissionMetadata,
-      ...wflCapabilityPermissionMetadata,
-    ],
-  )
+  const catalog = validateTargetRouteMetadata(paths, targetRouteMetadata, [
+    ...archiveCapabilityPermissionMetadata,
+    ...vouCapabilityPermissionMetadata,
+    ...wflCapabilityPermissionMetadata,
+  ])
   await mkdir(generatedDirectory, { recursive: true })
   await Promise.all([
     writeFile(

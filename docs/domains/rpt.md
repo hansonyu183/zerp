@@ -6,7 +6,7 @@ RPT（Reporting）定义、验证、执行和导出面向用户的查询报表�
 
 RPT 拥有以 `approvalEntryId` 键控的技术有效性（VALID/INVALID）、按报表授权的查询与导出，以及运行时审计。报表定义的 stable ID、code 与创建审计在 DCL subject；本地 Draft、Submission、审批、开放 Submission 删除、版本历史和审计读取也由 DCL 统一拥有。RPT 不保存 definition root、root revision、current pointer 或业务 snapshot；它只保留执行与独立 VALID/INVALID 规则。它不拥有 ACC 查询投影、第二套角色权限、用户账簿分配或执行层账簿过滤，也不提供未授权报表菜单或集中报表中心。
 
-目标公开动作、路径和数据结构由可执行 Hono/Zod 路由生成；#366 前 live OpenAPI 仍保持不变且不与 target 组合。
+公开动作、路径和数据结构由可执行 Hono/Zod 路由生成。
 
 ## 2. 首批报表
 

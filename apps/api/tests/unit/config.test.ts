@@ -1,14 +1,57 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { loadConfig } from '../../src/platform/config.ts'
+import {
+  assertTargetDatabaseBoundary,
+  loadConfig,
+} from '../../src/platform/config.ts'
 
-test('target configuration refuses every database name outside the disposable _test boundary', () => {
+test('target configuration refuses a non-disposable database unless production scope is explicit', () => {
   assert.throws(
     () =>
       loadConfig({
         DATABASE_URL: 'postgres://zerp:password@127.0.0.1:5432/zerp',
       }),
+    /_test/,
+  )
+})
+
+test('target configuration permits the production database only in explicit production scope', () => {
+  const config = loadConfig({
+    DATABASE_URL: 'postgres://zerp:password@127.0.0.1:5432/zerp',
+    TARGET_DATABASE_SCOPE: 'production',
+  })
+
+  assert.equal(config.databaseUrl.pathname, '/zerp')
+  assert.equal(config.databaseScope, 'production')
+})
+
+test('target configuration rejects an unknown database scope', () => {
+  assert.throws(
+    () =>
+      loadConfig({
+        DATABASE_URL:
+          'postgres://zerp:password@127.0.0.1:55436/zerp_target_test',
+        TARGET_DATABASE_SCOPE: 'preview',
+      }),
+    /TARGET_DATABASE_SCOPE/,
+  )
+})
+
+test('catalog jobs share the explicit production database boundary', () => {
+  assert.equal(
+    assertTargetDatabaseBoundary(
+      'postgres://zerp:password@127.0.0.1:5432/zerp',
+      'production',
+    ),
+    'production',
+  )
+  assert.throws(
+    () =>
+      assertTargetDatabaseBoundary(
+        'postgres://zerp:password@127.0.0.1:5432/zerp',
+        undefined,
+      ),
     /_test/,
   )
 })
@@ -22,6 +65,7 @@ test('target configuration parses the isolated runtime settings', () => {
   })
 
   assert.equal(config.databaseUrl.pathname, '/zerp_target_test')
+  assert.equal(config.databaseScope, 'isolated')
   assert.deepEqual(config.corsAllowedOrigins, [
     'http://127.0.0.1:5174',
     'http://localhost:5174',

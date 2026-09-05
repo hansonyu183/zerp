@@ -15,13 +15,13 @@ Draft 与 Submission 是不同对象。Draft 只在已认证用户的当前浏�
 
 Approval 持久状态只有 `PENDING | APPROVED | REJECTED`。`approve` 使 `PENDING` 成为 `APPROVED`；`reject` 使 `PENDING` 成为 `REJECTED` 并要求原因；`unreject` 使 `REJECTED` 恢复 `PENDING` 并仅清除当前拒绝元数据；`unapprove` 使 `APPROVED` 恢复 `PENDING`，在同一事务撤销其业务效果并要求原因。开放 Submission 的删除是资源动作；界面“撤回”只编排该删除，不产生 `WITHDRAWN`。`DRAFT`、`WITHDRAWN`、`REVOKED` 和 `unsubmit` 均不是目标持久化状态或动作。拒绝的 Submission 不可编辑；改正先克隆为本地 Draft，再显式删除开放 Submission 并重新提交。
 
-HTTP 目标契约由可执行 Hono/Zod 路由定义：内部客户端类型来自 Hono route type，目标 OpenAPI 由同一批路由生成。它不是手写 YAML，也不与 live YAML 合成。Hono route metadata 在隔离数据库副本中生成完整目标 APP 权限/菜单目录；该目录不与 live 目录合并。Kysely 的服务器数据库类型通过完整 SQL schema 建立的可丢弃数据库内省生成，且始终是服务器专用类型。
+HTTP 契约由可执行 Hono/Zod 路由定义：内部客户端类型来自 Hono route type，OpenAPI 由同一批路由生成。Hono route metadata 生成完整 APP 权限/菜单目录。Kysely 的服务器数据库类型通过完整 SQL schema 建立的可丢弃数据库内省生成，且始终是服务器专用类型。
 
 ## Topology and cutover boundary
 
-本 ADR 的目标路径在 #361–#365 仅运行于隔离、生产形态的拓扑：target frontend → generated Hono client → Hono → shared model → PostgreSQL copy。Hono 不暴露给生产、不代理 Go、不接收 Go 代理流量，也不与 Go 共享一个事务或共同写入一个 live 聚合。#366 前，完整 live Go API、live schema、handwritten OpenAPI、生成客户端和权限目录维持不变；它们不是本 ADR 的第二运行时，而是尚未切换的唯一线上栈。
+当前唯一生产路径是 frontend → generated Hono client → Hono → shared model → PostgreSQL。旧 Go API、旧 schema、手写 OpenAPI、旧生成客户端和旧权限目录已在 #366 删除。
 
-Approval、DCL、VOU、ACC、WFL 与 RPT 必须作为一个事务连接的切换单元。切换前，具有服务端 `DRAFT` 的 live 条目必须由授权业务决定提交、删除或导出；不得自动迁入浏览器。旧审批审计作为只读档案保留，但不得扩展目标状态联合。#366 在写冻结下以经验证的数据库与附件备份、一次完整应用切换和旧体系删除完成；回滚恢复匹配备份与完整旧镜像，目标代码不实现旧 schema 的兼容读取、双读写、代理、别名或临时路由。
+Approval、DCL、VOU、ACC、WFL 与 RPT 作为一个事务连接的切换单元。#366 的公网环境仅承载开发测试数据，因此保留整库与附件备份后直接重建 target schema，不迁移服务器 Draft 或旧业务事实。回滚恢复匹配备份与完整旧镜像；当前代码不实现旧 schema 的兼容读取、双读写、代理、别名或临时路由。
 
 WFL 的 Starlark 语义不是本票可假定迁移的实现细节。#361 必须以完整现有有效/无效 Starlark 语料、编译图、条件、初始值、资源上限和确定性结果，对一个受维护的 Node/浏览器兼容运行时取得可复现的语义 parity 证据；未通过即为 #365/#366 的硬 blocker，必须先获得单独的 WFL DSL 规格，不得手写解释器或静默改变工作流语义。
 

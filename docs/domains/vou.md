@@ -2,11 +2,11 @@
 
 ## 1. 领域边界
 
-VOU（Voucher）负责销售、采购、资金及费用单据的制单、提交、批准、执行、反向流转、附件和领域审计。#366 前的 live 实体、可创建实体、路径与数据结构见 [OpenAPI VOU Schema](../../contracts/openapi/schemas/vou.yaml)，本文不维护其副本。
+VOU（Voucher）负责销售、采购、资金及费用单据的制单、提交、批准、执行、反向流转、附件和领域审计。实体、可创建实体、路径与数据结构由 `apps/api/` 的可执行 Hono/Zod 路由生成，本文不维护其副本。
 
 live HTTP 路径和数据结构以根目录 OpenAPI 为准；本文只维护单据生命周期、计算、快照和事务语义。
 
-上述 OpenAPI 引用均指 #366 前的 live Go 线协议。本页的本地 Draft、Submission、shared TypeScript model、Hono、Kysely 与 `PENDING | APPROVED | REJECTED` 描述隔离 target 的权威业务语义，其契约从可执行 Hono/Zod 路由生成；target 与 live 的运行时、schema、契约和权限目录不得组合。
+本页的本地 Draft、Submission、shared TypeScript model、Hono、Kysely 与 `PENDING | APPROVED | REJECTED` 描述当前权威业务语义，其契约从可执行 Hono/Zod 路由生成。
 
 各类原子单据均由 VOU 独立管理，唯一授权依据是精确的 VOU API 权限。WFL 只消费事件并维护
 单据组合、跨单据规则和自动建单，不代理单据正文、生命周期、附件或审计。
@@ -99,11 +99,11 @@ APPROVED --unapprove--> PENDING
 - `PENDING` 的批准人或驳回人与当前提交人必须不同；列表和详情只展示中央 Approval 按当前会话返回的 `availableApprovalActions`，每个执行动作仍在事务内重新校验精确 APP 路径权限、状态、revision 和 VOU 业务规则。
 - 所有写动作携带 Approval `revision`，使用乐观并发控制；状态、revision、提交/批准元数据和生命周期审计只保存于 `approval_entries` / `approval_events`。
 
-各实体开放的 wire 动作及可创建范围以 [OpenAPI VOU Schema](../../contracts/openapi/schemas/vou.yaml) 为准。销售出库、销售送货、销售签收和费用付款由 WFL 事件订阅自动创建；采购入库允许人工创建。动作实际可用性继续受单据状态、上下级关系和精确权限约束。
+各实体开放的 wire 动作及可创建范围以 Hono 生成契约为准。销售出库、销售送货、销售签收和费用付款由 WFL 事件订阅自动创建；采购入库允许人工创建。动作实际可用性继续受单据状态、上下级关系和精确权限约束。
 
 ### 2.3 通用写入语义
 
-请求、响应和 BOB 引用结构以 [OpenAPI VOU Schema](../../contracts/openapi/schemas/vou.yaml) 为准。后端仍须在写入事务中解析有效 BOB 对象与版本；客户端提交的引用不构成有效性证明。
+请求、响应和 BOB 引用结构以 Hono 生成契约为准。后端仍须在写入事务中解析有效 BOB 对象与版本；客户端提交的引用不构成有效性证明。
 
 VOU Domain Service 是单据业务写入的唯一受支持入口。每个 typed writer 在所属的 PostgreSQL 事务中写入一条公共 `vou_documents` 记录和该 entity 唯一的一条 typed detail，并在同一事务完成 Approval 和同步领域事件；公共记录、typed detail、Approval、事件或下游订阅任一步失败时全部回滚。每个 detail 表继续以自身的 PK/UNIQUE、FK、NOT NULL 和简单数据形状 CHECK 保证持久化结构，但数据库不再通过跨全部 detail 表计数、父单或订单状态触发器重复执行业务判断。
 
@@ -371,13 +371,13 @@ WFL 只编排服务合同与履约验收。RPT 可以按相对方类型、stable
 
 ### 3.15 草稿与执行载荷
 
-草稿与执行载荷的 wire 结构以 [OpenAPI VOU Schema](../../contracts/openapi/schemas/vou.yaml) 为准。WFL 自动创建的单据来源只能由服务端注入，客户端不能覆盖。
+草稿与执行载荷的 wire 结构以 Hono 生成契约为准。WFL 自动创建的单据来源只能由服务端注入，客户端不能覆盖。
 
 各实体的草稿字段和动作载荷不在本文重复列举；字段之间的业务关系由 3.1–3.14 节定义。
 
 ## 4. 查询与展示语义
 
-查询、详情和审计的请求、分页、排序与响应结构以 [OpenAPI VOU Schema](../../contracts/openapi/schemas/vou.yaml) 为准。
+查询、详情和审计的请求、分页、排序与响应结构以 Hono 生成契约为准。
 
 销售订单和采购订单列表的履约摘要直接汇总订单行保存的 Base Quantity；包装物、原材料、标准成品和定制成品使用同一数量语义，不按产品行为模板或录入单位分支解释。
 录入数量和单位只作为各单据冻结的审计快照展示。新单据按实际采用的 DCL product snapshot 中 `quantityScale` 校验录入数量，保存后汇总、库存、成本和数量控制不得回查当前产品换算或 AUX 计量精度。
@@ -396,7 +396,7 @@ WFL 只编排服务合同与履约验收。RPT 可以按相对方类型、stable
 - 下载强制 `Content-Disposition: attachment` 和 `X-Content-Type-Options: nosniff`。
 - 生产运行限定单 API 实例，并把数据库和附件持久卷作为同一备份恢复边界。
 
-附件请求与响应结构以 [OpenAPI VOU Schema](../../contracts/openapi/schemas/vou.yaml) 为准。技术上传必须使用服务端签发的一次性 URL，声明 MIME、长度和哈希必须与已登记附件一致。
+附件请求与响应结构以 Hono 生成契约为准。技术上传必须使用服务端签发的一次性 URL，声明 MIME、长度和哈希必须与已登记附件一致。
 
 ## 6. 事务与审计
 
@@ -422,7 +422,7 @@ Approval 审计事件追加保存动作、前后状态与 revision、操作者�
 - 批准与反批准事件按单据类型精确投递，任一订阅失败不产生 VOU 或下游部分写入；
 - 采购入库只读继承采购单价，累计占用和并发写入均不能超过采购订单；
 - 附件大小、类型、哈希、令牌、路径和权限规则可验证；
-- live 数据库基线与 sqlc 生成检查保持通过；target schema、Kysely 类型、共享模型、API、真实 PostgreSQL 与浏览器 E2E 通过独立 target gate，#366 前不混跑或组合两套运行时。
+- target schema、Kysely 类型、共享模型、API、真实 PostgreSQL 与浏览器 E2E 必须通过统一门禁。
 
 ## 8. 上级单据与 WFL 组合
 

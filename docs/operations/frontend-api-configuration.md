@@ -1,113 +1,38 @@
 # ZERP 前端 API 配置
 
-本文只说明环境拓扑、API 基址、Origin、Cookie 和联调步骤。#366 前，live Go HTTP 路径与数据结构以 `contracts/openapi/` 为准；隔离 target 契约从 `apps/api/` 的可执行 Hono/Zod 路由生成，二者不得组合。业务规则以 `docs/domains/` 为准。
+生产 HTTP 契约从 `apps/api/` 的可执行 Hono/Zod 路由生成，SPA 通过生成客户端直连 Hono API。
 
-ZERP 前端仅通过 Cloudflare Pages 部署，并使用生成客户端直连后端 API。
+## 生产
 
-## 1. Cloudflare Pages
+API 使用 `compose.yaml` 与 `compose.production.yaml` 发布；前端可从同一 SHA 的 Web 镜像验收，并将同一构建产物发布到 Cloudflare Pages。生产变量模板见根目录 [`.env.production.example`](../../.env.production.example)。
 
-Pages 构建配置：
-
-| 配置                   | 值              |
-| ---------------------- | --------------- |
-| Root directory         | `/`             |
-| Build command          | `pnpm build`    |
-| Build output directory | `frontend/dist` |
-
-前端通过构建时变量直连目标 HTTPS API：
+Web 构建变量：
 
 ```env
-VITE_API_BASE_URL=https://api.example.com/
+TARGET_API_BROWSER_URL=https://zerp-api.bytesucceed.com
 ```
 
-`VITE_*` 会进入浏览器资源，只能保存公开配置。修改 Pages 环境变量后必须重新构建。
+它会写入公开的 `VITE_TARGET_API_BASE_URL`。API 的 `CORS_ALLOWED_ORIGINS` 必须精确列出前端 Origin，不使用通配符。前端与 API 同站时使用 `SameSite=Lax`；真正跨站时才使用 `SameSite=None`，并同时启用 `Secure`。
 
-后端 `CORS_ALLOWED_ORIGINS` 必须列出完整前端 Origin，例如：
+API 连接非测试数据库时必须显式设置 `TARGET_DATABASE_SCOPE=production`。隔离测试默认只接受以 `_test` 结尾的数据库。
 
-```text
-https://erp.example.com
-```
-
-Origin 包含协议、主机和可选端口，不包含路径或结尾 `/`。不得使用通配符允许凭证请求；Pages 预览域名按需逐个加入并在联调结束后移除。
-
-前端与 API 同为 `https://*.example.com` 时属于同站，可以使用 `SameSite=Lax`。真正跨站且必须携带 Cookie 时才使用 `SameSite=None`，并强制启用 `Secure`。
-
-仓库当前 Pages 默认 API 见 `frontend/.env.production`；不同环境应通过 Pages 的 Preview 或 Production 变量显式覆盖。
-
-## 2. 本地开发
-
-推荐从仓库根目录启动：
+## 本地开发与验收
 
 ```bash
 make dev
-```
-
-浏览器访问 `http://127.0.0.1:5173`。Vite 使用同源 `/api/` 和 `/files/` 代理到本机 API，因此登录 Cookie 不依赖本地 CORS。
-
-本机纯 HTTP Cookie 配置只写入被 Git 忽略的 `backend/.env.local`：
-
-```env
-APP_SESSION_COOKIE_SECURE=false
-APP_SESSION_COOKIE_SAME_SITE=lax
-```
-
-如需让前端直接跨 Origin 请求本机 API，必须把实际前端 Origin 精确加入 `CORS_ALLOWED_ORIGINS`。协议、主机或端口任一变化都会产生不同 Origin。
-
-Vite 必须使用固定端口，避免端口占用后自动切换到未配置的 Origin：
-
-```bash
-pnpm --filter @zerp/frontend dev --host 127.0.0.1 --port 5173 --strictPort
-```
-
-## 3. 隔离 E2E
-
-DCL、AUX、VOU、WFL 和 ACC 流程会写入并流转真实数据；BOB 只查询当前正式资料。它们只能使用根目录自包含环境：
-
-```bash
-cp backend/.env.e2e.example backend/.env.e2e.local
 make e2e
-```
-
-固定隔离边界：
-
-| 资源              | 值                   |
-| ----------------- | -------------------- |
-| Compose 项目      | `zerp-fullstack-e2e` |
-| PostgreSQL 数据库 | `zerp_e2e`           |
-| PostgreSQL 端口   | `55435`              |
-| API 端口          | `18081`              |
-| Web 端口          | `15174`              |
-| Cookie            | `zerp_e2e_session`   |
-
-根级脚本会向 Playwright 注入正确的 API、Web 和账号变量。不要在前端环境文件中长期复制密码或端口；不得把 E2E 指向生产或日常联调数据库。
-
-live Go 栈的完整验收从仓库根目录运行 `make e2e`。命令会创建一次性 PostgreSQL 容器，原生启动 API 和 Web，结束后自动清理隔离数据库与进程。
-
-## 4. 隔离 target 验证
-
-#366 前，Hono API、共享 TypeScript model、target schema、target OpenAPI、target 权限目录和 target frontend 只在 `compose.target.yaml` 的隔离拓扑中运行，不代理或接收 live Go 流量。最完整的本地验证为：
-
-```bash
-make target-e2e
 make target-down
 ```
 
-默认使用数据库 `zerp_target_test`、PostgreSQL 端口 `55439`、API 端口 `18082` 和 Web 端口 `18083`。这些 target 检查都会先删除并重建 `zerp-target` Compose 的数据库容器及可丢弃卷，不得把 `TARGET_*` 变量指向共享或真实业务库。它们会保留已启动的 target 资源供失败检查或结果回读；确认不再需要后必须运行 `make target-down`。只需要较窄检查时，依次选择 `make target-generate-check`、`make target-check` 或 `make target-test`。
+`make dev` 使用 `compose.target.yaml` 的固定隔离资源：数据库 `zerp_target_test`、PostgreSQL `55439`、API `18082`、Web `18083`。`make e2e` 每次删除并重建这些资源，运行生成、WFL parity、API 单元/集成测试和 Playwright。不得把 `TARGET_*` 变量指向共享或公网数据库。
 
-这组命令不属于 live 发布或 Pages 联调流程。CI 以独立 `target-foundation` job 执行 target E2E，并在结束时清理 target 资源。
-
-## 5. 联调验收
-
-每个目标环境重新验证：
+## 发布验收
 
 1. `/healthz` 与 `/readyz` 成功；
-2. 浏览器使用预期 API 基址，没有把业务请求发往静态站点；
-3. Pages 模式返回精确 Origin 和凭证 CORS；
-4. 登录写入 HttpOnly Cookie，生产带 `Secure`，SameSite 与站点拓扑一致；
-5. 刷新后恢复会话和 CSRF，受保护请求成功；
-6. 使用真实已注册业务动作验证目标版本，不以健康检查代替业务验收；
-7. 注销后原会话不能继续调用受保护接口。
+2. API 与 Web 的 `_zerp-release` 对应同一完整合并 SHA；
+3. 浏览器请求发往预期 HTTPS API，CORS 返回精确 Origin；
+4. 登录写入 HttpOnly、Secure Cookie，刷新后会话与 CSRF 恢复；
+5. 使用真实权限验证 APP Workbench 和代表性 DCL、VOU、ACC、WFL、RPT 流程；
+6. 注销后原会话不可继续访问受保护接口。
 
-记录环境、提交、时间和必要的 `requestId`，不得记录密码、Cookie、CSRF Token 或敏感请求体。
-
-接口操作、请求结构和错误包络直接查阅生成客户端或 OpenAPI；会话、权限和领域行为查阅对应领域文档。
+记录环境、提交、时间和必要的 `requestId`，不记录密码、Cookie、CSRF Token 或敏感请求体。

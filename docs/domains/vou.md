@@ -4,8 +4,6 @@
 
 VOU（Voucher）负责销售、采购、资金及费用单据的制单、提交、批准、执行、反向流转、附件和领域审计。实体、可创建实体、路径与数据结构由 `apps/api/` 的可执行 Hono/Zod 路由生成，本文不维护其副本。
 
-live HTTP 路径和数据结构以根目录 OpenAPI 为准；本文只维护单据生命周期、计算、快照和事务语义。
-
 本页的本地 Draft、Submission、shared TypeScript model、Hono、Kysely 与 `PENDING | APPROVED | REJECTED` 描述当前权威业务语义，其契约从可执行 Hono/Zod 路由生成。
 
 各类原子单据均由 VOU 独立管理，唯一授权依据是精确的 VOU API 权限。WFL 只消费事件并维护

@@ -23,7 +23,7 @@
 ## 契约优先
 
 - 新增或修改接口时先修改 `apps/api/` 的可执行 Hono/Zod 路由及领域文档，再运行 `make generate`。
-- `apps/api/src/generated/`、`apps/api/src/db/generated.ts` 与 `packages/api-client/src/generated.ts` 均为生成物，禁止手工编辑。
+- `apps/api/src/generated/` 与 `apps/api/src/db/generated.ts` 为生成物，禁止手工编辑；`packages/api-client/src/index.ts` 直接从 Hono route type 推导客户端类型，不是生成文件。
 - 业务接口继续使用 `POST application/json` 和 `/{domain}/{entity}/{action}`，响应包络为 `{code, errorKey, message, data, requestId}`；失败响应使用稳定 `errorKey` 表达业务语义，前端只按 `errorKey` 分支或映射用户提示，`message` 仅用于诊断和默认说明。
 - 前端业务代码只能通过 `frontend/src/target/api.ts` 消费 `packages/api-client/` 从可执行 Hono 路由推导的客户端，并把状态与动作放在同目录 `vm.ts`；不得直接使用 `fetch` 或拼接任意 API 路径。
 - 新增或修改用户可见的状态、枚举、类型、实体标识或后端业务错误前，先列出完整 wire value 集合并确定最小共享范围的中文映射；选择项从同一映射派生，已知值不得回退显示协议原码。

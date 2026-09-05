@@ -2,7 +2,7 @@
 
 ## Decision
 
-The WFL cutover may retain the current Starlark definition language. `@zerp/wfl-starlark` embeds the maintained `go.starlark.net` interpreter already used by the Go application in a Go WebAssembly host. It exposes a small asynchronous TypeScript facade for both Node and browsers. It is not a new interpreter and it does not depend on an npm Starlark package.
+The WFL cutover retains the Starlark definition language. `@zerp/wfl-starlark` embeds the maintained `go.starlark.net` interpreter carried forward from the former Go application in a Go WebAssembly host. It exposes a small asynchronous TypeScript facade for both Node and browsers. It is not a new interpreter and it does not depend on an npm Starlark package.
 
 The host deliberately exposes no module loader, I/O, time, randomness, persistence, or JavaScript callbacks to Starlark. It owns only the existing WFL definition builtins and six statically bound actions.
 
@@ -16,7 +16,7 @@ pnpm --dir packages/wfl-starlark test:node
 pnpm --dir packages/wfl-starlark test:browser
 ```
 
-`wasm:build` requires Go `1.26.6`, the toolchain declared in `packages/wfl-starlark/go/go.mod`. It copies that exact toolchain's `wasm_exec.js` next to the generated `.wasm`, so the Go runtime glue and the binary cannot drift. A Go upgrade must update the backend and WFL module toolchain declarations and regenerate both together.
+`wasm:build` requires Go `1.26.6`, the toolchain declared in `packages/wfl-starlark/go/go.mod` and enforced by `packages/wfl-starlark/scripts/build-wasm.mjs`. It copies that exact toolchain's `wasm_exec.js` next to the generated `.wasm`, so the Go runtime glue and the binary cannot drift. A Go upgrade must update both declarations and regenerate the artifacts together.
 
 ## Shared corpus
 

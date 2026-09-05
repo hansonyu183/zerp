@@ -1,6 +1,6 @@
 # ZERP 前端 API 配置
 
-生产 HTTP 契约从 `apps/api/` 的可执行 Hono/Zod 路由生成，SPA 通过生成客户端直连 Hono API。
+生产 HTTP 契约从 `apps/api/` 的可执行 Hono/Zod 路由生成，SPA 通过从同一 Hono route type 推导的客户端直连 Hono API。
 
 ## 生产
 

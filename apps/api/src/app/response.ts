@@ -52,3 +52,17 @@ export function clearSessionCookie(
     maxAge: 0,
   })
 }
+
+export function clearUnauthenticatedSessionCookie(
+  context: Context,
+  config: TargetConfig,
+  error: unknown,
+): void {
+  if (
+    error &&
+    typeof error === 'object' &&
+    'errorKey' in error &&
+    error.errorKey === 'unauthenticated'
+  )
+    clearSessionCookie(context, config)
+}

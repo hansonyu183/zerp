@@ -45,7 +45,10 @@ import {
 } from './contract.ts'
 import { createIndependentHandlers } from './independent-routes.ts'
 import type { ManagementService } from './management.ts'
-import { applicationFailure } from './response.ts'
+import {
+  applicationFailure,
+  clearUnauthenticatedSessionCookie,
+} from './response.ts'
 import {
   AppServiceError,
   SessionError,
@@ -455,6 +458,7 @@ export function registerAppRoutes(
           200,
         )
       } catch (error) {
+        clearUnauthenticatedSessionCookie(context, config, error)
         return context.json(
           sessionFailure(error, currentRequestId(context)),
           200,

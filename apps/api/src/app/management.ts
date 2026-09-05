@@ -899,7 +899,12 @@ export class ManagementService {
       defaultMenu,
       businessMenu,
       navigation: {
-        items: this.filterMenu(selected.items, principal.permissions),
+        items: [
+          this.workbenchMenuItem(),
+          ...this.filterMenu(selected.items, principal.permissions).filter(
+            (item) => item.routePath !== '/home/dashboard',
+          ),
+        ],
       },
       availableRoutes: [...catalog.values()].map((route) => ({
         routeKey: route.routeKey,
@@ -1526,7 +1531,7 @@ export class ManagementService {
       .where('menu_group', 'is not', null)
       .orderBy('menu_order', 'asc')
       .execute()
-    return new Map<string, MenuRoute>(
+    const catalog = new Map<string, MenuRoute>(
       rows.map(
         (row) =>
           [
@@ -1542,6 +1547,15 @@ export class ManagementService {
           ] as const,
       ),
     )
+    catalog.set('app/menu', {
+      routeKey: 'app/menu',
+      routePath: '/app/menu',
+      permissionCode: '/app/menu/save-business',
+      displayName: '菜单管理',
+      group: '系统管理',
+      order: 50,
+    })
+    return catalog
   }
   private menuTree(
     items: Array<{
@@ -1622,6 +1636,21 @@ export class ManagementService {
       })
     }
     return result.sort((left, right) => left.order - right.order)
+  }
+  private workbenchMenuItem(): MenuItemView {
+    return {
+      id: this.stableMenuId('route', 'home/dashboard'),
+      parentId: null,
+      type: 'ROUTE',
+      level: 1,
+      order: 0,
+      displayName: '工作台',
+      icon: null,
+      enabled: true,
+      routeKey: 'home/dashboard',
+      routePath: '/home/dashboard',
+      permissionCode: null,
+    }
   }
   private filterMenu(
     items: MenuItemView[],

@@ -6,6 +6,7 @@ import {
   auxRouteBinding,
   bobRouteBinding,
 } from '../src/app/independent-contract.ts'
+import { targetRouteMetadata as appTargetRouteMetadata } from '../src/app/contract.ts'
 import {
   archiveCapabilityPermissionMetadata,
   archiveBlockerSchema,
@@ -70,6 +71,22 @@ test('target artifact gate emits one exact permission and menu catalog entry', (
         order: 10,
       },
     ],
+  )
+})
+
+test('workbench route is session-scoped and emits no independent permission', () => {
+  const workbenchMetadata = appTargetRouteMetadata.filter(
+    (entry) => entry.path === '/app/workbench/query',
+  )
+  assert.deepEqual(workbenchMetadata, [
+    { method: 'post', path: '/app/workbench/query' },
+  ])
+  assert.deepEqual(
+    validateTargetRouteMetadata(
+      ['POST /app/workbench/query'],
+      workbenchMetadata,
+    ),
+    [],
   )
 })
 

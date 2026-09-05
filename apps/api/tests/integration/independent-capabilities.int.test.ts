@@ -348,6 +348,40 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   assert.ok(Array.isArray(menu.data.businessMenu.items))
   assert.ok(Array.isArray(menu.data.navigation.items))
   assert.ok(Array.isArray(menu.data.availableRoutes))
+  const workbenchItems = menu.data.navigation.items.filter(
+    (item: { routePath: string | null }) =>
+      item.routePath === '/home/dashboard',
+  )
+  assert.equal(workbenchItems.length, 1)
+  assert.equal(menu.data.navigation.items[0], workbenchItems[0])
+  assert.ok(
+    menu.data.navigation.items.some(
+      (item: { routePath: string | null; permissionCode: string | null }) =>
+        item.routePath === '/app/menu' &&
+        item.permissionCode === '/app/menu/save-business',
+    ),
+    'menu administrators must be able to discover the formal menu-management page',
+  )
+  assert.deepEqual(
+    {
+      parentId: workbenchItems[0].parentId,
+      type: workbenchItems[0].type,
+      level: workbenchItems[0].level,
+      displayName: workbenchItems[0].displayName,
+      routeKey: workbenchItems[0].routeKey,
+      routePath: workbenchItems[0].routePath,
+      permissionCode: workbenchItems[0].permissionCode,
+    },
+    {
+      parentId: null,
+      type: 'ROUTE',
+      level: 1,
+      displayName: '工作台',
+      routeKey: 'home/dashboard',
+      routePath: '/home/dashboard',
+      permissionCode: null,
+    },
+  )
   assert.ok(
     menu.data.availableRoutes.some(
       (route: { routeKey: string }) => route.routeKey === 'aux/department',

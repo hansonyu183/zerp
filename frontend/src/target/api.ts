@@ -13,6 +13,34 @@ export type TargetWorkbenchQueryInput = PostJson<
   (typeof client.app.workbench.query)['$post']
 >
 
+export type TargetUserQueryInput = PostJson<
+  (typeof client.app.user.query)['$post']
+>
+export type TargetUserCreateInput = PostJson<
+  (typeof client.app.user.create)['$post']
+>
+export type TargetUserSaveInput = PostJson<
+  (typeof client.app.user.save)['$post']
+>
+export type TargetRoleQueryInput = PostJson<
+  (typeof client.app.role.query)['$post']
+>
+export type TargetRoleCreateInput = PostJson<
+  (typeof client.app.role.create)['$post']
+>
+export type TargetRoleSaveInput = PostJson<
+  (typeof client.app.role.save)['$post']
+>
+export type TargetPermissionQueryInput = PostJson<
+  (typeof client.app.permission.query)['$post']
+>
+export type TargetSystemParameterQueryInput = PostJson<
+  (typeof client.app)['system-parameter']['query']['$post']
+>
+export type TargetMenuSaveInput = PostJson<
+  (typeof client.app.menu)['save-business']['$post']
+>
+
 type WarehouseSubmitInput = PostJson<
   (typeof client.dcl.warehouse)['submit-new']['$post']
 >
@@ -321,26 +349,314 @@ export async function signInTarget(username: string, password: string) {
   return payload.data
 }
 
-export async function queryTargetUsers(csrfToken: string) {
-  const payload = await (
-    await client.app.user.query.$post(
-      {
-        json: {
-          page: 1,
-          pageSize: 20,
-          sort: [{ field: 'username', order: 'asc' }],
-        },
-      },
-      { headers: { 'X-CSRF-Token': csrfToken } },
-    )
-  ).json()
-  if (payload.code !== 0 || !payload.data)
-    throw new TargetApiError(
-      payload.errorKey,
-      payload.message,
-      payload.requestId,
-    )
-  return payload.data
+export async function getTargetBranding() {
+  return unwrapTarget(
+    await (await client.app.branding.get.$post({ json: {} })).json(),
+  )
+}
+
+export async function getTargetMenu(csrfToken: string) {
+  return unwrapTarget(
+    await (
+      await client.app.menu.get.$post({ json: {} }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function getTargetProfile(csrfToken: string) {
+  return unwrapTarget(
+    await (
+      await client.app.user.profile.$post({ json: {} }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function saveTargetProfile(
+  csrfToken: string,
+  input: { displayName: string; avatarUrl?: string | null },
+) {
+  return unwrapTarget(
+    await (
+      await client.app.user.profile.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function changeTargetPassword(
+  csrfToken: string,
+  input: { currentPassword: string; newPassword: string },
+) {
+  return unwrapTarget(
+    await (
+      await client.app.user['change-password'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function signOutTarget(csrfToken: string) {
+  return unwrapTarget(
+    await (
+      await client.app.user.signout.$post({ json: {} }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function queryTargetUsers(
+  csrfToken: string,
+  input: TargetUserQueryInput = {
+    page: 1,
+    pageSize: 20,
+    sort: [{ field: 'username', order: 'asc' }],
+  },
+) {
+  return unwrapTarget(
+    await (
+      await client.app.user.query.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function getTargetUser(csrfToken: string, id: string) {
+  return unwrapTarget(
+    await (
+      await client.app.user.get.$post({ json: { id } }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function createTargetUser(
+  csrfToken: string,
+  input: TargetUserCreateInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.app.user.create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function saveTargetUser(
+  csrfToken: string,
+  input: TargetUserSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.app.user.save.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function setTargetUserEnabled(
+  csrfToken: string,
+  input: { id: string; revision: number },
+  enabled: boolean,
+) {
+  const endpoint = enabled ? client.app.user.enable : client.app.user.disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function resetTargetUserPassword(
+  csrfToken: string,
+  input: { id: string; revision: number },
+) {
+  return unwrapTarget(
+    await (
+      await client.app.user['reset-password'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function queryTargetRoles(
+  csrfToken: string,
+  input: TargetRoleQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.app.role.query.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function getTargetRole(csrfToken: string, id: string) {
+  return unwrapTarget(
+    await (
+      await client.app.role.get.$post({ json: { id } }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function createTargetRole(
+  csrfToken: string,
+  input: TargetRoleCreateInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.app.role.create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function saveTargetRole(
+  csrfToken: string,
+  input: TargetRoleSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.app.role.save.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function setTargetRoleEnabled(
+  csrfToken: string,
+  input: { id: string; revision: number },
+  enabled: boolean,
+) {
+  const endpoint = enabled ? client.app.role.enable : client.app.role.disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function queryTargetPermissions(
+  csrfToken: string,
+  input: TargetPermissionQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.app.permission.query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function getTargetPermission(csrfToken: string, id: string) {
+  return unwrapTarget(
+    await (
+      await client.app.permission.get.$post(
+        { json: { id } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function queryTargetSystemParameters(
+  csrfToken: string,
+  input: TargetSystemParameterQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.app['system-parameter'].query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function getTargetSystemParameter(csrfToken: string, key: string) {
+  return unwrapTarget(
+    await (
+      await client.app['system-parameter'].get.$post(
+        { json: { key } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function saveTargetSystemParameter(
+  csrfToken: string,
+  input: { key: string; configuredValue: string; revision: number },
+) {
+  return unwrapTarget(
+    await (
+      await client.app['system-parameter'].save.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function resetTargetSystemParameter(
+  csrfToken: string,
+  input: { key: string; revision: number },
+) {
+  return unwrapTarget(
+    await (
+      await client.app['system-parameter'].reset.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function saveTargetBusinessMenu(
+  csrfToken: string,
+  input: TargetMenuSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.app.menu['save-business'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function activateTargetMenu(
+  csrfToken: string,
+  input: { mode: 'DEFAULT' | 'BUSINESS'; revision: number },
+) {
+  return unwrapTarget(
+    await (
+      await client.app.menu.activate.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function resetTargetBusinessMenu(
+  csrfToken: string,
+  revision: number,
+) {
+  return unwrapTarget(
+    await (
+      await client.app.menu['reset-business'].$post(
+        { json: { revision } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
 }
 
 export async function queryTargetWorkbench(
@@ -718,6 +1034,138 @@ export function targetArchiveAuditHistory(
   subjectId: string,
 ) {
   return readTargetArchive(csrfToken, entity, 'audit-history', subjectId)
+}
+
+export const targetAuxEntities = [
+  'product-category',
+  'product-type',
+  'employee-category',
+  'department',
+  'position',
+  'settlement-method',
+  'payment-method',
+  'dictionary-type',
+  'dictionary-item',
+  'measurement-unit',
+  'income-expense-type',
+  'asset-category',
+] as const
+
+export type TargetAuxEntity = (typeof targetAuxEntities)[number]
+export type TargetAuxQueryInput = PostJson<
+  (typeof client.aux)['product-category']['query']['$post']
+>
+export type TargetAuxCreateInput = PostJson<
+  (typeof client.aux)['product-category']['create']['$post']
+>
+export type TargetAuxSaveInput = PostJson<
+  (typeof client.aux)['product-category']['save']['$post']
+>
+
+const targetAuxClients = {
+  'product-category': client.aux['product-category'],
+  'product-type': client.aux['product-type'],
+  'employee-category': client.aux['employee-category'],
+  department: client.aux.department,
+  position: client.aux.position,
+  'settlement-method': client.aux['settlement-method'],
+  'payment-method': client.aux['payment-method'],
+  'dictionary-type': client.aux['dictionary-type'],
+  'dictionary-item': client.aux['dictionary-item'],
+  'measurement-unit': client.aux['measurement-unit'],
+  'income-expense-type': client.aux['income-expense-type'],
+  'asset-category': client.aux['asset-category'],
+}
+
+export async function queryTargetAux(
+  csrfToken: string,
+  entity: TargetAuxEntity,
+  input: TargetAuxQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await targetAuxClients[entity].query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function getTargetAux(
+  csrfToken: string,
+  entity: TargetAuxEntity,
+  objectId: string,
+) {
+  return unwrapTarget(
+    await (
+      await targetAuxClients[entity].get.$post(
+        { json: { objectId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function createTargetAux(
+  csrfToken: string,
+  entity: Exclude<TargetAuxEntity, 'settlement-method'>,
+  input: TargetAuxCreateInput,
+) {
+  return unwrapTarget(
+    await (
+      await targetAuxClients[entity].create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function saveTargetAux(
+  csrfToken: string,
+  entity: TargetAuxEntity,
+  input: TargetAuxSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await targetAuxClients[entity].save.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function setTargetAuxEnabled(
+  csrfToken: string,
+  entity: TargetAuxEntity,
+  input: { objectId: string; objectRevision: number },
+  enabled: boolean,
+) {
+  const endpoint = enabled
+    ? targetAuxClients[entity].enable
+    : targetAuxClients[entity].disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function deleteTargetAux(
+  csrfToken: string,
+  entity: Exclude<TargetAuxEntity, 'settlement-method'>,
+  input: { objectId: string; objectRevision: number },
+) {
+  return unwrapTarget(
+    await (
+      await targetAuxClients[entity].delete.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
 }
 
 export type TargetAuxReferenceEntity =

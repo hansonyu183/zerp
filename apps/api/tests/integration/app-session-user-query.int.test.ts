@@ -54,6 +54,10 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
         .deleteFrom('dcl_acc_book_facts')
         .where('id', '=', bookId)
         .execute()
+      await db
+        .deleteFrom('app_audit_events')
+        .where('actor_user_id', '=', id)
+        .execute()
       await db.deleteFrom('app_sessions').where('user_id', '=', id).execute()
       await db.deleteFrom('app_user_roles').where('user_id', '=', id).execute()
       await db
@@ -256,6 +260,32 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
     connection: 'close',
   }
 
+  const invalidSession = await fetch(`${origin}/app/user/session`, {
+    method: 'POST',
+    headers: { ...headers, cookie: 'zerp_session=invalid-session' },
+    body: '{}',
+  })
+  assert.equal((await invalidSession.json()).errorKey, 'unauthenticated')
+  assert.match(invalidSession.headers.getSetCookie()[0] ?? '', /Max-Age=0/)
+
+  const invalidIndependentRoute = await fetch(`${origin}/app/menu/get`, {
+    method: 'POST',
+    headers: {
+      ...headers,
+      cookie: 'zerp_session=invalid-session',
+      'x-csrf-token': 'invalid-csrf',
+    },
+    body: '{}',
+  })
+  assert.equal(
+    (await invalidIndependentRoute.json()).errorKey,
+    'unauthenticated',
+  )
+  assert.match(
+    invalidIndependentRoute.headers.getSetCookie()[0] ?? '',
+    /Max-Age=0/,
+  )
+
   const unknown = await fetch(`${origin}/app/user/signin`, {
     method: 'POST',
     headers,
@@ -321,6 +351,46 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
   })
   assert.equal(invalidProfile.status, 200)
   assert.equal((await invalidProfile.json()).errorKey, 'validation_failed')
+
+  const profileRequest = (body: unknown) =>
+    fetch(`${origin}/app/user/profile`, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        cookie,
+        'x-csrf-token': sessionPayload.data.csrfToken,
+      },
+      body: JSON.stringify(body),
+    })
+  const initialProfile = await (await profileRequest({})).json()
+  const avatarProfile = await (
+    await profileRequest({
+      displayName: initialProfile.data.displayName,
+      avatarUrl: 'https://images.example.com/avatar.png',
+    })
+  ).json()
+  assert.equal(
+    BigInt(avatarProfile.data.revision),
+    BigInt(initialProfile.data.revision) + 1n,
+  )
+  const clearedProfile = await (
+    await profileRequest({
+      displayName: initialProfile.data.displayName,
+      avatarUrl: null,
+    })
+  ).json()
+  assert.equal(clearedProfile.data.avatarUrl, null)
+  assert.equal(
+    BigInt(clearedProfile.data.revision),
+    BigInt(avatarProfile.data.revision) + 1n,
+  )
+  const unchangedProfile = await (
+    await profileRequest({
+      displayName: initialProfile.data.displayName,
+      avatarUrl: null,
+    })
+  ).json()
+  assert.equal(unchangedProfile.data.revision, clearedProfile.data.revision)
 
   const query = {
     page: 1,
@@ -500,4 +570,27 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
     ).idle_expires_at > beforeQuery,
   )
   assert.ok(permission.id)
+
+  await db
+    .updateTable('app_sessions')
+    .set({ idle_expires_at: new Date(Date.now() - 1_000) })
+    .where('user_id', '=', id)
+    .execute()
+  const expiredIndependentRoute = await fetch(`${origin}/app/user/profile`, {
+    method: 'POST',
+    headers: {
+      ...headers,
+      cookie,
+      'x-csrf-token': sessionPayload.data.csrfToken,
+    },
+    body: '{}',
+  })
+  assert.equal(
+    (await expiredIndependentRoute.json()).errorKey,
+    'unauthenticated',
+  )
+  assert.match(
+    expiredIndependentRoute.headers.getSetCookie()[0] ?? '',
+    /Max-Age=0/,
+  )
 })

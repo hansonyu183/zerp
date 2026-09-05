@@ -5,8 +5,10 @@ import prettier from 'prettier'
 import {
   generateAdrIndex,
   parseTargetEntryPage,
+  parseTargetRouterPages,
   validateAdrDocuments,
   validateAdrIndex,
+  validateTargetRouteUseCases,
   validateUseCaseMissingBaseline,
   validateUseCaseMissingBaselineReduction,
 } from './check-docs.mjs'
@@ -31,32 +33,53 @@ test('accepts reciprocal ADR supersession metadata and generated indexes', async
   assert.deepEqual(await validateAdrIndex(index, documents), [])
 })
 
-test('maps the target HTML entry to its use case', () => {
+test('validates the target HTML build entry without using it as page coverage', () => {
   assert.deepEqual(
     parseTargetEntryPage(
       '<title>ZERP</title><body data-use-case="app/target-probe"><script type="module" src="/src/target/main.ts"></script></body>',
     ),
-    {
-      failures: [],
-      pages: [
-        {
-          route: '/',
-          source: '[应用入口](../../frontend/index.html)',
-          title: 'ZERP',
-          useCaseKey: 'app/target-probe',
-        },
-      ],
-    },
+    { failures: [], pages: [] },
   )
   assert.match(
-    parseTargetEntryPage('<title>ZERP</title><body></body>').failures.join(
-      '\n',
-    ),
-    /缺少 data-use-case/,
+    parseTargetEntryPage('<body></body>').failures.join('\n'),
+    /缺少 title/,
   )
 })
 
-test('use-case baseline can only describe the current target entry', () => {
+test('requires every titled target route to declare a use-case key', () => {
+  const parsed = parseTargetRouterPages(`
+    const routes = [
+      {
+        path: '/signin',
+        name: 'signin',
+        component: SignIn,
+        meta: { public: true, title: '登录' },
+      },
+    ]
+  `)
+
+  assert.deepEqual(parsed.pages, [])
+  assert.match(parsed.failures.join('\n'), /\/signin 缺少 meta\.useCaseKey/)
+})
+
+test('requires a document for every target route use-case key', () => {
+  assert.match(
+    validateTargetRouteUseCases(
+      [
+        {
+          route: '/signin',
+          source: '[目标路由](../../frontend/src/target/router/index.ts)',
+          title: '登录',
+          useCaseKey: 'app/signin',
+        },
+      ],
+      new Set(),
+    ).join('\n'),
+    /app\/signin/,
+  )
+})
+
+test('use-case baseline can only describe current target-route gaps', () => {
   assert.deepEqual(validateUseCaseMissingBaseline([], []), [])
   assert.match(
     validateUseCaseMissingBaseline([], ['app/target-probe']).join('\n'),

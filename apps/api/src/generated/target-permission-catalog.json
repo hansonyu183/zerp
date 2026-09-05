@@ -450,16 +450,6 @@
     "order": null
   },
   {
-    "id": "01J8E472AA75C132A3F2093205",
-    "path": "/app/workbench/query",
-    "domain": "app",
-    "entity": "workbench",
-    "action": "query",
-    "title": "查询审批工作台",
-    "group": null,
-    "order": null
-  },
-  {
     "id": "01J129AB2FA45F51F0A410DDE9",
     "path": "/aux/asset-category/create",
     "domain": "aux",

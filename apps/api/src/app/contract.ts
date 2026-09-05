@@ -740,12 +740,7 @@ export const accMappingCatalogRoute = accMappingRoute(
 export const targetRouteMetadata = [
   { method: signinRoute.method, path: signinRoute.path },
   { method: restoreRoute.method, path: restoreRoute.path },
-  {
-    method: queryWorkbenchRoute.method,
-    path: queryWorkbenchRoute.path,
-    permission: '/app/workbench/query',
-    title: '查询审批工作台',
-  },
+  { method: queryWorkbenchRoute.method, path: queryWorkbenchRoute.path },
   {
     method: queryUsersRoute.method,
     path: queryUsersRoute.path,

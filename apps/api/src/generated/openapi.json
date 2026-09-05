@@ -8778,9 +8778,43 @@
                               "type": "array",
                               "items": {
                                 "type": "object",
-                                "additionalProperties": {
-                                  "nullable": true
-                                }
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ENABLED",
+                                      "DISABLED"
+                                    ]
+                                  },
+                                  "type": {
+                                    "type": "string",
+                                    "enum": [
+                                      "NORMAL",
+                                      "SYSTEM",
+                                      "SUPERADMIN"
+                                    ]
+                                  },
+                                  "assignable": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "code",
+                                  "name",
+                                  "status",
+                                  "type",
+                                  "assignable"
+                                ]
                               }
                             },
                             "manageable": {
@@ -8992,9 +9026,43 @@
                               "type": "array",
                               "items": {
                                 "type": "object",
-                                "additionalProperties": {
-                                  "nullable": true
-                                }
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ENABLED",
+                                      "DISABLED"
+                                    ]
+                                  },
+                                  "type": {
+                                    "type": "string",
+                                    "enum": [
+                                      "NORMAL",
+                                      "SYSTEM",
+                                      "SUPERADMIN"
+                                    ]
+                                  },
+                                  "assignable": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "code",
+                                  "name",
+                                  "status",
+                                  "type",
+                                  "assignable"
+                                ]
                               }
                             },
                             "manageable": {
@@ -9204,9 +9272,43 @@
                               "type": "array",
                               "items": {
                                 "type": "object",
-                                "additionalProperties": {
-                                  "nullable": true
-                                }
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ENABLED",
+                                      "DISABLED"
+                                    ]
+                                  },
+                                  "type": {
+                                    "type": "string",
+                                    "enum": [
+                                      "NORMAL",
+                                      "SYSTEM",
+                                      "SUPERADMIN"
+                                    ]
+                                  },
+                                  "assignable": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "code",
+                                  "name",
+                                  "status",
+                                  "type",
+                                  "assignable"
+                                ]
                               }
                             },
                             "manageable": {
@@ -9405,9 +9507,43 @@
                               "type": "array",
                               "items": {
                                 "type": "object",
-                                "additionalProperties": {
-                                  "nullable": true
-                                }
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ENABLED",
+                                      "DISABLED"
+                                    ]
+                                  },
+                                  "type": {
+                                    "type": "string",
+                                    "enum": [
+                                      "NORMAL",
+                                      "SYSTEM",
+                                      "SUPERADMIN"
+                                    ]
+                                  },
+                                  "assignable": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "code",
+                                  "name",
+                                  "status",
+                                  "type",
+                                  "assignable"
+                                ]
                               }
                             },
                             "manageable": {
@@ -9606,9 +9742,43 @@
                               "type": "array",
                               "items": {
                                 "type": "object",
-                                "additionalProperties": {
-                                  "nullable": true
-                                }
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ENABLED",
+                                      "DISABLED"
+                                    ]
+                                  },
+                                  "type": {
+                                    "type": "string",
+                                    "enum": [
+                                      "NORMAL",
+                                      "SYSTEM",
+                                      "SUPERADMIN"
+                                    ]
+                                  },
+                                  "assignable": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "code",
+                                  "name",
+                                  "status",
+                                  "type",
+                                  "assignable"
+                                ]
                               }
                             },
                             "manageable": {
@@ -9932,9 +10102,69 @@
                               "type": "array",
                               "items": {
                                 "type": "object",
-                                "additionalProperties": {
-                                  "nullable": true
-                                }
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "description": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ENABLED",
+                                      "DISABLED"
+                                    ]
+                                  },
+                                  "type": {
+                                    "type": "string",
+                                    "enum": [
+                                      "NORMAL",
+                                      "SYSTEM",
+                                      "SUPERADMIN"
+                                    ]
+                                  },
+                                  "availableActions": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "enum": [
+                                        "VIEW",
+                                        "EDIT",
+                                        "ENABLE",
+                                        "DISABLE"
+                                      ]
+                                    }
+                                  },
+                                  "manageable": {
+                                    "type": "boolean"
+                                  },
+                                  "assignable": {
+                                    "type": "boolean"
+                                  },
+                                  "revision": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "code",
+                                  "name",
+                                  "description",
+                                  "status",
+                                  "type",
+                                  "availableActions",
+                                  "manageable",
+                                  "assignable",
+                                  "revision"
+                                ]
                               }
                             },
                             "total": {
@@ -10129,8 +10359,14 @@
                                 ]
                               }
                             },
+                            "manageable": {
+                              "type": "boolean"
+                            },
                             "assignable": {
                               "type": "boolean"
+                            },
+                            "revision": {
+                              "type": "string"
                             },
                             "createdAt": {
                               "type": "string",
@@ -10140,16 +10376,47 @@
                               "type": "string",
                               "format": "date-time"
                             },
-                            "revision": {
-                              "type": "string"
-                            },
                             "permissions": {
                               "type": "array",
                               "items": {
                                 "type": "object",
-                                "additionalProperties": {
-                                  "nullable": true
-                                }
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "path": {
+                                    "type": "string"
+                                  },
+                                  "domain": {
+                                    "type": "string"
+                                  },
+                                  "entity": {
+                                    "type": "string"
+                                  },
+                                  "action": {
+                                    "type": "string"
+                                  },
+                                  "description": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ENABLED",
+                                      "DISABLED"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "path",
+                                  "domain",
+                                  "entity",
+                                  "action",
+                                  "description",
+                                  "status"
+                                ]
                               }
                             }
                           },
@@ -10161,10 +10428,11 @@
                             "status",
                             "type",
                             "availableActions",
+                            "manageable",
                             "assignable",
+                            "revision",
                             "createdAt",
                             "updatedAt",
-                            "revision",
                             "permissions"
                           ]
                         },
@@ -10351,8 +10619,14 @@
                                 ]
                               }
                             },
+                            "manageable": {
+                              "type": "boolean"
+                            },
                             "assignable": {
                               "type": "boolean"
+                            },
+                            "revision": {
+                              "type": "string"
                             },
                             "createdAt": {
                               "type": "string",
@@ -10362,16 +10636,47 @@
                               "type": "string",
                               "format": "date-time"
                             },
-                            "revision": {
-                              "type": "string"
-                            },
                             "permissions": {
                               "type": "array",
                               "items": {
                                 "type": "object",
-                                "additionalProperties": {
-                                  "nullable": true
-                                }
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "path": {
+                                    "type": "string"
+                                  },
+                                  "domain": {
+                                    "type": "string"
+                                  },
+                                  "entity": {
+                                    "type": "string"
+                                  },
+                                  "action": {
+                                    "type": "string"
+                                  },
+                                  "description": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ENABLED",
+                                      "DISABLED"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "path",
+                                  "domain",
+                                  "entity",
+                                  "action",
+                                  "description",
+                                  "status"
+                                ]
                               }
                             }
                           },
@@ -10383,10 +10688,11 @@
                             "status",
                             "type",
                             "availableActions",
+                            "manageable",
                             "assignable",
+                            "revision",
                             "createdAt",
                             "updatedAt",
-                            "revision",
                             "permissions"
                           ]
                         },
@@ -10583,8 +10889,14 @@
                                 ]
                               }
                             },
+                            "manageable": {
+                              "type": "boolean"
+                            },
                             "assignable": {
                               "type": "boolean"
+                            },
+                            "revision": {
+                              "type": "string"
                             },
                             "createdAt": {
                               "type": "string",
@@ -10594,16 +10906,47 @@
                               "type": "string",
                               "format": "date-time"
                             },
-                            "revision": {
-                              "type": "string"
-                            },
                             "permissions": {
                               "type": "array",
                               "items": {
                                 "type": "object",
-                                "additionalProperties": {
-                                  "nullable": true
-                                }
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "path": {
+                                    "type": "string"
+                                  },
+                                  "domain": {
+                                    "type": "string"
+                                  },
+                                  "entity": {
+                                    "type": "string"
+                                  },
+                                  "action": {
+                                    "type": "string"
+                                  },
+                                  "description": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ENABLED",
+                                      "DISABLED"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "path",
+                                  "domain",
+                                  "entity",
+                                  "action",
+                                  "description",
+                                  "status"
+                                ]
                               }
                             }
                           },
@@ -10615,10 +10958,11 @@
                             "status",
                             "type",
                             "availableActions",
+                            "manageable",
                             "assignable",
+                            "revision",
                             "createdAt",
                             "updatedAt",
-                            "revision",
                             "permissions"
                           ]
                         },
@@ -10798,8 +11142,14 @@
                                 ]
                               }
                             },
+                            "manageable": {
+                              "type": "boolean"
+                            },
                             "assignable": {
                               "type": "boolean"
+                            },
+                            "revision": {
+                              "type": "string"
                             },
                             "createdAt": {
                               "type": "string",
@@ -10809,16 +11159,47 @@
                               "type": "string",
                               "format": "date-time"
                             },
-                            "revision": {
-                              "type": "string"
-                            },
                             "permissions": {
                               "type": "array",
                               "items": {
                                 "type": "object",
-                                "additionalProperties": {
-                                  "nullable": true
-                                }
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "path": {
+                                    "type": "string"
+                                  },
+                                  "domain": {
+                                    "type": "string"
+                                  },
+                                  "entity": {
+                                    "type": "string"
+                                  },
+                                  "action": {
+                                    "type": "string"
+                                  },
+                                  "description": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ENABLED",
+                                      "DISABLED"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "path",
+                                  "domain",
+                                  "entity",
+                                  "action",
+                                  "description",
+                                  "status"
+                                ]
                               }
                             }
                           },
@@ -10830,10 +11211,11 @@
                             "status",
                             "type",
                             "availableActions",
+                            "manageable",
                             "assignable",
+                            "revision",
                             "createdAt",
                             "updatedAt",
-                            "revision",
                             "permissions"
                           ]
                         },
@@ -11013,8 +11395,14 @@
                                 ]
                               }
                             },
+                            "manageable": {
+                              "type": "boolean"
+                            },
                             "assignable": {
                               "type": "boolean"
+                            },
+                            "revision": {
+                              "type": "string"
                             },
                             "createdAt": {
                               "type": "string",
@@ -11024,16 +11412,47 @@
                               "type": "string",
                               "format": "date-time"
                             },
-                            "revision": {
-                              "type": "string"
-                            },
                             "permissions": {
                               "type": "array",
                               "items": {
                                 "type": "object",
-                                "additionalProperties": {
-                                  "nullable": true
-                                }
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "path": {
+                                    "type": "string"
+                                  },
+                                  "domain": {
+                                    "type": "string"
+                                  },
+                                  "entity": {
+                                    "type": "string"
+                                  },
+                                  "action": {
+                                    "type": "string"
+                                  },
+                                  "description": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ENABLED",
+                                      "DISABLED"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "path",
+                                  "domain",
+                                  "entity",
+                                  "action",
+                                  "description",
+                                  "status"
+                                ]
                               }
                             }
                           },
@@ -11045,10 +11464,11 @@
                             "status",
                             "type",
                             "availableActions",
+                            "manageable",
                             "assignable",
+                            "revision",
                             "createdAt",
                             "updatedAt",
-                            "revision",
                             "permissions"
                           ]
                         },
@@ -11207,9 +11627,52 @@
                               "type": "array",
                               "items": {
                                 "type": "object",
-                                "additionalProperties": {
-                                  "nullable": true
-                                }
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "path": {
+                                    "type": "string"
+                                  },
+                                  "domain": {
+                                    "type": "string"
+                                  },
+                                  "entity": {
+                                    "type": "string"
+                                  },
+                                  "action": {
+                                    "type": "string"
+                                  },
+                                  "description": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ENABLED",
+                                      "DISABLED"
+                                    ]
+                                  },
+                                  "revision": {
+                                    "type": "string"
+                                  },
+                                  "directRoleCount": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "path",
+                                  "domain",
+                                  "entity",
+                                  "action",
+                                  "description",
+                                  "status",
+                                  "revision",
+                                  "directRoleCount"
+                                ]
                               }
                             },
                             "total": {
@@ -11364,6 +11827,9 @@
                         "data": {
                           "type": "object",
                           "properties": {
+                            "id": {
+                              "type": "string"
+                            },
                             "path": {
                               "type": "string"
                             },
@@ -11387,19 +11853,24 @@
                                 "DISABLED"
                               ]
                             },
-                            "roleCount": {
+                            "revision": {
+                              "type": "string"
+                            },
+                            "directRoleCount": {
                               "type": "integer",
                               "minimum": 0
                             }
                           },
                           "required": [
+                            "id",
                             "path",
                             "domain",
                             "entity",
                             "action",
                             "description",
                             "status",
-                            "roleCount"
+                            "revision",
+                            "directRoleCount"
                           ]
                         },
                         "requestId": {
@@ -11557,9 +12028,57 @@
                               "type": "array",
                               "items": {
                                 "type": "object",
-                                "additionalProperties": {
-                                  "nullable": true
-                                }
+                                "properties": {
+                                  "parameterKey": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "description": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "valueType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "STRING",
+                                      "INTEGER",
+                                      "DECIMAL",
+                                      "BOOLEAN"
+                                    ]
+                                  },
+                                  "configuredValue": {
+                                    "type": "string"
+                                  },
+                                  "defaultValue": {
+                                    "type": "string"
+                                  },
+                                  "editable": {
+                                    "type": "boolean"
+                                  },
+                                  "constraints": {
+                                    "type": "object",
+                                    "nullable": true,
+                                    "additionalProperties": {
+                                      "nullable": true
+                                    }
+                                  },
+                                  "revision": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "parameterKey",
+                                  "name",
+                                  "description",
+                                  "valueType",
+                                  "configuredValue",
+                                  "defaultValue",
+                                  "editable",
+                                  "constraints",
+                                  "revision"
+                                ]
                               }
                             },
                             "total": {
@@ -11712,7 +12231,7 @@
                         "data": {
                           "type": "object",
                           "properties": {
-                            "key": {
+                            "parameterKey": {
                               "type": "string"
                             },
                             "name": {
@@ -11752,7 +12271,7 @@
                             }
                           },
                           "required": [
-                            "key",
+                            "parameterKey",
                             "name",
                             "description",
                             "valueType",
@@ -11901,7 +12420,7 @@
                         "data": {
                           "type": "object",
                           "properties": {
-                            "key": {
+                            "parameterKey": {
                               "type": "string"
                             },
                             "name": {
@@ -11941,7 +12460,7 @@
                             }
                           },
                           "required": [
-                            "key",
+                            "parameterKey",
                             "name",
                             "description",
                             "valueType",
@@ -12086,7 +12605,7 @@
                         "data": {
                           "type": "object",
                           "properties": {
-                            "key": {
+                            "parameterKey": {
                               "type": "string"
                             },
                             "name": {
@@ -12126,7 +12645,7 @@
                             }
                           },
                           "required": [
-                            "key",
+                            "parameterKey",
                             "name",
                             "description",
                             "valueType",

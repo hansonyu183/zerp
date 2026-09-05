@@ -61,12 +61,14 @@ const objectRevision = objectIdentifier.extend({
 })
 const status = z.enum(['ENABLED', 'DISABLED'])
 const jsonObject = z.record(z.string(), z.unknown())
-const page = z.object({
-  items: z.array(jsonObject),
-  total: z.number().int().nonnegative(),
-  page: z.number().int().positive(),
-  pageSize: z.number().int().positive(),
-})
+function pageOf<Item extends z.ZodType>(item: Item) {
+  return z.object({
+    items: z.array(item),
+    total: z.number().int().nonnegative(),
+    page: z.number().int().positive(),
+    pageSize: z.number().int().positive(),
+  })
+}
 const pageRequest = z
   .object({
     page: z.number().int().positive(),
@@ -84,6 +86,14 @@ const profile = z.object({
   passwordChangedAt: z.string().datetime(),
   revision: z.string(),
 })
+const roleReference = z.object({
+  id: z.string(),
+  code: z.string(),
+  name: z.string(),
+  status,
+  type: z.enum(['NORMAL', 'SYSTEM', 'SUPERADMIN']),
+  assignable: z.boolean(),
+})
 const userDetail = z.object({
   id: z.string(),
   username: z.string(),
@@ -94,11 +104,11 @@ const userDetail = z.object({
   updatedAt: z.string().datetime(),
   revision: z.string(),
   passwordChangedAt: z.string().datetime(),
-  roles: z.array(jsonObject),
+  roles: z.array(roleReference),
   manageable: z.boolean(),
   roleAssignmentEditable: z.boolean(),
 })
-const roleDetail = z.object({
+const roleListItem = z.object({
   id: z.string(),
   code: z.string(),
   name: z.string(),
@@ -106,23 +116,37 @@ const roleDetail = z.object({
   status,
   type: z.enum(['NORMAL', 'SYSTEM', 'SUPERADMIN']),
   availableActions: z.array(z.enum(['VIEW', 'EDIT', 'ENABLE', 'DISABLE'])),
+  manageable: z.boolean(),
   assignable: z.boolean(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
   revision: z.string(),
-  permissions: z.array(jsonObject),
 })
-const permissionDetail = z.object({
+const permissionReference = z.object({
+  id: z.string(),
   path: z.string(),
   domain: z.string(),
   entity: z.string(),
   action: z.string(),
   description: z.string().nullable(),
   status,
-  roleCount: z.number().int().nonnegative(),
+})
+const roleDetail = roleListItem.extend({
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  permissions: z.array(permissionReference),
+})
+const permissionDetail = z.object({
+  id: z.string(),
+  path: z.string(),
+  domain: z.string(),
+  entity: z.string(),
+  action: z.string(),
+  description: z.string().nullable(),
+  status,
+  revision: z.string(),
+  directRoleCount: z.number().int().nonnegative(),
 })
 const systemParameter = z.object({
-  key: z.string(),
+  parameterKey: z.string(),
   name: z.string(),
   description: z.string().nullable(),
   valueType: z.enum(['STRING', 'INTEGER', 'DECIMAL', 'BOOLEAN']),
@@ -227,7 +251,11 @@ const userResetPassword = postRoute(
   revision,
   z.object({ temporaryPassword: z.string() }),
 )
-const roleQuery = postRoute('/app/role/query', pageRequest, page)
+const roleQuery = postRoute(
+  '/app/role/query',
+  pageRequest,
+  pageOf(roleListItem),
+)
 const roleGet = postRoute('/app/role/get', identifier, roleDetail)
 const roleCreate = postRoute(
   '/app/role/create',
@@ -255,7 +283,11 @@ const roleSave = postRoute(
 )
 const roleEnable = postRoute('/app/role/enable', revision, roleDetail)
 const roleDisable = postRoute('/app/role/disable', revision, roleDetail)
-const permissionQuery = postRoute('/app/permission/query', pageRequest, page)
+const permissionQuery = postRoute(
+  '/app/permission/query',
+  pageRequest,
+  pageOf(permissionDetail),
+)
 const permissionGet = postRoute(
   '/app/permission/get',
   identifier,
@@ -264,7 +296,7 @@ const permissionGet = postRoute(
 const systemParameterQuery = postRoute(
   '/app/system-parameter/query',
   pageRequest,
-  page,
+  pageOf(systemParameter),
 )
 const systemParameterGet = postRoute(
   '/app/system-parameter/get',
@@ -388,21 +420,26 @@ const auxReferences = z.array(
   }),
 )
 
-function auxRoute<const Path extends string>(
-  path: Path,
-  action: 'query' | 'get' | 'create' | 'save' | 'enable' | 'disable' | 'delete',
-) {
-  if (action === 'query') return postRoute(path, auxQueryRequest, auxPage)
-  if (action === 'get') return postRoute(path, objectIdentifier, auxObject)
-  if (action === 'create') return postRoute(path, auxCreateRequest, auxMutation)
-  if (action === 'save') return postRoute(path, auxSaveRequest, auxMutation)
-  if (action === 'delete')
-    return postRoute(
-      path,
-      objectRevision,
-      z.object({ deleted: z.literal(true) }),
-    )
+function auxQueryRoute<const Path extends string>(path: Path) {
+  return postRoute(path, auxQueryRequest, auxPage)
+}
+function auxGetRoute<const Path extends string>(path: Path) {
+  return postRoute(path, objectIdentifier, auxObject)
+}
+function auxCreateRoute<const Path extends string>(path: Path) {
+  return postRoute(path, auxCreateRequest, auxMutation)
+}
+function auxSaveRoute<const Path extends string>(path: Path) {
+  return postRoute(path, auxSaveRequest, auxMutation)
+}
+function auxEnableRoute<const Path extends string>(path: Path) {
   return postRoute(path, objectRevision, auxMutation)
+}
+function auxDisableRoute<const Path extends string>(path: Path) {
+  return postRoute(path, objectRevision, auxMutation)
+}
+function auxDeleteRoute<const Path extends string>(path: Path) {
+  return postRoute(path, objectRevision, z.object({ deleted: z.literal(true) }))
 }
 
 const bobQueryRequest = pageRequest
@@ -556,16 +593,6 @@ export interface IndependentRouteHandlers {
   ): IndependentHandler
 }
 
-const auxRouteActions = [
-  'query',
-  'get',
-  'create',
-  'save',
-  'enable',
-  'disable',
-  'delete',
-] as const
-
 export function registerIndependentRoutes(
   app: OpenAPIHono<TargetRouteEnvironment>,
   handlers: IndependentRouteHandlers,
@@ -598,22 +625,339 @@ export function registerIndependentRoutes(
     { route: menuActivate, handler: handlers.app },
     { route: menuReset, handler: handlers.app },
   ] as const)
-  // AUX/BOB CRUD routes are registered from finite runtime inventories. Keep
-  // them executable without allowing their widened template-string paths to
-  // erase the static client schema above or the reference seams below.
-  fixed.openapiRoutes([
-    ...auxEntities.flatMap((entity) =>
-      auxRouteActions
-        .filter(
-          (action) =>
-            entity !== 'settlement-method' ||
-            (action !== 'create' && action !== 'delete'),
-        )
-        .map((action) => ({
-          route: auxRoute(`/aux/${entity}/${action}`, action),
-          handler: handlers.aux(auxRouteBinding(entity, action)),
-        })),
-    ),
+  // Keep the finite AUX inventory as literal executable routes so the Hono
+  // AppType exposes every direct-CRUD seam to the generated client.
+  const withAux = fixed.openapiRoutes([
+    {
+      route: auxQueryRoute('/aux/product-category/query'),
+      handler: handlers.aux(auxRouteBinding('product-category', 'query')),
+    },
+    {
+      route: auxGetRoute('/aux/product-category/get'),
+      handler: handlers.aux(auxRouteBinding('product-category', 'get')),
+    },
+    {
+      route: auxCreateRoute('/aux/product-category/create'),
+      handler: handlers.aux(auxRouteBinding('product-category', 'create')),
+    },
+    {
+      route: auxSaveRoute('/aux/product-category/save'),
+      handler: handlers.aux(auxRouteBinding('product-category', 'save')),
+    },
+    {
+      route: auxEnableRoute('/aux/product-category/enable'),
+      handler: handlers.aux(auxRouteBinding('product-category', 'enable')),
+    },
+    {
+      route: auxDisableRoute('/aux/product-category/disable'),
+      handler: handlers.aux(auxRouteBinding('product-category', 'disable')),
+    },
+    {
+      route: auxDeleteRoute('/aux/product-category/delete'),
+      handler: handlers.aux(auxRouteBinding('product-category', 'delete')),
+    },
+    {
+      route: auxQueryRoute('/aux/product-type/query'),
+      handler: handlers.aux(auxRouteBinding('product-type', 'query')),
+    },
+    {
+      route: auxGetRoute('/aux/product-type/get'),
+      handler: handlers.aux(auxRouteBinding('product-type', 'get')),
+    },
+    {
+      route: auxCreateRoute('/aux/product-type/create'),
+      handler: handlers.aux(auxRouteBinding('product-type', 'create')),
+    },
+    {
+      route: auxSaveRoute('/aux/product-type/save'),
+      handler: handlers.aux(auxRouteBinding('product-type', 'save')),
+    },
+    {
+      route: auxEnableRoute('/aux/product-type/enable'),
+      handler: handlers.aux(auxRouteBinding('product-type', 'enable')),
+    },
+    {
+      route: auxDisableRoute('/aux/product-type/disable'),
+      handler: handlers.aux(auxRouteBinding('product-type', 'disable')),
+    },
+    {
+      route: auxDeleteRoute('/aux/product-type/delete'),
+      handler: handlers.aux(auxRouteBinding('product-type', 'delete')),
+    },
+    {
+      route: auxQueryRoute('/aux/employee-category/query'),
+      handler: handlers.aux(auxRouteBinding('employee-category', 'query')),
+    },
+    {
+      route: auxGetRoute('/aux/employee-category/get'),
+      handler: handlers.aux(auxRouteBinding('employee-category', 'get')),
+    },
+    {
+      route: auxCreateRoute('/aux/employee-category/create'),
+      handler: handlers.aux(auxRouteBinding('employee-category', 'create')),
+    },
+    {
+      route: auxSaveRoute('/aux/employee-category/save'),
+      handler: handlers.aux(auxRouteBinding('employee-category', 'save')),
+    },
+    {
+      route: auxEnableRoute('/aux/employee-category/enable'),
+      handler: handlers.aux(auxRouteBinding('employee-category', 'enable')),
+    },
+    {
+      route: auxDisableRoute('/aux/employee-category/disable'),
+      handler: handlers.aux(auxRouteBinding('employee-category', 'disable')),
+    },
+    {
+      route: auxDeleteRoute('/aux/employee-category/delete'),
+      handler: handlers.aux(auxRouteBinding('employee-category', 'delete')),
+    },
+    {
+      route: auxQueryRoute('/aux/department/query'),
+      handler: handlers.aux(auxRouteBinding('department', 'query')),
+    },
+    {
+      route: auxGetRoute('/aux/department/get'),
+      handler: handlers.aux(auxRouteBinding('department', 'get')),
+    },
+    {
+      route: auxCreateRoute('/aux/department/create'),
+      handler: handlers.aux(auxRouteBinding('department', 'create')),
+    },
+    {
+      route: auxSaveRoute('/aux/department/save'),
+      handler: handlers.aux(auxRouteBinding('department', 'save')),
+    },
+    {
+      route: auxEnableRoute('/aux/department/enable'),
+      handler: handlers.aux(auxRouteBinding('department', 'enable')),
+    },
+    {
+      route: auxDisableRoute('/aux/department/disable'),
+      handler: handlers.aux(auxRouteBinding('department', 'disable')),
+    },
+    {
+      route: auxDeleteRoute('/aux/department/delete'),
+      handler: handlers.aux(auxRouteBinding('department', 'delete')),
+    },
+    {
+      route: auxQueryRoute('/aux/position/query'),
+      handler: handlers.aux(auxRouteBinding('position', 'query')),
+    },
+    {
+      route: auxGetRoute('/aux/position/get'),
+      handler: handlers.aux(auxRouteBinding('position', 'get')),
+    },
+    {
+      route: auxCreateRoute('/aux/position/create'),
+      handler: handlers.aux(auxRouteBinding('position', 'create')),
+    },
+    {
+      route: auxSaveRoute('/aux/position/save'),
+      handler: handlers.aux(auxRouteBinding('position', 'save')),
+    },
+    {
+      route: auxEnableRoute('/aux/position/enable'),
+      handler: handlers.aux(auxRouteBinding('position', 'enable')),
+    },
+    {
+      route: auxDisableRoute('/aux/position/disable'),
+      handler: handlers.aux(auxRouteBinding('position', 'disable')),
+    },
+    {
+      route: auxDeleteRoute('/aux/position/delete'),
+      handler: handlers.aux(auxRouteBinding('position', 'delete')),
+    },
+    {
+      route: auxQueryRoute('/aux/settlement-method/query'),
+      handler: handlers.aux(auxRouteBinding('settlement-method', 'query')),
+    },
+    {
+      route: auxGetRoute('/aux/settlement-method/get'),
+      handler: handlers.aux(auxRouteBinding('settlement-method', 'get')),
+    },
+    {
+      route: auxSaveRoute('/aux/settlement-method/save'),
+      handler: handlers.aux(auxRouteBinding('settlement-method', 'save')),
+    },
+    {
+      route: auxEnableRoute('/aux/settlement-method/enable'),
+      handler: handlers.aux(auxRouteBinding('settlement-method', 'enable')),
+    },
+    {
+      route: auxDisableRoute('/aux/settlement-method/disable'),
+      handler: handlers.aux(auxRouteBinding('settlement-method', 'disable')),
+    },
+    {
+      route: auxQueryRoute('/aux/payment-method/query'),
+      handler: handlers.aux(auxRouteBinding('payment-method', 'query')),
+    },
+    {
+      route: auxGetRoute('/aux/payment-method/get'),
+      handler: handlers.aux(auxRouteBinding('payment-method', 'get')),
+    },
+    {
+      route: auxCreateRoute('/aux/payment-method/create'),
+      handler: handlers.aux(auxRouteBinding('payment-method', 'create')),
+    },
+    {
+      route: auxSaveRoute('/aux/payment-method/save'),
+      handler: handlers.aux(auxRouteBinding('payment-method', 'save')),
+    },
+    {
+      route: auxEnableRoute('/aux/payment-method/enable'),
+      handler: handlers.aux(auxRouteBinding('payment-method', 'enable')),
+    },
+    {
+      route: auxDisableRoute('/aux/payment-method/disable'),
+      handler: handlers.aux(auxRouteBinding('payment-method', 'disable')),
+    },
+    {
+      route: auxDeleteRoute('/aux/payment-method/delete'),
+      handler: handlers.aux(auxRouteBinding('payment-method', 'delete')),
+    },
+    {
+      route: auxQueryRoute('/aux/dictionary-type/query'),
+      handler: handlers.aux(auxRouteBinding('dictionary-type', 'query')),
+    },
+    {
+      route: auxGetRoute('/aux/dictionary-type/get'),
+      handler: handlers.aux(auxRouteBinding('dictionary-type', 'get')),
+    },
+    {
+      route: auxCreateRoute('/aux/dictionary-type/create'),
+      handler: handlers.aux(auxRouteBinding('dictionary-type', 'create')),
+    },
+    {
+      route: auxSaveRoute('/aux/dictionary-type/save'),
+      handler: handlers.aux(auxRouteBinding('dictionary-type', 'save')),
+    },
+    {
+      route: auxEnableRoute('/aux/dictionary-type/enable'),
+      handler: handlers.aux(auxRouteBinding('dictionary-type', 'enable')),
+    },
+    {
+      route: auxDisableRoute('/aux/dictionary-type/disable'),
+      handler: handlers.aux(auxRouteBinding('dictionary-type', 'disable')),
+    },
+    {
+      route: auxDeleteRoute('/aux/dictionary-type/delete'),
+      handler: handlers.aux(auxRouteBinding('dictionary-type', 'delete')),
+    },
+    {
+      route: auxQueryRoute('/aux/dictionary-item/query'),
+      handler: handlers.aux(auxRouteBinding('dictionary-item', 'query')),
+    },
+    {
+      route: auxGetRoute('/aux/dictionary-item/get'),
+      handler: handlers.aux(auxRouteBinding('dictionary-item', 'get')),
+    },
+    {
+      route: auxCreateRoute('/aux/dictionary-item/create'),
+      handler: handlers.aux(auxRouteBinding('dictionary-item', 'create')),
+    },
+    {
+      route: auxSaveRoute('/aux/dictionary-item/save'),
+      handler: handlers.aux(auxRouteBinding('dictionary-item', 'save')),
+    },
+    {
+      route: auxEnableRoute('/aux/dictionary-item/enable'),
+      handler: handlers.aux(auxRouteBinding('dictionary-item', 'enable')),
+    },
+    {
+      route: auxDisableRoute('/aux/dictionary-item/disable'),
+      handler: handlers.aux(auxRouteBinding('dictionary-item', 'disable')),
+    },
+    {
+      route: auxDeleteRoute('/aux/dictionary-item/delete'),
+      handler: handlers.aux(auxRouteBinding('dictionary-item', 'delete')),
+    },
+    {
+      route: auxQueryRoute('/aux/measurement-unit/query'),
+      handler: handlers.aux(auxRouteBinding('measurement-unit', 'query')),
+    },
+    {
+      route: auxGetRoute('/aux/measurement-unit/get'),
+      handler: handlers.aux(auxRouteBinding('measurement-unit', 'get')),
+    },
+    {
+      route: auxCreateRoute('/aux/measurement-unit/create'),
+      handler: handlers.aux(auxRouteBinding('measurement-unit', 'create')),
+    },
+    {
+      route: auxSaveRoute('/aux/measurement-unit/save'),
+      handler: handlers.aux(auxRouteBinding('measurement-unit', 'save')),
+    },
+    {
+      route: auxEnableRoute('/aux/measurement-unit/enable'),
+      handler: handlers.aux(auxRouteBinding('measurement-unit', 'enable')),
+    },
+    {
+      route: auxDisableRoute('/aux/measurement-unit/disable'),
+      handler: handlers.aux(auxRouteBinding('measurement-unit', 'disable')),
+    },
+    {
+      route: auxDeleteRoute('/aux/measurement-unit/delete'),
+      handler: handlers.aux(auxRouteBinding('measurement-unit', 'delete')),
+    },
+    {
+      route: auxQueryRoute('/aux/income-expense-type/query'),
+      handler: handlers.aux(auxRouteBinding('income-expense-type', 'query')),
+    },
+    {
+      route: auxGetRoute('/aux/income-expense-type/get'),
+      handler: handlers.aux(auxRouteBinding('income-expense-type', 'get')),
+    },
+    {
+      route: auxCreateRoute('/aux/income-expense-type/create'),
+      handler: handlers.aux(auxRouteBinding('income-expense-type', 'create')),
+    },
+    {
+      route: auxSaveRoute('/aux/income-expense-type/save'),
+      handler: handlers.aux(auxRouteBinding('income-expense-type', 'save')),
+    },
+    {
+      route: auxEnableRoute('/aux/income-expense-type/enable'),
+      handler: handlers.aux(auxRouteBinding('income-expense-type', 'enable')),
+    },
+    {
+      route: auxDisableRoute('/aux/income-expense-type/disable'),
+      handler: handlers.aux(auxRouteBinding('income-expense-type', 'disable')),
+    },
+    {
+      route: auxDeleteRoute('/aux/income-expense-type/delete'),
+      handler: handlers.aux(auxRouteBinding('income-expense-type', 'delete')),
+    },
+    {
+      route: auxQueryRoute('/aux/asset-category/query'),
+      handler: handlers.aux(auxRouteBinding('asset-category', 'query')),
+    },
+    {
+      route: auxGetRoute('/aux/asset-category/get'),
+      handler: handlers.aux(auxRouteBinding('asset-category', 'get')),
+    },
+    {
+      route: auxCreateRoute('/aux/asset-category/create'),
+      handler: handlers.aux(auxRouteBinding('asset-category', 'create')),
+    },
+    {
+      route: auxSaveRoute('/aux/asset-category/save'),
+      handler: handlers.aux(auxRouteBinding('asset-category', 'save')),
+    },
+    {
+      route: auxEnableRoute('/aux/asset-category/enable'),
+      handler: handlers.aux(auxRouteBinding('asset-category', 'enable')),
+    },
+    {
+      route: auxDisableRoute('/aux/asset-category/disable'),
+      handler: handlers.aux(auxRouteBinding('asset-category', 'disable')),
+    },
+    {
+      route: auxDeleteRoute('/aux/asset-category/delete'),
+      handler: handlers.aux(auxRouteBinding('asset-category', 'delete')),
+    },
+  ] as const)
+  withAux.openapiRoutes([
     ...bobEntities.flatMap((entity) =>
       (['query', 'get'] as const).map((action) => ({
         route: bobRoute(`/bob/${entity}/${action}`, action),
@@ -621,7 +965,7 @@ export function registerIndependentRoutes(
       })),
     ),
   ] as const)
-  return fixed.openapiRoutes([
+  return withAux.openapiRoutes([
     {
       route: auxReferenceRoute,
       handler: handlers.aux(auxReferenceRouteBinding),

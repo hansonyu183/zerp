@@ -139,6 +139,7 @@ test('target initial administrator bootstrap is atomic and fails closed after th
   )
   assert.ok(signin.principal.permissions.length > 0)
   assert.ok(signin.principal.permissions.includes('/app/user/query'))
+  assert.ok(signin.principal.permissions.includes('/app/workbench/query'))
 
   const catalogBeforeRetry = await db
     .selectFrom('app_permissions')

@@ -689,6 +689,10 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "keyword": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
                   "page": {
                     "type": "integer",
                     "minimum": 1
@@ -698,56 +702,12 @@
                     "enum": [
                       20
                     ]
-                  },
-                  "filters": {
-                    "type": "object",
-                    "properties": {
-                      "search": {
-                        "type": "string",
-                        "maxLength": 128
-                      },
-                      "status": {
-                        "type": "string",
-                        "enum": [
-                          "ENABLED",
-                          "DISABLED"
-                        ]
-                      }
-                    },
-                    "additionalProperties": false
-                  },
-                  "sort": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "field": {
-                          "type": "string",
-                          "enum": [
-                            "username"
-                          ]
-                        },
-                        "order": {
-                          "type": "string",
-                          "enum": [
-                            "asc"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "field",
-                        "order"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "minItems": 1,
-                    "maxItems": 1
                   }
                 },
                 "required": [
+                  "keyword",
                   "page",
-                  "pageSize",
-                  "sort"
+                  "pageSize"
                 ],
                 "additionalProperties": false
               }
@@ -793,48 +753,45 @@
                                   "id": {
                                     "type": "string"
                                   },
-                                  "username": {
+                                  "code": {
                                     "type": "string"
                                   },
-                                  "displayName": {
+                                  "py": {
                                     "type": "string"
                                   },
-                                  "status": {
-                                    "type": "string",
-                                    "enum": [
-                                      "ENABLED",
-                                      "DISABLED"
-                                    ]
+                                  "name": {
+                                    "type": "string"
                                   },
-                                  "system": {
+                                  "enabled": {
                                     "type": "boolean"
-                                  },
-                                  "createdAt": {
-                                    "type": "string",
-                                    "format": "date-time"
-                                  },
-                                  "updatedAt": {
-                                    "type": "string",
-                                    "format": "date-time"
                                   },
                                   "revision": {
-                                    "type": "string"
+                                    "type": "string",
+                                    "pattern": "^[1-9]\\d*$"
                                   },
-                                  "manageable": {
-                                    "type": "boolean"
+                                  "availableActions": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "enum": [
+                                        "VIEW",
+                                        "EDIT",
+                                        "ENABLE",
+                                        "DISABLE"
+                                      ]
+                                    }
                                   }
                                 },
                                 "required": [
                                   "id",
-                                  "username",
-                                  "displayName",
-                                  "status",
-                                  "system",
-                                  "createdAt",
-                                  "updatedAt",
+                                  "code",
+                                  "py",
+                                  "name",
+                                  "enabled",
                                   "revision",
-                                  "manageable"
-                                ]
+                                  "availableActions"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "total": {
@@ -9005,36 +8962,33 @@
                             "id": {
                               "type": "string"
                             },
-                            "username": {
+                            "code": {
                               "type": "string"
                             },
-                            "displayName": {
+                            "py": {
                               "type": "string"
                             },
-                            "status": {
-                              "type": "string",
-                              "enum": [
-                                "ENABLED",
-                                "DISABLED"
-                              ]
+                            "name": {
+                              "type": "string"
                             },
-                            "system": {
+                            "enabled": {
                               "type": "boolean"
                             },
-                            "createdAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            },
-                            "updatedAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            },
                             "revision": {
-                              "type": "string"
-                            },
-                            "passwordChangedAt": {
                               "type": "string",
-                              "format": "date-time"
+                              "pattern": "^[1-9]\\d*$"
+                            },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "VIEW",
+                                  "EDIT",
+                                  "ENABLE",
+                                  "DISABLE"
+                                ]
+                              }
                             },
                             "roles": {
                               "type": "array",
@@ -9088,18 +9042,17 @@
                           },
                           "required": [
                             "id",
-                            "username",
-                            "displayName",
-                            "status",
-                            "system",
-                            "createdAt",
-                            "updatedAt",
+                            "code",
+                            "py",
+                            "name",
+                            "enabled",
                             "revision",
-                            "passwordChangedAt",
+                            "availableActions",
                             "roles",
                             "manageable",
                             "roleAssignmentEditable"
-                          ]
+                          ],
+                          "additionalProperties": false
                         },
                         "requestId": {
                           "type": "string"
@@ -9186,12 +9139,12 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "username": {
+                  "code": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64
                   },
-                  "displayName": {
+                  "name": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 128
@@ -9205,12 +9158,13 @@
                     "type": "array",
                     "items": {
                       "type": "string"
-                    }
+                    },
+                    "minItems": 1
                   }
                 },
                 "required": [
-                  "username",
-                  "displayName",
+                  "code",
+                  "name",
                   "password",
                   "roleIds"
                 ],
@@ -9253,36 +9207,33 @@
                             "id": {
                               "type": "string"
                             },
-                            "username": {
+                            "code": {
                               "type": "string"
                             },
-                            "displayName": {
+                            "py": {
                               "type": "string"
                             },
-                            "status": {
-                              "type": "string",
-                              "enum": [
-                                "ENABLED",
-                                "DISABLED"
-                              ]
+                            "name": {
+                              "type": "string"
                             },
-                            "system": {
+                            "enabled": {
                               "type": "boolean"
                             },
-                            "createdAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            },
-                            "updatedAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            },
                             "revision": {
-                              "type": "string"
-                            },
-                            "passwordChangedAt": {
                               "type": "string",
-                              "format": "date-time"
+                              "pattern": "^[1-9]\\d*$"
+                            },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "VIEW",
+                                  "EDIT",
+                                  "ENABLE",
+                                  "DISABLE"
+                                ]
+                              }
                             },
                             "roles": {
                               "type": "array",
@@ -9336,18 +9287,17 @@
                           },
                           "required": [
                             "id",
-                            "username",
-                            "displayName",
-                            "status",
-                            "system",
-                            "createdAt",
-                            "updatedAt",
+                            "code",
+                            "py",
+                            "name",
+                            "enabled",
                             "revision",
-                            "passwordChangedAt",
+                            "availableActions",
                             "roles",
                             "manageable",
                             "roleAssignmentEditable"
-                          ]
+                          ],
+                          "additionalProperties": false
                         },
                         "requestId": {
                           "type": "string"
@@ -9437,7 +9387,7 @@
                   "id": {
                     "type": "string"
                   },
-                  "displayName": {
+                  "name": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 128
@@ -9446,17 +9396,17 @@
                     "type": "array",
                     "items": {
                       "type": "string"
-                    }
+                    },
+                    "minItems": 1
                   },
                   "revision": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
                   }
                 },
                 "required": [
                   "id",
-                  "displayName",
+                  "name",
                   "roleIds",
                   "revision"
                 ],
@@ -9499,36 +9449,33 @@
                             "id": {
                               "type": "string"
                             },
-                            "username": {
+                            "code": {
                               "type": "string"
                             },
-                            "displayName": {
+                            "py": {
                               "type": "string"
                             },
-                            "status": {
-                              "type": "string",
-                              "enum": [
-                                "ENABLED",
-                                "DISABLED"
-                              ]
+                            "name": {
+                              "type": "string"
                             },
-                            "system": {
+                            "enabled": {
                               "type": "boolean"
                             },
-                            "createdAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            },
-                            "updatedAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            },
                             "revision": {
-                              "type": "string"
-                            },
-                            "passwordChangedAt": {
                               "type": "string",
-                              "format": "date-time"
+                              "pattern": "^[1-9]\\d*$"
+                            },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "VIEW",
+                                  "EDIT",
+                                  "ENABLE",
+                                  "DISABLE"
+                                ]
+                              }
                             },
                             "roles": {
                               "type": "array",
@@ -9582,18 +9529,17 @@
                           },
                           "required": [
                             "id",
-                            "username",
-                            "displayName",
-                            "status",
-                            "system",
-                            "createdAt",
-                            "updatedAt",
+                            "code",
+                            "py",
+                            "name",
+                            "enabled",
                             "revision",
-                            "passwordChangedAt",
+                            "availableActions",
                             "roles",
                             "manageable",
                             "roleAssignmentEditable"
-                          ]
+                          ],
+                          "additionalProperties": false
                         },
                         "requestId": {
                           "type": "string"
@@ -9686,9 +9632,8 @@
                     "maxLength": 64
                   },
                   "revision": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
                   }
                 },
                 "required": [
@@ -9734,36 +9679,33 @@
                             "id": {
                               "type": "string"
                             },
-                            "username": {
+                            "code": {
                               "type": "string"
                             },
-                            "displayName": {
+                            "py": {
                               "type": "string"
                             },
-                            "status": {
-                              "type": "string",
-                              "enum": [
-                                "ENABLED",
-                                "DISABLED"
-                              ]
+                            "name": {
+                              "type": "string"
                             },
-                            "system": {
+                            "enabled": {
                               "type": "boolean"
                             },
-                            "createdAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            },
-                            "updatedAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            },
                             "revision": {
-                              "type": "string"
-                            },
-                            "passwordChangedAt": {
                               "type": "string",
-                              "format": "date-time"
+                              "pattern": "^[1-9]\\d*$"
+                            },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "VIEW",
+                                  "EDIT",
+                                  "ENABLE",
+                                  "DISABLE"
+                                ]
+                              }
                             },
                             "roles": {
                               "type": "array",
@@ -9817,18 +9759,17 @@
                           },
                           "required": [
                             "id",
-                            "username",
-                            "displayName",
-                            "status",
-                            "system",
-                            "createdAt",
-                            "updatedAt",
+                            "code",
+                            "py",
+                            "name",
+                            "enabled",
                             "revision",
-                            "passwordChangedAt",
+                            "availableActions",
                             "roles",
                             "manageable",
                             "roleAssignmentEditable"
-                          ]
+                          ],
+                          "additionalProperties": false
                         },
                         "requestId": {
                           "type": "string"
@@ -9921,9 +9862,8 @@
                     "maxLength": 64
                   },
                   "revision": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
                   }
                 },
                 "required": [
@@ -9969,36 +9909,33 @@
                             "id": {
                               "type": "string"
                             },
-                            "username": {
+                            "code": {
                               "type": "string"
                             },
-                            "displayName": {
+                            "py": {
                               "type": "string"
                             },
-                            "status": {
-                              "type": "string",
-                              "enum": [
-                                "ENABLED",
-                                "DISABLED"
-                              ]
+                            "name": {
+                              "type": "string"
                             },
-                            "system": {
+                            "enabled": {
                               "type": "boolean"
                             },
-                            "createdAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            },
-                            "updatedAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            },
                             "revision": {
-                              "type": "string"
-                            },
-                            "passwordChangedAt": {
                               "type": "string",
-                              "format": "date-time"
+                              "pattern": "^[1-9]\\d*$"
+                            },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "VIEW",
+                                  "EDIT",
+                                  "ENABLE",
+                                  "DISABLE"
+                                ]
+                              }
                             },
                             "roles": {
                               "type": "array",
@@ -10052,18 +9989,17 @@
                           },
                           "required": [
                             "id",
-                            "username",
-                            "displayName",
-                            "status",
-                            "system",
-                            "createdAt",
-                            "updatedAt",
+                            "code",
+                            "py",
+                            "name",
+                            "enabled",
                             "revision",
-                            "passwordChangedAt",
+                            "availableActions",
                             "roles",
                             "manageable",
                             "roleAssignmentEditable"
-                          ]
+                          ],
+                          "additionalProperties": false
                         },
                         "requestId": {
                           "type": "string"
@@ -10156,9 +10092,8 @@
                     "maxLength": 64
                   },
                   "revision": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
                   }
                 },
                 "required": [

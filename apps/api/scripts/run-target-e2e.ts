@@ -1669,6 +1669,11 @@ try {
     )
   }
   await deleteE2ECatalogFacts()
+  await bootstrap.deleteE2ECreatedUsers([
+    reviewer.userId,
+    reportAdmin.userId,
+    submitter.userId,
+  ])
   await bootstrap.deleteE2EPrincipal(reviewer)
   await bootstrap.deleteE2EPrincipal(reportAdmin)
   await bootstrap.deleteE2EPrincipal(submitter)

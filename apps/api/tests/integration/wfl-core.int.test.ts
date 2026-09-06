@@ -5,6 +5,7 @@ import { createNodeWflStarlark } from '@zerp/wfl-starlark/node'
 import { ulid } from 'ulid'
 
 import { createDatabase } from '../../src/db/database.ts'
+import { userPinyin } from '../../src/app/user-pinyin.ts'
 import { VouApplicationError, VouService } from '../../src/vou/service.ts'
 import { WflService, type WflVouPort } from '../../src/wfl/service.ts'
 
@@ -411,6 +412,7 @@ test('WFL definition compiles, trials against a real VOU, approves and becomes c
         id,
         username: `wfl-${id}`,
         display_name: 'WFL actor',
+        py: userPinyin('WFL actor'),
         password_hash: 'unused',
         status: 'ENABLED' as const,
         password_changed_at: new Date(),
@@ -571,6 +573,7 @@ test('WFL definition lifecycle exposes candidates, history and a derived current
         id,
         username: `wfl-${id}`,
         display_name: 'WFL actor',
+        py: userPinyin('WFL actor'),
         password_hash: 'unused',
         status: 'ENABLED' as const,
         password_changed_at: new Date(),
@@ -721,6 +724,7 @@ test('WFL instance persists exact-entry nodes and six typed actions through its 
         id,
         username: `wfl-${id}`,
         display_name: 'WFL actor',
+        py: userPinyin('WFL actor'),
         password_hash: 'unused',
         status: 'ENABLED' as const,
         password_changed_at: new Date(),

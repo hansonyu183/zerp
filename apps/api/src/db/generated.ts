@@ -356,6 +356,7 @@ export interface AppUsers {
   password_change_required: Generated<boolean>;
   password_changed_at: Timestamp;
   password_hash: string;
+  py: string;
   revision: Generated<Int8>;
   status: string;
   updated_at: Generated<Timestamp>;

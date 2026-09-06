@@ -27,7 +27,7 @@ describe('business resource registry', () => {
     expect(registry.resolve('app', 'role')).toBeNull()
   })
 
-  it('keeps the target domain matrix fixed and leaves this ticket unregistered', () => {
+  it('keeps the target domain matrix fixed and registers the completed user slice', () => {
     expect(targetDomainCapabilities).toEqual({
       session: { approval: false, businessVersion: false, enabled: false },
       bob: { approval: true, businessVersion: true, enabled: true },
@@ -38,7 +38,16 @@ describe('business resource registry', () => {
       rpt: { approval: false, businessVersion: false, enabled: true },
       wfl: { approval: false, businessVersion: false, enabled: true },
     })
-    expect(targetResourceRegistry.resolve('app', 'user')).toBeNull()
+    expect(targetResourceRegistry.resolve('app', 'user')).toMatchObject({
+      domain: 'app',
+      entity: 'user',
+      capabilities: {
+        approval: false,
+        businessVersion: false,
+        enabled: true,
+      },
+    })
+    expect(targetResourceRegistry.resolve('app', 'role')).toBeNull()
     expect('dcl' in targetDomainCapabilities).toBe(false)
   })
 })

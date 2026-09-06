@@ -1,5 +1,6 @@
 import type { Component } from 'vue'
 
+import UserManagement from '../pages/app/user/UserManagement.vue'
 import {
   targetDomainCapabilities,
   type BusinessTargetDomain,
@@ -38,5 +39,6 @@ export function createResourceRegistry(
   }
 }
 
-// Business implementations are added by their own vertical-slice tickets.
-export const targetResourceRegistry = createResourceRegistry([])
+export const targetResourceRegistry = createResourceRegistry([
+  { domain: 'app', entity: 'user', component: UserManagement },
+])

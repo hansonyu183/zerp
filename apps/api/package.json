@@ -23,6 +23,7 @@
     "seed:online-test": "node scripts/seed-online-test-users.ts",
     "sync:catalog": "node scripts/sync-target-catalog.ts",
     "cleanup:legacy-menu": "node scripts/cleanup-legacy-menu.ts",
+    "backfill:user-py": "node scripts/backfill-user-pinyin.ts",
     "e2e": "node scripts/run-target-e2e.ts"
   },
   "dependencies": {
@@ -34,6 +35,7 @@
     "hono": "4.13.5",
     "kysely": "0.29.5",
     "pg": "8.23.0",
+    "pinyin-pro": "3.29.3",
     "ulid": "3.0.2",
     "zod": "4.5.4"
   },

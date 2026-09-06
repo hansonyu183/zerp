@@ -10,6 +10,7 @@ import { ulid } from 'ulid'
 
 import { createApp } from '../../src/app.ts'
 import { SessionService } from '../../src/app/session.ts'
+import { userPinyin } from '../../src/app/user-pinyin.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { ArchiveService } from '../../src/dcl/archives.ts'
 import { WarehouseService } from '../../src/dcl/warehouse.ts'
@@ -99,6 +100,7 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
         id: submitterId,
         username: submitterUsername,
         display_name: 'Warehouse Submitter',
+        py: userPinyin('Warehouse Submitter'),
         password_hash: await passwordHash(submitterPassword),
         status: 'ENABLED',
         password_changed_at: new Date(),
@@ -108,6 +110,7 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
         id: reviewerId,
         username: reviewerUsername,
         display_name: 'Warehouse Reviewer',
+        py: userPinyin('Warehouse Reviewer'),
         password_hash: await passwordHash(reviewerPassword),
         status: 'ENABLED',
         password_changed_at: new Date(),

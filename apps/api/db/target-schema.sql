@@ -2,6 +2,7 @@ CREATE TABLE app_users (
     id varchar(26) PRIMARY KEY,
     username varchar(64) NOT NULL,
     display_name varchar(128) NOT NULL,
+    py text NOT NULL CONSTRAINT app_users_py_nonempty CHECK (btrim(py) <> ''),
     password_hash text NOT NULL,
     status varchar(16) NOT NULL CHECK (status IN ('ENABLED', 'DISABLED')),
     failed_signin_count integer NOT NULL DEFAULT 0 CHECK (failed_signin_count >= 0),

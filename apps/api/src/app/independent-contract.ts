@@ -2,6 +2,7 @@ import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
 import type { Handler } from 'hono'
 
 import type { TargetRouteEnvironment } from './contract.ts'
+import { userRevisionSchema, userSummarySchema } from './user-contract.ts'
 
 const failureEnvelope = z.object({
   code: z.union([
@@ -53,6 +54,7 @@ function postRoute<
 const empty = z.object({}).strict()
 const identifier = z.object({ id: z.string().min(1).max(64) }).strict()
 const revision = identifier.extend({ revision: z.number().int().positive() })
+const userRevision = identifier.extend({ revision: userRevisionSchema })
 const objectIdentifier = z
   .object({ objectId: z.string().min(1).max(64) })
   .strict()
@@ -94,16 +96,7 @@ const roleReference = z.object({
   type: z.enum(['NORMAL', 'SYSTEM', 'SUPERADMIN']),
   assignable: z.boolean(),
 })
-const userDetail = z.object({
-  id: z.string(),
-  username: z.string(),
-  displayName: z.string(),
-  status,
-  system: z.boolean(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
-  revision: z.string(),
-  passwordChangedAt: z.string().datetime(),
+const userDetail = userSummarySchema.extend({
   roles: z.array(roleReference),
   manageable: z.boolean(),
   roleAssignmentEditable: z.boolean(),
@@ -188,10 +181,10 @@ const userCreate = postRoute(
   '/app/user/create',
   z
     .object({
-      username: z.string().min(1).max(64),
-      displayName: z.string().min(1).max(128),
+      code: z.string().min(1).max(64),
+      name: z.string().min(1).max(128),
       password: z.string().min(1).max(1024),
-      roleIds: z.array(z.string()),
+      roleIds: z.array(z.string()).min(1),
     })
     .strict(),
   userDetail,
@@ -201,18 +194,18 @@ const userSave = postRoute(
   z
     .object({
       id: z.string(),
-      displayName: z.string().min(1).max(128),
-      roleIds: z.array(z.string()),
-      revision: z.number().int().positive(),
+      name: z.string().min(1).max(128),
+      roleIds: z.array(z.string()).min(1),
+      revision: userRevisionSchema,
     })
     .strict(),
   userDetail,
 )
-const userEnable = postRoute('/app/user/enable', revision, userDetail)
-const userDisable = postRoute('/app/user/disable', revision, userDetail)
+const userEnable = postRoute('/app/user/enable', userRevision, userDetail)
+const userDisable = postRoute('/app/user/disable', userRevision, userDetail)
 const userResetPassword = postRoute(
   '/app/user/reset-password',
-  revision,
+  userRevision,
   z.object({ temporaryPassword: z.string() }),
 )
 const roleQuery = postRoute(

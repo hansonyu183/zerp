@@ -9,6 +9,7 @@ import { ulid } from 'ulid'
 
 import { createApp } from '../../src/app.ts'
 import { hashPassword, SessionService } from '../../src/app/session.ts'
+import { userPinyin } from '../../src/app/user-pinyin.ts'
 import { WorkbenchService } from '../../src/app/workbench.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { loadConfig } from '../../src/platform/config.ts'
@@ -143,6 +144,7 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
         id: reviewerId,
         username,
         display_name: '工作台审批人',
+        py: userPinyin('工作台审批人'),
         password_hash: await hashPassword(password),
         status: 'ENABLED',
         password_changed_at: now,
@@ -152,6 +154,7 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
         id: submitterId,
         username: `submitter-${randomBytes(8).toString('hex')}`,
         display_name: '工作台提交人',
+        py: userPinyin('工作台提交人'),
         password_hash: 'unused',
         status: 'ENABLED',
         password_changed_at: now,

@@ -54,7 +54,6 @@ test('all authorized resources have one menu entry and unregistered pages send n
     )
   expect(links).toEqual(expected)
   for (const path of [
-    '/app/user',
     '/bob/customer',
     '/dcl/customer',
     '/acc/opening',
@@ -84,7 +83,7 @@ test('navigation and Host retain the shell at desktop and 390px in both themes',
     process.cwd(),
     '..',
     '.scratch',
-    'issue-380-navigation',
+    'issue-381-navigation',
   )
   mkdirSync(directory, { recursive: true })
   for (const width of [1280, 390]) {
@@ -94,7 +93,7 @@ test('navigation and Host retain the shell at desktop and 390px in both themes',
     try {
       const page = await context.newPage()
       await signIn(page)
-      await page.goto('/app/user')
+      await page.goto('/bob/customer')
       await expect(page.getByTestId('business-unimplemented')).toBeVisible()
       for (const theme of ['light', 'dark']) {
         if (theme === 'dark') await page.getByLabel('切换深色模式').click()

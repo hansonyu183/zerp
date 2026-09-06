@@ -160,8 +160,8 @@ export function createIndependentHandlers(
           case '/app/user/create':
             data = await management.createUser(
               {
-                username: text(input, 'username'),
-                displayName: text(input, 'displayName'),
+                code: text(input, 'code'),
+                name: text(input, 'name'),
                 password: text(input, 'password'),
                 roleIds: strings(input, 'roleIds'),
               },
@@ -173,9 +173,9 @@ export function createIndependentHandlers(
             data = await management.saveUser(
               {
                 id: text(input, 'id'),
-                displayName: text(input, 'displayName'),
+                name: text(input, 'name'),
                 roleIds: strings(input, 'roleIds'),
-                revision: integer(input, 'revision'),
+                revision: text(input, 'revision'),
               },
               principal,
               requestId,
@@ -184,7 +184,7 @@ export function createIndependentHandlers(
           case '/app/user/enable':
           case '/app/user/disable':
             data = await management.setUserStatus(
-              { id: text(input, 'id'), revision: integer(input, 'revision') },
+              { id: text(input, 'id'), revision: text(input, 'revision') },
               path.endsWith('/enable') ? 'ENABLED' : 'DISABLED',
               principal,
               requestId,
@@ -192,7 +192,7 @@ export function createIndependentHandlers(
             break
           case '/app/user/reset-password':
             data = await management.resetUserPassword(
-              { id: text(input, 'id'), revision: integer(input, 'revision') },
+              { id: text(input, 'id'), revision: text(input, 'revision') },
               principal,
               requestId,
             )

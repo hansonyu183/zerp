@@ -6,10 +6,12 @@ import { ulid } from 'ulid'
 
 import type { DB } from '../db/generated.ts'
 import { AppServiceError, hashPassword, type Principal } from './session.ts'
+import { userPinyin } from './user-pinyin.ts'
 
 const systemUserId = '01JAPPSYST3MACTR0000000000'
 const superadminCode = 'superadmin'
 type Status = 'ENABLED' | 'DISABLED'
+type UserAction = 'VIEW' | 'EDIT' | 'ENABLE' | 'DISABLE'
 type AnyDb = Kysely<DB>
 type RoleRow = {
   id: string
@@ -40,6 +42,12 @@ export interface PageInput {
   sort?: Array<{ field: string; order: 'asc' | 'desc' }>
 }
 
+export interface UserQueryInput {
+  keyword: string
+  page: number
+  pageSize: 20
+}
+
 export interface ManagementServiceOptions {
   passwordMinLength: number
 }
@@ -59,62 +67,46 @@ export class ManagementService {
     this.passwordMinLength = options.passwordMinLength
   }
 
-  async queryUsers(input: PageInput, principal: Principal) {
+  async queryUsers(input: UserQueryInput, principal: Principal) {
     this.require(principal, '/app/user/query')
     const page = this.page(input, 20)
-    const filters = input.filters ?? {}
-    const search = this.optionalSearch(filters.search)
-    const status = this.optionalStatus(filters.status)
+    const keyword = this.search(input.keyword)
+    const pattern = `%${keyword
+      .replaceAll('\\', '\\\\')
+      .replaceAll('%', '\\%')
+      .replaceAll('_', '\\_')}%`
+    const matches = keyword
+      ? sql<boolean>`(
+          username ILIKE ${pattern} ESCAPE ${'\\'}
+          OR py ILIKE ${pattern} ESCAPE ${'\\'}
+          OR display_name ILIKE ${pattern} ESCAPE ${'\\'}
+        )`
+      : sql<boolean>`true`
     const [rows, count] = await Promise.all([
       this.db
         .selectFrom('app_users')
-        .select([
-          'id',
-          'username',
-          'display_name',
-          'status',
-          'created_at',
-          'updated_at',
-          'revision',
-        ])
-        .where((eb) =>
-          search
-            ? eb.or([
-                eb('username', 'ilike', `%${search}%`),
-                eb('display_name', 'ilike', `%${search}%`),
-              ])
-            : eb.val(true),
-        )
-        .$if(Boolean(status), (qb) => qb.where('status', '=', status!))
+        .select(['id', 'username', 'display_name', 'py', 'status', 'revision'])
+        .where(matches)
         .orderBy('username', 'asc')
+        .orderBy('id', 'asc')
         .offset((page.page - 1) * page.pageSize)
         .limit(page.pageSize)
         .execute(),
       this.db
         .selectFrom('app_users')
         .select((eb) => eb.fn.countAll<string>().as('count'))
-        .where((eb) =>
-          search
-            ? eb.or([
-                eb('username', 'ilike', `%${search}%`),
-                eb('display_name', 'ilike', `%${search}%`),
-              ])
-            : eb.val(true),
-        )
-        .$if(Boolean(status), (qb) => qb.where('status', '=', status!))
+        .where(matches)
         .executeTakeFirstOrThrow(),
     ])
     const items = await Promise.all(
       rows.map(async (row) => ({
         id: row.id,
-        username: row.username,
-        displayName: row.display_name,
-        status: row.status as Status,
-        system: row.id === systemUserId,
-        createdAt: row.created_at.toISOString(),
-        updatedAt: row.updated_at.toISOString(),
+        code: row.username,
+        py: row.py,
+        name: row.display_name,
+        enabled: row.status === 'ENABLED',
         revision: String(row.revision),
-        manageable: await this.userManageable(row.id, principal),
+        availableActions: await this.userAvailableActions(row, principal),
       })),
     )
     return {
@@ -132,8 +124,8 @@ export class ManagementService {
 
   async createUser(
     input: {
-      username: string
-      displayName: string
+      code: string
+      name: string
       password: string
       roleIds: string[]
     },
@@ -142,12 +134,12 @@ export class ManagementService {
   ) {
     this.require(principal, '/app/user/create')
     this.require(principal, '/app/role/query')
-    const username = this.username(input.username)
-    const displayName = this.displayName(input.displayName)
+    const username = this.username(input.code)
+    const displayName = this.displayName(input.name)
     this.password(input.password)
     const roleIds = this.ids(input.roleIds, 'role')
     const id = ulid()
-    await this.db.transaction().execute(async (tx) => {
+    return this.db.transaction().execute(async (tx) => {
       await this.lock(tx)
       await this.assertCurrentActor(tx, principal)
       await this.assertAssignableRoles(tx, roleIds, principal)
@@ -164,6 +156,7 @@ export class ManagementService {
           id,
           username,
           display_name: displayName,
+          py: userPinyin(displayName),
           password_hash: await hashPassword(input.password),
           status: 'ENABLED',
           password_change_required: true,
@@ -182,25 +175,25 @@ export class ManagementService {
         requestId,
         { roleCount: roleIds.length },
       )
+      return this.userDetail(id, principal, tx)
     })
-    return this.userDetail(id, principal)
   }
 
   async saveUser(
     input: {
       id: string
-      displayName: string
+      name: string
       roleIds: string[]
-      revision: string | number
+      revision: string
     },
     principal: Principal,
     requestId: string,
   ) {
     this.id(input.id)
-    const displayName = this.displayName(input.displayName)
+    const displayName = this.displayName(input.name)
     const roleIds = this.ids(input.roleIds, 'role')
     const revision = this.revision(input.revision)
-    await this.db.transaction().execute(async (tx) => {
+    return this.db.transaction().execute(async (tx) => {
       await this.lock(tx)
       await this.assertCurrentActor(tx, principal)
       const target = await tx
@@ -216,11 +209,12 @@ export class ManagementService {
           'system identity is managed internally',
         )
       const self = target.id === principal.user.id
-      if (!self) this.require(principal, '/app/user/save')
+      this.require(principal, '/app/user/save')
       if (self) {
         const existing = await this.roleIds(tx, target.id)
         if (!same(existing, roleIds))
           throw new AppServiceError('forbidden', 'cannot change own roles')
+        await this.assertEnabledRoles(tx, roleIds)
       } else {
         if (!(await this.userManageable(target.id, principal, tx)))
           throw new AppServiceError('forbidden', 'user cannot be maintained')
@@ -231,6 +225,7 @@ export class ManagementService {
         .updateTable('app_users')
         .set({
           display_name: displayName,
+          py: userPinyin(displayName),
           updated_at: new Date(),
           updated_by: principal.user.id,
           revision: sql`revision + 1`,
@@ -251,12 +246,12 @@ export class ManagementService {
         requestId,
         { roleCount: roleIds.length },
       )
+      return this.userDetail(target.id, principal, tx)
     })
-    return this.userDetail(input.id, principal)
   }
 
   async setUserStatus(
-    input: { id: string; revision: string | number },
+    input: { id: string; revision: string },
     status: Status,
     principal: Principal,
     requestId: string,
@@ -267,7 +262,7 @@ export class ManagementService {
       principal,
       status === 'ENABLED' ? '/app/user/enable' : '/app/user/disable',
     )
-    await this.db.transaction().execute(async (tx) => {
+    return this.db.transaction().execute(async (tx) => {
       await this.lock(tx)
       await this.assertCurrentActor(tx, principal)
       const target = await tx
@@ -281,6 +276,8 @@ export class ManagementService {
         throw new AppServiceError('conflict', 'cannot change this user status')
       if (!(await this.userManageable(target.id, principal, tx)))
         throw new AppServiceError('forbidden', 'user cannot be maintained')
+      if (target.status === status)
+        throw new AppServiceError('conflict', 'user status is unchanged')
       const updated = await tx
         .updateTable('app_users')
         .set({
@@ -305,12 +302,12 @@ export class ManagementService {
         target.id,
         requestId,
       )
+      return this.userDetail(target.id, principal, tx)
     })
-    return this.userDetail(input.id, principal)
   }
 
   async resetUserPassword(
-    input: { id: string; revision: string | number },
+    input: { id: string; revision: string },
     principal: Principal,
     requestId: string,
   ) {
@@ -877,6 +874,12 @@ export class ManagementService {
       throw new AppServiceError('validation_failed', 'invalid search')
     return result
   }
+  private search(value: string) {
+    const result = value.trim()
+    if ([...result].length > 128)
+      throw new AppServiceError('validation_failed', 'invalid search')
+    return result
+  }
   private id(value: string) {
     if (!/^[0-9A-HJKMNP-TV-Z]{26}$/.test(value))
       throw new AppServiceError('validation_failed', 'invalid id')
@@ -975,6 +978,27 @@ export class ManagementService {
         target.every((path) => principal.apiPaths.includes(path)))
     )
   }
+  private async userAvailableActions(
+    user: { id: string; status: string },
+    principal: Principal,
+    tx: AnyDb = this.db,
+  ): Promise<UserAction[]> {
+    const manageable = await this.userManageable(user.id, principal, tx)
+    return [
+      principal.apiPaths.includes('/app/user/get') && 'VIEW',
+      manageable && principal.apiPaths.includes('/app/user/save') && 'EDIT',
+      manageable &&
+        user.id !== principal.user.id &&
+        user.status === 'DISABLED' &&
+        principal.apiPaths.includes('/app/user/enable') &&
+        'ENABLE',
+      manageable &&
+        user.id !== principal.user.id &&
+        user.status === 'ENABLED' &&
+        principal.apiPaths.includes('/app/user/disable') &&
+        'DISABLE',
+    ].filter((action): action is UserAction => Boolean(action))
+  }
   private async rolePermissions(
     tx: AnyDb,
     roleId: string,
@@ -1022,6 +1046,20 @@ export class ManagementService {
         ))
     )
   }
+  private async roleAssignable(
+    role: Pick<RoleRow, 'id' | 'code' | 'status'>,
+    principal: Principal,
+    tx: AnyDb,
+  ) {
+    if (role.status !== 'ENABLED' || role.code === 'system') return false
+    const actorSuperadmin = await this.isSuperadmin(tx, principal.user.id)
+    if (role.code === superadminCode) return actorSuperadmin
+    if (actorSuperadmin) return true
+    const permissions = await this.rolePermissions(tx, role.id)
+    return permissions.every((permission) =>
+      principal.apiPaths.includes(permission.path),
+    )
+  }
   private async assertAssignableRoles(
     tx: AnyDb,
     roleIds: string[],
@@ -1043,13 +1081,28 @@ export class ManagementService {
     if (
       !(
         await Promise.all(
-          roles.map((role) => this.roleManageable(role, principal, tx)),
+          roles.map((role) => this.roleAssignable(role, principal, tx)),
         )
       ).every(Boolean)
     )
       throw new AppServiceError(
         'forbidden',
         'one or more roles cannot be assigned',
+      )
+  }
+  private async assertEnabledRoles(tx: AnyDb, roleIds: string[]) {
+    const roles = await tx
+      .selectFrom('app_roles')
+      .select(['id', 'status'])
+      .where('id', 'in', roleIds)
+      .execute()
+    if (
+      roles.length !== roleIds.length ||
+      roles.some((role) => role.status !== 'ENABLED')
+    )
+      throw new AppServiceError(
+        'validation_failed',
+        'one or more roles do not exist or are disabled',
       )
   }
   private async assertPermissionSet(
@@ -1192,32 +1245,34 @@ export class ManagementService {
       })
       .execute()
   }
-  private async userDetail(id: string, principal: Principal) {
-    const user = await this.db
+  private async userDetail(
+    id: string,
+    principal: Principal,
+    tx: AnyDb = this.db,
+  ) {
+    const user = await tx
       .selectFrom('app_users')
       .selectAll()
       .where('id', '=', id)
       .executeTakeFirst()
     if (!user) throw new AppServiceError('not_found', 'user not found')
-    const roles = await this.db
+    const roles = await tx
       .selectFrom('app_user_roles as ur')
       .innerJoin('app_roles as r', 'r.id', 'ur.role_id')
       .select(['r.id', 'r.code', 'r.name', 'r.status'])
       .where('ur.user_id', '=', id)
       .orderBy('r.code', 'asc')
       .execute()
-    const manageable = await this.userManageable(id, principal)
+    const manageable = await this.userManageable(id, principal, tx)
     return {
       id: user.id,
-      username: user.username,
-      displayName: user.display_name,
-      status: user.status,
-      system: id === systemUserId,
-      createdAt: user.created_at.toISOString(),
-      updatedAt: user.updated_at.toISOString(),
+      code: user.username,
+      py: user.py,
+      name: user.display_name,
+      enabled: user.status === 'ENABLED',
       revision: String(user.revision),
+      availableActions: await this.userAvailableActions(user, principal, tx),
       manageable,
-      passwordChangedAt: user.password_changed_at.toISOString(),
       roles: await Promise.all(
         roles.map(async (role) => ({
           id: role.id,
@@ -1230,7 +1285,7 @@ export class ManagementService {
               : role.code === 'system'
                 ? 'SYSTEM'
                 : 'NORMAL',
-          assignable: await this.roleManageable(role, principal, this.db),
+          assignable: await this.roleAssignable(role, principal, tx),
         })),
       ),
       roleAssignmentEditable:
@@ -1256,7 +1311,7 @@ export class ManagementService {
             : 'NORMAL',
       revision: String(role.revision),
       manageable,
-      assignable: manageable,
+      assignable: await this.roleAssignable(role, principal, this.db),
       availableActions: [
         principal.apiPaths.includes('/app/role/get') && 'VIEW',
         manageable && principal.apiPaths.includes('/app/role/save') && 'EDIT',

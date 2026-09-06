@@ -5,6 +5,7 @@ import { ulid } from 'ulid'
 import type { VouPayload } from '@zerp/model'
 
 import { AccService } from '../../src/acc/service.ts'
+import { userPinyin } from '../../src/app/user-pinyin.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { VouApplicationError, VouService } from '../../src/vou/service.ts'
 
@@ -114,6 +115,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
         id,
         username: `vou-control-${id}`,
         display_name: 'VOU control',
+        py: userPinyin('VOU control'),
         password_hash: 'unused',
         status: 'ENABLED' as const,
         password_changed_at: now,
@@ -831,6 +833,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
         id,
         username: `batch-${id}`,
         display_name: 'Batch control',
+        py: userPinyin('Batch control'),
         password_hash: 'unused',
         status: 'ENABLED' as const,
         password_changed_at: now,

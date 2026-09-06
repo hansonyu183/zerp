@@ -11,6 +11,7 @@ import { ulid } from 'ulid'
 import { createApp } from '../../src/app.ts'
 import { ManagementService } from '../../src/app/management.ts'
 import { hashPassword, SessionService } from '../../src/app/session.ts'
+import { userPinyin } from '../../src/app/user-pinyin.ts'
 import { AccService } from '../../src/acc/service.ts'
 import { AuxService } from '../../src/aux/service.ts'
 import { createDatabase } from '../../src/db/database.ts'
@@ -82,6 +83,7 @@ async function createPrincipal(
       id,
       username,
       display_name: prefix,
+      py: userPinyin(prefix),
       password_hash: await hashPassword(password),
       status: 'ENABLED',
       password_changed_at: new Date(),

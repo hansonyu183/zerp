@@ -375,8 +375,8 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   createdRoleIds.push(role.data.id)
 
   const user = await post('/app/user/create', {
-    username: `managed-${suffix.toLowerCase()}`,
-    displayName: 'Managed User',
+    code: `managed-${suffix.toLowerCase()}`,
+    name: 'Managed User',
     password: 'Managed!Password363',
     roleIds: [role.data.id],
   })
@@ -384,9 +384,9 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   createdUserIds.push(user.data.id)
   const staleUser = await post('/app/user/save', {
     id: user.data.id,
-    displayName: 'Stale Update',
+    name: 'Stale Update',
     roleIds: [role.data.id],
-    revision: Number(user.data.revision) + 1,
+    revision: String(BigInt(user.data.revision) + 1n),
   })
   assert.equal(staleUser.errorKey, 'user_changed')
 

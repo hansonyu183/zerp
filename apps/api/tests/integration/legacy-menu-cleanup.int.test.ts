@@ -7,6 +7,7 @@ import test from 'node:test'
 import { sql } from 'kysely'
 
 import { createDatabase } from '../../src/db/database.ts'
+import { userPinyin } from '../../src/app/user-pinyin.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
 const cleanupScript = fileURLToPath(
@@ -96,6 +97,7 @@ test('legacy menu cleanup preserves facts and rejects a partial baseline', async
       id: userId,
       username: `legacy-menu-${suffix.toLowerCase()}`,
       display_name: 'Legacy menu cleanup user',
+      py: userPinyin('Legacy menu cleanup user'),
       password_hash: 'not-used',
       status: 'ENABLED',
       password_changed_at: new Date(),

@@ -1,12 +1,13 @@
 <script setup lang="ts">
-// Presentation-only extraction retained for the #381 app/user vertical slice.
-// Authorization, validation, persistence, and async state stay in its future VM.
+// The editor renders form intent; authorization, validation, persistence, and
+// asynchronous lifecycle are owned by the page view-model.
 export type UserRolePresentationOption = {
   title: string
   value: string
+  disabled?: boolean
 }
 
-defineProps<{
+const props = defineProps<{
   open: boolean
   mode: 'create' | 'edit'
   code: string
@@ -16,6 +17,7 @@ defineProps<{
   roleOptions: readonly UserRolePresentationOption[]
   error?: string | null
   saving?: boolean
+  loading?: boolean
   canSave?: boolean
   rolesDisabled?: boolean
 }>()
@@ -31,6 +33,7 @@ const emit = defineEmits<{
 }>()
 
 function close(): void {
+  if (props.saving) return
   emit('update:open', false)
   emit('close')
 }
@@ -56,13 +59,14 @@ function updateRoleIds(value: unknown): void {
         <v-text-field
           :model-value="code"
           label="用户编码"
-          :disabled="mode === 'edit'"
+          :disabled="mode === 'edit' || saving || loading"
           variant="outlined"
           @update:model-value="emit('update:code', $event ?? '')"
         />
         <v-text-field
           :model-value="name"
           label="名称"
+          :disabled="saving || loading"
           variant="outlined"
           @update:model-value="emit('update:name', $event ?? '')"
         />
@@ -71,27 +75,31 @@ function updateRoleIds(value: unknown): void {
           :model-value="password"
           label="初始密码"
           type="password"
+          :disabled="saving || loading"
           variant="outlined"
           @update:model-value="emit('update:password', $event ?? '')"
         />
         <v-select
           :model-value="roleIds"
           :items="roleOptions"
+          item-props
           label="角色"
           multiple
           chips
-          :disabled="rolesDisabled"
+          :disabled="rolesDisabled || saving || loading"
+          :loading="loading"
           variant="outlined"
           @update:model-value="updateRoleIds"
         />
       </v-card-text>
       <v-card-actions>
         <v-spacer />
-        <v-btn @click="close">取消</v-btn>
+        <v-btn :disabled="saving" @click="close">取消</v-btn>
         <v-btn
           v-if="canSave"
           color="primary"
           :loading="saving"
+          :disabled="saving || loading"
           @click="emit('save')"
         >
           保存

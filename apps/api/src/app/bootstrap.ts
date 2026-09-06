@@ -4,6 +4,7 @@ import { ulid } from 'ulid'
 import type { TargetPermissionCatalogEntry } from '../../scripts/target-artifacts.ts'
 import type { DB } from '../db/generated.ts'
 import { hashPassword, verifyPassword } from './session.ts'
+import { userPinyin } from './user-pinyin.ts'
 
 export interface TargetE2EPrincipal {
   userId: string
@@ -220,6 +221,7 @@ export class TargetBootstrapService {
             'id',
             'username',
             'display_name',
+            'py',
             'password_hash',
             'status',
             'password_change_required',
@@ -232,6 +234,7 @@ export class TargetBootstrapService {
           const matches =
             existing.username === user.username &&
             existing.display_name === user.displayName &&
+            existing.py === userPinyin(user.displayName) &&
             existing.status === 'ENABLED' &&
             !existing.password_change_required &&
             (await verifyPassword(existing.password_hash, user.password))
@@ -245,6 +248,7 @@ export class TargetBootstrapService {
               .set({
                 username: user.username,
                 display_name: user.displayName,
+                py: userPinyin(user.displayName),
                 password_hash: user.passwordHash,
                 status: 'ENABLED',
                 password_change_required: false,
@@ -263,6 +267,7 @@ export class TargetBootstrapService {
               id: userId,
               username: user.username,
               display_name: user.displayName,
+              py: userPinyin(user.displayName),
               password_hash: user.passwordHash,
               status: 'ENABLED',
               password_change_required: false,
@@ -403,6 +408,7 @@ export class TargetBootstrapService {
           id: principal.userId,
           username: principal.username,
           display_name: 'Target E2E User',
+          py: userPinyin('Target E2E User'),
           password_hash: principal.passwordHash,
           status: 'ENABLED',
           password_changed_at: new Date(),
@@ -440,12 +446,25 @@ export class TargetBootstrapService {
     })
   }
 
+  async deleteE2ECreatedUsers(principalIds: readonly string[]): Promise<void> {
+    if (principalIds.length === 0) return
+    await this.db.transaction().execute(async (transaction) => {
+      await transaction
+        .deleteFrom('app_users')
+        .where('created_by', 'in', [...principalIds])
+        .execute()
+    })
+  }
+
   async deleteE2EPrincipal(
     principal: Pick<TargetE2EPrincipal, 'userId' | 'roleId'>,
   ): Promise<void> {
     await this.db.transaction().execute(async (transaction) => {
       await this.deleteFixtureRelations(transaction, principal)
-      await transaction.deleteFrom('app_audit_events').where('actor_user_id', '=', principal.userId).execute()
+      await transaction
+        .deleteFrom('app_audit_events')
+        .where('actor_user_id', '=', principal.userId)
+        .execute()
       await transaction
         .deleteFrom('aux_objects')
         .where('created_by', '=', principal.userId)
@@ -467,7 +486,17 @@ export class TargetBootstrapService {
 
   async deleteE2EWarehouseFixtures(createdByUserId: string): Promise<void> {
     await this.db.transaction().execute(async (transaction) => {
-      await transaction.deleteFrom('rpt_execution_audits').where('definition_subject_id', 'in', transaction.selectFrom('dcl_subjects').select('id').where('created_by', '=', createdByUserId)).execute()
+      await transaction
+        .deleteFrom('rpt_execution_audits')
+        .where(
+          'definition_subject_id',
+          'in',
+          transaction
+            .selectFrom('dcl_subjects')
+            .select('id')
+            .where('created_by', '=', createdByUserId),
+        )
+        .execute()
       await transaction
         .deleteFrom('dcl_customer_attachment_staging')
         .where('owner_user_id', '=', createdByUserId)

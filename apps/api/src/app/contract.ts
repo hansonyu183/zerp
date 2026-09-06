@@ -6,6 +6,8 @@ import {
 } from '@hono/zod-openapi'
 import type { Schema } from 'hono'
 
+import { userSummarySchema } from './user-contract.ts'
+
 import {
   independentRouteMetadata,
   registerIndependentRoutes,
@@ -99,37 +101,14 @@ const sessionEnvelope = z.union([
 
 const userQuery = z
   .object({
+    keyword: z.string().max(128),
     page: z.number().int().min(1),
     pageSize: z.literal(20),
-    filters: z
-      .object({
-        search: z.string().max(128).optional(),
-        status: z.enum(['ENABLED', 'DISABLED']).optional(),
-      })
-      .strict()
-      .optional(),
-    sort: z.tuple([
-      z
-        .object({ field: z.literal('username'), order: z.literal('asc') })
-        .strict(),
-    ]),
   })
   .strict()
 
 const userPage = z.object({
-  items: z.array(
-    z.object({
-      id: z.string(),
-      username: z.string(),
-      displayName: z.string(),
-      status: z.enum(['ENABLED', 'DISABLED']),
-      system: z.boolean(),
-      createdAt: z.string().datetime(),
-      updatedAt: z.string().datetime(),
-      revision: z.string(),
-      manageable: z.boolean(),
-    }),
-  ),
+  items: z.array(userSummarySchema),
   total: z.number().int().nonnegative(),
   page: z.number().int().positive(),
   pageSize: z.literal(20),

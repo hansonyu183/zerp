@@ -8,3 +8,5 @@
 
 - [2026-09-06 #379 Session 契约切换验收](session-contract-issue-379-2026-09-06.md)
 - [2026-09-06 #380 权限导航与 Host 验收](navigation-host-issue-380-2026-09-06.md)
+
+- [2026-09-06 #381 公共列表与用户管理验收](user-list-issue-381-2026-09-06.md)

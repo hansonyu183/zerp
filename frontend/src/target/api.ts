@@ -44,6 +44,12 @@ export type TargetUserCreateInput = PostJson<
 export type TargetUserSaveInput = PostJson<
   (typeof client.app.user.save)['$post']
 >
+export type TargetUserEnabledInput = PostJson<
+  (typeof client.app.user.enable)['$post']
+>
+type TargetUserResetPasswordInput = PostJson<
+  (typeof client.app.user)['reset-password']['$post']
+>
 export type TargetRoleQueryInput = PostJson<
   (typeof client.app.role.query)['$post']
 >
@@ -581,9 +587,9 @@ export async function signOutTarget(csrfToken: string) {
 export async function queryTargetUsers(
   csrfToken: string,
   input: TargetUserQueryInput = {
+    keyword: '',
     page: 1,
     pageSize: 20,
-    sort: [{ field: 'username', order: 'asc' }],
   },
 ) {
   return unwrapTarget(
@@ -628,7 +634,7 @@ export async function saveTargetUser(
 
 export async function setTargetUserEnabled(
   csrfToken: string,
-  input: { id: string; revision: number },
+  input: TargetUserEnabledInput,
   enabled: boolean,
 ) {
   const endpoint = enabled ? client.app.user.enable : client.app.user.disable
@@ -641,7 +647,7 @@ export async function setTargetUserEnabled(
 
 export async function resetTargetUserPassword(
   csrfToken: string,
-  input: { id: string; revision: number },
+  input: TargetUserResetPasswordInput,
 ) {
   return unwrapTarget(
     await (

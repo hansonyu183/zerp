@@ -7,12 +7,14 @@ import { argon2idAsync } from '@noble/hashes/argon2.js'
 
 import { createApp } from '../../src/app.ts'
 import { ManagementService } from '../../src/app/management.ts'
-import { SessionService } from '../../src/app/session.ts'
+import { hashPassword, SessionService } from '../../src/app/session.ts'
+import { userPinyin } from '../../src/app/user-pinyin.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { AccMappingCatalogService } from '../../src/acc/mapping-catalog.ts'
 import { loadConfig } from '../../src/platform/config.ts'
 import { modelBuildId } from '@zerp/model'
 import { createTargetApiClient } from '../../../../packages/api-client/src/index.ts'
+import { ulid } from 'ulid'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
 
@@ -88,6 +90,7 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
       id,
       username,
       display_name: 'Target integration user',
+      py: userPinyin('Target integration user'),
       password_hash: encoded,
       status: 'ENABLED',
       password_changed_at: new Date(),
@@ -466,10 +469,9 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
   assert.equal(unchangedProfile.data.revision, clearedProfile.data.revision)
 
   const query = {
+    keyword: username,
     page: 1,
     pageSize: 20,
-    filters: { search: username, status: 'ENABLED' },
-    sort: [{ field: 'username', order: 'asc' }],
   }
   const denied = await fetch(`${origin}/app/user/query`, {
     method: 'POST',
@@ -554,15 +556,13 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
     allowedPayload.data.items.some((item: { id: string }) => item.id === id),
   )
   assert.deepEqual(Object.keys(allowedPayload.data.items[0]).sort(), [
-    'createdAt',
-    'displayName',
+    'availableActions',
+    'code',
+    'enabled',
     'id',
-    'manageable',
+    'name',
+    'py',
     'revision',
-    'status',
-    'system',
-    'updatedAt',
-    'username',
   ])
   assert.equal(allowedPayload.data.pageSize, 20)
   const catalog = await fetch(`${origin}/acc/mapping/catalog`, {
@@ -808,4 +808,199 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
     body: JSON.stringify({ code: username, password: changedPassword }),
   })
   assert.equal((await disabledSignin.json()).errorKey, 'account_disabled')
+})
+
+test('user query searches code, pinyin, and name with stable fixed pagination and literal wildcard characters', async (context) => {
+  assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
+  const db = createDatabase(databaseUrl)
+  const suffix = randomBytes(6).toString('hex')
+  const actorId = ulid()
+  const roleId = ulid()
+  const pageUsers = Array.from({ length: 23 }, (_, index) => ({
+    id: ulid(),
+    code: `page-${suffix}-${String(index).padStart(2, '0')}`,
+    name: `分页用户 ${index}`,
+  }))
+  const specialUsers = [
+    { id: ulid(), code: `code-hit-${suffix}`, name: '普通用户' },
+    { id: ulid(), code: `py-hit-${suffix}`, name: '张三' },
+    { id: ulid(), code: `name-hit-${suffix}`, name: '精确李四资料' },
+    { id: ulid(), code: `percent-${suffix}`, name: 'literal%marker' },
+    { id: ulid(), code: `underscore-${suffix}`, name: 'literal_marker' },
+  ]
+  const users = [...pageUsers, ...specialUsers]
+  const password = `Aa1!${randomBytes(18).toString('base64url')}`
+  context.after(async () => {
+    try {
+      const ids = [actorId, ...users.map((user) => user.id)]
+      await db
+        .deleteFrom('app_audit_events')
+        .where((eb) =>
+          eb.or([eb('actor_user_id', 'in', ids), eb('target_id', 'in', ids)]),
+        )
+        .execute()
+      await db.deleteFrom('app_sessions').where('user_id', 'in', ids).execute()
+      await db
+        .deleteFrom('app_user_roles')
+        .where('user_id', 'in', ids)
+        .execute()
+      await db
+        .deleteFrom('app_role_permissions')
+        .where('role_id', '=', roleId)
+        .execute()
+      await db.deleteFrom('app_roles').where('id', '=', roleId).execute()
+      await db.deleteFrom('app_users').where('id', 'in', ids).execute()
+    } finally {
+      await db.destroy()
+    }
+  })
+  await db
+    .insertInto('app_users')
+    .values([
+      {
+        id: actorId,
+        username: `query-actor-${suffix}`,
+        display_name: '查询操作人',
+        py: userPinyin('查询操作人'),
+        password_hash: await hashPassword(password),
+        status: 'ENABLED',
+        password_changed_at: new Date(),
+        password_change_required: false,
+      },
+      ...users.map((user) => ({
+        id: user.id,
+        username: user.code,
+        display_name: user.name,
+        py: userPinyin(user.name),
+        password_hash: 'unused',
+        status: 'ENABLED' as const,
+        password_changed_at: new Date(),
+        password_change_required: false,
+      })),
+    ])
+    .execute()
+  const queryPermission = await db
+    .selectFrom('app_permissions')
+    .select('id')
+    .where('path', '=', '/app/user/query')
+    .executeTakeFirstOrThrow()
+  await db
+    .insertInto('app_roles')
+    .values({
+      id: roleId,
+      code: `query-role-${suffix}`,
+      name: 'User query role',
+      status: 'ENABLED',
+    })
+    .execute()
+  await db
+    .insertInto('app_role_permissions')
+    .values({ role_id: roleId, permission_id: queryPermission.id })
+    .execute()
+  await db
+    .insertInto('app_user_roles')
+    .values({ user_id: actorId, role_id: roleId })
+    .execute()
+
+  const config = loadConfig({
+    DATABASE_URL: databaseUrl,
+    APP_SESSION_COOKIE_SECURE: 'false',
+  })
+  const app = createApp({
+    session: new SessionService(db, config),
+    management: new ManagementService(db, config),
+    config,
+  })
+  let listening: (() => void) | undefined
+  const started = new Promise<void>((resolve) => {
+    listening = resolve
+  })
+  const server = serve(
+    { fetch: app.fetch, hostname: '127.0.0.1', port: 0 },
+    () => listening?.(),
+  )
+  context.after(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()))
+      }),
+  )
+  await started
+  const address = server.address()
+  assert.ok(address && typeof address !== 'string')
+  const origin = `http://127.0.0.1:${address.port}`
+  const headers = {
+    'content-type': 'application/json',
+    'x-zerp-model-build': modelBuildId,
+    connection: 'close',
+  }
+  const signin = await fetch(`${origin}/session/auth/signin`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ code: `query-actor-${suffix}`, password }),
+  })
+  const signinPayload = await signin.json()
+  assert.equal(signinPayload.code, 0)
+  const authHeaders = {
+    ...headers,
+    cookie: signin.headers.getSetCookie()[0] ?? '',
+    'x-csrf-token': signinPayload.data.csrfToken,
+  }
+  async function query(keyword: string, page = 1) {
+    const response = await fetch(`${origin}/app/user/query`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ keyword, page, pageSize: 20 }),
+    })
+    const payload = await response.json()
+    assert.equal(payload.code, 0)
+    return payload.data as {
+      items: Array<{ id: string; code: string; py: string; name: string }>
+      total: number
+      page: number
+      pageSize: 20
+    }
+  }
+
+  const first = await query(`page-${suffix}`)
+  const second = await query(`page-${suffix}`, 2)
+  assert.equal(first.total, 23)
+  assert.equal(first.items.length, 20)
+  assert.equal(second.items.length, 3)
+  assert.deepEqual(
+    [...first.items, ...second.items].map((user) => user.code),
+    pageUsers.map((user) => user.code).sort(),
+  )
+  assert.deepEqual(
+    (await query(`code-hit-${suffix}`)).items.map((u) => u.id),
+    [specialUsers[0]!.id],
+  )
+  assert.deepEqual(
+    (await query('zhangsan')).items.map((u) => u.id),
+    [specialUsers[1]!.id],
+  )
+  assert.deepEqual(
+    (await query('李四')).items.map((u) => u.id),
+    [specialUsers[2]!.id],
+  )
+  assert.deepEqual(
+    (await query('%')).items.map((u) => u.id),
+    [specialUsers[3]!.id],
+  )
+  assert.deepEqual(
+    (await query('_')).items.map((u) => u.id),
+    [specialUsers[4]!.id],
+  )
+
+  const renamed = await fetch(`${origin}/session/user/save`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({ name: '重庆本人', avatarUrl: null }),
+  })
+  assert.equal((await renamed.json()).code, 0)
+  assert.deepEqual(
+    (await query('chongqingbenren')).items.map((u) => u.id),
+    [actorId],
+  )
+  assert.equal((await query('chaxuncaozuoren')).total, 0)
 })

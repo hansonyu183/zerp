@@ -46,6 +46,9 @@ importers:
       pg:
         specifier: 8.23.0
         version: 8.23.0
+      pinyin-pro:
+        specifier: 3.29.3
+        version: 3.29.3
       ulid:
         specifier: 3.0.2
         version: 3.0.2
@@ -1615,6 +1618,9 @@ packages:
     peerDependenciesMeta:
       typescript:
         optional: true
+
+  pinyin-pro@3.29.3:
+    resolution: {integrity: sha512-+UU9bx6vfDw8amOJGHm0TE0rdQl8VPylsDWviQ5OOQ3e+on1xRP4OqDbiDuMT5OISgvfl/Y6ez1BBRaIP80GLQ==}
 
   pkg-types@1.3.1:
     resolution: {integrity: sha512-/Jm5M4RvtBFVkKWRu2BLUTNP8/M2a+UwuAX+ae4770q1qVGtfjG+WTCupoZixokjmHiry8uI+dlY8KXYV5HVVQ==}
@@ -3538,6 +3544,8 @@ snapshots:
       vue: 3.5.40(typescript-native-bridge@6.0.3-bridge.15.tsgo.7.0.2)
     optionalDependencies:
       typescript: typescript-native-bridge@6.0.3-bridge.15.tsgo.7.0.2
+
+  pinyin-pro@3.29.3: {}
 
   pkg-types@1.3.1:
     dependencies:

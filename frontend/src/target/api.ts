@@ -74,6 +74,18 @@ export type TargetMeasurementUnitSaveInput = PostJson<
 export type TargetMeasurementUnitEnabledInput = PostJson<
   (typeof client)['aux']['measurement-unit']['enable']['$post']
 >
+export type TargetPaymentMethodQueryInput = PostJson<
+  (typeof client)['aux']['payment-method']['query']['$post']
+>
+export type TargetPaymentMethodCreateInput = PostJson<
+  (typeof client)['aux']['payment-method']['create']['$post']
+>
+export type TargetPaymentMethodSaveInput = PostJson<
+  (typeof client)['aux']['payment-method']['save']['$post']
+>
+export type TargetPaymentMethodEnabledInput = PostJson<
+  (typeof client)['aux']['payment-method']['enable']['$post']
+>
 
 export class TargetApiError extends Error {
   readonly errorKey: string
@@ -491,6 +503,70 @@ export async function setTargetMeasurementUnitEnabled(
   const endpoint = enabled
     ? client.aux['measurement-unit'].enable
     : client.aux['measurement-unit'].disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function queryTargetPaymentMethods(
+  csrfToken: string,
+  input: TargetPaymentMethodQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['payment-method'].query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function getTargetPaymentMethod(csrfToken: string, id: string) {
+  return unwrapTarget(
+    await (
+      await client.aux['payment-method'].get.$post(
+        { json: { id } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function createTargetPaymentMethod(
+  csrfToken: string,
+  input: TargetPaymentMethodCreateInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['payment-method'].create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function saveTargetPaymentMethod(
+  csrfToken: string,
+  input: TargetPaymentMethodSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['payment-method'].save.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function setTargetPaymentMethodEnabled(
+  csrfToken: string,
+  input: TargetPaymentMethodEnabledInput,
+  enabled: boolean,
+) {
+  const endpoint = enabled
+    ? client.aux['payment-method'].enable
+    : client.aux['payment-method'].disable
   return unwrapTarget(
     await (
       await endpoint.$post({ json: input }, csrfHeaders(csrfToken))

@@ -15,6 +15,11 @@ import {
   queryTargetMeasurementUnits,
   saveTargetMeasurementUnit,
   setTargetMeasurementUnitEnabled,
+  createTargetPaymentMethod,
+  getTargetPaymentMethod,
+  queryTargetPaymentMethods,
+  saveTargetPaymentMethod,
+  setTargetPaymentMethodEnabled,
   setTargetPositionEnabled,
   TargetApiError,
 } from '../../../api.ts'
@@ -36,6 +41,7 @@ type SimpleAuxDetail = SimpleAuxListItem & {
   description?: string
   symbol?: string
   quantityScale?: number
+  defaultSalesSurcharge?: string
 }
 type SimpleAuxPage<Item extends SimpleAuxListItem> = {
   items: readonly Item[]
@@ -50,6 +56,7 @@ type SimpleAuxMutationInput = {
   revision: string
   symbol?: string
   quantityScale?: number
+  defaultSalesSurcharge?: string
 }
 type SimpleAuxMutationResult = {
   id: string
@@ -88,7 +95,7 @@ type SimpleAuxOperations<
     input: Pick<SimpleAuxMutationInput, 'id' | 'revision'>,
     enabled: boolean,
   ) => Promise<SimpleAuxMutationResult>
-  fields?: 'measurement-unit'
+  fields?: 'measurement-unit' | 'payment-method'
 }
 
 type EditorCompletion = {
@@ -135,6 +142,7 @@ function createSimpleAuxManagementViewModel<
     revision: '',
     symbol: '',
     quantityScale: 0,
+    defaultSalesSurcharge: '0.00',
   })
   let editorRequest = 0
   let editorCompletion: EditorCompletion | null = null
@@ -178,6 +186,7 @@ function createSimpleAuxManagementViewModel<
       revision: '',
       symbol: '',
       quantityScale: 0,
+      defaultSalesSurcharge: '0.00',
     })
     detail.value = null
     editorError.value = null
@@ -255,6 +264,10 @@ function createSimpleAuxManagementViewModel<
           revision: current.revision,
           symbol: 'symbol' in current ? current.symbol : '',
           quantityScale: 'quantityScale' in current ? current.quantityScale : 0,
+          defaultSalesSurcharge:
+            'defaultSalesSurcharge' in current
+              ? current.defaultSalesSurcharge
+              : '0.00',
         })
       })
       .catch((cause) => {
@@ -280,6 +293,11 @@ function createSimpleAuxManagementViewModel<
         editor.quantityScale > 6)
     )
       return '请输入有效的符号和数量精度（0–6）。'
+    if (
+      operations.fields === 'payment-method' &&
+      !/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(editor.defaultSalesSurcharge)
+    )
+      return '请输入有效的销售加价（非负，最多两位小数）。'
     return null
   }
 
@@ -304,6 +322,10 @@ function createSimpleAuxManagementViewModel<
         Object.assign(input, {
           symbol: editor.symbol.trim(),
           quantityScale: editor.quantityScale,
+        })
+      if (operations.fields === 'payment-method')
+        Object.assign(input, {
+          defaultSalesSurcharge: editor.defaultSalesSurcharge,
         })
       if (editorMode.value === 'create') {
         const created = await operations.create(token, input)
@@ -558,5 +580,33 @@ export function useMeasurementUnitManagementViewModel() {
       MeasurementUnitDetail
     >['save'],
     setEnabled: setTargetMeasurementUnitEnabled,
+  })
+}
+
+type PaymentMethodPage = Awaited<ReturnType<typeof queryTargetPaymentMethods>>
+export type PaymentMethodListItem = PaymentMethodPage['items'][number]
+type PaymentMethodDetail = Awaited<ReturnType<typeof getTargetPaymentMethod>>
+export const paymentMethodPaths = {
+  query: '/aux/payment-method/query',
+  get: '/aux/payment-method/get',
+  create: '/aux/payment-method/create',
+  save: '/aux/payment-method/save',
+  enable: '/aux/payment-method/enable',
+  disable: '/aux/payment-method/disable',
+} as const
+export function usePaymentMethodManagementViewModel() {
+  return createSimpleAuxManagementViewModel<
+    PaymentMethodListItem,
+    PaymentMethodDetail
+  >({
+    title: '收款方式',
+    createLabel: '新增收款方式',
+    fields: 'payment-method',
+    paths: paymentMethodPaths,
+    query: queryTargetPaymentMethods,
+    get: getTargetPaymentMethod,
+    create: createTargetPaymentMethod as never,
+    save: saveTargetPaymentMethod as never,
+    setEnabled: setTargetPaymentMethodEnabled,
   })
 }

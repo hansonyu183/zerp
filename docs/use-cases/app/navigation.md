@@ -4,7 +4,7 @@
 
 - 唯一业务资源路由为 `/:domain/:entity`，由 `app/navigation` 登记并由动态 Resource Host 承载。
 - Navigation Resource 和 Navigation Entry 的来源、权限边界及未实现语义以 [APP 导航资源](../../domains/app.md#39-导航资源) 和 [ADR-0052](../../adr/0052-session-dynamic-navigation-and-page-migration.md) 为准。
-- Registry 登记 `app/user`、`app/role`、`aux/employee-category` 与 `aux/position` 的公共列表与编辑流程；其他未登记资源显示尚未实现。资源既有 API 及领域规则继续由各自领域文档拥有。
+- Registry 登记 `app/user`、`app/role`、`aux/employee-category`、`aux/position`、`aux/measurement-unit` 与 `aux/payment-method` 的公共列表与编辑流程；其他未登记资源显示尚未实现。资源既有 API 及领域规则继续由各自领域文档拥有。
 
 ## `APP-NAVIGATION-01` 从会话装配入口
 
@@ -24,7 +24,7 @@
 
 1. `session` 路径不产生导航入口；同资源多动作去重；仅有 `create` 的资源仍可进入但不查询。
 2. 菜单、直达 URL 和权限变化使用同一资源资格；旧菜单树、菜单 API、`query` 过滤、前缀匹配和页面登记均不能改变入口资格。
-3. 已登记的用户、角色、人员类别与岗位进入真实公共列表与编辑器；其他未登记资源仍如实显示尚未实现。
+3. 已登记的用户、角色、人员类别、岗位、计量单位与收款方式进入真实公共列表与编辑器；其他未登记资源仍如实显示尚未实现。
 
 ## `APP-USER-01` 公共列表查询
 
@@ -80,3 +80,7 @@
 4. 结果未知时保留输入并提示核实，不自动重放、不更换 revision 重试；创建成功而详情读回失败时保留已创建 ID，不能再次创建。卸载、换用户或权限变化后忽略旧响应。
 5. 两页分别在桌面与 390px 验证超过一页数据的中文、拼音、编码搜索、分页、新建、改名和启停；通过可控异步覆盖失败、取消、重复点击和迟到响应。历史引用采用与删除 blocker 由领域服务测试验证，页面不新增删除按钮。
 6. 十二个 AUX 管理契约统一并不代表十二页交付；除本节两页外，其余 AUX 资源仍显示尚未实现。
+
+## 收款方式管理（#388）
+
+`aux/payment-method` 复用统一 AUX 管理契约、动态 Host、公共 ListPageShell、启停动作和模块 VM。编辑器只维护名称、说明及非负定点字符串 `defaultSalesSurcharge`（元/kg，最多两位小数，默认 `0.00`）；不混入结算时间规则。新建即启用、编码不可改，停用方式不可被新业务选择；客户和销售单据保存的付款方式及加价快照不随当前资料改名、改价或停用而漂移。

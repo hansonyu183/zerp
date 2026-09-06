@@ -25,7 +25,7 @@ export const auxEntities = [
 
 export type AuxEntity = (typeof auxEntities)[number]
 export type AuxActor = { id: string; permissions: readonly string[] }
-export type AuxData = Record<string, unknown>
+type AuxData = Record<string, unknown>
 
 export interface AuxDataByEntity {
   'product-category': {

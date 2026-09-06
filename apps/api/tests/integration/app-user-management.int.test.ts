@@ -1061,6 +1061,61 @@ test('real HTTP role create and save require only their exact write permissions'
   assert.equal(saved.data.permissions[0].path, '/app/role/create')
 })
 
+test('real HTTP rejects trimmed case-insensitive role name collisions without changing either role', async (context) => {
+  const harness = await createHarness(context)
+  const actor = await harness.signIn(harness.codes.actor)
+  const existing = await harness.post(actor, '/app/role/get', {
+    id: harness.ids.lowRole,
+  })
+  assert.equal(existing.code, 0)
+  const permissionIds = existing.data.permissions.map(
+    (permission: { id: string }) => permission.id,
+  )
+  const collisionName = `  ${existing.data.name.toUpperCase()}  `
+  const beforeQuery = await harness.post(actor, '/app/role/query', {
+    keyword: existing.data.name,
+    page: 1,
+    pageSize: 20,
+  })
+  const rejectedCreate = await harness.post(actor, '/app/role/create', {
+    name: collisionName,
+    description: 'must not persist',
+    permissionIds,
+  })
+  assert.equal(rejectedCreate.errorKey, 'role_name_exists')
+  const afterQuery = await harness.post(actor, '/app/role/query', {
+    keyword: existing.data.name,
+    page: 1,
+    pageSize: 20,
+  })
+  assert.deepEqual(afterQuery.data, beforeQuery.data)
+
+  const created = await harness.post(actor, '/app/role/create', {
+    name: `Collision candidate ${harness.ids.lowRole}`,
+    description: 'original description',
+    permissionIds,
+  })
+  assert.equal(created.code, 0)
+  harness.trackRole(created.data.id)
+  const rejectedSave = await harness.post(actor, '/app/role/save', {
+    id: created.data.id,
+    revision: created.data.revision,
+    name: collisionName,
+    description: 'must not replace the original description',
+    permissionIds,
+  })
+  assert.equal(rejectedSave.errorKey, 'role_name_exists')
+  const preserved = await harness.post(actor, '/app/role/get', {
+    id: created.data.id,
+  })
+  assert.equal(preserved.code, 0)
+  assert.deepEqual(preserved.data, created.data)
+  const stillExisting = await harness.post(actor, '/app/role/get', {
+    id: harness.ids.lowRole,
+  })
+  assert.deepEqual(stillExisting.data, existing.data)
+})
+
 test('real HTTP rejects disabled role permissions without removing existing detail references', async (context) => {
   const harness = await createHarness(context)
   const actor = await harness.signIn(harness.codes.actor)
@@ -1146,6 +1201,7 @@ test('real HTTP rolls back system, own-role, and over-ceiling role enablement at
 
   for (const [label, id] of [
     ['system', harness.systemRoleId],
+    ['superadmin', harness.superadminRoleId],
     ['own', harness.ids.actorRole],
     ['over-ceiling', harness.ids.highRole],
   ] as const) {

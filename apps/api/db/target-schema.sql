@@ -1342,6 +1342,8 @@ CREATE TABLE vou_asset_acquisition_line_snapshots (
     asset_name varchar(200) NOT NULL,
     specification varchar(200),
     original_value_minor bigint NOT NULL,
+    category_default_useful_life_months integer NOT NULL CHECK (category_default_useful_life_months BETWEEN 1 AND 1200),
+    category_default_residual_rate_hundredths bigint NOT NULL CHECK (category_default_residual_rate_hundredths BETWEEN 0 AND 9999),
     useful_life_months integer NOT NULL,
     residual_rate_micros bigint NOT NULL,
     location varchar(200),

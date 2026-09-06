@@ -108511,6 +108511,47 @@
                                       "entity": {
                                         "type": "string",
                                         "enum": [
+                                          "asset-category"
+                                        ]
+                                      },
+                                      "defaultUsefulLifeMonths": {
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 1200
+                                      },
+                                      "defaultResidualRate": {
+                                        "type": "string",
+                                        "pattern": "^(?:0|[1-9]\\d?)(?:\\.\\d{1,2})?$"
+                                      }
+                                    },
+                                    "required": [
+                                      "objectId",
+                                      "code",
+                                      "name",
+                                      "entity",
+                                      "defaultUsefulLifeMonths",
+                                      "defaultResidualRate"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "objectId": {
+                                        "type": "string"
+                                      },
+                                      "approvalEntryId": {
+                                        "type": "string"
+                                      },
+                                      "code": {
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "type": "string"
+                                      },
+                                      "entity": {
+                                        "type": "string",
+                                        "enum": [
                                           "customer",
                                           "supplier",
                                           "operating-entity",
@@ -108526,7 +108567,6 @@
                                           "bill",
                                           "settlement-method",
                                           "measurement-unit",
-                                          "asset-category",
                                           "department"
                                         ]
                                       }
@@ -115143,10 +115183,32 @@
                                                       "type": "string",
                                                       "minLength": 26,
                                                       "maxLength": 26
+                                                    },
+                                                    "code": {
+                                                      "type": "string",
+                                                      "minLength": 1
+                                                    },
+                                                    "name": {
+                                                      "type": "string",
+                                                      "minLength": 1,
+                                                      "maxLength": 200
+                                                    },
+                                                    "defaultUsefulLifeMonths": {
+                                                      "type": "integer",
+                                                      "minimum": 1,
+                                                      "maximum": 1200
+                                                    },
+                                                    "defaultResidualRate": {
+                                                      "type": "string",
+                                                      "pattern": "^(?:0|[1-9]\\d?)(?:\\.\\d{1,2})?$"
                                                     }
                                                   },
                                                   "required": [
-                                                    "objectId"
+                                                    "objectId",
+                                                    "code",
+                                                    "name",
+                                                    "defaultUsefulLifeMonths",
+                                                    "defaultResidualRate"
                                                   ],
                                                   "additionalProperties": false
                                                 },
@@ -125675,10 +125737,32 @@
                                                 "type": "string",
                                                 "minLength": 26,
                                                 "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "defaultUsefulLifeMonths": {
+                                                "type": "integer",
+                                                "minimum": 1,
+                                                "maximum": 1200
+                                              },
+                                              "defaultResidualRate": {
+                                                "type": "string",
+                                                "pattern": "^(?:0|[1-9]\\d?)(?:\\.\\d{1,2})?$"
                                               }
                                             },
                                             "required": [
-                                              "objectId"
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "defaultUsefulLifeMonths",
+                                              "defaultResidualRate"
                                             ],
                                             "additionalProperties": false
                                           },
@@ -136284,10 +136368,32 @@
                                       "type": "string",
                                       "minLength": 26,
                                       "maxLength": 26
+                                    },
+                                    "code": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    },
+                                    "name": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "defaultUsefulLifeMonths": {
+                                      "type": "integer",
+                                      "minimum": 1,
+                                      "maximum": 1200
+                                    },
+                                    "defaultResidualRate": {
+                                      "type": "string",
+                                      "pattern": "^(?:0|[1-9]\\d?)(?:\\.\\d{1,2})?$"
                                     }
                                   },
                                   "required": [
-                                    "objectId"
+                                    "objectId",
+                                    "code",
+                                    "name",
+                                    "defaultUsefulLifeMonths",
+                                    "defaultResidualRate"
                                   ],
                                   "additionalProperties": false
                                 },
@@ -146647,10 +146753,32 @@
                                                 "type": "string",
                                                 "minLength": 26,
                                                 "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "defaultUsefulLifeMonths": {
+                                                "type": "integer",
+                                                "minimum": 1,
+                                                "maximum": 1200
+                                              },
+                                              "defaultResidualRate": {
+                                                "type": "string",
+                                                "pattern": "^(?:0|[1-9]\\d?)(?:\\.\\d{1,2})?$"
                                               }
                                             },
                                             "required": [
-                                              "objectId"
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "defaultUsefulLifeMonths",
+                                              "defaultResidualRate"
                                             ],
                                             "additionalProperties": false
                                           },
@@ -157023,10 +157151,32 @@
                                       "type": "string",
                                       "minLength": 26,
                                       "maxLength": 26
+                                    },
+                                    "code": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    },
+                                    "name": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "defaultUsefulLifeMonths": {
+                                      "type": "integer",
+                                      "minimum": 1,
+                                      "maximum": 1200
+                                    },
+                                    "defaultResidualRate": {
+                                      "type": "string",
+                                      "pattern": "^(?:0|[1-9]\\d?)(?:\\.\\d{1,2})?$"
                                     }
                                   },
                                   "required": [
-                                    "objectId"
+                                    "objectId",
+                                    "code",
+                                    "name",
+                                    "defaultUsefulLifeMonths",
+                                    "defaultResidualRate"
                                   ],
                                   "additionalProperties": false
                                 },
@@ -167386,10 +167536,32 @@
                                                 "type": "string",
                                                 "minLength": 26,
                                                 "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "defaultUsefulLifeMonths": {
+                                                "type": "integer",
+                                                "minimum": 1,
+                                                "maximum": 1200
+                                              },
+                                              "defaultResidualRate": {
+                                                "type": "string",
+                                                "pattern": "^(?:0|[1-9]\\d?)(?:\\.\\d{1,2})?$"
                                               }
                                             },
                                             "required": [
-                                              "objectId"
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "defaultUsefulLifeMonths",
+                                              "defaultResidualRate"
                                             ],
                                             "additionalProperties": false
                                           },
@@ -177904,10 +178076,32 @@
                                                 "type": "string",
                                                 "minLength": 26,
                                                 "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "defaultUsefulLifeMonths": {
+                                                "type": "integer",
+                                                "minimum": 1,
+                                                "maximum": 1200
+                                              },
+                                              "defaultResidualRate": {
+                                                "type": "string",
+                                                "pattern": "^(?:0|[1-9]\\d?)(?:\\.\\d{1,2})?$"
                                               }
                                             },
                                             "required": [
-                                              "objectId"
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "defaultUsefulLifeMonths",
+                                              "defaultResidualRate"
                                             ],
                                             "additionalProperties": false
                                           },
@@ -188428,10 +188622,32 @@
                                                 "type": "string",
                                                 "minLength": 26,
                                                 "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "defaultUsefulLifeMonths": {
+                                                "type": "integer",
+                                                "minimum": 1,
+                                                "maximum": 1200
+                                              },
+                                              "defaultResidualRate": {
+                                                "type": "string",
+                                                "pattern": "^(?:0|[1-9]\\d?)(?:\\.\\d{1,2})?$"
                                               }
                                             },
                                             "required": [
-                                              "objectId"
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "defaultUsefulLifeMonths",
+                                              "defaultResidualRate"
                                             ],
                                             "additionalProperties": false
                                           },
@@ -198946,10 +199162,32 @@
                                                 "type": "string",
                                                 "minLength": 26,
                                                 "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "defaultUsefulLifeMonths": {
+                                                "type": "integer",
+                                                "minimum": 1,
+                                                "maximum": 1200
+                                              },
+                                              "defaultResidualRate": {
+                                                "type": "string",
+                                                "pattern": "^(?:0|[1-9]\\d?)(?:\\.\\d{1,2})?$"
                                               }
                                             },
                                             "required": [
-                                              "objectId"
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "defaultUsefulLifeMonths",
+                                              "defaultResidualRate"
                                             ],
                                             "additionalProperties": false
                                           },
@@ -209470,10 +209708,32 @@
                                                 "type": "string",
                                                 "minLength": 26,
                                                 "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "defaultUsefulLifeMonths": {
+                                                "type": "integer",
+                                                "minimum": 1,
+                                                "maximum": 1200
+                                              },
+                                              "defaultResidualRate": {
+                                                "type": "string",
+                                                "pattern": "^(?:0|[1-9]\\d?)(?:\\.\\d{1,2})?$"
                                               }
                                             },
                                             "required": [
-                                              "objectId"
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "defaultUsefulLifeMonths",
+                                              "defaultResidualRate"
                                             ],
                                             "additionalProperties": false
                                           },

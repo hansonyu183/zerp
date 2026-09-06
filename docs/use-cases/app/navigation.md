@@ -4,7 +4,7 @@
 
 - 唯一业务资源路由为 `/:domain/:entity`，由 `app/navigation` 登记并由动态 Resource Host 承载。
 - Navigation Resource 和 Navigation Entry 的来源、权限边界及未实现语义以 [APP 导航资源](../../domains/app.md#39-导航资源) 和 [ADR-0052](../../adr/0052-session-dynamic-navigation-and-page-migration.md) 为准。
-- Registry 登记 `app/user`、`app/role`、`aux/employee-category`、`aux/position`、`aux/measurement-unit` 与 `aux/payment-method` 的公共列表与编辑流程；其他未登记资源显示尚未实现。资源既有 API 及领域规则继续由各自领域文档拥有。
+- Registry 登记 `app/user`、`app/role`、`aux/employee-category`、`aux/position`、`aux/measurement-unit`、`aux/payment-method` 与 `aux/asset-category` 的公共列表与编辑流程；其他未登记资源显示尚未实现。资源既有 API 及领域规则继续由各自领域文档拥有。
 
 ## `APP-NAVIGATION-01` 从会话装配入口
 
@@ -24,7 +24,7 @@
 
 1. `session` 路径不产生导航入口；同资源多动作去重；仅有 `create` 的资源仍可进入但不查询。
 2. 菜单、直达 URL 和权限变化使用同一资源资格；旧菜单树、菜单 API、`query` 过滤、前缀匹配和页面登记均不能改变入口资格。
-3. 已登记的用户、角色、人员类别、岗位、计量单位与收款方式进入真实公共列表与编辑器；其他未登记资源仍如实显示尚未实现。
+3. 已登记的用户、角色、人员类别、岗位、计量单位、收款方式与资产类别进入真实公共列表与编辑器；其他未登记资源仍如实显示尚未实现。
 
 ## `APP-USER-01` 公共列表查询
 
@@ -93,3 +93,13 @@
 2. 取消不刷新；非法输入或保存失败保留编辑内容。确认写成功才返回 changed；刷新失败仍说明写入成功，并保留已创建 ID。
 3. 陈旧 revision 显示冲突并停止再次提交；未知结果提示核实，不自动重放。卸载或会话变化隔离迟到响应。
 4. 桌面和 390px 从菜单完成超过一页数据的检索、新建、编辑和启停；验证金额回填、取消、保存失败、并发冲突及写后刷新失败。历史采用事实由所属领域公开接口验证，页面登记不代表历史消费者验收完成。
+
+## 资产类别管理（#389）
+
+`aux/asset-category` 通过动态 Host、公共 ListPageShell、同目录 VM 和专有编辑器进入类型化 API。字段约束和采用规则引用 [AUX 资产类别](../../domains/aux.md#38-资产类别)与[字段采用分类](../../domains/aux.md#41-字段采用分类)，请求和响应以 [AUX 可执行契约](../../../apps/api/src/app/aux-contract.ts)及[路由登记](../../../apps/api/src/app/independent-contract.ts)为准。
+
+1. 页面按名称、编码或拼音显式搜索，固定每页 20 条。编辑需要精确 get/save 权限并先读取新鲜详情；编码由服务端分配且不进入表单。
+2. 表单显式编辑名称、1–1200 整数自然月、0.00–99.99 且最多两位小数的残值率和说明。期限以整数传递，残值率全程保持十进制字符串。
+3. 取消不刷新；非法输入和已知保存失败保留编辑内容。确认写成功才返回 changed；写后刷新失败仍报告成功，冲突或未知结果禁止自动重放。
+4. 新建类别立即启用，停用类别不再出现在 VOU 新购置候选中；候选同时携带当前期限和残值率供新行采用。购置单保存后持有自己的类别名称、期限和残值率快照，类别后续修改或停用不回写、不重算。
+5. 桌面和 390px 从菜单完成超过一页数据的检索、新建、编辑与启停，并覆盖合法端点、非法精度、取消、冲突和写成功后刷新失败。

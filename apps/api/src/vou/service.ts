@@ -212,7 +212,15 @@ export type VouReferenceCandidate =
       approvalEntryId: string
     })
   | (VouReferenceCandidateBase & {
-      entity: Exclude<VouReferenceCandidateEntity, 'customer-subunit'>
+      entity: 'asset-category'
+      defaultUsefulLifeMonths: number
+      defaultResidualRate: string
+    })
+  | (VouReferenceCandidateBase & {
+      entity: Exclude<
+        VouReferenceCandidateEntity,
+        'customer-subunit' | 'asset-category'
+      >
     })
 
 export type VouSourceLineQueryInput = {
@@ -1158,6 +1166,8 @@ export class VouService implements WflVouPort {
       customer_id: string | null
       code: string
       name: string
+      default_useful_life_months?: number | null
+      default_residual_rate?: string | null
     }>`
       SELECT * FROM (${sql.raw(source)}) AS candidate ${filter} ORDER BY code, object_id LIMIT 200
     `.execute(this.db)
@@ -1173,6 +1183,25 @@ export class VouService implements WflVouPort {
             approvalEntryId: row.approval_entry_id,
             code: row.code,
             name: row.name,
+          }
+        }),
+      }
+    if (entity === 'asset-category')
+      return {
+        items: result.rows.map((row) => {
+          if (
+            row.default_useful_life_months === null ||
+            row.default_useful_life_months === undefined ||
+            !row.default_residual_rate
+          )
+            throw new VouApplicationError('vou_reference_unavailable')
+          return {
+            entity,
+            objectId: row.object_id,
+            code: row.code,
+            name: row.name,
+            defaultUsefulLifeMonths: row.default_useful_life_months,
+            defaultResidualRate: row.default_residual_rate,
           }
         }),
       }
@@ -1549,9 +1578,10 @@ export class VouService implements WflVouPort {
         JOIN dcl_customer_version_subunits subunit ON subunit.customer_approval_entry_id = approval.id AND subunit.subunit_id = root.subunit_id AND subunit.enabled`
       case 'settlement-method':
       case 'measurement-unit':
-      case 'asset-category':
       case 'department':
         return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, code, COALESCE(data->>'name', code) AS name FROM aux_objects WHERE entity = '${entity}' AND enabled`
+      case 'asset-category':
+        return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, code, COALESCE(data->>'name', code) AS name, (data->>'defaultUsefulLifeMonths')::integer AS default_useful_life_months, data->>'defaultResidualRate' AS default_residual_rate FROM aux_objects WHERE entity = 'asset-category' AND enabled`
       case 'asset':
         return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, asset_no AS code, name FROM acc_asset_registers WHERE status = 'ACTIVE'`
       case 'bill':
@@ -1995,6 +2025,40 @@ export class VouService implements WflVouPort {
         if (!current) blockers.push(blocker)
       }
     }
+    if ('assetAcquisitionLines' in payload)
+      for (const [index, line] of payload.assetAcquisitionLines.entries()) {
+        const current = await sql<{
+          code: string
+          name: string
+          default_useful_life_months: string
+          default_residual_rate: string
+        }>`
+          SELECT code, data->>'name' AS name,
+            data->>'defaultUsefulLifeMonths' AS default_useful_life_months,
+            data->>'defaultResidualRate' AS default_residual_rate
+          FROM aux_objects
+          WHERE id = ${line.category.objectId}
+            AND entity = 'asset-category'
+            AND enabled
+          FOR UPDATE
+        `.execute(transaction)
+        const category = current.rows[0]
+        if (
+          !category ||
+          category.code !== line.category.code ||
+          category.name !== line.category.name ||
+          Number(category.default_useful_life_months) !==
+            line.category.defaultUsefulLifeMonths ||
+          category.default_residual_rate !== line.category.defaultResidualRate
+        )
+          blockers.push({
+            kind: 'REFERENCE',
+            field: `assetAcquisitionLines[${index}].category`,
+            entity: 'asset-category',
+            objectId: line.category.objectId,
+            approvalEntryId: null,
+          })
+      }
     return blockers.length === 0 ? { ok: true } : { ok: false, blockers }
   }
 
@@ -2419,10 +2483,12 @@ export class VouService implements WflVouPort {
         await sql`
           INSERT INTO vou_asset_acquisition_line_snapshots (
             approval_entry_id, line_no, asset_name, specification, original_value_minor,
+            category_default_useful_life_months, category_default_residual_rate_hundredths,
             useful_life_months, residual_rate_micros, location, remark
           ) VALUES (
             ${approvalEntryId}, ${lineNo}, ${line.assetName}, ${line.specification ?? null},
-            ${decimalToFixed(line.originalValue, 2)!}, ${line.usefulLifeMonths},
+            ${decimalToFixed(line.originalValue, 2)!}, ${line.category.defaultUsefulLifeMonths},
+            ${decimalToFixed(line.category.defaultResidualRate, 2)!}, ${line.usefulLifeMonths},
             ${decimalToFixed(line.residualRate, 6)!}, ${line.location ?? null}, ${line.remark ?? null}
           )
         `.execute(transaction)
@@ -3605,6 +3671,8 @@ export class VouService implements WflVouPort {
         asset_name: string
         specification: string | null
         original_value_minor: string
+        category_default_useful_life_months: number
+        category_default_residual_rate_hundredths: string
         useful_life_months: number
         residual_rate_micros: string
         location: string | null
@@ -3616,7 +3684,14 @@ export class VouService implements WflVouPort {
         assetAcquisitionLines: lines.map((line) => ({
           assetName: line.asset_name,
           ...(line.specification ? { specification: line.specification } : {}),
-          category: reference('category', line.line_no),
+          category: {
+            ...reference('category', line.line_no),
+            defaultUsefulLifeMonths: line.category_default_useful_life_months,
+            defaultResidualRate: fixed(
+              line.category_default_residual_rate_hundredths,
+              2,
+            ),
+          },
           originalValue: fixed(line.original_value_minor, 2),
           usefulLifeMonths: line.useful_life_months,
           residualRate: fixed(line.residual_rate_micros, 6),
@@ -4137,7 +4212,12 @@ export class VouService implements WflVouPort {
               ...(row.reference_code ? { code: row.reference_code } : {}),
               ...(row.reference_name ? { name: row.reference_name } : {}),
             }
-          : { objectId: row.object_id },
+          : {
+              objectId: row.object_id,
+              ...(row.reference_entity ? { entity: row.reference_entity } : {}),
+              ...(row.reference_code ? { code: row.reference_code } : {}),
+              ...(row.reference_name ? { name: row.reference_name } : {}),
+            },
       )
     return refs
   }

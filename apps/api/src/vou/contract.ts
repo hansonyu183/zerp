@@ -39,7 +39,18 @@ const referenceCandidate = z.discriminatedUnion('entity', [
   z
     .object({
       ...referenceCandidateBase,
-      entity: referenceCandidateEntity.exclude(['customer-subunit']),
+      entity: z.literal('asset-category'),
+      defaultUsefulLifeMonths: z.number().int().min(1).max(1200),
+      defaultResidualRate: z.string().regex(/^(?:0|[1-9]\d?)(?:\.\d{1,2})?$/),
+    })
+    .strict(),
+  z
+    .object({
+      ...referenceCandidateBase,
+      entity: referenceCandidateEntity.exclude([
+        'customer-subunit',
+        'asset-category',
+      ]),
     })
     .strict(),
 ])
@@ -53,6 +64,14 @@ const sourceLineQuery = z
   })
   .strict()
 const objectReference = z.object({ objectId: z.string().length(26) }).strict()
+const assetCategoryReference = objectReference
+  .extend({
+    code: z.string().min(1),
+    name: z.string().min(1).max(200),
+    defaultUsefulLifeMonths: z.number().int().min(1).max(1200),
+    defaultResidualRate: z.string().regex(/^(?:0|[1-9]\d?)(?:\.\d{1,2})?$/),
+  })
+  .strict()
 // selectionOrigin is the one target-only fact: OpenAPI already owns the IDs,
 // while the target must retain whether they were selected now or inherited.
 const versionedReference = z
@@ -524,7 +543,7 @@ export const vouPayloadSchemaByEntity = {
           .object({
             assetName: z.string().min(1).max(200),
             specification: z.string().max(200).optional(),
-            category: objectReference,
+            category: assetCategoryReference,
             originalValue: money,
             usefulLifeMonths: z.number().int().min(1).max(1200),
             residualRate: quantity,

@@ -82,6 +82,9 @@ describe('business resource registry', () => {
     expect(
       targetResourceRegistry.resolve('aux', 'payment-method'),
     ).toMatchObject({ domain: 'aux', entity: 'payment-method' })
+    expect(
+      targetResourceRegistry.resolve('aux', 'asset-category'),
+    ).toMatchObject({ domain: 'aux', entity: 'asset-category' })
     expect('dcl' in targetDomainCapabilities).toBe(false)
   })
 })

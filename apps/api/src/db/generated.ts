@@ -812,6 +812,8 @@ export interface VouAssetAcquisitionDetails {
 export interface VouAssetAcquisitionLineSnapshots {
   approval_entry_id: string;
   asset_name: string;
+  category_default_residual_rate_hundredths: Int8;
+  category_default_useful_life_months: number;
   line_no: number;
   location: string | null;
   original_value_minor: Int8;

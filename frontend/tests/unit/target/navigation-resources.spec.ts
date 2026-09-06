@@ -20,7 +20,7 @@ describe('apiPath navigation resources', () => {
       'aux/dictionary-item': '字典项',
       'aux/measurement-unit': '计量单位',
       'aux/income-expense-type': '收支类型',
-      'aux/asset-category': '资产分类',
+      'aux/asset-category': '资产类别',
       'aux/reference': '辅助资料引用',
       'bob/customer': '客户',
       'bob/supplier': '供应商',

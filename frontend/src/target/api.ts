@@ -86,6 +86,18 @@ export type TargetPaymentMethodSaveInput = PostJson<
 export type TargetPaymentMethodEnabledInput = PostJson<
   (typeof client)['aux']['payment-method']['enable']['$post']
 >
+export type TargetAssetCategoryQueryInput = PostJson<
+  (typeof client)['aux']['asset-category']['query']['$post']
+>
+export type TargetAssetCategoryCreateInput = PostJson<
+  (typeof client)['aux']['asset-category']['create']['$post']
+>
+export type TargetAssetCategorySaveInput = PostJson<
+  (typeof client)['aux']['asset-category']['save']['$post']
+>
+export type TargetAssetCategoryEnabledInput = PostJson<
+  (typeof client)['aux']['asset-category']['enable']['$post']
+>
 
 export class TargetApiError extends Error {
   readonly errorKey: string
@@ -567,6 +579,74 @@ export async function setTargetPaymentMethodEnabled(
   const endpoint = enabled
     ? client.aux['payment-method'].enable
     : client.aux['payment-method'].disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function queryTargetAssetCategories(
+  csrfToken: string,
+  input: TargetAssetCategoryQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['asset-category'].query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function getTargetAssetCategory(csrfToken: string, id: string) {
+  return unwrapTarget(
+    await (
+      await client.aux['asset-category'].get.$post(
+        { json: { id } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function createTargetAssetCategory(
+  csrfToken: string,
+  input: TargetAssetCategoryCreateInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['asset-category'].create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function saveTargetAssetCategory(
+  csrfToken: string,
+  input: TargetAssetCategorySaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['asset-category'].save.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function setTargetAssetCategoryEnabled(
+  csrfToken: string,
+  input: TargetAssetCategoryEnabledInput,
+  enabled: boolean,
+) {
+  const endpoint = enabled
+    ? client.aux['asset-category'].enable
+    : client.aux['asset-category'].disable
   return unwrapTarget(
     await (
       await endpoint.$post({ json: input }, csrfHeaders(csrfToken))

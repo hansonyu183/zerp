@@ -1580,6 +1580,7 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
     mappingEntryId = ulid()
   const assetDocumentId = ulid(),
     assetEntryId = ulid(),
+    assetCategoryId = ulid(),
     assetSaleDocumentId = ulid(),
     assetSaleEntryId = ulid(),
     inboundDocumentId = ulid(),
@@ -1627,6 +1628,10 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
       await db
         .deleteFrom('dcl_subjects')
         .where('id', '=', mappingSubjectId)
+        .execute()
+      await db
+        .deleteFrom('aux_objects')
+        .where('id', '=', assetCategoryId)
         .execute()
       await db
         .deleteFrom('acc_subjects')
@@ -1813,6 +1818,23 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
     'asset-acquisition',
     'ACQ-TEST',
   )
+  await db
+    .insertInto('aux_objects')
+    .values({
+      id: assetCategoryId,
+      entity: 'asset-category',
+      code: 'ACT-8001',
+      data: {
+        name: '资产类别台账',
+        defaultUsefulLifeMonths: 12,
+        defaultResidualRate: '1.00',
+        description: '',
+      },
+      enabled: true,
+      created_by: actorId,
+      updated_by: actorId,
+    })
+    .execute()
   await db.transaction().execute((tx) =>
     service.apply(tx, {
       kind: 'acc',
@@ -1835,7 +1857,13 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
         assetAcquisitionLines: [
           {
             assetName: 'UN_POST 资产',
-            category: { objectId: ulid() },
+            category: {
+              objectId: assetCategoryId,
+              code: 'ACT-8001',
+              name: '资产类别台账',
+              defaultUsefulLifeMonths: 12,
+              defaultResidualRate: '1.00',
+            },
             originalValue: '100.00',
             usefulLifeMonths: 12,
             residualRate: '0.000000',
@@ -1872,6 +1900,40 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
       db,
     )
   ).rows[0]!.id
+  const expectedCategorySnapshot = {
+    objectId: assetCategoryId,
+    code: 'ACT-8001',
+    name: '资产类别台账',
+    defaultUsefulLifeMonths: 12,
+    defaultResidualRate: '1.00',
+  }
+  const readCategorySnapshot = async () => {
+    const row = await db
+      .selectFrom('acc_asset_registers')
+      .select('payload')
+      .where('id', '=', assetId)
+      .executeTakeFirstOrThrow()
+    return (
+      row.payload as unknown as {
+        acquisition: { category: typeof expectedCategorySnapshot }
+      }
+    ).acquisition.category
+  }
+  assert.deepEqual(await readCategorySnapshot(), expectedCategorySnapshot)
+  await db
+    .updateTable('aux_objects')
+    .set({
+      data: {
+        name: '资产类别台账新名称',
+        defaultUsefulLifeMonths: 120,
+        defaultResidualRate: '3.00',
+        description: '',
+      },
+      enabled: false,
+    })
+    .where('id', '=', assetCategoryId)
+    .execute()
+  assert.deepEqual(await readCategorySnapshot(), expectedCategorySnapshot)
   await db
     .updateTable('dcl_acc_mapping_versions')
     .set({

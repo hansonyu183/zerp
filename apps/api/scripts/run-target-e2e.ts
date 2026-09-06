@@ -1363,7 +1363,11 @@ async function verifyTrustedSystemVouLifecycle() {
 async function seedVouAccObjects() {
   const auxActor = {
     id: submitter.userId,
-    permissions: ['/aux/asset-category/create', '/aux/asset-category/delete'],
+    permissions: [
+      '/aux/asset-category/create',
+      '/aux/asset-category/get',
+      '/aux/asset-category/delete',
+    ],
   }
   const assetCategory = await aux.create(
     'asset-category',
@@ -1376,6 +1380,11 @@ async function seedVouAccObjects() {
     auxActor,
   )
   e2eAssetCategory = assetCategory
+  const assetCategoryDetail = await aux.get(
+    'asset-category',
+    { id: assetCategory.id },
+    auxActor,
+  )
   const supplier = vouReferenceFacts.references.find(
     (reference) => reference.key === 'supplier',
   )!
@@ -1400,7 +1409,14 @@ async function seedVouAccObjects() {
         assetAcquisitionLines: [
           {
             assetName: '目标资产',
-            category: { objectId: assetCategory.id },
+            category: {
+              objectId: assetCategory.id,
+              code: assetCategoryDetail.code,
+              name: assetCategoryDetail.name,
+              defaultUsefulLifeMonths:
+                assetCategoryDetail.defaultUsefulLifeMonths,
+              defaultResidualRate: assetCategoryDetail.defaultResidualRate,
+            },
             originalValue: '100.00',
             usefulLifeMonths: 60,
             residualRate: '0.000000',

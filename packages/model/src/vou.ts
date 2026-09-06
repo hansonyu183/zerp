@@ -541,7 +541,12 @@ export interface VouPayloadShapes {
     assetAcquisitionLines: readonly {
       assetName: string
       specification?: string
-      category: VouObjectReferenceInput
+      category: VouObjectReferenceInput & {
+        readonly code: string
+        readonly name: string
+        readonly defaultUsefulLifeMonths: number
+        readonly defaultResidualRate: string
+      }
       originalValue: string
       usefulLifeMonths: number
       residualRate: string

@@ -380,4 +380,40 @@ test('all twelve AUX entities expose one strict typed management protocol', asyn
       (await post(app, '/aux/measurement-unit/create', fields)).errorKey,
       'validation_failed',
     )
+
+  for (const [defaultUsefulLifeMonths, defaultResidualRate] of [
+    [1, '0.00'],
+    [1200, '99.99'],
+  ] as const)
+    assert.equal(
+      (
+        await post(app, '/aux/asset-category/create', {
+          name: '机器设备',
+          defaultUsefulLifeMonths,
+          defaultResidualRate,
+          description: '',
+        })
+      ).code,
+      0,
+    )
+
+  for (const fields of [
+    { defaultUsefulLifeMonths: 0, defaultResidualRate: '5.00' },
+    { defaultUsefulLifeMonths: 1201, defaultResidualRate: '5.00' },
+    { defaultUsefulLifeMonths: 1.5, defaultResidualRate: '5.00' },
+    { defaultUsefulLifeMonths: 120, defaultResidualRate: '-0.01' },
+    { defaultUsefulLifeMonths: 120, defaultResidualRate: '100.00' },
+    { defaultUsefulLifeMonths: 120, defaultResidualRate: '5.001' },
+    { defaultUsefulLifeMonths: 120, defaultResidualRate: '01.00' },
+  ])
+    assert.equal(
+      (
+        await post(app, '/aux/asset-category/create', {
+          name: '机器设备',
+          description: '',
+          ...fields,
+        })
+      ).errorKey,
+      'validation_failed',
+    )
 })

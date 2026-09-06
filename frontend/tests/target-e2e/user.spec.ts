@@ -60,19 +60,34 @@ async function openRoleManagement(page: Page): Promise<void> {
 async function toggleVirtualOption(page: Page, title: string): Promise<void> {
   const option = page.getByRole('option').filter({ hasText: title })
   const options = page.getByRole('listbox')
+  const chip = page
+    .getByRole('dialog')
+    .locator('.v-chip')
+    .filter({ hasText: title })
+  let wasSelected = false
   await expect(options).toBeVisible()
   // Vuetify only mounts the visible portion of long option lists.
   await options.evaluate((element) => {
     element.scrollTop = 0
   })
   await expect(async () => {
-    if (!(await option.count()))
+    if (!(await option.count())) {
       await options.evaluate((element) => {
         element.scrollTop += element.clientHeight
       })
-    await expect(option).toHaveCount(1, { timeout: 100 })
+      throw new Error(`permission option is not mounted yet: ${title}`)
+    }
+    wasSelected = (await option.getAttribute('aria-selected')) === 'true'
+    await option.evaluate((element) => (element as HTMLElement).click())
   }).toPass({ timeout: 15_000, intervals: [50] })
-  await option.click()
+  await expect(chip).toHaveCount(wasSelected ? 0 : 1)
+}
+
+async function closeOpenListbox(page: Page): Promise<void> {
+  const listbox = page.locator('[role="listbox"]:visible')
+  if (!(await listbox.count())) return
+  await page.keyboard.press('Escape')
+  await expect(listbox).toHaveCount(0)
 }
 
 async function createRole(
@@ -85,7 +100,7 @@ async function createRole(
   await dialog.getByLabel('名称', { exact: true }).fill(input.name)
   await dialog.locator('.v-select .v-field').click()
   await toggleVirtualOption(page, input.permissionText)
-  await page.keyboard.press('Escape')
+  await closeOpenListbox(page)
   await dialog.getByRole('button', { name: '保存', exact: true }).click()
   await expect(dialog).toHaveCount(0)
 }
@@ -114,7 +129,7 @@ async function createUser(
     .filter({ hasText: targetE2ERoleText })
   await expect(targetE2ERole).toHaveCount(1)
   await targetE2ERole.click()
-  await page.keyboard.press('Escape')
+  await closeOpenListbox(page)
   await dialog.getByLabel('初始密码', { exact: true }).fill(input.password)
   await dialog.getByRole('button', { name: '保存', exact: true }).click()
   await expect(dialog).toHaveCount(0)
@@ -447,7 +462,7 @@ test('a role with one non-query permission grants the menu without an overbroad 
   await editor.getByRole('combobox', { name: '角色' }).press('ArrowDown')
   await toggleVirtualOption(page, targetE2ERoleText)
   await toggleVirtualOption(page, roleName)
-  await page.keyboard.press('Escape')
+  await closeOpenListbox(page)
   await editor.getByRole('button', { name: '保存', exact: true }).click()
   await expect(editor).toHaveCount(0)
 

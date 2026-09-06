@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 
 import { serve } from '@hono/node-server'
-import { modelBuildId } from '@zerp/model'
+import { modelBuildId, type VouPayloadFor } from '@zerp/model'
 import { createTargetApiClient } from '../../../../packages/api-client/src/index.ts'
 import { sql } from 'kysely'
 import { ulid } from 'ulid'
@@ -79,6 +79,8 @@ async function post(
         approvalEntryId?: string
         code: string
         name: string
+        defaultUsefulLifeMonths?: number
+        defaultResidualRate?: string
       }>
     }
   }>
@@ -110,6 +112,7 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
   const customerSubunitId = ulid()
   const employeeId = ulid()
   const employeeApprovalId = ulid()
+  const assetCategoryId = ulid()
   const productCode = `PRD-${Math.floor(Math.random() * 10_000)
     .toString()
     .padStart(4, '0')}`
@@ -130,6 +133,10 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     await sql`DELETE FROM dcl_subjects WHERE id IN (${productId}, ${supplierId}, ${customerId}, ${employeeId})`.execute(
       db,
     )
+    await db
+      .deleteFrom('aux_objects')
+      .where('id', '=', assetCategoryId)
+      .execute()
     await sql`DELETE FROM app_users WHERE id IN (${actorId}, ${reviewerId})`.execute(
       db,
     )
@@ -497,7 +504,25 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
   )
   assert.equal(rolledBack.rows[0]?.count, '0')
 
+  await db
+    .insertInto('aux_objects')
+    .values({
+      id: assetCategoryId,
+      entity: 'asset-category',
+      code: 'ACT-9001',
+      data: {
+        name: '机器设备快照',
+        defaultUsefulLifeMonths: 24,
+        defaultResidualRate: '5.00',
+        description: '',
+      },
+      enabled: true,
+      created_by: actorId,
+      updated_by: actorId,
+    })
+    .execute()
   const assetSubmissionId = ulid()
+  const assetDepartmentId = ulid()
   const asset = await service.submit(
     'asset-acquisition',
     'submit-new',
@@ -518,11 +543,17 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
         assetAcquisitionLines: [
           {
             assetName: '泵',
-            category: { objectId: ulid() },
+            category: {
+              objectId: assetCategoryId,
+              code: 'ACT-9001',
+              name: '机器设备快照',
+              defaultUsefulLifeMonths: 24,
+              defaultResidualRate: '5.00',
+            },
             originalValue: '100.00',
             usefulLifeMonths: 24,
             residualRate: '0.050000',
-            department: { objectId: ulid() },
+            department: { objectId: assetDepartmentId },
           },
         ],
       },
@@ -533,6 +564,66 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
   assert.deepEqual(
     (await service.get('asset-acquisition', asset.documentId, actor)).payload,
     asset.payload,
+  )
+  const assetPayload = asset.payload as VouPayloadFor<'asset-acquisition'>
+  assert.deepEqual(assetPayload.assetAcquisitionLines[0], {
+    assetName: '泵',
+    category: {
+      objectId: assetCategoryId,
+      code: 'ACT-9001',
+      name: '机器设备快照',
+      defaultUsefulLifeMonths: 24,
+      defaultResidualRate: '5.00',
+    },
+    originalValue: '100.00',
+    usefulLifeMonths: 24,
+    residualRate: '0.050000',
+    department: { objectId: assetDepartmentId },
+  })
+  await db
+    .updateTable('aux_objects')
+    .set({
+      data: {
+        name: '机器设备新名称',
+        defaultUsefulLifeMonths: 120,
+        defaultResidualRate: '3.00',
+        description: '',
+      },
+      enabled: false,
+    })
+    .where('id', '=', assetCategoryId)
+    .execute()
+  assert.deepEqual(
+    (await service.get('asset-acquisition', asset.documentId, actor)).payload,
+    asset.payload,
+  )
+  const disabledAssetSubmissionId = ulid()
+  await assert.rejects(
+    () =>
+      service.submit(
+        'asset-acquisition',
+        'submit-new',
+        {
+          documentId: ulid(),
+          submissionId: disabledAssetSubmissionId,
+          idempotencyKey: disabledAssetSubmissionId,
+          expectedRevision: null,
+          payload: asset.payload,
+        },
+        actor,
+        'asset-disabled-category',
+      ),
+    (error) =>
+      error instanceof VouApplicationError &&
+      error.errorKey === 'vou_reference_unavailable',
+  )
+  assert.equal(
+    await db
+      .selectFrom('approval_entries')
+      .select('id')
+      .where('id', '=', disabledAssetSubmissionId)
+      .executeTakeFirst(),
+    undefined,
   )
 
   const billSubmissionId = ulid()
@@ -1465,7 +1556,13 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
           assetAcquisitionLines: [
             {
               assetName: '错误供应商',
-              category: { objectId: ulid() },
+              category: {
+                objectId: ulid(),
+                code: 'ACT-EDGE',
+                name: '资产类别边界',
+                defaultUsefulLifeMonths: 1,
+                defaultResidualRate: '0.00',
+              },
               originalValue: '1.00',
               usefulLifeMonths: 1,
               residualRate: '0.000000',
@@ -2309,7 +2406,9 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
     })
     .execute()
   const unitId = ulid(),
-    disabledUnitId = ulid()
+    disabledUnitId = ulid(),
+    assetCategoryId = ulid(),
+    disabledAssetCategoryId = ulid()
   await db
     .insertInto('aux_objects')
     .values([
@@ -2327,6 +2426,34 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
         entity: 'measurement-unit',
         code: 'AUX-1002',
         data: { name: 'VOU 停用单位' },
+        enabled: false,
+        created_by: actorId,
+        updated_by: actorId,
+      },
+      {
+        id: assetCategoryId,
+        entity: 'asset-category',
+        code: 'ACT-1001',
+        data: {
+          name: 'VOU 机器设备',
+          defaultUsefulLifeMonths: 120,
+          defaultResidualRate: '5.00',
+          description: '',
+        },
+        enabled: true,
+        created_by: actorId,
+        updated_by: actorId,
+      },
+      {
+        id: disabledAssetCategoryId,
+        entity: 'asset-category',
+        code: 'ACT-1002',
+        data: {
+          name: 'VOU 停用类别',
+          defaultUsefulLifeMonths: 60,
+          defaultResidualRate: '3.00',
+          description: '',
+        },
         enabled: false,
         created_by: actorId,
         updated_by: actorId,
@@ -2494,6 +2621,20 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
     [unitId],
   )
   assert.equal(units.data.items[0]?.approvalEntryId, undefined)
+  const assetCategories = await post(origin, allowed, {
+    entity: 'asset-category',
+    keyword: 'VOU',
+  })
+  assert.deepEqual(assetCategories.data.items, [
+    {
+      entity: 'asset-category',
+      objectId: assetCategoryId,
+      code: 'ACT-1001',
+      name: 'VOU 机器设备',
+      defaultUsefulLifeMonths: 120,
+      defaultResidualRate: '5.00',
+    },
+  ])
   const assets = await post(origin, allowed, {
     entity: 'asset',
     keyword: 'VOU-REF',

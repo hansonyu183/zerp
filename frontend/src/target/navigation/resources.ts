@@ -62,7 +62,7 @@ const auxPresentation: Readonly<Record<string, string>> = {
   'dictionary-item': '字典项',
   'measurement-unit': '计量单位',
   'income-expense-type': '收支类型',
-  'asset-category': '资产分类',
+  'asset-category': '资产类别',
 }
 
 const accPresentation: Readonly<Record<string, string>> = {

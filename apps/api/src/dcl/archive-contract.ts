@@ -913,8 +913,7 @@ export const archiveRouteMetadata: Array<{
   path: string
   permission: string
   title: string
-  menu?: { title: string; group: string; order: number }
-}> = archiveEntities.flatMap((entity, entityIndex) =>
+}> = archiveEntities.flatMap((entity) =>
   archiveActions.map((action) => ({
     method: archiveRouteSets[entity][action].method,
     path: archiveRouteSets[entity][action].path,
@@ -923,15 +922,6 @@ export const archiveRouteMetadata: Array<{
       action === 'query'
         ? archiveEntityPresentation[entity].label
         : `${action} ${entity}`,
-    ...(action === 'query'
-      ? {
-          menu: {
-            title: archiveEntityPresentation[entity].label,
-            group: '申报控制',
-            order: 30 + entityIndex,
-          },
-        }
-      : {}),
   })),
 )
 

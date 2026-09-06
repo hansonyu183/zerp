@@ -13,7 +13,7 @@ const harness = vi.hoisted(() => ({
 }))
 
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ fullPath: '/home/dashboard', meta: {} }),
+  useRoute: () => ({ fullPath: '/', meta: {}, params: {} }),
   useRouter: () => harness.router,
 }))
 
@@ -33,9 +33,8 @@ vi.mock('@/target/session/vm.ts', () => {
     user: { id: 'user-1', code: 'tester', name: '测试用户' },
     csrfToken: 'csrf-token',
     profile: null,
-    menus: [],
-    menuError: null,
-    retryMenu: vi.fn(),
+    passwordChangeRequired: false,
+    resourceGroups: [],
     clear: vi.fn(),
     restore: vi.fn(),
     getProfile: harness.getProfile,
@@ -63,9 +62,13 @@ const stubs = {
   VIcon: { template: '<span />' },
   VList: { template: '<div><slot /></div>' },
   VListItem: {
-    props: { title: { type: String, default: '' } },
+    props: {
+      title: { type: String, default: '' },
+      to: { type: String, default: '' },
+    },
     emits: ['click'],
-    template: '<button @click="$emit(\'click\')"><slot />{{ title }}</button>',
+    template:
+      '<a v-if="to" :href="to"><slot />{{ title }}</a><button v-else @click="$emit(\'click\')"><slot />{{ title }}</button>',
   },
   VDivider: { template: '<hr />' },
   VNavigationDrawer: {
@@ -124,6 +127,8 @@ describe('target account layout', () => {
     harness.signOut.mockReset()
     harness.session.user = { id: 'user-1', code: 'tester', name: '测试用户' }
     harness.session.csrfToken = 'csrf-token'
+    harness.session.passwordChangeRequired = false
+    harness.session.resourceGroups = []
     harness.getProfile.mockResolvedValue({
       id: 'user-1',
       code: 'tester',
@@ -132,6 +137,44 @@ describe('target account layout', () => {
       passwordChangedAt: '2026-09-06T00:00:00.000Z',
       revision: '1',
     })
+  })
+
+  it('renders every apiPath-derived resource in its domain group', () => {
+    harness.session.resourceGroups = [
+      {
+        domain: 'app',
+        displayName: '系统管理',
+        resources: [
+          {
+            key: 'app/user',
+            domain: 'app',
+            entity: 'user',
+            displayName: '用户管理',
+            routePath: '/app/user',
+          },
+        ],
+      },
+      {
+        domain: 'dcl',
+        displayName: '申报资料',
+        resources: [
+          {
+            key: 'dcl/customer',
+            domain: 'dcl',
+            entity: 'customer',
+            displayName: '客户申报',
+            routePath: '/dcl/customer',
+          },
+        ],
+      },
+    ]
+
+    const wrapper = mountLayout()
+
+    expect(wrapper.get('a[href="/app/user"]').text()).toContain('用户管理')
+    expect(wrapper.get('a[href="/dcl/customer"]').text()).toContain('客户申报')
+    expect(wrapper.text()).toContain('申报资料')
+    wrapper.unmount()
   })
 
   it('clears cancelled profile and password form values', async () => {
@@ -177,6 +220,19 @@ describe('target account layout', () => {
     await nextTick()
 
     expect(harness.getProfile).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('stops profile loading and leaves business content when refresh requires a password change', async () => {
+    const wrapper = mountLayout()
+    await nextTick()
+    expect(harness.getProfile).toHaveBeenCalledOnce()
+
+    harness.session.passwordChangeRequired = true
+    await nextTick()
+
+    expect(harness.getProfile).toHaveBeenCalledOnce()
+    expect(harness.router.replace).toHaveBeenCalledWith('/change-password')
     wrapper.unmount()
   })
 

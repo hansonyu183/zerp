@@ -278,36 +278,6 @@ export function createIndependentHandlers(
               requestId,
             )
             break
-          case '/app/menu/get':
-            data = await management.getMenu(principal)
-            break
-          case '/app/menu/save-business':
-            data = await management.saveBusinessMenu(
-              {
-                revision: integer(input, 'revision'),
-                items: input.items as Array<Record<string, unknown>>,
-              },
-              principal,
-              requestId,
-            )
-            break
-          case '/app/menu/activate':
-            data = await management.activateMenu(
-              {
-                mode: input.mode as 'DEFAULT' | 'BUSINESS',
-                revision: integer(input, 'revision'),
-              },
-              principal,
-              requestId,
-            )
-            break
-          case '/app/menu/reset-business':
-            data = await management.resetBusinessMenu(
-              { revision: integer(input, 'revision') },
-              principal,
-              requestId,
-            )
-            break
           default:
             throw new Error(`unsupported APP route ${path}`)
         }

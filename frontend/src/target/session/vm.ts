@@ -4,16 +4,18 @@ import { defineStore } from 'pinia'
 import {
   changeTargetPassword,
   getTargetProfile,
-  getTargetMenu,
   restoreTargetSession,
   saveTargetProfile,
   signInTarget,
   signOutTarget,
   TargetApiError,
 } from '../api.ts'
+import {
+  collectNavigationResourceGroups,
+  hasNavigationResource,
+} from '../navigation/resources.ts'
 
 type SessionData = Awaited<ReturnType<typeof restoreTargetSession>>
-type MenuData = Awaited<ReturnType<typeof getTargetMenu>>
 type ProfileData = Awaited<ReturnType<typeof getTargetProfile>>
 
 function errorMessage(error: unknown): string {
@@ -33,9 +35,8 @@ export const useTargetSession = defineStore('target-session', () => {
   const profile = ref<ProfileData | null>(null)
   const passwordChangeRequired = ref(false)
   const passwordMinLength = ref(12)
-  const menu = ref<MenuData | null>(null)
   const error = ref<string | null>(null)
-  const menuError = ref<string | null>(null)
+  const generation = ref(0)
   let signInRequest: Promise<void> | null = null
   let activeSignInVersion = 0
   let requestVersion = 0
@@ -47,14 +48,17 @@ export const useTargetSession = defineStore('target-session', () => {
   } | null = null
 
   const authenticated = computed(() => user.value !== null)
-  const menus = computed(() => menu.value?.navigation.items ?? [])
+  const resourceGroups = computed(() =>
+    authenticated.value && !passwordChangeRequired.value
+      ? collectNavigationResourceGroups(apiPaths.value)
+      : [],
+  )
 
   function applySession(data: SessionData): void {
     profileReadVersion += 1
     profileWriteVersion += 1
+    generation.value += 1
     profile.value = null
-    menu.value = null
-    menuError.value = null
     user.value = data.user
     csrfToken.value = data.csrfToken
     apiPaths.value = [...data.apiPaths]
@@ -67,14 +71,13 @@ export const useTargetSession = defineStore('target-session', () => {
   function clearState(): void {
     profileReadVersion += 1
     profileWriteVersion += 1
+    generation.value += 1
     user.value = null
     csrfToken.value = null
     apiPaths.value = []
     profile.value = null
     passwordChangeRequired.value = false
     passwordMinLength.value = 12
-    menu.value = null
-    menuError.value = null
   }
 
   function clear(): void {
@@ -82,25 +85,6 @@ export const useTargetSession = defineStore('target-session', () => {
     signInRequest = null
     activeSignInVersion = 0
     clearState()
-  }
-
-  async function retryMenu(): Promise<void> {
-    if (!csrfToken.value) return
-    const request = requestVersion
-    const token = csrfToken.value
-    try {
-      const data = await getTargetMenu(token)
-      if (request !== requestVersion || token !== csrfToken.value) return
-      menu.value = data
-      menuError.value = null
-    } catch (cause) {
-      if (request !== requestVersion || token !== csrfToken.value) return
-      if (isUnauthenticated(cause)) {
-        clearState()
-        throw cause
-      }
-      menuError.value = `菜单加载失败：${errorMessage(cause)}`
-    }
   }
 
   async function restore(options: { force?: boolean } = {}): Promise<boolean> {
@@ -113,7 +97,6 @@ export const useTargetSession = defineStore('target-session', () => {
       const data = await restoreTargetSession()
       if (request !== requestVersion) return authenticated.value
       applySession(data)
-      if (!passwordChangeRequired.value) await retryMenu()
       return true
     } catch (cause) {
       if (request !== requestVersion) return authenticated.value
@@ -138,7 +121,6 @@ export const useTargetSession = defineStore('target-session', () => {
         const data = await signInTarget(code.trim(), password)
         if (request !== requestVersion) return
         applySession(data)
-        if (!passwordChangeRequired.value) await retryMenu()
       } catch (cause) {
         if (request === requestVersion) clearState()
         if (request === requestVersion) error.value = errorMessage(cause)
@@ -239,10 +221,11 @@ export const useTargetSession = defineStore('target-session', () => {
     return apiPaths.value.includes(permission)
   }
 
-  function isKnownRoute(path: string): boolean {
+  function hasResource(domain: string, entity: string): boolean {
     return (
-      menu.value?.availableRoutes.some((route) => route.routePath === path) ??
-      false
+      authenticated.value &&
+      !passwordChangeRequired.value &&
+      hasNavigationResource(apiPaths.value, domain, entity)
     )
   }
 
@@ -255,12 +238,10 @@ export const useTargetSession = defineStore('target-session', () => {
     profile,
     passwordChangeRequired,
     passwordMinLength,
-    menu,
-    menus,
+    generation,
+    resourceGroups,
     error,
-    menuError,
     authenticated,
-    retryMenu,
     restore,
     signIn,
     signOut,
@@ -269,6 +250,6 @@ export const useTargetSession = defineStore('target-session', () => {
     changePassword,
     clear,
     can,
-    isKnownRoute,
+    hasResource,
   }
 })

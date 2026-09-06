@@ -60,14 +60,14 @@ approve 前必须验证：单条允许的只读 SQL、参数占位符与类型�
 
 技术有效性独立于 Approval：唯一值为 `VALID | INVALID`。`APPROVED + INVALID` 合法，但该 entry 不可执行；RPT 停止其 query/export，并且绝不改为执行较低版本的 APPROVED entry。确定性的 SQL 结构错误（不存在表、列、函数或类型不匹配）将该 entry 标为 INVALID 并停用该定义的 query/export 权限；连接失败、超时等瞬时错误只返回运行错误，不改变有效性。恢复只能批准一个重新验证过的新版本，且新 latest APPROVED 必须是 VALID。
 
-## 6. 权限、菜单与定义启停
+## 6. 权限、导航资源与定义启停
 
 DCL 定义及其版本的 `query|get|submit|delete|versions|audit-history`、完整 Approval 生命周期和本地 Draft 的 `enable|disable` 是独立高权限管理动作；普通使用者的 query 与 export 按报表 stable code 分别授权。首次批准时，RPT 与 APP 在同一事务注册该 code 的精确 `query`、`export` 权限；本地 Draft 不创建使用权限。latest approved snapshot 的 enabled 为 false、没有 latest APPROVED 或 latest APPROVED 为 INVALID 时，查询与导出不可用，但既有角色关联和审批/运行审计保留。
 
-获得某报表的 query 或 export 权限即可读取该定义 SQL 返回的全部数据，包括跨账簿数据；RPT 执行层不追加 ACC 账簿过滤。APP 对每个有权限的 code 生成独立 `/rpt/{code}` 菜单项；普通页面只加载该 code，不显示报表中心。定义管理页已迁入 `/dcl/rpt-definition`，不与普通报表页混合。
+获得某报表的 query 或 export 权限即可读取该定义 SQL 返回的全部数据，包括跨账簿数据；RPT 执行层不追加 ACC 账簿过滤。已授权 `rpt/{code}` 由 Navigation Resource 规则产生入口；本票的空 Registry 不提供报表页面。报表定义维护继续使用 `/dcl/rpt-definition/*` HTTP 边界，不与普通报表执行混合。
 
 ## 7. 发布门禁与验收边界
 
 RPT 提供显式应用发布校验命令。命令枚举全部 `enabled` definition 的 latest `APPROVED + VALID` entry，并逐条复用批准时的同一应用校验核心（只读 SQL、类型化参数、`PREPARE`、`EXPLAIN`、限量执行和结果列契约）；任一不兼容即以非零状态指出对应 definition 并阻断数据库基线重建或发布。该校验不依赖 schema 执行、数据库函数或触发器，也不回退到其他版本。继续发布前，必须在同次变更中提供并批准兼容的新版本，或由管理员明确停用受影响定义；不得为旧表或字段保留兼容视图、别名、fallback 或第二套查询口径。 <!-- docs-check: legacy-exception=release-gate ref=ADR-0026 -->
 
-验收覆盖 stable definition 与 V1/V2、候选删除复号、完整 Approval 生命周期与 reason、exact entry 读取、latest-only unapprove 和执行、VALID/INVALID 独立、APPROVED+INVALID 停止执行且不改用其他版本、SQL/参数/列契约批准门禁、独立 query/export 权限、跨账簿授权、动态菜单、八类首批报表口径，以及任一事务失败整体回滚。
+验收覆盖 stable definition 与 V1/V2、候选删除复号、完整 Approval 生命周期与 reason、exact entry 读取、latest-only unapprove 和执行、VALID/INVALID 独立、APPROVED+INVALID 停止执行且不改用其他版本、SQL/参数/列契约批准门禁、独立 query/export 权限、跨账簿授权、Navigation Resource 入口、八类首批报表口径，以及任一事务失败整体回滚。

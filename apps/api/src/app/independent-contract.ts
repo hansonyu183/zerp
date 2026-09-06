@@ -156,35 +156,6 @@ const systemParameter = z.object({
   constraints: jsonObject.nullable(),
   revision: z.string(),
 })
-const menuItem = z.object({
-  id: z.string(),
-  parentId: z.string().nullable(),
-  type: z.enum(['GROUP', 'ROUTE']),
-  level: z.number().int().min(1).max(2),
-  order: z.number().int().nonnegative(),
-  displayName: z.string(),
-  icon: z.string().nullable(),
-  enabled: z.boolean(),
-  routeKey: z.string().nullable(),
-  routePath: z.string().nullable(),
-  permissionCode: z.string().nullable(),
-})
-const menuTree = z.object({ items: z.array(menuItem) })
-const menuRouteOption = z.object({
-  routeKey: z.string(),
-  routePath: z.string(),
-  displayName: z.string(),
-  permissionCode: z.string().nullable(),
-})
-const menuData = z.object({
-  mode: z.enum(['DEFAULT', 'BUSINESS']),
-  revision: z.string(),
-  defaultMenu: menuTree,
-  businessMenu: menuTree,
-  navigation: menuTree,
-  availableRoutes: z.array(menuRouteOption),
-})
-
 const brandingGet = postRoute(
   '/session/app/get',
   empty,
@@ -312,46 +283,6 @@ const systemParameterReset = postRoute(
   z.object({ key: z.string(), revision: z.number().int().positive() }).strict(),
   systemParameter,
 )
-const menuGet = postRoute('/app/menu/get', empty, menuData)
-const menuSave = postRoute(
-  '/app/menu/save-business',
-  z
-    .object({
-      revision: z.number().int().positive(),
-      items: z.array(
-        z
-          .object({
-            id: z.string(),
-            parentId: z.string().nullable(),
-            type: z.enum(['GROUP', 'ROUTE']),
-            order: z.number().int().nonnegative(),
-            displayName: z.string().min(1).max(128),
-            icon: z.string().max(128).nullable(),
-            enabled: z.boolean(),
-            routeKey: z.string().nullable(),
-          })
-          .strict(),
-      ),
-    })
-    .strict(),
-  menuData,
-)
-const menuActivate = postRoute(
-  '/app/menu/activate',
-  z
-    .object({
-      mode: z.enum(['DEFAULT', 'BUSINESS']),
-      revision: z.number().int().positive(),
-    })
-    .strict(),
-  menuData,
-)
-const menuReset = postRoute(
-  '/app/menu/reset-business',
-  z.object({ revision: z.number().int().positive() }).strict(),
-  menuData,
-)
-
 const auxData = jsonObject
 const auxQueryRequest = pageRequest
 const auxObject = z.object({
@@ -639,10 +570,6 @@ export function registerIndependentRoutes(
     { route: systemParameterGet, handler: handlers.app },
     { route: systemParameterSave, handler: handlers.app },
     { route: systemParameterReset, handler: handlers.app },
-    { route: menuGet, handler: handlers.app },
-    { route: menuSave, handler: handlers.app },
-    { route: menuActivate, handler: handlers.app },
-    { route: menuReset, handler: handlers.app },
   ] as const)
   // Keep the finite AUX inventory as literal executable routes so the Hono
   // AppType exposes every direct-CRUD seam to the generated client.
@@ -996,27 +923,24 @@ export function registerIndependentRoutes(
   ] as const)
 }
 const appPermissions = [
-  ['user', 'get', '查看用户', null],
-  ['user', 'create', '创建用户', null],
-  ['user', 'save', '修改用户', null],
-  ['user', 'enable', '启用用户', null],
-  ['user', 'disable', '停用用户', null],
-  ['user', 'reset-password', '重置用户密码', null],
-  ['role', 'query', '查询角色', 20],
-  ['role', 'get', '查看角色', null],
-  ['role', 'create', '创建角色', null],
-  ['role', 'save', '修改角色', null],
-  ['role', 'enable', '启用角色', null],
-  ['role', 'disable', '停用角色', null],
-  ['permission', 'query', '查询权限目录', 30],
-  ['permission', 'get', '查看权限', null],
-  ['system-parameter', 'query', '查询系统参数', 40],
-  ['system-parameter', 'get', '查看系统参数', null],
-  ['system-parameter', 'save', '修改系统参数', null],
-  ['system-parameter', 'reset', '重置系统参数', null],
-  ['menu', 'save-business', '保存业务菜单', null],
-  ['menu', 'activate', '切换菜单模式', null],
-  ['menu', 'reset-business', '重置业务菜单', null],
+  ['user', 'get', '查看用户'],
+  ['user', 'create', '创建用户'],
+  ['user', 'save', '修改用户'],
+  ['user', 'enable', '启用用户'],
+  ['user', 'disable', '停用用户'],
+  ['user', 'reset-password', '重置用户密码'],
+  ['role', 'query', '查询角色'],
+  ['role', 'get', '查看角色'],
+  ['role', 'create', '创建角色'],
+  ['role', 'save', '修改角色'],
+  ['role', 'enable', '启用角色'],
+  ['role', 'disable', '停用角色'],
+  ['permission', 'query', '查询权限目录'],
+  ['permission', 'get', '查看权限'],
+  ['system-parameter', 'query', '查询系统参数'],
+  ['system-parameter', 'get', '查看系统参数'],
+  ['system-parameter', 'save', '修改系统参数'],
+  ['system-parameter', 'reset', '重置系统参数'],
 ] as const
 
 const auxNames: Record<(typeof auxEntities)[number], string> = {
@@ -1053,15 +977,13 @@ export const independentRouteMetadata = [
   { method: 'post', path: '/session/user/get' },
   { method: 'post', path: '/session/user/save' },
   { method: 'post', path: '/session/user/change-password' },
-  { method: 'post', path: '/app/menu/get' },
-  ...appPermissions.map(([entity, action, title, order]) => ({
+  ...appPermissions.map(([entity, action, title]) => ({
     method: 'post',
     path: `/app/${entity}/${action}`,
     permission: `/app/${entity}/${action}`,
     title,
-    ...(order === null ? {} : { menu: { title, group: '系统管理', order } }),
   })),
-  ...auxEntities.flatMap((entity, entityIndex) =>
+  ...auxEntities.flatMap((entity) =>
     ['query', 'get', 'create', 'save', 'enable', 'disable', 'delete']
       .filter(
         (action) =>
@@ -1089,15 +1011,6 @@ export const independentRouteMetadata = [
           path: `/aux/${entity}/${action}`,
           permission: `/aux/${entity}/${action}`,
           title,
-          ...(action === 'query'
-            ? {
-                menu: {
-                  title: auxNames[entity],
-                  group: '辅助资料',
-                  order: 100 + entityIndex * 10,
-                },
-              }
-            : {}),
         }
       }),
   ),
@@ -1107,21 +1020,12 @@ export const independentRouteMetadata = [
     permission: '/aux/reference/query',
     title: '查询 AUX 最小引用候选',
   },
-  ...bobEntities.flatMap((entity, entityIndex) =>
+  ...bobEntities.flatMap((entity) =>
     ['query', 'get'].map((action) => ({
       method: 'post',
       path: `/bob/${entity}/${action}`,
       permission: `/bob/${entity}/${action}`,
       title: `${action === 'query' ? '查询' : '查看'}${bobNames[entity]}`,
-      ...(action === 'query'
-        ? {
-            menu: {
-              title: bobNames[entity],
-              group: '业务资料',
-              order: 300 + entityIndex * 10,
-            },
-          }
-        : {}),
     })),
   ),
   {

@@ -30,7 +30,7 @@ const userQuery = {
   method: 'post',
   path: '/app/user/query',
   permission: '/app/user/query',
-  menu: { title: '用户管理', group: '系统管理', order: 10 },
+  title: '查询用户',
 } as const
 
 test('target artifact gate rejects missing, duplicate, and extra route metadata', () => {
@@ -56,7 +56,7 @@ test('target artifact gate rejects missing, duplicate, and extra route metadata'
   )
 })
 
-test('target artifact gate emits one exact permission and menu catalog entry', () => {
+test('target artifact gate emits one exact permission catalog entry', () => {
   assert.deepEqual(
     validateTargetRouteMetadata(['POST /app/user/query'], [userQuery]),
     [
@@ -66,9 +66,7 @@ test('target artifact gate emits one exact permission and menu catalog entry', (
         domain: 'app',
         entity: 'user',
         action: 'query',
-        title: '用户管理',
-        group: '系统管理',
-        order: 10,
+        title: '查询用户',
       },
     ],
   )
@@ -90,7 +88,7 @@ test('workbench route is session-scoped and emits no independent permission', ()
   )
 })
 
-test('target artifact gate emits action permissions without creating duplicate menus', () => {
+test('target artifact gate emits action permissions without presentation state', () => {
   assert.deepEqual(
     validateTargetRouteMetadata(
       ['POST /dcl/warehouse/approve'],
@@ -111,8 +109,6 @@ test('target artifact gate emits action permissions without creating duplicate m
         entity: 'warehouse',
         action: 'approve',
         title: '批准仓库申报',
-        group: null,
-        order: null,
       },
     ],
   )
@@ -390,10 +386,6 @@ test('target OpenAPI contains the complete issue 363 APP, AUX, and BOB inventory
   }
   const paths = new Set(Object.keys(document.paths))
   const appPaths = [
-    '/app/menu/activate',
-    '/app/menu/get',
-    '/app/menu/reset-business',
-    '/app/menu/save-business',
     '/app/permission/get',
     '/app/permission/query',
     '/app/role/create',
@@ -451,6 +443,12 @@ test('target OpenAPI contains the complete issue 363 APP, AUX, and BOB inventory
     'operating-entity',
   ].flatMap((entity) => [`/bob/${entity}/query`, `/bob/${entity}/get`])
   bobPaths.push('/bob/reference/query')
+  const removedMenuPaths = [
+    '/app/menu/get',
+    '/app/menu/save-business',
+    '/app/menu/activate',
+    '/app/menu/reset-business',
+  ]
 
   const sessionPaths = [
     '/session/app/get',
@@ -463,6 +461,8 @@ test('target OpenAPI contains the complete issue 363 APP, AUX, and BOB inventory
   ]
   for (const path of [...appPaths, ...sessionPaths, ...auxPaths, ...bobPaths])
     assert.ok(paths.has(path), `missing issue #363 target path ${path}`)
+  for (const path of removedMenuPaths)
+    assert.equal(paths.has(path), false, `removed legacy menu path ${path}`)
   assert.ok(paths.has('/app/workbench/query'), 'missing issue #366 APP Workbench path')
 })
 

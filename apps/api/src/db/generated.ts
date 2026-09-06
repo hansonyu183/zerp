@@ -229,31 +229,6 @@ export interface AppAuditEvents {
   target_type: string | null;
 }
 
-export interface AppBusinessMenuItems {
-  created_at: Generated<Timestamp>;
-  created_by: string | null;
-  display_name: string;
-  enabled: Generated<boolean>;
-  icon: string | null;
-  id: string;
-  item_level: number;
-  item_type: string;
-  parent_id: string | null;
-  permission_code: string | null;
-  route_key: string | null;
-  sort_order: number;
-  updated_at: Generated<Timestamp>;
-  updated_by: string | null;
-}
-
-export interface AppMenuSettings {
-  id: Generated<number>;
-  menu_mode: Generated<string>;
-  revision: Generated<Int8>;
-  updated_at: Generated<Timestamp>;
-  updated_by: string | null;
-}
-
 export interface AppPermissions {
   action: string;
   created_at: Generated<Timestamp>;
@@ -262,8 +237,6 @@ export interface AppPermissions {
   domain: string;
   entity: string;
   id: string;
-  menu_group: string | null;
-  menu_order: number | null;
   path: string;
   revision: Generated<Int8>;
   status: string;
@@ -1651,8 +1624,6 @@ export interface DB {
   acc_register_entries: AccRegisterEntries;
   acc_subjects: AccSubjects;
   app_audit_events: AppAuditEvents;
-  app_business_menu_items: AppBusinessMenuItems;
-  app_menu_settings: AppMenuSettings;
   app_permissions: AppPermissions;
   app_role_code_counters: AppRoleCodeCounters;
   app_role_permissions: AppRolePermissions;

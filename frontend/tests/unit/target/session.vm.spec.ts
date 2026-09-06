@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   changeTargetPassword,
   getTargetProfile,
-  getTargetMenu,
   restoreTargetSession,
   saveTargetProfile,
   signInTarget,
@@ -16,7 +15,6 @@ vi.mock('@/target/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/target/api')>()),
   changeTargetPassword: vi.fn(),
   getTargetProfile: vi.fn(),
-  getTargetMenu: vi.fn(),
   restoreTargetSession: vi.fn(),
   saveTargetProfile: vi.fn(),
   signInTarget: vi.fn(),
@@ -40,15 +38,6 @@ const profileData = {
   revision: '1',
 }
 
-const menuData = {
-  mode: 'DEFAULT' as const,
-  revision: '1',
-  defaultMenu: { items: [] },
-  businessMenu: { items: [] },
-  navigation: { items: [] },
-  availableRoutes: [],
-}
-
 function deferred<T>() {
   let resolve: (value: T) => void
   const promise = new Promise<T>((nextResolve) => {
@@ -62,29 +51,85 @@ describe('target session', () => {
     setActivePinia(createPinia())
     vi.mocked(changeTargetPassword).mockReset()
     vi.mocked(getTargetProfile).mockReset()
-    vi.mocked(getTargetMenu).mockReset()
     vi.mocked(restoreTargetSession).mockReset()
     vi.mocked(saveTargetProfile).mockReset()
     vi.mocked(signInTarget).mockReset()
     vi.mocked(signOutTarget).mockReset()
-    vi.mocked(getTargetMenu).mockResolvedValue(menuData)
   })
 
-  it('keeps an authenticated session when menu loading fails and exposes retry', async () => {
-    vi.mocked(restoreTargetSession).mockResolvedValue(sessionData)
-    vi.mocked(getTargetMenu)
-      .mockRejectedValueOnce(new Error('menu unavailable'))
-      .mockResolvedValueOnce(menuData)
+  it('derives every non-Session resource from apiPaths without loading a menu', async () => {
+    vi.mocked(restoreTargetSession).mockResolvedValue({
+      ...sessionData,
+      apiPaths: [
+        '/session/user/get',
+        '/app/user/create',
+        '/app/user/save',
+        '/bob/customer/get',
+        '/dcl/customer/query',
+      ],
+    })
     const session = useTargetSession()
 
     await expect(session.restore()).resolves.toBe(true)
-    expect(session.authenticated).toBe(true)
-    expect(session.menuError).toBe('菜单加载失败：menu unavailable')
 
-    await session.retryMenu()
+    expect(session.resourceGroups).toEqual([
+      {
+        domain: 'bob',
+        displayName: '业务资料',
+        resources: [
+          {
+            key: 'bob/customer',
+            domain: 'bob',
+            entity: 'customer',
+            displayName: '客户',
+            routePath: '/bob/customer',
+          },
+        ],
+      },
+      {
+        domain: 'app',
+        displayName: '系统管理',
+        resources: [
+          {
+            key: 'app/user',
+            domain: 'app',
+            entity: 'user',
+            displayName: '用户管理',
+            routePath: '/app/user',
+          },
+        ],
+      },
+      {
+        domain: 'dcl',
+        displayName: '申报资料',
+        resources: [
+          {
+            key: 'dcl/customer',
+            domain: 'dcl',
+            entity: 'customer',
+            displayName: '客户申报',
+            routePath: '/dcl/customer',
+          },
+        ],
+      },
+    ])
+    expect(session.hasResource('app', 'user')).toBe(true)
+    expect(session.hasResource('session', 'user')).toBe(false)
+  })
+
+  it('does not expose business resources while the session requires a password change', async () => {
+    vi.mocked(signInTarget).mockResolvedValue({
+      ...sessionData,
+      apiPaths: ['/app/user/create'],
+      passwordChangeRequired: true,
+    })
+    const session = useTargetSession()
+
+    await session.signIn('tester', 'secret')
+
     expect(session.authenticated).toBe(true)
-    expect(session.menuError).toBeNull()
-    expect(session.menu).toEqual(menuData)
+    expect(session.resourceGroups).toEqual([])
+    expect(session.hasResource('app', 'user')).toBe(false)
   })
 
   it('keeps the most recent sign-in when an earlier restore returns late', async () => {

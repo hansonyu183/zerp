@@ -29,25 +29,23 @@ const displayName = computed(() => session.user?.name || '用户')
 const initials = computed(
   () => displayName.value.trim().slice(0, 1).toUpperCase() || 'U',
 )
-const pageTitle = computed(() => String(route.meta.title || '工作台'))
-const isDark = computed(() => theme.global.name.value === 'zerpDark')
-const menuGroups = computed(() => {
-  const items = session.menus
-  const groups = items.filter((item) => item.type === 'GROUP' && item.enabled)
-  return groups.map((group) => ({
-    ...group,
-    children: items.filter(
-      (item) =>
-        item.type === 'ROUTE' && item.enabled && item.parentId === group.id,
-    ),
-  }))
+const currentResource = computed(() => {
+  const domain =
+    typeof route.params.domain === 'string' ? route.params.domain : ''
+  const entity =
+    typeof route.params.entity === 'string' ? route.params.entity : ''
+  return session.resourceGroups
+    .flatMap((group) => group.resources)
+    .find(
+      (resource) => resource.domain === domain && resource.entity === entity,
+    )
 })
-const directMenus = computed(() =>
-  session.menus.filter(
-    (item) => item.type === 'ROUTE' && item.enabled && item.parentId === null,
-  ),
+const pageTitle = computed(
+  () =>
+    currentResource.value?.displayName ??
+    String(route.meta.title || '业务功能'),
 )
-
+const isDark = computed(() => theme.global.name.value === 'zerpDark')
 async function openProfile(): Promise<void> {
   const request = ++accountRequest
   accountError.value = null
@@ -158,7 +156,8 @@ function onPasswordDialogChange(open: boolean): void {
 }
 
 async function loadTopbarProfile(): Promise<void> {
-  if (!session.user || !session.csrfToken) return
+  if (!session.user || !session.csrfToken || session.passwordChangeRequired)
+    return
   try {
     await session.getProfile()
   } catch {
@@ -166,14 +165,25 @@ async function loadTopbarProfile(): Promise<void> {
   }
 }
 
-watch([() => session.user, () => session.csrfToken ?? ''], () => {
-  accountRequest += 1
-  profileDialog.value = false
-  passwordDialog.value = false
-  accountError.value = null
-  clearAccountForms()
-  void loadTopbarProfile()
-})
+watch(
+  [
+    () => session.user,
+    () => session.csrfToken ?? '',
+    () => session.passwordChangeRequired,
+  ],
+  () => {
+    accountRequest += 1
+    profileDialog.value = false
+    passwordDialog.value = false
+    accountError.value = null
+    clearAccountForms()
+    if (session.passwordChangeRequired) {
+      void router.replace('/change-password')
+      return
+    }
+    void loadTopbarProfile()
+  },
+)
 
 function toggleTheme(): void {
   const next = isDark.value ? 'zerpLight' : 'zerpDark'
@@ -218,7 +228,7 @@ onBeforeUnmount(() => {
 <template>
   <v-app-bar class="topbar" elevation="0" height="64">
     <v-app-bar-nav-icon aria-label="切换导航" @click="drawer = !drawer" />
-    <div class="company" @click="router.push('/home/dashboard')">
+    <div class="company" @click="router.push('/')">
       <div class="company__mark">Z</div>
       <div class="company__copy">
         <strong>ZERP</strong><span>{{ branding.enterpriseName }}</span>
@@ -258,27 +268,22 @@ onBeforeUnmount(() => {
   <v-navigation-drawer v-model="drawer" width="288">
     <div class="sidebar-label">导航</div>
     <v-list nav class="px-3"
-      ><v-list-item
-        v-for="item in directMenus"
-        :key="item.id"
-        :prepend-icon="item.icon || 'mdi-view-dashboard-outline'"
-        :title="item.displayName"
-        :to="item.routePath || '/home/dashboard'"
-        rounded="lg" /><v-list-group
-        v-for="group in menuGroups"
-        :key="group.id"
-        :value="group.id"
+      ><v-list-group
+        v-for="group in session.resourceGroups"
+        :key="group.domain"
+        :value="group.domain"
         ><template #activator="{ props }"
           ><v-list-item
             v-bind="props"
-            :prepend-icon="group.icon || 'mdi-folder-outline'"
-            :title="group.displayName" /></template
+            prepend-icon="mdi-folder-outline"
+            :title="group.displayName"
+          ></v-list-item></template
         ><v-list-item
-          v-for="item in group.children"
-          :key="item.id"
-          :prepend-icon="item.icon || 'mdi-file-document-outline'"
-          :title="item.displayName"
-          :to="item.routePath || '/'"
+          v-for="resource in group.resources"
+          :key="resource.key"
+          prepend-icon="mdi-file-document-outline"
+          :title="resource.displayName"
+          :to="resource.routePath"
           rounded="lg" /></v-list-group
     ></v-list>
     <template #append
@@ -289,11 +294,6 @@ onBeforeUnmount(() => {
     ><div class="page-heading">ZERP / {{ pageTitle }}</div>
     <router-view
   /></v-main>
-  <AppSnackbar
-    action-label="重试"
-    :message="session.menuError"
-    @action="session.retryMenu"
-  />
   <AppSnackbar :message="accountError" @dismiss="accountError = null" />
   <v-dialog
     :model-value="profileDialog"

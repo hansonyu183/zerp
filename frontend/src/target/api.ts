@@ -59,10 +59,6 @@ export type TargetPermissionQueryInput = PostJson<
 export type TargetSystemParameterQueryInput = PostJson<
   (typeof client.app)['system-parameter']['query']['$post']
 >
-export type TargetMenuSaveInput = PostJson<
-  (typeof client.app.menu)['save-business']['$post']
->
-
 type WarehouseSubmitInput = PostJson<
   (typeof client.dcl.warehouse)['submit-new']['$post']
 >
@@ -535,14 +531,6 @@ export async function getTargetBranding() {
   )
 }
 
-export async function getTargetMenu(csrfToken: string) {
-  return unwrapTarget(
-    await (
-      await client.app.menu.get.$post({ json: {} }, csrfHeaders(csrfToken))
-    ).json(),
-  )
-}
-
 export async function getTargetProfile(csrfToken: string) {
   return unwrapTarget(
     await (
@@ -794,48 +782,6 @@ export async function resetTargetSystemParameter(
     await (
       await client.app['system-parameter'].reset.$post(
         { json: input },
-        csrfHeaders(csrfToken),
-      )
-    ).json(),
-  )
-}
-
-export async function saveTargetBusinessMenu(
-  csrfToken: string,
-  input: TargetMenuSaveInput,
-) {
-  return unwrapTarget(
-    await (
-      await client.app.menu['save-business'].$post(
-        { json: input },
-        csrfHeaders(csrfToken),
-      )
-    ).json(),
-  )
-}
-
-export async function activateTargetMenu(
-  csrfToken: string,
-  input: { mode: 'DEFAULT' | 'BUSINESS'; revision: number },
-) {
-  return unwrapTarget(
-    await (
-      await client.app.menu.activate.$post(
-        { json: input },
-        csrfHeaders(csrfToken),
-      )
-    ).json(),
-  )
-}
-
-export async function resetTargetBusinessMenu(
-  csrfToken: string,
-  revision: number,
-) {
-  return unwrapTarget(
-    await (
-      await client.app.menu['reset-business'].$post(
-        { json: { revision } },
         csrfHeaders(csrfToken),
       )
     ).json(),

@@ -137,8 +137,6 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
         ...permissionParts(permissionPath),
         description: permissionPath,
         status: 'ENABLED',
-        menu_group: null,
-        menu_order: null,
       })
       .execute()
   const password = `Target!${randomBytes(18).toString('base64url')}`

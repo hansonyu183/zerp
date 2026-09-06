@@ -3601,7 +3601,6 @@ export class ArchiveService {
         ? ('ENABLED' as const)
         : ('DISABLED' as const)
     const description = current?.name || subject.code
-    const menuOrder = 900_000 + Number(subject.code.slice(4))
     for (const action of ['query', 'export'] as const) {
       const path = `/rpt/${subject.code}/${action}`
       const id = `01J${createHash('sha256').update(path).digest('hex').slice(0, 23).toUpperCase()}`
@@ -3615,8 +3614,6 @@ export class ArchiveService {
           action,
           description,
           status,
-          menu_group: action === 'query' ? '报表' : null,
-          menu_order: action === 'query' ? menuOrder : null,
           created_by: actorId,
           updated_by: actorId,
         })
@@ -3624,8 +3621,6 @@ export class ArchiveService {
           conflict.column('path').doUpdateSet({
             status,
             description,
-            menu_group: action === 'query' ? '报表' : null,
-            menu_order: action === 'query' ? menuOrder : null,
             updated_at: new Date(),
             updated_by: actorId,
           }),

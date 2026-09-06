@@ -55,8 +55,6 @@ async function seedPermissions(
           ...item,
           description: item.path,
           status: 'ENABLED' as const,
-          menu_group: null,
-          menu_order: null,
         })),
       )
       .execute()
@@ -1249,28 +1247,6 @@ test('WFL definition, current, trial, instance and six actions cross the authent
     { subjectId },
   )
   assert.deepEqual(enabledDefinition.data.availableRuntimeActions, ['disable'])
-  const menuWithDynamicWorkflow = await post(
-    origin,
-    reviewerSession,
-    '/app/menu/get',
-    {},
-  )
-  assert.equal(
-    menuWithDynamicWorkflow.code,
-    0,
-    JSON.stringify({ payload: menuWithDynamicWorkflow, errors }),
-  )
-  assert.deepEqual(
-    menuWithDynamicWorkflow.data.availableRoutes.find(
-      (route: { routePath: string }) => route.routePath === '/wfl/http-flow',
-    ),
-    {
-      routeKey: 'wfl/http-flow',
-      routePath: '/wfl/http-flow',
-      displayName: 'HTTP 流程',
-      permissionCode: '/wfl/process-instance/query',
-    },
-  )
   assert.equal(
     (
       await post(origin, reviewerSession, '/wfl/process-definition/query', {

@@ -332,8 +332,6 @@ export class TargetBootstrapService {
             description: entry.title,
             status:
               previousPermissionByPath.get(entry.path)?.status ?? 'ENABLED',
-            menu_group: entry.group,
-            menu_order: entry.order,
           })),
         )
         .execute()
@@ -451,15 +449,6 @@ export class TargetBootstrapService {
       await transaction
         .deleteFrom('aux_objects')
         .where('created_by', '=', principal.userId)
-        .execute()
-      await transaction
-        .deleteFrom('app_business_menu_items')
-        .where('created_by', '=', principal.userId)
-        .execute()
-      await transaction
-        .updateTable('app_menu_settings')
-        .set({ updated_by: null })
-        .where('updated_by', '=', principal.userId)
         .execute()
       await transaction
         .deleteFrom('app_roles')

@@ -7,3 +7,4 @@
 - [#361 WFL Starlark Node/browser parity 证据](wfl-starlark-parity-issue-361.md)
 
 - [2026-09-06 #379 Session 契约切换验收](session-contract-issue-379-2026-09-06.md)
+- [2026-09-06 #380 权限导航与 Host 验收](navigation-host-issue-380-2026-09-06.md)

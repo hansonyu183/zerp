@@ -22,6 +22,7 @@
     "validate:rpt": "node scripts/validate-rpt-definitions.ts",
     "seed:online-test": "node scripts/seed-online-test-users.ts",
     "sync:catalog": "node scripts/sync-target-catalog.ts",
+    "cleanup:legacy-menu": "node scripts/cleanup-legacy-menu.ts",
     "e2e": "node scripts/run-target-e2e.ts"
   },
   "dependencies": {

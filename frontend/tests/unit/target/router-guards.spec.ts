@@ -6,8 +6,16 @@ import { createSessionGuard } from '@/target/router/guards.ts'
 import { createTargetRouter } from '@/target/router/index.ts'
 import { useTargetSession } from '@/target/session/vm.ts'
 
-describe('formal router session guard', () => {
+describe('target router session guard', () => {
   beforeEach(() => setActivePinia(createPinia()))
+
+  function authenticatedSession(apiPaths: string[] = []) {
+    const session = useTargetSession()
+    session.initialized = true
+    session.user = { id: 'u1', code: 'tester', name: '测试' }
+    session.apiPaths = apiPaths
+    return session
+  }
 
   it('preserves the complete same-site deep link for unauthenticated users', async () => {
     const router = createTargetRouter(createMemoryHistory())
@@ -18,121 +26,46 @@ describe('formal router session guard', () => {
     })
     router.beforeEach(createSessionGuard(session))
 
-    await router.push('/missing-page?tab=history#version-2')
+    await router.push('/bob/customer?tab=history#version-2')
     expect(router.currentRoute.value).toMatchObject({
       name: 'signin',
-      query: { redirect: '/missing-page?tab=history#version-2' },
+      query: { redirect: '/bob/customer?tab=history#version-2' },
     })
   })
 
   it('restricts forced-password sessions to the change-password page', async () => {
     const router = createTargetRouter(createMemoryHistory())
-    const session = useTargetSession()
-    session.initialized = true
-    session.user = {
-      id: 'u1',
-      code: 'tester',
-      name: '测试',
-    }
+    const session = authenticatedSession(['/bob/customer/query'])
     session.passwordChangeRequired = true
     router.beforeEach(createSessionGuard(session))
 
-    await router.push('/home/dashboard')
+    await router.push('/bob/customer')
     expect(router.currentRoute.value.name).toBe('change-password')
   })
 
-  it('distinguishes a known unauthorized menu route from an unknown route', async () => {
+  it('admits a resource with any exact action and rejects one with none', async () => {
     const router = createTargetRouter(createMemoryHistory())
-    const session = useTargetSession()
-    session.initialized = true
-    session.user = {
-      id: 'u1',
-      code: 'tester',
-      name: '测试',
-    }
-    session.menu = {
-      mode: 'DEFAULT',
-      revision: '1',
-      defaultMenu: { items: [] },
-      businessMenu: { items: [] },
-      navigation: { items: [] },
-      availableRoutes: [
-        {
-          routeKey: 'app/user',
-          routePath: '/app/user',
-          displayName: '用户管理',
-          permissionCode: '/app/user/query',
-        },
-      ],
-    }
+    const session = authenticatedSession(['/app/user/create'])
     router.beforeEach(createSessionGuard(session))
 
     await router.push('/app/user')
+    expect(router.currentRoute.value.name).toBe('resource-host')
+
+    await router.push('/bob/customer')
     expect(router.currentRoute.value.name).toBe('forbidden')
-    await router.push('/not-registered')
-    expect(router.currentRoute.value.name).toBe('not-found')
   })
 
-  it('admits menu management with any executable menu-management permission', async () => {
+  it('uses refreshed Session permissions for later direct navigation', async () => {
     const router = createTargetRouter(createMemoryHistory())
-    const session = useTargetSession()
-    session.initialized = true
-    session.user = {
-      id: 'u1',
-      code: 'tester',
-      name: '测试',
-    }
-    session.apiPaths = ['/app/menu/activate']
+    const session = authenticatedSession(['/dcl/customer/query'])
     router.beforeEach(createSessionGuard(session))
 
-    await router.push('/app/menu')
-    expect(router.currentRoute.value.name).toBe('page:app/menu')
-  })
+    await router.push('/dcl/customer')
+    expect(router.currentRoute.value.name).toBe('resource-host')
 
-  it('admits dynamic WFL and RPT routes only with exact server catalog and permissions', async () => {
-    const router = createTargetRouter(createMemoryHistory())
-    const session = useTargetSession()
-    session.initialized = true
-    session.user = {
-      id: 'u1',
-      code: 'tester',
-      name: '测试',
-    }
-    session.apiPaths = ['/wfl/process-instance/query', '/rpt/rpt-000001/query']
-    session.menu = {
-      mode: 'DEFAULT',
-      revision: '1',
-      defaultMenu: { items: [] },
-      businessMenu: { items: [] },
-      navigation: { items: [] },
-      availableRoutes: [
-        {
-          routeKey: 'wfl/sale-flow',
-          routePath: '/wfl/sale-flow',
-          displayName: '销售流程',
-          permissionCode: '/wfl/process-instance/query',
-        },
-        {
-          routeKey: 'rpt/rpt-000001',
-          routePath: '/rpt/rpt-000001',
-          displayName: '销售报表',
-          permissionCode: '/rpt/rpt-000001/query',
-        },
-      ],
-    }
-    router.beforeEach(createSessionGuard(session))
-
-    await router.push('/wfl/sale-flow')
-    expect(router.currentRoute.value.name).toBe('page:wfl/dynamic-process')
-    await router.push('/rpt/rpt-000001')
-    expect(router.currentRoute.value.name).toBe('page:rpt/dynamic-report')
-    await router.push('/wfl/disabled-flow')
-    expect(router.currentRoute.value.name).toBe('forbidden')
-    await router.push('/wfl/UPPER')
-    expect(router.currentRoute.value.name).toBe('forbidden')
-
-    session.apiPaths = ['/wfl/process-instance/query']
-    await router.push('/rpt/rpt-000001')
+    session.apiPaths = []
+    await router.push('/')
+    await router.push('/dcl/customer')
     expect(router.currentRoute.value.name).toBe('forbidden')
   })
 })

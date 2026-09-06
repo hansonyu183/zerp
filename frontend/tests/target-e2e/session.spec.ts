@@ -7,7 +7,7 @@ const screenshotDirectory = resolve(
   process.cwd(),
   '..',
   '.scratch',
-  'issue-379-session',
+  'issue-380-session',
 )
 
 async function signIn(page: Page): Promise<void> {

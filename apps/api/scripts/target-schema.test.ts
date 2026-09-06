@@ -26,8 +26,6 @@ test('isolated target schema contains every target typed aggregate', async () =>
       'app_audit_events',
       'app_role_code_counters',
       'app_system_parameters',
-      'app_menu_settings',
-      'app_business_menu_items',
       'object_number_counters',
       'aux_objects',
       'aux_reference_facts',
@@ -90,6 +88,11 @@ test('isolated target schema contains every target typed aggregate', async () =>
       'wfl_runtime_audits',
       'rpt_execution_audits',
     ],
+  )
+  assert.doesNotMatch(
+    schema,
+    /\b(?:menu_group|menu_order|app_menu_settings|app_business_menu_items)\b/,
+    'permission facts and the target schema must not retain menu-template state',
   )
   const vouDetails = [
     'sale-pricing',

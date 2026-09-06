@@ -270,15 +270,18 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
   assert.equal((await invalidSession.json()).errorKey, 'unauthenticated')
   assert.match(invalidSession.headers.getSetCookie()[0] ?? '', /Max-Age=0/)
 
-  const invalidIndependentRoute = await fetch(`${origin}/app/menu/get`, {
+  const invalidIndependentRoute = await fetch(
+    `${origin}/app/system-parameter/query`,
+    {
     method: 'POST',
     headers: {
       ...headers,
       cookie: 'zerp_session=invalid-session',
       'x-csrf-token': 'invalid-csrf',
     },
-    body: '{}',
-  })
+      body: JSON.stringify({ page: 1, pageSize: 20 }),
+    },
+  )
   assert.equal(
     (await invalidIndependentRoute.json()).errorKey,
     'unauthenticated',

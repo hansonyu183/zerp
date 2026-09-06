@@ -36,7 +36,7 @@ export function useSignInViewModel() {
       const redirect =
         typeof route.query.redirect === 'string' ? route.query.redirect : ''
       const safe = redirect.startsWith('/') && !redirect.startsWith('//')
-      await router.replace(safe ? redirect : '/home/dashboard')
+      await router.replace(safe ? redirect : '/')
     } catch (cause) {
       error.value = cause instanceof Error ? cause.message : '登录失败。'
     } finally {

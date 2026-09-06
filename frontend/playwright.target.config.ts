@@ -17,7 +17,7 @@ if (missing.length > 0)
 export default defineConfig({
   testDir: './tests/target-e2e',
   fullyParallel: false,
-  // Browser suites share fixture identities and mutable menu/catalog state.
+  // Browser suites share fixture identities.
   workers: 1,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,

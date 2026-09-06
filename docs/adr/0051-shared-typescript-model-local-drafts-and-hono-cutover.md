@@ -3,6 +3,7 @@ id: ADR-0051
 date: 2026-09-03
 status: accepted
 partially_supersedes: ADR-0004, ADR-0032, ADR-0045, ADR-0046, ADR-0047, ADR-0048
+partially_superseded_by: ADR-0052
 ---
 
 # 共享 TypeScript 模型、本地 Draft 与 Hono 一次性切换
@@ -15,7 +16,7 @@ Draft 与 Submission 是不同对象。Draft 只在已认证用户的当前浏�
 
 Approval 持久状态只有 `PENDING | APPROVED | REJECTED`。`approve` 使 `PENDING` 成为 `APPROVED`；`reject` 使 `PENDING` 成为 `REJECTED` 并要求原因；`unreject` 使 `REJECTED` 恢复 `PENDING` 并仅清除当前拒绝元数据；`unapprove` 使 `APPROVED` 恢复 `PENDING`，在同一事务撤销其业务效果并要求原因。开放 Submission 的删除是资源动作；界面“撤回”只编排该删除，不产生 `WITHDRAWN`。`DRAFT`、`WITHDRAWN`、`REVOKED` 和 `unsubmit` 均不是目标持久化状态或动作。拒绝的 Submission 不可编辑；改正先克隆为本地 Draft，再显式删除开放 Submission 并重新提交。
 
-HTTP 契约由可执行 Hono/Zod 路由定义：内部客户端类型来自 Hono route type，OpenAPI 由同一批路由生成。Hono route metadata 生成完整 APP 权限/菜单目录。Kysely 的服务器数据库类型通过完整 SQL schema 建立的可丢弃数据库内省生成，且始终是服务器专用类型。
+HTTP 契约由可执行 Hono/Zod 路由定义：内部客户端类型来自 Hono route type，OpenAPI 由同一批路由生成。Hono route metadata 生成 APP 精确 API 权限目录；它不生成菜单目录或前端页面目录。Navigation Resource 的来源、分组与页面装配由 ADR-0052 的 Session `apiPaths` 规则定义。Kysely 的服务器数据库类型通过完整 SQL schema 建立的可丢弃数据库内省生成，且始终是服务器专用类型。
 
 ## Topology and cutover boundary
 
@@ -27,4 +28,4 @@ WFL 的 Starlark 语义不是本票可假定迁移的实现细节。#361 必须�
 
 ## Superseded clauses
 
-本 ADR 显式取代 ADR-0004、ADR-0032、ADR-0045、ADR-0046、ADR-0047 与 ADR-0048 中关于服务端 `DRAFT`、候选保存/删除、`unsubmit`、旧 Approval 动作资格、前端仅展示 Approval、Go/OpenAPI YAML 为长期目标契约来源的条款。那些 ADR 仍保留其未冲突的业务所有权、精确引用、事务原子性、职责分离和 WFL/VOU 业务规则；当前领域规则以本 ADR 与 `docs/domains/` 为准。
+本 ADR 显式取代 ADR-0004、ADR-0032、ADR-0045、ADR-0046、ADR-0047 与 ADR-0048 中关于服务端 `DRAFT`、候选保存/删除、`unsubmit`、旧 Approval 动作资格、前端仅展示 Approval、Go/OpenAPI YAML 为长期目标契约来源的条款。ADR-0052 只部分取代本 ADR 将 Hono route metadata 用作完整 APP 权限/菜单目录的条款；本 ADR 保留 Hono/Zod 的契约来源、APP 精确权限目录、共享 TypeScript model、本地 Draft、审批状态、事务与一次性 cutover 边界。那些 ADR 仍保留其未冲突的业务所有权、精确引用、事务原子性、职责分离和 WFL/VOU 业务规则；当前领域规则以本 ADR 与 `docs/domains/` 为准。

@@ -23,9 +23,8 @@ try {
     entity: string
     action: string
     description: string
-    menu_order: number | null
   }>(
-    'SELECT id, path, domain, entity, action, description, menu_order FROM public.app_permissions ORDER BY path',
+    'SELECT id, path, domain, entity, action, description FROM public.app_permissions ORDER BY path',
   )
   assert.deepEqual(
     result.rows,
@@ -36,7 +35,6 @@ try {
       entity: entry.entity,
       action: entry.action,
       description: entry.title,
-      menu_order: entry.order,
     })),
     'target database permission catalog must be exactly generated from target route metadata',
   )

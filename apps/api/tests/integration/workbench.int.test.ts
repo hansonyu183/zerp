@@ -183,8 +183,6 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
         ...permissionParts(path),
         description: path,
         status: 'ENABLED' as const,
-        menu_group: null,
-        menu_order: null,
       },
     ]
   })

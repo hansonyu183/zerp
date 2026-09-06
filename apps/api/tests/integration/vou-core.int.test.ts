@@ -2061,8 +2061,6 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
         ...permissionParts(permissionPath),
         description: permissionPath,
         status: 'ENABLED',
-        menu_group: null,
-        menu_order: null,
       })
       .execute()
   const password = `Target!${randomBytes(18).toString('base64url')}`

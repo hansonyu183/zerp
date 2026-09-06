@@ -2,6 +2,7 @@
 id: ADR-0052
 date: 2026-09-06
 status: accepted
+partially_supersedes: ADR-0051
 ---
 
 # 独立 Session、权限驱动导航与动态业务页面的分片迁移
@@ -31,18 +32,28 @@ status: accepted
 
 DCL 不在目标能力矩阵中。当前 DCL 仍持有既有版本化业务资料的稳定身份、版本写入和正式资料读取边界，并继续按当前领域规则服务；它不是已经删除的领域，也不能为达成目标矩阵而被请求期过滤。后续切片逐一迁移实际业务对象并删除其 DCL 路由、权限、数据和专属页面后，才可收束 DCL 的当前边界。
 
-## First slice: #379
+## Completed Session slice: #379
 
 本 ADR 的当前首片只实施独立 Session：`/session/auth/signin`、`/session/auth/restore`、`/session/auth/signout`、`/session/user/get`、`/session/user/save`、`/session/user/change-password` 和 `/session/app/get`。登录使用 `code` 与密码；会话上下文只含用户 `id`、`code`、`name`、`apiPaths`、`csrfToken`、`passwordChangeRequired` 与 `passwordMinLength`。本人资料只由 principal 确定目标，并只允许名称与既有合法头像资料。
 
 本片直接替换 APP 旧的登录、恢复、退出、本人资料、改密和匿名品牌路径与响应字段。它保留现有用户事实、密码摘要、稳定 ID、角色关系、登录失败与锁定防护、Cookie/CSRF 规则、强制改密限制及密码变更后的会话失效。所有直接消费者切换到新会话上下文；旧路径、旧字段和别名不作为过渡层保留。
 
-动态菜单和 `app/user` 的 Host/Shell 重建不属于本片。当前菜单模板、菜单管理接口、现有导航和用户管理页面保持至各自后续票完成；它们不是本片新 Session 契约的输入或输出。首片也不执行 DCL 稳定身份、版本写入或正式资料读取向 BOB 的迁移，不迁移 ACC 期初至 VOU，也不迁移其他配置资料历史数据。
+动态菜单和 `app/user` 的 Host/Shell 重建不属于本片；它们在 #380 及后续票中直接切换。#379 不执行 DCL 稳定身份、版本写入或正式资料读取向 BOB 的迁移，不迁移 ACC 期初至 VOU，也不迁移其他配置资料历史数据。
+
+## Navigation slice: #380
+
+#380 删除 APP 菜单模板及其 API、权限、生成契约、数据库结构、启动同步、编辑页、专属测试和用例。前端保留现有 AppLayout 的侧栏、顶栏、分组和响应式呈现，但 Navigation Resource 仅由 Session 的非 Session `apiPaths` 装配；不读取或迁移旧菜单树，也不以页面登记、`query`、BusinessRegistry 或路由前缀筛选。
+
+唯一的动态 Resource Host 承载 `/:domain/:entity`。菜单、直达地址和 Session 刷新后的权限变化先以同一个 Navigation Resource 判定资格，之后才装配登记页面。首次进入、关闭后重开和权限变化后的重开都是独立实例；撤销资源权限销毁已挂载实例，卸载或退出后的异步结果被忽略。Host 不缓存页面、不轮询、不保留全局编辑器，也不为旧页面提供别名或回退。
+
+本票的 Registry 刻意为空。因此所有已授权的非 Session 资源都仍显示入口和明确的尚未实现状态，尤其 `app/user` 不能宣称其旧管理页面已经交付；用户页面的公共 Shell、VM 和登记由下一票完成。未迁移资源的既有 API、领域规则和服务端精确鉴权仍然存在，未实现页面不等于资源不存在、无权限或空查询结果。
+
+#380 不执行 DCL→BOB、ACC 期初→VOU 或配置资料历史迁移，也不把这些目标写成当前已完成事实。
 
 ## ADR conflicts and deferred replacements
 
 ADR-0046《DCL 是申报版本的唯一写入方》与 ADR-0047《DCL Subject 是版本化业务对象的唯一稳定身份》把版本化业务资料的写入和稳定身份集中于 DCL；这与目标的 DCL→BOB 归属收口冲突。#379 不迁移任何业务资料、数据库事实或业务写入口，因此不替代这两份 ADR 的任何现行条款。后续迁移票必须在完成每个可验收业务切片时，明确列出被替代的实体、数据、路由、权限和清理证据，并以互相指向的部分取代关系更新对应 ADR。
 
-ADR-0051《共享 TypeScript 模型、本地 Draft 与 Hono 一次性切换》把 Hono route metadata 作为完整 APP 权限/菜单目录的来源；这与目标菜单只从会话 `apiPaths` 装配的条款冲突。#379 不改变菜单来源或菜单 API，故不替代 ADR-0051 的该条款。动态入口票完成直接切换后，必须以互相指向的部分取代关系更新 ADR-0051，并保留其 Hono/Zod 契约来源、共享 TypeScript model、本地 Draft、审批状态、事务与 cutover 边界。
+ADR-0051《共享 TypeScript 模型、本地 Draft 与 Hono 一次性切换》把 Hono route metadata 作为完整 APP 权限/菜单目录的来源；这与导航只从会话 `apiPaths` 装配的条款冲突。#380 以互相指向的部分取代关系替代该菜单来源条款：Hono/Zod 仍是唯一 HTTP 契约来源，Hono metadata 仍定义精确 API 权限目录；菜单来源、分组与页面装配改由本 ADR 定义。ADR-0051 的共享 TypeScript model、本地 Draft、审批状态、事务与 cutover 边界继续有效。
 
 本 ADR 不把未来目标写成当前事实。`docs/domains/` 的现行规则优先；每个后续切片只在其实际改变的条款、契约、实现和清理均完成时更新权威文档与 ADR 关系。

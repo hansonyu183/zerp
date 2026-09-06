@@ -30,10 +30,10 @@ async function signIn(
   path: string,
 ) {
   await page.goto(path)
-  await page.getByLabel('用户名').fill(username)
+  await page.getByLabel('用户编码').fill(username)
   await page.getByLabel('密码').fill(password)
   await page.getByRole('button', { name: '登录' }).click()
-  await expect(page.getByLabel('用户名')).toHaveCount(0)
+  await expect(page.getByLabel('用户编码')).toHaveCount(0)
   await page.waitForLoadState('networkidle')
 }
 

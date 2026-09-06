@@ -60,10 +60,10 @@ async function expectSuccess<Data = unknown>(
 
 async function signIn(page: Page) {
   await page.goto('/signin')
-  await page.getByLabel('用户名').fill(process.env.TARGET_E2E_USERNAME!)
+  await page.getByLabel('用户编码').fill(process.env.TARGET_E2E_USERNAME!)
   await page.getByLabel('密码').fill(process.env.TARGET_E2E_PASSWORD!)
   await page.getByRole('button', { name: '登录', exact: true }).click()
-  await expect(page.getByLabel('用户名')).toHaveCount(0)
+  await expect(page.getByLabel('用户编码')).toHaveCount(0)
 }
 
 async function selectVuetifyOption(

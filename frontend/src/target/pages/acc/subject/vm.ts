@@ -361,7 +361,7 @@ export function useAccSubjectViewModel() {
       'Accounting subject page requires an authenticated session.',
     )
   return createAccSubjectViewModel(
-    { csrfToken: session.csrfToken, permissions: session.permissions },
+    { csrfToken: session.csrfToken, permissions: session.apiPaths },
     {
       books: queryTargetAccBooks,
       query: queryTargetAccSubjects,

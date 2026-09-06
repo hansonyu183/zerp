@@ -70,7 +70,7 @@ test('returns the standard envelope for recovery, model mismatch, and oversized 
   })
 
   const recovered = await app.request('/panic')
-  const mismatch = await app.request('/app/user/session', { method: 'POST' })
+  const mismatch = await app.request('/session/auth/restore', { method: 'POST' })
   const oversized = await app.request('/echo', {
     method: 'POST',
     headers: { 'Content-Length': '2' },

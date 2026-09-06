@@ -123,7 +123,12 @@ export function createApp(options: CreateAppOptions = {}) {
         ),
     }),
   )
-  app.use('/app/*', async (context, next) => {
+  app.use('*', async (context, next) => {
+    if (
+      !context.req.path.startsWith('/app/') &&
+      !context.req.path.startsWith('/session/')
+    )
+      return next()
     if (context.req.header('X-ZERP-Model-Build') !== modelBuildId) {
       return context.json(
         envelope(

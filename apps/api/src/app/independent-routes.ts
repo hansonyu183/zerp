@@ -115,7 +115,7 @@ export function createIndependentHandlers(
       const input = asInput(await context.req.json())
       try {
         const management = required(services.management, 'APP management')
-        if (path === '/app/branding/get')
+        if (path === '/session/app/get')
           return context.json(
             success(requestId, await management.getBranding()),
             200,
@@ -124,25 +124,25 @@ export function createIndependentHandlers(
         const principal = await authenticate(context, path)
         let data: unknown
         switch (path) {
-          case '/app/user/signout':
+          case '/session/auth/signout':
             await services.session.signout(principal, requestId)
             clearSessionCookie(context, services.config)
             data = {}
             break
-          case '/app/user/profile':
-            data =
-              Object.keys(input).length === 0
-                ? await services.session.getProfile(principal)
-                : await services.session.saveProfile(
-                    principal,
-                    {
-                      displayName: text(input, 'displayName'),
-                      avatarUrl: input.avatarUrl as string | null | undefined,
-                    },
-                    requestId,
-                  )
+          case '/session/user/get':
+            data = await services.session.getProfile(principal)
             break
-          case '/app/user/change-password':
+          case '/session/user/save':
+            data = await services.session.saveProfile(
+              principal,
+              {
+                name: text(input, 'name'),
+                avatarUrl: input.avatarUrl as string | null | undefined,
+              },
+              requestId,
+            )
+            break
+          case '/session/user/change-password':
             await services.session.changePassword(
               principal,
               {
@@ -326,7 +326,7 @@ export function createIndependentHandlers(
         const principal = await authenticate(context, binding.permission)
         const actor = {
           id: principal.user.id,
-          permissions: principal.permissions,
+          permissions: principal.apiPaths,
         }
         if (!('entity' in binding))
           return context.json(
@@ -389,7 +389,7 @@ export function createIndependentHandlers(
         const principal = await authenticate(context, binding.permission)
         const actor = {
           id: principal.user.id,
-          permissions: principal.permissions,
+          permissions: principal.apiPaths,
         }
         const data =
           'entity' in binding

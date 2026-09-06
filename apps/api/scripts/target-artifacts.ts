@@ -102,6 +102,7 @@ function executableTargetPaths() {
         'GET /healthz',
         'GET /readyz',
         ' /app/',
+        ' /session/',
         ' /aux/',
         ' /dcl/',
         ' /bob/',

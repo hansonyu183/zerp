@@ -4,6 +4,7 @@ import test from 'node:test'
 
 import { serve } from '@hono/node-server'
 import { modelBuildId } from '@zerp/model'
+import { createTargetApiClient } from '../../../../packages/api-client/src/index.ts'
 
 import { createApp } from '../../src/app.ts'
 import { TargetBootstrapService } from '../../src/app/bootstrap.ts'
@@ -214,6 +215,16 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   }
   let cookie = ''
   let csrf = ''
+  const sessionClient = createTargetApiClient({
+    baseUrl: origin,
+    modelBuildId,
+    fetch: (input, init) => {
+      const headers = new Headers(init?.headers)
+      headers.set('connection', 'close')
+      if (cookie) headers.set('cookie', cookie)
+      return fetch(input, { ...init, headers })
+    },
+  })
 
   context.after(async () => {
     await new Promise<void>((resolve, reject) => {
@@ -318,22 +329,16 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     }>
   }
 
-  const branding = await post('/app/branding/get', {}, false)
+  const branding = await (
+    await sessionClient.session.app.get.$post({ json: {} })
+  ).json()
   assert.equal(branding.code, 0)
   assert.equal(branding.data.enterpriseName, 'ZERP 演示企业')
 
-  const signin = await fetch(`${origin}/app/user/signin`, {
-    method: 'POST',
-    headers: baseHeaders,
-    body: JSON.stringify({
-      username: principal.username,
-      password: 'Target!Password363',
-    }),
+  const signin = await sessionClient.session.auth.signin.$post({
+    json: { code: principal.username, password: 'Target!Password363' },
   })
-  const signinPayload = (await signin.json()) as {
-    code: number
-    data: { csrfToken: string }
-  }
+  const signinPayload = await signin.json()
   assert.equal(signinPayload.code, 0)
   cookie = signin.headers.getSetCookie()[0] ?? ''
   csrf = signinPayload.data.csrfToken
@@ -655,8 +660,11 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   })
   assert.equal(subunits.data[0].objectId, subunitId)
 
-  const signoutResponse = await postResponse('/app/user/signout', {})
-  const signout = (await signoutResponse.json()) as { code: number }
+  const signoutResponse = await sessionClient.session.auth.signout.$post(
+    { json: {} },
+    { headers: { 'X-CSRF-Token': csrf } },
+  )
+  const signout = await signoutResponse.json()
   assert.equal(signout.code, 0)
   assert.match(signoutResponse.headers.getSetCookie()[0] ?? '', /Max-Age=0/)
   const afterSignout = await post('/app/menu/get', {})

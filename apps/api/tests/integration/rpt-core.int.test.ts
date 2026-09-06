@@ -4,6 +4,7 @@ import test from 'node:test'
 import { serve } from '@hono/node-server'
 import { argon2idAsync } from '@noble/hashes/argon2.js'
 import { modelBuildId } from '@zerp/model'
+import { createTargetApiClient } from '../../../../packages/api-client/src/index.ts'
 import pg from 'pg'
 import { ulid } from 'ulid'
 
@@ -316,14 +317,9 @@ test('RPT executes only latest approved enabled valid definition and enforces co
   const address = server.address()
   assert.ok(address && typeof address !== 'string')
   const origin = `http://127.0.0.1:${address.port}`
-  const signin = await fetch(`${origin}/app/user/signin`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-zerp-model-build': modelBuildId,
-      connection: 'close',
-    },
-    body: JSON.stringify({ username, password }),
+  const client = createTargetApiClient({ baseUrl: origin, modelBuildId })
+  const signin = await client.session.auth.signin.$post({
+    json: { code: username, password },
   })
   const signedIn = await signin.json()
   assert.equal(signedIn.code, 0)

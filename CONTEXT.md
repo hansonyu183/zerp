@@ -6,6 +6,11 @@ ZERP uses shared business terms across its auxiliary-data, business-object, vouc
 
 ## Authorization
 
+**Session Context（会话上下文）**:
+已认证会话对浏览器提供的当前用户身份、精确可调用 API 路径、CSRF 凭证与强制改密状态；它是登录与恢复后唯一的会话事实，不是用户资料、菜单树或权限授予的替代来源。
+_Avoid_: `permissions` 别名、通配权限、旧账号会话、把菜单或个人资料塞入会话上下文
+_Authority_: [APP 最终权限计算](docs/domains/app.md#4-最终权限计算)
+
 **Delegation Ceiling（授权上限）**:
 管理员可以向他人授予的权限范围。
 _Avoid_: 角色管理权限等于全部权限、可授予未拥有权限

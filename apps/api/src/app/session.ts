@@ -53,12 +53,11 @@ export interface Principal {
   sessionId: string
   user: {
     id: string
-    username: string
-    displayName: string
-    avatarUrl: string | null
+    code: string
+    name: string
   }
   csrfToken: string
-  permissions: string[]
+  apiPaths: string[]
   passwordChangeRequired: boolean
   passwordMinLength: number
   absoluteExpiresAt: Date
@@ -138,11 +137,8 @@ function requirePassword(password: string, minimum: number) {
     throw new AppServiceError('validation_failed', 'invalid password')
 }
 
-function normalizedProfile(input: {
-  displayName: string
-  avatarUrl?: string | null
-}) {
-  const displayName = input.displayName.trim()
+function normalizedProfile(input: { name: string; avatarUrl?: string | null }) {
+  const displayName = input.name.trim()
   if ([...displayName].length < 1 || [...displayName].length > 128)
     throw new AppServiceError('validation_failed', 'invalid display name')
   const avatar = input.avatarUrl?.trim()
@@ -175,12 +171,11 @@ export class SessionService {
   }
 
   async signin(
-    username: string,
+    code: string,
     password: string,
   ): Promise<{ principal: Principal; token: string }> {
     const user = await this.db
       .selectFrom('app_users as u')
-      .leftJoin('app_user_profiles as p', 'p.user_id', 'u.id')
       .select([
         'u.id',
         'u.username',
@@ -190,9 +185,8 @@ export class SessionService {
         'u.failed_signin_count',
         'u.locked_until',
         'u.password_change_required',
-        'p.avatar_url',
       ])
-      .where(sql`lower(u.username)`, '=', username.trim().toLowerCase())
+      .where(sql`lower(u.username)`, '=', code.trim().toLowerCase())
       .executeTakeFirst()
     // Always perform an Argon2 calculation for an unknown username. The encoded
     // value is deliberately a valid fixed-cost hash, not a fast failure path.
@@ -265,19 +259,18 @@ export class SessionService {
         absolute_expires_at: absoluteExpiresAt,
       })
       .execute()
-    const permissions = await this.permissions(user.id)
+    const apiPaths = await this.permissions(user.id)
     return {
       token,
       principal: {
         sessionId,
         user: {
           id: user.id,
-          username: user.username,
-          displayName: user.display_name,
-          avatarUrl: user.avatar_url,
+          code: user.username,
+          name: user.display_name,
         },
         csrfToken,
-        permissions,
+        apiPaths,
         passwordChangeRequired: user.password_change_required,
         passwordMinLength: this.config.passwordMinLength,
         absoluteExpiresAt,
@@ -295,7 +288,6 @@ export class SessionService {
     const row = await this.db
       .selectFrom('app_sessions as s')
       .innerJoin('app_users as u', 'u.id', 's.user_id')
-      .leftJoin('app_user_profiles as p', 'p.user_id', 'u.id')
       .select([
         's.id as session_id',
         's.csrf_token_hash',
@@ -307,7 +299,6 @@ export class SessionService {
         'u.display_name',
         'u.status',
         'u.password_change_required',
-        'p.avatar_url',
       ])
       .where('s.token_hash', '=', hash(token))
       .executeTakeFirst()
@@ -329,9 +320,9 @@ export class SessionService {
       row.password_change_required &&
       path &&
       ![
-        '/app/user/session',
-        '/app/user/signout',
-        '/app/user/change-password',
+        '/session/auth/restore',
+        '/session/auth/signout',
+        '/session/user/change-password',
       ].includes(path)
     )
       throw new SessionError('forbidden')
@@ -350,12 +341,11 @@ export class SessionService {
       sessionId: row.session_id,
       user: {
         id: row.user_id,
-        username: row.username,
-        displayName: row.display_name,
-        avatarUrl: row.avatar_url,
+        code: row.username,
+        name: row.display_name,
       },
       csrfToken: csrf,
-      permissions: await this.permissions(row.user_id),
+      apiPaths: await this.permissions(row.user_id),
       passwordChangeRequired: row.password_change_required,
       passwordMinLength: this.config.passwordMinLength,
       absoluteExpiresAt: row.absolute_expires_at,
@@ -399,8 +389,8 @@ export class SessionService {
     if (!row) throw new SessionError('unauthenticated')
     return {
       id: row.id,
-      username: row.username,
-      displayName: row.display_name,
+      code: row.username,
+      name: row.display_name,
       avatarUrl: row.avatar_url,
       passwordChangedAt: row.password_changed_at.toISOString(),
       revision: String(row.revision),
@@ -409,7 +399,7 @@ export class SessionService {
 
   async saveProfile(
     principal: Principal,
-    input: { displayName: string; avatarUrl?: string | null },
+    input: { name: string; avatarUrl?: string | null },
     requestId: string,
   ) {
     const profile = normalizedProfile(input)
@@ -470,10 +460,7 @@ export class SessionService {
             }),
           )
           .execute()
-      if (
-        displayNameChanged ||
-        avatarChanged
-      )
+      if (displayNameChanged || avatarChanged)
         await this.audit(
           tx,
           'USER_PROFILE_SAVE',
@@ -492,8 +479,8 @@ export class SessionService {
           : current.revision
       return {
         id: current.id,
-        username: current.username,
-        displayName: profile.displayName,
+        code: current.username,
+        name: profile.displayName,
         avatarUrl: profile.avatarUrl,
         passwordChangedAt: current.password_changed_at.toISOString(),
         revision: String(changed),

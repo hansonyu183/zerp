@@ -608,7 +608,7 @@ export function useArchiveWorkspaceViewModel(entity: OrdinaryArchiveEntity) {
     {
       ownerUserId: session.user.id,
       csrfToken: session.csrfToken,
-      permissions: session.permissions,
+      permissions: session.apiPaths,
     },
     {
       drafts: {

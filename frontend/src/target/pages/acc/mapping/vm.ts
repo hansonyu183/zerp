@@ -191,7 +191,7 @@ export function useAccMappingViewModel() {
       'Accounting mapping page requires an authenticated session.',
     )
   return createAccMappingViewModel(
-    { csrfToken: session.csrfToken, permissions: session.permissions },
+    { csrfToken: session.csrfToken, permissions: session.apiPaths },
     {
       books: queryTargetAccBooks,
       catalog: queryTargetAccMappingCatalog,

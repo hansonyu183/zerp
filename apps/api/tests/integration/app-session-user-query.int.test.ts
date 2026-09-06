@@ -12,6 +12,7 @@ import { createDatabase } from '../../src/db/database.ts'
 import { AccMappingCatalogService } from '../../src/acc/mapping-catalog.ts'
 import { loadConfig } from '../../src/platform/config.ts'
 import { modelBuildId } from '@zerp/model'
+import { createTargetApiClient } from '../../../../packages/api-client/src/index.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
 
@@ -260,11 +261,12 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
     connection: 'close',
   }
 
-  const invalidSession = await fetch(`${origin}/app/user/session`, {
+  const invalidSession = await fetch(`${origin}/session/auth/restore`, {
     method: 'POST',
     headers: { ...headers, cookie: 'zerp_session=invalid-session' },
     body: '{}',
   })
+  assert.equal(invalidSession.status, 200)
   assert.equal((await invalidSession.json()).errorKey, 'unauthenticated')
   assert.match(invalidSession.headers.getSetCookie()[0] ?? '', /Max-Age=0/)
 
@@ -286,24 +288,66 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
     /Max-Age=0/,
   )
 
-  const unknown = await fetch(`${origin}/app/user/signin`, {
+  const unknown = await fetch(`${origin}/session/auth/signin`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ username, password, unexpected: true }),
+    body: JSON.stringify({ code: username, password, unexpected: true }),
   })
   assert.equal(unknown.status, 200)
   assert.equal((await unknown.json()).errorKey, 'validation_failed')
 
-  const signin = await fetch(`${origin}/app/user/signin`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ username, password }),
+  let cookie = ''
+  const client = createTargetApiClient({
+    baseUrl: origin,
+    modelBuildId,
+    fetch: async (input, init) => {
+      const requestHeaders = new Headers(init?.headers)
+      if (cookie) requestHeaders.set('cookie', cookie)
+      const response = await fetch(input, { ...init, headers: requestHeaders })
+      cookie = response.headers.getSetCookie()[0] ?? cookie
+      return response
+    },
+  })
+  const startup = await client.session.app.get.$post({ json: {} })
+  assert.equal(startup.status, 200)
+  assert.equal((await startup.json()).code, 0)
+
+  for (const legacyRoute of [
+    '/app/branding/get',
+    '/app/user/change-password',
+    '/app/user/profile',
+    '/app/user/session',
+    '/app/user/signin',
+    '/app/user/signout',
+  ]) {
+    const response = await fetch(`${origin}${legacyRoute}`, {
+      method: 'POST',
+      headers,
+      body: '{}',
+    })
+    assert.equal(response.status, 404, `${legacyRoute} must not remain an alias`)
+  }
+  const signin = await client.session.auth.signin.$post({
+    json: { code: username, password },
   })
   assert.equal(signin.status, 200)
-  const cookie = signin.headers.getSetCookie()[0]
+  cookie = signin.headers.getSetCookie()[0] ?? cookie
   assert.ok(cookie)
   const signinPayload = await signin.json()
   assert.equal(signinPayload.code, 0)
+  assert.deepEqual(Object.keys(signinPayload.data).sort(), [
+    'apiPaths',
+    'csrfToken',
+    'passwordChangeRequired',
+    'passwordMinLength',
+    'user',
+  ])
+  assert.deepEqual(Object.keys(signinPayload.data.user).sort(), [
+    'code',
+    'id',
+    'name',
+  ])
+  assert.deepEqual(signinPayload.data.apiPaths, [])
   assert.equal(
     await db
       .selectFrom('app_sessions')
@@ -320,11 +364,7 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
     .set({ idle_expires_at: beforeRestore })
     .where('user_id', '=', id)
     .execute()
-  const session = await fetch(`${origin}/app/user/session`, {
-    method: 'POST',
-    headers: { ...headers, cookie },
-    body: '{}',
-  })
+  const session = await client.session.auth.restore.$post({ json: {} })
   const sessionPayload = await session.json()
   assert.equal(sessionPayload.code, 0)
   assert.equal(typeof sessionPayload.data.csrfToken, 'string')
@@ -338,7 +378,7 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
     ).idle_expires_at > beforeRestore,
   )
 
-  const invalidProfile = await fetch(`${origin}/app/user/profile`, {
+  const invalidProfile = await fetch(`${origin}/session/user/save`, {
     method: 'POST',
     headers: {
       ...headers,
@@ -352,44 +392,74 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
   assert.equal(invalidProfile.status, 200)
   assert.equal((await invalidProfile.json()).errorKey, 'validation_failed')
 
-  const profileRequest = (body: unknown) =>
-    fetch(`${origin}/app/user/profile`, {
-      method: 'POST',
-      headers: {
-        ...headers,
-        cookie,
-        'x-csrf-token': sessionPayload.data.csrfToken,
-      },
-      body: JSON.stringify(body),
-    })
-  const initialProfile = await (await profileRequest({})).json()
-  const avatarProfile = await (
-    await profileRequest({
-      displayName: initialProfile.data.displayName,
-      avatarUrl: 'https://images.example.com/avatar.png',
-    })
+  const outOfBoundsProfile = await fetch(`${origin}/session/user/save`, {
+    method: 'POST',
+    headers: {
+      ...headers,
+      cookie,
+      'x-csrf-token': sessionPayload.data.csrfToken,
+    },
+    body: JSON.stringify({
+      name: 'attempted escalation',
+      avatarUrl: null,
+      id: '01J00000000000000000000001',
+      code: 'other-user',
+      roleIds: [],
+      enabled: true,
+      mode: 'ADMIN',
+    }),
+  })
+  assert.equal(outOfBoundsProfile.status, 200)
+  assert.equal((await outOfBoundsProfile.json()).errorKey, 'validation_failed')
+
+  const csrfHeaders = { headers: { 'X-CSRF-Token': sessionPayload.data.csrfToken } }
+  const initialProfile = await (
+    await client.session.user.get.$post({ json: {} }, csrfHeaders)
   ).json()
+  assert.equal(initialProfile.code, 0)
+  assert.deepEqual(Object.keys(initialProfile.data).sort(), [
+    'avatarUrl',
+    'code',
+    'id',
+    'name',
+    'passwordChangedAt',
+    'revision',
+  ])
+  const avatarProfile = await (
+    await client.session.user.save.$post(
+      {
+        json: {
+          name: initialProfile.data.name,
+          avatarUrl: 'https://images.example.com/avatar.png',
+        },
+      },
+      csrfHeaders,
+    )
+  ).json()
+  assert.equal(avatarProfile.code, 0)
   assert.equal(
     BigInt(avatarProfile.data.revision),
     BigInt(initialProfile.data.revision) + 1n,
   )
   const clearedProfile = await (
-    await profileRequest({
-      displayName: initialProfile.data.displayName,
-      avatarUrl: null,
-    })
+    await client.session.user.save.$post(
+      { json: { name: initialProfile.data.name, avatarUrl: null } },
+      csrfHeaders,
+    )
   ).json()
+  assert.equal(clearedProfile.code, 0)
   assert.equal(clearedProfile.data.avatarUrl, null)
   assert.equal(
     BigInt(clearedProfile.data.revision),
     BigInt(avatarProfile.data.revision) + 1n,
   )
   const unchangedProfile = await (
-    await profileRequest({
-      displayName: initialProfile.data.displayName,
-      avatarUrl: null,
-    })
+    await client.session.user.save.$post(
+      { json: { name: initialProfile.data.name, avatarUrl: null } },
+      csrfHeaders,
+    )
   ).json()
+  assert.equal(unchangedProfile.code, 0)
   assert.equal(unchangedProfile.data.revision, clearedProfile.data.revision)
 
   const query = {
@@ -572,11 +642,35 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
   assert.ok(permission.id)
 
   await db
+    .deleteFrom('app_role_permissions')
+    .where('role_id', '=', roleId)
+    .where('permission_id', '=', permission.id)
+    .execute()
+  const revokedQuery = await fetch(`${origin}/app/user/query`, {
+    method: 'POST',
+    headers: {
+      ...headers,
+      cookie,
+      'x-csrf-token': sessionPayload.data.csrfToken,
+    },
+    body: JSON.stringify(query),
+  })
+  assert.equal((await revokedQuery.json()).errorKey, 'forbidden')
+  const revokedRestore = await client.session.auth.restore.$post({ json: {} })
+  const revokedRestorePayload = await revokedRestore.json()
+  assert.equal(revokedRestorePayload.code, 0)
+  assert.ok(!revokedRestorePayload.data.apiPaths.includes('/app/user/query'))
+  await db
+    .insertInto('app_role_permissions')
+    .values({ role_id: roleId, permission_id: permission.id })
+    .execute()
+
+  await db
     .updateTable('app_sessions')
     .set({ idle_expires_at: new Date(Date.now() - 1_000) })
     .where('user_id', '=', id)
     .execute()
-  const expiredIndependentRoute = await fetch(`${origin}/app/user/profile`, {
+  const expiredIndependentRoute = await fetch(`${origin}/session/user/get`, {
     method: 'POST',
     headers: {
       ...headers,
@@ -593,4 +687,122 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
     expiredIndependentRoute.headers.getSetCookie()[0] ?? '',
     /Max-Age=0/,
   )
+
+  const renewed = await client.session.auth.signin.$post({
+    json: { code: username, password },
+  })
+  const renewedPayload = await renewed.json()
+  assert.equal(renewedPayload.code, 0)
+  const firstSessionCookie = cookie
+  const secondSession = await client.session.auth.signin.$post({
+    json: { code: username, password },
+  })
+  assert.equal((await secondSession.json()).code, 0)
+  await db
+    .updateTable('app_users')
+    .set({ password_change_required: true })
+    .where('id', '=', id)
+    .execute()
+  const restricted = await client.session.auth.restore.$post({ json: {} })
+  const restrictedPayload = await restricted.json()
+  assert.equal(restrictedPayload.code, 0)
+  assert.equal(restrictedPayload.data.passwordChangeRequired, true)
+  const restrictedHeaders = {
+    headers: { 'X-CSRF-Token': restrictedPayload.data.csrfToken },
+  }
+  const restrictedGet = await client.session.user.get.$post(
+    { json: {} },
+    restrictedHeaders,
+  )
+  assert.equal((await restrictedGet.json()).errorKey, 'forbidden')
+  const restrictedSave = await client.session.user.save.$post(
+    { json: { name: 'not allowed', avatarUrl: null } },
+    restrictedHeaders,
+  )
+  assert.equal((await restrictedSave.json()).errorKey, 'forbidden')
+  const restrictedQuery = await fetch(`${origin}/app/user/query`, {
+    method: 'POST',
+    headers: {
+      ...headers,
+      cookie,
+      'x-csrf-token': restrictedPayload.data.csrfToken,
+    },
+    body: JSON.stringify(query),
+  })
+  assert.equal((await restrictedQuery.json()).errorKey, 'forbidden')
+  const passwordAttempt = await client.session.user['change-password'].$post(
+    {
+      json: {
+        currentPassword: 'not the current password',
+        newPassword: 'Target!ReplacementPassword1',
+      },
+    },
+    restrictedHeaders,
+  )
+  const passwordAttemptPayload = await passwordAttempt.json()
+  assert.equal(passwordAttemptPayload.errorKey, 'invalid_current_password')
+  const changedPassword = 'Target!ReplacementPassword1'
+  const passwordChange = await client.session.user['change-password'].$post(
+    { json: { currentPassword: password, newPassword: changedPassword } },
+    restrictedHeaders,
+  )
+  assert.equal((await passwordChange.json()).code, 0)
+  assert.equal(
+    await db
+      .selectFrom('app_sessions')
+      .select('id')
+      .where('user_id', '=', id)
+      .where('revoked_at', 'is not', null)
+      .execute()
+      .then((rows) => rows.length),
+    3,
+  )
+  for (const oldCookie of [firstSessionCookie, cookie]) {
+    const oldRestore = await fetch(`${origin}/session/auth/restore`, {
+      method: 'POST',
+      headers: { ...headers, cookie: oldCookie },
+      body: '{}',
+    })
+    assert.equal((await oldRestore.json()).errorKey, 'unauthenticated')
+  }
+  const newSignin = await client.session.auth.signin.$post({
+    json: { code: username, password: changedPassword },
+  })
+  const newSigninPayload = await newSignin.json()
+  assert.equal(newSigninPayload.code, 0)
+  const signout = await client.session.auth.signout.$post(
+    { json: {} },
+    { headers: { 'X-CSRF-Token': newSigninPayload.data.csrfToken } },
+  )
+  assert.equal((await signout.json()).code, 0)
+  assert.match(signout.headers.getSetCookie()[0] ?? '', /Max-Age=0/)
+
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    const badSignin = await fetch(`${origin}/session/auth/signin`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ code: username, password: 'incorrect password' }),
+    })
+    assert.equal(
+      (await badSignin.json()).errorKey,
+      attempt === 5 ? 'account_locked' : 'invalid_credentials',
+    )
+  }
+  const lockedSignin = await fetch(`${origin}/session/auth/signin`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ code: username, password: changedPassword }),
+  })
+  assert.equal((await lockedSignin.json()).errorKey, 'account_locked')
+  await db
+    .updateTable('app_users')
+    .set({ status: 'DISABLED' })
+    .where('id', '=', id)
+    .execute()
+  const disabledSignin = await fetch(`${origin}/session/auth/signin`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ code: username, password: changedPassword }),
+  })
+  assert.equal((await disabledSignin.json()).errorKey, 'account_disabled')
 })

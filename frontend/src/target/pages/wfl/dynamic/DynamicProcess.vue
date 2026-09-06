@@ -10,7 +10,7 @@ const session = useTargetSession()
 const vm = createDynamicWflViewModel(
   props.processCode,
   session.menu?.availableRoutes ?? [],
-  session.permissions,
+  session.apiPaths,
 )
 watch(
   () => props.processCode,

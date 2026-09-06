@@ -720,7 +720,7 @@ export function useVouPageController<Entity extends VouEntity>(entity: Entity) {
     {
       ownerUserId: session.user.id,
       csrfToken: session.csrfToken,
-      permissions: session.permissions,
+      permissions: session.apiPaths,
     },
     {
       drafts: {

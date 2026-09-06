@@ -213,7 +213,7 @@ export function useAccPeriodViewModel() {
   return createAccPeriodViewModel(
     {
       csrfToken: session.csrfToken,
-      permissions: session.permissions,
+      permissions: session.apiPaths,
       today: shanghaiDate(new Date()),
     },
     {

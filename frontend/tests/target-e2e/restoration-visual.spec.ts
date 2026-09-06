@@ -48,7 +48,7 @@ async function navigateAndCapture(
   surface: Locator = page.locator('main'),
 ) {
   await page.goto(path)
-  await expect(page.getByLabel('用户名')).toHaveCount(0)
+  await expect(page.getByLabel('用户编码')).toHaveCount(0)
   await capture(page, viewport, name, surface)
 }
 
@@ -108,20 +108,20 @@ async function captureViewport(browser: Browser, viewport: VisualViewport) {
   try {
     const page = await context.newPage()
     await page.goto('/signin')
-    await expect(page.getByLabel('用户名')).toBeVisible()
+    await expect(page.getByLabel('用户编码')).toBeVisible()
     await expect(page.getByLabel('密码')).toBeVisible()
     await capture(page, viewport, 'signin-empty', page.locator('.signin-page'))
 
-    await page.getByLabel('用户名').fill(process.env.TARGET_E2E_USERNAME!)
+    await page.getByLabel('用户编码').fill(process.env.TARGET_E2E_USERNAME!)
     await page.getByLabel('密码').fill(process.env.TARGET_E2E_PASSWORD!)
     await page.getByRole('button', { name: '登录', exact: true }).click()
-    await expect(page.getByLabel('用户名')).toHaveCount(0)
+    await expect(page.getByLabel('用户编码')).toHaveCount(0)
 
     await capture(page, viewport, 'dashboard', page.locator('main'))
     await navigateAndCapture(page, viewport, 'app-user-list', '/app/user')
 
     await page.goto('/aux/product-type')
-    await expect(page.getByLabel('用户名')).toHaveCount(0)
+    await expect(page.getByLabel('用户编码')).toHaveCount(0)
     await page.getByRole('button', { name: '新增', exact: true }).click()
     await capture(
       page,
@@ -158,7 +158,7 @@ async function captureViewport(browser: Browser, viewport: VisualViewport) {
     )
 
     await page.goto('/rpt/visual-empty')
-    await expect(page.getByLabel('用户名')).toHaveCount(0)
+    await expect(page.getByLabel('用户编码')).toHaveCount(0)
     const report = page.getByTestId('rpt-report-page')
     if (await report.count())
       await capture(page, viewport, 'rpt-parameters-results-or-empty', report)

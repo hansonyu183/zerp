@@ -84,7 +84,7 @@
         }
       }
     },
-    "/app/user/signin": {
+    "/session/auth/signin": {
       "post": {
         "requestBody": {
           "content": {
@@ -92,7 +92,7 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "username": {
+                  "code": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64
@@ -104,7 +104,7 @@
                   }
                 },
                 "required": [
-                  "username",
+                  "code",
                   "password"
                 ],
                 "additionalProperties": false
@@ -149,28 +149,23 @@
                                 "id": {
                                   "type": "string"
                                 },
-                                "username": {
+                                "code": {
                                   "type": "string"
                                 },
-                                "displayName": {
+                                "name": {
                                   "type": "string"
-                                },
-                                "avatarUrl": {
-                                  "type": "string",
-                                  "nullable": true
                                 }
                               },
                               "required": [
                                 "id",
-                                "username",
-                                "displayName",
-                                "avatarUrl"
+                                "code",
+                                "name"
                               ]
                             },
                             "csrfToken": {
                               "type": "string"
                             },
-                            "permissions": {
+                            "apiPaths": {
                               "type": "array",
                               "items": {
                                 "type": "string"
@@ -188,7 +183,7 @@
                           "required": [
                             "user",
                             "csrfToken",
-                            "permissions",
+                            "apiPaths",
                             "passwordChangeRequired",
                             "passwordMinLength"
                           ]
@@ -395,7 +390,7 @@
         }
       }
     },
-    "/app/user/session": {
+    "/session/auth/restore": {
       "post": {
         "requestBody": {
           "content": {
@@ -445,28 +440,23 @@
                                 "id": {
                                   "type": "string"
                                 },
-                                "username": {
+                                "code": {
                                   "type": "string"
                                 },
-                                "displayName": {
+                                "name": {
                                   "type": "string"
-                                },
-                                "avatarUrl": {
-                                  "type": "string",
-                                  "nullable": true
                                 }
                               },
                               "required": [
                                 "id",
-                                "username",
-                                "displayName",
-                                "avatarUrl"
+                                "code",
+                                "name"
                               ]
                             },
                             "csrfToken": {
                               "type": "string"
                             },
-                            "permissions": {
+                            "apiPaths": {
                               "type": "array",
                               "items": {
                                 "type": "string"
@@ -484,7 +474,7 @@
                           "required": [
                             "user",
                             "csrfToken",
-                            "permissions",
+                            "apiPaths",
                             "passwordChangeRequired",
                             "passwordMinLength"
                           ]
@@ -8255,7 +8245,7 @@
         }
       }
     },
-    "/app/branding/get": {
+    "/session/app/get": {
       "post": {
         "requestBody": {
           "content": {
@@ -8270,7 +8260,7 @@
         },
         "responses": {
           "200": {
-            "description": "/app/branding/get response envelope",
+            "description": "/session/app/get response envelope",
             "content": {
               "application/json": {
                 "schema": {
@@ -8384,7 +8374,7 @@
         }
       }
     },
-    "/app/user/signout": {
+    "/session/auth/signout": {
       "post": {
         "requestBody": {
           "content": {
@@ -8399,7 +8389,7 @@
         },
         "responses": {
           "200": {
-            "description": "/app/user/signout response envelope",
+            "description": "/session/auth/signout response envelope",
             "content": {
               "application/json": {
                 "schema": {
@@ -8506,25 +8496,14 @@
         }
       }
     },
-    "/app/user/profile": {
+    "/session/user/get": {
       "post": {
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "properties": {
-                  "displayName": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 128
-                  },
-                  "avatarUrl": {
-                    "type": "string",
-                    "nullable": true,
-                    "maxLength": 500
-                  }
-                },
+                "properties": {},
                 "additionalProperties": false
               }
             }
@@ -8532,7 +8511,7 @@
         },
         "responses": {
           "200": {
-            "description": "/app/user/profile response envelope",
+            "description": "/session/user/get response envelope",
             "content": {
               "application/json": {
                 "schema": {
@@ -8564,10 +8543,10 @@
                             "id": {
                               "type": "string"
                             },
-                            "username": {
+                            "code": {
                               "type": "string"
                             },
-                            "displayName": {
+                            "name": {
                               "type": "string"
                             },
                             "avatarUrl": {
@@ -8584,8 +8563,8 @@
                           },
                           "required": [
                             "id",
-                            "username",
-                            "displayName",
+                            "code",
+                            "name",
                             "avatarUrl",
                             "passwordChangedAt",
                             "revision"
@@ -8668,7 +8647,172 @@
         }
       }
     },
-    "/app/user/change-password": {
+    "/session/user/save": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "avatarUrl": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/session/user/save response envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "enum": [
+                            ""
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "code": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "avatarUrl": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "passwordChangedAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "revision": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "code",
+                            "name",
+                            "avatarUrl",
+                            "passwordChangedAt",
+                            "revision"
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "enum": [
+                                1001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                1002
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                2001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                3001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                5000
+                              ]
+                            }
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "nullable": true
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "requestId"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/session/user/change-password": {
       "post": {
         "requestBody": {
           "content": {
@@ -8698,7 +8842,7 @@
         },
         "responses": {
           "200": {
-            "description": "/app/user/change-password response envelope",
+            "description": "/session/user/change-password response envelope",
             "content": {
               "application/json": {
                 "schema": {

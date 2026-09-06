@@ -35,8 +35,8 @@ const userQuery = {
 
 test('target artifact gate rejects missing, duplicate, and extra route metadata', () => {
   assert.throws(
-    () => validateTargetRouteMetadata(['POST /app/user/signin'], []),
-    /missing=POST \/app\/user\/signin/,
+    () => validateTargetRouteMetadata(['POST /session/auth/signin'], []),
+    /missing=POST \/session\/auth\/signin/,
   )
   assert.throws(
     () =>
@@ -50,9 +50,9 @@ test('target artifact gate rejects missing, duplicate, and extra route metadata'
     () =>
       validateTargetRouteMetadata(
         ['POST /app/user/query'],
-        [{ method: 'post', path: '/app/user/session' }],
+        [{ method: 'post', path: '/session/auth/restore' }],
       ),
-    /missing=POST \/app\/user\/query extra=POST \/app\/user\/session/,
+    /missing=POST \/app\/user\/query extra=POST \/session\/auth\/restore/,
   )
 })
 
@@ -390,7 +390,6 @@ test('target OpenAPI contains the complete issue 363 APP, AUX, and BOB inventory
   }
   const paths = new Set(Object.keys(document.paths))
   const appPaths = [
-    '/app/branding/get',
     '/app/menu/activate',
     '/app/menu/get',
     '/app/menu/reset-business',
@@ -407,18 +406,13 @@ test('target OpenAPI contains the complete issue 363 APP, AUX, and BOB inventory
     '/app/system-parameter/query',
     '/app/system-parameter/reset',
     '/app/system-parameter/save',
-    '/app/user/change-password',
     '/app/user/create',
     '/app/user/disable',
     '/app/user/enable',
     '/app/user/get',
-    '/app/user/profile',
     '/app/user/query',
     '/app/user/reset-password',
     '/app/user/save',
-    '/app/user/session',
-    '/app/user/signin',
-    '/app/user/signout',
   ]
   const auxEntities = [
     'product-category',
@@ -458,7 +452,16 @@ test('target OpenAPI contains the complete issue 363 APP, AUX, and BOB inventory
   ].flatMap((entity) => [`/bob/${entity}/query`, `/bob/${entity}/get`])
   bobPaths.push('/bob/reference/query')
 
-  for (const path of [...appPaths, ...auxPaths, ...bobPaths])
+  const sessionPaths = [
+    '/session/app/get',
+    '/session/auth/restore',
+    '/session/auth/signin',
+    '/session/auth/signout',
+    '/session/user/change-password',
+    '/session/user/get',
+    '/session/user/save',
+  ]
+  for (const path of [...appPaths, ...sessionPaths, ...auxPaths, ...bobPaths])
     assert.ok(paths.has(path), `missing issue #363 target path ${path}`)
   assert.ok(paths.has('/app/workbench/query'), 'missing issue #366 APP Workbench path')
 })

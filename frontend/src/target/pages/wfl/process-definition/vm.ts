@@ -113,7 +113,7 @@ export function useWflProcessDefinitionViewModel() {
   if (!session.csrfToken)
     throw new Error('WFL definition page requires an authenticated session.')
   return createWflProcessDefinitionViewModel(
-    { csrfToken: session.csrfToken, permissions: session.permissions },
+    { csrfToken: session.csrfToken, permissions: session.apiPaths },
     {
       query: queryTargetWflCurrentDefinitions,
       get: getTargetWflCurrentDefinition,

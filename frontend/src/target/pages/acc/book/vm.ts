@@ -325,7 +325,7 @@ export function useAccBookViewModel() {
   if (!session.csrfToken)
     throw new Error('Accounting book page requires an authenticated session.')
   return createAccBookViewModel(
-    { csrfToken: session.csrfToken, permissions: session.permissions },
+    { csrfToken: session.csrfToken, permissions: session.apiPaths },
     {
       query: queryTargetAccBooks,
       users: async (csrfToken, input) => {

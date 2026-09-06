@@ -527,7 +527,7 @@ export function useAccOpeningViewModel() {
     {
       ownerUserId: session.user.id,
       csrfToken: session.csrfToken,
-      permissions: session.permissions,
+      permissions: session.apiPaths,
     },
     {
       books: queryTargetAccBooks,

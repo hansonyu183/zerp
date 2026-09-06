@@ -81,7 +81,7 @@ function sessionPayload(principal: Principal) {
   return {
     user: principal.user,
     csrfToken: principal.csrfToken,
-    permissions: principal.permissions,
+    apiPaths: principal.apiPaths,
     passwordChangeRequired: principal.passwordChangeRequired,
     passwordMinLength: principal.passwordMinLength,
   }
@@ -162,7 +162,7 @@ export function registerAppRoutes(
         message: 'ok' as const,
         data: await operation({
           id: current.user.id,
-          permissions: current.permissions,
+          permissions: current.apiPaths,
         }),
         requestId,
       }
@@ -197,7 +197,7 @@ export function registerAppRoutes(
         message: 'ok' as const,
         data: await operation({
           id: current.user.id,
-          permissions: current.permissions,
+          permissions: current.apiPaths,
         }),
         requestId,
       }
@@ -231,7 +231,7 @@ export function registerAppRoutes(
         code: 0 as const,
         errorKey: '' as const,
         message: 'ok' as const,
-        data: await operation({ permissions: current.permissions }),
+        data: await operation({ permissions: current.apiPaths }),
         requestId,
       }
     } catch (error) {
@@ -267,7 +267,7 @@ export function registerAppRoutes(
         message: 'ok' as const,
         data: await operation({
           id: current.user.id,
-          permissions: current.permissions,
+          permissions: current.apiPaths,
         }),
         requestId,
       }
@@ -314,7 +314,7 @@ export function registerAppRoutes(
         message: 'ok' as const,
         data: await operation({
           id: current.user.id,
-          permissions: current.permissions,
+          permissions: current.apiPaths,
         }),
         requestId,
       }
@@ -452,7 +452,7 @@ export function registerAppRoutes(
       const input = context.req.valid('json')
       try {
         const { token, principal } = await service.signin(
-          input.username,
+          input.code,
           input.password,
         )
         setCookie(
@@ -485,6 +485,7 @@ export function registerAppRoutes(
           getCookie(context, config.sessionCookieName),
           undefined,
           false,
+          context.req.path,
         )
         return context.json(
           {
@@ -514,7 +515,7 @@ export function registerAppRoutes(
           true,
           '/app/user/query',
         )
-        if (!principal.permissions.includes('/app/user/query')) {
+        if (!principal.apiPaths.includes('/app/user/query')) {
           throw new SessionError('forbidden')
         }
         return context.json(
@@ -553,7 +554,7 @@ export function registerAppRoutes(
             message: 'ok' as const,
             data: await workbench.query(context.req.valid('json'), {
               id: principal.user.id,
-              permissions: principal.permissions,
+              permissions: principal.apiPaths,
             }),
             requestId: currentRequestId(context),
           },

@@ -26,6 +26,7 @@
 | [ADR-0049](0049-typed-business-archives-replace-party.md)                             | 2026-09-01 | 强类型业务档案取代 Party 与关系层                               |                                                                           |
 | [ADR-0050](0050-database-only-persists-facts.md)                                      | 2026-09-03 | 数据库只负责持久化，业务规则由 Domain Service 承担              |                                                                           |
 | [ADR-0051](0051-shared-typescript-model-local-drafts-and-hono-cutover.md)             | 2026-09-03 | 共享 TypeScript 模型、本地 Draft 与 Hono 一次性切换             |                                                                           |
+| [ADR-0052](0052-session-dynamic-navigation-and-page-migration.md)                     | 2026-09-06 | 独立 Session、权限驱动导航与动态业务页面的分片迁移              |                                                                           |
 
 ## Superseded
 

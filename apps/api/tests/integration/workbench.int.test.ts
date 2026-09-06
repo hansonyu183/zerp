@@ -4,6 +4,7 @@ import test from 'node:test'
 
 import { serve } from '@hono/node-server'
 import { modelBuildId } from '@zerp/model'
+import { createTargetApiClient } from '../../../../packages/api-client/src/index.ts'
 import { ulid } from 'ulid'
 
 import { createApp } from '../../src/app.ts'
@@ -27,19 +28,11 @@ async function signIn(
   username: string,
   password: string,
 ): Promise<HttpSession> {
-  const response = await fetch(`${origin}/app/user/signin`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-zerp-model-build': modelBuildId,
-      connection: 'close',
-    },
-    body: JSON.stringify({ username, password }),
+  const client = createTargetApiClient({ baseUrl: origin, modelBuildId })
+  const response = await client.session.auth.signin.$post({
+    json: { code: username, password },
   })
-  const payload = (await response.json()) as {
-    code: number
-    data: { csrfToken: string }
-  }
+  const payload = await response.json()
   assert.equal(payload.code, 0)
   return {
     cookie: response.headers.getSetCookie()[0] ?? '',

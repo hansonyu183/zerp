@@ -62,6 +62,7 @@ API 启动前先同步生成的权限目录，再从 `APP_TEST_ADMIN_PASSWORD_FI
 - [RPT](docs/domains/rpt.md)
 - [页面用例](docs/use-cases/README.md)
 - [架构决策](docs/adr/README.md)
+- [Session 与动态页面迁移](docs/adr/0052-session-dynamic-navigation-and-page-migration.md)
 - [测试证据](docs/testing/README.md)
 
 ## License

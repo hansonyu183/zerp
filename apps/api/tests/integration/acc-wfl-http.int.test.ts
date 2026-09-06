@@ -4,6 +4,7 @@ import test from 'node:test'
 
 import { serve } from '@hono/node-server'
 import { modelBuildId, type VouPayload } from '@zerp/model'
+import { createTargetApiClient } from '../../../../packages/api-client/src/index.ts'
 import { createNodeWflStarlark } from '@zerp/wfl-starlark/node'
 import { ulid } from 'ulid'
 
@@ -119,20 +120,12 @@ async function signin(
   username: string,
   password: string,
 ): Promise<Session> {
-  const response = await fetch(`${origin}/app/user/signin`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-zerp-model-build': modelBuildId,
-      connection: 'close',
-    },
-    body: JSON.stringify({ username, password }),
+  const client = createTargetApiClient({ baseUrl: origin, modelBuildId })
+  const response = await client.session.auth.signin.$post({
+    json: { code: username, password },
   })
   assert.equal(response.status, 200)
-  const payload = (await response.json()) as {
-    code: number
-    data: { csrfToken: string }
-  }
+  const payload = await response.json()
   assert.equal(payload.code, 0)
   return {
     cookie: response.headers.getSetCookie()[0] ?? '',

@@ -5,3 +5,5 @@
 - [2026-08-31 全量功能测试报告](full-functional-test-2026-08-31.md)
 - [2026-08-31 全量功能测试整改与复验](full-functional-test-remediation-2026-08-31.md)
 - [#361 WFL Starlark Node/browser parity 证据](wfl-starlark-parity-issue-361.md)
+
+- [2026-09-06 #379 Session 契约切换验收](session-contract-issue-379-2026-09-06.md)

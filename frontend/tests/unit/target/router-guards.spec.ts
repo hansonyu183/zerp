@@ -31,9 +31,8 @@ describe('formal router session guard', () => {
     session.initialized = true
     session.user = {
       id: 'u1',
-      username: 'tester',
-      displayName: '测试',
-      avatarUrl: null,
+      code: 'tester',
+      name: '测试',
     }
     session.passwordChangeRequired = true
     router.beforeEach(createSessionGuard(session))
@@ -48,9 +47,8 @@ describe('formal router session guard', () => {
     session.initialized = true
     session.user = {
       id: 'u1',
-      username: 'tester',
-      displayName: '测试',
-      avatarUrl: null,
+      code: 'tester',
+      name: '测试',
     }
     session.menu = {
       mode: 'DEFAULT',
@@ -81,11 +79,10 @@ describe('formal router session guard', () => {
     session.initialized = true
     session.user = {
       id: 'u1',
-      username: 'tester',
-      displayName: '测试',
-      avatarUrl: null,
+      code: 'tester',
+      name: '测试',
     }
-    session.permissions = ['/app/menu/activate']
+    session.apiPaths = ['/app/menu/activate']
     router.beforeEach(createSessionGuard(session))
 
     await router.push('/app/menu')
@@ -98,14 +95,10 @@ describe('formal router session guard', () => {
     session.initialized = true
     session.user = {
       id: 'u1',
-      username: 'tester',
-      displayName: '测试',
-      avatarUrl: null,
+      code: 'tester',
+      name: '测试',
     }
-    session.permissions = [
-      '/wfl/process-instance/query',
-      '/rpt/rpt-000001/query',
-    ]
+    session.apiPaths = ['/wfl/process-instance/query', '/rpt/rpt-000001/query']
     session.menu = {
       mode: 'DEFAULT',
       revision: '1',
@@ -138,7 +131,7 @@ describe('formal router session guard', () => {
     await router.push('/wfl/UPPER')
     expect(router.currentRoute.value.name).toBe('forbidden')
 
-    session.permissions = ['/wfl/process-instance/query']
+    session.apiPaths = ['/wfl/process-instance/query']
     await router.push('/rpt/rpt-000001')
     expect(router.currentRoute.value.name).toBe('forbidden')
   })

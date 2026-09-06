@@ -409,7 +409,7 @@ export function useWflProcessInstanceViewModel(definitionCode?: string) {
   return createWflProcessInstanceViewModel(
     {
       csrfToken: session.csrfToken,
-      permissions: session.permissions,
+      permissions: session.apiPaths,
       ...(definitionCode ? { definitionCode } : {}),
     },
     {

@@ -901,7 +901,7 @@ export class ManagementService {
       navigation: {
         items: [
           this.workbenchMenuItem(),
-          ...this.filterMenu(selected.items, principal.permissions).filter(
+          ...this.filterMenu(selected.items, principal.apiPaths).filter(
             (item) => item.routePath !== '/home/dashboard',
           ),
         ],
@@ -987,7 +987,7 @@ export class ManagementService {
   }
 
   private require(principal: Principal, path: string) {
-    if (!principal.permissions.includes(path))
+    if (!principal.apiPaths.includes(path))
       throw new AppServiceError('forbidden', 'permission denied')
   }
 
@@ -1114,7 +1114,7 @@ export class ManagementService {
     return (
       actorSuperadmin ||
       (!targetSuperadmin &&
-        target.every((path) => principal.permissions.includes(path)))
+        target.every((path) => principal.apiPaths.includes(path)))
     )
   }
   private async rolePermissions(
@@ -1160,7 +1160,7 @@ export class ManagementService {
       !selfHeld &&
       (actorSuperadmin ||
         permissions.every((permission) =>
-          principal.permissions.includes(permission.path),
+          principal.apiPaths.includes(permission.path),
         ))
     )
   }
@@ -1216,7 +1216,7 @@ export class ManagementService {
     if (
       !actorSuperadmin &&
       permissions.some(
-        (permission) => !principal.permissions.includes(permission.path),
+        (permission) => !principal.apiPaths.includes(permission.path),
       )
     )
       throw new AppServiceError(
@@ -1283,7 +1283,7 @@ export class ManagementService {
     if (!user || user.status !== 'ENABLED')
       throw new AppServiceError('unauthenticated', 'session expired')
     const current = await this.permissionsFor(tx, principal.user.id)
-    if (!principal.permissions.every((path) => current.includes(path)))
+    if (!principal.apiPaths.every((path) => current.includes(path)))
       throw new AppServiceError(
         'forbidden',
         'permissions changed; refresh session',
@@ -1378,8 +1378,8 @@ export class ManagementService {
       roleAssignmentEditable:
         manageable &&
         id !== principal.user.id &&
-        principal.permissions.includes('/app/user/save') &&
-        principal.permissions.includes('/app/role/query'),
+        principal.apiPaths.includes('/app/user/save') &&
+        principal.apiPaths.includes('/app/role/query'),
     }
   }
   private async roleListItem(role: RoleRow, principal: Principal) {
@@ -1400,17 +1400,15 @@ export class ManagementService {
       manageable,
       assignable: manageable,
       availableActions: [
-        principal.permissions.includes('/app/role/get') && 'VIEW',
-        manageable &&
-          principal.permissions.includes('/app/role/save') &&
-          'EDIT',
+        principal.apiPaths.includes('/app/role/get') && 'VIEW',
+        manageable && principal.apiPaths.includes('/app/role/save') && 'EDIT',
         manageable &&
           role.status === 'DISABLED' &&
-          principal.permissions.includes('/app/role/enable') &&
+          principal.apiPaths.includes('/app/role/enable') &&
           'ENABLE',
         manageable &&
           role.status === 'ENABLED' &&
-          principal.permissions.includes('/app/role/disable') &&
+          principal.apiPaths.includes('/app/role/disable') &&
           'DISABLE',
       ].filter(Boolean),
     }

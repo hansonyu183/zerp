@@ -5,6 +5,7 @@ import test from 'node:test'
 import { serve } from '@hono/node-server'
 import { argon2idAsync } from '@noble/hashes/argon2.js'
 import { modelBuildId } from '@zerp/model'
+import { createTargetApiClient } from '../../../../packages/api-client/src/index.ts'
 import { ulid } from 'ulid'
 
 import { createApp } from '../../src/app.ts'
@@ -284,14 +285,9 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
   const origin = `http://127.0.0.1:${address.port}`
 
   async function signIn(username: string, password: string): Promise<SignedIn> {
-    const response = await fetch(origin + '/app/user/signin', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-zerp-model-build': modelBuildId,
-        connection: 'close',
-      },
-      body: JSON.stringify({ username, password }),
+    const client = createTargetApiClient({ baseUrl: origin, modelBuildId })
+    const response = await client.session.auth.signin.$post({
+      json: { code: username, password },
     })
     const payload = await response.json()
     assert.equal(payload.code, 0)

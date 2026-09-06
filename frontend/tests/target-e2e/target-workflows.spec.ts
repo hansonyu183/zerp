@@ -15,6 +15,7 @@ import {
   userCreatableVouEntities,
   type VouEntity,
 } from '@zerp/model'
+import { createTargetApiClient } from '@zerp/api-client'
 import pg from 'pg'
 
 const effectPool = new pg.Pool({
@@ -752,10 +753,10 @@ async function signIn(
   path = '/',
 ) {
   await page.goto(path)
-  await page.getByLabel('用户名').fill(username)
+  await page.getByLabel('用户编码').fill(username)
   await page.getByLabel('密码').fill(password)
   await page.getByRole('button', { name: '登录' }).click()
-  await expect(page.getByLabel('用户名')).toHaveCount(0)
+  await expect(page.getByLabel('用户编码')).toHaveCount(0)
   await page.waitForLoadState('networkidle')
 }
 
@@ -1034,7 +1035,7 @@ async function createCompleteVouDraft(
     expect(body.data.items.length, `${entity} candidate`).toBeGreaterThan(0)
   }
   await page.waitForLoadState('networkidle')
-  const username = page.getByLabel('用户名')
+  const username = page.getByLabel('用户编码')
   if (await username.isVisible()) {
     await expect(username).toBeVisible()
     await username.fill(process.env.TARGET_E2E_USERNAME!)
@@ -2306,20 +2307,33 @@ test('WFL definition stays local until trial and submit, then exposes current de
 
 async function replaceSession(
   context: BrowserContext,
-  username: string,
+  code: string,
   password: string,
 ) {
-  const response = await context.request.post(
-    process.env.TARGET_API_BASE_URL + '/app/user/signin',
-    {
-      headers: { 'X-ZERP-Model-Build': modelBuildId },
-      data: { username, password },
+  const client = createTargetApiClient({
+    baseUrl: process.env.TARGET_API_BASE_URL!,
+    modelBuildId,
+    fetch: async (input, init) => {
+      const request = new Request(input, init)
+      const response = await context.request.fetch(request.url, {
+        method: request.method,
+        headers: Object.fromEntries(request.headers),
+        data: await request.text(),
+      })
+      return new Response(await response.body(), {
+        status: response.status(),
+        headers: response.headers(),
+      })
     },
-  )
-  expect(response.ok()).toBe(true)
+  })
+  const response = await client.session.auth.signin.$post({
+    json: { code, password },
+  })
+  expect(response.ok).toBe(true)
   const payload = await response.json()
   expect(payload.code).toBe(0)
-  return payload.data as { csrfToken: string }
+  if (payload.code !== 0) throw new Error('Session signin failed')
+  return payload.data
 }
 
 test('Operating Entity local Draft drives the complete target archive lifecycle', async ({

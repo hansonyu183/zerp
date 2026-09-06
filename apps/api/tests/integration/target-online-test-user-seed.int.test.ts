@@ -88,9 +88,9 @@ test('online-test seed creates both fixed users and reconciles their credentials
   const sessions = new SessionService(db, config)
   for (const user of users) {
     const signin = await sessions.signin(user.username, firstPassword)
-    assert.equal(signin.principal.user.username, user.username)
+    assert.equal(signin.principal.user.code, user.username)
     assert.equal(signin.principal.passwordChangeRequired, false)
-    assert.ok(signin.principal.permissions.includes('/app/user/query'))
+    assert.ok(signin.principal.apiPaths.includes('/app/user/query'))
   }
 
   const assignments = await db
@@ -137,6 +137,6 @@ test('online-test seed creates both fixed users and reconciles their credentials
   for (const user of users) {
     await assert.rejects(() => sessions.signin(user.username, firstPassword))
     const signin = await sessions.signin(user.username, rotatedPassword)
-    assert.equal(signin.principal.user.username, user.username)
+    assert.equal(signin.principal.user.code, user.username)
   }
 })

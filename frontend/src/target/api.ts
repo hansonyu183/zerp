@@ -505,7 +505,7 @@ function invalidVouResponse(message: string): TargetApiError {
 
 export async function restoreTargetSession() {
   const payload = await (
-    await client.app.user.session.$post({ json: {} })
+    await client.session.auth.restore.$post({ json: {} })
   ).json()
   if (payload.code !== 0 || !payload.data)
     throw new TargetApiError(
@@ -516,9 +516,9 @@ export async function restoreTargetSession() {
   return payload.data
 }
 
-export async function signInTarget(username: string, password: string) {
+export async function signInTarget(code: string, password: string) {
   const payload = await (
-    await client.app.user.signin.$post({ json: { username, password } })
+    await client.session.auth.signin.$post({ json: { code, password } })
   ).json()
   if (payload.code !== 0 || !payload.data)
     throw new TargetApiError(
@@ -531,7 +531,7 @@ export async function signInTarget(username: string, password: string) {
 
 export async function getTargetBranding() {
   return unwrapTarget(
-    await (await client.app.branding.get.$post({ json: {} })).json(),
+    await (await client.session.app.get.$post({ json: {} })).json(),
   )
 }
 
@@ -546,18 +546,18 @@ export async function getTargetMenu(csrfToken: string) {
 export async function getTargetProfile(csrfToken: string) {
   return unwrapTarget(
     await (
-      await client.app.user.profile.$post({ json: {} }, csrfHeaders(csrfToken))
+      await client.session.user.get.$post({ json: {} }, csrfHeaders(csrfToken))
     ).json(),
   )
 }
 
 export async function saveTargetProfile(
   csrfToken: string,
-  input: { displayName: string; avatarUrl?: string | null },
+  input: { name: string; avatarUrl?: string | null },
 ) {
   return unwrapTarget(
     await (
-      await client.app.user.profile.$post(
+      await client.session.user.save.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -571,7 +571,7 @@ export async function changeTargetPassword(
 ) {
   return unwrapTarget(
     await (
-      await client.app.user['change-password'].$post(
+      await client.session.user['change-password'].$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -582,7 +582,10 @@ export async function changeTargetPassword(
 export async function signOutTarget(csrfToken: string) {
   return unwrapTarget(
     await (
-      await client.app.user.signout.$post({ json: {} }, csrfHeaders(csrfToken))
+      await client.session.auth.signout.$post(
+        { json: {} },
+        csrfHeaders(csrfToken),
+      )
     ).json(),
   )
 }

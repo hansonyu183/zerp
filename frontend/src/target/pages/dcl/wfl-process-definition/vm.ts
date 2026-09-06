@@ -568,7 +568,7 @@ export function useDclWflProcessDefinitionViewModel() {
     {
       ownerUserId: session.user.id,
       csrfToken: session.csrfToken,
-      permissions: session.permissions,
+      permissions: session.apiPaths,
     },
     {
       drafts: {

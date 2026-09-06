@@ -80,8 +80,8 @@ const pageRequest = z
 
 const profile = z.object({
   id: z.string(),
-  username: z.string(),
-  displayName: z.string(),
+  code: z.string(),
+  name: z.string(),
   avatarUrl: z.string().nullable(),
   passwordChangedAt: z.string().datetime(),
   revision: z.string(),
@@ -186,31 +186,24 @@ const menuData = z.object({
 })
 
 const brandingGet = postRoute(
-  '/app/branding/get',
+  '/session/app/get',
   empty,
   z.object({ enterpriseName: z.string() }),
 )
-const userSignout = postRoute('/app/user/signout', empty, z.object({}))
-const userProfile = postRoute(
-  '/app/user/profile',
+const userSignout = postRoute('/session/auth/signout', empty, z.object({}))
+const sessionUserGet = postRoute('/session/user/get', empty, profile)
+const sessionUserSave = postRoute(
+  '/session/user/save',
   z
     .object({
-      displayName: z.string().min(1).max(128).optional(),
+      name: z.string().min(1).max(128),
       avatarUrl: z.string().max(500).nullable().optional(),
     })
-    .strict()
-    .superRefine((input, context) => {
-      if (Object.keys(input).length > 0 && input.displayName === undefined)
-        context.addIssue({
-          code: 'custom',
-          path: ['displayName'],
-          message: 'displayName is required when saving a profile',
-        })
-    }),
+    .strict(),
   profile,
 )
 const userChangePassword = postRoute(
-  '/app/user/change-password',
+  '/session/user/change-password',
   z
     .object({
       currentPassword: z.string().min(1).max(1024),
@@ -625,7 +618,8 @@ export function registerIndependentRoutes(
   const fixed = app.openapiRoutes([
     { route: brandingGet, handler: handlers.app },
     { route: userSignout, handler: handlers.app },
-    { route: userProfile, handler: handlers.app },
+    { route: sessionUserGet, handler: handlers.app },
+    { route: sessionUserSave, handler: handlers.app },
     { route: userChangePassword, handler: handlers.app },
     { route: userGet, handler: handlers.app },
     { route: userCreate, handler: handlers.app },
@@ -1054,10 +1048,11 @@ const bobNames: Record<(typeof bobEntities)[number], string> = {
 }
 
 export const independentRouteMetadata = [
-  { method: 'post', path: '/app/branding/get' },
-  { method: 'post', path: '/app/user/signout' },
-  { method: 'post', path: '/app/user/profile' },
-  { method: 'post', path: '/app/user/change-password' },
+  { method: 'post', path: '/session/app/get' },
+  { method: 'post', path: '/session/auth/signout' },
+  { method: 'post', path: '/session/user/get' },
+  { method: 'post', path: '/session/user/save' },
+  { method: 'post', path: '/session/user/change-password' },
   { method: 'post', path: '/app/menu/get' },
   ...appPermissions.map(([entity, action, title, order]) => ({
     method: 'post',

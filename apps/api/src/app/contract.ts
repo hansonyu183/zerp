@@ -77,12 +77,11 @@ const failureEnvelope = z.object({
 const sessionData = z.object({
   user: z.object({
     id: z.string(),
-    username: z.string(),
-    displayName: z.string(),
-    avatarUrl: z.string().nullable(),
+    code: z.string(),
+    name: z.string(),
   }),
   csrfToken: z.string(),
-  permissions: z.array(z.string()),
+  apiPaths: z.array(z.string()),
   passwordChangeRequired: z.boolean(),
   passwordMinLength: z.number().int().positive(),
 })
@@ -221,14 +220,14 @@ export const queryWorkbenchRoute = createRoute({
 
 export const signinRoute = createRoute({
   method: 'post',
-  path: '/app/user/signin',
+  path: '/session/auth/signin',
   request: {
     body: {
       content: {
         'application/json': {
           schema: z
             .object({
-              username: z.string().min(1).max(64),
+              code: z.string().min(1).max(64),
               password: z.string().min(1).max(1024),
             })
             .strict(),
@@ -246,7 +245,7 @@ export const signinRoute = createRoute({
 
 export const restoreRoute = createRoute({
   method: 'post',
-  path: '/app/user/session',
+  path: '/session/auth/restore',
   request: {
     body: {
       content: { 'application/json': { schema: z.object({}).strict() } },

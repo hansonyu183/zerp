@@ -344,7 +344,7 @@ export function useRptReportViewModel(reportCode: string) {
   return createRptReportViewModel(
     {
       csrfToken: session.csrfToken,
-      permissions: session.permissions,
+      permissions: session.apiPaths,
       reportCode,
     },
     {

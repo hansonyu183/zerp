@@ -87,6 +87,18 @@ async function seedSaleOrderReferences(
     objectId: ulid(),
     approvalEntryId: ulid(),
   }))
+  const unitId = ulid()
+  const unitCode = String(
+    [...unitId].reduce((sum, character) => sum + character.charCodeAt(0), 0) %
+      10_000,
+  ).padStart(4, '0')
+  const unit = {
+    objectId: unitId,
+    code: `TST-${unitCode}`,
+    name: '件',
+    symbol: '件',
+    quantityScale: 0,
+  }
   const now = new Date()
   await db
     .insertInto('dcl_subjects')
@@ -179,7 +191,18 @@ async function seedSaleOrderReferences(
           approval_entry_id: fact.approvalEntryId,
           name: fact.name,
           source_snapshots: {},
-          unit_conversions: JSON.stringify([]),
+          unit_conversions: JSON.stringify([
+            {
+              unit: {
+                id: unit.objectId,
+                code: unit.code,
+                name: unit.name,
+                symbol: unit.symbol,
+                quantityScale: unit.quantityScale,
+              },
+              factor: '1.000000',
+            },
+          ]),
           recyclable: false,
           enabled: true,
         })
@@ -223,24 +246,19 @@ async function seedSaleOrderReferences(
       name: 'WFL 客户子单位',
     },
   ]
-  const unitId = ulid()
-  const unitCode = String(
-    [...unitId].reduce((sum, character) => sum + character.charCodeAt(0), 0) %
-      10_000,
-  ).padStart(4, '0')
   await db
     .insertInto('aux_objects')
     .values({
       id: unitId,
       entity: 'measurement-unit',
-      code: `TST-${unitCode}`,
-      data: { name: '件', quantityScale: 0 },
+      code: unit.code,
+      data: { name: unit.name, symbol: unit.symbol, quantityScale: 0 },
       enabled: true,
       created_by: actorId,
       updated_by: actorId,
     })
     .execute()
-  return { facts: referenceFacts, unitId }
+  return { facts: referenceFacts, unitId, unit }
 }
 
 function saleOrderPayload(
@@ -275,7 +293,7 @@ function saleOrderPayload(
         lineId: sourceOrderLineId,
         product: { objectId: product.objectId },
         enteredQuantity: '1',
-        enteredUnit: { objectId: references.unitId },
+        enteredUnit: references.unit,
         baseQuantity: '1',
         unitPrice: '1.00',
       },

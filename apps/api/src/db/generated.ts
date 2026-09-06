@@ -1064,7 +1064,11 @@ export interface VouFormulaComponentSnapshots {
   base_quantity_micros: Int8;
   component_no: number;
   entered_quantity_micros: Int8;
+  entered_unit_code: string;
   entered_unit_id: string;
+  entered_unit_name: string;
+  entered_unit_quantity_scale: number;
+  entered_unit_symbol: string;
   line_no: number;
   material_id: string;
 }
@@ -1279,10 +1283,18 @@ export interface VouProductLineSnapshots {
   container_type: string | null;
   delivery_specification_type: string | null;
   entered_quantity_micros: Int8;
+  entered_unit_code: string;
   entered_unit_id: string;
+  entered_unit_name: string;
+  entered_unit_quantity_scale: number;
+  entered_unit_symbol: string;
   formula_output_base_quantity_micros: Int8 | null;
   formula_output_entered_quantity_micros: Int8 | null;
+  formula_output_entered_unit_code: string | null;
   formula_output_entered_unit_id: string | null;
+  formula_output_entered_unit_name: string | null;
+  formula_output_entered_unit_quantity_scale: number | null;
+  formula_output_entered_unit_symbol: string | null;
   formula_source_document_id: string | null;
   formula_source_document_no: string | null;
   formula_source_type: string | null;

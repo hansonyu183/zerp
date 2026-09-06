@@ -113,9 +113,24 @@ const quantitySnapshot = z
     baseQuantity: quantity,
   })
   .strict()
+const measurementUnitSnapshot = objectReference
+  .extend({
+    code: z.string().trim().min(1).max(64),
+    name: z.string().trim().min(1).max(200),
+    symbol: z.string().trim().min(1).max(64),
+    quantityScale: z.number().int().min(0).max(6),
+  })
+  .strict()
+const productQuantitySnapshot = z
+  .object({
+    enteredQuantity: quantity,
+    enteredUnit: measurementUnitSnapshot,
+    baseQuantity: quantity,
+  })
+  .strict()
 const formula = z
   .object({
-    output: quantitySnapshot,
+    output: productQuantitySnapshot,
     sourceType: z
       .enum(['RAW_SELF', 'PRODUCT_FIXED', 'CUSTOMER_LATEST', 'MANUAL'])
       .optional(),
@@ -124,14 +139,17 @@ const formula = z
     components: z
       .array(
         z
-          .object({ material: objectReference, quantity: quantitySnapshot })
+          .object({
+            material: objectReference,
+            quantity: productQuantitySnapshot,
+          })
           .strict(),
       )
       .min(1)
       .max(200),
   })
   .strict()
-const productLine = quantitySnapshot
+const productLine = productQuantitySnapshot
   .extend({
     lineId: z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/),
     product: objectReference,

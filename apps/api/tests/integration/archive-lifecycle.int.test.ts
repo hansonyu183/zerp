@@ -9,7 +9,7 @@ import { sql } from 'kysely'
 import pg from 'pg'
 import { ulid } from 'ulid'
 
-import { AuxService } from '../../src/aux/service.ts'
+import { AuxApplicationError, AuxService } from '../../src/aux/service.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { searchPinyin } from '../../src/platform/pinyin.ts'
 import {
@@ -1926,7 +1926,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   const aux = new AuxService(db)
   const unitActor = {
     id: submitterId,
-    permissions: ['get', 'save', 'disable'].map(
+    permissions: ['get', 'save', 'disable', 'delete'].map(
       (action) => `/aux/measurement-unit/${action}`,
     ),
   }
@@ -1946,7 +1946,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     },
     unitActor,
   )
-  await aux.disable(
+  const disabledUnit = await aux.disable(
     'measurement-unit',
     { id: unitBefore.id, revision: unitChanged.revision },
     unitActor,
@@ -1965,6 +1965,33 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     symbol: 'kg',
     quantityScale: 3,
   })
+  await assert.rejects(
+    () =>
+      aux.delete(
+        'measurement-unit',
+        { id: unitBefore.id, revision: disabledUnit.revision },
+        unitActor,
+      ),
+    (error: unknown) => {
+      assert.ok(error instanceof AuxApplicationError)
+      assert.equal(error.errorKey, 'conflict')
+      const { blockers } = error.data as {
+        blockers: Array<{ source: string; count: number }>
+      }
+      assert.ok(
+        blockers.some(
+          (blocker) =>
+            blocker.source === 'dcl_product_versions' && blocker.count > 0,
+        ),
+      )
+      return true
+    },
+  )
+  assert.equal(
+    (await aux.get('measurement-unit', { id: unitBefore.id }, unitActor))
+      .revision,
+    disabledUnit.revision,
+  )
   const rejectedUnitSubjectId = ulid()
   subjectIds.push(rejectedUnitSubjectId)
   await assert.rejects(

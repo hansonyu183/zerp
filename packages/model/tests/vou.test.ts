@@ -64,7 +64,13 @@ const base = {
         lineId: '01J00000000000000000000005',
         product: { objectId: id },
         enteredQuantity: '1.000000',
-        enteredUnit: { objectId: id },
+        enteredUnit: {
+          objectId: id,
+          code: 'UNIT-001',
+          name: '件',
+          symbol: '件',
+          quantityScale: 0,
+        },
         baseQuantity: '1.000000',
         unitPrice: '10.00',
       },
@@ -102,7 +108,11 @@ test('VOU wire owns 36 entity-discriminated payloads and explicit system writers
     rootEntity: 'sale-order',
     businessDate: '2026-09-05',
     sourceLineId: '01J00000000000000000000004',
-    product: { objectId: '01J00000000000000000000005', code: 'P-01', name: '树脂' },
+    product: {
+      objectId: '01J00000000000000000000005',
+      code: 'P-01',
+      name: '树脂',
+    },
     availableBaseQuantity: '1.000000',
   }
   assert.equal(sourceCandidate.rootEntity, 'sale-order')
@@ -181,6 +191,54 @@ test('VOU wire owns 36 entity-discriminated payloads and explicit system writers
       allowedEntities: ['product'],
     },
   )
+  const fieldShape = (field: VouInputFieldDescriptor | undefined) =>
+    field?.fields?.map(({ key, kind, required }) => ({ key, kind, required }))
+  const measurementUnitSnapshotShape = [
+    { key: 'objectId', kind: 'text', required: true },
+    { key: 'code', kind: 'text', required: true },
+    { key: 'name', kind: 'text', required: true },
+    { key: 'symbol', kind: 'text', required: true },
+    { key: 'quantityScale', kind: 'integer', required: true },
+  ]
+  const saleOrderLine = vouEntityInputDescriptors['sale-order'].find(
+    (field) => field.key === 'productLines',
+  )?.item
+  assert.deepEqual(
+    fieldShape(saleOrderLine?.find((field) => field.key === 'enteredUnit')),
+    measurementUnitSnapshotShape,
+  )
+  const formulaDescriptor = saleOrderLine?.find(
+    (field) => field.key === 'formula',
+  )
+  assert.deepEqual(
+    fieldShape(
+      formulaDescriptor?.fields
+        ?.find((field) => field.key === 'output')
+        ?.fields?.find((field) => field.key === 'enteredUnit'),
+    ),
+    measurementUnitSnapshotShape,
+  )
+  assert.deepEqual(
+    fieldShape(
+      formulaDescriptor?.fields
+        ?.find((field) => field.key === 'components')
+        ?.item?.find((field) => field.key === 'quantity')
+        ?.fields?.find((field) => field.key === 'enteredUnit'),
+    ),
+    measurementUnitSnapshotShape,
+  )
+  for (const [entity, collection] of [
+    ['inventory-count', 'inventoryCountLines'],
+    ['order-production', 'productionLines'],
+  ] as const)
+    assert.deepEqual(
+      fieldShape(
+        vouEntityInputDescriptors[entity]
+          .find((field) => field.key === collection)
+          ?.item?.find((field) => field.key === 'enteredUnit'),
+      ),
+      [{ key: 'objectId', kind: 'text', required: true }],
+    )
   assert.equal(
     vouEntityInputDescriptors['service-acceptance'].find(
       (field) => field.key === 'serviceAcceptance',
@@ -195,7 +253,13 @@ test('VOU wire owns 36 entity-discriminated payloads and explicit system writers
     lineId: '01J00000000000000000000005',
     product: { objectId: '' },
     enteredQuantity: '0.00',
-    enteredUnit: { objectId: '' },
+    enteredUnit: {
+      objectId: '',
+      code: '',
+      name: '',
+      symbol: '',
+      quantityScale: 0,
+    },
     baseQuantity: '0.00',
     unitPrice: '0.00',
   })

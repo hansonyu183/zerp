@@ -172,18 +172,31 @@ export interface VouQuantitySnapshotInput {
   baseQuantity: string
 }
 
+export interface VouMeasurementUnitSnapshotInput extends VouObjectReferenceInput {
+  code: string
+  name: string
+  symbol: string
+  quantityScale: number
+}
+
+export interface VouProductQuantitySnapshotInput {
+  enteredQuantity: string
+  enteredUnit: VouMeasurementUnitSnapshotInput
+  baseQuantity: string
+}
+
 export interface VouFormulaInput {
-  output: VouQuantitySnapshotInput
+  output: VouProductQuantitySnapshotInput
   sourceType?: 'RAW_SELF' | 'PRODUCT_FIXED' | 'CUSTOMER_LATEST' | 'MANUAL'
   sourceDocumentId?: string
   sourceDocumentNo?: string
   components: readonly {
     material: VouObjectReferenceInput
-    quantity: VouQuantitySnapshotInput
+    quantity: VouProductQuantitySnapshotInput
   }[]
 }
 
-export interface VouProductLineInput extends VouQuantitySnapshotInput {
+export interface VouProductLineInput extends VouProductQuantitySnapshotInput {
   /** Locally allocated immutable line identity, inherited by fulfillment facts. */
   lineId: string
   product: VouObjectReferenceInput
@@ -1832,8 +1845,34 @@ const quantityFields: readonly VouInputFieldDescriptor[] = Object.freeze([
   },
   { key: 'baseQuantity', kind: 'decimal', required: true },
 ])
+const measurementUnitSnapshotFields: readonly VouInputFieldDescriptor[] =
+  Object.freeze([
+    { key: 'objectId', kind: 'text', required: true },
+    { key: 'code', kind: 'text', required: true },
+    { key: 'name', kind: 'text', required: true },
+    { key: 'symbol', kind: 'text', required: true },
+    { key: 'quantityScale', kind: 'integer', required: true },
+  ])
+const productQuantityFields: readonly VouInputFieldDescriptor[] = Object.freeze(
+  [
+    { key: 'enteredQuantity', kind: 'decimal', required: true },
+    {
+      key: 'enteredUnit',
+      kind: 'object',
+      required: true,
+      fields: measurementUnitSnapshotFields,
+      ...referenceCandidateMetadata('enteredUnit'),
+    },
+    { key: 'baseQuantity', kind: 'decimal', required: true },
+  ],
+)
 const formulaFields: readonly VouInputFieldDescriptor[] = Object.freeze([
-  { key: 'output', kind: 'object', required: true, fields: quantityFields },
+  {
+    key: 'output',
+    kind: 'object',
+    required: true,
+    fields: productQuantityFields,
+  },
   scalarDescriptor('sourceType', false),
   scalarDescriptor('sourceDocumentId', false),
   scalarDescriptor('sourceDocumentNo', false),
@@ -1853,7 +1892,7 @@ const formulaFields: readonly VouInputFieldDescriptor[] = Object.freeze([
         key: 'quantity',
         kind: 'object',
         required: true,
-        fields: quantityFields,
+        fields: productQuantityFields,
       },
     ],
   },
@@ -2073,6 +2112,16 @@ function lineInputFields(
   if (variants) return variants[0]?.fields ?? []
   return Object.freeze(
     vouLineFieldDescriptors[kind].map((field): VouInputFieldDescriptor => {
+      const quantityDescriptors =
+        kind === 'product'
+          ? productQuantityFields
+          : kind === 'production' || kind === 'inventory-count'
+            ? quantityFields
+            : undefined
+      const quantityField = quantityDescriptors?.find(
+        (candidate) => candidate.key === field.key,
+      )
+      if (quantityField) return quantityField
       if (field.reference)
         return {
           key: field.key,

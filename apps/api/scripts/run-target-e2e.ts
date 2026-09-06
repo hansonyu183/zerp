@@ -1053,6 +1053,13 @@ async function seedApprovedSourceOrders() {
     (reference) => reference.key === 'operatingEntity',
   )!
   const unit = auxReference('measurement-unit')
+  const unitSnapshot = {
+    objectId: unit.id,
+    code: unit.code,
+    name: unit.name,
+    symbol: '件',
+    quantityScale: 0,
+  }
   const warehouseSnapshot = {
     objectId: warehouseReference.objectId,
     approvalEntryId: warehouseReference.approvalEntryId,
@@ -1062,14 +1069,14 @@ async function seedApprovedSourceOrders() {
     lineId,
     product: { objectId: product.objectId },
     enteredQuantity: '10',
-    enteredUnit: { objectId: unit.id },
+    enteredUnit: unitSnapshot,
     baseQuantity: '10',
     unitPrice: '12.50',
     formula: {
       sourceType: 'MANUAL' as const,
       output: {
         enteredQuantity: '1',
-        enteredUnit: { objectId: unit.id },
+        enteredUnit: unitSnapshot,
         baseQuantity: '1',
       },
       components: [
@@ -1077,7 +1084,7 @@ async function seedApprovedSourceOrders() {
           material: { objectId: product.objectId },
           quantity: {
             enteredQuantity: '1',
-            enteredUnit: { objectId: unit.id },
+            enteredUnit: unitSnapshot,
             baseQuantity: '1',
           },
         },

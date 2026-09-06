@@ -906,12 +906,47 @@ export class AuxService {
         applicationError('conflict', {
           revision: revisionString(current.revision),
         })
+      const references = [
+        sql`SELECT source FROM aux_reference_facts WHERE aux_object_id = ${id}`,
+      ]
+      if (entity === 'measurement-unit') {
+        references.push(sql`
+          SELECT 'dcl_product_versions' AS source
+          FROM dcl_product_versions
+          WHERE default_input_unit_id = ${id} OR pricing_unit_id = ${id}
+            OR EXISTS (
+              SELECT 1 FROM jsonb_array_elements(unit_conversions) conversion
+              WHERE conversion->'unit'->>'id' = ${id}
+            )
+            OR fixed_formula->'output'->'enteredUnit'->>'id' = ${id}
+            OR EXISTS (
+              SELECT 1 FROM jsonb_array_elements(COALESCE(fixed_formula->'components', '[]'::jsonb)) component
+              WHERE component->'quantity'->'enteredUnit'->>'id' = ${id}
+            )
+          UNION ALL
+          SELECT 'vou_product_line_snapshots' AS source
+          FROM vou_product_line_snapshots
+          WHERE entered_unit_id = ${id} OR formula_output_entered_unit_id = ${id}
+          UNION ALL
+          SELECT 'vou_formula_component_snapshots' AS source
+          FROM vou_formula_component_snapshots WHERE entered_unit_id = ${id}
+          UNION ALL
+          SELECT 'vou_inventory_count_line_snapshots' AS source
+          FROM vou_inventory_count_line_snapshots WHERE entered_unit_id = ${id}
+          UNION ALL
+          SELECT 'vou_production_line_snapshots' AS source
+          FROM vou_production_line_snapshots WHERE entered_unit_id = ${id}
+          UNION ALL
+          SELECT 'vou_production_material_snapshots' AS source
+          FROM vou_production_material_snapshots WHERE entered_unit_id = ${id}
+        `)
+      }
       const blockers = await sql<{
         source: string
         count: string | number
-      }>`SELECT source, count(*)::bigint AS count FROM aux_reference_facts WHERE aux_object_id = ${id} GROUP BY source ORDER BY source`.execute(
-        transaction,
-      )
+      }>`SELECT source, count(*)::bigint AS count
+         FROM (${sql.join(references, sql` UNION ALL `)}) reference
+         GROUP BY source ORDER BY source`.execute(transaction)
       if (blockers.rows.length > 0)
         applicationError('conflict', {
           blockers: blockers.rows.map((row) => ({

@@ -109577,10 +109577,34 @@
                                                       "type": "string",
                                                       "minLength": 26,
                                                       "maxLength": 26
+                                                    },
+                                                    "code": {
+                                                      "type": "string",
+                                                      "minLength": 1,
+                                                      "maxLength": 64
+                                                    },
+                                                    "name": {
+                                                      "type": "string",
+                                                      "minLength": 1,
+                                                      "maxLength": 200
+                                                    },
+                                                    "symbol": {
+                                                      "type": "string",
+                                                      "minLength": 1,
+                                                      "maxLength": 64
+                                                    },
+                                                    "quantityScale": {
+                                                      "type": "integer",
+                                                      "minimum": 0,
+                                                      "maximum": 6
                                                     }
                                                   },
                                                   "required": [
-                                                    "objectId"
+                                                    "objectId",
+                                                    "code",
+                                                    "name",
+                                                    "symbol",
+                                                    "quantityScale"
                                                   ],
                                                   "additionalProperties": false
                                                 },
@@ -109657,10 +109681,34 @@
                                                               "type": "string",
                                                               "minLength": 26,
                                                               "maxLength": 26
+                                                            },
+                                                            "code": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "name": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 200
+                                                            },
+                                                            "symbol": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "quantityScale": {
+                                                              "type": "integer",
+                                                              "minimum": 0,
+                                                              "maximum": 6
                                                             }
                                                           },
                                                           "required": [
-                                                            "objectId"
+                                                            "objectId",
+                                                            "code",
+                                                            "name",
+                                                            "symbol",
+                                                            "quantityScale"
                                                           ],
                                                           "additionalProperties": false
                                                         },
@@ -109724,10 +109772,34 @@
                                                                     "type": "string",
                                                                     "minLength": 26,
                                                                     "maxLength": 26
+                                                                  },
+                                                                  "code": {
+                                                                    "type": "string",
+                                                                    "minLength": 1,
+                                                                    "maxLength": 64
+                                                                  },
+                                                                  "name": {
+                                                                    "type": "string",
+                                                                    "minLength": 1,
+                                                                    "maxLength": 200
+                                                                  },
+                                                                  "symbol": {
+                                                                    "type": "string",
+                                                                    "minLength": 1,
+                                                                    "maxLength": 64
+                                                                  },
+                                                                  "quantityScale": {
+                                                                    "type": "integer",
+                                                                    "minimum": 0,
+                                                                    "maximum": 6
                                                                   }
                                                                 },
                                                                 "required": [
-                                                                  "objectId"
+                                                                  "objectId",
+                                                                  "code",
+                                                                  "name",
+                                                                  "symbol",
+                                                                  "quantityScale"
                                                                 ],
                                                                 "additionalProperties": false
                                                               },
@@ -110956,10 +111028,34 @@
                                                       "type": "string",
                                                       "minLength": 26,
                                                       "maxLength": 26
+                                                    },
+                                                    "code": {
+                                                      "type": "string",
+                                                      "minLength": 1,
+                                                      "maxLength": 64
+                                                    },
+                                                    "name": {
+                                                      "type": "string",
+                                                      "minLength": 1,
+                                                      "maxLength": 200
+                                                    },
+                                                    "symbol": {
+                                                      "type": "string",
+                                                      "minLength": 1,
+                                                      "maxLength": 64
+                                                    },
+                                                    "quantityScale": {
+                                                      "type": "integer",
+                                                      "minimum": 0,
+                                                      "maximum": 6
                                                     }
                                                   },
                                                   "required": [
-                                                    "objectId"
+                                                    "objectId",
+                                                    "code",
+                                                    "name",
+                                                    "symbol",
+                                                    "quantityScale"
                                                   ],
                                                   "additionalProperties": false
                                                 },
@@ -111036,10 +111132,34 @@
                                                               "type": "string",
                                                               "minLength": 26,
                                                               "maxLength": 26
+                                                            },
+                                                            "code": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "name": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 200
+                                                            },
+                                                            "symbol": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "quantityScale": {
+                                                              "type": "integer",
+                                                              "minimum": 0,
+                                                              "maximum": 6
                                                             }
                                                           },
                                                           "required": [
-                                                            "objectId"
+                                                            "objectId",
+                                                            "code",
+                                                            "name",
+                                                            "symbol",
+                                                            "quantityScale"
                                                           ],
                                                           "additionalProperties": false
                                                         },
@@ -111103,10 +111223,34 @@
                                                                     "type": "string",
                                                                     "minLength": 26,
                                                                     "maxLength": 26
+                                                                  },
+                                                                  "code": {
+                                                                    "type": "string",
+                                                                    "minLength": 1,
+                                                                    "maxLength": 64
+                                                                  },
+                                                                  "name": {
+                                                                    "type": "string",
+                                                                    "minLength": 1,
+                                                                    "maxLength": 200
+                                                                  },
+                                                                  "symbol": {
+                                                                    "type": "string",
+                                                                    "minLength": 1,
+                                                                    "maxLength": 64
+                                                                  },
+                                                                  "quantityScale": {
+                                                                    "type": "integer",
+                                                                    "minimum": 0,
+                                                                    "maximum": 6
                                                                   }
                                                                 },
                                                                 "required": [
-                                                                  "objectId"
+                                                                  "objectId",
+                                                                  "code",
+                                                                  "name",
+                                                                  "symbol",
+                                                                  "quantityScale"
                                                                 ],
                                                                 "additionalProperties": false
                                                               },
@@ -120131,10 +120275,34 @@
                                                 "type": "string",
                                                 "minLength": 26,
                                                 "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "symbol": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "quantityScale": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 6
                                               }
                                             },
                                             "required": [
-                                              "objectId"
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "symbol",
+                                              "quantityScale"
                                             ],
                                             "additionalProperties": false
                                           },
@@ -120211,10 +120379,34 @@
                                                         "type": "string",
                                                         "minLength": 26,
                                                         "maxLength": 26
+                                                      },
+                                                      "code": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "name": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 200
+                                                      },
+                                                      "symbol": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "quantityScale": {
+                                                        "type": "integer",
+                                                        "minimum": 0,
+                                                        "maximum": 6
                                                       }
                                                     },
                                                     "required": [
-                                                      "objectId"
+                                                      "objectId",
+                                                      "code",
+                                                      "name",
+                                                      "symbol",
+                                                      "quantityScale"
                                                     ],
                                                     "additionalProperties": false
                                                   },
@@ -120278,10 +120470,34 @@
                                                               "type": "string",
                                                               "minLength": 26,
                                                               "maxLength": 26
+                                                            },
+                                                            "code": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "name": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 200
+                                                            },
+                                                            "symbol": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "quantityScale": {
+                                                              "type": "integer",
+                                                              "minimum": 0,
+                                                              "maximum": 6
                                                             }
                                                           },
                                                           "required": [
-                                                            "objectId"
+                                                            "objectId",
+                                                            "code",
+                                                            "name",
+                                                            "symbol",
+                                                            "quantityScale"
                                                           ],
                                                           "additionalProperties": false
                                                         },
@@ -121510,10 +121726,34 @@
                                                 "type": "string",
                                                 "minLength": 26,
                                                 "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "symbol": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "quantityScale": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 6
                                               }
                                             },
                                             "required": [
-                                              "objectId"
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "symbol",
+                                              "quantityScale"
                                             ],
                                             "additionalProperties": false
                                           },
@@ -121590,10 +121830,34 @@
                                                         "type": "string",
                                                         "minLength": 26,
                                                         "maxLength": 26
+                                                      },
+                                                      "code": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "name": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 200
+                                                      },
+                                                      "symbol": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "quantityScale": {
+                                                        "type": "integer",
+                                                        "minimum": 0,
+                                                        "maximum": 6
                                                       }
                                                     },
                                                     "required": [
-                                                      "objectId"
+                                                      "objectId",
+                                                      "code",
+                                                      "name",
+                                                      "symbol",
+                                                      "quantityScale"
                                                     ],
                                                     "additionalProperties": false
                                                   },
@@ -121657,10 +121921,34 @@
                                                               "type": "string",
                                                               "minLength": 26,
                                                               "maxLength": 26
+                                                            },
+                                                            "code": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "name": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 200
+                                                            },
+                                                            "symbol": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "quantityScale": {
+                                                              "type": "integer",
+                                                              "minimum": 0,
+                                                              "maximum": 6
                                                             }
                                                           },
                                                           "required": [
-                                                            "objectId"
+                                                            "objectId",
+                                                            "code",
+                                                            "name",
+                                                            "symbol",
+                                                            "quantityScale"
                                                           ],
                                                           "additionalProperties": false
                                                         },
@@ -130762,10 +131050,34 @@
                                       "type": "string",
                                       "minLength": 26,
                                       "maxLength": 26
+                                    },
+                                    "code": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    },
+                                    "name": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "symbol": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    },
+                                    "quantityScale": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 6
                                     }
                                   },
                                   "required": [
-                                    "objectId"
+                                    "objectId",
+                                    "code",
+                                    "name",
+                                    "symbol",
+                                    "quantityScale"
                                   ],
                                   "additionalProperties": false
                                 },
@@ -130842,10 +131154,34 @@
                                               "type": "string",
                                               "minLength": 26,
                                               "maxLength": 26
+                                            },
+                                            "code": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 64
+                                            },
+                                            "name": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 200
+                                            },
+                                            "symbol": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 64
+                                            },
+                                            "quantityScale": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 6
                                             }
                                           },
                                           "required": [
-                                            "objectId"
+                                            "objectId",
+                                            "code",
+                                            "name",
+                                            "symbol",
+                                            "quantityScale"
                                           ],
                                           "additionalProperties": false
                                         },
@@ -130909,10 +131245,34 @@
                                                     "type": "string",
                                                     "minLength": 26,
                                                     "maxLength": 26
+                                                  },
+                                                  "code": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "maxLength": 64
+                                                  },
+                                                  "name": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "maxLength": 200
+                                                  },
+                                                  "symbol": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "maxLength": 64
+                                                  },
+                                                  "quantityScale": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 6
                                                   }
                                                 },
                                                 "required": [
-                                                  "objectId"
+                                                  "objectId",
+                                                  "code",
+                                                  "name",
+                                                  "symbol",
+                                                  "quantityScale"
                                                 ],
                                                 "additionalProperties": false
                                               },
@@ -132141,10 +132501,34 @@
                                       "type": "string",
                                       "minLength": 26,
                                       "maxLength": 26
+                                    },
+                                    "code": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    },
+                                    "name": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "symbol": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    },
+                                    "quantityScale": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 6
                                     }
                                   },
                                   "required": [
-                                    "objectId"
+                                    "objectId",
+                                    "code",
+                                    "name",
+                                    "symbol",
+                                    "quantityScale"
                                   ],
                                   "additionalProperties": false
                                 },
@@ -132221,10 +132605,34 @@
                                               "type": "string",
                                               "minLength": 26,
                                               "maxLength": 26
+                                            },
+                                            "code": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 64
+                                            },
+                                            "name": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 200
+                                            },
+                                            "symbol": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 64
+                                            },
+                                            "quantityScale": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 6
                                             }
                                           },
                                           "required": [
-                                            "objectId"
+                                            "objectId",
+                                            "code",
+                                            "name",
+                                            "symbol",
+                                            "quantityScale"
                                           ],
                                           "additionalProperties": false
                                         },
@@ -132288,10 +132696,34 @@
                                                     "type": "string",
                                                     "minLength": 26,
                                                     "maxLength": 26
+                                                  },
+                                                  "code": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "maxLength": 64
+                                                  },
+                                                  "name": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "maxLength": 200
+                                                  },
+                                                  "symbol": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "maxLength": 64
+                                                  },
+                                                  "quantityScale": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 6
                                                   }
                                                 },
                                                 "required": [
-                                                  "objectId"
+                                                  "objectId",
+                                                  "code",
+                                                  "name",
+                                                  "symbol",
+                                                  "quantityScale"
                                                 ],
                                                 "additionalProperties": false
                                               },
@@ -141147,10 +141579,34 @@
                                                 "type": "string",
                                                 "minLength": 26,
                                                 "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "symbol": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "quantityScale": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 6
                                               }
                                             },
                                             "required": [
-                                              "objectId"
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "symbol",
+                                              "quantityScale"
                                             ],
                                             "additionalProperties": false
                                           },
@@ -141227,10 +141683,34 @@
                                                         "type": "string",
                                                         "minLength": 26,
                                                         "maxLength": 26
+                                                      },
+                                                      "code": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "name": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 200
+                                                      },
+                                                      "symbol": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "quantityScale": {
+                                                        "type": "integer",
+                                                        "minimum": 0,
+                                                        "maximum": 6
                                                       }
                                                     },
                                                     "required": [
-                                                      "objectId"
+                                                      "objectId",
+                                                      "code",
+                                                      "name",
+                                                      "symbol",
+                                                      "quantityScale"
                                                     ],
                                                     "additionalProperties": false
                                                   },
@@ -141294,10 +141774,34 @@
                                                               "type": "string",
                                                               "minLength": 26,
                                                               "maxLength": 26
+                                                            },
+                                                            "code": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "name": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 200
+                                                            },
+                                                            "symbol": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "quantityScale": {
+                                                              "type": "integer",
+                                                              "minimum": 0,
+                                                              "maximum": 6
                                                             }
                                                           },
                                                           "required": [
-                                                            "objectId"
+                                                            "objectId",
+                                                            "code",
+                                                            "name",
+                                                            "symbol",
+                                                            "quantityScale"
                                                           ],
                                                           "additionalProperties": false
                                                         },
@@ -142526,10 +143030,34 @@
                                                 "type": "string",
                                                 "minLength": 26,
                                                 "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "symbol": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "quantityScale": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 6
                                               }
                                             },
                                             "required": [
-                                              "objectId"
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "symbol",
+                                              "quantityScale"
                                             ],
                                             "additionalProperties": false
                                           },
@@ -142606,10 +143134,34 @@
                                                         "type": "string",
                                                         "minLength": 26,
                                                         "maxLength": 26
+                                                      },
+                                                      "code": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "name": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 200
+                                                      },
+                                                      "symbol": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "quantityScale": {
+                                                        "type": "integer",
+                                                        "minimum": 0,
+                                                        "maximum": 6
                                                       }
                                                     },
                                                     "required": [
-                                                      "objectId"
+                                                      "objectId",
+                                                      "code",
+                                                      "name",
+                                                      "symbol",
+                                                      "quantityScale"
                                                     ],
                                                     "additionalProperties": false
                                                   },
@@ -142673,10 +143225,34 @@
                                                               "type": "string",
                                                               "minLength": 26,
                                                               "maxLength": 26
+                                                            },
+                                                            "code": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "name": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 200
+                                                            },
+                                                            "symbol": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "quantityScale": {
+                                                              "type": "integer",
+                                                              "minimum": 0,
+                                                              "maximum": 6
                                                             }
                                                           },
                                                           "required": [
-                                                            "objectId"
+                                                            "objectId",
+                                                            "code",
+                                                            "name",
+                                                            "symbol",
+                                                            "quantityScale"
                                                           ],
                                                           "additionalProperties": false
                                                         },
@@ -151545,10 +152121,34 @@
                                       "type": "string",
                                       "minLength": 26,
                                       "maxLength": 26
+                                    },
+                                    "code": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    },
+                                    "name": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "symbol": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    },
+                                    "quantityScale": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 6
                                     }
                                   },
                                   "required": [
-                                    "objectId"
+                                    "objectId",
+                                    "code",
+                                    "name",
+                                    "symbol",
+                                    "quantityScale"
                                   ],
                                   "additionalProperties": false
                                 },
@@ -151625,10 +152225,34 @@
                                               "type": "string",
                                               "minLength": 26,
                                               "maxLength": 26
+                                            },
+                                            "code": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 64
+                                            },
+                                            "name": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 200
+                                            },
+                                            "symbol": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 64
+                                            },
+                                            "quantityScale": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 6
                                             }
                                           },
                                           "required": [
-                                            "objectId"
+                                            "objectId",
+                                            "code",
+                                            "name",
+                                            "symbol",
+                                            "quantityScale"
                                           ],
                                           "additionalProperties": false
                                         },
@@ -151692,10 +152316,34 @@
                                                     "type": "string",
                                                     "minLength": 26,
                                                     "maxLength": 26
+                                                  },
+                                                  "code": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "maxLength": 64
+                                                  },
+                                                  "name": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "maxLength": 200
+                                                  },
+                                                  "symbol": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "maxLength": 64
+                                                  },
+                                                  "quantityScale": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 6
                                                   }
                                                 },
                                                 "required": [
-                                                  "objectId"
+                                                  "objectId",
+                                                  "code",
+                                                  "name",
+                                                  "symbol",
+                                                  "quantityScale"
                                                 ],
                                                 "additionalProperties": false
                                               },
@@ -152924,10 +153572,34 @@
                                       "type": "string",
                                       "minLength": 26,
                                       "maxLength": 26
+                                    },
+                                    "code": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    },
+                                    "name": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "symbol": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    },
+                                    "quantityScale": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 6
                                     }
                                   },
                                   "required": [
-                                    "objectId"
+                                    "objectId",
+                                    "code",
+                                    "name",
+                                    "symbol",
+                                    "quantityScale"
                                   ],
                                   "additionalProperties": false
                                 },
@@ -153004,10 +153676,34 @@
                                               "type": "string",
                                               "minLength": 26,
                                               "maxLength": 26
+                                            },
+                                            "code": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 64
+                                            },
+                                            "name": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 200
+                                            },
+                                            "symbol": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 64
+                                            },
+                                            "quantityScale": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 6
                                             }
                                           },
                                           "required": [
-                                            "objectId"
+                                            "objectId",
+                                            "code",
+                                            "name",
+                                            "symbol",
+                                            "quantityScale"
                                           ],
                                           "additionalProperties": false
                                         },
@@ -153071,10 +153767,34 @@
                                                     "type": "string",
                                                     "minLength": 26,
                                                     "maxLength": 26
+                                                  },
+                                                  "code": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "maxLength": 64
+                                                  },
+                                                  "name": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "maxLength": 200
+                                                  },
+                                                  "symbol": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "maxLength": 64
+                                                  },
+                                                  "quantityScale": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 6
                                                   }
                                                 },
                                                 "required": [
-                                                  "objectId"
+                                                  "objectId",
+                                                  "code",
+                                                  "name",
+                                                  "symbol",
+                                                  "quantityScale"
                                                 ],
                                                 "additionalProperties": false
                                               },
@@ -161930,10 +162650,34 @@
                                                 "type": "string",
                                                 "minLength": 26,
                                                 "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "symbol": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "quantityScale": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 6
                                               }
                                             },
                                             "required": [
-                                              "objectId"
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "symbol",
+                                              "quantityScale"
                                             ],
                                             "additionalProperties": false
                                           },
@@ -162010,10 +162754,34 @@
                                                         "type": "string",
                                                         "minLength": 26,
                                                         "maxLength": 26
+                                                      },
+                                                      "code": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "name": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 200
+                                                      },
+                                                      "symbol": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "quantityScale": {
+                                                        "type": "integer",
+                                                        "minimum": 0,
+                                                        "maximum": 6
                                                       }
                                                     },
                                                     "required": [
-                                                      "objectId"
+                                                      "objectId",
+                                                      "code",
+                                                      "name",
+                                                      "symbol",
+                                                      "quantityScale"
                                                     ],
                                                     "additionalProperties": false
                                                   },
@@ -162077,10 +162845,34 @@
                                                               "type": "string",
                                                               "minLength": 26,
                                                               "maxLength": 26
+                                                            },
+                                                            "code": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "name": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 200
+                                                            },
+                                                            "symbol": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "quantityScale": {
+                                                              "type": "integer",
+                                                              "minimum": 0,
+                                                              "maximum": 6
                                                             }
                                                           },
                                                           "required": [
-                                                            "objectId"
+                                                            "objectId",
+                                                            "code",
+                                                            "name",
+                                                            "symbol",
+                                                            "quantityScale"
                                                           ],
                                                           "additionalProperties": false
                                                         },
@@ -163309,10 +164101,34 @@
                                                 "type": "string",
                                                 "minLength": 26,
                                                 "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "symbol": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "quantityScale": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 6
                                               }
                                             },
                                             "required": [
-                                              "objectId"
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "symbol",
+                                              "quantityScale"
                                             ],
                                             "additionalProperties": false
                                           },
@@ -163389,10 +164205,34 @@
                                                         "type": "string",
                                                         "minLength": 26,
                                                         "maxLength": 26
+                                                      },
+                                                      "code": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "name": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 200
+                                                      },
+                                                      "symbol": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "quantityScale": {
+                                                        "type": "integer",
+                                                        "minimum": 0,
+                                                        "maximum": 6
                                                       }
                                                     },
                                                     "required": [
-                                                      "objectId"
+                                                      "objectId",
+                                                      "code",
+                                                      "name",
+                                                      "symbol",
+                                                      "quantityScale"
                                                     ],
                                                     "additionalProperties": false
                                                   },
@@ -163456,10 +164296,34 @@
                                                               "type": "string",
                                                               "minLength": 26,
                                                               "maxLength": 26
+                                                            },
+                                                            "code": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "name": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 200
+                                                            },
+                                                            "symbol": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "quantityScale": {
+                                                              "type": "integer",
+                                                              "minimum": 0,
+                                                              "maximum": 6
                                                             }
                                                           },
                                                           "required": [
-                                                            "objectId"
+                                                            "objectId",
+                                                            "code",
+                                                            "name",
+                                                            "symbol",
+                                                            "quantityScale"
                                                           ],
                                                           "additionalProperties": false
                                                         },
@@ -172470,10 +173334,34 @@
                                                 "type": "string",
                                                 "minLength": 26,
                                                 "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "symbol": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "quantityScale": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 6
                                               }
                                             },
                                             "required": [
-                                              "objectId"
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "symbol",
+                                              "quantityScale"
                                             ],
                                             "additionalProperties": false
                                           },
@@ -172550,10 +173438,34 @@
                                                         "type": "string",
                                                         "minLength": 26,
                                                         "maxLength": 26
+                                                      },
+                                                      "code": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "name": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 200
+                                                      },
+                                                      "symbol": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "quantityScale": {
+                                                        "type": "integer",
+                                                        "minimum": 0,
+                                                        "maximum": 6
                                                       }
                                                     },
                                                     "required": [
-                                                      "objectId"
+                                                      "objectId",
+                                                      "code",
+                                                      "name",
+                                                      "symbol",
+                                                      "quantityScale"
                                                     ],
                                                     "additionalProperties": false
                                                   },
@@ -172617,10 +173529,34 @@
                                                               "type": "string",
                                                               "minLength": 26,
                                                               "maxLength": 26
+                                                            },
+                                                            "code": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "name": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 200
+                                                            },
+                                                            "symbol": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "quantityScale": {
+                                                              "type": "integer",
+                                                              "minimum": 0,
+                                                              "maximum": 6
                                                             }
                                                           },
                                                           "required": [
-                                                            "objectId"
+                                                            "objectId",
+                                                            "code",
+                                                            "name",
+                                                            "symbol",
+                                                            "quantityScale"
                                                           ],
                                                           "additionalProperties": false
                                                         },
@@ -173849,10 +174785,34 @@
                                                 "type": "string",
                                                 "minLength": 26,
                                                 "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "symbol": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "quantityScale": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 6
                                               }
                                             },
                                             "required": [
-                                              "objectId"
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "symbol",
+                                              "quantityScale"
                                             ],
                                             "additionalProperties": false
                                           },
@@ -173929,10 +174889,34 @@
                                                         "type": "string",
                                                         "minLength": 26,
                                                         "maxLength": 26
+                                                      },
+                                                      "code": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "name": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 200
+                                                      },
+                                                      "symbol": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "quantityScale": {
+                                                        "type": "integer",
+                                                        "minimum": 0,
+                                                        "maximum": 6
                                                       }
                                                     },
                                                     "required": [
-                                                      "objectId"
+                                                      "objectId",
+                                                      "code",
+                                                      "name",
+                                                      "symbol",
+                                                      "quantityScale"
                                                     ],
                                                     "additionalProperties": false
                                                   },
@@ -173996,10 +174980,34 @@
                                                               "type": "string",
                                                               "minLength": 26,
                                                               "maxLength": 26
+                                                            },
+                                                            "code": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "name": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 200
+                                                            },
+                                                            "symbol": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "quantityScale": {
+                                                              "type": "integer",
+                                                              "minimum": 0,
+                                                              "maximum": 6
                                                             }
                                                           },
                                                           "required": [
-                                                            "objectId"
+                                                            "objectId",
+                                                            "code",
+                                                            "name",
+                                                            "symbol",
+                                                            "quantityScale"
                                                           ],
                                                           "additionalProperties": false
                                                         },
@@ -183016,10 +184024,34 @@
                                                 "type": "string",
                                                 "minLength": 26,
                                                 "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "symbol": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "quantityScale": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 6
                                               }
                                             },
                                             "required": [
-                                              "objectId"
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "symbol",
+                                              "quantityScale"
                                             ],
                                             "additionalProperties": false
                                           },
@@ -183096,10 +184128,34 @@
                                                         "type": "string",
                                                         "minLength": 26,
                                                         "maxLength": 26
+                                                      },
+                                                      "code": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "name": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 200
+                                                      },
+                                                      "symbol": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "quantityScale": {
+                                                        "type": "integer",
+                                                        "minimum": 0,
+                                                        "maximum": 6
                                                       }
                                                     },
                                                     "required": [
-                                                      "objectId"
+                                                      "objectId",
+                                                      "code",
+                                                      "name",
+                                                      "symbol",
+                                                      "quantityScale"
                                                     ],
                                                     "additionalProperties": false
                                                   },
@@ -183163,10 +184219,34 @@
                                                               "type": "string",
                                                               "minLength": 26,
                                                               "maxLength": 26
+                                                            },
+                                                            "code": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "name": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 200
+                                                            },
+                                                            "symbol": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "quantityScale": {
+                                                              "type": "integer",
+                                                              "minimum": 0,
+                                                              "maximum": 6
                                                             }
                                                           },
                                                           "required": [
-                                                            "objectId"
+                                                            "objectId",
+                                                            "code",
+                                                            "name",
+                                                            "symbol",
+                                                            "quantityScale"
                                                           ],
                                                           "additionalProperties": false
                                                         },
@@ -184395,10 +185475,34 @@
                                                 "type": "string",
                                                 "minLength": 26,
                                                 "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "symbol": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "quantityScale": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 6
                                               }
                                             },
                                             "required": [
-                                              "objectId"
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "symbol",
+                                              "quantityScale"
                                             ],
                                             "additionalProperties": false
                                           },
@@ -184475,10 +185579,34 @@
                                                         "type": "string",
                                                         "minLength": 26,
                                                         "maxLength": 26
+                                                      },
+                                                      "code": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "name": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 200
+                                                      },
+                                                      "symbol": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "quantityScale": {
+                                                        "type": "integer",
+                                                        "minimum": 0,
+                                                        "maximum": 6
                                                       }
                                                     },
                                                     "required": [
-                                                      "objectId"
+                                                      "objectId",
+                                                      "code",
+                                                      "name",
+                                                      "symbol",
+                                                      "quantityScale"
                                                     ],
                                                     "additionalProperties": false
                                                   },
@@ -184542,10 +185670,34 @@
                                                               "type": "string",
                                                               "minLength": 26,
                                                               "maxLength": 26
+                                                            },
+                                                            "code": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "name": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 200
+                                                            },
+                                                            "symbol": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "quantityScale": {
+                                                              "type": "integer",
+                                                              "minimum": 0,
+                                                              "maximum": 6
                                                             }
                                                           },
                                                           "required": [
-                                                            "objectId"
+                                                            "objectId",
+                                                            "code",
+                                                            "name",
+                                                            "symbol",
+                                                            "quantityScale"
                                                           ],
                                                           "additionalProperties": false
                                                         },
@@ -193556,10 +194708,34 @@
                                                 "type": "string",
                                                 "minLength": 26,
                                                 "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "symbol": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "quantityScale": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 6
                                               }
                                             },
                                             "required": [
-                                              "objectId"
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "symbol",
+                                              "quantityScale"
                                             ],
                                             "additionalProperties": false
                                           },
@@ -193636,10 +194812,34 @@
                                                         "type": "string",
                                                         "minLength": 26,
                                                         "maxLength": 26
+                                                      },
+                                                      "code": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "name": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 200
+                                                      },
+                                                      "symbol": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "quantityScale": {
+                                                        "type": "integer",
+                                                        "minimum": 0,
+                                                        "maximum": 6
                                                       }
                                                     },
                                                     "required": [
-                                                      "objectId"
+                                                      "objectId",
+                                                      "code",
+                                                      "name",
+                                                      "symbol",
+                                                      "quantityScale"
                                                     ],
                                                     "additionalProperties": false
                                                   },
@@ -193703,10 +194903,34 @@
                                                               "type": "string",
                                                               "minLength": 26,
                                                               "maxLength": 26
+                                                            },
+                                                            "code": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "name": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 200
+                                                            },
+                                                            "symbol": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "quantityScale": {
+                                                              "type": "integer",
+                                                              "minimum": 0,
+                                                              "maximum": 6
                                                             }
                                                           },
                                                           "required": [
-                                                            "objectId"
+                                                            "objectId",
+                                                            "code",
+                                                            "name",
+                                                            "symbol",
+                                                            "quantityScale"
                                                           ],
                                                           "additionalProperties": false
                                                         },
@@ -194935,10 +196159,34 @@
                                                 "type": "string",
                                                 "minLength": 26,
                                                 "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "symbol": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "quantityScale": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 6
                                               }
                                             },
                                             "required": [
-                                              "objectId"
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "symbol",
+                                              "quantityScale"
                                             ],
                                             "additionalProperties": false
                                           },
@@ -195015,10 +196263,34 @@
                                                         "type": "string",
                                                         "minLength": 26,
                                                         "maxLength": 26
+                                                      },
+                                                      "code": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "name": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 200
+                                                      },
+                                                      "symbol": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "quantityScale": {
+                                                        "type": "integer",
+                                                        "minimum": 0,
+                                                        "maximum": 6
                                                       }
                                                     },
                                                     "required": [
-                                                      "objectId"
+                                                      "objectId",
+                                                      "code",
+                                                      "name",
+                                                      "symbol",
+                                                      "quantityScale"
                                                     ],
                                                     "additionalProperties": false
                                                   },
@@ -195082,10 +196354,34 @@
                                                               "type": "string",
                                                               "minLength": 26,
                                                               "maxLength": 26
+                                                            },
+                                                            "code": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "name": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 200
+                                                            },
+                                                            "symbol": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "quantityScale": {
+                                                              "type": "integer",
+                                                              "minimum": 0,
+                                                              "maximum": 6
                                                             }
                                                           },
                                                           "required": [
-                                                            "objectId"
+                                                            "objectId",
+                                                            "code",
+                                                            "name",
+                                                            "symbol",
+                                                            "quantityScale"
                                                           ],
                                                           "additionalProperties": false
                                                         },
@@ -204102,10 +205398,34 @@
                                                 "type": "string",
                                                 "minLength": 26,
                                                 "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "symbol": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "quantityScale": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 6
                                               }
                                             },
                                             "required": [
-                                              "objectId"
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "symbol",
+                                              "quantityScale"
                                             ],
                                             "additionalProperties": false
                                           },
@@ -204182,10 +205502,34 @@
                                                         "type": "string",
                                                         "minLength": 26,
                                                         "maxLength": 26
+                                                      },
+                                                      "code": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "name": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 200
+                                                      },
+                                                      "symbol": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "quantityScale": {
+                                                        "type": "integer",
+                                                        "minimum": 0,
+                                                        "maximum": 6
                                                       }
                                                     },
                                                     "required": [
-                                                      "objectId"
+                                                      "objectId",
+                                                      "code",
+                                                      "name",
+                                                      "symbol",
+                                                      "quantityScale"
                                                     ],
                                                     "additionalProperties": false
                                                   },
@@ -204249,10 +205593,34 @@
                                                               "type": "string",
                                                               "minLength": 26,
                                                               "maxLength": 26
+                                                            },
+                                                            "code": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "name": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 200
+                                                            },
+                                                            "symbol": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "quantityScale": {
+                                                              "type": "integer",
+                                                              "minimum": 0,
+                                                              "maximum": 6
                                                             }
                                                           },
                                                           "required": [
-                                                            "objectId"
+                                                            "objectId",
+                                                            "code",
+                                                            "name",
+                                                            "symbol",
+                                                            "quantityScale"
                                                           ],
                                                           "additionalProperties": false
                                                         },
@@ -205481,10 +206849,34 @@
                                                 "type": "string",
                                                 "minLength": 26,
                                                 "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "symbol": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "quantityScale": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 6
                                               }
                                             },
                                             "required": [
-                                              "objectId"
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "symbol",
+                                              "quantityScale"
                                             ],
                                             "additionalProperties": false
                                           },
@@ -205561,10 +206953,34 @@
                                                         "type": "string",
                                                         "minLength": 26,
                                                         "maxLength": 26
+                                                      },
+                                                      "code": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "name": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 200
+                                                      },
+                                                      "symbol": {
+                                                        "type": "string",
+                                                        "minLength": 1,
+                                                        "maxLength": 64
+                                                      },
+                                                      "quantityScale": {
+                                                        "type": "integer",
+                                                        "minimum": 0,
+                                                        "maximum": 6
                                                       }
                                                     },
                                                     "required": [
-                                                      "objectId"
+                                                      "objectId",
+                                                      "code",
+                                                      "name",
+                                                      "symbol",
+                                                      "quantityScale"
                                                     ],
                                                     "additionalProperties": false
                                                   },
@@ -205628,10 +207044,34 @@
                                                               "type": "string",
                                                               "minLength": 26,
                                                               "maxLength": 26
+                                                            },
+                                                            "code": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "name": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 200
+                                                            },
+                                                            "symbol": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "quantityScale": {
+                                                              "type": "integer",
+                                                              "minimum": 0,
+                                                              "maximum": 6
                                                             }
                                                           },
                                                           "required": [
-                                                            "objectId"
+                                                            "objectId",
+                                                            "code",
+                                                            "name",
+                                                            "symbol",
+                                                            "quantityScale"
                                                           ],
                                                           "additionalProperties": false
                                                         },

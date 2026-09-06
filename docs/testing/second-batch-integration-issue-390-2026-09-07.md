@@ -4,7 +4,7 @@
 
 本轮验收基线为 `ffb607464d7c667f16b7f104c8c095335d2ba2c6`，沿用 `codex/issue-386-aux-management` 集成分支。该 SHA 已包含 #385–#389 的本地实现；GitHub 前序票仍为 open，不能据提交消息推导已合并或已发布。本轮补证和死导出清理提交为 `0dade63ce584204a67120b8d3d00bf53d22461fb`，最终测试候选对应该提交内容；容器行为验证复用未改变的运行时实现。本文逐项核对父 Issue #384 的 B2-01 至 B2-26，记录当前证据及真实缺口，不替代领域规则。
 
-目前 B2-16、B2-17 尚未全部满足：页面、AUX 协议和产品/客户历史快照已有实际验证，但 VOU 交易单位精度/完整审计快照及销售订单收款方式快照存在实现漂移。因此不能宣称 #390 或整批验收完成。没有改写父 Issue、关闭前序票、推送、合并或生产上线。
+用户已确认将两个 VOU 缺口按独立切片修复。B2-16 已补齐订单行和配方的单位精度及完整单位审计快照；B2-17 的销售订单收款方式快照仍待下一切片。因此不能宣称 #390 或整批验收完成。没有改写父 Issue、关闭前序票、推送、合并或生产上线。
 
 ## 七页实际调用链
 
@@ -32,40 +32,40 @@ Registry 恰好七项。人员类别/岗位复用同构名称说明表单和 sim
 
 本轮清理 `AuxData` 无外部消费者的旧泛型导出，将其限定为 AUX Service 内部类型。现有 typed 公开接口 `AuxDataByEntity` 保留。独立只读审查从入口、literal route、导入和调用链未发现另一套启停实现或旧角色/AUX 管理输入通道。
 
-相对第二批基线 `58bee225`，实际 SQL 变化来自 #389：`vou_asset_acquisition_line_snapshots` 增加 `category_default_useful_life_months` 和 `category_default_residual_rate_hundredths` 两个快照列及简单范围 CHECK。本轮尚无新增 SQL 变化。公共启停及拼音没有引入表、函数、存储过程或触发器。
+相对第二批基线 `58bee225`，实际 SQL 变化来自 #389：`vou_asset_acquisition_line_snapshots` 增加 `category_default_useful_life_months` 和 `category_default_residual_rate_hundredths` 两个快照列及简单范围 CHECK。B2-16 修复另在订单产品行、配方产出及配方原料的既有快照表增加单位编码、名称、符号和数量精度列；没有新增业务表。公共启停及拼音没有引入表、函数、存储过程或触发器。
 
 ## B2 验收矩阵
 
 下表的测试文件为本轮实际运行的候选测试；失败或待执行项不计为通过。历史报告仅提供前序红绿过程和设计边界，当前通过结果以本轮命令为准。
 
-| ID    | 覆盖票         | 实际证据                                                                                                         | 结果   |
-| ----- | -------------- | ---------------------------------------------------------------------------------------------------------------- | ------ |
-| B2-01 | #385–#389      | Registry 静态七项；七页 E2E 从菜单进入真实 Shell/编辑器                                                          | 通过   |
-| B2-02 | #385/#390      | navigation E2E；navigation-resources、Host VM/component；单项非 query 角色 E2E                                   | 通过   |
-| B2-03 | #385/#386      | 三个真实 Service 消费共同 `changeEnablement`；APP/AUX PostgreSQL 启停测试                                        | 通过   |
-| B2-04 | #385/#386      | app-user-management、aux-management 的同 revision 并发唯一赢家、陈旧和同态拒绝                                   | 通过   |
-| B2-05 | #385/#386      | APP/AUX 真实大整数 CAS；app-role-contract、aux-contract 拒绝数字并精确保留字符串                                 | 通过   |
-| B2-06 | #385           | app-user-management 的 disable revokes every target session、enable does not revive；用户浏览器自助流程          | 通过   |
-| B2-07 | #385           | role enablement keeps user role references and sessions；真实旧会话请求拒绝 E2E                                  | 通过   |
-| B2-08 | #385/#390      | system/self/ceiling/final administrator 真实事务；本轮补名称 trim/大小写冲突与 superadmin 拒绝                   | 通过   |
-| B2-09 | #385           | app-user VM 的全部候选页与停用关联合并；真实 HTTP assignable roles；用户编辑器角色分配 E2E                       | 通过   |
-| B2-10 | #385           | role create/save exact write permission；停用权限显式移除；角色 VM 分页目录与依赖权限                            | 通过   |
-| B2-11 | #385/#390      | user E2E 创建单项角色→分配用户→恢复 Session→无 query→停用后旧请求拒绝→菜单撤销                                   | 通过   |
-| B2-12 | #385/#386      | role/AUX Hono 契约测试及真实 HTTP 原生列表                                                                       | 通过   |
-| B2-13 | #385–#389      | app-user-management/aux-management 匹配后分页；七页真实名称/编码/拼音查询及 >20 条数据                           | 通过   |
-| B2-14 | #386           | 十二实体共享 Hono 工厂和 literal routes；aux-contract 全实体协议覆盖                                             | 通过   |
-| B2-15 | #385/#386      | 原生创建/改名；AUX PostgreSQL current name 查询；strict 输入拒绝 code；事务失败回滚                              | 通过   |
-| B2-16 | #387/#390      | measurement-unit 契约/VM/E2E 边界；archive-lifecycle 历史产品单位快照不变；VOU 未按产品精度校验/冻结完整单位事实 | 未通过 |
-| B2-17 | #388/#390      | payment-method 契约/VM/E2E 大额定点与非法输入；archive-lifecycle 客户旧快照不变；VOU 缺最终收款快照              | 未通过 |
-| B2-18 | #389           | asset-category E2E 合法端点/非法字段；acc-core 购置采用快照及台账历史不变                                        | 通过   |
-| B2-19 | #386–#389      | aux-management 引用 blocker；archive-lifecycle 新采用拒绝及历史读取；acc-core 类别新采用拒绝                     | 通过   |
-| B2-20 | #385–#389      | 公共 list VM 可控 Promise；user/role/AUX VM；Host dispose/Session generation 组件测试                            | 通过   |
-| B2-21 | #385–#389      | VM 写成功刷新失败、取消、未知结果锁定不重放；专有 AUX E2E 故障反馈                                               | 通过   |
-| B2-22 | #385/#386      | platform/pinyin 纯工具及 APP/AUX 查询顺序；真实拼音分页测试                                                      | 通过   |
-| B2-23 | #385–#389      | 七页 desktop/390px E2E；岗位移动编辑器/人员类别桌面截图人工复核                                                  | 通过   |
-| B2-24 | #385–#390      | 严格旧输入拒绝；入口/导入/调用链核查；删除 AuxData 死导出；未迁移范围如实列明                                    | 通过   |
-| B2-25 | #385/#386/#389 | APP/AUX 审计故意失败 PostgreSQL 回滚；ACC/VOU 类别候选失败无部分写入                                             | 通过   |
-| B2-26 | #390           | 独占 Compose 与回环端口；未运行备份/恢复/CI；保留共享服务                                                        | 通过   |
+| ID    | 覆盖票         | 实际证据                                                                                                                              | 结果   |
+| ----- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| B2-01 | #385–#389      | Registry 静态七项；七页 E2E 从菜单进入真实 Shell/编辑器                                                                               | 通过   |
+| B2-02 | #385/#390      | navigation E2E；navigation-resources、Host VM/component；单项非 query 角色 E2E                                                        | 通过   |
+| B2-03 | #385/#386      | 三个真实 Service 消费共同 `changeEnablement`；APP/AUX PostgreSQL 启停测试                                                             | 通过   |
+| B2-04 | #385/#386      | app-user-management、aux-management 的同 revision 并发唯一赢家、陈旧和同态拒绝                                                        | 通过   |
+| B2-05 | #385/#386      | APP/AUX 真实大整数 CAS；app-role-contract、aux-contract 拒绝数字并精确保留字符串                                                      | 通过   |
+| B2-06 | #385           | app-user-management 的 disable revokes every target session、enable does not revive；用户浏览器自助流程                               | 通过   |
+| B2-07 | #385           | role enablement keeps user role references and sessions；真实旧会话请求拒绝 E2E                                                       | 通过   |
+| B2-08 | #385/#390      | system/self/ceiling/final administrator 真实事务；本轮补名称 trim/大小写冲突与 superadmin 拒绝                                        | 通过   |
+| B2-09 | #385           | app-user VM 的全部候选页与停用关联合并；真实 HTTP assignable roles；用户编辑器角色分配 E2E                                            | 通过   |
+| B2-10 | #385           | role create/save exact write permission；停用权限显式移除；角色 VM 分页目录与依赖权限                                                 | 通过   |
+| B2-11 | #385/#390      | user E2E 创建单项角色→分配用户→恢复 Session→无 query→停用后旧请求拒绝→菜单撤销                                                        | 通过   |
+| B2-12 | #385/#386      | role/AUX Hono 契约测试及真实 HTTP 原生列表                                                                                            | 通过   |
+| B2-13 | #385–#389      | app-user-management/aux-management 匹配后分页；七页真实名称/编码/拼音查询及 >20 条数据                                                | 通过   |
+| B2-14 | #386           | 十二实体共享 Hono 工厂和 literal routes；aux-contract 全实体协议覆盖                                                                  | 通过   |
+| B2-15 | #385/#386      | 原生创建/改名；AUX PostgreSQL current name 查询；strict 输入拒绝 code；事务失败回滚                                                   | 通过   |
+| B2-16 | #387/#390      | measurement-unit 契约/VM/E2E 边界；archive-lifecycle 历史产品单位快照不变；VOU 公开 submit/get 验证产品精度、完整单位快照及历史稳定性 | 通过   |
+| B2-17 | #388/#390      | payment-method 契约/VM/E2E 大额定点与非法输入；archive-lifecycle 客户旧快照不变；VOU 缺最终收款快照                                   | 未通过 |
+| B2-18 | #389           | asset-category E2E 合法端点/非法字段；acc-core 购置采用快照及台账历史不变                                                             | 通过   |
+| B2-19 | #386–#389      | aux-management 引用 blocker；archive-lifecycle 新采用拒绝及历史读取；acc-core 类别新采用拒绝                                          | 通过   |
+| B2-20 | #385–#389      | 公共 list VM 可控 Promise；user/role/AUX VM；Host dispose/Session generation 组件测试                                                 | 通过   |
+| B2-21 | #385–#389      | VM 写成功刷新失败、取消、未知结果锁定不重放；专有 AUX E2E 故障反馈                                                                    | 通过   |
+| B2-22 | #385/#386      | platform/pinyin 纯工具及 APP/AUX 查询顺序；真实拼音分页测试                                                                           | 通过   |
+| B2-23 | #385–#389      | 七页 desktop/390px E2E；岗位移动编辑器/人员类别桌面截图人工复核                                                                       | 通过   |
+| B2-24 | #385–#390      | 严格旧输入拒绝；入口/导入/调用链核查；删除 AuxData 死导出；未迁移范围如实列明                                                         | 通过   |
+| B2-25 | #385/#386/#389 | APP/AUX 审计故意失败 PostgreSQL 回滚；ACC/VOU 类别候选失败无部分写入                                                                  | 通过   |
+| B2-26 | #390           | 独占 Compose 与回环端口；未运行备份/恢复/CI；保留共享服务                                                                             | 通过   |
 
 ## 本轮命令
 
@@ -91,17 +91,21 @@ Registry 恰好七项。人员类别/岗位复用同构名称说明表单和 sim
 
 没有运行默认 `make generate/e2e`：其 `target-db` 会对默认 `zerp-target` 执行 `down --volumes --remove-orphans`。本轮拆开运行实际生成、检查、测试入口并显式指向任务专用实例，不把共享库当初始化目标。没有执行 CI 工作流测试、远端 CI、备份或恢复演练；WFL parity 不属于本轮未改动路径，未重复运行。
 
-## 待定的 VOU 修复范围
+## 已授权的 VOU 修复切片
 
-- B2-16：现行 AUX 3.5 与 VOU 规则要求按采用产品版本的 quantityScale 校验数量并保留历史单位事实。当前 `VouProductLineInput.product/enteredUnit` 为 objectId，提交未解析所采用产品的 unit_conversions，按统一六位小数持久化，详情只读回单位 ID。产品历史快照测试通过不能替代该交易链路。
+- B2-16：销售及采购订单行和配方产出、原料采用完整单位快照，提交按对应产品当前有效版本的单位配置核对五项事实，并按实际定点值检查数量精度；补零合法，超精度拒绝。基准数量保持调用方确认值。公开 submit/get 验证 AUX 后续改名、变更精度及停用、产品批准新版本后历史订单不变；新单不能伪造单位事实。共享模型、Hono、运行时输入描述符、持久化和活跃生产者同步修改。
 - B2-17：现行 AUX 3.4、BOB 收款快照与 VOU 规则要求订单保存最终收款方式和销售加价。Customer payment_snapshot 已存在，但 sale-order 当前共享模型、Hono、schema 和 Service 没有对应最终字段。客户历史快照测试通过不能证明订单已采用或支持显式重新选择。
 
-两项需要明确 VOU 契约、快照持久化和活跃消费者的完整切片，不能靠兼容字段、回查 current、放宽权威规则或只补绿色断言消除。
+B2-16 同时修复计量单位删除仅读取无人维护引用缓存的问题：删除事务直接查询 DCL 与 VOU 持久化引用，返回真实结构化 blocker；DCL 采用 AUX 时锁定当前对象，与删除互斥。公开 ArchiveService/AuxService 测试先确认删除错误放行，再验证修复后拒绝且 revision 不变。B2-17 沿同样的完整切片方式继续，不放宽权威规则。
 
 ## 资源收尾与审查
 
-本轮独占 Compose project 为 `zerp-issue390`，仅绑定回环端口 55442/18088/18089。启动前确认项目资源不存在，原有共享 `zerp-back-web-1`、`zerp-back-api-1`、`zerp-back-db-1` 保持原状态。完成验证后，读取容器 project 标签和实际镜像 ID，专用 `down --volumes --rmi local` 退出 0；删除本任务失败构建留下的 `46bc014956b0` 容器，退出 0。回读 project 容器、卷、网络和镜像均为空，三个端口均无监听，受控凭证文件已删除。原三个共享服务仍 healthy；本轮无保留的临时运行资源。
+本轮独占 Compose project 为 `zerp-issue390`，仅绑定回环端口 55442/18088/18089。启动前确认项目资源不存在，原有共享 `zerp-back-web-1`、`zerp-back-api-1`、`zerp-back-db-1` 保持原状态。完成验证后，读取容器 project 标签和实际镜像 ID，专用 `down --volumes --rmi local` 退出 0；删除本任务失败构建留下的 `46bc014956b0` 容器，退出 0。回读 project 容器、卷、网络和镜像均为空，三个端口均无监听，受控凭证文件已删除。原三个共享服务仍 healthy；初次核验无保留的临时运行资源。后续 VOU 切片另使用专用 `zerp-issue390-vou`；第一片完成后暂保留其数据库供已授权的第二片验证，最终验收统一清理。
 
 本轮新增角色 name collision 用例在真实 HTTP/Service/PostgreSQL 边界核对被拒创建和保存无状态漂移；这是已存在行为的补证，没有为了制造红灯而改变实现。AUX 清理仅收回未被导入的类型导出。最终 API 类型检查、根格式、文档检查（含 6 项检查器测试）和 `git diff --check` 均退出 0。
 
-独立审查采用 Standards/Spec 两轴：发现并修正调用链表中两页 VM 的路径误记；AUX 审计故意失败证据由 `aux-management.int.test.ts` 的 PostgreSQL 22001 拒绝及公开 get 回读断言确认。Standards 无未解决发现；Spec 未发现本轮改动引入的问题。B2-16/17 为明确保留的规格缺口，未被其他通过结果覆盖。
+独立审查采用 Standards/Spec 两轴：发现并修正调用链表中两页 VM 的路径误记；AUX 审计故意失败证据由 `aux-management.int.test.ts` 的 PostgreSQL 22001 拒绝及公开 get 回读断言确认。Standards 无未解决发现；Spec 未发现本轮改动引入的问题。以上为初次核验结论；随后授权修复的验证与审查另列于下文。
+
+## B2-16 修复验证
+
+在专用 `zerp-issue390-vou` PostgreSQL 上，完整 API 集成 55/55（含锁修复后的最终整套回归）、API 单元 46/46、生成器 20/20、Model 33/33 均通过。API、Model、api-client 类型检查通过；前端类型、lint、格式与构建通过。单位快照、真实引用删除 blocker、模型草稿描述符分别有先红后绿证据。Hono 和数据库类型由正式生成入口生成；前端生产页面代码未变。独立审查发现并修复跨产品 advisory 锁与 DCL 配方引用锁顺序可能死锁：VOU 依序持产品稳定对象行共享锁后解析当前版本；DCL 产品批准和反批准持同一行排他锁。真实 PostgreSQL 并发回归通过实际等待状态构造相互竞争，验证订单冻结 V1、产品随后批准 V2，两个事务正常完成。独立 Standards/Spec 复核均无未解决发现。产品不存在时仍由既有领域路径返回业务错误。

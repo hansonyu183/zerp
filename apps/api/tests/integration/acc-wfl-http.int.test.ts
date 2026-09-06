@@ -13,7 +13,12 @@ import { ManagementService } from '../../src/app/management.ts'
 import { hashPassword, SessionService } from '../../src/app/session.ts'
 import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { AccService } from '../../src/acc/service.ts'
-import { AuxService } from '../../src/aux/service.ts'
+import {
+  AuxService,
+  type AuxEntity,
+  type AuxObjectView,
+  type AuxWriteData,
+} from '../../src/aux/service.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { ArchiveService } from '../../src/dcl/archives.ts'
 import { WarehouseService } from '../../src/dcl/warehouse.ts'
@@ -193,10 +198,10 @@ async function seedSaleOrderReferences(
     ],
     trusted: true,
   }
-  const auxiliary = async (
-    entity: Parameters<AuxService['create']>[0],
-    data: Parameters<AuxService['create']>[1],
-  ) => {
+  const auxiliary = async <Entity extends AuxEntity>(
+    entity: Entity,
+    data: AuxWriteData<Entity>,
+  ): Promise<AuxObjectView<Entity>> => {
     const created = await aux.create(entity, data, actor)
     const fact = await aux.get(entity, { id: created.id }, actor)
     return fact
@@ -439,15 +444,15 @@ async function seedSaleOrderReferences(
       id: unit.id,
       code: unit.code,
       name: unit.name,
-      symbol: 'kg',
-      quantityScale: 0,
+      symbol: unit.symbol,
+      quantityScale: unit.quantityScale,
     },
     defaultInputUnit: {
       id: unit.id,
       code: unit.code,
       name: unit.name,
-      symbol: 'kg',
-      quantityScale: 0,
+      symbol: unit.symbol,
+      quantityScale: unit.quantityScale,
     },
     unitConversions: [
       {
@@ -455,8 +460,8 @@ async function seedSaleOrderReferences(
           id: unit.id,
           code: unit.code,
           name: unit.name,
-          symbol: 'kg',
-          quantityScale: 0,
+          symbol: unit.symbol,
+          quantityScale: unit.quantityScale,
         },
         factor: '1.000000',
       },
@@ -537,7 +542,13 @@ async function seedSaleOrderReferences(
   ] as const
   return {
     facts,
-    unitId: unit.id,
+    unitSnapshot: {
+      objectId: unit.id,
+      code: unit.code,
+      name: unit.name,
+      symbol: unit.symbol,
+      quantityScale: unit.quantityScale,
+    },
     auxiliaryIds: [
       unit.id,
       productType.id,
@@ -598,7 +609,7 @@ function saleOrderPayload(
         lineId: sourceOrderLineId,
         product: { objectId: product.objectId },
         enteredQuantity: '1',
-        enteredUnit: { objectId: references.unitId },
+        enteredUnit: references.unitSnapshot,
         baseQuantity: '1',
         unitPrice: '1.00',
       },

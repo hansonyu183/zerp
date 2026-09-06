@@ -28,6 +28,13 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     warehouseEntryId = ulid()
   const operatingEntityId = ulid(),
     operatingEntityEntryId = ulid()
+  const unit = {
+    objectId: ulid(),
+    code: 'CONTROL-UNIT',
+    name: '件',
+    symbol: '件',
+    quantityScale: 0,
+  }
   const mappingId = ulid(),
     mappingEntryId = ulid()
   const fundMappingId = ulid(),
@@ -309,7 +316,18 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
       approval_entry_id: productEntryId,
       name: '控制产品',
       source_snapshots: JSON.stringify({}),
-      unit_conversions: JSON.stringify([]),
+      unit_conversions: JSON.stringify([
+        {
+          unit: {
+            id: unit.objectId,
+            code: unit.code,
+            name: unit.name,
+            symbol: unit.symbol,
+            quantityScale: unit.quantityScale,
+          },
+          factor: '1.000000',
+        },
+      ]),
       recyclable: false,
       enabled: true,
     })
@@ -552,7 +570,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
         lineId: ulid(),
         product: { objectId: productId },
         enteredQuantity: '1.000000',
-        enteredUnit: { objectId: ulid() },
+        enteredUnit: unit,
         baseQuantity: '1.000000',
         unitPrice: '10.00',
       },
@@ -751,6 +769,13 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     warehouseEntryId = ulid()
   const operatingEntityId = ulid(),
     operatingEntityEntryId = ulid()
+  const unit = {
+    objectId: ulid(),
+    code: 'BATCH-UNIT',
+    name: '件',
+    symbol: '件',
+    quantityScale: 0,
+  }
   const documentIds: string[] = []
   const balanceCalls: string[] = []
   const balances = [100n, 15n, 100n, 15n].map((amount) => amount * 100_000_000n)
@@ -1033,7 +1058,18 @@ test('sale signoff and purchase inbound price the approved source line batch ins
       approval_entry_id: productEntryId,
       name: '批次产品',
       source_snapshots: JSON.stringify({}),
-      unit_conversions: JSON.stringify([]),
+      unit_conversions: JSON.stringify([
+        {
+          unit: {
+            id: unit.objectId,
+            code: unit.code,
+            name: unit.name,
+            symbol: unit.symbol,
+            quantityScale: unit.quantityScale,
+          },
+          factor: '1.000000',
+        },
+      ]),
       recyclable: false,
       enabled: true,
     })
@@ -1084,7 +1120,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     lineId,
     product: { objectId: productId },
     enteredQuantity: '10',
-    enteredUnit: { objectId: ulid() },
+    enteredUnit: unit,
     baseQuantity: '10',
     unitPrice: '10.00',
   })

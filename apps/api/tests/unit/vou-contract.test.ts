@@ -4,6 +4,7 @@ import test from 'node:test'
 import {
   vouAttachmentDownloadRoute,
   vouCapabilityPermissionMetadata,
+  vouPayloadSchemaByEntity,
   vouRouteSet,
 } from '../../src/vou/contract.ts'
 
@@ -54,6 +55,74 @@ const success = (data: unknown) => ({
   message: 'ok',
   data,
   requestId: 'request-1',
+})
+
+test('VOU order quantities require a complete measurement-unit snapshot', () => {
+  const quantity = {
+    enteredQuantity: '1.20',
+    enteredUnit: {
+      objectId: id,
+      code: 'UNT-0001',
+      name: '千克',
+      symbol: 'kg',
+      quantityScale: 2,
+    },
+    baseQuantity: '1.200000',
+  }
+  const order = {
+    businessDate: '2026-09-07',
+    currency: 'CNY',
+    attachments: [],
+    customerSubunit: {
+      objectId: id,
+      approvalEntryId: '01J00000000000000000000002',
+      selectionOrigin: 'CURRENT',
+    },
+    operatingEntity: {
+      objectId: '01J00000000000000000000003',
+      approvalEntryId: '01J00000000000000000000004',
+      selectionOrigin: 'CURRENT',
+    },
+    warehouse: {
+      objectId: '01J00000000000000000000005',
+      approvalEntryId: '01J00000000000000000000006',
+      selectionOrigin: 'CURRENT',
+    },
+    productLines: [
+      {
+        lineId: '01J00000000000000000000007',
+        product: { objectId: '01J00000000000000000000008' },
+        ...quantity,
+        unitPrice: '10.00',
+        formula: {
+          output: quantity,
+          components: [
+            {
+              material: { objectId: '01J00000000000000000000009' },
+              quantity,
+            },
+          ],
+        },
+      },
+    ],
+  }
+
+  assert.equal(
+    vouPayloadSchemaByEntity['sale-order'].safeParse(order).success,
+    true,
+  )
+  assert.equal(
+    vouPayloadSchemaByEntity['sale-order'].safeParse({
+      ...order,
+      productLines: [
+        {
+          ...order.productLines[0],
+          enteredUnit: { objectId: id },
+        },
+      ],
+    }).success,
+    false,
+  )
 })
 
 test('VOU query contract owns fixed-size filters, sort, and page metadata', () => {

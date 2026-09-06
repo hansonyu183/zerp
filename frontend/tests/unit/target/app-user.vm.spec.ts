@@ -23,6 +23,14 @@ const createUser = vi.mocked(targetApi.createTargetUser)
 const saveUser = vi.mocked(targetApi.saveTargetUser)
 const setEnabled = vi.mocked(targetApi.setTargetUserEnabled)
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve
+  })
+  return { promise, resolve }
+}
+
 const row = (overrides: Record<string, unknown> = {}) => ({
   id: 'user-1',
   code: 'buyer',
@@ -41,7 +49,7 @@ const detail = (overrides: Record<string, unknown> = {}) => ({
       id: 'role-1',
       code: 'ROL-0001',
       name: '采购',
-      status: 'ENABLED' as const,
+      enabled: true,
       type: 'NORMAL' as const,
       assignable: true,
     },
@@ -56,7 +64,7 @@ const role = (index: number, assignable = true) => ({
   code: `ROL-${String(index).padStart(4, '0')}`,
   name: `角色${index}`,
   description: null,
-  status: 'ENABLED' as const,
+  enabled: true,
   type: 'NORMAL' as const,
   revision: '1',
   assignable,
@@ -153,7 +161,7 @@ describe('APP user management public view-model seam', () => {
             id: 'role-1',
             code: 'ROL-0001',
             name: '角色1',
-            status: 'ENABLED',
+            enabled: true,
             type: 'NORMAL',
             assignable: true,
           },
@@ -161,7 +169,7 @@ describe('APP user management public view-model seam', () => {
             id: 'role-21',
             code: 'ROL-0021',
             name: '角色21',
-            status: 'DISABLED',
+            enabled: false,
             type: 'SYSTEM',
             assignable: false,
           },
@@ -174,16 +182,14 @@ describe('APP user management public view-model seam', () => {
     await flushPromises()
 
     expect(queryRoles).toHaveBeenNthCalledWith(1, 'csrf-token', {
+      keyword: '',
       page: 1,
       pageSize: 20,
-      filters: { status: 'ENABLED' },
-      sort: [{ field: 'code', order: 'asc' }],
     })
     expect(queryRoles).toHaveBeenNthCalledWith(2, 'csrf-token', {
+      keyword: '',
       page: 2,
       pageSize: 20,
-      filters: { status: 'ENABLED' },
-      sort: [{ field: 'code', order: 'asc' }],
     })
     expect(vm.editor.roleIds).toEqual(['role-1', 'role-21'])
     expect(
@@ -200,6 +206,32 @@ describe('APP user management public view-model seam', () => {
     ).toBe(true)
     vm.closeEditor()
     await opening
+  })
+
+  it('stops role paging when the operator cancels the editor', async () => {
+    authorize('/app/user/create', '/app/role/query')
+    const first = deferred<{
+      items: ReturnType<typeof role>[]
+      total: number
+      page: number
+      pageSize: number
+    }>()
+    queryRoles.mockReturnValueOnce(first.promise as never)
+    const vm = useUserManagementViewModel()
+
+    const opening = vm.openCreate()
+    vm.closeEditor()
+    first.resolve({
+      items: Array.from({ length: 20 }, (_, index) => role(index + 1)),
+      total: 21,
+      page: 1,
+      pageSize: 20,
+    })
+    await flushPromises()
+    await opening
+
+    expect(queryRoles).toHaveBeenCalledTimes(1)
+    expect(vm.roleOptions.value).toEqual([])
   })
 
   it('keeps the edit promise pending on validation failure then saves the string revision without a readback', async () => {
@@ -371,12 +403,9 @@ describe('APP user management public view-model seam', () => {
     await reopened
   })
 
-  it('verifies an uncertain disable through fresh detail and never converts revision to Number', async () => {
+  it('does not infer a confirmed disable from the matching role state after an unknown result', async () => {
     authorize('/app/user/disable', '/app/user/get')
     setEnabled.mockRejectedValue(new TypeError('network interrupted'))
-    getUser.mockResolvedValue(
-      detail({ enabled: false, revision: '9007199254740994' }) as never,
-    )
     const vm = useUserManagementViewModel()
 
     await vm.list.disable(row())
@@ -387,7 +416,8 @@ describe('APP user management public view-model seam', () => {
       false,
     )
     expect(getUser).toHaveBeenCalledWith('csrf-token', 'user-1')
-    expect(vm.list.feedback.value).toBe('操作成功。')
+    expect(vm.list.feedback.value).toContain('结果未知')
+    expect(vm.list.isRowBlocked('user-1')).toBe(true)
   })
 
   it('does not verify an abandoned write with a replacement account session', async () => {
@@ -411,52 +441,24 @@ describe('APP user management public view-model seam', () => {
     expect(queryUsers).not.toHaveBeenCalled()
   })
 
-  it('uses authorized query pages to verify an uncertain row write without detail permission', async () => {
+  it('does not query to infer an uncertain row write without detail permission', async () => {
     authorize('/app/user/query', '/app/user/disable')
     const vm = useUserManagementViewModel()
     await vm.list.initialize()
     vm.list.keyword.value = 'not submitted'
     setEnabled.mockRejectedValueOnce(new TypeError('network interrupted'))
-    queryUsers
-      .mockResolvedValueOnce({
-        items: [row({ id: 'different-user', enabled: false, revision: '2' })],
-        total: 21,
-        page: 1,
-        pageSize: 20,
-      } as never)
-      .mockResolvedValueOnce({
-        items: [row({ enabled: false, revision: '9007199254740994' })],
-        total: 21,
-        page: 2,
-        pageSize: 20,
-      } as never)
-      .mockResolvedValueOnce({
-        items: [row({ enabled: false, revision: '9007199254740994' })],
-        total: 1,
-        page: 1,
-        pageSize: 20,
-      } as never)
-
     await vm.list.disable(vm.list.items.value[0]!)
 
     expect(getUser).not.toHaveBeenCalled()
-    expect(queryUsers).toHaveBeenNthCalledWith(2, 'csrf-token', {
+    expect(queryUsers).toHaveBeenCalledTimes(2)
+    expect(queryUsers).toHaveBeenLastCalledWith('csrf-token', {
       keyword: 'buyer',
-      page: 1,
-      pageSize: 20,
-    })
-    expect(queryUsers).toHaveBeenNthCalledWith(3, 'csrf-token', {
-      keyword: 'buyer',
-      page: 2,
-      pageSize: 20,
-    })
-    expect(queryUsers).toHaveBeenNthCalledWith(4, 'csrf-token', {
-      keyword: '',
       page: 1,
       pageSize: 20,
     })
     expect(vm.list.appliedQuery.value).toEqual({ keyword: '', page: 1 })
-    expect(vm.list.feedback.value).toBe('操作成功。')
+    expect(vm.list.feedback.value).toContain('结果未知')
+    expect(vm.list.isRowBlocked('user-1')).toBe(true)
     expect(setEnabled).toHaveBeenCalledTimes(1)
   })
 
@@ -479,7 +481,7 @@ describe('APP user management public view-model seam', () => {
     await vm.saveEditor()
     await opening
 
-    expect(getUser).toHaveBeenCalledTimes(2)
+    expect(getUser).toHaveBeenCalledTimes(1)
     expect(vm.list.feedback.value).toContain('结果未知')
     expect(vm.list.isRowBlocked('user-1')).toBe(true)
   })

@@ -27,7 +27,7 @@ describe('business resource registry', () => {
     expect(registry.resolve('app', 'role')).toBeNull()
   })
 
-  it('keeps the target domain matrix fixed and registers the completed user slice', () => {
+  it('keeps the target domain matrix fixed and registers the completed APP slices', () => {
     expect(targetDomainCapabilities).toEqual({
       session: { approval: false, businessVersion: false, enabled: false },
       bob: { approval: true, businessVersion: true, enabled: true },
@@ -47,7 +47,15 @@ describe('business resource registry', () => {
         enabled: true,
       },
     })
-    expect(targetResourceRegistry.resolve('app', 'role')).toBeNull()
+    expect(targetResourceRegistry.resolve('app', 'role')).toMatchObject({
+      domain: 'app',
+      entity: 'role',
+      capabilities: {
+        approval: false,
+        businessVersion: false,
+        enabled: true,
+      },
+    })
     expect('dcl' in targetDomainCapabilities).toBe(false)
   })
 })

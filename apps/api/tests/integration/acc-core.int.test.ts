@@ -6,7 +6,7 @@ import { ulid } from 'ulid'
 
 import { createDatabase } from '../../src/db/database.ts'
 import { AccApplicationError, AccService } from '../../src/acc/service.ts'
-import { userPinyin } from '../../src/app/user-pinyin.ts'
+import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { VouService } from '../../src/vou/service.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
@@ -42,7 +42,7 @@ test('ACC restores f856118f subject templates and independent book access scopes
         id,
         username: `acc-scope-${id}`,
         display_name: 'ACC scope actor',
-        py: userPinyin('ACC scope actor'),
+        py: searchPinyin('ACC scope actor'),
         password_hash: 'unused',
         status: 'ENABLED' as const,
         password_changed_at: new Date(),
@@ -241,7 +241,7 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
         id,
         username: `acc-opening-${id}`,
         display_name: 'Opening actor',
-        py: userPinyin('Opening actor'),
+        py: searchPinyin('Opening actor'),
         password_hash: 'unused',
         status: 'ENABLED' as const,
         password_changed_at: now,
@@ -757,7 +757,7 @@ test('ACC book, subjects, Opening and periods keep one transactional fact bounda
         id,
         username: `acc-${id}`,
         display_name: 'ACC actor',
-        py: userPinyin('ACC actor'),
+        py: searchPinyin('ACC actor'),
         password_hash: 'unused',
         status: 'ENABLED' as const,
         password_changed_at: new Date(),
@@ -1359,7 +1359,7 @@ test('ACC automatic inventory posting rejects missing product or warehouse dimen
       id: actorId,
       username: `acc-inventory-${actorId}`,
       display_name: 'ACC inventory actor',
-      py: userPinyin('ACC inventory actor'),
+      py: searchPinyin('ACC inventory actor'),
       password_hash: 'unused',
       status: 'ENABLED',
       password_changed_at: now,
@@ -1646,7 +1646,7 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
       id: actorId,
       username: `acc-effects-${actorId}`,
       display_name: 'ACC effects actor',
-      py: userPinyin('ACC effects actor'),
+      py: searchPinyin('ACC effects actor'),
       password_hash: 'unused',
       status: 'ENABLED',
       password_changed_at: now,
@@ -2242,7 +2242,7 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
       id: actorId,
       username: `acc-container-${actorId}`,
       display_name: 'ACC container actor',
-      py: userPinyin('ACC container actor'),
+      py: searchPinyin('ACC container actor'),
       password_hash: 'unused',
       status: 'ENABLED',
       password_changed_at: now,

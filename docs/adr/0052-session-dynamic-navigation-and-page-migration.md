@@ -71,3 +71,11 @@ ADR-0046《DCL 是申报版本的唯一写入方》与 ADR-0047《DCL Subject �
 ADR-0051《共享 TypeScript 模型、本地 Draft 与 Hono 一次性切换》把 Hono route metadata 作为完整 APP 权限/菜单目录的来源；这与导航只从会话 `apiPaths` 装配的条款冲突。#380 以互相指向的部分取代关系替代该菜单来源条款：Hono/Zod 仍是唯一 HTTP 契约来源，Hono metadata 仍定义精确 API 权限目录；菜单来源、分组与页面装配改由本 ADR 定义。ADR-0051 的共享 TypeScript model、本地 Draft、审批状态、事务与 cutover 边界继续有效。
 
 本 ADR 不把未来目标写成当前事实。`docs/domains/` 的现行规则优先；每个后续切片只在其实际改变的条款、契约、实现和清理均完成时更新权威文档与 ADR 关系。
+
+## 第二批角色分片（#385）
+
+本片在既有 user 之外登记 app/role，通过同一 Host、Registry 与公共 Shell 进入角色 VM 和类型化 API。角色编辑器只负责名称、说明及精确权限集合，权限目录逐页读取；用户编辑器同步采用 enabled/type/assignable 角色候选并合并全部既有关联。其他待迁移资源继续显示未实现。
+
+用户与角色共同消费公共启停服务：服务参与外层领域事务，经最小类型化存储接口完成读取、revision 校验、转换检查、CAS 与通用审计；领域保留授权、最后管理员及会话副作用。状态与 revision 仍分别来自原对象表，审计复用 app_audit_events。没有第二份状态、通用业务 HTTP 入口或对象注册器。纯拼音转换归入后端工具，用户保留检索存储与回填职责，角色在查询分页前按需计算。
+
+角色管理直接切换为 enabled、十进制字符串 revision 及 edit/enable/disable 动作；类型仍为 NORMAL/SYSTEM/SUPERADMIN。独立权限目录的 ENABLED/DISABLED 协议保持其领域语义。AUX、审批和业务版本等后续分片尚未在本片实施；本节的实现边界不代替实际验证证据。

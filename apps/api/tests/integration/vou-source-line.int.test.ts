@@ -10,7 +10,7 @@ import { ulid } from 'ulid'
 
 import { createApp } from '../../src/app.ts'
 import { hashPassword, SessionService } from '../../src/app/session.ts'
-import { userPinyin } from '../../src/app/user-pinyin.ts'
+import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { loadConfig } from '../../src/platform/config.ts'
 import { VouApplicationError, VouService } from '../../src/vou/service.ts'
@@ -150,7 +150,7 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
         id: actorId,
         username,
         display_name: 'VOU source-line actor',
-        py: userPinyin('VOU source-line actor'),
+        py: searchPinyin('VOU source-line actor'),
         password_hash: await hashPassword(password),
         status: 'ENABLED',
         password_changed_at: now,
@@ -160,7 +160,7 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
         id: deniedId,
         username: deniedUsername,
         display_name: 'VOU source-line denied',
-        py: userPinyin('VOU source-line denied'),
+        py: searchPinyin('VOU source-line denied'),
         password_hash: await hashPassword(password),
         status: 'ENABLED',
         password_changed_at: now,

@@ -90,7 +90,7 @@ function archiveName(entity: string): string | undefined {
         : undefined
 }
 
-function resourceDisplayName(domain: string, entity: string): string {
+export function resourceDisplayName(domain: string, entity: string): string {
   if (domain === 'app' && appPresentation[entity])
     return appPresentation[entity]
   if (domain === 'aux' && auxPresentation[entity])
@@ -116,6 +116,10 @@ function resourceDisplayName(domain: string, entity: string): string {
     if (name) return `${name}申报`
   }
   return `${entity}（待配置名称）`
+}
+
+export function domainDisplayName(domain: string): string {
+  return domainPresentation[domain]?.displayName ?? `${domain}（待配置名称）`
 }
 
 function parseApiResource(apiPath: string): NavigationResource | null {
@@ -160,8 +164,7 @@ export function collectNavigationResourceGroups(
     })
     .map(([domain, domainResources]) => ({
       domain,
-      displayName:
-        domainPresentation[domain]?.displayName ?? `${domain}（待配置名称）`,
+      displayName: domainDisplayName(domain),
       resources: domainResources.sort((left, right) =>
         left.entity.localeCompare(right.entity),
       ),

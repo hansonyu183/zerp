@@ -6,7 +6,7 @@ import { sql } from 'kysely'
 import { ulid } from 'ulid'
 
 import type { DB } from '../db/generated.ts'
-import { userPinyin } from './user-pinyin.ts'
+import { searchPinyin } from '../platform/pinyin.ts'
 
 export interface TargetSessionConfig {
   sessionIdleTimeoutMs: number
@@ -432,7 +432,7 @@ export class SessionService {
           .set({
             ...(displayNameChanged && {
               display_name: profile.displayName,
-              py: userPinyin(profile.displayName),
+              py: searchPinyin(profile.displayName),
             }),
             updated_at: new Date(),
             updated_by: current.id,

@@ -13,7 +13,7 @@ import { ulid } from 'ulid'
 
 import { createApp } from '../../src/app.ts'
 import { hashPassword, SessionService } from '../../src/app/session.ts'
-import { userPinyin } from '../../src/app/user-pinyin.ts'
+import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { loadConfig } from '../../src/platform/config.ts'
 import { AttachmentStore } from '../../src/platform/attachment-store.ts'
@@ -142,7 +142,7 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
         id: actorId,
         username: `vou-${actorId}`,
         display_name: 'VOU test actor',
-        py: userPinyin('VOU test actor'),
+        py: searchPinyin('VOU test actor'),
         password_hash: 'unused',
         status: 'ENABLED' as const,
         password_changed_at: new Date(),
@@ -152,7 +152,7 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
         id: reviewerId,
         username: `vou-${reviewerId}`,
         display_name: 'VOU test reviewer',
-        py: userPinyin('VOU test reviewer'),
+        py: searchPinyin('VOU test reviewer'),
         password_hash: 'unused',
         status: 'ENABLED' as const,
         password_changed_at: new Date(),
@@ -1093,7 +1093,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
         id: ownerId,
         username: `vou-attachment-${ownerId}`,
         display_name: 'attachment owner',
-        py: userPinyin('attachment owner'),
+        py: searchPinyin('attachment owner'),
         password_hash: 'unused',
         status: 'ENABLED',
         password_changed_at: now,
@@ -1103,7 +1103,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
         id: otherId,
         username: `vou-attachment-other-${otherId}`,
         display_name: 'attachment other',
-        py: userPinyin('attachment other'),
+        py: searchPinyin('attachment other'),
         password_hash: 'unused',
         status: 'ENABLED',
         password_changed_at: now,
@@ -2077,7 +2077,7 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
         id: actorId,
         username,
         display_name: 'VOU reference actor',
-        py: userPinyin('VOU reference actor'),
+        py: searchPinyin('VOU reference actor'),
         password_hash: await hashPassword(password),
         status: 'ENABLED',
         password_changed_at: now,
@@ -2087,7 +2087,7 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
         id: deniedId,
         username: `vou-denied-${randomBytes(8).toString('hex')}`,
         display_name: 'VOU denied actor',
-        py: userPinyin('VOU denied actor'),
+        py: searchPinyin('VOU denied actor'),
         password_hash: await hashPassword(password),
         status: 'ENABLED',
         password_changed_at: now,

@@ -26,6 +26,18 @@ export type TargetUserEnabledInput = PostJson<
 export type TargetRoleQueryInput = PostJson<
   (typeof client.app.role.query)['$post']
 >
+export type TargetRoleCreateInput = PostJson<
+  (typeof client.app.role.create)['$post']
+>
+export type TargetRoleSaveInput = PostJson<
+  (typeof client.app.role.save)['$post']
+>
+export type TargetRoleEnabledInput = PostJson<
+  (typeof client.app.role.enable)['$post']
+>
+export type TargetPermissionQueryInput = PostJson<
+  (typeof client.app.permission.query)['$post']
+>
 
 export class TargetApiError extends Error {
   readonly errorKey: string
@@ -186,6 +198,66 @@ export async function queryTargetRoles(
   return unwrapTarget(
     await (
       await client.app.role.query.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function getTargetRole(csrfToken: string, id: string) {
+  return unwrapTarget(
+    await (
+      await client.app.role.get.$post({ json: { id } }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function createTargetRole(
+  csrfToken: string,
+  input: TargetRoleCreateInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.app.role.create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function saveTargetRole(
+  csrfToken: string,
+  input: TargetRoleSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.app.role.save.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function setTargetRoleEnabled(
+  csrfToken: string,
+  input: TargetRoleEnabledInput,
+  enabled: boolean,
+) {
+  const endpoint = enabled ? client.app.role.enable : client.app.role.disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function queryTargetPermissions(
+  csrfToken: string,
+  input: TargetPermissionQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.app.permission.query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
     ).json(),
   )
 }

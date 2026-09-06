@@ -53,7 +53,6 @@ function postRoute<
 
 const empty = z.object({}).strict()
 const identifier = z.object({ id: z.string().min(1).max(64) }).strict()
-const revision = identifier.extend({ revision: z.number().int().positive() })
 const userRevision = identifier.extend({ revision: userRevisionSchema })
 const objectIdentifier = z
   .object({ objectId: z.string().min(1).max(64) })
@@ -92,7 +91,7 @@ const roleReference = z.object({
   id: z.string(),
   code: z.string(),
   name: z.string(),
-  status,
+  enabled: z.boolean(),
   type: z.enum(['NORMAL', 'SYSTEM', 'SUPERADMIN']),
   assignable: z.boolean(),
 })
@@ -102,16 +101,17 @@ const userDetail = userSummarySchema.extend({
   roleAssignmentEditable: z.boolean(),
 })
 const roleListItem = z.object({
+  py: z.string(),
   id: z.string(),
   code: z.string(),
   name: z.string(),
   description: z.string().nullable(),
-  status,
+  enabled: z.boolean(),
   type: z.enum(['NORMAL', 'SYSTEM', 'SUPERADMIN']),
-  availableActions: z.array(z.enum(['VIEW', 'EDIT', 'ENABLE', 'DISABLE'])),
+  availableActions: z.array(z.enum(['edit', 'enable', 'disable'])),
   manageable: z.boolean(),
   assignable: z.boolean(),
-  revision: z.string(),
+  revision: userRevisionSchema,
 })
 const permissionReference = z.object({
   id: z.string(),
@@ -210,7 +210,13 @@ const userResetPassword = postRoute(
 )
 const roleQuery = postRoute(
   '/app/role/query',
-  pageRequest,
+  z
+    .object({
+      keyword: z.string().max(128).optional(),
+      page: z.number().int().positive(),
+      pageSize: z.literal(20),
+    })
+    .strict(),
   pageOf(roleListItem),
 )
 const roleGet = postRoute('/app/role/get', identifier, roleDetail)
@@ -220,7 +226,7 @@ const roleCreate = postRoute(
     .object({
       name: z.string().min(1).max(128),
       description: z.string().max(1000).nullable(),
-      permissionIds: z.array(z.string()),
+      permissionIds: z.array(z.string()).min(1),
     })
     .strict(),
   roleDetail,
@@ -232,14 +238,14 @@ const roleSave = postRoute(
       id: z.string(),
       name: z.string().min(1).max(128),
       description: z.string().max(1000).nullable(),
-      permissionIds: z.array(z.string()),
-      revision: z.number().int().positive(),
+      permissionIds: z.array(z.string()).min(1),
+      revision: userRevisionSchema,
     })
     .strict(),
   roleDetail,
 )
-const roleEnable = postRoute('/app/role/enable', revision, roleDetail)
-const roleDisable = postRoute('/app/role/disable', revision, roleDetail)
+const roleEnable = postRoute('/app/role/enable', userRevision, roleDetail)
+const roleDisable = postRoute('/app/role/disable', userRevision, roleDetail)
 const permissionQuery = postRoute(
   '/app/permission/query',
   pageRequest,

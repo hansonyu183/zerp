@@ -9004,12 +9004,8 @@
                                   "name": {
                                     "type": "string"
                                   },
-                                  "status": {
-                                    "type": "string",
-                                    "enum": [
-                                      "ENABLED",
-                                      "DISABLED"
-                                    ]
+                                  "enabled": {
+                                    "type": "boolean"
                                   },
                                   "type": {
                                     "type": "string",
@@ -9027,7 +9023,7 @@
                                   "id",
                                   "code",
                                   "name",
-                                  "status",
+                                  "enabled",
                                   "type",
                                   "assignable"
                                 ]
@@ -9249,12 +9245,8 @@
                                   "name": {
                                     "type": "string"
                                   },
-                                  "status": {
-                                    "type": "string",
-                                    "enum": [
-                                      "ENABLED",
-                                      "DISABLED"
-                                    ]
+                                  "enabled": {
+                                    "type": "boolean"
                                   },
                                   "type": {
                                     "type": "string",
@@ -9272,7 +9264,7 @@
                                   "id",
                                   "code",
                                   "name",
-                                  "status",
+                                  "enabled",
                                   "type",
                                   "assignable"
                                 ]
@@ -9491,12 +9483,8 @@
                                   "name": {
                                     "type": "string"
                                   },
-                                  "status": {
-                                    "type": "string",
-                                    "enum": [
-                                      "ENABLED",
-                                      "DISABLED"
-                                    ]
+                                  "enabled": {
+                                    "type": "boolean"
                                   },
                                   "type": {
                                     "type": "string",
@@ -9514,7 +9502,7 @@
                                   "id",
                                   "code",
                                   "name",
-                                  "status",
+                                  "enabled",
                                   "type",
                                   "assignable"
                                 ]
@@ -9721,12 +9709,8 @@
                                   "name": {
                                     "type": "string"
                                   },
-                                  "status": {
-                                    "type": "string",
-                                    "enum": [
-                                      "ENABLED",
-                                      "DISABLED"
-                                    ]
+                                  "enabled": {
+                                    "type": "boolean"
                                   },
                                   "type": {
                                     "type": "string",
@@ -9744,7 +9728,7 @@
                                   "id",
                                   "code",
                                   "name",
-                                  "status",
+                                  "enabled",
                                   "type",
                                   "assignable"
                                 ]
@@ -9951,12 +9935,8 @@
                                   "name": {
                                     "type": "string"
                                   },
-                                  "status": {
-                                    "type": "string",
-                                    "enum": [
-                                      "ENABLED",
-                                      "DISABLED"
-                                    ]
+                                  "enabled": {
+                                    "type": "boolean"
                                   },
                                   "type": {
                                     "type": "string",
@@ -9974,7 +9954,7 @@
                                   "id",
                                   "code",
                                   "name",
-                                  "status",
+                                  "enabled",
                                   "type",
                                   "assignable"
                                 ]
@@ -10229,30 +10209,20 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "keyword": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
                   "page": {
                     "type": "integer",
                     "minimum": 0,
                     "exclusiveMinimum": true
                   },
                   "pageSize": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 100
-                  },
-                  "filters": {
-                    "type": "object",
-                    "additionalProperties": {
-                      "nullable": true
-                    }
-                  },
-                  "sort": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "additionalProperties": {
-                        "nullable": true
-                      }
-                    }
+                    "type": "number",
+                    "enum": [
+                      20
+                    ]
                   }
                 },
                 "required": [
@@ -10300,6 +10270,9 @@
                               "items": {
                                 "type": "object",
                                 "properties": {
+                                  "py": {
+                                    "type": "string"
+                                  },
                                   "id": {
                                     "type": "string"
                                   },
@@ -10313,12 +10286,8 @@
                                     "type": "string",
                                     "nullable": true
                                   },
-                                  "status": {
-                                    "type": "string",
-                                    "enum": [
-                                      "ENABLED",
-                                      "DISABLED"
-                                    ]
+                                  "enabled": {
+                                    "type": "boolean"
                                   },
                                   "type": {
                                     "type": "string",
@@ -10333,10 +10302,9 @@
                                     "items": {
                                       "type": "string",
                                       "enum": [
-                                        "VIEW",
-                                        "EDIT",
-                                        "ENABLE",
-                                        "DISABLE"
+                                        "edit",
+                                        "enable",
+                                        "disable"
                                       ]
                                     }
                                   },
@@ -10347,15 +10315,17 @@
                                     "type": "boolean"
                                   },
                                   "revision": {
-                                    "type": "string"
+                                    "type": "string",
+                                    "pattern": "^[1-9]\\d*$"
                                   }
                                 },
                                 "required": [
+                                  "py",
                                   "id",
                                   "code",
                                   "name",
                                   "description",
-                                  "status",
+                                  "enabled",
                                   "type",
                                   "availableActions",
                                   "manageable",
@@ -10516,6 +10486,9 @@
                         "data": {
                           "type": "object",
                           "properties": {
+                            "py": {
+                              "type": "string"
+                            },
                             "id": {
                               "type": "string"
                             },
@@ -10529,12 +10502,8 @@
                               "type": "string",
                               "nullable": true
                             },
-                            "status": {
-                              "type": "string",
-                              "enum": [
-                                "ENABLED",
-                                "DISABLED"
-                              ]
+                            "enabled": {
+                              "type": "boolean"
                             },
                             "type": {
                               "type": "string",
@@ -10549,10 +10518,9 @@
                               "items": {
                                 "type": "string",
                                 "enum": [
-                                  "VIEW",
-                                  "EDIT",
-                                  "ENABLE",
-                                  "DISABLE"
+                                  "edit",
+                                  "enable",
+                                  "disable"
                                 ]
                               }
                             },
@@ -10563,7 +10531,8 @@
                               "type": "boolean"
                             },
                             "revision": {
-                              "type": "string"
+                              "type": "string",
+                              "pattern": "^[1-9]\\d*$"
                             },
                             "createdAt": {
                               "type": "string",
@@ -10618,11 +10587,12 @@
                             }
                           },
                           "required": [
+                            "py",
                             "id",
                             "code",
                             "name",
                             "description",
-                            "status",
+                            "enabled",
                             "type",
                             "availableActions",
                             "manageable",
@@ -10732,7 +10702,8 @@
                     "type": "array",
                     "items": {
                       "type": "string"
-                    }
+                    },
+                    "minItems": 1
                   }
                 },
                 "required": [
@@ -10776,6 +10747,9 @@
                         "data": {
                           "type": "object",
                           "properties": {
+                            "py": {
+                              "type": "string"
+                            },
                             "id": {
                               "type": "string"
                             },
@@ -10789,12 +10763,8 @@
                               "type": "string",
                               "nullable": true
                             },
-                            "status": {
-                              "type": "string",
-                              "enum": [
-                                "ENABLED",
-                                "DISABLED"
-                              ]
+                            "enabled": {
+                              "type": "boolean"
                             },
                             "type": {
                               "type": "string",
@@ -10809,10 +10779,9 @@
                               "items": {
                                 "type": "string",
                                 "enum": [
-                                  "VIEW",
-                                  "EDIT",
-                                  "ENABLE",
-                                  "DISABLE"
+                                  "edit",
+                                  "enable",
+                                  "disable"
                                 ]
                               }
                             },
@@ -10823,7 +10792,8 @@
                               "type": "boolean"
                             },
                             "revision": {
-                              "type": "string"
+                              "type": "string",
+                              "pattern": "^[1-9]\\d*$"
                             },
                             "createdAt": {
                               "type": "string",
@@ -10878,11 +10848,12 @@
                             }
                           },
                           "required": [
+                            "py",
                             "id",
                             "code",
                             "name",
                             "description",
-                            "status",
+                            "enabled",
                             "type",
                             "availableActions",
                             "manageable",
@@ -10995,12 +10966,12 @@
                     "type": "array",
                     "items": {
                       "type": "string"
-                    }
+                    },
+                    "minItems": 1
                   },
                   "revision": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
                   }
                 },
                 "required": [
@@ -11046,6 +11017,9 @@
                         "data": {
                           "type": "object",
                           "properties": {
+                            "py": {
+                              "type": "string"
+                            },
                             "id": {
                               "type": "string"
                             },
@@ -11059,12 +11033,8 @@
                               "type": "string",
                               "nullable": true
                             },
-                            "status": {
-                              "type": "string",
-                              "enum": [
-                                "ENABLED",
-                                "DISABLED"
-                              ]
+                            "enabled": {
+                              "type": "boolean"
                             },
                             "type": {
                               "type": "string",
@@ -11079,10 +11049,9 @@
                               "items": {
                                 "type": "string",
                                 "enum": [
-                                  "VIEW",
-                                  "EDIT",
-                                  "ENABLE",
-                                  "DISABLE"
+                                  "edit",
+                                  "enable",
+                                  "disable"
                                 ]
                               }
                             },
@@ -11093,7 +11062,8 @@
                               "type": "boolean"
                             },
                             "revision": {
-                              "type": "string"
+                              "type": "string",
+                              "pattern": "^[1-9]\\d*$"
                             },
                             "createdAt": {
                               "type": "string",
@@ -11148,11 +11118,12 @@
                             }
                           },
                           "required": [
+                            "py",
                             "id",
                             "code",
                             "name",
                             "description",
-                            "status",
+                            "enabled",
                             "type",
                             "availableActions",
                             "manageable",
@@ -11254,9 +11225,8 @@
                     "maxLength": 64
                   },
                   "revision": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
                   }
                 },
                 "required": [
@@ -11299,6 +11269,9 @@
                         "data": {
                           "type": "object",
                           "properties": {
+                            "py": {
+                              "type": "string"
+                            },
                             "id": {
                               "type": "string"
                             },
@@ -11312,12 +11285,8 @@
                               "type": "string",
                               "nullable": true
                             },
-                            "status": {
-                              "type": "string",
-                              "enum": [
-                                "ENABLED",
-                                "DISABLED"
-                              ]
+                            "enabled": {
+                              "type": "boolean"
                             },
                             "type": {
                               "type": "string",
@@ -11332,10 +11301,9 @@
                               "items": {
                                 "type": "string",
                                 "enum": [
-                                  "VIEW",
-                                  "EDIT",
-                                  "ENABLE",
-                                  "DISABLE"
+                                  "edit",
+                                  "enable",
+                                  "disable"
                                 ]
                               }
                             },
@@ -11346,7 +11314,8 @@
                               "type": "boolean"
                             },
                             "revision": {
-                              "type": "string"
+                              "type": "string",
+                              "pattern": "^[1-9]\\d*$"
                             },
                             "createdAt": {
                               "type": "string",
@@ -11401,11 +11370,12 @@
                             }
                           },
                           "required": [
+                            "py",
                             "id",
                             "code",
                             "name",
                             "description",
-                            "status",
+                            "enabled",
                             "type",
                             "availableActions",
                             "manageable",
@@ -11507,9 +11477,8 @@
                     "maxLength": 64
                   },
                   "revision": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
                   }
                 },
                 "required": [
@@ -11552,6 +11521,9 @@
                         "data": {
                           "type": "object",
                           "properties": {
+                            "py": {
+                              "type": "string"
+                            },
                             "id": {
                               "type": "string"
                             },
@@ -11565,12 +11537,8 @@
                               "type": "string",
                               "nullable": true
                             },
-                            "status": {
-                              "type": "string",
-                              "enum": [
-                                "ENABLED",
-                                "DISABLED"
-                              ]
+                            "enabled": {
+                              "type": "boolean"
                             },
                             "type": {
                               "type": "string",
@@ -11585,10 +11553,9 @@
                               "items": {
                                 "type": "string",
                                 "enum": [
-                                  "VIEW",
-                                  "EDIT",
-                                  "ENABLE",
-                                  "DISABLE"
+                                  "edit",
+                                  "enable",
+                                  "disable"
                                 ]
                               }
                             },
@@ -11599,7 +11566,8 @@
                               "type": "boolean"
                             },
                             "revision": {
-                              "type": "string"
+                              "type": "string",
+                              "pattern": "^[1-9]\\d*$"
                             },
                             "createdAt": {
                               "type": "string",
@@ -11654,11 +11622,12 @@
                             }
                           },
                           "required": [
+                            "py",
                             "id",
                             "code",
                             "name",
                             "description",
-                            "status",
+                            "enabled",
                             "type",
                             "availableActions",
                             "manageable",

@@ -10,7 +10,7 @@ import { ulid } from 'ulid'
 
 import { createApp } from '../../src/app.ts'
 import { SessionService } from '../../src/app/session.ts'
-import { userPinyin } from '../../src/app/user-pinyin.ts'
+import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { loadConfig } from '../../src/platform/config.ts'
 import {
@@ -139,7 +139,7 @@ test('RPT executes only latest approved enabled valid definition and enforces co
       id: actorId,
       username,
       display_name: 'RPT actor',
-      py: userPinyin('RPT actor'),
+      py: searchPinyin('RPT actor'),
       password_hash: await passwordHash(password),
       status: 'ENABLED',
       password_changed_at: now,
@@ -426,7 +426,7 @@ test('RPT readiness rejects latest enabled VALID definitions whose zero-row meta
       id: actorId,
       username: `rpt-readiness-${actorId}`,
       display_name: 'RPT readiness actor',
-      py: userPinyin('RPT readiness actor'),
+      py: searchPinyin('RPT readiness actor'),
       password_hash: 'unused',
       status: 'ENABLED',
       password_changed_at: now,

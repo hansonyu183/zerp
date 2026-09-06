@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto'
 import test from 'node:test'
 
 import { TargetBootstrapService } from '../../src/app/bootstrap.ts'
-import { userPinyin } from '../../src/app/user-pinyin.ts'
+import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { readTargetPermissionCatalog } from '../../scripts/target-artifacts.ts'
 
@@ -127,7 +127,7 @@ test('one-time target permission migration preserves every effective authority b
         id: userId,
         username: `migration-${suffix.toLowerCase()}`,
         display_name: 'Migration User',
-        py: userPinyin('Migration User'),
+        py: searchPinyin('Migration User'),
         password_hash: 'not-used',
         status: 'ENABLED',
         password_changed_at: new Date(),
@@ -136,7 +136,7 @@ test('one-time target permission migration preserves every effective authority b
         id: superadminUserId,
         username: `migration-super-${suffix.toLowerCase()}`,
         display_name: 'Migration Superadmin',
-        py: userPinyin('Migration Superadmin'),
+        py: searchPinyin('Migration Superadmin'),
         password_hash: 'not-used',
         status: 'ENABLED',
         password_changed_at: new Date(),

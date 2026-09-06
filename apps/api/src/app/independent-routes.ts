@@ -198,7 +198,14 @@ export function createIndependentHandlers(
             )
             break
           case '/app/role/query':
-            data = await management.queryRoles(pageInput(input), principal)
+            data = await management.queryRoles(
+              {
+                keyword: typeof input.keyword === 'string' ? input.keyword : '',
+                page: integer(input, 'page'),
+                pageSize: 20,
+              },
+              principal,
+            )
             break
           case '/app/role/get':
             data = await management.getRole(text(input, 'id'), principal)
@@ -221,7 +228,7 @@ export function createIndependentHandlers(
                 name: text(input, 'name'),
                 description: input.description as string | null,
                 permissionIds: strings(input, 'permissionIds'),
-                revision: integer(input, 'revision'),
+                revision: text(input, 'revision'),
               },
               principal,
               requestId,
@@ -230,7 +237,7 @@ export function createIndependentHandlers(
           case '/app/role/enable':
           case '/app/role/disable':
             data = await management.setRoleStatus(
-              { id: text(input, 'id'), revision: integer(input, 'revision') },
+              { id: text(input, 'id'), revision: text(input, 'revision') },
               path.endsWith('/enable') ? 'ENABLED' : 'DISABLED',
               principal,
               requestId,

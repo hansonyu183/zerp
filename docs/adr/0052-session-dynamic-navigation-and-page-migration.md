@@ -79,3 +79,11 @@ ADR-0051《共享 TypeScript 模型、本地 Draft 与 Hono 一次性切换》�
 用户与角色共同消费公共启停服务：服务参与外层领域事务，经最小类型化存储接口完成读取、revision 校验、转换检查、CAS 与通用审计；领域保留授权、最后管理员及会话副作用。状态与 revision 仍分别来自原对象表，审计复用 app_audit_events。没有第二份状态、通用业务 HTTP 入口或对象注册器。纯拼音转换归入后端工具，用户保留检索存储与回填职责，角色在查询分页前按需计算。
 
 角色管理直接切换为 enabled、十进制字符串 revision 及 edit/enable/disable 动作；类型仍为 NORMAL/SYSTEM/SUPERADMIN。独立权限目录的 ENABLED/DISABLED 协议保持其领域语义。AUX、审批和业务版本等后续分片尚未在本片实施；本节的实现边界不代替实际验证证据。
+
+## 第二批 AUX 共用契约与两页分片（#386）
+
+全部十二个 AUX 实体一次采用原生管理摘要、字符串 revision 与严格 typed 写入；引用候选和历史快照保持各自原有语义。名称只在 typed data 中保存一份，拼音通过既有后端纯工具按当前名称计算，完整集合匹配、稳定排序后分页。管理协议不保留旧身份别名或数字 revision，存续直接消费者同步切换。
+
+AUX 作为 APP 之外的实际消费者接入完整公共启停组件。外层 AUX 事务继续持有域写锁，组件完成读取、revision/转换检查、CAS 及通用审计，领域保留实体约束和引用规则。状态与对象 revision 仍仅存于 aux_objects，审计复用 app_audit_events；组件不提交外层事务，失败整体回滚。
+
+本片 Registry 在 user、role 之外只增加 employee-category 与 position，两页复用同构名称/说明展示表单及公共列表，静态绑定各自类型化 API。其他 AUX 页面仍显示尚未实现，未迁移 DCL、审批与业务版本规则保持有效。契约覆盖与页面交付分别验收，实际命令及运行结果单独记录。

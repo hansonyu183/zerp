@@ -9,6 +9,7 @@ import { sql } from 'kysely'
 import pg from 'pg'
 import { ulid } from 'ulid'
 
+import { AuxService } from '../../src/aux/service.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { searchPinyin } from '../../src/platform/pinyin.ts'
 import {
@@ -576,6 +577,10 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
         .where('created_by', '=', submitterId)
         .execute()
       await db.deleteFrom('aux_objects').where('id', 'in', auxIds).execute()
+      await db
+        .deleteFrom('app_audit_events')
+        .where('actor_user_id', '=', submitterId)
+        .execute()
       await sql`DELETE FROM dcl_acc_subject_facts WHERE id = ${accountId}`.execute(
         db,
       )
@@ -1917,6 +1922,81 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     for (const submission of [item.latestApproved, item.openCandidate])
       if (submission) assert.ok(!('snapshot' in submission), entity)
   }
+
+  const aux = new AuxService(db)
+  const auxActor = {
+    id: submitterId,
+    permissions: ['/aux/payment-method/get', '/aux/payment-method/disable'],
+  }
+  const paymentBefore = await aux.get(
+    'payment-method',
+    { id: auxIds[9]! },
+    auxActor,
+  )
+  const paymentDisabled = await aux.disable(
+    'payment-method',
+    { id: paymentBefore.id, revision: paymentBefore.revision },
+    auxActor,
+    ulid(),
+  )
+  assert.equal(paymentDisabled.enabled, false)
+  const rejectedCustomerSubjectId = ulid()
+  const rejectedCustomerSubmissionId = ulid()
+  subjectIds.push(rejectedCustomerSubjectId)
+  await assert.rejects(
+    service.submit(
+      'customer',
+      'submit-new',
+      {
+        subjectId: rejectedCustomerSubjectId,
+        submissionId: rejectedCustomerSubmissionId,
+        idempotencyKey: rejectedCustomerSubmissionId,
+        expectedLatestApprovedSubmissionId: null,
+        expectedLatestApprovedRevision: null,
+        snapshot: {
+          ...customerSnapshot,
+          legalName: '不得采用停用收款方式',
+          displayName: '不得采用停用收款方式',
+          legalIdentifier: 'CUSTOMER-DISABLED-AUX-001',
+          identityAttachments: [],
+          subunits: customerSnapshot.subunits.map((subunit) => ({
+            ...subunit,
+            id: ulid(),
+          })),
+        },
+      },
+      submitter,
+      ulid(),
+    ),
+    (error: unknown) =>
+      error instanceof ArchiveApplicationError &&
+      error.errorKey === 'customer_invalid_data',
+  )
+  const historicalCustomer = await service.get(
+    'customer',
+    customer.subjectId,
+    reviewer,
+    customer.submissionId,
+  )
+  const historicalSubunit = (
+    historicalCustomer.snapshot.subunits as Array<Record<string, unknown>>
+  )[0]!
+  assert.deepEqual(
+    historicalSubunit.paymentMethod,
+    customerSubunit.paymentMethod,
+  )
+  assert.deepEqual(
+    historicalSubunit.settlementMethod,
+    customerSubunit.settlementMethod,
+  )
+  const paymentAfter = await aux.get(
+    'payment-method',
+    { id: paymentBefore.id },
+    auxActor,
+  )
+  assert.equal(paymentAfter.enabled, false)
+  assert.equal(paymentAfter.revision, paymentDisabled.revision)
+  assert.equal(paymentAfter.defaultSalesSurcharge, '0.05')
 
   const duplicateSubjectId = ulid()
   const duplicateSubmissionId = ulid()

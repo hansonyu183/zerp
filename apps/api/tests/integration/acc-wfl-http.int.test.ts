@@ -195,16 +195,11 @@ async function seedSaleOrderReferences(
   }
   const auxiliary = async (
     entity: Parameters<AuxService['create']>[0],
-    data: unknown,
+    data: Parameters<AuxService['create']>[1],
   ) => {
     const created = await aux.create(entity, data, actor)
-    const fact = await aux.get(entity, created.objectId, actor)
-    return {
-      id: fact.objectId,
-      code: fact.code,
-      name: String(fact.data.name),
-      ...fact.data,
-    }
+    const fact = await aux.get(entity, { id: created.id }, actor)
+    return fact
   }
   const [
     unit,
@@ -226,13 +221,13 @@ async function seedSaleOrderReferences(
     }),
     auxiliary('product-category', {
       name: 'HTTP 产品分类',
-      parentId: null,
+      parentId: '',
       description: '',
     }),
     auxiliary('employee-category', { name: 'HTTP 员工分类', description: '' }),
     auxiliary('department', {
       name: 'HTTP 部门',
-      parentId: null,
+      parentId: '',
       description: '',
     }),
     auxiliary('position', { name: 'HTTP 岗位', description: '' }),

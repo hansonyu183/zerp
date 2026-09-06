@@ -13,3 +13,5 @@
 - [2026-09-06 #382 首片集成验收](first-slice-integration-issue-382-2026-09-06.md)
 
 - [2026-09-06 #385 公共启停与角色管理验证](role-management-issue-385-2026-09-06.md)
+
+- [2026-09-06 #386 AUX 共用管理与两页验证](aux-management-issue-386-2026-09-06.md)

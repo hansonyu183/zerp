@@ -38,6 +38,30 @@ export type TargetRoleEnabledInput = PostJson<
 export type TargetPermissionQueryInput = PostJson<
   (typeof client.app.permission.query)['$post']
 >
+export type TargetEmployeeCategoryQueryInput = PostJson<
+  (typeof client)['aux']['employee-category']['query']['$post']
+>
+export type TargetEmployeeCategoryCreateInput = PostJson<
+  (typeof client)['aux']['employee-category']['create']['$post']
+>
+export type TargetEmployeeCategorySaveInput = PostJson<
+  (typeof client)['aux']['employee-category']['save']['$post']
+>
+export type TargetEmployeeCategoryEnabledInput = PostJson<
+  (typeof client)['aux']['employee-category']['enable']['$post']
+>
+export type TargetPositionQueryInput = PostJson<
+  (typeof client)['aux']['position']['query']['$post']
+>
+export type TargetPositionCreateInput = PostJson<
+  (typeof client)['aux']['position']['create']['$post']
+>
+export type TargetPositionSaveInput = PostJson<
+  (typeof client)['aux']['position']['save']['$post']
+>
+export type TargetPositionEnabledInput = PostJson<
+  (typeof client)['aux']['position']['enable']['$post']
+>
 
 export class TargetApiError extends Error {
   readonly errorKey: string
@@ -258,6 +282,142 @@ export async function queryTargetPermissions(
         { json: input },
         csrfHeaders(csrfToken),
       )
+    ).json(),
+  )
+}
+
+export async function queryTargetEmployeeCategories(
+  csrfToken: string,
+  input: TargetEmployeeCategoryQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['employee-category'].query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function getTargetEmployeeCategory(csrfToken: string, id: string) {
+  return unwrapTarget(
+    await (
+      await client.aux['employee-category'].get.$post(
+        { json: { id } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function createTargetEmployeeCategory(
+  csrfToken: string,
+  input: TargetEmployeeCategoryCreateInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['employee-category'].create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function saveTargetEmployeeCategory(
+  csrfToken: string,
+  input: TargetEmployeeCategorySaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['employee-category'].save.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function setTargetEmployeeCategoryEnabled(
+  csrfToken: string,
+  input: TargetEmployeeCategoryEnabledInput,
+  enabled: boolean,
+) {
+  const endpoint = enabled
+    ? client.aux['employee-category'].enable
+    : client.aux['employee-category'].disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function queryTargetPositions(
+  csrfToken: string,
+  input: TargetPositionQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux.position.query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function getTargetPosition(csrfToken: string, id: string) {
+  return unwrapTarget(
+    await (
+      await client.aux.position.get.$post(
+        { json: { id } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function createTargetPosition(
+  csrfToken: string,
+  input: TargetPositionCreateInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux.position.create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function saveTargetPosition(
+  csrfToken: string,
+  input: TargetPositionSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux.position.save.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function setTargetPositionEnabled(
+  csrfToken: string,
+  input: TargetPositionEnabledInput,
+  enabled: boolean,
+) {
+  const endpoint = enabled
+    ? client.aux.position.enable
+    : client.aux.position.disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
     ).json(),
   )
 }

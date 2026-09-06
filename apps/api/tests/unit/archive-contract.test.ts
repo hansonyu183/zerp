@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { archiveSnapshotSchemas } from '../../src/dcl/archive-contract.ts'
-import { auxReferenceCandidateSchema } from '../../src/app/independent-contract.ts'
+import { auxReferenceCandidateSchema } from '../../src/app/aux-contract.ts'
 
 const id = (seed: string) => seed.padEnd(26, '0').slice(0, 26)
 

@@ -368,7 +368,7 @@ const accMappingUiFacts = {
     },
   ],
 }
-let e2eAssetCategory: { objectId: string; objectRevision: string } | undefined
+let e2eAssetCategory: { id: string; revision: string } | undefined
 let e2eDictionaryTypeId: string | undefined
 const serviceActor = (id: string) => ({
   id,
@@ -393,13 +393,13 @@ async function seedAuxFacts(aux: AuxService) {
       permissions: [...actor.permissions, '/aux/dictionary-type/create'],
     },
   )
-  e2eDictionaryTypeId = dictionaryType.objectId
+  e2eDictionaryTypeId = dictionaryType.id
   for (const fact of archiveFacts.auxObjects) {
     const data =
       fact.entity === 'dictionary-item'
         ? {
             ...fact.data,
-            dictionaryTypeId: dictionaryType.objectId,
+            dictionaryTypeId: dictionaryType.id,
             sortOrder: 0,
           }
         : fact.entity === 'product-category' || fact.entity === 'department'
@@ -416,8 +416,8 @@ async function seedAuxFacts(aux: AuxService) {
       fact.entity === 'settlement-method'
         ? await aux.ensureE2ESettlementMethod(data, actor)
         : await aux.create(fact.entity, data, actor)
-    const stored = await aux.get(fact.entity, created.objectId, actor)
-    fact.id = stored.objectId
+    const stored = await aux.get(fact.entity, { id: created.id }, actor)
+    fact.id = stored.id
     fact.code = stored.code
   }
 }
@@ -1400,7 +1400,7 @@ async function seedVouAccObjects() {
         assetAcquisitionLines: [
           {
             assetName: '目标资产',
-            category: { objectId: assetCategory.objectId },
+            category: { objectId: assetCategory.id },
             originalValue: '100.00',
             usefulLifeMonths: 60,
             residualRate: '0.000000',
@@ -1524,7 +1524,7 @@ try {
         TARGET_E2E_AUX_FACTS_JSON: JSON.stringify([
           ...archiveFacts.auxObjects,
           {
-            id: e2eAssetCategory!.objectId,
+            id: e2eAssetCategory!.id,
             entity: 'asset-category',
             code: 'AST-E2E',
             data: { name: '目标资产类别' },
@@ -1664,8 +1664,7 @@ try {
   if (e2eAssetCategory) {
     await aux.delete(
       'asset-category',
-      e2eAssetCategory.objectId,
-      e2eAssetCategory.objectRevision,
+      { id: e2eAssetCategory.id, revision: e2eAssetCategory.revision },
       {
         id: submitter.userId,
         permissions: ['/aux/asset-category/delete'],

@@ -28,11 +28,19 @@ asset-category
 全部 AUX 实体都是 current data。每个稳定对象在 `aux_objects` 一行内保存 `id`、`entity`、`code`、`enabled`、严格校验的 typed `data`、对象级 `revision` 和审计时间；不存在 Approval entry、候选、版本、审批状态或独立 payload 表。公开动作固定为 `create`、`get`、`query`、`save`、`enable`、`disable` 和 `delete`。
 
 - 创建成功后对象立即成为启用的 current data，可供新 DCL/VOU 选择；`code` 由服务端生成且创建后永久不可修改。
-- 保存直接替换同一 stable ID 的 typed data 并递增对象 `revision`。`objectRevision` 同时保护保存、启停和删除，冲突必须拒绝，不做覆盖或合并。
+- 保存直接替换同一 stable ID 的 typed data 并递增对象 `revision`。十进制字符串 `revision` 同时保护保存、启停和删除，冲突必须拒绝，不做覆盖或合并。
 - 停用立即阻止新引用，但已经固化在 DCL/VOU 中的 typed snapshot 继续可读、可提交、可计算；重新启用恢复新选择。
 - 只有完全没有任何持久化引用的对象才可物理删除。删除检查 DCL 所有版本状态、BOB current、VOU 所有持久化状态和其他引用，返回按来源聚合的结构化 blocker；不得自动清空、迁移或改写引用。
 - 树形对象禁止自引用和循环引用；字典归属、同层唯一性、方向一致性和其他 typed 规则在同一事务内重新校验。AUX 写事务取得域写锁，保证校验与 current mutation 原子化。
 - 系统 baseline 直接写入同一 current 模型；系统身份不能绕过 typed 校验、stable identity、revision 或引用 blocker。
+
+### 2.1 管理查询与并发
+
+全部十二个实体采用同一管理身份与并发语义。名称只有 typed data 中一份可写事实；列表的名称与拼音从当前名称派生。拼音复用后端纯转换工具，不另存拼音列或执行 AUX 回填。查询默认包含启用和停用对象，在完整授权集合对编码、拼音、名称作 OR 包含匹配，按编码和稳定 ID 升序排列后分页，每页 20 条，总数来自同一匹配集合；改名后检索立即采用新名称。
+
+管理动作资格只有 `edit`、`enable`、`disable`，中文分别为编辑、启用、停用，由服务端结合精确权限和对象事实提供；布尔启用事实显示为启用或停用。动作资格不是执行授权，执行时重新检查。创建不接受服务端身份、编码、拼音、启用事实或 revision；保存只改变 typed data，不能夹带启停。管理输入不接受旧身份别名或数字 revision，所有 revision 运算保持大整数精度。引用候选与历史嵌入快照保留自身身份语义。
+
+AUX 与 APP 用户、角色共同消费完整公共启停组件。组件参与 AUX 持有域写锁的外层事务，按输入校验、读取、revision 检查、状态转换检查、实体专有规则、CAS 写入和审计顺序执行。陈旧 revision 优先拒绝；同状态请求冲突且不写入、不增 revision。通用审计复用 `app_audit_events`，记录领域、实体、对象、操作者、前后启用事实、revision 和 requestId；专有规则、状态与审计失败整体回滚。`aux_objects` 仍保存唯一启用事实与对象 revision，不建立第二份状态或业务版本。
 
 公开动作、路径和请求响应结构由 `apps/api/` 的可执行 Hono/Zod 路由生成。
 

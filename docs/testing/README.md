@@ -15,3 +15,6 @@
 - [2026-09-06 #385 公共启停与角色管理验证](role-management-issue-385-2026-09-06.md)
 
 - [2026-09-06 #386 AUX 共用管理与两页验证](aux-management-issue-386-2026-09-06.md)
+- [2026-09-06 #387 计量单位验证](measurement-unit-issue-387-2026-09-06.md)
+- [2026-09-06 #388 收款方式验证](payment-method-issue-388-2026-09-06.md)
+- [2026-09-07 #390 第二批逐项集成验收](second-batch-integration-issue-390-2026-09-07.md)

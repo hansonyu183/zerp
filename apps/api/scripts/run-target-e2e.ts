@@ -31,7 +31,7 @@ if (!new URL(databaseUrl).pathname.slice(1).endsWith('_test'))
 
 const suffix = randomBytes(8).toString('hex')
 async function principal(
-  kind: 'submitter' | 'reviewer' | 'report',
+  kind: 'submitter' | 'reviewer' | 'report' | 'create-only',
   index: number,
 ) {
   const password = randomBytes(24).toString('base64url')
@@ -67,6 +67,7 @@ const vou = new VouService(database, {
 const submitter = await principal('submitter', 1)
 const reviewer = await principal('reviewer', 2)
 const reportAdmin = await principal('report', 3)
+const createOnly = await principal('create-only', 4)
 const managerEmployeeId = `M${suffix}`
   .toUpperCase()
   .padEnd(26, '0')
@@ -1491,6 +1492,7 @@ try {
   await bootstrap.createE2EPrincipal(submitter)
   await bootstrap.createE2EPrincipal(reviewer)
   await bootstrap.createE2EPrincipal(reportAdmin, true)
+  await bootstrap.createE2EPrincipal(createOnly, false, ['/app/user/create'])
   await seedAuxFacts(aux)
   await seedAccFacts(acc)
   await seedVouReferences(archives, warehouse)
@@ -1514,6 +1516,8 @@ try {
         TARGET_E2E_REVIEWER_PASSWORD: reviewer.password,
         TARGET_E2E_REPORT_USERNAME: reportAdmin.username,
         TARGET_E2E_REPORT_PASSWORD: reportAdmin.password,
+        TARGET_E2E_CREATE_ONLY_USERNAME: createOnly.username,
+        TARGET_E2E_CREATE_ONLY_PASSWORD: createOnly.password,
         TARGET_E2E_MANAGER_EMPLOYEE_ID: managerEmployeeId,
         TARGET_E2E_MANAGER_APPROVAL_ENTRY_ID: managerApprovalEntryId,
         TARGET_E2E_STALE_MANAGER_APPROVAL_ENTRY_ID: staleManagerApprovalEntryId,
@@ -1670,11 +1674,13 @@ try {
   }
   await deleteE2ECatalogFacts()
   await bootstrap.deleteE2ECreatedUsers([
+    createOnly.userId,
     reviewer.userId,
     reportAdmin.userId,
     submitter.userId,
   ])
   await bootstrap.deleteE2EPrincipal(reviewer)
+  await bootstrap.deleteE2EPrincipal(createOnly)
   await bootstrap.deleteE2EPrincipal(reportAdmin)
   await bootstrap.deleteE2EPrincipal(submitter)
   await rptValidationPool.end()

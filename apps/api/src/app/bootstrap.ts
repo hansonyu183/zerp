@@ -387,6 +387,7 @@ export class TargetBootstrapService {
   async createE2EPrincipal(
     principal: TargetE2EPrincipal,
     superadmin = false,
+    paths?: readonly string[],
   ): Promise<void> {
     await this.db.transaction().execute(async (transaction) => {
       const inheritedAdmin = superadmin
@@ -399,9 +400,14 @@ export class TargetBootstrapService {
       const permissions = await transaction
         .selectFrom('app_permissions')
         .select('id')
+        .$if(paths !== undefined, (query) =>
+          query.where('path', 'in', [...paths!]),
+        )
         .execute()
       if (permissions.length === 0)
         throw new Error('target catalog must contain permissions before E2E')
+      if (paths && (superadmin || permissions.length !== new Set(paths).size))
+        throw new Error('restricted E2E principal requires exact catalog paths')
       await transaction
         .insertInto('app_users')
         .values({
@@ -449,6 +455,15 @@ export class TargetBootstrapService {
   async deleteE2ECreatedUsers(principalIds: readonly string[]): Promise<void> {
     if (principalIds.length === 0) return
     await this.db.transaction().execute(async (transaction) => {
+      await transaction
+        .deleteFrom('app_audit_events')
+        .where('actor_user_id', 'in', (query) =>
+          query
+            .selectFrom('app_users')
+            .select('id')
+            .where('created_by', 'in', [...principalIds]),
+        )
+        .execute()
       await transaction
         .deleteFrom('app_users')
         .where('created_by', 'in', [...principalIds])

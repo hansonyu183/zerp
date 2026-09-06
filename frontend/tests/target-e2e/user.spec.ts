@@ -4,73 +4,236 @@ import { resolve } from 'node:path'
 
 import { expect, test, type Page } from '@playwright/test'
 
-async function signIn(page: Page) {
+const targetE2ERoleName = 'Target E2E Role'
+const targetE2ERoleText = `${process.env.TARGET_E2E_USERNAME!} · ${targetE2ERoleName}`
+
+function password(): string {
+  return `Aa1!${randomBytes(24).toString('base64url')}`
+}
+
+async function signIn(
+  page: Page,
+  code = process.env.TARGET_E2E_USERNAME!,
+  currentPassword = process.env.TARGET_E2E_PASSWORD!,
+): Promise<void> {
   await page.goto('/signin')
-  await page
-    .getByLabel('用户编码', { exact: true })
-    .fill(process.env.TARGET_E2E_USERNAME!)
-  await page
-    .getByLabel('密码', { exact: true })
-    .fill(process.env.TARGET_E2E_PASSWORD!)
+  await page.getByLabel('用户编码', { exact: true }).fill(code)
+  await page.getByLabel('密码', { exact: true }).fill(currentPassword)
   await page.getByRole('button', { name: '登录', exact: true }).click()
   await expect(page.getByLabel('用户编码', { exact: true })).toHaveCount(0)
 }
 
-// All writes go through the visible user page and real isolated HTTP service.
-// Screenshots are taken only before any password has been entered.
-test('menu opens a real user list and creates, renames, disables and enables a user', async ({
-  page,
-}) => {
-  await signIn(page)
+async function openUserManagement(page: Page): Promise<void> {
   const drawer = page.locator('.v-navigation-drawer')
   const closed = drawer.locator(
     '.v-list-group:not(.v-list-group--open) > .v-list-group__header',
   )
   while (await closed.count()) await closed.first().click()
   await drawer.locator('a[href="/app/user"]').click()
-  const keyword = page.getByLabel('编码、拼音或名称', { exact: true })
-  await expect(keyword).toBeVisible()
+  await expect(
+    page.getByLabel('编码、拼音或名称', { exact: true }),
+  ).toBeVisible()
   await expect(page.getByTestId('business-unimplemented')).toHaveCount(0)
-  const code = `ui-${randomBytes(6).toString('hex')}`
+}
+
+async function createUser(
+  page: Page,
+  input: { code: string; name: string; password: string },
+): Promise<void> {
   await page.getByRole('button', { name: '新增用户', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
-  await dialog.getByLabel('用户编码', { exact: true }).fill(code)
-  await dialog.getByLabel('名称', { exact: true }).fill('上海测试用户')
+  await dialog.getByLabel('用户编码', { exact: true }).fill(input.code)
+  await dialog.getByLabel('名称', { exact: true }).fill(input.name)
   await dialog.locator('.v-select .v-field').click()
-  await page
+  const targetE2ERole = page
     .locator('[role="option"]:not(.v-list-item--disabled)')
-    .filter({ hasText: 'Target E2E Role' })
-    .first()
-    .click()
+    .filter({ hasText: targetE2ERoleText })
+  await expect(targetE2ERole).toHaveCount(1)
+  await targetE2ERole.click()
   await page.keyboard.press('Escape')
-  await dialog
-    .getByLabel('初始密码', { exact: true })
-    .fill(`Aa1!${randomBytes(24).toString('base64url')}`)
+  await dialog.getByLabel('初始密码', { exact: true }).fill(input.password)
   await dialog.getByRole('button', { name: '保存', exact: true }).click()
   await expect(dialog).toHaveCount(0)
-  await keyword.fill(code)
+}
+
+async function findUserRow(page: Page, code: string, query = code) {
+  const keyword = page.getByLabel('编码、拼音或名称', { exact: true })
+  await keyword.fill(query)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   const row = page.getByRole('row').filter({ hasText: code })
-  await expect(row).toContainText('上海测试用户')
-  await row.getByRole('button', { name: '编辑', exact: true }).click()
-  await expect(dialog.getByLabel('用户编码', { exact: true })).toBeDisabled()
-  await expect(dialog.getByLabel('初始密码', { exact: true })).toHaveCount(0)
-  await dialog.getByLabel('名称', { exact: true }).fill('北京测试用户')
-  await dialog.getByRole('button', { name: '保存', exact: true }).click()
-  await expect(dialog).toHaveCount(0)
-  await expect(row).toContainText('北京测试用户')
-  await keyword.fill('beijingceshiyonghu')
-  await keyword.press('Enter')
   await expect(row).toBeVisible()
-  await row.getByRole('button', { name: '停用', exact: true }).click()
+  return row
+}
+
+async function completeRequiredPasswordChange(
+  page: Page,
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  await expect(page).toHaveURL(/\/change-password$/)
+  await page.getByLabel('当前密码', { exact: true }).fill(currentPassword)
+  await page.getByLabel('新密码', { exact: true }).fill(newPassword)
+  await page.getByLabel('确认新密码', { exact: true }).fill(newPassword)
+  await page.getByRole('button', { name: '保存新密码', exact: true }).click()
+  await expect(page.getByLabel('用户编码', { exact: true })).toBeVisible()
+}
+
+async function changeOwnPassword(
+  page: Page,
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  await page.locator('.account-button').click()
+  await page.getByText('更改密码', { exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByLabel('当前密码', { exact: true }).fill(currentPassword)
+  await dialog.getByLabel('新密码', { exact: true }).fill(newPassword)
+  await dialog.getByLabel('确认新密码', { exact: true }).fill(newPassword)
+  await dialog.getByRole('button', { name: '保存', exact: true }).click()
+  await expect(page.getByLabel('用户编码', { exact: true })).toBeVisible()
+}
+
+// All writes use the visible target UI against the disposable HTTP service.
+// It takes no screenshots or traces and emits no password, cookie, or CSRF value.
+test('a created user completes self-service and cannot regain a revoked session', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(120_000)
+  const code = `ui-${randomBytes(6).toString('hex')}`
+  const initialPassword = password()
+  const requiredChangePassword = password()
+  const selfServicePassword = password()
+  const administratorUpdatedName = '北京测试用户'
+  const profileName = '用户自助资料已更新'
+
+  await signIn(page)
+  await openUserManagement(page)
+  await createUser(page, {
+    code,
+    name: '用户自助测试',
+    password: initialPassword,
+  })
+  await expect(await findUserRow(page, code)).toContainText('用户自助测试')
+  await (
+    await findUserRow(page, code)
+  )
+    .getByRole('button', { name: '编辑', exact: true })
+    .click()
+  const editor = page.getByRole('dialog')
+  await expect(editor.getByLabel('用户编码', { exact: true })).toBeDisabled()
+  await expect(editor.getByLabel('初始密码', { exact: true })).toHaveCount(0)
+  await editor
+    .getByLabel('名称', { exact: true })
+    .fill(administratorUpdatedName)
+  await editor.getByRole('button', { name: '保存', exact: true }).click()
+  await expect(editor).toHaveCount(0)
   await expect(
-    row.getByRole('button', { name: '启用', exact: true }),
-  ).toBeVisible()
-  await row.getByRole('button', { name: '启用', exact: true }).click()
-  await expect(
-    row.getByRole('button', { name: '停用', exact: true }),
-  ).toBeVisible()
+    await findUserRow(page, code, 'beijingceshiyonghu'),
+  ).toContainText(administratorUpdatedName)
+
+  const userContext = await browser.newContext()
+  const staleSessionContext = await browser.newContext()
+  try {
+    const userPage = await userContext.newPage()
+    await signIn(userPage, code, initialPassword)
+    await completeRequiredPasswordChange(
+      userPage,
+      initialPassword,
+      requiredChangePassword,
+    )
+    await signIn(userPage, code, requiredChangePassword)
+    await expect(userPage.locator('.account-button')).toBeVisible()
+
+    await userPage.reload()
+    await expect(userPage.locator('.account-button')).toBeVisible()
+
+    await userPage.locator('.account-button').click()
+    await userPage.getByText('名称与头像', { exact: true }).click()
+    const profileDialog = userPage.getByRole('dialog')
+    await expect(
+      profileDialog.getByLabel('名称', { exact: true }),
+    ).toBeVisible()
+    await profileDialog.getByLabel('名称', { exact: true }).fill(profileName)
+    await profileDialog
+      .getByRole('button', { name: '保存', exact: true })
+      .click()
+    await expect(profileDialog).toHaveCount(0)
+    await expect(userPage.locator('.account-button')).toContainText(profileName)
+
+    await changeOwnPassword(
+      userPage,
+      requiredChangePassword,
+      selfServicePassword,
+    )
+    await signIn(userPage, code, selfServicePassword)
+    await expect(userPage.locator('.account-button')).toContainText(profileName)
+
+    const staleSessionPage = await staleSessionContext.newPage()
+    await signIn(staleSessionPage, code, selfServicePassword)
+    await expect(staleSessionPage.locator('.account-button')).toContainText(
+      profileName,
+    )
+
+    const row = await findUserRow(page, code)
+    await expect(row).toContainText(profileName)
+    await row.getByRole('button', { name: '停用', exact: true }).click()
+    await expect(
+      row.getByRole('button', { name: '启用', exact: true }),
+    ).toBeVisible()
+
+    // This context retains its original revoked session cookie until after the
+    // administrator enables the account again.
+    await userPage.reload()
+    await expect(userPage.getByLabel('用户编码', { exact: true })).toBeVisible()
+    await row.getByRole('button', { name: '启用', exact: true }).click()
+    await expect(
+      row.getByRole('button', { name: '停用', exact: true }),
+    ).toBeVisible()
+    await staleSessionPage.reload()
+    await expect(
+      staleSessionPage.getByLabel('用户编码', { exact: true }),
+    ).toBeVisible()
+    await signIn(staleSessionPage, code, selfServicePassword)
+    await expect(staleSessionPage.locator('.account-button')).toContainText(
+      profileName,
+    )
+  } finally {
+    await staleSessionContext.close()
+    await userContext.close()
+  }
+})
+
+test('user management searches and pages a real result set larger than one page', async ({
+  page,
+}) => {
+  test.setTimeout(120_000)
+  const prefix = `page-${randomBytes(6).toString('hex')}`
+  const users = Array.from({ length: 21 }, (_, index) => ({
+    code: `${prefix}-${String(index + 1).padStart(2, '0')}`,
+    name: `分页测试用户${index + 1}`,
+    password: password(),
+  }))
+
+  await signIn(page)
+  await openUserManagement(page)
+  for (const user of users) await createUser(page, user)
+
+  await page.getByLabel('编码、拼音或名称', { exact: true }).fill(prefix)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  const shell = page.getByTestId('list-page-shell')
+  await expect(shell).toContainText('共 21 项')
+  await expect(shell.locator('[data-testid^="list-row-"]')).toHaveCount(20)
+  await expect(page.getByText(users[0]!.code, { exact: true })).toBeVisible()
+
+  await page
+    .locator('.v-pagination__item')
+    .filter({ hasText: '2' })
+    .locator('button')
+    .click()
+  await expect(page.getByText(users[20]!.code, { exact: true })).toBeVisible()
+  await expect(shell.locator('[data-testid^="list-row-"]')).toHaveCount(1)
 })
 
 test('user list and reused editor remain usable at desktop and 390px in both themes', async ({
@@ -87,10 +250,8 @@ test('user list and reused editor remain usable at desktop and 390px in both the
       await signIn(page)
       await page.goto('/app/user')
       await expect(
-        page
-          .getByRole('cell', { name: 'Target E2E User', exact: true })
-          .first(),
-      ).toBeVisible()
+        page.locator('[data-testid^="list-row-"]').first(),
+      ).toBeAttached()
       for (const theme of ['light', 'dark']) {
         if (theme === 'dark') await page.getByLabel('切换深色模式').click()
         await expect(

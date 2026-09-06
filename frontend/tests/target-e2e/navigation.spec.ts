@@ -3,14 +3,14 @@ import { resolve } from 'node:path'
 
 import { expect, test, type Page } from '@playwright/test'
 
-async function signIn(page: Page): Promise<string[]> {
+async function signIn(
+  page: Page,
+  code = process.env.TARGET_E2E_USERNAME!,
+  password = process.env.TARGET_E2E_PASSWORD!,
+): Promise<string[]> {
   await page.goto('/signin')
-  await page
-    .getByLabel('用户编码', { exact: true })
-    .fill(process.env.TARGET_E2E_USERNAME!)
-  await page
-    .getByLabel('密码', { exact: true })
-    .fill(process.env.TARGET_E2E_PASSWORD!)
+  await page.getByLabel('用户编码', { exact: true }).fill(code)
+  await page.getByLabel('密码', { exact: true }).fill(password)
   const response = page.waitForResponse(
     (response) => new URL(response.url()).pathname === '/session/auth/signin',
   )
@@ -72,6 +72,44 @@ test('all authorized resources have one menu entry and unregistered pages send n
     await expect(page.getByTestId('business-unimplemented')).toBeVisible()
   }
   await page.goto('/app/no-such-resource')
+  await expect(page.getByText('无权访问', { exact: true })).toBeVisible()
+  expect(businessRequests).toEqual([])
+})
+
+test('real create-only permissions expose the user page without unauthorized queries', async ({
+  page,
+}) => {
+  const businessRequests: string[] = []
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname
+    if (request.method() === 'POST' && !path.startsWith('/session/'))
+      businessRequests.push(path)
+  })
+  const paths = await signIn(
+    page,
+    process.env.TARGET_E2E_CREATE_ONLY_USERNAME!,
+    process.env.TARGET_E2E_CREATE_ONLY_PASSWORD!,
+  )
+  expect(paths.filter((path) => !path.startsWith('/session/'))).toEqual([
+    '/app/user/create',
+  ])
+  await page.goto('/app/user')
+  await expect(page.getByTestId('list-page-shell')).toBeVisible()
+  await expect(page.getByLabel('编码、拼音或名称')).toBeDisabled()
+  await expect(
+    page.getByText('当前账号没有查询权限，仅显示已授权操作。'),
+  ).toBeVisible()
+  await page.getByRole('button', { name: '新增用户', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toContainText('缺少角色查询权限')
+  await expect(
+    dialog.getByRole('button', { name: '保存', exact: true }),
+  ).toHaveCount(0)
+  await dialog.getByRole('button', { name: '取消', exact: true }).click()
+  expect(businessRequests).toEqual([])
+
+  // A known resource without any granted action must not mount or query.
+  await page.goto('/app/role')
   await expect(page.getByText('无权访问', { exact: true })).toBeVisible()
   expect(businessRequests).toEqual([])
 })

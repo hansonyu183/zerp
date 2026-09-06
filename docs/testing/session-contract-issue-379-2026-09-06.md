@@ -5,7 +5,7 @@
 ## 实现范围
 
 - 切换七个可执行端点：`/session/auth/signin`、`restore`、`signout`，`/session/user/get`、`save`、`change-password`，以及 `/session/app/get`；删除对应旧 APP 自助端点及消费者，不保留兼容入口。
-- 登录使用 `code/password`；启动上下文返回 `user{id,code,name}`、`apiPaths`、CSRF 与密码策略。头像通过自助资料接口加载，资料保存只接受名称、头像与 revision。
+- 登录使用 `code/password`；启动上下文返回 `user{id,code,name}`、`apiPaths`、CSRF 与密码策略。头像通过自助资料接口加载，资料保存只接受名称与头像，不接受客户端 revision（本项在 #382 核对严格契约后纠正）。
 - 保留用户稳定 ID、既有数据库字段、密码与角色关系；未执行生产数据迁移。
 - 复用现有登录页、强制改密页、AppLayout、Vuetify 对话框与主题控制。补齐异步恢复、退出、资料读写和改密竞态保护，以及密码字段关闭清理。
 - 现有菜单与管理页面保留，后续按 #378 和 ADR-0052 的切片实施。

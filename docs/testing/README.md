@@ -10,3 +10,4 @@
 - [2026-09-06 #380 权限导航与 Host 验收](navigation-host-issue-380-2026-09-06.md)
 
 - [2026-09-06 #381 公共列表与用户管理验收](user-list-issue-381-2026-09-06.md)
+- [2026-09-06 #382 首片集成验收](first-slice-integration-issue-382-2026-09-06.md)

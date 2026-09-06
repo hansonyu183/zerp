@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 
 import { ulid } from 'ulid'
+import { sql } from 'kysely'
 
 import {
   userPinyin,
@@ -169,4 +170,25 @@ test('controlled user pinyin backfill preserves identities, credentials, roles, 
   assert.equal(terminal.factsSha256, preview.factsSha256)
   assert.equal(terminal.columnRequired, true)
   assert.equal(terminal.constraintPresent, true)
+
+  // Rehearse the actual pre-slice schema, where the pinyin column is absent.
+  await sql`ALTER TABLE public.app_users DROP COLUMN py`.execute(db)
+  const oldSchema = await service.inspect()
+  assert.equal(oldSchema.columnPresent, false)
+  assert.equal(oldSchema.factsSha256, preview.factsSha256)
+  const converted = await service.apply(oldSchema)
+  assert.equal(converted.columnPresent, true)
+  assert.equal(converted.columnRequired, true)
+  assert.equal(converted.constraintPresent, true)
+  assert.equal(converted.factsSha256, preview.factsSha256)
+  const restoredUser = await db
+    .selectFrom('app_users')
+    .selectAll()
+    .where('id', '=', userId)
+    .executeTakeFirstOrThrow()
+  assert.equal(restoredUser.py, 'chongqingyonghu')
+  assert.deepEqual({ ...restoredUser, py: before.user.py }, before.user)
+  const repeated = await service.apply(converted)
+  assert.equal(repeated.changedUsers, 0)
+  assert.equal(repeated.factsSha256, preview.factsSha256)
 })

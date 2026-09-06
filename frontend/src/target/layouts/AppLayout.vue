@@ -15,6 +15,7 @@ const branding = useTargetBranding()
 const drawer = ref(!window.matchMedia('(max-width: 959px)').matches)
 const profileDialog = ref(false)
 const passwordDialog = ref(false)
+const profileLoading = ref(false)
 const saving = ref(false)
 const accountError = ref<string | null>(null)
 const profileForm = reactive({ name: '', avatarUrl: '' })
@@ -50,6 +51,7 @@ async function openProfile(): Promise<void> {
   const request = ++accountRequest
   accountError.value = null
   profileDialog.value = true
+  profileLoading.value = true
   try {
     const current = await session.getProfile()
     if (request !== accountRequest || !profileDialog.value) return
@@ -59,11 +61,13 @@ async function openProfile(): Promise<void> {
     if (request !== accountRequest || !profileDialog.value) return
     accountError.value =
       cause instanceof Error ? cause.message : '个人资料加载失败。'
+  } finally {
+    if (request === accountRequest) profileLoading.value = false
   }
 }
 
 async function saveProfile(): Promise<void> {
-  if (!profileForm.name.trim() || saving.value) return
+  if (!profileForm.name.trim() || profileLoading.value || saving.value) return
   const request = accountRequest
   saving.value = true
   try {
@@ -133,6 +137,7 @@ function clearPasswords(): void {
 function clearAccountForms(): void {
   profileForm.name = ''
   profileForm.avatarUrl = ''
+  profileLoading.value = false
   clearPasswords()
   saving.value = false
 }
@@ -304,13 +309,19 @@ onBeforeUnmount(() => {
         ><v-text-field
           v-model="profileForm.name"
           label="名称"
+          :disabled="profileLoading || saving"
           variant="outlined" /><v-text-field
           v-model="profileForm.avatarUrl"
           label="头像 HTTPS 地址"
+          :disabled="profileLoading || saving"
           variant="outlined" /></v-card-text
       ><v-card-actions
         ><v-spacer /><v-btn @click="onProfileDialogChange(false)">取消</v-btn
-        ><v-btn color="primary" :loading="saving" @click="saveProfile"
+        ><v-btn
+          color="primary"
+          :loading="saving"
+          :disabled="profileLoading || saving"
+          @click="saveProfile"
           >保存</v-btn
         ></v-card-actions
       ></v-card

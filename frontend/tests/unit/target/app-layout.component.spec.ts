@@ -8,6 +8,7 @@ const harness = vi.hoisted(() => ({
   router: { push: vi.fn(), replace: vi.fn() },
   session: undefined as any,
   getProfile: vi.fn(),
+  saveProfile: vi.fn(),
   changePassword: vi.fn(),
   signOut: vi.fn(),
 }))
@@ -38,7 +39,7 @@ vi.mock('@/target/session/vm.ts', () => {
     clear: vi.fn(),
     restore: vi.fn(),
     getProfile: harness.getProfile,
-    saveProfile: vi.fn(),
+    saveProfile: harness.saveProfile,
     changePassword: harness.changePassword,
     signOut: harness.signOut,
   })
@@ -54,8 +55,10 @@ const stubs = {
     template: '<div><slot name="activator" :props="{}" /><slot /></div>',
   },
   VBtn: {
+    props: { disabled: { type: Boolean, default: false } },
     emits: ['click'],
-    template: '<button @click="$emit(\'click\')"><slot /></button>',
+    template:
+      '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>',
   },
   VAvatar: { template: '<span><slot /></span>' },
   VImg: { template: '<img />' },
@@ -90,10 +93,11 @@ const stubs = {
     props: {
       label: { type: String, required: true },
       modelValue: { type: String, default: '' },
+      disabled: { type: Boolean, default: false },
     },
     emits: ['update:modelValue'],
     template:
-      '<label>{{ label }}<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" /></label>',
+      '<label>{{ label }}<input :value="modelValue" :disabled="disabled" @input="$emit(\'update:modelValue\', $event.target.value)" /></label>',
   },
   AppSnackbar: { template: '<div />' },
 }
@@ -123,6 +127,7 @@ describe('target account layout', () => {
     harness.router.push.mockReset()
     harness.router.replace.mockReset()
     harness.getProfile.mockReset()
+    harness.saveProfile.mockReset()
     harness.changePassword.mockReset()
     harness.signOut.mockReset()
     harness.session.user = { id: 'user-1', code: 'tester', name: '测试用户' }
@@ -198,6 +203,81 @@ describe('target account layout', () => {
     await button(wrapper, '更改密码').trigger('click')
     await nextTick()
     expect(wrapper.findAll('input')[0]!.element.value).toBe('')
+    wrapper.unmount()
+  })
+
+  it('locks the profile form until its current value has loaded', async () => {
+    let resolveProfile: (value: {
+      id: string
+      code: string
+      name: string
+      avatarUrl: null
+      passwordChangedAt: string
+      revision: string
+    }) => void
+    const pendingProfile = new Promise<{
+      id: string
+      code: string
+      name: string
+      avatarUrl: null
+      passwordChangedAt: string
+      revision: string
+    }>((resolve) => {
+      resolveProfile = resolve
+    })
+    harness.getProfile
+      .mockResolvedValueOnce({
+        id: 'user-1',
+        code: 'tester',
+        name: '服务端名称',
+        avatarUrl: null,
+        passwordChangedAt: '2026-09-06T00:00:00.000Z',
+        revision: '1',
+      })
+      .mockReturnValueOnce(pendingProfile)
+    const wrapper = mountLayout()
+    await flushPromises()
+
+    await button(wrapper, '名称与头像').trigger('click')
+    await nextTick()
+    expect(wrapper.findAll('input')[0]!.attributes('disabled')).toBeDefined()
+    expect(wrapper.findAll('input')[1]!.attributes('disabled')).toBeDefined()
+    expect(button(wrapper, '保存').attributes('disabled')).toBeDefined()
+
+    resolveProfile!({
+      id: 'user-1',
+      code: 'tester',
+      name: '服务端名称',
+      avatarUrl: null,
+      passwordChangedAt: '2026-09-06T00:00:00.000Z',
+      revision: '1',
+    })
+    await flushPromises()
+    expect(wrapper.findAll('input')[0]!.attributes('disabled')).toBeUndefined()
+    expect(button(wrapper, '保存').attributes('disabled')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('locks the profile form while saving', async () => {
+    let resolveSave: () => void
+    const pendingSave = new Promise<void>((resolve) => {
+      resolveSave = resolve
+    })
+    harness.saveProfile.mockReturnValueOnce(pendingSave)
+    const wrapper = mountLayout()
+    await flushPromises()
+    await button(wrapper, '名称与头像').trigger('click')
+    await flushPromises()
+
+    await wrapper.findAll('input')[0]!.setValue('已修改名称')
+    await button(wrapper, '保存').trigger('click')
+    await nextTick()
+    expect(wrapper.findAll('input')[0]!.attributes('disabled')).toBeDefined()
+    expect(wrapper.findAll('input')[1]!.attributes('disabled')).toBeDefined()
+    expect(button(wrapper, '保存').attributes('disabled')).toBeDefined()
+
+    resolveSave!()
+    await flushPromises()
     wrapper.unmount()
   })
 

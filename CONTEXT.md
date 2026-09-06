@@ -6,6 +6,11 @@ ZERP uses shared business terms across its auxiliary-data, business-object, vouc
 
 ## Authorization
 
+**Session Context（会话上下文）**:
+已认证会话对浏览器提供的当前用户身份、精确可调用 API 路径、CSRF 凭证与强制改密状态；它是登录与恢复后唯一的会话事实，不是用户资料、菜单树或权限授予的替代来源。
+_Avoid_: `permissions` 别名、通配权限、旧账号会话、把菜单或个人资料塞入会话上下文
+_Authority_: [APP 最终权限计算](docs/domains/app.md#4-最终权限计算)
+
 **Delegation Ceiling（授权上限）**:
 管理员可以向他人授予的权限范围。
 _Avoid_: 角色管理权限等于全部权限、可授予未拥有权限
@@ -63,7 +68,7 @@ _Authority_: [Approval 授权](docs/domains/approval.md#4-授权与事务边界)
 **Continuous Effectiveness（连续生效）**:
 使用 Approval Version 的主数据在候选变更期间继续以最后有效版本供业务使用，候选审核后一次切换；AUX current data 则由保存直接生效，并由采用方 snapshot 隔离历史业务解释。两者都只有显式停用才立即阻止新引用。
 _Avoid_: 编辑即停用、候选待审期间无可用版本、AUX 修改后重解释历史、逐页面决定变更期是否可用
-_Authority_: [DCL current 投影边界](docs/domains/dcl.md#4-原子性与引用)、[AUX Stable-ID Direct CRUD](docs/domains/aux.md#2-stable-id-direct-crud-生命周期)、[APP 菜单模板](docs/domains/app.md#39-菜单模板)
+_Authority_: [DCL current 投影边界](docs/domains/dcl.md#4-原子性与引用)、[AUX Stable-ID Direct CRUD](docs/domains/aux.md#2-stable-id-direct-crud-生命周期)
 
 **Business Identity Record（业务身份档案）**:
 客户、供应商、员工、其他单位或销售合作方各自拥有的身份档案；同一现实个人或组织具有多种业务身份时分别建档、分别审批，不跨类型共享或同步身份资料。
@@ -270,10 +275,15 @@ _Authority_: [VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额�
 
 ## Navigation
 
-**APP Page Route（APP 页面路由）**:
-APP 领域页面在菜单目录和前端路由中使用的稳定 `routeKey` 与 `routePath`。
-_Avoid_: admin 领域、`admin/*` 管理页面路由、把页面路由等同于 API 动作路径
-_Authority_: [APP 菜单模板](docs/domains/app.md#39-菜单模板)
+**Navigation Resource（导航资源）**:
+当前 Session 的非 Session 精确 `apiPaths` 中同一 `domain/entity` 的去重集合。它代表使用者可进入的业务资源，不等同于单个 API 动作、权限授予、页面实现或查询资格。
+_Avoid_: 菜单模板路由、`routeKey`、按 `query` 动作筛选、用页面登记或域前缀推断资源
+_Authority_: [APP 导航资源](docs/domains/app.md#39-导航资源)
+
+**Navigation Entry（导航入口）**:
+一个 Navigation Resource 在当前使用者导航中的可见入口。入口由资源存在决定；已登记资源装配页面，未登记资源明确显示尚未实现，二者都不改变服务端精确 API 鉴权。
+_Avoid_: 菜单树项、隐藏资源、把未实现当作无权限或空数据页
+_Authority_: [APP 导航资源](docs/domains/app.md#39-导航资源)
 
 ## Configuration
 

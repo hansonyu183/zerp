@@ -4,6 +4,7 @@ import test from 'node:test'
 
 import { serve } from '@hono/node-server'
 import { modelBuildId } from '@zerp/model'
+import { createTargetApiClient } from '../../../../packages/api-client/src/index.ts'
 
 import { createApp } from '../../src/app.ts'
 import { TargetBootstrapService } from '../../src/app/bootstrap.ts'
@@ -214,6 +215,16 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   }
   let cookie = ''
   let csrf = ''
+  const sessionClient = createTargetApiClient({
+    baseUrl: origin,
+    modelBuildId,
+    fetch: (input, init) => {
+      const headers = new Headers(init?.headers)
+      headers.set('connection', 'close')
+      if (cookie) headers.set('cookie', cookie)
+      return fetch(input, { ...init, headers })
+    },
+  })
 
   context.after(async () => {
     await new Promise<void>((resolve, reject) => {
@@ -318,22 +329,16 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     }>
   }
 
-  const branding = await post('/app/branding/get', {}, false)
+  const branding = await (
+    await sessionClient.session.app.get.$post({ json: {} })
+  ).json()
   assert.equal(branding.code, 0)
   assert.equal(branding.data.enterpriseName, 'ZERP 演示企业')
 
-  const signin = await fetch(`${origin}/app/user/signin`, {
-    method: 'POST',
-    headers: baseHeaders,
-    body: JSON.stringify({
-      username: principal.username,
-      password: 'Target!Password363',
-    }),
+  const signin = await sessionClient.session.auth.signin.$post({
+    json: { code: principal.username, password: 'Target!Password363' },
   })
-  const signinPayload = (await signin.json()) as {
-    code: number
-    data: { csrfToken: string }
-  }
+  const signinPayload = await signin.json()
   assert.equal(signinPayload.code, 0)
   cookie = signin.headers.getSetCookie()[0] ?? ''
   csrf = signinPayload.data.csrfToken
@@ -347,59 +352,6 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   assert.equal(parameterPage.code, 0)
   assert.equal(parameterPage.data.items.length, 20)
   assert.equal(parameterPage.data.total, 21)
-
-  const menu = await post('/app/menu/get', {})
-  assert.equal(menu.code, 0)
-  assert.equal(menu.data.mode, 'DEFAULT')
-  assert.ok(Array.isArray(menu.data.defaultMenu.items))
-  assert.ok(Array.isArray(menu.data.businessMenu.items))
-  assert.ok(Array.isArray(menu.data.navigation.items))
-  assert.ok(Array.isArray(menu.data.availableRoutes))
-  const workbenchItems = menu.data.navigation.items.filter(
-    (item: { routePath: string | null }) =>
-      item.routePath === '/home/dashboard',
-  )
-  assert.equal(workbenchItems.length, 1)
-  assert.equal(menu.data.navigation.items[0], workbenchItems[0])
-  assert.ok(
-    menu.data.navigation.items.some(
-      (item: { routePath: string | null; permissionCode: string | null }) =>
-        item.routePath === '/app/menu' &&
-        item.permissionCode === '/app/menu/save-business',
-    ),
-    'menu administrators must be able to discover the formal menu-management page',
-  )
-  assert.deepEqual(
-    {
-      parentId: workbenchItems[0].parentId,
-      type: workbenchItems[0].type,
-      level: workbenchItems[0].level,
-      displayName: workbenchItems[0].displayName,
-      routeKey: workbenchItems[0].routeKey,
-      routePath: workbenchItems[0].routePath,
-      permissionCode: workbenchItems[0].permissionCode,
-    },
-    {
-      parentId: null,
-      type: 'ROUTE',
-      level: 1,
-      displayName: '工作台',
-      routeKey: 'home/dashboard',
-      routePath: '/home/dashboard',
-      permissionCode: null,
-    },
-  )
-  assert.ok(
-    menu.data.availableRoutes.some(
-      (route: { routeKey: string }) => route.routeKey === 'aux/department',
-    ),
-  )
-  assert.equal(
-    menu.data.availableRoutes.some(
-      (route: { routeKey: string }) => route.routeKey === 'home/dashboard',
-    ),
-    false,
-  )
 
   const permissionPage = await post('/app/permission/query', {
     page: 1,
@@ -423,8 +375,8 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   createdRoleIds.push(role.data.id)
 
   const user = await post('/app/user/create', {
-    username: `managed-${suffix.toLowerCase()}`,
-    displayName: 'Managed User',
+    code: `managed-${suffix.toLowerCase()}`,
+    name: 'Managed User',
     password: 'Managed!Password363',
     roleIds: [role.data.id],
   })
@@ -432,9 +384,9 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   createdUserIds.push(user.data.id)
   const staleUser = await post('/app/user/save', {
     id: user.data.id,
-    displayName: 'Stale Update',
+    name: 'Stale Update',
     roleIds: [role.data.id],
-    revision: Number(user.data.revision) + 1,
+    revision: String(BigInt(user.data.revision) + 1n),
   })
   assert.equal(staleUser.errorKey, 'user_changed')
 
@@ -655,10 +607,11 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   })
   assert.equal(subunits.data[0].objectId, subunitId)
 
-  const signoutResponse = await postResponse('/app/user/signout', {})
-  const signout = (await signoutResponse.json()) as { code: number }
+  const signoutResponse = await sessionClient.session.auth.signout.$post(
+    { json: {} },
+    { headers: { 'X-CSRF-Token': csrf } },
+  )
+  const signout = await signoutResponse.json()
   assert.equal(signout.code, 0)
   assert.match(signoutResponse.headers.getSetCookie()[0] ?? '', /Max-Age=0/)
-  const afterSignout = await post('/app/menu/get', {})
-  assert.equal(afterSignout.errorKey, 'unauthenticated')
 })

@@ -34,9 +34,9 @@ BOB 列表只返回当前正式资料、stable ID、编码、`sourceApprovalEntr
 
 法定识别号按“档案类型 + 规范化值”唯一；跨档案类型不比较、不复用、不提示和不合并。名称、电话、邮箱和地址不是唯一键。误建档案没有合并动作；已有业务引用时只能建立下一候选停用，历史事实保持原稳定 ID、Approval Entry 和快照。
 
-BOB 只提供每种业务档案的 current `query|get|reference` 内部读取能力，不注册页面、菜单、待办或审批入口。当前资料浏览、创建、编辑、启停、审批、版本和审计统一进入对应 DCL 页面。Party、Party 权限、Party 页面、关系卡片、关系 root、影响预览和合并均不存在。
+BOB 只提供每种业务档案的 current `query|get|reference` 内部读取能力，不拥有业务写入、待办或审批入口。当前资料浏览、创建、编辑、启停、审批、版本和审计仍由对应 DCL HTTP 边界拥有；#380 的空 Registry 尚未登记其页面。Party、Party 权限、Party 页面、关系卡片、关系 root、影响预览和合并均不存在。
 
-服务类业务档案的用户名称固定为“其他单位”，实体与路径使用 `other-unit`，页面路径为 `/dcl/other-unit`，`/bob/other-unit/query|get|reference` 只提供内部 current 读取。
+服务类业务档案的用户名称固定为“其他单位”，实体与路径使用 `other-unit`，维护 HTTP 边界为 `/dcl/other-unit/*`，`/bob/other-unit/query|get|reference` 只提供内部 current 读取。
 
 BOB 不建立独立服务项目主数据、服务目录或 `/bob/service` 页面。服务内容由 VOU 服务合同保存，实际履约和验收由对应单据保存。
 
@@ -48,9 +48,9 @@ BOB 不建立独立服务项目主数据、服务目录或 `/bob/service` 页面
 
 Customer 是付款识别、税务抬头和收款分摊根，并在同一版本中包含一个或多个客户子单位。每个启用 Customer 至少有一个启用子单位；子单位没有独立审批、版本、页面或 current 对象。恰有一个启用子单位时消费者可以采用派生的隐式选择，多个启用子单位时必须明确选择。
 
-`operating-entity`（经营主体）表示我方实际承担合同销售方、开票方和收款方责任的法人公司，不是商品品牌、客户类型或报表标签。DCL 拥有它的 stable ID、business code、强类型快照和候选编排，中央 Approval 拥有版本与审批事实；BOB 直接读取 highest APPROVED typed snapshot 并提供交易引用。`/bob/operating-entity/query|get` 只提供内部读取，不注册独立页面或菜单；当前资料与维护入口固定为 `/dcl/operating-entity`。完整规则见 [DCL 经营主体申报](dcl.md)。每个我方资金账户必须且只能属于一个当前可用经营主体，一个经营主体可以拥有多个资金账户。
+`operating-entity`（经营主体）表示我方实际承担合同销售方、开票方和收款方责任的法人公司，不是商品品牌、客户类型或报表标签。DCL 拥有它的 stable ID、business code、强类型快照和候选编排，中央 Approval 拥有版本与审批事实；BOB 直接读取 highest APPROVED typed snapshot 并提供交易引用。`/bob/operating-entity/query|get` 只提供内部读取；维护 HTTP 边界固定为 `/dcl/operating-entity/*`。完整规则见 [DCL 经营主体申报](dcl.md)。每个我方资金账户必须且只能属于一个当前可用经营主体，一个经营主体可以拥有多个资金账户。
 
-`warehouse`（仓库）的 stable ID、business code、完整候选快照、启停申请和审批同样由 DCL 拥有；BOB 直接读取 highest APPROVED typed snapshot 并提供交易引用。`/dcl/warehouse` 是当前资料与维护的唯一页面，`/bob/warehouse/query|get` 只供内部读取，不注册页面或菜单。仓库仍是全局共享的最小物理库存地点，不绑定经营主体；负责人、地址、联系人和备注保持强类型字段。完整生命周期、读取和事务规则见 [DCL 仓库申报](dcl.md#31-仓库申报)。
+`warehouse`（仓库）的 stable ID、business code、完整候选快照、启停申请和审批同样由 DCL 拥有；BOB 直接读取 highest APPROVED typed snapshot 并提供交易引用。`/dcl/warehouse/*` 是维护 HTTP 边界，`/bob/warehouse/query|get` 只供内部读取。仓库仍是全局共享的最小物理库存地点，不绑定经营主体；负责人、地址、联系人和备注保持强类型字段。完整生命周期、读取和事务规则见 [DCL 仓库申报](dcl.md#31-仓库申报)。
 
 法定身份、税务、开票抬头、开票地址、开票电话、开票开户行及账号、汇款识别档案、默认经营主体和身份税务附件属于 Customer。汇款识别档案以付款户名为必填识别值，并可保存付款银行和付款账号；它不形成核算余额或准入边界。名称、联系人、业务地址、客户类型、结算、收款、运输、定价、信用额度、业务归属、内部提醒、默认订单备注和业务附件属于客户子单位；联系人没有独立实体或启停状态。客户不维护经营主体白名单；任一有效经营主体都可用于销售单据。子单位业务参数跨经营主体共用一套默认值，不建立覆盖层；交易保存实际经营主体和采用值快照。
 
@@ -184,7 +184,7 @@ BOB 不公开 `delete`。DCL 删除未进入正式历史的 V1 草稿时，必�
 
 车辆使用明确的 `bulkLiquidCapable` 布尔能力表示能否作为槽车承运散水，默认 `false`。`vehicleType` 仍只是 AUX 字典分类，VOU 不得根据车型编码或名称猜测散水承运能力；车辆容量、核载量或历史装载量也不形成每车产品数量换算。
 
-车辆申报只维护稳定车辆身份、承运归属、车型分类、核定载重和明确承运能力。DCL 拥有 stable ID、business code、完整候选快照和审批生命周期，BOB 直接读取 highest APPROVED typed snapshot；`/dcl/vehicle` 是当前资料与维护的唯一页面，`/bob/vehicle/query|get|reference` 只供内部读取。司机、运输任务、证照到期、维修、轨迹和调度不属于车辆申报字段；实际运输事实由对应 VOU 或物流能力保存，RPT 只读取这些业务事实，不把它们反写为车辆当前资料。
+车辆申报只维护稳定车辆身份、承运归属、车型分类、核定载重和明确承运能力。DCL 拥有 stable ID、business code、完整候选快照和审批生命周期，BOB 直接读取 highest APPROVED typed snapshot；`/dcl/vehicle/*` 是维护 HTTP 边界，`/bob/vehicle/query|get|reference` 只供内部读取。司机、运输任务、证照到期、维修、轨迹和调度不属于车辆申报字段；实际运输事实由对应 VOU 或物流能力保存，RPT 只读取这些业务事实，不把它们反写为车辆当前资料。
 
 ### 2.5 辅助对象与业务对象引用
 
@@ -255,7 +255,7 @@ BOB `reference/query` 只返回当前启用对象的最小引用资料。新业�
 
 ### 6.3 不存在的公开写动作
 
-BOB 不注册 `create/save/enable/disable/submit/reject/approve/unreject/unapprove/delete/versions/audit-history` 路由或权限，也不保留任何路径别名、隐藏页面分支或失败替代数据。所有维护深链进入对应 DCL 页面。
+BOB 不注册 `create/save/enable/disable/submit/reject/approve/unreject/unapprove/delete/versions/audit-history` 路由或权限，也不保留任何路径别名、隐藏页面分支或失败替代数据。所有维护操作使用对应 DCL HTTP 边界。
 
 ## 7. 并发与事务规则
 
@@ -317,7 +317,7 @@ AUX 产品分类、部门、岗位和结算方式只在选择或更换时校验 
 - 所有接口先由 APP 中间件校验会话、CSRF 和完整 API 路径权限；
 - 每类业务档案的 `query/get` 使用独立 BOB 读取权限，不被其他档案权限或 DCL 维护权限隐式包含；
 - 查询和详情只返回页面与交易需要的字段，敏感身份资料继续按字段权限裁剪；
-- BOB 权限目录不包含任何写入、lifecycle、版本或审计权限，且 BOB 读取权限不会生成页面、菜单或待办；
+- BOB 权限目录不包含任何写入、lifecycle、版本或审计权限，且 BOB 读取权限不构成业务写入、待办或审批资格；
 - 创建、维护、候选及审批都使用对应 DCL 精确权限；
 - 日志记录 `requestId`、实体、稳定对象 ID、来源 entry 与结果类别，不记录完整税号、账号、联系方式等敏感业务字段；
 - 若未来引入数据范围权限，必须在列表和单对象读取中同时实施，防止通过 ID 绕过。
@@ -347,8 +347,8 @@ BOB 验收以“当前有效的只读业务资料”公共边界为准，并由�
 4. DCL V1/V2 批准与反批准后，BOB typed query 分别自然出现、切换、回落或消失；候选待审期间仍读取上一批准版本；
 5. DCL lifecycle 事务失败时 stable subject、snapshot、Approval 与 event 整体回滚，Customer 子单位不得部分写入；
 6. 新引用只选择 current enabled 对象，已有业务继续按精确 DCL Approval Entry 校验历史来源；
-7. BOB 前端只调用 query/get/reference，没有隐藏写分支、lifecycle 控件、版本或审计弹窗；
-8. APP 工作台只聚合 DCL 资料待办，查看、编辑、提交、撤回、驳回和批准均深链或调用 `/dcl/{entity}`；
+7. BOB 的任一客户端只调用 query/get/reference，没有隐藏写分支、lifecycle 控件、版本或审计弹窗；
+8. APP 工作台只聚合 DCL 资料待办，查看、编辑、提交、撤回、驳回和批准均调用 `/dcl/{entity}`；
 9. BOB 权限目录不含写入与 lifecycle 权限，DCL 权限不会隐式授予 BOB current 读取；
 10. 真实 PostgreSQL、HTTP 与 E2E 证明 current、来源版本和权限边界同时成立。
 

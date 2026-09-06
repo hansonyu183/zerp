@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTheme } from 'vuetify'
 
@@ -15,67 +15,74 @@ const branding = useTargetBranding()
 const drawer = ref(!window.matchMedia('(max-width: 959px)').matches)
 const profileDialog = ref(false)
 const passwordDialog = ref(false)
+const profileLoading = ref(false)
 const saving = ref(false)
 const accountError = ref<string | null>(null)
-const profile = reactive({ displayName: '', avatarUrl: '' })
+const profileForm = reactive({ name: '', avatarUrl: '' })
 const passwords = reactive({
   currentPassword: '',
   newPassword: '',
   confirmPassword: '',
 })
+let accountRequest = 0
 
-const displayName = computed(
-  () => session.user?.displayName || session.user?.username || '用户',
-)
+const displayName = computed(() => session.user?.name || '用户')
 const initials = computed(
   () => displayName.value.trim().slice(0, 1).toUpperCase() || 'U',
 )
-const pageTitle = computed(() => String(route.meta.title || '工作台'))
-const isDark = computed(() => theme.global.name.value === 'zerpDark')
-const menuGroups = computed(() => {
-  const items = session.menus
-  const groups = items.filter((item) => item.type === 'GROUP' && item.enabled)
-  return groups.map((group) => ({
-    ...group,
-    children: items.filter(
-      (item) =>
-        item.type === 'ROUTE' && item.enabled && item.parentId === group.id,
-    ),
-  }))
+const currentResource = computed(() => {
+  const domain =
+    typeof route.params.domain === 'string' ? route.params.domain : ''
+  const entity =
+    typeof route.params.entity === 'string' ? route.params.entity : ''
+  return session.resourceGroups
+    .flatMap((group) => group.resources)
+    .find(
+      (resource) => resource.domain === domain && resource.entity === entity,
+    )
 })
-const directMenus = computed(() =>
-  session.menus.filter(
-    (item) => item.type === 'ROUTE' && item.enabled && item.parentId === null,
-  ),
+const pageTitle = computed(
+  () =>
+    currentResource.value?.displayName ??
+    String(route.meta.title || '业务功能'),
 )
-
+const isDark = computed(() => theme.global.name.value === 'zerpDark')
 async function openProfile(): Promise<void> {
+  const request = ++accountRequest
   accountError.value = null
   profileDialog.value = true
+  profileLoading.value = true
   try {
     const current = await session.getProfile()
-    profile.displayName = current.displayName
-    profile.avatarUrl = current.avatarUrl ?? ''
+    if (request !== accountRequest || !profileDialog.value) return
+    profileForm.name = current.name
+    profileForm.avatarUrl = current.avatarUrl ?? ''
   } catch (cause) {
+    if (request !== accountRequest || !profileDialog.value) return
     accountError.value =
       cause instanceof Error ? cause.message : '个人资料加载失败。'
+  } finally {
+    if (request === accountRequest) profileLoading.value = false
   }
 }
 
 async function saveProfile(): Promise<void> {
-  if (!profile.displayName.trim() || saving.value) return
+  if (!profileForm.name.trim() || profileLoading.value || saving.value) return
+  const request = accountRequest
   saving.value = true
   try {
     await session.saveProfile({
-      displayName: profile.displayName.trim(),
-      avatarUrl: profile.avatarUrl.trim() || null,
+      name: profileForm.name.trim(),
+      avatarUrl: profileForm.avatarUrl.trim() || null,
     })
+    if (request !== accountRequest) return
     profileDialog.value = false
   } catch (cause) {
+    if (request !== accountRequest) return
     accountError.value =
       cause instanceof Error ? cause.message : '个人资料保存失败。'
   } finally {
-    saving.value = false
+    if (request === accountRequest) saving.value = false
   }
 }
 
@@ -84,28 +91,104 @@ async function savePassword(): Promise<void> {
     accountError.value = '两次输入的新密码不一致。'
     return
   }
+  const request = accountRequest
+  let changed = false
   saving.value = true
   try {
-    await session.changePassword({
+    const result = await session.changePassword({
       currentPassword: passwords.currentPassword,
       newPassword: passwords.newPassword,
     })
+    if (!result || session.user || session.csrfToken) return
+    changed = true
     await router.replace('/signin?passwordChanged=1')
   } catch (cause) {
+    if (request !== accountRequest) return
     accountError.value =
       cause instanceof Error ? cause.message : '密码修改失败。'
   } finally {
-    passwords.currentPassword = ''
-    passwords.newPassword = ''
-    passwords.confirmPassword = ''
-    saving.value = false
+    if (request === accountRequest) {
+      if (changed) clearPasswords()
+      saving.value = false
+    }
   }
 }
 
 async function signOut(): Promise<void> {
-  await session.signOut()
-  await router.replace('/signin')
+  accountRequest += 1
+  clearAccountForms()
+  profileDialog.value = false
+  passwordDialog.value = false
+  try {
+    await session.signOut()
+  } catch {
+    // Session state was cleared before the request; navigation completes logout.
+  } finally {
+    await router.replace('/signin')
+  }
 }
+
+function clearPasswords(): void {
+  passwords.currentPassword = ''
+  passwords.newPassword = ''
+  passwords.confirmPassword = ''
+}
+
+function clearAccountForms(): void {
+  profileForm.name = ''
+  profileForm.avatarUrl = ''
+  profileLoading.value = false
+  clearPasswords()
+  saving.value = false
+}
+
+function onProfileDialogChange(open: boolean): void {
+  profileDialog.value = open
+  if (!open) {
+    accountRequest += 1
+    accountError.value = null
+    clearAccountForms()
+  }
+}
+
+function onPasswordDialogChange(open: boolean): void {
+  passwordDialog.value = open
+  if (!open) {
+    accountRequest += 1
+    clearPasswords()
+    saving.value = false
+  }
+}
+
+async function loadTopbarProfile(): Promise<void> {
+  if (!session.user || !session.csrfToken || session.passwordChangeRequired)
+    return
+  try {
+    await session.getProfile()
+  } catch {
+    // The account menu can retry the nonessential avatar/profile detail load.
+  }
+}
+
+watch(
+  [
+    () => session.user,
+    () => session.csrfToken ?? '',
+    () => session.passwordChangeRequired,
+  ],
+  () => {
+    accountRequest += 1
+    profileDialog.value = false
+    passwordDialog.value = false
+    accountError.value = null
+    clearAccountForms()
+    if (session.passwordChangeRequired) {
+      void router.replace('/change-password')
+      return
+    }
+    void loadTopbarProfile()
+  },
+)
 
 function toggleTheme(): void {
   const next = isDark.value ? 'zerpLight' : 'zerpDark'
@@ -137,8 +220,11 @@ async function handleStorage(event: StorageEvent): Promise<void> {
 onMounted(() => {
   window.addEventListener('pageshow', handlePageShow)
   window.addEventListener('storage', handleStorage)
+  void loadTopbarProfile()
 })
 onBeforeUnmount(() => {
+  accountRequest += 1
+  clearAccountForms()
   window.removeEventListener('pageshow', handlePageShow)
   window.removeEventListener('storage', handleStorage)
 })
@@ -147,7 +233,7 @@ onBeforeUnmount(() => {
 <template>
   <v-app-bar class="topbar" elevation="0" height="64">
     <v-app-bar-nav-icon aria-label="切换导航" @click="drawer = !drawer" />
-    <div class="company" @click="router.push('/home/dashboard')">
+    <div class="company" @click="router.push('/')">
       <div class="company__mark">Z</div>
       <div class="company__copy">
         <strong>ZERP</strong><span>{{ branding.enterpriseName }}</span>
@@ -165,8 +251,8 @@ onBeforeUnmount(() => {
         ><v-btn v-bind="props" class="account-button" variant="text"
           ><v-avatar color="primary" size="34"
             ><v-img
-              v-if="session.user?.avatarUrl"
-              :src="session.user.avatarUrl"
+              v-if="session.profile?.avatarUrl"
+              :src="session.profile.avatarUrl"
               alt="用户头像"
             /><span v-else>{{ initials }}</span></v-avatar
           ><span>{{ displayName }}</span
@@ -187,27 +273,22 @@ onBeforeUnmount(() => {
   <v-navigation-drawer v-model="drawer" width="288">
     <div class="sidebar-label">导航</div>
     <v-list nav class="px-3"
-      ><v-list-item
-        v-for="item in directMenus"
-        :key="item.id"
-        :prepend-icon="item.icon || 'mdi-view-dashboard-outline'"
-        :title="item.displayName"
-        :to="item.routePath || '/home/dashboard'"
-        rounded="lg" /><v-list-group
-        v-for="group in menuGroups"
-        :key="group.id"
-        :value="group.id"
+      ><v-list-group
+        v-for="group in session.resourceGroups"
+        :key="group.domain"
+        :value="group.domain"
         ><template #activator="{ props }"
           ><v-list-item
             v-bind="props"
-            :prepend-icon="group.icon || 'mdi-folder-outline'"
-            :title="group.displayName" /></template
+            prepend-icon="mdi-folder-outline"
+            :title="group.displayName"
+          ></v-list-item></template
         ><v-list-item
-          v-for="item in group.children"
-          :key="item.id"
-          :prepend-icon="item.icon || 'mdi-file-document-outline'"
-          :title="item.displayName"
-          :to="item.routePath || '/'"
+          v-for="resource in group.resources"
+          :key="resource.key"
+          prepend-icon="mdi-file-document-outline"
+          :title="resource.displayName"
+          :to="resource.routePath"
           rounded="lg" /></v-list-group
     ></v-list>
     <template #append
@@ -218,31 +299,38 @@ onBeforeUnmount(() => {
     ><div class="page-heading">ZERP / {{ pageTitle }}</div>
     <router-view
   /></v-main>
-  <AppSnackbar
-    action-label="重试"
-    :message="session.menuError"
-    @action="session.retryMenu"
-  />
   <AppSnackbar :message="accountError" @dismiss="accountError = null" />
-  <v-dialog v-model="profileDialog" max-width="520"
+  <v-dialog
+    :model-value="profileDialog"
+    max-width="520"
+    @update:model-value="onProfileDialogChange"
     ><v-card title="名称与头像"
       ><v-card-text
         ><v-text-field
-          v-model="profile.displayName"
-          label="显示名称"
+          v-model="profileForm.name"
+          label="名称"
+          :disabled="profileLoading || saving"
           variant="outlined" /><v-text-field
-          v-model="profile.avatarUrl"
+          v-model="profileForm.avatarUrl"
           label="头像 HTTPS 地址"
+          :disabled="profileLoading || saving"
           variant="outlined" /></v-card-text
       ><v-card-actions
-        ><v-spacer /><v-btn @click="profileDialog = false">取消</v-btn
-        ><v-btn color="primary" :loading="saving" @click="saveProfile"
+        ><v-spacer /><v-btn @click="onProfileDialogChange(false)">取消</v-btn
+        ><v-btn
+          color="primary"
+          :loading="saving"
+          :disabled="profileLoading || saving"
+          @click="saveProfile"
           >保存</v-btn
         ></v-card-actions
       ></v-card
     ></v-dialog
   >
-  <v-dialog v-model="passwordDialog" max-width="520"
+  <v-dialog
+    :model-value="passwordDialog"
+    max-width="520"
+    @update:model-value="onPasswordDialogChange"
     ><v-card title="更改密码"
       ><v-card-text
         ><v-text-field
@@ -256,7 +344,7 @@ onBeforeUnmount(() => {
           label="确认新密码"
           type="password" /></v-card-text
       ><v-card-actions
-        ><v-spacer /><v-btn @click="passwordDialog = false">取消</v-btn
+        ><v-spacer /><v-btn @click="onPasswordDialogChange(false)">取消</v-btn
         ><v-btn color="primary" :loading="saving" @click="savePassword"
           >保存</v-btn
         ></v-card-actions

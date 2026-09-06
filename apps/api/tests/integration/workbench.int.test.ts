@@ -4,10 +4,12 @@ import test from 'node:test'
 
 import { serve } from '@hono/node-server'
 import { modelBuildId } from '@zerp/model'
+import { createTargetApiClient } from '../../../../packages/api-client/src/index.ts'
 import { ulid } from 'ulid'
 
 import { createApp } from '../../src/app.ts'
 import { hashPassword, SessionService } from '../../src/app/session.ts'
+import { userPinyin } from '../../src/app/user-pinyin.ts'
 import { WorkbenchService } from '../../src/app/workbench.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { loadConfig } from '../../src/platform/config.ts'
@@ -27,19 +29,11 @@ async function signIn(
   username: string,
   password: string,
 ): Promise<HttpSession> {
-  const response = await fetch(`${origin}/app/user/signin`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-zerp-model-build': modelBuildId,
-      connection: 'close',
-    },
-    body: JSON.stringify({ username, password }),
+  const client = createTargetApiClient({ baseUrl: origin, modelBuildId })
+  const response = await client.session.auth.signin.$post({
+    json: { code: username, password },
   })
-  const payload = (await response.json()) as {
-    code: number
-    data: { csrfToken: string }
-  }
+  const payload = await response.json()
   assert.equal(payload.code, 0)
   return {
     cookie: response.headers.getSetCookie()[0] ?? '',
@@ -150,6 +144,7 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
         id: reviewerId,
         username,
         display_name: '工作台审批人',
+        py: userPinyin('工作台审批人'),
         password_hash: await hashPassword(password),
         status: 'ENABLED',
         password_changed_at: now,
@@ -159,6 +154,7 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
         id: submitterId,
         username: `submitter-${randomBytes(8).toString('hex')}`,
         display_name: '工作台提交人',
+        py: userPinyin('工作台提交人'),
         password_hash: 'unused',
         status: 'ENABLED',
         password_changed_at: now,
@@ -190,8 +186,6 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
         ...permissionParts(path),
         description: path,
         status: 'ENABLED' as const,
-        menu_group: null,
-        menu_order: null,
       },
     ]
   })

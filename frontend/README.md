@@ -2,7 +2,9 @@
 
 `frontend/` 是当前唯一 Vue SPA。它通过 `src/target/api.ts` 消费 `packages/api-client/` 从 Hono 路由推导的类型客户端，页面状态与动作位于同目录 `vm.ts`。
 
-生产页面只从 `src/target/router/index.ts` 登记。ACC、DCL、VOU、WFL 与 RPT 均使用各页面 public VM；聚合 probe 与巨型共享 VM 已删除。动态 WFL/RPT 页面只接受契约限定的 code，并以服务器菜单目录和精确权限校验入口。
+`src/target/router/index.ts` 装配会话页与唯一业务 ResourceHost；导航只由当前 Session 的非 Session `apiPaths` 按资源去重、按领域分组。Host 先检查同一资源权限，再从 `src/target/navigation/registry.ts` 取得业务实现。Registry 当前登记 `app/user` 的真实列表和编辑流程；其他已授权但未登记的资源明确显示未实现，不发查询或回退其他页面。
+
+AppLayout、Vuetify 主题和公共反馈保持既有风格。`ManagementPageFrame` 用于当前 Host；`ListPageShell` 承载统一列表布局与交互，`app/user` 已通过 Registry 接入真实查询和编辑流程。
 
 ```bash
 pnpm dev:target

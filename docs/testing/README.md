@@ -5,3 +5,9 @@
 - [2026-08-31 全量功能测试报告](full-functional-test-2026-08-31.md)
 - [2026-08-31 全量功能测试整改与复验](full-functional-test-remediation-2026-08-31.md)
 - [#361 WFL Starlark Node/browser parity 证据](wfl-starlark-parity-issue-361.md)
+
+- [2026-09-06 #379 Session 契约切换验收](session-contract-issue-379-2026-09-06.md)
+- [2026-09-06 #380 权限导航与 Host 验收](navigation-host-issue-380-2026-09-06.md)
+
+- [2026-09-06 #381 公共列表与用户管理验收](user-list-issue-381-2026-09-06.md)
+- [2026-09-06 #382 首片集成验收](first-slice-integration-issue-382-2026-09-06.md)

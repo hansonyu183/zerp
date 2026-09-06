@@ -5,10 +5,12 @@ import test from 'node:test'
 import { serve } from '@hono/node-server'
 import { argon2idAsync } from '@noble/hashes/argon2.js'
 import { modelBuildId } from '@zerp/model'
+import { createTargetApiClient } from '../../../../packages/api-client/src/index.ts'
 import { ulid } from 'ulid'
 
 import { createApp } from '../../src/app.ts'
 import { SessionService } from '../../src/app/session.ts'
+import { userPinyin } from '../../src/app/user-pinyin.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { ArchiveService } from '../../src/dcl/archives.ts'
 import { WarehouseService } from '../../src/dcl/warehouse.ts'
@@ -98,6 +100,7 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
         id: submitterId,
         username: submitterUsername,
         display_name: 'Warehouse Submitter',
+        py: userPinyin('Warehouse Submitter'),
         password_hash: await passwordHash(submitterPassword),
         status: 'ENABLED',
         password_changed_at: new Date(),
@@ -107,6 +110,7 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
         id: reviewerId,
         username: reviewerUsername,
         display_name: 'Warehouse Reviewer',
+        py: userPinyin('Warehouse Reviewer'),
         password_hash: await passwordHash(reviewerPassword),
         status: 'ENABLED',
         password_changed_at: new Date(),
@@ -284,14 +288,9 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
   const origin = `http://127.0.0.1:${address.port}`
 
   async function signIn(username: string, password: string): Promise<SignedIn> {
-    const response = await fetch(origin + '/app/user/signin', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-zerp-model-build': modelBuildId,
-        connection: 'close',
-      },
-      body: JSON.stringify({ username, password }),
+    const client = createTargetApiClient({ baseUrl: origin, modelBuildId })
+    const response = await client.session.auth.signin.$post({
+      json: { code: username, password },
     })
     const payload = await response.json()
     assert.equal(payload.code, 0)

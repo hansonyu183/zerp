@@ -30,9 +30,9 @@ onMounted(() => branding.load())
         />
         <v-form @submit.prevent="vm.submit">
           <v-text-field
-            v-model="vm.username"
+            v-model="vm.code"
             autocomplete="username"
-            label="用户名"
+            label="用户编码"
             prepend-inner-icon="mdi-account-outline"
             variant="outlined"
           />

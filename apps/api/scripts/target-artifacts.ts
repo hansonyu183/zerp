@@ -22,8 +22,6 @@ export interface TargetPermissionCatalogEntry {
   entity: string
   action: string
   title: string
-  group: string | null
-  order: number | null
 }
 
 interface RouteMetadata {
@@ -31,11 +29,6 @@ interface RouteMetadata {
   path: string
   permission?: string
   title?: string
-  menu?: {
-    title: string
-    group: string
-    order: number
-  }
 }
 interface CapabilityPermissionMetadata {
   permission: string
@@ -102,6 +95,7 @@ function executableTargetPaths() {
         'GET /healthz',
         'GET /readyz',
         ' /app/',
+        ' /session/',
         ' /aux/',
         ' /dcl/',
         ' /bob/',
@@ -123,25 +117,15 @@ export function permissionCatalog(
       .filter((entry) => entry.permission !== undefined)
       .map((entry) => ({
         permission: entry.permission!,
-        title: entry.title ?? entry.menu!.title,
-        menu: entry.menu,
+        title: entry.title!,
       })),
     ...capabilities.map((entry) => ({
       permission: entry.permission,
       title: entry.title,
-      menu: undefined,
     })),
   ]
   for (const entry of metadata) {
-    if (entry.permission === undefined && entry.menu !== undefined)
-      throw new Error(
-        `public route ${routeKey(entry.method, entry.path)} cannot declare a menu`,
-      )
-    if (
-      entry.permission !== undefined &&
-      entry.menu === undefined &&
-      entry.title === undefined
-    )
+    if (entry.permission !== undefined && entry.title === undefined)
       throw new Error(
         `protected route ${routeKey(entry.method, entry.path)} must declare a title`,
       )
@@ -166,8 +150,6 @@ export function permissionCatalog(
         entity: match[2]!,
         action: match[3]!,
         title: entry.title,
-        group: entry.menu?.group ?? null,
-        order: entry.menu?.order ?? null,
       }
     })
     .sort((left, right) => left.path.localeCompare(right.path))

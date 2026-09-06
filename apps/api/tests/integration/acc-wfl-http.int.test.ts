@@ -4,12 +4,14 @@ import test from 'node:test'
 
 import { serve } from '@hono/node-server'
 import { modelBuildId, type VouPayload } from '@zerp/model'
+import { createTargetApiClient } from '../../../../packages/api-client/src/index.ts'
 import { createNodeWflStarlark } from '@zerp/wfl-starlark/node'
 import { ulid } from 'ulid'
 
 import { createApp } from '../../src/app.ts'
 import { ManagementService } from '../../src/app/management.ts'
 import { hashPassword, SessionService } from '../../src/app/session.ts'
+import { userPinyin } from '../../src/app/user-pinyin.ts'
 import { AccService } from '../../src/acc/service.ts'
 import { AuxService } from '../../src/aux/service.ts'
 import { createDatabase } from '../../src/db/database.ts'
@@ -54,8 +56,6 @@ async function seedPermissions(
           ...item,
           description: item.path,
           status: 'ENABLED' as const,
-          menu_group: null,
-          menu_order: null,
         })),
       )
       .execute()
@@ -83,6 +83,7 @@ async function createPrincipal(
       id,
       username,
       display_name: prefix,
+      py: userPinyin(prefix),
       password_hash: await hashPassword(password),
       status: 'ENABLED',
       password_changed_at: new Date(),
@@ -119,20 +120,12 @@ async function signin(
   username: string,
   password: string,
 ): Promise<Session> {
-  const response = await fetch(`${origin}/app/user/signin`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-zerp-model-build': modelBuildId,
-      connection: 'close',
-    },
-    body: JSON.stringify({ username, password }),
+  const client = createTargetApiClient({ baseUrl: origin, modelBuildId })
+  const response = await client.session.auth.signin.$post({
+    json: { code: username, password },
   })
   assert.equal(response.status, 200)
-  const payload = (await response.json()) as {
-    code: number
-    data: { csrfToken: string }
-  }
+  const payload = await response.json()
   assert.equal(payload.code, 0)
   return {
     cookie: response.headers.getSetCookie()[0] ?? '',
@@ -1256,28 +1249,6 @@ test('WFL definition, current, trial, instance and six actions cross the authent
     { subjectId },
   )
   assert.deepEqual(enabledDefinition.data.availableRuntimeActions, ['disable'])
-  const menuWithDynamicWorkflow = await post(
-    origin,
-    reviewerSession,
-    '/app/menu/get',
-    {},
-  )
-  assert.equal(
-    menuWithDynamicWorkflow.code,
-    0,
-    JSON.stringify({ payload: menuWithDynamicWorkflow, errors }),
-  )
-  assert.deepEqual(
-    menuWithDynamicWorkflow.data.availableRoutes.find(
-      (route: { routePath: string }) => route.routePath === '/wfl/http-flow',
-    ),
-    {
-      routeKey: 'wfl/http-flow',
-      routePath: '/wfl/http-flow',
-      displayName: 'HTTP 流程',
-      permissionCode: '/wfl/process-instance/query',
-    },
-  )
   assert.equal(
     (
       await post(origin, reviewerSession, '/wfl/process-definition/query', {

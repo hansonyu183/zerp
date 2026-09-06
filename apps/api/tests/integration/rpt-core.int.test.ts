@@ -4,11 +4,13 @@ import test from 'node:test'
 import { serve } from '@hono/node-server'
 import { argon2idAsync } from '@noble/hashes/argon2.js'
 import { modelBuildId } from '@zerp/model'
+import { createTargetApiClient } from '../../../../packages/api-client/src/index.ts'
 import pg from 'pg'
 import { ulid } from 'ulid'
 
 import { createApp } from '../../src/app.ts'
 import { SessionService } from '../../src/app/session.ts'
+import { userPinyin } from '../../src/app/user-pinyin.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { loadConfig } from '../../src/platform/config.ts'
 import {
@@ -137,6 +139,7 @@ test('RPT executes only latest approved enabled valid definition and enforces co
       id: actorId,
       username,
       display_name: 'RPT actor',
+      py: userPinyin('RPT actor'),
       password_hash: await passwordHash(password),
       status: 'ENABLED',
       password_changed_at: now,
@@ -316,14 +319,9 @@ test('RPT executes only latest approved enabled valid definition and enforces co
   const address = server.address()
   assert.ok(address && typeof address !== 'string')
   const origin = `http://127.0.0.1:${address.port}`
-  const signin = await fetch(`${origin}/app/user/signin`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-zerp-model-build': modelBuildId,
-      connection: 'close',
-    },
-    body: JSON.stringify({ username, password }),
+  const client = createTargetApiClient({ baseUrl: origin, modelBuildId })
+  const signin = await client.session.auth.signin.$post({
+    json: { code: username, password },
   })
   const signedIn = await signin.json()
   assert.equal(signedIn.code, 0)
@@ -428,6 +426,7 @@ test('RPT readiness rejects latest enabled VALID definitions whose zero-row meta
       id: actorId,
       username: `rpt-readiness-${actorId}`,
       display_name: 'RPT readiness actor',
+      py: userPinyin('RPT readiness actor'),
       password_hash: 'unused',
       status: 'ENABLED',
       password_changed_at: now,

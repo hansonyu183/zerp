@@ -6,6 +6,8 @@ import {
 } from '@hono/zod-openapi'
 import type { Schema } from 'hono'
 
+import { userSummarySchema } from './user-contract.ts'
+
 import {
   independentRouteMetadata,
   registerIndependentRoutes,
@@ -77,12 +79,11 @@ const failureEnvelope = z.object({
 const sessionData = z.object({
   user: z.object({
     id: z.string(),
-    username: z.string(),
-    displayName: z.string(),
-    avatarUrl: z.string().nullable(),
+    code: z.string(),
+    name: z.string(),
   }),
   csrfToken: z.string(),
-  permissions: z.array(z.string()),
+  apiPaths: z.array(z.string()),
   passwordChangeRequired: z.boolean(),
   passwordMinLength: z.number().int().positive(),
 })
@@ -100,37 +101,14 @@ const sessionEnvelope = z.union([
 
 const userQuery = z
   .object({
+    keyword: z.string().max(128),
     page: z.number().int().min(1),
     pageSize: z.literal(20),
-    filters: z
-      .object({
-        search: z.string().max(128).optional(),
-        status: z.enum(['ENABLED', 'DISABLED']).optional(),
-      })
-      .strict()
-      .optional(),
-    sort: z.tuple([
-      z
-        .object({ field: z.literal('username'), order: z.literal('asc') })
-        .strict(),
-    ]),
   })
   .strict()
 
 const userPage = z.object({
-  items: z.array(
-    z.object({
-      id: z.string(),
-      username: z.string(),
-      displayName: z.string(),
-      status: z.enum(['ENABLED', 'DISABLED']),
-      system: z.boolean(),
-      createdAt: z.string().datetime(),
-      updatedAt: z.string().datetime(),
-      revision: z.string(),
-      manageable: z.boolean(),
-    }),
-  ),
+  items: z.array(userSummarySchema),
   total: z.number().int().nonnegative(),
   page: z.number().int().positive(),
   pageSize: z.literal(20),
@@ -221,14 +199,14 @@ export const queryWorkbenchRoute = createRoute({
 
 export const signinRoute = createRoute({
   method: 'post',
-  path: '/app/user/signin',
+  path: '/session/auth/signin',
   request: {
     body: {
       content: {
         'application/json': {
           schema: z
             .object({
-              username: z.string().min(1).max(64),
+              code: z.string().min(1).max(64),
               password: z.string().min(1).max(1024),
             })
             .strict(),
@@ -246,7 +224,7 @@ export const signinRoute = createRoute({
 
 export const restoreRoute = createRoute({
   method: 'post',
-  path: '/app/user/session',
+  path: '/session/auth/restore',
   request: {
     body: {
       content: { 'application/json': { schema: z.object({}).strict() } },
@@ -805,28 +783,27 @@ export const targetRouteMetadata = [
     method: queryUsersRoute.method,
     path: queryUsersRoute.path,
     permission: '/app/user/query',
-    menu: { title: '用户管理', group: '系统管理', order: 10 },
+    title: '查询用户',
   },
   ...(
     [
-      ['query', warehouseQueryRoute, '查询仓库申报', 20],
-      ['get', warehouseGetRoute, '查看仓库申报', null],
-      ['versions', warehouseVersionsRoute, '查看仓库申报版本', null],
-      ['audit-history', warehouseAuditRoute, '查看仓库申报审核记录', null],
-      ['submit-new', warehouseSubmitNewRoute, '提交新仓库申报', null],
-      ['submit-change', warehouseSubmitChangeRoute, '提交仓库变更', null],
-      ['approve', warehouseApproveRoute, '批准仓库申报', null],
-      ['reject', warehouseRejectRoute, '驳回仓库申报', null],
-      ['unreject', warehouseUnrejectRoute, '恢复仓库申报审核', null],
-      ['unapprove', warehouseUnapproveRoute, '反批准仓库申报', null],
-      ['delete', warehouseDeleteRoute, '撤回仓库提交件', null],
+      ['query', warehouseQueryRoute, '查询仓库申报'],
+      ['get', warehouseGetRoute, '查看仓库申报'],
+      ['versions', warehouseVersionsRoute, '查看仓库申报版本'],
+      ['audit-history', warehouseAuditRoute, '查看仓库申报审核记录'],
+      ['submit-new', warehouseSubmitNewRoute, '提交新仓库申报'],
+      ['submit-change', warehouseSubmitChangeRoute, '提交仓库变更'],
+      ['approve', warehouseApproveRoute, '批准仓库申报'],
+      ['reject', warehouseRejectRoute, '驳回仓库申报'],
+      ['unreject', warehouseUnrejectRoute, '恢复仓库申报审核'],
+      ['unapprove', warehouseUnapproveRoute, '反批准仓库申报'],
+      ['delete', warehouseDeleteRoute, '撤回仓库提交件'],
     ] as const
-  ).map(([action, route, title, order]) => ({
+  ).map(([action, route, title]) => ({
     method: route.method,
     path: route.path,
     permission: `/dcl/warehouse/${action}`,
     title,
-    ...(order === null ? {} : { menu: { title, group: '申报控制', order } }),
   })),
   {
     method: warehouseManagerReferenceRoute.method,

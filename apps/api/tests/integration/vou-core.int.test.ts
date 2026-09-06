@@ -7,11 +7,13 @@ import test from 'node:test'
 
 import { serve } from '@hono/node-server'
 import { modelBuildId } from '@zerp/model'
+import { createTargetApiClient } from '../../../../packages/api-client/src/index.ts'
 import { sql } from 'kysely'
 import { ulid } from 'ulid'
 
 import { createApp } from '../../src/app.ts'
 import { hashPassword, SessionService } from '../../src/app/session.ts'
+import { userPinyin } from '../../src/app/user-pinyin.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { loadConfig } from '../../src/platform/config.ts'
 import { AttachmentStore } from '../../src/platform/attachment-store.ts'
@@ -37,20 +39,12 @@ async function signin(
   username: string,
   password: string,
 ): Promise<HttpSession> {
-  const response = await fetch(`${origin}/app/user/signin`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-zerp-model-build': modelBuildId,
-      connection: 'close',
-    },
-    body: JSON.stringify({ username, password }),
+  const client = createTargetApiClient({ baseUrl: origin, modelBuildId })
+  const response = await client.session.auth.signin.$post({
+    json: { code: username, password },
   })
   assert.equal(response.status, 200)
-  const payload = (await response.json()) as {
-    code: number
-    data: { csrfToken: string }
-  }
+  const payload = await response.json()
   assert.equal(payload.code, 0)
   return {
     cookie: response.headers.getSetCookie()[0] ?? '',
@@ -148,6 +142,7 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
         id: actorId,
         username: `vou-${actorId}`,
         display_name: 'VOU test actor',
+        py: userPinyin('VOU test actor'),
         password_hash: 'unused',
         status: 'ENABLED' as const,
         password_changed_at: new Date(),
@@ -157,6 +152,7 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
         id: reviewerId,
         username: `vou-${reviewerId}`,
         display_name: 'VOU test reviewer',
+        py: userPinyin('VOU test reviewer'),
         password_hash: 'unused',
         status: 'ENABLED' as const,
         password_changed_at: new Date(),
@@ -1097,6 +1093,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
         id: ownerId,
         username: `vou-attachment-${ownerId}`,
         display_name: 'attachment owner',
+        py: userPinyin('attachment owner'),
         password_hash: 'unused',
         status: 'ENABLED',
         password_changed_at: now,
@@ -1106,6 +1103,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
         id: otherId,
         username: `vou-attachment-other-${otherId}`,
         display_name: 'attachment other',
+        py: userPinyin('attachment other'),
         password_hash: 'unused',
         status: 'ENABLED',
         password_changed_at: now,
@@ -2068,8 +2066,6 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
         ...permissionParts(permissionPath),
         description: permissionPath,
         status: 'ENABLED',
-        menu_group: null,
-        menu_order: null,
       })
       .execute()
   const password = `Target!${randomBytes(18).toString('base64url')}`
@@ -2081,6 +2077,7 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
         id: actorId,
         username,
         display_name: 'VOU reference actor',
+        py: userPinyin('VOU reference actor'),
         password_hash: await hashPassword(password),
         status: 'ENABLED',
         password_changed_at: now,
@@ -2090,6 +2087,7 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
         id: deniedId,
         username: `vou-denied-${randomBytes(8).toString('hex')}`,
         display_name: 'VOU denied actor',
+        py: userPinyin('VOU denied actor'),
         password_hash: await hashPassword(password),
         status: 'ENABLED',
         password_changed_at: now,

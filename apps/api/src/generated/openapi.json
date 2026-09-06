@@ -84,7 +84,7 @@
         }
       }
     },
-    "/app/user/signin": {
+    "/session/auth/signin": {
       "post": {
         "requestBody": {
           "content": {
@@ -92,7 +92,7 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "username": {
+                  "code": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64
@@ -104,7 +104,7 @@
                   }
                 },
                 "required": [
-                  "username",
+                  "code",
                   "password"
                 ],
                 "additionalProperties": false
@@ -149,28 +149,23 @@
                                 "id": {
                                   "type": "string"
                                 },
-                                "username": {
+                                "code": {
                                   "type": "string"
                                 },
-                                "displayName": {
+                                "name": {
                                   "type": "string"
-                                },
-                                "avatarUrl": {
-                                  "type": "string",
-                                  "nullable": true
                                 }
                               },
                               "required": [
                                 "id",
-                                "username",
-                                "displayName",
-                                "avatarUrl"
+                                "code",
+                                "name"
                               ]
                             },
                             "csrfToken": {
                               "type": "string"
                             },
-                            "permissions": {
+                            "apiPaths": {
                               "type": "array",
                               "items": {
                                 "type": "string"
@@ -188,7 +183,7 @@
                           "required": [
                             "user",
                             "csrfToken",
-                            "permissions",
+                            "apiPaths",
                             "passwordChangeRequired",
                             "passwordMinLength"
                           ]
@@ -395,7 +390,7 @@
         }
       }
     },
-    "/app/user/session": {
+    "/session/auth/restore": {
       "post": {
         "requestBody": {
           "content": {
@@ -445,28 +440,23 @@
                                 "id": {
                                   "type": "string"
                                 },
-                                "username": {
+                                "code": {
                                   "type": "string"
                                 },
-                                "displayName": {
+                                "name": {
                                   "type": "string"
-                                },
-                                "avatarUrl": {
-                                  "type": "string",
-                                  "nullable": true
                                 }
                               },
                               "required": [
                                 "id",
-                                "username",
-                                "displayName",
-                                "avatarUrl"
+                                "code",
+                                "name"
                               ]
                             },
                             "csrfToken": {
                               "type": "string"
                             },
-                            "permissions": {
+                            "apiPaths": {
                               "type": "array",
                               "items": {
                                 "type": "string"
@@ -484,7 +474,7 @@
                           "required": [
                             "user",
                             "csrfToken",
-                            "permissions",
+                            "apiPaths",
                             "passwordChangeRequired",
                             "passwordMinLength"
                           ]
@@ -699,6 +689,10 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "keyword": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
                   "page": {
                     "type": "integer",
                     "minimum": 1
@@ -708,56 +702,12 @@
                     "enum": [
                       20
                     ]
-                  },
-                  "filters": {
-                    "type": "object",
-                    "properties": {
-                      "search": {
-                        "type": "string",
-                        "maxLength": 128
-                      },
-                      "status": {
-                        "type": "string",
-                        "enum": [
-                          "ENABLED",
-                          "DISABLED"
-                        ]
-                      }
-                    },
-                    "additionalProperties": false
-                  },
-                  "sort": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "field": {
-                          "type": "string",
-                          "enum": [
-                            "username"
-                          ]
-                        },
-                        "order": {
-                          "type": "string",
-                          "enum": [
-                            "asc"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "field",
-                        "order"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "minItems": 1,
-                    "maxItems": 1
                   }
                 },
                 "required": [
+                  "keyword",
                   "page",
-                  "pageSize",
-                  "sort"
+                  "pageSize"
                 ],
                 "additionalProperties": false
               }
@@ -803,48 +753,45 @@
                                   "id": {
                                     "type": "string"
                                   },
-                                  "username": {
+                                  "code": {
                                     "type": "string"
                                   },
-                                  "displayName": {
+                                  "py": {
                                     "type": "string"
                                   },
-                                  "status": {
-                                    "type": "string",
-                                    "enum": [
-                                      "ENABLED",
-                                      "DISABLED"
-                                    ]
+                                  "name": {
+                                    "type": "string"
                                   },
-                                  "system": {
+                                  "enabled": {
                                     "type": "boolean"
-                                  },
-                                  "createdAt": {
-                                    "type": "string",
-                                    "format": "date-time"
-                                  },
-                                  "updatedAt": {
-                                    "type": "string",
-                                    "format": "date-time"
                                   },
                                   "revision": {
-                                    "type": "string"
+                                    "type": "string",
+                                    "pattern": "^[1-9]\\d*$"
                                   },
-                                  "manageable": {
-                                    "type": "boolean"
+                                  "availableActions": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "enum": [
+                                        "VIEW",
+                                        "EDIT",
+                                        "ENABLE",
+                                        "DISABLE"
+                                      ]
+                                    }
                                   }
                                 },
                                 "required": [
                                   "id",
-                                  "username",
-                                  "displayName",
-                                  "status",
-                                  "system",
-                                  "createdAt",
-                                  "updatedAt",
+                                  "code",
+                                  "py",
+                                  "name",
+                                  "enabled",
                                   "revision",
-                                  "manageable"
-                                ]
+                                  "availableActions"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "total": {
@@ -8255,7 +8202,7 @@
         }
       }
     },
-    "/app/branding/get": {
+    "/session/app/get": {
       "post": {
         "requestBody": {
           "content": {
@@ -8270,7 +8217,7 @@
         },
         "responses": {
           "200": {
-            "description": "/app/branding/get response envelope",
+            "description": "/session/app/get response envelope",
             "content": {
               "application/json": {
                 "schema": {
@@ -8384,7 +8331,7 @@
         }
       }
     },
-    "/app/user/signout": {
+    "/session/auth/signout": {
       "post": {
         "requestBody": {
           "content": {
@@ -8399,7 +8346,7 @@
         },
         "responses": {
           "200": {
-            "description": "/app/user/signout response envelope",
+            "description": "/session/auth/signout response envelope",
             "content": {
               "application/json": {
                 "schema": {
@@ -8506,25 +8453,14 @@
         }
       }
     },
-    "/app/user/profile": {
+    "/session/user/get": {
       "post": {
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "properties": {
-                  "displayName": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 128
-                  },
-                  "avatarUrl": {
-                    "type": "string",
-                    "nullable": true,
-                    "maxLength": 500
-                  }
-                },
+                "properties": {},
                 "additionalProperties": false
               }
             }
@@ -8532,7 +8468,7 @@
         },
         "responses": {
           "200": {
-            "description": "/app/user/profile response envelope",
+            "description": "/session/user/get response envelope",
             "content": {
               "application/json": {
                 "schema": {
@@ -8564,10 +8500,10 @@
                             "id": {
                               "type": "string"
                             },
-                            "username": {
+                            "code": {
                               "type": "string"
                             },
-                            "displayName": {
+                            "name": {
                               "type": "string"
                             },
                             "avatarUrl": {
@@ -8584,8 +8520,8 @@
                           },
                           "required": [
                             "id",
-                            "username",
-                            "displayName",
+                            "code",
+                            "name",
                             "avatarUrl",
                             "passwordChangedAt",
                             "revision"
@@ -8668,7 +8604,172 @@
         }
       }
     },
-    "/app/user/change-password": {
+    "/session/user/save": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "avatarUrl": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/session/user/save response envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "enum": [
+                            ""
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "code": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "avatarUrl": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "passwordChangedAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "revision": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "code",
+                            "name",
+                            "avatarUrl",
+                            "passwordChangedAt",
+                            "revision"
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "enum": [
+                                1001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                1002
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                2001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                3001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                5000
+                              ]
+                            }
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "nullable": true
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "requestId"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/session/user/change-password": {
       "post": {
         "requestBody": {
           "content": {
@@ -8698,7 +8799,7 @@
         },
         "responses": {
           "200": {
-            "description": "/app/user/change-password response envelope",
+            "description": "/session/user/change-password response envelope",
             "content": {
               "application/json": {
                 "schema": {
@@ -8861,36 +8962,33 @@
                             "id": {
                               "type": "string"
                             },
-                            "username": {
+                            "code": {
                               "type": "string"
                             },
-                            "displayName": {
+                            "py": {
                               "type": "string"
                             },
-                            "status": {
-                              "type": "string",
-                              "enum": [
-                                "ENABLED",
-                                "DISABLED"
-                              ]
+                            "name": {
+                              "type": "string"
                             },
-                            "system": {
+                            "enabled": {
                               "type": "boolean"
                             },
-                            "createdAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            },
-                            "updatedAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            },
                             "revision": {
-                              "type": "string"
-                            },
-                            "passwordChangedAt": {
                               "type": "string",
-                              "format": "date-time"
+                              "pattern": "^[1-9]\\d*$"
+                            },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "VIEW",
+                                  "EDIT",
+                                  "ENABLE",
+                                  "DISABLE"
+                                ]
+                              }
                             },
                             "roles": {
                               "type": "array",
@@ -8944,18 +9042,17 @@
                           },
                           "required": [
                             "id",
-                            "username",
-                            "displayName",
-                            "status",
-                            "system",
-                            "createdAt",
-                            "updatedAt",
+                            "code",
+                            "py",
+                            "name",
+                            "enabled",
                             "revision",
-                            "passwordChangedAt",
+                            "availableActions",
                             "roles",
                             "manageable",
                             "roleAssignmentEditable"
-                          ]
+                          ],
+                          "additionalProperties": false
                         },
                         "requestId": {
                           "type": "string"
@@ -9042,12 +9139,12 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "username": {
+                  "code": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64
                   },
-                  "displayName": {
+                  "name": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 128
@@ -9061,12 +9158,13 @@
                     "type": "array",
                     "items": {
                       "type": "string"
-                    }
+                    },
+                    "minItems": 1
                   }
                 },
                 "required": [
-                  "username",
-                  "displayName",
+                  "code",
+                  "name",
                   "password",
                   "roleIds"
                 ],
@@ -9109,36 +9207,33 @@
                             "id": {
                               "type": "string"
                             },
-                            "username": {
+                            "code": {
                               "type": "string"
                             },
-                            "displayName": {
+                            "py": {
                               "type": "string"
                             },
-                            "status": {
-                              "type": "string",
-                              "enum": [
-                                "ENABLED",
-                                "DISABLED"
-                              ]
+                            "name": {
+                              "type": "string"
                             },
-                            "system": {
+                            "enabled": {
                               "type": "boolean"
                             },
-                            "createdAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            },
-                            "updatedAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            },
                             "revision": {
-                              "type": "string"
-                            },
-                            "passwordChangedAt": {
                               "type": "string",
-                              "format": "date-time"
+                              "pattern": "^[1-9]\\d*$"
+                            },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "VIEW",
+                                  "EDIT",
+                                  "ENABLE",
+                                  "DISABLE"
+                                ]
+                              }
                             },
                             "roles": {
                               "type": "array",
@@ -9192,18 +9287,17 @@
                           },
                           "required": [
                             "id",
-                            "username",
-                            "displayName",
-                            "status",
-                            "system",
-                            "createdAt",
-                            "updatedAt",
+                            "code",
+                            "py",
+                            "name",
+                            "enabled",
                             "revision",
-                            "passwordChangedAt",
+                            "availableActions",
                             "roles",
                             "manageable",
                             "roleAssignmentEditable"
-                          ]
+                          ],
+                          "additionalProperties": false
                         },
                         "requestId": {
                           "type": "string"
@@ -9293,7 +9387,7 @@
                   "id": {
                     "type": "string"
                   },
-                  "displayName": {
+                  "name": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 128
@@ -9302,17 +9396,17 @@
                     "type": "array",
                     "items": {
                       "type": "string"
-                    }
+                    },
+                    "minItems": 1
                   },
                   "revision": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
                   }
                 },
                 "required": [
                   "id",
-                  "displayName",
+                  "name",
                   "roleIds",
                   "revision"
                 ],
@@ -9355,36 +9449,33 @@
                             "id": {
                               "type": "string"
                             },
-                            "username": {
+                            "code": {
                               "type": "string"
                             },
-                            "displayName": {
+                            "py": {
                               "type": "string"
                             },
-                            "status": {
-                              "type": "string",
-                              "enum": [
-                                "ENABLED",
-                                "DISABLED"
-                              ]
+                            "name": {
+                              "type": "string"
                             },
-                            "system": {
+                            "enabled": {
                               "type": "boolean"
                             },
-                            "createdAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            },
-                            "updatedAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            },
                             "revision": {
-                              "type": "string"
-                            },
-                            "passwordChangedAt": {
                               "type": "string",
-                              "format": "date-time"
+                              "pattern": "^[1-9]\\d*$"
+                            },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "VIEW",
+                                  "EDIT",
+                                  "ENABLE",
+                                  "DISABLE"
+                                ]
+                              }
                             },
                             "roles": {
                               "type": "array",
@@ -9438,18 +9529,17 @@
                           },
                           "required": [
                             "id",
-                            "username",
-                            "displayName",
-                            "status",
-                            "system",
-                            "createdAt",
-                            "updatedAt",
+                            "code",
+                            "py",
+                            "name",
+                            "enabled",
                             "revision",
-                            "passwordChangedAt",
+                            "availableActions",
                             "roles",
                             "manageable",
                             "roleAssignmentEditable"
-                          ]
+                          ],
+                          "additionalProperties": false
                         },
                         "requestId": {
                           "type": "string"
@@ -9542,9 +9632,8 @@
                     "maxLength": 64
                   },
                   "revision": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
                   }
                 },
                 "required": [
@@ -9590,36 +9679,33 @@
                             "id": {
                               "type": "string"
                             },
-                            "username": {
+                            "code": {
                               "type": "string"
                             },
-                            "displayName": {
+                            "py": {
                               "type": "string"
                             },
-                            "status": {
-                              "type": "string",
-                              "enum": [
-                                "ENABLED",
-                                "DISABLED"
-                              ]
+                            "name": {
+                              "type": "string"
                             },
-                            "system": {
+                            "enabled": {
                               "type": "boolean"
                             },
-                            "createdAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            },
-                            "updatedAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            },
                             "revision": {
-                              "type": "string"
-                            },
-                            "passwordChangedAt": {
                               "type": "string",
-                              "format": "date-time"
+                              "pattern": "^[1-9]\\d*$"
+                            },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "VIEW",
+                                  "EDIT",
+                                  "ENABLE",
+                                  "DISABLE"
+                                ]
+                              }
                             },
                             "roles": {
                               "type": "array",
@@ -9673,18 +9759,17 @@
                           },
                           "required": [
                             "id",
-                            "username",
-                            "displayName",
-                            "status",
-                            "system",
-                            "createdAt",
-                            "updatedAt",
+                            "code",
+                            "py",
+                            "name",
+                            "enabled",
                             "revision",
-                            "passwordChangedAt",
+                            "availableActions",
                             "roles",
                             "manageable",
                             "roleAssignmentEditable"
-                          ]
+                          ],
+                          "additionalProperties": false
                         },
                         "requestId": {
                           "type": "string"
@@ -9777,9 +9862,8 @@
                     "maxLength": 64
                   },
                   "revision": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
                   }
                 },
                 "required": [
@@ -9825,36 +9909,33 @@
                             "id": {
                               "type": "string"
                             },
-                            "username": {
+                            "code": {
                               "type": "string"
                             },
-                            "displayName": {
+                            "py": {
                               "type": "string"
                             },
-                            "status": {
-                              "type": "string",
-                              "enum": [
-                                "ENABLED",
-                                "DISABLED"
-                              ]
+                            "name": {
+                              "type": "string"
                             },
-                            "system": {
+                            "enabled": {
                               "type": "boolean"
                             },
-                            "createdAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            },
-                            "updatedAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            },
                             "revision": {
-                              "type": "string"
-                            },
-                            "passwordChangedAt": {
                               "type": "string",
-                              "format": "date-time"
+                              "pattern": "^[1-9]\\d*$"
+                            },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "VIEW",
+                                  "EDIT",
+                                  "ENABLE",
+                                  "DISABLE"
+                                ]
+                              }
                             },
                             "roles": {
                               "type": "array",
@@ -9908,18 +9989,17 @@
                           },
                           "required": [
                             "id",
-                            "username",
-                            "displayName",
-                            "status",
-                            "system",
-                            "createdAt",
-                            "updatedAt",
+                            "code",
+                            "py",
+                            "name",
+                            "enabled",
                             "revision",
-                            "passwordChangedAt",
+                            "availableActions",
                             "roles",
                             "manageable",
                             "roleAssignmentEditable"
-                          ]
+                          ],
+                          "additionalProperties": false
                         },
                         "requestId": {
                           "type": "string"
@@ -10012,9 +10092,8 @@
                     "maxLength": 64
                   },
                   "revision": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true
+                    "type": "string",
+                    "pattern": "^[1-9]\\d*$"
                   }
                 },
                 "required": [
@@ -12772,1656 +12851,6 @@
                             "editable",
                             "constraints",
                             "revision"
-                          ]
-                        },
-                        "requestId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "errorKey",
-                        "message",
-                        "data",
-                        "requestId"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "anyOf": [
-                            {
-                              "type": "number",
-                              "enum": [
-                                1001
-                              ]
-                            },
-                            {
-                              "type": "number",
-                              "enum": [
-                                1002
-                              ]
-                            },
-                            {
-                              "type": "number",
-                              "enum": [
-                                2001
-                              ]
-                            },
-                            {
-                              "type": "number",
-                              "enum": [
-                                3001
-                              ]
-                            },
-                            {
-                              "type": "number",
-                              "enum": [
-                                5000
-                              ]
-                            }
-                          ]
-                        },
-                        "errorKey": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "data": {
-                          "nullable": true
-                        },
-                        "requestId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "errorKey",
-                        "message",
-                        "requestId"
-                      ]
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/app/menu/get": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {},
-                "additionalProperties": false
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "/app/menu/get response envelope",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "number",
-                          "enum": [
-                            0
-                          ]
-                        },
-                        "errorKey": {
-                          "type": "string",
-                          "enum": [
-                            ""
-                          ]
-                        },
-                        "message": {
-                          "type": "string",
-                          "enum": [
-                            "ok"
-                          ]
-                        },
-                        "data": {
-                          "type": "object",
-                          "properties": {
-                            "mode": {
-                              "type": "string",
-                              "enum": [
-                                "DEFAULT",
-                                "BUSINESS"
-                              ]
-                            },
-                            "revision": {
-                              "type": "string"
-                            },
-                            "defaultMenu": {
-                              "type": "object",
-                              "properties": {
-                                "items": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "id": {
-                                        "type": "string"
-                                      },
-                                      "parentId": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "type": {
-                                        "type": "string",
-                                        "enum": [
-                                          "GROUP",
-                                          "ROUTE"
-                                        ]
-                                      },
-                                      "level": {
-                                        "type": "integer",
-                                        "minimum": 1,
-                                        "maximum": 2
-                                      },
-                                      "order": {
-                                        "type": "integer",
-                                        "minimum": 0
-                                      },
-                                      "displayName": {
-                                        "type": "string"
-                                      },
-                                      "icon": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "enabled": {
-                                        "type": "boolean"
-                                      },
-                                      "routeKey": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "routePath": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "permissionCode": {
-                                        "type": "string",
-                                        "nullable": true
-                                      }
-                                    },
-                                    "required": [
-                                      "id",
-                                      "parentId",
-                                      "type",
-                                      "level",
-                                      "order",
-                                      "displayName",
-                                      "icon",
-                                      "enabled",
-                                      "routeKey",
-                                      "routePath",
-                                      "permissionCode"
-                                    ]
-                                  }
-                                }
-                              },
-                              "required": [
-                                "items"
-                              ]
-                            },
-                            "businessMenu": {
-                              "type": "object",
-                              "properties": {
-                                "items": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "id": {
-                                        "type": "string"
-                                      },
-                                      "parentId": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "type": {
-                                        "type": "string",
-                                        "enum": [
-                                          "GROUP",
-                                          "ROUTE"
-                                        ]
-                                      },
-                                      "level": {
-                                        "type": "integer",
-                                        "minimum": 1,
-                                        "maximum": 2
-                                      },
-                                      "order": {
-                                        "type": "integer",
-                                        "minimum": 0
-                                      },
-                                      "displayName": {
-                                        "type": "string"
-                                      },
-                                      "icon": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "enabled": {
-                                        "type": "boolean"
-                                      },
-                                      "routeKey": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "routePath": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "permissionCode": {
-                                        "type": "string",
-                                        "nullable": true
-                                      }
-                                    },
-                                    "required": [
-                                      "id",
-                                      "parentId",
-                                      "type",
-                                      "level",
-                                      "order",
-                                      "displayName",
-                                      "icon",
-                                      "enabled",
-                                      "routeKey",
-                                      "routePath",
-                                      "permissionCode"
-                                    ]
-                                  }
-                                }
-                              },
-                              "required": [
-                                "items"
-                              ]
-                            },
-                            "navigation": {
-                              "type": "object",
-                              "properties": {
-                                "items": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "id": {
-                                        "type": "string"
-                                      },
-                                      "parentId": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "type": {
-                                        "type": "string",
-                                        "enum": [
-                                          "GROUP",
-                                          "ROUTE"
-                                        ]
-                                      },
-                                      "level": {
-                                        "type": "integer",
-                                        "minimum": 1,
-                                        "maximum": 2
-                                      },
-                                      "order": {
-                                        "type": "integer",
-                                        "minimum": 0
-                                      },
-                                      "displayName": {
-                                        "type": "string"
-                                      },
-                                      "icon": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "enabled": {
-                                        "type": "boolean"
-                                      },
-                                      "routeKey": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "routePath": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "permissionCode": {
-                                        "type": "string",
-                                        "nullable": true
-                                      }
-                                    },
-                                    "required": [
-                                      "id",
-                                      "parentId",
-                                      "type",
-                                      "level",
-                                      "order",
-                                      "displayName",
-                                      "icon",
-                                      "enabled",
-                                      "routeKey",
-                                      "routePath",
-                                      "permissionCode"
-                                    ]
-                                  }
-                                }
-                              },
-                              "required": [
-                                "items"
-                              ]
-                            },
-                            "availableRoutes": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "routeKey": {
-                                    "type": "string"
-                                  },
-                                  "routePath": {
-                                    "type": "string"
-                                  },
-                                  "displayName": {
-                                    "type": "string"
-                                  },
-                                  "permissionCode": {
-                                    "type": "string",
-                                    "nullable": true
-                                  }
-                                },
-                                "required": [
-                                  "routeKey",
-                                  "routePath",
-                                  "displayName",
-                                  "permissionCode"
-                                ]
-                              }
-                            }
-                          },
-                          "required": [
-                            "mode",
-                            "revision",
-                            "defaultMenu",
-                            "businessMenu",
-                            "navigation",
-                            "availableRoutes"
-                          ]
-                        },
-                        "requestId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "errorKey",
-                        "message",
-                        "data",
-                        "requestId"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "anyOf": [
-                            {
-                              "type": "number",
-                              "enum": [
-                                1001
-                              ]
-                            },
-                            {
-                              "type": "number",
-                              "enum": [
-                                1002
-                              ]
-                            },
-                            {
-                              "type": "number",
-                              "enum": [
-                                2001
-                              ]
-                            },
-                            {
-                              "type": "number",
-                              "enum": [
-                                3001
-                              ]
-                            },
-                            {
-                              "type": "number",
-                              "enum": [
-                                5000
-                              ]
-                            }
-                          ]
-                        },
-                        "errorKey": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "data": {
-                          "nullable": true
-                        },
-                        "requestId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "errorKey",
-                        "message",
-                        "requestId"
-                      ]
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/app/menu/save-business": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "revision": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true
-                  },
-                  "items": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string"
-                        },
-                        "parentId": {
-                          "type": "string",
-                          "nullable": true
-                        },
-                        "type": {
-                          "type": "string",
-                          "enum": [
-                            "GROUP",
-                            "ROUTE"
-                          ]
-                        },
-                        "order": {
-                          "type": "integer",
-                          "minimum": 0
-                        },
-                        "displayName": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 128
-                        },
-                        "icon": {
-                          "type": "string",
-                          "nullable": true,
-                          "maxLength": 128
-                        },
-                        "enabled": {
-                          "type": "boolean"
-                        },
-                        "routeKey": {
-                          "type": "string",
-                          "nullable": true
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "parentId",
-                        "type",
-                        "order",
-                        "displayName",
-                        "icon",
-                        "enabled",
-                        "routeKey"
-                      ],
-                      "additionalProperties": false
-                    }
-                  }
-                },
-                "required": [
-                  "revision",
-                  "items"
-                ],
-                "additionalProperties": false
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "/app/menu/save-business response envelope",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "number",
-                          "enum": [
-                            0
-                          ]
-                        },
-                        "errorKey": {
-                          "type": "string",
-                          "enum": [
-                            ""
-                          ]
-                        },
-                        "message": {
-                          "type": "string",
-                          "enum": [
-                            "ok"
-                          ]
-                        },
-                        "data": {
-                          "type": "object",
-                          "properties": {
-                            "mode": {
-                              "type": "string",
-                              "enum": [
-                                "DEFAULT",
-                                "BUSINESS"
-                              ]
-                            },
-                            "revision": {
-                              "type": "string"
-                            },
-                            "defaultMenu": {
-                              "type": "object",
-                              "properties": {
-                                "items": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "id": {
-                                        "type": "string"
-                                      },
-                                      "parentId": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "type": {
-                                        "type": "string",
-                                        "enum": [
-                                          "GROUP",
-                                          "ROUTE"
-                                        ]
-                                      },
-                                      "level": {
-                                        "type": "integer",
-                                        "minimum": 1,
-                                        "maximum": 2
-                                      },
-                                      "order": {
-                                        "type": "integer",
-                                        "minimum": 0
-                                      },
-                                      "displayName": {
-                                        "type": "string"
-                                      },
-                                      "icon": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "enabled": {
-                                        "type": "boolean"
-                                      },
-                                      "routeKey": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "routePath": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "permissionCode": {
-                                        "type": "string",
-                                        "nullable": true
-                                      }
-                                    },
-                                    "required": [
-                                      "id",
-                                      "parentId",
-                                      "type",
-                                      "level",
-                                      "order",
-                                      "displayName",
-                                      "icon",
-                                      "enabled",
-                                      "routeKey",
-                                      "routePath",
-                                      "permissionCode"
-                                    ]
-                                  }
-                                }
-                              },
-                              "required": [
-                                "items"
-                              ]
-                            },
-                            "businessMenu": {
-                              "type": "object",
-                              "properties": {
-                                "items": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "id": {
-                                        "type": "string"
-                                      },
-                                      "parentId": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "type": {
-                                        "type": "string",
-                                        "enum": [
-                                          "GROUP",
-                                          "ROUTE"
-                                        ]
-                                      },
-                                      "level": {
-                                        "type": "integer",
-                                        "minimum": 1,
-                                        "maximum": 2
-                                      },
-                                      "order": {
-                                        "type": "integer",
-                                        "minimum": 0
-                                      },
-                                      "displayName": {
-                                        "type": "string"
-                                      },
-                                      "icon": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "enabled": {
-                                        "type": "boolean"
-                                      },
-                                      "routeKey": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "routePath": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "permissionCode": {
-                                        "type": "string",
-                                        "nullable": true
-                                      }
-                                    },
-                                    "required": [
-                                      "id",
-                                      "parentId",
-                                      "type",
-                                      "level",
-                                      "order",
-                                      "displayName",
-                                      "icon",
-                                      "enabled",
-                                      "routeKey",
-                                      "routePath",
-                                      "permissionCode"
-                                    ]
-                                  }
-                                }
-                              },
-                              "required": [
-                                "items"
-                              ]
-                            },
-                            "navigation": {
-                              "type": "object",
-                              "properties": {
-                                "items": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "id": {
-                                        "type": "string"
-                                      },
-                                      "parentId": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "type": {
-                                        "type": "string",
-                                        "enum": [
-                                          "GROUP",
-                                          "ROUTE"
-                                        ]
-                                      },
-                                      "level": {
-                                        "type": "integer",
-                                        "minimum": 1,
-                                        "maximum": 2
-                                      },
-                                      "order": {
-                                        "type": "integer",
-                                        "minimum": 0
-                                      },
-                                      "displayName": {
-                                        "type": "string"
-                                      },
-                                      "icon": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "enabled": {
-                                        "type": "boolean"
-                                      },
-                                      "routeKey": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "routePath": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "permissionCode": {
-                                        "type": "string",
-                                        "nullable": true
-                                      }
-                                    },
-                                    "required": [
-                                      "id",
-                                      "parentId",
-                                      "type",
-                                      "level",
-                                      "order",
-                                      "displayName",
-                                      "icon",
-                                      "enabled",
-                                      "routeKey",
-                                      "routePath",
-                                      "permissionCode"
-                                    ]
-                                  }
-                                }
-                              },
-                              "required": [
-                                "items"
-                              ]
-                            },
-                            "availableRoutes": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "routeKey": {
-                                    "type": "string"
-                                  },
-                                  "routePath": {
-                                    "type": "string"
-                                  },
-                                  "displayName": {
-                                    "type": "string"
-                                  },
-                                  "permissionCode": {
-                                    "type": "string",
-                                    "nullable": true
-                                  }
-                                },
-                                "required": [
-                                  "routeKey",
-                                  "routePath",
-                                  "displayName",
-                                  "permissionCode"
-                                ]
-                              }
-                            }
-                          },
-                          "required": [
-                            "mode",
-                            "revision",
-                            "defaultMenu",
-                            "businessMenu",
-                            "navigation",
-                            "availableRoutes"
-                          ]
-                        },
-                        "requestId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "errorKey",
-                        "message",
-                        "data",
-                        "requestId"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "anyOf": [
-                            {
-                              "type": "number",
-                              "enum": [
-                                1001
-                              ]
-                            },
-                            {
-                              "type": "number",
-                              "enum": [
-                                1002
-                              ]
-                            },
-                            {
-                              "type": "number",
-                              "enum": [
-                                2001
-                              ]
-                            },
-                            {
-                              "type": "number",
-                              "enum": [
-                                3001
-                              ]
-                            },
-                            {
-                              "type": "number",
-                              "enum": [
-                                5000
-                              ]
-                            }
-                          ]
-                        },
-                        "errorKey": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "data": {
-                          "nullable": true
-                        },
-                        "requestId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "errorKey",
-                        "message",
-                        "requestId"
-                      ]
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/app/menu/activate": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "mode": {
-                    "type": "string",
-                    "enum": [
-                      "DEFAULT",
-                      "BUSINESS"
-                    ]
-                  },
-                  "revision": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true
-                  }
-                },
-                "required": [
-                  "mode",
-                  "revision"
-                ],
-                "additionalProperties": false
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "/app/menu/activate response envelope",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "number",
-                          "enum": [
-                            0
-                          ]
-                        },
-                        "errorKey": {
-                          "type": "string",
-                          "enum": [
-                            ""
-                          ]
-                        },
-                        "message": {
-                          "type": "string",
-                          "enum": [
-                            "ok"
-                          ]
-                        },
-                        "data": {
-                          "type": "object",
-                          "properties": {
-                            "mode": {
-                              "type": "string",
-                              "enum": [
-                                "DEFAULT",
-                                "BUSINESS"
-                              ]
-                            },
-                            "revision": {
-                              "type": "string"
-                            },
-                            "defaultMenu": {
-                              "type": "object",
-                              "properties": {
-                                "items": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "id": {
-                                        "type": "string"
-                                      },
-                                      "parentId": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "type": {
-                                        "type": "string",
-                                        "enum": [
-                                          "GROUP",
-                                          "ROUTE"
-                                        ]
-                                      },
-                                      "level": {
-                                        "type": "integer",
-                                        "minimum": 1,
-                                        "maximum": 2
-                                      },
-                                      "order": {
-                                        "type": "integer",
-                                        "minimum": 0
-                                      },
-                                      "displayName": {
-                                        "type": "string"
-                                      },
-                                      "icon": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "enabled": {
-                                        "type": "boolean"
-                                      },
-                                      "routeKey": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "routePath": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "permissionCode": {
-                                        "type": "string",
-                                        "nullable": true
-                                      }
-                                    },
-                                    "required": [
-                                      "id",
-                                      "parentId",
-                                      "type",
-                                      "level",
-                                      "order",
-                                      "displayName",
-                                      "icon",
-                                      "enabled",
-                                      "routeKey",
-                                      "routePath",
-                                      "permissionCode"
-                                    ]
-                                  }
-                                }
-                              },
-                              "required": [
-                                "items"
-                              ]
-                            },
-                            "businessMenu": {
-                              "type": "object",
-                              "properties": {
-                                "items": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "id": {
-                                        "type": "string"
-                                      },
-                                      "parentId": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "type": {
-                                        "type": "string",
-                                        "enum": [
-                                          "GROUP",
-                                          "ROUTE"
-                                        ]
-                                      },
-                                      "level": {
-                                        "type": "integer",
-                                        "minimum": 1,
-                                        "maximum": 2
-                                      },
-                                      "order": {
-                                        "type": "integer",
-                                        "minimum": 0
-                                      },
-                                      "displayName": {
-                                        "type": "string"
-                                      },
-                                      "icon": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "enabled": {
-                                        "type": "boolean"
-                                      },
-                                      "routeKey": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "routePath": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "permissionCode": {
-                                        "type": "string",
-                                        "nullable": true
-                                      }
-                                    },
-                                    "required": [
-                                      "id",
-                                      "parentId",
-                                      "type",
-                                      "level",
-                                      "order",
-                                      "displayName",
-                                      "icon",
-                                      "enabled",
-                                      "routeKey",
-                                      "routePath",
-                                      "permissionCode"
-                                    ]
-                                  }
-                                }
-                              },
-                              "required": [
-                                "items"
-                              ]
-                            },
-                            "navigation": {
-                              "type": "object",
-                              "properties": {
-                                "items": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "id": {
-                                        "type": "string"
-                                      },
-                                      "parentId": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "type": {
-                                        "type": "string",
-                                        "enum": [
-                                          "GROUP",
-                                          "ROUTE"
-                                        ]
-                                      },
-                                      "level": {
-                                        "type": "integer",
-                                        "minimum": 1,
-                                        "maximum": 2
-                                      },
-                                      "order": {
-                                        "type": "integer",
-                                        "minimum": 0
-                                      },
-                                      "displayName": {
-                                        "type": "string"
-                                      },
-                                      "icon": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "enabled": {
-                                        "type": "boolean"
-                                      },
-                                      "routeKey": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "routePath": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "permissionCode": {
-                                        "type": "string",
-                                        "nullable": true
-                                      }
-                                    },
-                                    "required": [
-                                      "id",
-                                      "parentId",
-                                      "type",
-                                      "level",
-                                      "order",
-                                      "displayName",
-                                      "icon",
-                                      "enabled",
-                                      "routeKey",
-                                      "routePath",
-                                      "permissionCode"
-                                    ]
-                                  }
-                                }
-                              },
-                              "required": [
-                                "items"
-                              ]
-                            },
-                            "availableRoutes": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "routeKey": {
-                                    "type": "string"
-                                  },
-                                  "routePath": {
-                                    "type": "string"
-                                  },
-                                  "displayName": {
-                                    "type": "string"
-                                  },
-                                  "permissionCode": {
-                                    "type": "string",
-                                    "nullable": true
-                                  }
-                                },
-                                "required": [
-                                  "routeKey",
-                                  "routePath",
-                                  "displayName",
-                                  "permissionCode"
-                                ]
-                              }
-                            }
-                          },
-                          "required": [
-                            "mode",
-                            "revision",
-                            "defaultMenu",
-                            "businessMenu",
-                            "navigation",
-                            "availableRoutes"
-                          ]
-                        },
-                        "requestId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "errorKey",
-                        "message",
-                        "data",
-                        "requestId"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "anyOf": [
-                            {
-                              "type": "number",
-                              "enum": [
-                                1001
-                              ]
-                            },
-                            {
-                              "type": "number",
-                              "enum": [
-                                1002
-                              ]
-                            },
-                            {
-                              "type": "number",
-                              "enum": [
-                                2001
-                              ]
-                            },
-                            {
-                              "type": "number",
-                              "enum": [
-                                3001
-                              ]
-                            },
-                            {
-                              "type": "number",
-                              "enum": [
-                                5000
-                              ]
-                            }
-                          ]
-                        },
-                        "errorKey": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "data": {
-                          "nullable": true
-                        },
-                        "requestId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "errorKey",
-                        "message",
-                        "requestId"
-                      ]
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/app/menu/reset-business": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "revision": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true
-                  }
-                },
-                "required": [
-                  "revision"
-                ],
-                "additionalProperties": false
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "/app/menu/reset-business response envelope",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "number",
-                          "enum": [
-                            0
-                          ]
-                        },
-                        "errorKey": {
-                          "type": "string",
-                          "enum": [
-                            ""
-                          ]
-                        },
-                        "message": {
-                          "type": "string",
-                          "enum": [
-                            "ok"
-                          ]
-                        },
-                        "data": {
-                          "type": "object",
-                          "properties": {
-                            "mode": {
-                              "type": "string",
-                              "enum": [
-                                "DEFAULT",
-                                "BUSINESS"
-                              ]
-                            },
-                            "revision": {
-                              "type": "string"
-                            },
-                            "defaultMenu": {
-                              "type": "object",
-                              "properties": {
-                                "items": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "id": {
-                                        "type": "string"
-                                      },
-                                      "parentId": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "type": {
-                                        "type": "string",
-                                        "enum": [
-                                          "GROUP",
-                                          "ROUTE"
-                                        ]
-                                      },
-                                      "level": {
-                                        "type": "integer",
-                                        "minimum": 1,
-                                        "maximum": 2
-                                      },
-                                      "order": {
-                                        "type": "integer",
-                                        "minimum": 0
-                                      },
-                                      "displayName": {
-                                        "type": "string"
-                                      },
-                                      "icon": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "enabled": {
-                                        "type": "boolean"
-                                      },
-                                      "routeKey": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "routePath": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "permissionCode": {
-                                        "type": "string",
-                                        "nullable": true
-                                      }
-                                    },
-                                    "required": [
-                                      "id",
-                                      "parentId",
-                                      "type",
-                                      "level",
-                                      "order",
-                                      "displayName",
-                                      "icon",
-                                      "enabled",
-                                      "routeKey",
-                                      "routePath",
-                                      "permissionCode"
-                                    ]
-                                  }
-                                }
-                              },
-                              "required": [
-                                "items"
-                              ]
-                            },
-                            "businessMenu": {
-                              "type": "object",
-                              "properties": {
-                                "items": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "id": {
-                                        "type": "string"
-                                      },
-                                      "parentId": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "type": {
-                                        "type": "string",
-                                        "enum": [
-                                          "GROUP",
-                                          "ROUTE"
-                                        ]
-                                      },
-                                      "level": {
-                                        "type": "integer",
-                                        "minimum": 1,
-                                        "maximum": 2
-                                      },
-                                      "order": {
-                                        "type": "integer",
-                                        "minimum": 0
-                                      },
-                                      "displayName": {
-                                        "type": "string"
-                                      },
-                                      "icon": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "enabled": {
-                                        "type": "boolean"
-                                      },
-                                      "routeKey": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "routePath": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "permissionCode": {
-                                        "type": "string",
-                                        "nullable": true
-                                      }
-                                    },
-                                    "required": [
-                                      "id",
-                                      "parentId",
-                                      "type",
-                                      "level",
-                                      "order",
-                                      "displayName",
-                                      "icon",
-                                      "enabled",
-                                      "routeKey",
-                                      "routePath",
-                                      "permissionCode"
-                                    ]
-                                  }
-                                }
-                              },
-                              "required": [
-                                "items"
-                              ]
-                            },
-                            "navigation": {
-                              "type": "object",
-                              "properties": {
-                                "items": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "id": {
-                                        "type": "string"
-                                      },
-                                      "parentId": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "type": {
-                                        "type": "string",
-                                        "enum": [
-                                          "GROUP",
-                                          "ROUTE"
-                                        ]
-                                      },
-                                      "level": {
-                                        "type": "integer",
-                                        "minimum": 1,
-                                        "maximum": 2
-                                      },
-                                      "order": {
-                                        "type": "integer",
-                                        "minimum": 0
-                                      },
-                                      "displayName": {
-                                        "type": "string"
-                                      },
-                                      "icon": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "enabled": {
-                                        "type": "boolean"
-                                      },
-                                      "routeKey": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "routePath": {
-                                        "type": "string",
-                                        "nullable": true
-                                      },
-                                      "permissionCode": {
-                                        "type": "string",
-                                        "nullable": true
-                                      }
-                                    },
-                                    "required": [
-                                      "id",
-                                      "parentId",
-                                      "type",
-                                      "level",
-                                      "order",
-                                      "displayName",
-                                      "icon",
-                                      "enabled",
-                                      "routeKey",
-                                      "routePath",
-                                      "permissionCode"
-                                    ]
-                                  }
-                                }
-                              },
-                              "required": [
-                                "items"
-                              ]
-                            },
-                            "availableRoutes": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "routeKey": {
-                                    "type": "string"
-                                  },
-                                  "routePath": {
-                                    "type": "string"
-                                  },
-                                  "displayName": {
-                                    "type": "string"
-                                  },
-                                  "permissionCode": {
-                                    "type": "string",
-                                    "nullable": true
-                                  }
-                                },
-                                "required": [
-                                  "routeKey",
-                                  "routePath",
-                                  "displayName",
-                                  "permissionCode"
-                                ]
-                              }
-                            }
-                          },
-                          "required": [
-                            "mode",
-                            "revision",
-                            "defaultMenu",
-                            "businessMenu",
-                            "navigation",
-                            "availableRoutes"
                           ]
                         },
                         "requestId": {

@@ -115,7 +115,7 @@ export function createIndependentHandlers(
       const input = asInput(await context.req.json())
       try {
         const management = required(services.management, 'APP management')
-        if (path === '/app/branding/get')
+        if (path === '/session/app/get')
           return context.json(
             success(requestId, await management.getBranding()),
             200,
@@ -124,25 +124,25 @@ export function createIndependentHandlers(
         const principal = await authenticate(context, path)
         let data: unknown
         switch (path) {
-          case '/app/user/signout':
+          case '/session/auth/signout':
             await services.session.signout(principal, requestId)
             clearSessionCookie(context, services.config)
             data = {}
             break
-          case '/app/user/profile':
-            data =
-              Object.keys(input).length === 0
-                ? await services.session.getProfile(principal)
-                : await services.session.saveProfile(
-                    principal,
-                    {
-                      displayName: text(input, 'displayName'),
-                      avatarUrl: input.avatarUrl as string | null | undefined,
-                    },
-                    requestId,
-                  )
+          case '/session/user/get':
+            data = await services.session.getProfile(principal)
             break
-          case '/app/user/change-password':
+          case '/session/user/save':
+            data = await services.session.saveProfile(
+              principal,
+              {
+                name: text(input, 'name'),
+                avatarUrl: input.avatarUrl as string | null | undefined,
+              },
+              requestId,
+            )
+            break
+          case '/session/user/change-password':
             await services.session.changePassword(
               principal,
               {
@@ -160,8 +160,8 @@ export function createIndependentHandlers(
           case '/app/user/create':
             data = await management.createUser(
               {
-                username: text(input, 'username'),
-                displayName: text(input, 'displayName'),
+                code: text(input, 'code'),
+                name: text(input, 'name'),
                 password: text(input, 'password'),
                 roleIds: strings(input, 'roleIds'),
               },
@@ -173,9 +173,9 @@ export function createIndependentHandlers(
             data = await management.saveUser(
               {
                 id: text(input, 'id'),
-                displayName: text(input, 'displayName'),
+                name: text(input, 'name'),
                 roleIds: strings(input, 'roleIds'),
-                revision: integer(input, 'revision'),
+                revision: text(input, 'revision'),
               },
               principal,
               requestId,
@@ -184,7 +184,7 @@ export function createIndependentHandlers(
           case '/app/user/enable':
           case '/app/user/disable':
             data = await management.setUserStatus(
-              { id: text(input, 'id'), revision: integer(input, 'revision') },
+              { id: text(input, 'id'), revision: text(input, 'revision') },
               path.endsWith('/enable') ? 'ENABLED' : 'DISABLED',
               principal,
               requestId,
@@ -192,7 +192,7 @@ export function createIndependentHandlers(
             break
           case '/app/user/reset-password':
             data = await management.resetUserPassword(
-              { id: text(input, 'id'), revision: integer(input, 'revision') },
+              { id: text(input, 'id'), revision: text(input, 'revision') },
               principal,
               requestId,
             )
@@ -278,36 +278,6 @@ export function createIndependentHandlers(
               requestId,
             )
             break
-          case '/app/menu/get':
-            data = await management.getMenu(principal)
-            break
-          case '/app/menu/save-business':
-            data = await management.saveBusinessMenu(
-              {
-                revision: integer(input, 'revision'),
-                items: input.items as Array<Record<string, unknown>>,
-              },
-              principal,
-              requestId,
-            )
-            break
-          case '/app/menu/activate':
-            data = await management.activateMenu(
-              {
-                mode: input.mode as 'DEFAULT' | 'BUSINESS',
-                revision: integer(input, 'revision'),
-              },
-              principal,
-              requestId,
-            )
-            break
-          case '/app/menu/reset-business':
-            data = await management.resetBusinessMenu(
-              { revision: integer(input, 'revision') },
-              principal,
-              requestId,
-            )
-            break
           default:
             throw new Error(`unsupported APP route ${path}`)
         }
@@ -326,7 +296,7 @@ export function createIndependentHandlers(
         const principal = await authenticate(context, binding.permission)
         const actor = {
           id: principal.user.id,
-          permissions: principal.permissions,
+          permissions: principal.apiPaths,
         }
         if (!('entity' in binding))
           return context.json(
@@ -389,7 +359,7 @@ export function createIndependentHandlers(
         const principal = await authenticate(context, binding.permission)
         const actor = {
           id: principal.user.id,
-          permissions: principal.permissions,
+          permissions: principal.apiPaths,
         }
         const data =
           'entity' in binding

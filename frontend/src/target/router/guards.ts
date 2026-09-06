@@ -10,47 +10,20 @@ export function createSessionGuard(session: Session): NavigationGuard {
     if (session.authenticated && session.passwordChangeRequired)
       return to.name === 'change-password' ? true : { name: 'change-password' }
     if (to.name === 'change-password')
-      return session.authenticated ? '/home/dashboard' : { name: 'signin' }
-    if (to.name === 'signin')
-      return session.authenticated ? '/home/dashboard' : true
+      return session.authenticated ? '/' : { name: 'signin' }
+    if (to.name === 'signin') return session.authenticated ? '/' : true
     if (to.meta.requiresAuth && !session.authenticated)
       return { name: 'signin', query: { redirect: to.fullPath } }
-    if (
-      to.name === 'not-found' &&
-      session.authenticated &&
-      session.isKnownRoute(to.path)
-    )
-      return { name: 'forbidden' }
-    if (to.meta.requiresServerRoute === true && !session.isKnownRoute(to.path))
-      return { name: 'forbidden' }
-    const permission = to.meta.requiredPermission
-    if (typeof permission === 'string' && !session.can(permission))
-      return { name: 'forbidden' }
-    if (to.meta.requiredDynamicPermission === 'wfl-query') {
-      const processCode = to.params.processCode
+    if (to.name === 'resource-host') {
+      const domain = to.params.domain
+      const entity = to.params.entity
       if (
-        typeof processCode !== 'string' ||
-        !/^[a-z][a-z0-9-]{1,62}[a-z0-9]$/.test(processCode)
+        typeof domain !== 'string' ||
+        typeof entity !== 'string' ||
+        !session.hasResource(domain, entity)
       )
         return { name: 'forbidden' }
     }
-    if (to.meta.requiredDynamicPermission === 'rpt-query') {
-      const reportCode = to.params.reportCode
-      if (
-        typeof reportCode !== 'string' ||
-        !/^rpt-[0-9]{6}$/.test(reportCode) ||
-        !session.can(`/rpt/${reportCode}/query`)
-      )
-        return { name: 'forbidden' }
-    }
-    const anyPermissions = to.meta.requiredAnyPermissions
-    if (
-      Array.isArray(anyPermissions) &&
-      !anyPermissions.some(
-        (candidate) => typeof candidate === 'string' && session.can(candidate),
-      )
-    )
-      return { name: 'forbidden' }
     return true
   }
 }

@@ -2,6 +2,7 @@ CREATE TABLE app_users (
     id varchar(26) PRIMARY KEY,
     username varchar(64) NOT NULL,
     display_name varchar(128) NOT NULL,
+    py text NOT NULL CONSTRAINT app_users_py_nonempty CHECK (btrim(py) <> ''),
     password_hash text NOT NULL,
     status varchar(16) NOT NULL CHECK (status IN ('ENABLED', 'DISABLED')),
     failed_signin_count integer NOT NULL DEFAULT 0 CHECK (failed_signin_count >= 0),
@@ -37,13 +38,7 @@ CREATE TABLE app_permissions (
     updated_at timestamptz NOT NULL DEFAULT now(),
     updated_by varchar(26),
     revision bigint NOT NULL DEFAULT 1 CHECK (revision >= 1),
-    menu_group varchar(128),
-    menu_order integer,
-    CHECK (path = '/' || domain || '/' || entity || '/' || action),
-    CHECK (
-        (menu_order IS NULL AND menu_group IS NULL)
-        OR (menu_order IS NOT NULL AND menu_group IS NOT NULL AND action = 'query')
-    )
+    CHECK (path = '/' || domain || '/' || entity || '/' || action)
 );
 
 CREATE TABLE app_roles (
@@ -127,37 +122,6 @@ INSERT INTO app_system_parameters(
     default_value, editable, constraints
 ) VALUES
     ('app.enterprise-name', '企业名称', '登录页和登录后顶栏显示的当前使用单位名称', 'STRING', 'ZERP 演示企业', 'ZERP 演示企业', true, '{"required":true,"minLength":1,"maxLength":128,"minimum":null,"maximum":null,"allowedValues":[]}');
-
-CREATE TABLE app_menu_settings (
-    id smallint PRIMARY KEY DEFAULT 1 CHECK (id = 1),
-    menu_mode varchar(16) NOT NULL DEFAULT 'DEFAULT' CHECK (menu_mode IN ('DEFAULT', 'BUSINESS')),
-    revision bigint NOT NULL DEFAULT 1 CHECK (revision > 0),
-    updated_at timestamptz NOT NULL DEFAULT now(),
-    updated_by varchar(26) REFERENCES app_users(id)
-);
-INSERT INTO app_menu_settings(id) VALUES (1);
-
-CREATE TABLE app_business_menu_items (
-    id varchar(64) PRIMARY KEY,
-    parent_id varchar(64) REFERENCES app_business_menu_items(id) ON DELETE CASCADE,
-    item_type varchar(8) NOT NULL CHECK (item_type IN ('GROUP', 'ROUTE')),
-    item_level smallint NOT NULL CHECK (item_level IN (1, 2)),
-    sort_order integer NOT NULL CHECK (sort_order >= 0),
-    display_name varchar(128) NOT NULL CHECK (btrim(display_name) <> ''),
-    icon varchar(128),
-    enabled boolean NOT NULL DEFAULT true,
-    route_key varchar(128),
-    permission_code varchar(256),
-    created_at timestamptz NOT NULL DEFAULT now(),
-    created_by varchar(26) REFERENCES app_users(id),
-    updated_at timestamptz NOT NULL DEFAULT now(),
-    updated_by varchar(26) REFERENCES app_users(id),
-    CHECK (
-        (item_type = 'GROUP' AND item_level = 1 AND parent_id IS NULL AND route_key IS NULL AND permission_code IS NULL)
-        OR (item_type = 'ROUTE' AND item_level = 1 AND parent_id IS NULL AND route_key IS NOT NULL AND permission_code IS NOT NULL)
-        OR (item_type = 'ROUTE' AND item_level = 2 AND parent_id IS NOT NULL AND route_key IS NOT NULL AND permission_code IS NOT NULL)
-    )
-);
 
 CREATE TABLE object_number_counters (
     domain varchar(32) NOT NULL,

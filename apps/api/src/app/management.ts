@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto'
+import { randomBytes } from 'node:crypto'
 
 import type { Kysely } from 'kysely'
 import { sql } from 'kysely'
@@ -6,12 +6,13 @@ import { ulid } from 'ulid'
 
 import type { DB } from '../db/generated.ts'
 import { AppServiceError, hashPassword, type Principal } from './session.ts'
+import { userPinyin } from './user-pinyin.ts'
 
 const systemUserId = '01JAPPSYST3MACTR0000000000'
 const superadminCode = 'superadmin'
 type Status = 'ENABLED' | 'DISABLED'
+type UserAction = 'VIEW' | 'EDIT' | 'ENABLE' | 'DISABLE'
 type AnyDb = Kysely<DB>
-type MenuItemType = 'GROUP' | 'ROUTE'
 type RoleRow = {
   id: string
   code: string
@@ -34,34 +35,17 @@ type ParameterRow = {
   revision: string | number | bigint
 }
 
-interface MenuRoute {
-  routeKey: string
-  routePath: string
-  permissionCode: string
-  displayName: string
-  group: string
-  order: number
-}
-
-interface MenuItemView {
-  id: string
-  parentId: string | null
-  type: MenuItemType
-  level: number
-  order: number
-  displayName: string
-  icon: string | null
-  enabled: boolean
-  routeKey: string | null
-  routePath: string | null
-  permissionCode: string | null
-}
-
 export interface PageInput {
   page: number
   pageSize: number
   filters?: Record<string, string | undefined>
   sort?: Array<{ field: string; order: 'asc' | 'desc' }>
+}
+
+export interface UserQueryInput {
+  keyword: string
+  page: number
+  pageSize: 20
 }
 
 export interface ManagementServiceOptions {
@@ -83,62 +67,46 @@ export class ManagementService {
     this.passwordMinLength = options.passwordMinLength
   }
 
-  async queryUsers(input: PageInput, principal: Principal) {
+  async queryUsers(input: UserQueryInput, principal: Principal) {
     this.require(principal, '/app/user/query')
     const page = this.page(input, 20)
-    const filters = input.filters ?? {}
-    const search = this.optionalSearch(filters.search)
-    const status = this.optionalStatus(filters.status)
+    const keyword = this.search(input.keyword)
+    const pattern = `%${keyword
+      .replaceAll('\\', '\\\\')
+      .replaceAll('%', '\\%')
+      .replaceAll('_', '\\_')}%`
+    const matches = keyword
+      ? sql<boolean>`(
+          username ILIKE ${pattern} ESCAPE ${'\\'}
+          OR py ILIKE ${pattern} ESCAPE ${'\\'}
+          OR display_name ILIKE ${pattern} ESCAPE ${'\\'}
+        )`
+      : sql<boolean>`true`
     const [rows, count] = await Promise.all([
       this.db
         .selectFrom('app_users')
-        .select([
-          'id',
-          'username',
-          'display_name',
-          'status',
-          'created_at',
-          'updated_at',
-          'revision',
-        ])
-        .where((eb) =>
-          search
-            ? eb.or([
-                eb('username', 'ilike', `%${search}%`),
-                eb('display_name', 'ilike', `%${search}%`),
-              ])
-            : eb.val(true),
-        )
-        .$if(Boolean(status), (qb) => qb.where('status', '=', status!))
+        .select(['id', 'username', 'display_name', 'py', 'status', 'revision'])
+        .where(matches)
         .orderBy('username', 'asc')
+        .orderBy('id', 'asc')
         .offset((page.page - 1) * page.pageSize)
         .limit(page.pageSize)
         .execute(),
       this.db
         .selectFrom('app_users')
         .select((eb) => eb.fn.countAll<string>().as('count'))
-        .where((eb) =>
-          search
-            ? eb.or([
-                eb('username', 'ilike', `%${search}%`),
-                eb('display_name', 'ilike', `%${search}%`),
-              ])
-            : eb.val(true),
-        )
-        .$if(Boolean(status), (qb) => qb.where('status', '=', status!))
+        .where(matches)
         .executeTakeFirstOrThrow(),
     ])
     const items = await Promise.all(
       rows.map(async (row) => ({
         id: row.id,
-        username: row.username,
-        displayName: row.display_name,
-        status: row.status as Status,
-        system: row.id === systemUserId,
-        createdAt: row.created_at.toISOString(),
-        updatedAt: row.updated_at.toISOString(),
+        code: row.username,
+        py: row.py,
+        name: row.display_name,
+        enabled: row.status === 'ENABLED',
         revision: String(row.revision),
-        manageable: await this.userManageable(row.id, principal),
+        availableActions: await this.userAvailableActions(row, principal),
       })),
     )
     return {
@@ -156,8 +124,8 @@ export class ManagementService {
 
   async createUser(
     input: {
-      username: string
-      displayName: string
+      code: string
+      name: string
       password: string
       roleIds: string[]
     },
@@ -166,12 +134,12 @@ export class ManagementService {
   ) {
     this.require(principal, '/app/user/create')
     this.require(principal, '/app/role/query')
-    const username = this.username(input.username)
-    const displayName = this.displayName(input.displayName)
+    const username = this.username(input.code)
+    const displayName = this.displayName(input.name)
     this.password(input.password)
     const roleIds = this.ids(input.roleIds, 'role')
     const id = ulid()
-    await this.db.transaction().execute(async (tx) => {
+    return this.db.transaction().execute(async (tx) => {
       await this.lock(tx)
       await this.assertCurrentActor(tx, principal)
       await this.assertAssignableRoles(tx, roleIds, principal)
@@ -188,6 +156,7 @@ export class ManagementService {
           id,
           username,
           display_name: displayName,
+          py: userPinyin(displayName),
           password_hash: await hashPassword(input.password),
           status: 'ENABLED',
           password_change_required: true,
@@ -206,25 +175,25 @@ export class ManagementService {
         requestId,
         { roleCount: roleIds.length },
       )
+      return this.userDetail(id, principal, tx)
     })
-    return this.userDetail(id, principal)
   }
 
   async saveUser(
     input: {
       id: string
-      displayName: string
+      name: string
       roleIds: string[]
-      revision: string | number
+      revision: string
     },
     principal: Principal,
     requestId: string,
   ) {
     this.id(input.id)
-    const displayName = this.displayName(input.displayName)
+    const displayName = this.displayName(input.name)
     const roleIds = this.ids(input.roleIds, 'role')
     const revision = this.revision(input.revision)
-    await this.db.transaction().execute(async (tx) => {
+    return this.db.transaction().execute(async (tx) => {
       await this.lock(tx)
       await this.assertCurrentActor(tx, principal)
       const target = await tx
@@ -240,11 +209,12 @@ export class ManagementService {
           'system identity is managed internally',
         )
       const self = target.id === principal.user.id
-      if (!self) this.require(principal, '/app/user/save')
+      this.require(principal, '/app/user/save')
       if (self) {
         const existing = await this.roleIds(tx, target.id)
         if (!same(existing, roleIds))
           throw new AppServiceError('forbidden', 'cannot change own roles')
+        await this.assertEnabledRoles(tx, roleIds)
       } else {
         if (!(await this.userManageable(target.id, principal, tx)))
           throw new AppServiceError('forbidden', 'user cannot be maintained')
@@ -255,6 +225,7 @@ export class ManagementService {
         .updateTable('app_users')
         .set({
           display_name: displayName,
+          py: userPinyin(displayName),
           updated_at: new Date(),
           updated_by: principal.user.id,
           revision: sql`revision + 1`,
@@ -275,12 +246,12 @@ export class ManagementService {
         requestId,
         { roleCount: roleIds.length },
       )
+      return this.userDetail(target.id, principal, tx)
     })
-    return this.userDetail(input.id, principal)
   }
 
   async setUserStatus(
-    input: { id: string; revision: string | number },
+    input: { id: string; revision: string },
     status: Status,
     principal: Principal,
     requestId: string,
@@ -291,7 +262,7 @@ export class ManagementService {
       principal,
       status === 'ENABLED' ? '/app/user/enable' : '/app/user/disable',
     )
-    await this.db.transaction().execute(async (tx) => {
+    return this.db.transaction().execute(async (tx) => {
       await this.lock(tx)
       await this.assertCurrentActor(tx, principal)
       const target = await tx
@@ -305,6 +276,8 @@ export class ManagementService {
         throw new AppServiceError('conflict', 'cannot change this user status')
       if (!(await this.userManageable(target.id, principal, tx)))
         throw new AppServiceError('forbidden', 'user cannot be maintained')
+      if (target.status === status)
+        throw new AppServiceError('conflict', 'user status is unchanged')
       const updated = await tx
         .updateTable('app_users')
         .set({
@@ -329,12 +302,12 @@ export class ManagementService {
         target.id,
         requestId,
       )
+      return this.userDetail(target.id, principal, tx)
     })
-    return this.userDetail(input.id, principal)
   }
 
   async resetUserPassword(
-    input: { id: string; revision: string | number },
+    input: { id: string; revision: string },
     principal: Principal,
     requestId: string,
   ) {
@@ -868,126 +841,8 @@ export class ManagementService {
     })
   }
 
-  async getMenu(principal: Principal) {
-    const [settings, items] = await Promise.all([
-      this.db
-        .selectFrom('app_menu_settings')
-        .selectAll()
-        .where('id', '=', 1)
-        .executeTakeFirst(),
-      this.db
-        .selectFrom('app_business_menu_items')
-        .selectAll()
-        .orderBy('parent_id', 'asc')
-        .orderBy('sort_order', 'asc')
-        .orderBy('id', 'asc')
-        .execute(),
-    ])
-    if (!settings)
-      throw new AppServiceError(
-        'internal_error',
-        'menu settings are unavailable',
-      )
-    const catalog = await this.routeCatalog()
-    const defaultMenu = { items: this.defaultMenu(catalog) }
-    const businessMenu = { items: this.menuTree(items, catalog) }
-    const selected =
-      settings.menu_mode === 'BUSINESS' ? businessMenu : defaultMenu
-    return {
-      mode: settings.menu_mode,
-      revision: String(settings.revision),
-      defaultMenu,
-      businessMenu,
-      navigation: {
-        items: [
-          this.workbenchMenuItem(),
-          ...this.filterMenu(selected.items, principal.permissions).filter(
-            (item) => item.routePath !== '/home/dashboard',
-          ),
-        ],
-      },
-      availableRoutes: [...catalog.values()].map((route) => ({
-        routeKey: route.routeKey,
-        routePath: route.routePath,
-        displayName: route.displayName,
-        permissionCode: route.permissionCode,
-      })),
-    }
-  }
-
-  async saveBusinessMenu(
-    input: { items: Array<Record<string, unknown>>; revision: string | number },
-    principal: Principal,
-    requestId: string,
-  ) {
-    this.require(principal, '/app/menu/save-business')
-    return this.writeMenu(
-      'MENU_SAVE_BUSINESS',
-      input.revision,
-      principal,
-      requestId,
-      async (tx, catalog) => {
-        const items = this.businessMenuItems(
-          input.items,
-          catalog,
-          principal.user.id,
-        )
-        await tx.deleteFrom('app_business_menu_items').execute()
-        if (items.length)
-          await tx.insertInto('app_business_menu_items').values(items).execute()
-      },
-    )
-  }
-
-  async activateMenu(
-    input: { mode: 'DEFAULT' | 'BUSINESS'; revision: string | number },
-    principal: Principal,
-    requestId: string,
-  ) {
-    this.require(principal, '/app/menu/activate')
-    if (input.mode !== 'DEFAULT' && input.mode !== 'BUSINESS')
-      throw new AppServiceError('validation_failed', 'invalid menu mode')
-    return this.writeMenu(
-      'MENU_ACTIVATE',
-      input.revision,
-      principal,
-      requestId,
-      async (tx) => {
-        await tx
-          .updateTable('app_menu_settings')
-          .set({
-            menu_mode: input.mode,
-            updated_at: new Date(),
-            updated_by: principal.user.id,
-          })
-          .where('id', '=', 1)
-          .execute()
-      },
-    )
-  }
-
-  async resetBusinessMenu(
-    input: { revision: string | number },
-    principal: Principal,
-    requestId: string,
-  ) {
-    this.require(principal, '/app/menu/reset-business')
-    return this.writeMenu(
-      'MENU_RESET_BUSINESS',
-      input.revision,
-      principal,
-      requestId,
-      async (tx, catalog) => {
-        await tx.deleteFrom('app_business_menu_items').execute()
-        const items = this.defaultBusinessMenu(catalog, principal.user.id)
-        if (items.length)
-          await tx.insertInto('app_business_menu_items').values(items).execute()
-      },
-    )
-  }
-
   private require(principal: Principal, path: string) {
-    if (!principal.permissions.includes(path))
+    if (!principal.apiPaths.includes(path))
       throw new AppServiceError('forbidden', 'permission denied')
   }
 
@@ -1014,6 +869,12 @@ export class ManagementService {
   }
   private optionalSearch(value?: string) {
     if (!value?.trim()) return undefined
+    const result = value.trim()
+    if ([...result].length > 128)
+      throw new AppServiceError('validation_failed', 'invalid search')
+    return result
+  }
+  private search(value: string) {
     const result = value.trim()
     if ([...result].length > 128)
       throw new AppServiceError('validation_failed', 'invalid search')
@@ -1114,8 +975,29 @@ export class ManagementService {
     return (
       actorSuperadmin ||
       (!targetSuperadmin &&
-        target.every((path) => principal.permissions.includes(path)))
+        target.every((path) => principal.apiPaths.includes(path)))
     )
+  }
+  private async userAvailableActions(
+    user: { id: string; status: string },
+    principal: Principal,
+    tx: AnyDb = this.db,
+  ): Promise<UserAction[]> {
+    const manageable = await this.userManageable(user.id, principal, tx)
+    return [
+      principal.apiPaths.includes('/app/user/get') && 'VIEW',
+      manageable && principal.apiPaths.includes('/app/user/save') && 'EDIT',
+      manageable &&
+        user.id !== principal.user.id &&
+        user.status === 'DISABLED' &&
+        principal.apiPaths.includes('/app/user/enable') &&
+        'ENABLE',
+      manageable &&
+        user.id !== principal.user.id &&
+        user.status === 'ENABLED' &&
+        principal.apiPaths.includes('/app/user/disable') &&
+        'DISABLE',
+    ].filter((action): action is UserAction => Boolean(action))
   }
   private async rolePermissions(
     tx: AnyDb,
@@ -1160,8 +1042,22 @@ export class ManagementService {
       !selfHeld &&
       (actorSuperadmin ||
         permissions.every((permission) =>
-          principal.permissions.includes(permission.path),
+          principal.apiPaths.includes(permission.path),
         ))
+    )
+  }
+  private async roleAssignable(
+    role: Pick<RoleRow, 'id' | 'code' | 'status'>,
+    principal: Principal,
+    tx: AnyDb,
+  ) {
+    if (role.status !== 'ENABLED' || role.code === 'system') return false
+    const actorSuperadmin = await this.isSuperadmin(tx, principal.user.id)
+    if (role.code === superadminCode) return actorSuperadmin
+    if (actorSuperadmin) return true
+    const permissions = await this.rolePermissions(tx, role.id)
+    return permissions.every((permission) =>
+      principal.apiPaths.includes(permission.path),
     )
   }
   private async assertAssignableRoles(
@@ -1185,13 +1081,28 @@ export class ManagementService {
     if (
       !(
         await Promise.all(
-          roles.map((role) => this.roleManageable(role, principal, tx)),
+          roles.map((role) => this.roleAssignable(role, principal, tx)),
         )
       ).every(Boolean)
     )
       throw new AppServiceError(
         'forbidden',
         'one or more roles cannot be assigned',
+      )
+  }
+  private async assertEnabledRoles(tx: AnyDb, roleIds: string[]) {
+    const roles = await tx
+      .selectFrom('app_roles')
+      .select(['id', 'status'])
+      .where('id', 'in', roleIds)
+      .execute()
+    if (
+      roles.length !== roleIds.length ||
+      roles.some((role) => role.status !== 'ENABLED')
+    )
+      throw new AppServiceError(
+        'validation_failed',
+        'one or more roles do not exist or are disabled',
       )
   }
   private async assertPermissionSet(
@@ -1216,7 +1127,7 @@ export class ManagementService {
     if (
       !actorSuperadmin &&
       permissions.some(
-        (permission) => !principal.permissions.includes(permission.path),
+        (permission) => !principal.apiPaths.includes(permission.path),
       )
     )
       throw new AppServiceError(
@@ -1283,7 +1194,7 @@ export class ManagementService {
     if (!user || user.status !== 'ENABLED')
       throw new AppServiceError('unauthenticated', 'session expired')
     const current = await this.permissionsFor(tx, principal.user.id)
-    if (!principal.permissions.every((path) => current.includes(path)))
+    if (!principal.apiPaths.every((path) => current.includes(path)))
       throw new AppServiceError(
         'forbidden',
         'permissions changed; refresh session',
@@ -1334,32 +1245,34 @@ export class ManagementService {
       })
       .execute()
   }
-  private async userDetail(id: string, principal: Principal) {
-    const user = await this.db
+  private async userDetail(
+    id: string,
+    principal: Principal,
+    tx: AnyDb = this.db,
+  ) {
+    const user = await tx
       .selectFrom('app_users')
       .selectAll()
       .where('id', '=', id)
       .executeTakeFirst()
     if (!user) throw new AppServiceError('not_found', 'user not found')
-    const roles = await this.db
+    const roles = await tx
       .selectFrom('app_user_roles as ur')
       .innerJoin('app_roles as r', 'r.id', 'ur.role_id')
       .select(['r.id', 'r.code', 'r.name', 'r.status'])
       .where('ur.user_id', '=', id)
       .orderBy('r.code', 'asc')
       .execute()
-    const manageable = await this.userManageable(id, principal)
+    const manageable = await this.userManageable(id, principal, tx)
     return {
       id: user.id,
-      username: user.username,
-      displayName: user.display_name,
-      status: user.status,
-      system: id === systemUserId,
-      createdAt: user.created_at.toISOString(),
-      updatedAt: user.updated_at.toISOString(),
+      code: user.username,
+      py: user.py,
+      name: user.display_name,
+      enabled: user.status === 'ENABLED',
       revision: String(user.revision),
+      availableActions: await this.userAvailableActions(user, principal, tx),
       manageable,
-      passwordChangedAt: user.password_changed_at.toISOString(),
       roles: await Promise.all(
         roles.map(async (role) => ({
           id: role.id,
@@ -1372,14 +1285,14 @@ export class ManagementService {
               : role.code === 'system'
                 ? 'SYSTEM'
                 : 'NORMAL',
-          assignable: await this.roleManageable(role, principal, this.db),
+          assignable: await this.roleAssignable(role, principal, tx),
         })),
       ),
       roleAssignmentEditable:
         manageable &&
         id !== principal.user.id &&
-        principal.permissions.includes('/app/user/save') &&
-        principal.permissions.includes('/app/role/query'),
+        principal.apiPaths.includes('/app/user/save') &&
+        principal.apiPaths.includes('/app/role/query'),
     }
   }
   private async roleListItem(role: RoleRow, principal: Principal) {
@@ -1398,19 +1311,17 @@ export class ManagementService {
             : 'NORMAL',
       revision: String(role.revision),
       manageable,
-      assignable: manageable,
+      assignable: await this.roleAssignable(role, principal, this.db),
       availableActions: [
-        principal.permissions.includes('/app/role/get') && 'VIEW',
-        manageable &&
-          principal.permissions.includes('/app/role/save') &&
-          'EDIT',
+        principal.apiPaths.includes('/app/role/get') && 'VIEW',
+        manageable && principal.apiPaths.includes('/app/role/save') && 'EDIT',
         manageable &&
           role.status === 'DISABLED' &&
-          principal.permissions.includes('/app/role/enable') &&
+          principal.apiPaths.includes('/app/role/enable') &&
           'ENABLE',
         manageable &&
           role.status === 'ENABLED' &&
-          principal.permissions.includes('/app/role/disable') &&
+          principal.apiPaths.includes('/app/role/disable') &&
           'DISABLE',
       ].filter(Boolean),
     }
@@ -1521,342 +1432,6 @@ export class ManagementService {
         .values({ counter_key: 'role', next_value: next + 1 })
         .execute()
     return `ROL-${String(next).padStart(4, '0')}`
-  }
-  private async routeCatalog(db: AnyDb = this.db) {
-    const [rows, dynamicWorkflowDefinitions] = await Promise.all([
-      db
-        .selectFrom('app_permissions')
-        .select(['path', 'menu_group', 'menu_order', 'description'])
-        .where('status', '=', 'ENABLED')
-        .where('menu_order', 'is not', null)
-        .where('menu_group', 'is not', null)
-        .orderBy('menu_order', 'asc')
-        .execute(),
-      sql<{ code: string; name: string }>`
-        SELECT v.compiled_graph->>'code' AS code,
-          v.compiled_graph->>'name' AS name
-        FROM dcl_subjects s
-        JOIN wfl_definition_runtime_states r
-          ON r.subject_id = s.id AND r.enabled = TRUE
-        JOIN approval_entries e
-          ON e.subject_id = s.id
-          AND e.domain = 'dcl'
-          AND e.entity = 'wfl-process-definition'
-          AND e.status = 'APPROVED'
-        JOIN wfl_definition_versions v ON v.approval_entry_id = e.id
-        WHERE s.entity = 'wfl-process-definition'
-          AND s.code IS NOT NULL
-          AND NOT EXISTS (
-            SELECT 1
-            FROM approval_entries newer
-            WHERE newer.subject_id = e.subject_id
-              AND newer.domain = e.domain
-              AND newer.entity = e.entity
-              AND newer.status = 'APPROVED'
-              AND newer.version_no > e.version_no
-          )
-        ORDER BY v.compiled_graph->>'code'
-      `.execute(db),
-    ])
-    const catalog = new Map<string, MenuRoute>(
-      rows.map(
-        (row) =>
-          [
-            row.path.replace(/^\//, '').replace(/\/query$/, ''),
-            {
-              routeKey: row.path.replace(/^\//, '').replace(/\/query$/, ''),
-              routePath: `/${row.path.replace(/^\//, '').replace(/\/query$/, '')}`,
-              permissionCode: row.path,
-              displayName: row.description ?? row.path,
-              group: row.menu_group!,
-              order: row.menu_order!,
-            },
-          ] as const,
-      ),
-    )
-    catalog.set('app/menu', {
-      routeKey: 'app/menu',
-      routePath: '/app/menu',
-      permissionCode: '/app/menu/save-business',
-      displayName: '菜单管理',
-      group: '系统管理',
-      order: 50,
-    })
-    const reservedWorkflowCodes = new Set([
-      'process-definition',
-      'process-instance',
-    ])
-    for (const definition of dynamicWorkflowDefinitions.rows) {
-      if (reservedWorkflowCodes.has(definition.code)) continue
-      const routeKey = `wfl/${definition.code}`
-      catalog.set(routeKey, {
-        routeKey,
-        routePath: `/${routeKey}`,
-        permissionCode: '/wfl/process-instance/query',
-        displayName: definition.name,
-        group: '流程',
-        order:
-          800_000 +
-          (Number.parseInt(
-            createHash('sha256')
-              .update(definition.code)
-              .digest('hex')
-              .slice(0, 8),
-            16,
-          ) %
-            100_000),
-      })
-    }
-    return catalog
-  }
-  private menuTree(
-    items: Array<{
-      id: string
-      parent_id: string | null
-      item_type: string
-      item_level: number
-      sort_order: number
-      display_name: string
-      icon: string | null
-      enabled: boolean
-      route_key: string | null
-      permission_code: string | null
-    }>,
-    catalog: Map<string, MenuRoute>,
-  ): MenuItemView[] {
-    return items
-      .filter(
-        (item) =>
-          item.item_type === 'GROUP' ||
-          (item.route_key !== null && catalog.has(item.route_key)),
-      )
-      .map((item) => {
-        const route = item.route_key ? catalog.get(item.route_key) : undefined
-        return {
-          id: item.id,
-          parentId: item.parent_id,
-          type: item.item_type as MenuItemType,
-          level: item.item_level,
-          order: item.sort_order,
-          displayName: item.display_name,
-          icon: item.icon,
-          enabled: item.enabled,
-          routeKey: item.route_key,
-          routePath: route?.routePath ?? null,
-          permissionCode: route?.permissionCode ?? null,
-        }
-      })
-  }
-  private defaultMenu(catalog: Map<string, MenuRoute>): MenuItemView[] {
-    const groups = new Map<string, { id: string; order: number }>()
-    for (const route of catalog.values()) {
-      const current = groups.get(route.group)
-      if (!current || route.order < current.order)
-        groups.set(route.group, {
-          id: this.stableMenuId('group', route.group),
-          order: route.order,
-        })
-    }
-    const result: MenuItemView[] = [...groups.entries()].map(
-      ([displayName, group]) => ({
-        id: group.id,
-        parentId: null,
-        type: 'GROUP',
-        level: 1,
-        order: group.order,
-        displayName,
-        icon: null,
-        enabled: true,
-        routeKey: null,
-        routePath: null,
-        permissionCode: null,
-      }),
-    )
-    for (const route of catalog.values()) {
-      result.push({
-        id: this.stableMenuId('route', route.routeKey),
-        parentId: groups.get(route.group)!.id,
-        type: 'ROUTE',
-        level: 2,
-        order: route.order,
-        displayName: route.displayName,
-        icon: null,
-        enabled: true,
-        routeKey: route.routeKey,
-        routePath: route.routePath,
-        permissionCode: route.permissionCode,
-      })
-    }
-    return result.sort((left, right) => left.order - right.order)
-  }
-  private workbenchMenuItem(): MenuItemView {
-    return {
-      id: this.stableMenuId('route', 'home/dashboard'),
-      parentId: null,
-      type: 'ROUTE',
-      level: 1,
-      order: 0,
-      displayName: '工作台',
-      icon: null,
-      enabled: true,
-      routeKey: 'home/dashboard',
-      routePath: '/home/dashboard',
-      permissionCode: null,
-    }
-  }
-  private filterMenu(
-    items: MenuItemView[],
-    permissions: string[],
-  ): MenuItemView[] {
-    const allowedRoutes = new Set(
-      items
-        .filter(
-          (item) =>
-            item.type === 'ROUTE' &&
-            item.enabled &&
-            item.permissionCode !== null &&
-            permissions.includes(item.permissionCode),
-        )
-        .map((item) => item.id),
-    )
-    const visibleParents = new Set(
-      items
-        .filter((item) => allowedRoutes.has(item.id) && item.parentId !== null)
-        .map((item) => item.parentId!),
-    )
-    return items.filter(
-      (item) =>
-        (item.type === 'GROUP' &&
-          item.enabled &&
-          visibleParents.has(item.id)) ||
-        (item.type === 'ROUTE' &&
-          allowedRoutes.has(item.id) &&
-          (item.parentId === null || visibleParents.has(item.parentId))),
-    )
-  }
-  private businessMenuItems(
-    source: Array<Record<string, unknown>>,
-    catalog: Map<string, MenuRoute>,
-    actorId: string,
-  ) {
-    const ids = new Set<string>()
-    const routeKeys = new Set<string>()
-    return source.map((raw, index) => {
-      const id = typeof raw.id === 'string' && raw.id ? raw.id : ulid()
-      if (ids.has(id))
-        throw new AppServiceError('validation_failed', 'duplicate menu item')
-      ids.add(id)
-      const type = raw.type
-      const parentId = typeof raw.parentId === 'string' ? raw.parentId : null
-      const routeKey = typeof raw.routeKey === 'string' ? raw.routeKey : null
-      const displayName =
-        typeof raw.displayName === 'string'
-          ? this.displayName(raw.displayName)
-          : ''
-      if (type === 'GROUP') {
-        if (parentId || routeKey)
-          throw new AppServiceError('validation_failed', 'invalid menu group')
-        return {
-          id,
-          parent_id: null,
-          item_type: 'GROUP',
-          item_level: 1,
-          sort_order: index,
-          display_name: displayName,
-          icon: typeof raw.icon === 'string' ? raw.icon : null,
-          enabled: raw.enabled !== false,
-          route_key: null,
-          permission_code: null,
-          created_by: actorId,
-          updated_by: actorId,
-        }
-      }
-      const route = routeKey ? catalog.get(routeKey) : undefined
-      if (
-        type !== 'ROUTE' ||
-        !route ||
-        (parentId && !ids.has(parentId)) ||
-        routeKeys.has(routeKey!)
-      )
-        throw new AppServiceError('validation_failed', 'invalid menu route')
-      routeKeys.add(routeKey!)
-      return {
-        id,
-        parent_id: parentId,
-        item_type: 'ROUTE',
-        item_level: parentId ? 2 : 1,
-        sort_order: index,
-        display_name: displayName,
-        icon: typeof raw.icon === 'string' ? raw.icon : null,
-        enabled: raw.enabled !== false,
-        route_key: routeKey,
-        permission_code: route.permissionCode,
-        created_by: actorId,
-        updated_by: actorId,
-      }
-    })
-  }
-  private defaultBusinessMenu(
-    catalog: Map<string, MenuRoute>,
-    actorId: string,
-  ) {
-    return this.defaultMenu(catalog).map((item) => ({
-      id: item.id,
-      parent_id: item.parentId,
-      item_type: item.type,
-      item_level: item.level,
-      sort_order: item.order,
-      display_name: item.displayName,
-      icon: item.icon,
-      enabled: item.enabled,
-      route_key: item.routeKey,
-      permission_code: item.permissionCode,
-      created_by: actorId,
-      updated_by: actorId,
-    }))
-  }
-  private stableMenuId(prefix: string, value: string) {
-    return `${prefix}-${createHash('sha256').update(value).digest('hex').slice(0, 24)}`
-  }
-  private async writeMenu(
-    event: string,
-    revisionInput: string | number,
-    principal: Principal,
-    requestId: string,
-    write: (tx: AnyDb, catalog: Map<string, MenuRoute>) => Promise<void>,
-  ) {
-    const revision = this.revision(revisionInput)
-    await this.db.transaction().execute(async (tx) => {
-      await this.assertCurrentActor(tx, principal)
-      const settings = await tx
-        .selectFrom('app_menu_settings')
-        .selectAll()
-        .where('id', '=', 1)
-        .forUpdate()
-        .executeTakeFirst()
-      if (!settings)
-        throw new AppServiceError(
-          'internal_error',
-          'menu settings are unavailable',
-        )
-      if (BigInt(settings.revision) !== revision)
-        throw new AppServiceError('conflict', 'menu revision conflict')
-      await write(tx, await this.routeCatalog(tx))
-      const result = await tx
-        .updateTable('app_menu_settings')
-        .set({
-          revision: sql`revision + 1`,
-          updated_at: new Date(),
-          updated_by: principal.user.id,
-        })
-        .where('id', '=', 1)
-        .where('revision', '=', String(revision))
-        .executeTakeFirst()
-      if (Number(result.numUpdatedRows) !== 1)
-        throw new AppServiceError('conflict', 'menu revision conflict')
-      await this.audit(tx, event, principal.user.id, 'menu', '1', requestId)
-    })
-    return this.getMenu(principal)
   }
 }
 

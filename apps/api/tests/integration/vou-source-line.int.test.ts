@@ -4,11 +4,13 @@ import test from 'node:test'
 
 import { serve } from '@hono/node-server'
 import { modelBuildId, type VouPayloadFor } from '@zerp/model'
+import { createTargetApiClient } from '../../../../packages/api-client/src/index.ts'
 import { sql } from 'kysely'
 import { ulid } from 'ulid'
 
 import { createApp } from '../../src/app.ts'
 import { hashPassword, SessionService } from '../../src/app/session.ts'
+import { userPinyin } from '../../src/app/user-pinyin.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { loadConfig } from '../../src/platform/config.ts'
 import { VouApplicationError, VouService } from '../../src/vou/service.ts'
@@ -136,8 +138,6 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
         ...permissionParts(permissionPath),
         description: permissionPath,
         status: 'ENABLED',
-        menu_group: null,
-        menu_order: null,
       })
       .execute()
   const password = `Target!${randomBytes(18).toString('base64url')}`
@@ -150,6 +150,7 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
         id: actorId,
         username,
         display_name: 'VOU source-line actor',
+        py: userPinyin('VOU source-line actor'),
         password_hash: await hashPassword(password),
         status: 'ENABLED',
         password_changed_at: now,
@@ -159,6 +160,7 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
         id: deniedId,
         username: deniedUsername,
         display_name: 'VOU source-line denied',
+        py: userPinyin('VOU source-line denied'),
         password_hash: await hashPassword(password),
         status: 'ENABLED',
         password_changed_at: now,
@@ -810,20 +812,12 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
   )
 
   async function signin(login: string) {
-    const response = await fetch(`${origin}/app/user/signin`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-zerp-model-build': modelBuildId,
-        connection: 'close',
-      },
-      body: JSON.stringify({ username: login, password }),
+    const client = createTargetApiClient({ baseUrl: origin, modelBuildId })
+    const response = await client.session.auth.signin.$post({
+      json: { code: login, password },
     })
     assert.equal(response.status, 200)
-    const body = (await response.json()) as {
-      code: number
-      data: { csrfToken: string }
-    }
+    const body = await response.json()
     assert.equal(body.code, 0)
     return {
       cookie: response.headers.getSetCookie()[0] ?? '',

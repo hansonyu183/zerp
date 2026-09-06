@@ -46,7 +46,7 @@ make target-down
 
 API 启动前先同步生成的权限目录，再从 `APP_TEST_ADMIN_PASSWORD_FILE` 和 `APP_TESTER_PASSWORD_FILE` 指向的凭证文件重复校准 `test-admin`、`tester` 两个线上测试用户及其 `superadmin` 角色。数据库首次创建和后续重启都执行同一流程；密码变化会更新哈希并撤销旧会话。`/readyz` 同时验证数据库和全部启用的 RPT definition。Web 构建通过 `TARGET_API_BROWSER_URL` 注入浏览器可访问的 HTTPS API 地址，API 与 Web 使用同一完整 `ZERP_RELEASE_SHA`。
 
-#366 的开发测试环境数据库重建、验收和整体回滚见[切换运行手册](docs/operations/issue-366-cutover-runbook.md)。网络、Cookie 与联调细节见[前端 API 配置](docs/operations/frontend-api-configuration.md)。
+#366 的开发测试环境数据库重建、验收和整体回滚见[切换运行手册](docs/operations/issue-366-cutover-runbook.md)。网络、Cookie 与联调细节见[前端 API 配置](docs/operations/frontend-api-configuration.md)。 菜单模板结构的一次性删除见[菜单结构受控清理](docs/operations/menu-structure-cleanup.md)；既有用户的拼音转换见[用户拼音受控回填](docs/operations/user-pinyin-backfill.md)。
 
 ## 文档
 
@@ -62,6 +62,7 @@ API 启动前先同步生成的权限目录，再从 `APP_TEST_ADMIN_PASSWORD_FI
 - [RPT](docs/domains/rpt.md)
 - [页面用例](docs/use-cases/README.md)
 - [架构决策](docs/adr/README.md)
+- [Session 与动态页面迁移](docs/adr/0052-session-dynamic-navigation-and-page-migration.md)
 - [测试证据](docs/testing/README.md)
 
 ## License

@@ -10,6 +10,7 @@ import pg from 'pg'
 import { ulid } from 'ulid'
 
 import { createDatabase } from '../../src/db/database.ts'
+import { userPinyin } from '../../src/app/user-pinyin.ts'
 import {
   ArchiveApplicationError,
   ArchiveService,
@@ -89,6 +90,7 @@ test('business-key and referenced-entry locks admit at most one concurrent write
         id,
         username: `archive-lock-${id}`,
         display_name: 'Archive lock test',
+        py: userPinyin('Archive lock test'),
         password_hash: 'unused',
         status: 'ENABLED',
         password_changed_at: new Date(),
@@ -339,6 +341,7 @@ test('typed DCL archives persist idempotent V1/V2 lifecycle and derive current f
         id: submitterId,
         username: `archive-submitter-${submitterId}`,
         display_name: 'Archive Submitter',
+        py: userPinyin('Archive Submitter'),
         password_hash: 'unused',
         status: 'ENABLED',
         password_changed_at: new Date(),
@@ -348,6 +351,7 @@ test('typed DCL archives persist idempotent V1/V2 lifecycle and derive current f
         id: reviewerId,
         username: `archive-reviewer-${reviewerId}`,
         display_name: 'Archive Reviewer',
+        py: userPinyin('Archive Reviewer'),
         password_hash: 'unused',
         status: 'ENABLED',
         password_changed_at: new Date(),
@@ -601,6 +605,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
         id: submitterId,
         username: `archive-all-submitter-${submitterId}`,
         display_name: 'All Archive Submitter',
+        py: userPinyin('All Archive Submitter'),
         password_hash: 'unused',
         status: 'ENABLED',
         password_changed_at: new Date(),
@@ -610,6 +615,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
         id: reviewerId,
         username: `archive-all-reviewer-${reviewerId}`,
         display_name: 'All Archive Reviewer',
+        py: userPinyin('All Archive Reviewer'),
         password_hash: 'unused',
         status: 'ENABLED',
         password_changed_at: new Date(),

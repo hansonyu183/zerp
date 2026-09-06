@@ -1988,16 +1988,31 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   )
   const auxActor = {
     id: submitterId,
-    permissions: ['/aux/payment-method/get', '/aux/payment-method/disable'],
+    permissions: [
+      '/aux/payment-method/get',
+      '/aux/payment-method/save',
+      '/aux/payment-method/disable',
+    ],
   }
   const paymentBefore = await aux.get(
     'payment-method',
     { id: auxIds[9]! },
     auxActor,
   )
+  const paymentChanged = await aux.save(
+    'payment-method',
+    {
+      id: paymentBefore.id,
+      revision: paymentBefore.revision,
+      name: '新收款名称',
+      defaultSalesSurcharge: '0.06',
+      description: '',
+    },
+    auxActor,
+  )
   const paymentDisabled = await aux.disable(
     'payment-method',
-    { id: paymentBefore.id, revision: paymentBefore.revision },
+    { id: paymentBefore.id, revision: paymentChanged.revision },
     auxActor,
     ulid(),
   )
@@ -2058,7 +2073,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   )
   assert.equal(paymentAfter.enabled, false)
   assert.equal(paymentAfter.revision, paymentDisabled.revision)
-  assert.equal(paymentAfter.defaultSalesSurcharge, '0.05')
+  assert.equal(paymentAfter.defaultSalesSurcharge, '0.06')
 
   const duplicateSubjectId = ulid()
   const duplicateSubmissionId = ulid()

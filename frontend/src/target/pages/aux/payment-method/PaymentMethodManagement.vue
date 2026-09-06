@@ -2,11 +2,11 @@
 import { onBeforeUnmount, onMounted, reactive } from 'vue'
 import ListPageShell from '../../../components/list-page/ListPageShell.vue'
 import type { ListIdentity } from '../../../components/list-page/vm.ts'
-import SimpleAuxEditorPresentation from '../simple/SimpleAuxEditorPresentation.vue'
+import PaymentMethodEditor from './PaymentMethodEditor.vue'
 import {
   usePaymentMethodManagementViewModel,
   type PaymentMethodListItem,
-} from '../simple/vm.ts'
+} from './vm.ts'
 const vm = reactive(usePaymentMethodManagementViewModel())
 const item = (value: ListIdentity) => value as PaymentMethodListItem
 onMounted(() => void vm.list.initialize())
@@ -43,7 +43,7 @@ onBeforeUnmount(vm.dispose)
     @page="vm.list.goToPage"
     @dismiss-feedback="vm.list.dismissFeedback"
   />
-  <SimpleAuxEditorPresentation
+  <PaymentMethodEditor
     v-bind="{
       open: vm.editorOpen,
       mode: vm.editorMode,

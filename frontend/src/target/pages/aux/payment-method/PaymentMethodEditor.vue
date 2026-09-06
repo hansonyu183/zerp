@@ -9,12 +9,14 @@ const props = defineProps<{
   saving?: boolean
   loading?: boolean
   canSave?: boolean
+  defaultSalesSurcharge: string
 }>()
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
   'update:name': [value: string]
   'update:description': [value: string]
+  'update:defaultSalesSurcharge': [value: string]
   save: []
   close: []
 }>()
@@ -51,6 +53,15 @@ function close(): void {
           :disabled="saving || loading"
           variant="outlined"
           @update:model-value="emit('update:description', $event ?? '')"
+        />
+        <v-text-field
+          :model-value="defaultSalesSurcharge"
+          label="默认销售加价（元/kg）"
+          :disabled="saving || loading"
+          variant="outlined"
+          @update:model-value="
+            emit('update:defaultSalesSurcharge', $event ?? '')
+          "
         />
       </v-card-text>
       <v-card-actions>

@@ -1,5 +1,9 @@
 # 2026-09-06 #386 AUX 共用管理与两页验证
 
+## #387 计量单位页面续片
+
+在 #386 已验证的 Hono/Zod 计量单位协议、PostgreSQL typed data 和历史快照边界上，新增 `measurement-unit` 的 Registry/Host 消费者与页面编辑器。页面只增加 `symbol` 和 `quantityScale` 两个专有字段，仍复用公共列表 VM、启停动作和字符串 revision；后端不新增协议或数据库事实。
+
 基线为 `8ba1d97d`，分支为 `codex/issue-386-aux-management`。前序 #385 的真实 PostgreSQL 与桌面/390px 浏览器续验已记录在[角色验证](role-management-issue-385-2026-09-06.md)。本票覆盖全部十二个 AUX 共用管理协议，并只登记人员类别、岗位两页。
 
 ## 实现边界

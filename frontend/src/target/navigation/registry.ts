@@ -4,6 +4,7 @@ import UserManagement from '../pages/app/user/UserManagement.vue'
 import RoleManagement from '../pages/app/role/RoleManagement.vue'
 import EmployeeCategoryManagement from '../pages/aux/employee-category/EmployeeCategoryManagement.vue'
 import PositionManagement from '../pages/aux/position/PositionManagement.vue'
+import MeasurementUnitManagement from '../pages/aux/measurement-unit/MeasurementUnitManagement.vue'
 import {
   targetDomainCapabilities,
   type BusinessTargetDomain,
@@ -51,4 +52,9 @@ export const targetResourceRegistry = createResourceRegistry([
     component: EmployeeCategoryManagement,
   },
   { domain: 'aux', entity: 'position', component: PositionManagement },
+  {
+    domain: 'aux',
+    entity: 'measurement-unit',
+    component: MeasurementUnitManagement,
+  },
 ])

@@ -62,6 +62,18 @@ export type TargetPositionSaveInput = PostJson<
 export type TargetPositionEnabledInput = PostJson<
   (typeof client)['aux']['position']['enable']['$post']
 >
+export type TargetMeasurementUnitQueryInput = PostJson<
+  (typeof client)['aux']['measurement-unit']['query']['$post']
+>
+export type TargetMeasurementUnitCreateInput = PostJson<
+  (typeof client)['aux']['measurement-unit']['create']['$post']
+>
+export type TargetMeasurementUnitSaveInput = PostJson<
+  (typeof client)['aux']['measurement-unit']['save']['$post']
+>
+export type TargetMeasurementUnitEnabledInput = PostJson<
+  (typeof client)['aux']['measurement-unit']['enable']['$post']
+>
 
 export class TargetApiError extends Error {
   readonly errorKey: string
@@ -415,6 +427,70 @@ export async function setTargetPositionEnabled(
   const endpoint = enabled
     ? client.aux.position.enable
     : client.aux.position.disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function queryTargetMeasurementUnits(
+  csrfToken: string,
+  input: TargetMeasurementUnitQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['measurement-unit'].query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function getTargetMeasurementUnit(csrfToken: string, id: string) {
+  return unwrapTarget(
+    await (
+      await client.aux['measurement-unit'].get.$post(
+        { json: { id } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function createTargetMeasurementUnit(
+  csrfToken: string,
+  input: TargetMeasurementUnitCreateInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['measurement-unit'].create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function saveTargetMeasurementUnit(
+  csrfToken: string,
+  input: TargetMeasurementUnitSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['measurement-unit'].save.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function setTargetMeasurementUnitEnabled(
+  csrfToken: string,
+  input: TargetMeasurementUnitEnabledInput,
+  enabled: boolean,
+) {
+  const endpoint = enabled
+    ? client.aux['measurement-unit'].enable
+    : client.aux['measurement-unit'].disable
   return unwrapTarget(
     await (
       await endpoint.$post({ json: input }, csrfHeaders(csrfToken))

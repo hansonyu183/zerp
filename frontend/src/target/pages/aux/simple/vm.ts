@@ -10,6 +10,11 @@ import {
   saveTargetEmployeeCategory,
   saveTargetPosition,
   setTargetEmployeeCategoryEnabled,
+  createTargetMeasurementUnit,
+  getTargetMeasurementUnit,
+  queryTargetMeasurementUnits,
+  saveTargetMeasurementUnit,
+  setTargetMeasurementUnitEnabled,
   setTargetPositionEnabled,
   TargetApiError,
 } from '../../../api.ts'
@@ -27,7 +32,11 @@ export type SimpleAuxListItem = EnabledListItem & {
   availableActions: readonly ('edit' | 'enable' | 'disable')[]
 }
 
-type SimpleAuxDetail = SimpleAuxListItem & { description: string }
+type SimpleAuxDetail = SimpleAuxListItem & {
+  description?: string
+  symbol?: string
+  quantityScale?: number
+}
 type SimpleAuxPage<Item extends SimpleAuxListItem> = {
   items: readonly Item[]
   total: number
@@ -39,6 +48,8 @@ type SimpleAuxMutationInput = {
   name: string
   description: string
   revision: string
+  symbol?: string
+  quantityScale?: number
 }
 type SimpleAuxMutationResult = {
   id: string
@@ -77,6 +88,7 @@ type SimpleAuxOperations<
     input: Pick<SimpleAuxMutationInput, 'id' | 'revision'>,
     enabled: boolean,
   ) => Promise<SimpleAuxMutationResult>
+  fields?: 'measurement-unit'
 }
 
 type EditorCompletion = {
@@ -116,7 +128,14 @@ function createSimpleAuxManagementViewModel<
   const editorError = ref<string | null>(null)
   const detail = ref<Detail | null>(null)
   const lastCreatedId = ref<string | null>(null)
-  const editor = reactive({ id: '', name: '', description: '', revision: '' })
+  const editor = reactive({
+    id: '',
+    name: '',
+    description: '',
+    revision: '',
+    symbol: '',
+    quantityScale: 0,
+  })
   let editorRequest = 0
   let editorCompletion: EditorCompletion | null = null
   let disposed = false
@@ -152,7 +171,14 @@ function createSimpleAuxManagementViewModel<
   })
 
   function clearEditorFields(): void {
-    Object.assign(editor, { id: '', name: '', description: '', revision: '' })
+    Object.assign(editor, {
+      id: '',
+      name: '',
+      description: '',
+      revision: '',
+      symbol: '',
+      quantityScale: 0,
+    })
     detail.value = null
     editorError.value = null
     editorLoading.value = false
@@ -227,6 +253,8 @@ function createSimpleAuxManagementViewModel<
           name: current.name,
           description: current.description,
           revision: current.revision,
+          symbol: 'symbol' in current ? current.symbol : '',
+          quantityScale: 'quantityScale' in current ? current.quantityScale : 0,
         })
       })
       .catch((cause) => {
@@ -244,6 +272,14 @@ function createSimpleAuxManagementViewModel<
 
   function validateEditor(): string | null {
     if (!editor.name.trim()) return '请输入名称。'
+    if (
+      operations.fields === 'measurement-unit' &&
+      (!editor.symbol.trim() ||
+        !Number.isInteger(editor.quantityScale) ||
+        editor.quantityScale < 0 ||
+        editor.quantityScale > 6)
+    )
+      return '请输入有效的符号和数量精度（0–6）。'
     return null
   }
 
@@ -264,6 +300,11 @@ function createSimpleAuxManagementViewModel<
         name: editor.name.trim(),
         description: editor.description.trim(),
       }
+      if (operations.fields === 'measurement-unit')
+        Object.assign(input, {
+          symbol: editor.symbol.trim(),
+          quantityScale: editor.quantityScale,
+        })
       if (editorMode.value === 'create') {
         const created = await operations.create(token, input)
         lastCreatedId.value = created.id
@@ -411,11 +452,11 @@ function createSimpleAuxManagementViewModel<
     editorLoading,
     saving,
     editorError,
-    editor,
     detail,
     lastCreatedId,
     creationNotice,
     canSave,
+    editor,
     openCreate,
     openEdit,
     saveEditor,
@@ -452,6 +493,14 @@ export const positionPaths = {
   enable: '/aux/position/enable',
   disable: '/aux/position/disable',
 } as const
+export const measurementUnitPaths = {
+  query: '/aux/measurement-unit/query',
+  get: '/aux/measurement-unit/get',
+  create: '/aux/measurement-unit/create',
+  save: '/aux/measurement-unit/save',
+  enable: '/aux/measurement-unit/enable',
+  disable: '/aux/measurement-unit/disable',
+} as const
 
 export function useEmployeeCategoryManagementViewModel() {
   return createSimpleAuxManagementViewModel<
@@ -479,5 +528,35 @@ export function usePositionManagementViewModel() {
     create: createTargetPosition,
     save: saveTargetPosition,
     setEnabled: setTargetPositionEnabled,
+  })
+}
+
+type MeasurementUnitPage = Awaited<
+  ReturnType<typeof queryTargetMeasurementUnits>
+>
+export type MeasurementUnitListItem = MeasurementUnitPage['items'][number]
+type MeasurementUnitDetail = Awaited<
+  ReturnType<typeof getTargetMeasurementUnit>
+>
+export function useMeasurementUnitManagementViewModel() {
+  return createSimpleAuxManagementViewModel<
+    MeasurementUnitListItem,
+    MeasurementUnitDetail
+  >({
+    title: '计量单位',
+    createLabel: '新增计量单位',
+    fields: 'measurement-unit',
+    paths: measurementUnitPaths,
+    query: queryTargetMeasurementUnits,
+    get: getTargetMeasurementUnit,
+    create: createTargetMeasurementUnit as unknown as SimpleAuxOperations<
+      MeasurementUnitListItem,
+      MeasurementUnitDetail
+    >['create'],
+    save: saveTargetMeasurementUnit as unknown as SimpleAuxOperations<
+      MeasurementUnitListItem,
+      MeasurementUnitDetail
+    >['save'],
+    setEnabled: setTargetMeasurementUnitEnabled,
   })
 }

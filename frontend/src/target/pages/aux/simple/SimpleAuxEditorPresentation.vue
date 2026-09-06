@@ -9,12 +9,16 @@ const props = defineProps<{
   saving?: boolean
   loading?: boolean
   canSave?: boolean
+  symbol?: string
+  quantityScale?: number
 }>()
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
   'update:name': [value: string]
   'update:description': [value: string]
+  'update:symbol': [value: string]
+  'update:quantityScale': [value: number]
   save: []
   close: []
 }>()
@@ -51,6 +55,28 @@ function close(): void {
           :disabled="saving || loading"
           variant="outlined"
           @update:model-value="emit('update:description', $event ?? '')"
+        />
+        <v-text-field
+          v-if="symbol !== undefined"
+          :model-value="symbol"
+          label="符号"
+          :disabled="saving || loading"
+          variant="outlined"
+          @update:model-value="emit('update:symbol', $event ?? '')"
+        />
+        <v-text-field
+          v-if="quantityScale !== undefined"
+          :model-value="String(quantityScale)"
+          label="数量精度"
+          type="number"
+          min="0"
+          max="6"
+          step="1"
+          :disabled="saving || loading"
+          variant="outlined"
+          @update:model-value="
+            emit('update:quantityScale', Number($event ?? 0))
+          "
         />
       </v-card-text>
       <v-card-actions>

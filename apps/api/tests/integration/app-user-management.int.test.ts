@@ -349,6 +349,50 @@ async function createHarness(context: TestContext) {
       .executeTakeFirstOrThrow()
   }
 
+  async function externalAuthorizationAdminIds() {
+    const externalUsers = await db
+      .selectFrom('app_users')
+      .select('id')
+      .where('status', '=', 'ENABLED')
+      .where('id', 'not in', fixtureUserIds)
+      .execute()
+    const externalIds = externalUsers.map((user) => user.id)
+    if (externalIds.length === 0) return []
+    const roles = await db
+      .selectFrom('app_user_roles as ur')
+      .innerJoin('app_roles as r', 'r.id', 'ur.role_id')
+      .select(['ur.user_id', 'r.code'])
+      .where('ur.user_id', 'in', externalIds)
+      .where('r.status', '=', 'ENABLED')
+      .execute()
+    const paths = await db
+      .selectFrom('app_user_roles as ur')
+      .innerJoin('app_roles as r', 'r.id', 'ur.role_id')
+      .innerJoin('app_role_permissions as rp', 'rp.role_id', 'r.id')
+      .innerJoin('app_permissions as p', 'p.id', 'rp.permission_id')
+      .select(['ur.user_id', 'p.path'])
+      .where('ur.user_id', 'in', externalIds)
+      .where('r.status', '=', 'ENABLED')
+      .where('p.status', '=', 'ENABLED')
+      .execute()
+    const pathsByUser = new Map<string, Set<string>>()
+    for (const row of paths) {
+      const set = pathsByUser.get(row.user_id) ?? new Set<string>()
+      set.add(row.path)
+      pathsByUser.set(row.user_id, set)
+    }
+    const superadminUsers = new Set(
+      roles
+        .filter((role) => role.code === 'superadmin')
+        .map((role) => role.user_id),
+    )
+    return externalIds.filter(
+      (id) =>
+        superadminUsers.has(id) ||
+        protectedPaths.every((path) => pathsByUser.get(id)?.has(path)),
+    )
+  }
+
   context.after(async () => {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()))
@@ -411,6 +455,7 @@ async function createHarness(context: TestContext) {
     roleFact,
     auditCount,
     latestAudit,
+    externalAuthorizationAdminIds,
     trackUser: (id: string) => fixtureUserIds.push(id),
     trackRole: (id: string) => fixtureRoleIds.push(id),
     trackPermission: (id: string) => fixturePermissionIds.push(id),
@@ -888,7 +933,7 @@ test('real HTTP publishes assignable roles separately from role-maintenance elig
       id: harness.ids.disabledRole,
       code: harness.roleCodes.disabled,
       name: harness.roleCodes.disabled,
-      status: 'DISABLED',
+      enabled: false,
       type: 'NORMAL',
       assignable: false,
     },
@@ -1114,6 +1159,107 @@ test('real HTTP rolls back system, own-role, and over-ceiling role enablement at
     assert.deepEqual(await harness.roleFact(id), before, label)
     assert.equal(await harness.auditCount(id), auditsBefore, label)
   }
+})
+
+test('real HTTP rolls back role disable that would remove the final authorization administrator', async (context) => {
+  const harness = await createHarness(context)
+  const externalAdmins = await harness.externalAuthorizationAdminIds()
+  if (externalAdmins.length > 0) {
+    context.skip(
+      `dedicated test runner has external authorization administrators: ${externalAdmins.join(',')}`,
+    )
+    return
+  }
+  const permissionRows = await harness.db
+    .selectFrom('app_permissions')
+    .select(['id', 'path'])
+    .where(
+      'path',
+      'in',
+      [...new Set([...protectedPaths, '/app/role/disable'])],
+    )
+    .execute()
+  const permissionId = new Map(permissionRows.map((row) => [row.path, row.id]))
+  for (const path of [...protectedPaths, '/app/role/disable'])
+    assert.ok(permissionId.has(path), `target catalog must contain ${path}`)
+
+  await harness.db
+    .deleteFrom('app_role_permissions')
+    .where('role_id', '=', harness.ids.actorRole)
+    .execute()
+  await harness.db
+    .insertInto('app_role_permissions')
+    .values(
+      ['/app/user/query', '/app/role/disable'].map((path) => ({
+        role_id: harness.ids.actorRole,
+        permission_id: permissionId.get(path)!,
+      })),
+    )
+    .execute()
+  await harness.db
+    .deleteFrom('app_role_permissions')
+    .where('role_id', '=', harness.ids.protectedRole)
+    .execute()
+  await harness.db
+    .insertInto('app_role_permissions')
+    .values(
+      protectedPaths.slice(1).map((path) => ({
+        role_id: harness.ids.protectedRole,
+        permission_id: permissionId.get(path)!,
+      })),
+    )
+    .execute()
+  await harness.db
+    .insertInto('app_user_roles')
+    .values({ user_id: harness.ids.peerAdmin, role_id: harness.ids.lowRole })
+    .execute()
+  await harness.db
+    .updateTable('app_users')
+    .set({ status: 'DISABLED' })
+    .where('id', '=', harness.ids.superActor)
+    .execute()
+
+  const peer = await harness.signIn(harness.codes.peerAdmin)
+  const peerBefore = await harness.restore(peer.cookie)
+  assert.equal(peerBefore.code, 0)
+  for (const path of protectedPaths)
+    assert.ok(peerBefore.data.apiPaths.includes(path), `peer has ${path}`)
+  const actor = await harness.signIn(harness.codes.actor)
+  const roleBefore = await harness.roleFact(harness.ids.lowRole)
+  const roleReferencesBefore = await harness.db
+    .selectFrom('app_user_roles')
+    .select(['user_id', 'role_id'])
+    .where('role_id', '=', harness.ids.lowRole)
+    .orderBy('user_id', 'asc')
+    .execute()
+  const auditsBefore = await harness.auditCount(harness.ids.lowRole)
+
+  const rejected = await harness.post(actor, '/app/role/disable', {
+    id: harness.ids.lowRole,
+    revision: String(roleBefore.revision),
+  })
+  assert.equal(rejected.errorKey, 'conflict')
+  assert.deepEqual(await harness.roleFact(harness.ids.lowRole), roleBefore)
+  assert.deepEqual(
+    await harness.db
+      .selectFrom('app_user_roles')
+      .select(['user_id', 'role_id'])
+      .where('role_id', '=', harness.ids.lowRole)
+      .orderBy('user_id', 'asc')
+      .execute(),
+    roleReferencesBefore,
+  )
+  assert.equal(await harness.auditCount(harness.ids.lowRole), auditsBefore)
+  assert.equal(
+    (
+      await harness.post(peer, '/app/user/query', {
+        keyword: '',
+        page: 1,
+        pageSize: 20,
+      })
+    ).code,
+    0,
+  )
 })
 
 test('real HTTP role query matches Chinese pinyin before fixed pagination and reflects a rename immediately', async (context) => {

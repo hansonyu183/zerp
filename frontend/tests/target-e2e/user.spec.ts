@@ -57,6 +57,24 @@ async function openRoleManagement(page: Page): Promise<void> {
   await expect(page.getByTestId('business-unimplemented')).toHaveCount(0)
 }
 
+async function toggleVirtualOption(page: Page, title: string): Promise<void> {
+  const option = page.getByRole('option').filter({ hasText: title })
+  const options = page.getByRole('listbox')
+  await expect(options).toBeVisible()
+  // Vuetify only mounts the visible portion of long option lists.
+  await options.evaluate((element) => {
+    element.scrollTop = 0
+  })
+  await expect(async () => {
+    if (!(await option.count()))
+      await options.evaluate((element) => {
+        element.scrollTop += element.clientHeight
+      })
+    await expect(option).toHaveCount(1, { timeout: 100 })
+  }).toPass({ timeout: 15_000, intervals: [50] })
+  await option.click()
+}
+
 async function createRole(
   page: Page,
   input: { name: string; permissionText: string },
@@ -66,11 +84,7 @@ async function createRole(
   await expect(dialog).toBeVisible()
   await dialog.getByLabel('名称', { exact: true }).fill(input.name)
   await dialog.locator('.v-select .v-field').click()
-  const targetPermission = page
-    .locator('[role="option"]:not(.v-list-item--disabled)')
-    .filter({ hasText: input.permissionText })
-  await expect(targetPermission).toHaveCount(1)
-  await targetPermission.click()
+  await toggleVirtualOption(page, input.permissionText)
   await page.keyboard.press('Escape')
   await dialog.getByRole('button', { name: '保存', exact: true }).click()
   await expect(dialog).toHaveCount(0)
@@ -429,15 +443,10 @@ test('a role with one non-query permission grants the menu without an overbroad 
   const row = await findUserRow(page, userCode)
   await row.getByRole('button', { name: '编辑', exact: true }).click()
   const editor = page.getByRole('dialog')
-  await editor.locator('.v-select .v-field').click()
-  await page
-    .locator('[role="option"]')
-    .filter({ hasText: targetE2ERoleText })
-    .click()
-  await page
-    .locator('[role="option"]:not(.v-list-item--disabled)')
-    .filter({ hasText: roleName })
-    .click()
+  await expect(editor.getByRole('combobox', { name: '角色' })).toBeEnabled()
+  await editor.getByRole('combobox', { name: '角色' }).press('ArrowDown')
+  await toggleVirtualOption(page, targetE2ERoleText)
+  await toggleVirtualOption(page, roleName)
   await page.keyboard.press('Escape')
   await editor.getByRole('button', { name: '保存', exact: true }).click()
   await expect(editor).toHaveCount(0)
@@ -451,6 +460,7 @@ test('a role with one non-query permission grants the menu without an overbroad 
       initialPassword,
       changedPassword,
     )
+    await signIn(userPage, userCode, changedPassword)
     const requests: string[] = []
     userPage.on('request', (request) => requests.push(request.url()))
     await userPage.goto('/app/user')

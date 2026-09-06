@@ -4,19 +4,19 @@ const props = defineProps<{
   mode: 'create' | 'edit'
   title: string
   name: string
-  description: string
   error?: string | null
   saving?: boolean
   loading?: boolean
   canSave?: boolean
-  defaultSalesSurcharge?: string
+  symbol: string
+  quantityScale: number
 }>()
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
   'update:name': [value: string]
-  'update:description': [value: string]
-  'update:defaultSalesSurcharge': [value: string]
+  'update:symbol': [value: string]
+  'update:quantityScale': [value: number]
   save: []
   close: []
 }>()
@@ -47,21 +47,24 @@ function close(): void {
           variant="outlined"
           @update:model-value="emit('update:name', $event ?? '')"
         />
-        <v-textarea
-          :model-value="description"
-          label="说明"
+        <v-text-field
+          :model-value="symbol"
+          label="符号"
           :disabled="saving || loading"
           variant="outlined"
-          @update:model-value="emit('update:description', $event ?? '')"
+          @update:model-value="emit('update:symbol', $event ?? '')"
         />
         <v-text-field
-          v-if="defaultSalesSurcharge !== undefined"
-          :model-value="defaultSalesSurcharge"
-          label="默认销售加价（元/kg）"
+          :model-value="String(quantityScale)"
+          label="数量精度"
+          type="number"
+          min="0"
+          max="6"
+          step="1"
           :disabled="saving || loading"
           variant="outlined"
           @update:model-value="
-            emit('update:defaultSalesSurcharge', $event ?? '')
+            emit('update:quantityScale', Number($event ?? 0))
           "
         />
       </v-card-text>

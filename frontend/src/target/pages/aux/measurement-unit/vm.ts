@@ -1,93 +1,33 @@
 import { computed, reactive, ref } from 'vue'
-
 import {
-  createTargetEmployeeCategory,
-  createTargetPosition,
-  getTargetEmployeeCategory,
-  getTargetPosition,
-  queryTargetEmployeeCategories,
-  queryTargetPositions,
-  saveTargetEmployeeCategory,
-  saveTargetPosition,
-  setTargetEmployeeCategoryEnabled,
-  createTargetPaymentMethod,
-  getTargetPaymentMethod,
-  queryTargetPaymentMethods,
-  saveTargetPaymentMethod,
-  setTargetPaymentMethodEnabled,
-  setTargetPositionEnabled,
+  createTargetMeasurementUnit,
+  getTargetMeasurementUnit,
+  queryTargetMeasurementUnits,
+  saveTargetMeasurementUnit,
+  setTargetMeasurementUnitEnabled,
   TargetApiError,
 } from '../../../api.ts'
 import {
   ListActionUnresolvedError,
   useListPageViewModel,
-  type EnabledListItem,
   type ListAction,
   type ListSearchInput,
 } from '../../../components/list-page/vm.ts'
 import { useTargetSession } from '../../../session/vm.ts'
-
-export type SimpleAuxListItem = EnabledListItem & {
-  revision: string
-  availableActions: readonly ('edit' | 'enable' | 'disable')[]
-}
-
-type SimpleAuxDetail = SimpleAuxListItem & {
-  description?: string
-  defaultSalesSurcharge?: string
-}
-type SimpleAuxPage<Item extends SimpleAuxListItem> = {
-  items: readonly Item[]
-  total: number
-  page: number
-  pageSize: number
-}
-type SimpleAuxMutationInput = {
-  id: string
-  name: string
-  description: string
-  revision: string
-  defaultSalesSurcharge?: string
-}
-type SimpleAuxMutationResult = {
-  id: string
-  revision: string
-  enabled: boolean
-}
-type SimpleAuxOperations<
-  Item extends SimpleAuxListItem,
-  Detail extends SimpleAuxDetail,
-> = {
-  title: string
-  createLabel: string
-  paths: {
-    query: string
-    get: string
-    create: string
-    save: string
-    enable: string
-    disable: string
-  }
-  query: (
-    csrfToken: string,
-    input: ListSearchInput,
-  ) => Promise<SimpleAuxPage<Item>>
-  get: (csrfToken: string, id: string) => Promise<Detail>
-  create: (
-    csrfToken: string,
-    input: Pick<SimpleAuxMutationInput, 'name' | 'description'>,
-  ) => Promise<SimpleAuxMutationResult>
-  save: (
-    csrfToken: string,
-    input: SimpleAuxMutationInput,
-  ) => Promise<SimpleAuxMutationResult>
-  setEnabled: (
-    csrfToken: string,
-    input: Pick<SimpleAuxMutationInput, 'id' | 'revision'>,
-    enabled: boolean,
-  ) => Promise<SimpleAuxMutationResult>
-  fields?: 'payment-method'
-}
+type MeasurementUnitDetail = Awaited<
+  ReturnType<typeof getTargetMeasurementUnit>
+>
+export type MeasurementUnitListItem = Awaited<
+  ReturnType<typeof queryTargetMeasurementUnits>
+>['items'][number]
+export const measurementUnitPaths = {
+  query: '/aux/measurement-unit/query',
+  get: '/aux/measurement-unit/get',
+  create: '/aux/measurement-unit/create',
+  save: '/aux/measurement-unit/save',
+  enable: '/aux/measurement-unit/enable',
+  disable: '/aux/measurement-unit/disable',
+} as const
 
 type EditorCompletion = {
   resolve: (result: 'changed' | void) => void
@@ -113,10 +53,7 @@ function isRevisionConflict(cause: unknown): boolean {
   return cause instanceof TargetApiError && cause.errorKey === 'conflict'
 }
 
-function createSimpleAuxManagementViewModel<
-  Item extends SimpleAuxListItem,
-  Detail extends SimpleAuxDetail,
->(operations: SimpleAuxOperations<Item, Detail>) {
+export function useMeasurementUnitManagementViewModel() {
   const session = useTargetSession()
   const editorOpen = ref(false)
   const editorMode = ref<'create' | 'edit'>('create')
@@ -124,14 +61,14 @@ function createSimpleAuxManagementViewModel<
   const saving = ref(false)
   const editorWriteBlocked = ref(false)
   const editorError = ref<string | null>(null)
-  const detail = ref<Detail | null>(null)
+  const detail = ref<MeasurementUnitDetail | null>(null)
   const lastCreatedId = ref<string | null>(null)
   const editor = reactive({
     id: '',
     name: '',
-    description: '',
     revision: '',
-    defaultSalesSurcharge: '0.00',
+    symbol: '',
+    quantityScale: 0,
   })
   let editorRequest = 0
   let editorCompletion: EditorCompletion | null = null
@@ -159,11 +96,11 @@ function createSimpleAuxManagementViewModel<
 
   const canSave = computed(() => {
     if (editorLoading.value || editorWriteBlocked.value) return false
-    if (editorMode.value === 'create') return can(operations.paths.create)
+    if (editorMode.value === 'create') return can(measurementUnitPaths.create)
     return Boolean(
       detail.value?.availableActions.includes('edit') &&
-      can(operations.paths.get) &&
-      can(operations.paths.save),
+      can(measurementUnitPaths.get) &&
+      can(measurementUnitPaths.save),
     )
   })
 
@@ -171,9 +108,9 @@ function createSimpleAuxManagementViewModel<
     Object.assign(editor, {
       id: '',
       name: '',
-      description: '',
       revision: '',
-      defaultSalesSurcharge: '0.00',
+      symbol: '',
+      quantityScale: 0,
     })
     detail.value = null
     editorError.value = null
@@ -222,45 +159,38 @@ function createSimpleAuxManagementViewModel<
 
   function openCreate(): Promise<'changed' | void> {
     const opening = beginEditor('create')
-    if (!can(operations.paths.create))
-      editorError.value = `缺少新增${operations.title}权限。`
+    if (!can(measurementUnitPaths.create))
+      editorError.value = '缺少新增计量单位权限。'
     return opening.promise
   }
 
-  function openEdit(item: Item): Promise<'changed' | void> {
+  function openEdit(item: MeasurementUnitListItem): Promise<'changed' | void> {
     const opening = beginEditor('edit')
-    if (!can(operations.paths.get) || !can(operations.paths.save)) {
-      editorError.value = `编辑${operations.title}需要详情和保存权限。`
+    if (!can(measurementUnitPaths.get) || !can(measurementUnitPaths.save)) {
+      editorError.value = '编辑计量单位需要详情和保存权限。'
       return opening.promise
     }
-    const token = csrfFor(opening.generation, operations.paths.get)
+    const token = csrfFor(opening.generation, measurementUnitPaths.get)
     if (!token) {
       editorError.value = '会话已失效，无法加载编辑信息。'
       return opening.promise
     }
     editorLoading.value = true
-    void operations
-      .get(token, item.id)
+    void getTargetMeasurementUnit(token, item.id)
       .then((current) => {
         if (!isEditorCurrent(opening)) return
         detail.value = current
         Object.assign(editor, {
           id: current.id,
           name: current.name,
-          description: current.description,
           revision: current.revision,
-          defaultSalesSurcharge:
-            'defaultSalesSurcharge' in current
-              ? current.defaultSalesSurcharge
-              : '0.00',
+          symbol: current.symbol,
+          quantityScale: current.quantityScale,
         })
       })
       .catch((cause) => {
         if (!isEditorCurrent(opening)) return
-        editorError.value = messageOf(
-          cause,
-          `${operations.title}编辑信息加载失败。`,
-        )
+        editorError.value = messageOf(cause, '计量单位编辑信息加载失败。')
       })
       .finally(() => {
         if (isEditorCurrent(opening)) editorLoading.value = false
@@ -271,10 +201,12 @@ function createSimpleAuxManagementViewModel<
   function validateEditor(): string | null {
     if (!editor.name.trim()) return '请输入名称。'
     if (
-      operations.fields === 'payment-method' &&
-      !/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(editor.defaultSalesSurcharge)
+      !editor.symbol.trim() ||
+      !Number.isInteger(editor.quantityScale) ||
+      editor.quantityScale < 0 ||
+      editor.quantityScale > 6
     )
-      return '请输入有效的销售加价（非负，最多两位小数）。'
+      return '请输入有效的符号和数量精度（0–6）。'
     return null
   }
 
@@ -293,17 +225,20 @@ function createSimpleAuxManagementViewModel<
     try {
       const input = {
         name: editor.name.trim(),
-        description: editor.description.trim(),
+        symbol: editor.symbol.trim(),
+        quantityScale: editor.quantityScale,
       }
-      if (operations.fields === 'payment-method')
-        Object.assign(input, {
-          defaultSalesSurcharge: editor.defaultSalesSurcharge,
-        })
       if (editorMode.value === 'create') {
-        const created = await operations.create(token, input)
+        const created = await createTargetMeasurementUnit(token, input)
+        if (
+          disposed ||
+          request !== editorRequest ||
+          generation !== session.generation
+        )
+          return
         lastCreatedId.value = created.id
       } else
-        await operations.save(token, {
+        await saveTargetMeasurementUnit(token, {
           id: editor.id,
           revision: editor.revision,
           ...input,
@@ -330,7 +265,7 @@ function createSimpleAuxManagementViewModel<
         cause instanceof TargetApiError &&
         cause.errorKey !== 'invalid_response'
       ) {
-        editorError.value = messageOf(cause, `${operations.title}保存失败。`)
+        editorError.value = messageOf(cause, '计量单位保存失败。')
         return
       }
       failEditorUnresolved('请求结果未知；已停止再次提交，请刷新后核实。')
@@ -349,29 +284,37 @@ function createSimpleAuxManagementViewModel<
     finishEditor()
   }
 
-  function canListAction(item: Item | null, action: ListAction): boolean {
-    if (action === 'create') return can(operations.paths.create)
+  function canListAction(
+    item: MeasurementUnitListItem | null,
+    action: ListAction,
+  ): boolean {
+    if (action === 'create') return can(measurementUnitPaths.create)
     if (!item) return false
     if (action === 'edit')
       return (
         item.availableActions.includes('edit') &&
-        can(operations.paths.get) &&
-        can(operations.paths.save)
+        can(measurementUnitPaths.get) &&
+        can(measurementUnitPaths.save)
       )
     if (action === 'enable')
       return (
-        item.availableActions.includes('enable') && can(operations.paths.enable)
+        item.availableActions.includes('enable') &&
+        can(measurementUnitPaths.enable)
       )
     return (
-      item.availableActions.includes('disable') && can(operations.paths.disable)
+      item.availableActions.includes('disable') &&
+      can(measurementUnitPaths.disable)
     )
   }
 
-  async function setEnabled(item: Item, enabled: boolean): Promise<'changed'> {
+  async function setEnabled(
+    item: MeasurementUnitListItem,
+    enabled: boolean,
+  ): Promise<'changed'> {
     const generation = session.generation
     const token = csrf()
     try {
-      await operations.setEnabled(
+      await setTargetMeasurementUnitEnabled(
         token,
         { id: item.id, revision: item.revision },
         enabled,
@@ -390,14 +333,12 @@ function createSimpleAuxManagementViewModel<
         throw new Error(
           messageOf(
             cause,
-            enabled
-              ? `${operations.title}启用失败。`
-              : `${operations.title}停用失败。`,
+            enabled ? '计量单位启用失败。' : '计量单位停用失败。',
           ),
         )
       try {
-        const readToken = csrfFor(generation, operations.paths.get)
-        if (readToken) await operations.get(readToken, item.id)
+        const readToken = csrfFor(generation, measurementUnitPaths.get)
+        if (readToken) await getTargetMeasurementUnit(readToken, item.id)
       } catch {
         // A read can inform the operator but cannot prove this write.
       }
@@ -407,21 +348,24 @@ function createSimpleAuxManagementViewModel<
     }
   }
 
-  const list = useListPageViewModel<Item>({
-    ...(can(operations.paths.query)
+  const list = useListPageViewModel<MeasurementUnitListItem>({
+    ...(can(measurementUnitPaths.query)
       ? {
-          onSearch: (input: ListSearchInput) => operations.query(csrf(), input),
+          onSearch: (input: ListSearchInput) =>
+            queryTargetMeasurementUnits(csrf(), input),
         }
       : {}),
-    ...(can(operations.paths.create) ? { onCreate: openCreate } : {}),
-    ...(can(operations.paths.get) && can(operations.paths.save)
+    ...(can(measurementUnitPaths.create) ? { onCreate: openCreate } : {}),
+    ...(can(measurementUnitPaths.get) && can(measurementUnitPaths.save)
       ? { onEdit: openEdit }
       : {}),
-    ...(can(operations.paths.enable)
-      ? { onEnable: (item: Item) => setEnabled(item, true) }
+    ...(can(measurementUnitPaths.enable)
+      ? { onEnable: (item: MeasurementUnitListItem) => setEnabled(item, true) }
       : {}),
-    ...(can(operations.paths.disable)
-      ? { onDisable: (item: Item) => setEnabled(item, false) }
+    ...(can(measurementUnitPaths.disable)
+      ? {
+          onDisable: (item: MeasurementUnitListItem) => setEnabled(item, false),
+        }
       : {}),
     onCanAction: canListAction,
   })
@@ -457,90 +401,4 @@ function createSimpleAuxManagementViewModel<
     closeEditor,
     dispose,
   }
-}
-
-type EmployeeCategoryPage = Awaited<
-  ReturnType<typeof queryTargetEmployeeCategories>
->
-export type EmployeeCategoryListItem = EmployeeCategoryPage['items'][number]
-type EmployeeCategoryDetail = Awaited<
-  ReturnType<typeof getTargetEmployeeCategory>
->
-type PositionPage = Awaited<ReturnType<typeof queryTargetPositions>>
-export type PositionListItem = PositionPage['items'][number]
-type PositionDetail = Awaited<ReturnType<typeof getTargetPosition>>
-
-export const employeeCategoryPaths = {
-  query: '/aux/employee-category/query',
-  get: '/aux/employee-category/get',
-  create: '/aux/employee-category/create',
-  save: '/aux/employee-category/save',
-  enable: '/aux/employee-category/enable',
-  disable: '/aux/employee-category/disable',
-} as const
-
-export const positionPaths = {
-  query: '/aux/position/query',
-  get: '/aux/position/get',
-  create: '/aux/position/create',
-  save: '/aux/position/save',
-  enable: '/aux/position/enable',
-  disable: '/aux/position/disable',
-} as const
-
-export function useEmployeeCategoryManagementViewModel() {
-  return createSimpleAuxManagementViewModel<
-    EmployeeCategoryListItem,
-    EmployeeCategoryDetail
-  >({
-    title: '员工分类',
-    createLabel: '新增员工分类',
-    paths: employeeCategoryPaths,
-    query: queryTargetEmployeeCategories,
-    get: getTargetEmployeeCategory,
-    create: createTargetEmployeeCategory,
-    save: saveTargetEmployeeCategory,
-    setEnabled: setTargetEmployeeCategoryEnabled,
-  })
-}
-
-export function usePositionManagementViewModel() {
-  return createSimpleAuxManagementViewModel<PositionListItem, PositionDetail>({
-    title: '岗位',
-    createLabel: '新增岗位',
-    paths: positionPaths,
-    query: queryTargetPositions,
-    get: getTargetPosition,
-    create: createTargetPosition,
-    save: saveTargetPosition,
-    setEnabled: setTargetPositionEnabled,
-  })
-}
-
-type PaymentMethodPage = Awaited<ReturnType<typeof queryTargetPaymentMethods>>
-export type PaymentMethodListItem = PaymentMethodPage['items'][number]
-type PaymentMethodDetail = Awaited<ReturnType<typeof getTargetPaymentMethod>>
-export const paymentMethodPaths = {
-  query: '/aux/payment-method/query',
-  get: '/aux/payment-method/get',
-  create: '/aux/payment-method/create',
-  save: '/aux/payment-method/save',
-  enable: '/aux/payment-method/enable',
-  disable: '/aux/payment-method/disable',
-} as const
-export function usePaymentMethodManagementViewModel() {
-  return createSimpleAuxManagementViewModel<
-    PaymentMethodListItem,
-    PaymentMethodDetail
-  >({
-    title: '收款方式',
-    createLabel: '新增收款方式',
-    fields: 'payment-method',
-    paths: paymentMethodPaths,
-    query: queryTargetPaymentMethods,
-    get: getTargetPaymentMethod,
-    create: createTargetPaymentMethod as never,
-    save: saveTargetPaymentMethod as never,
-    setEnabled: setTargetPaymentMethodEnabled,
-  })
 }

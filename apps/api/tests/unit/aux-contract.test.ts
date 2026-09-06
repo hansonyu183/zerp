@@ -357,4 +357,27 @@ test('all twelve AUX entities expose one strict typed management protocol', asyn
       `${entity} numeric revision`,
     )
   }
+  for (const quantityScale of [0, 6]) {
+    assert.equal(
+      (
+        await post(app, '/aux/measurement-unit/create', {
+          name: '千克',
+          symbol: 'kg',
+          quantityScale,
+        })
+      ).code,
+      0,
+    )
+  }
+  for (const fields of [
+    { name: '千克', symbol: 'kg', quantityScale: -1 },
+    { name: '千克', symbol: 'kg', quantityScale: 7 },
+    { name: '千克', symbol: 'kg', quantityScale: 1.5 },
+    { name: '千克', symbol: '', quantityScale: 3 },
+    { name: '千克', symbol: 'kg', quantityScale: 3, description: '' },
+  ])
+    assert.equal(
+      (await post(app, '/aux/measurement-unit/create', fields)).errorKey,
+      'validation_failed',
+    )
 })

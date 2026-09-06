@@ -2,11 +2,11 @@
 import { onBeforeUnmount, onMounted, reactive } from 'vue'
 import ListPageShell from '../../../components/list-page/ListPageShell.vue'
 import type { ListIdentity } from '../../../components/list-page/vm.ts'
-import SimpleAuxEditorPresentation from '../simple/SimpleAuxEditorPresentation.vue'
+import MeasurementUnitEditor from './MeasurementUnitEditor.vue'
 import {
   useMeasurementUnitManagementViewModel,
   type MeasurementUnitListItem,
-} from '../simple/vm.ts'
+} from './vm.ts'
 const vm = reactive(useMeasurementUnitManagementViewModel())
 const item = (value: ListIdentity) => value as MeasurementUnitListItem
 onMounted(() => void vm.list.initialize())
@@ -43,13 +43,12 @@ onBeforeUnmount(vm.dispose)
     @page="vm.list.goToPage"
     @dismiss-feedback="vm.list.dismissFeedback"
   />
-  <SimpleAuxEditorPresentation
+  <MeasurementUnitEditor
     v-bind="{
       open: vm.editorOpen,
       mode: vm.editorMode,
       title: '计量单位',
       name: vm.editor.name,
-      description: vm.editor.description,
       symbol: vm.editor.symbol,
       quantityScale: vm.editor.quantityScale,
       error: vm.editorError,
@@ -59,7 +58,6 @@ onBeforeUnmount(vm.dispose)
     }"
     @update:open="$event || vm.closeEditor()"
     @update:name="vm.editor.name = $event"
-    @update:description="vm.editor.description = $event"
     @update:symbol="vm.editor.symbol = $event"
     @update:quantityScale="vm.editor.quantityScale = $event"
     @save="vm.saveEditor"

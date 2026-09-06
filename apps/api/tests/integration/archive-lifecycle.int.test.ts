@@ -1924,6 +1924,68 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   }
 
   const aux = new AuxService(db)
+  const unitActor = {
+    id: submitterId,
+    permissions: ['get', 'save', 'disable'].map(
+      (action) => `/aux/measurement-unit/${action}`,
+    ),
+  }
+  const unitBefore = await aux.get(
+    'measurement-unit',
+    { id: auxIds[3]! },
+    unitActor,
+  )
+  const unitChanged = await aux.save(
+    'measurement-unit',
+    {
+      id: unitBefore.id,
+      revision: unitBefore.revision,
+      name: '新的单位名称',
+      symbol: 'new',
+      quantityScale: 6,
+    },
+    unitActor,
+  )
+  await aux.disable(
+    'measurement-unit',
+    { id: unitBefore.id, revision: unitChanged.revision },
+    unitActor,
+    ulid(),
+  )
+  const historicalProduct = await service.get(
+    'product',
+    product.subjectId,
+    reviewer,
+    product.submissionId,
+  )
+  assert.deepEqual(historicalProduct.snapshot.pricingUnit, {
+    id: auxIds[3],
+    code: 'TST-0004',
+    name: '测试引用 4',
+    symbol: 'kg',
+    quantityScale: 3,
+  })
+  const rejectedUnitSubjectId = ulid()
+  subjectIds.push(rejectedUnitSubjectId)
+  await assert.rejects(
+    service.submit(
+      'product',
+      'submit-new',
+      {
+        subjectId: rejectedUnitSubjectId,
+        submissionId: ulid(),
+        idempotencyKey: ulid(),
+        expectedLatestApprovedSubmissionId: null,
+        expectedLatestApprovedRevision: null,
+        snapshot: { ...formulaSnapshot, barcode: 'disabled-unit-387' },
+      },
+      submitter,
+      ulid(),
+    ),
+    (error: unknown) =>
+      error instanceof ArchiveApplicationError &&
+      error.errorKey === 'product_reference_unavailable',
+  )
   const auxActor = {
     id: submitterId,
     permissions: ['/aux/payment-method/get', '/aux/payment-method/disable'],

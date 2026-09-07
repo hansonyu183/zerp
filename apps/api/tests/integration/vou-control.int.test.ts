@@ -306,6 +306,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
         dayOfMonth: 0,
         dayOffset: 0,
       }),
+      payment_snapshot: null,
       credit_limits: JSON.stringify([{ currency: 'CNY', amount: '1.00' }]),
       enabled: true,
     })
@@ -555,6 +556,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
       approvalEntryId: customerEntryId,
       selectionOrigin: 'CURRENT' as const,
     },
+    paymentMethod: null,
     operatingEntity: {
       objectId: operatingEntityId,
       approvalEntryId: operatingEntityEntryId,
@@ -1025,6 +1027,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
         name: '测试客户类型',
       }),
       settlement_snapshot: prepaid,
+      payment_snapshot: null,
       credit_limits: JSON.stringify([]),
       enabled: true,
     })
@@ -1138,6 +1141,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
             currency: 'CNY',
             attachments: [],
             customerSubunit,
+            paymentMethod: null,
             operatingEntity: {
               objectId: operatingEntityId,
               approvalEntryId: operatingEntityEntryId,

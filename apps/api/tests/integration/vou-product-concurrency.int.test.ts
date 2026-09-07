@@ -479,6 +479,7 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
         code: 'CUSTOMER-TYPE-TEST',
         name: '测试客户类型',
       }),
+      payment_snapshot: null,
       enabled: true,
     })
     .execute()
@@ -517,6 +518,7 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
       approvalEntryId: directApprovalIds.customer,
       selectionOrigin: 'CURRENT',
     },
+    paymentMethod: null,
     operatingEntity: {
       objectId: directSubjectIds.operatingEntity,
       approvalEntryId: directApprovalIds.operatingEntity,

@@ -3,6 +3,7 @@ import type { Schema } from 'hono'
 import {
   vouEntities,
   vouEntityPresentation,
+  vouPaymentMethodSelectionOrigins,
   userCreatableVouEntities,
   vouReferenceCandidateEntities,
   vouSourceLineSourceEntities,
@@ -27,6 +28,18 @@ const referenceCandidateBase = {
   code: z.string(),
   name: z.string(),
 }
+const auxMoney = z.string().regex(/^(?:0|[1-9]\d*)\.\d{2}$/)
+const paymentMethodSnapshot = z
+  .object({
+    objectId: z.string().length(26),
+    code: z.string().trim().min(1).max(64),
+    name: z.string().trim().min(1).max(200),
+    defaultSalesSurcharge: auxMoney,
+  })
+  .strict()
+const paymentMethodSelection = paymentMethodSnapshot
+  .extend({ selectionOrigin: z.enum(vouPaymentMethodSelectionOrigins) })
+  .strict()
 const referenceCandidate = z.discriminatedUnion('entity', [
   z
     .object({
@@ -34,7 +47,11 @@ const referenceCandidate = z.discriminatedUnion('entity', [
       entity: z.literal('customer-subunit'),
       customerId: z.string().length(26),
       approvalEntryId: z.string().length(26),
+      paymentMethod: paymentMethodSnapshot.nullable(),
     })
+    .strict(),
+  paymentMethodSnapshot
+    .extend({ entity: z.literal('payment-method') })
     .strict(),
   z
     .object({
@@ -49,6 +66,7 @@ const referenceCandidate = z.discriminatedUnion('entity', [
       ...referenceCandidateBase,
       entity: referenceCandidateEntity.exclude([
         'customer-subunit',
+        'payment-method',
         'asset-category',
       ]),
     })
@@ -437,6 +455,7 @@ export const vouPayloadSchemaByEntity = {
     operatingEntity: versionedReference,
     salesperson: versionedReference.optional(),
     warehouse: versionedReference,
+    paymentMethod: paymentMethodSelection.nullable(),
     productLines: z.array(productLine).min(1).max(200),
     creditOverrideReason: z.string().trim().min(1).max(1000).optional(),
   }),

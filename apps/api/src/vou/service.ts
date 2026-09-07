@@ -10,6 +10,7 @@ import {
   type ApprovalStatus,
   type VouEntity,
   type VouMeasurementUnitSnapshotInput,
+  type VouPaymentMethodSnapshotInput,
   type VouPayload,
   type VouProductQuantitySnapshotInput,
   type VouPayloadFor,
@@ -212,6 +213,11 @@ export type VouReferenceCandidate =
       entity: 'customer-subunit'
       customerId: string
       approvalEntryId: string
+      paymentMethod: VouPaymentMethodSnapshotInput | null
+    })
+  | (VouReferenceCandidateBase & {
+      entity: 'payment-method'
+      defaultSalesSurcharge: string
     })
   | (VouReferenceCandidateBase & {
       entity: 'asset-category'
@@ -221,7 +227,7 @@ export type VouReferenceCandidate =
   | (VouReferenceCandidateBase & {
       entity: Exclude<
         VouReferenceCandidateEntity,
-        'customer-subunit' | 'asset-category'
+        'customer-subunit' | 'asset-category' | 'payment-method'
       >
     })
 
@@ -322,6 +328,28 @@ function decimalToFixed(
     BigInt(whole) * multiplier +
     BigInt((fractional + '0'.repeat(scale)).slice(0, scale))
   return negative ? -fixed : fixed
+}
+
+function paymentMethodSnapshot(
+  value: unknown,
+): VouPaymentMethodSnapshotInput | null {
+  if (value === null) return null
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new VouApplicationError('vou_reference_unavailable')
+  const row = value as Record<string, unknown>
+  if (
+    typeof row.id !== 'string' ||
+    typeof row.code !== 'string' ||
+    typeof row.name !== 'string' ||
+    typeof row.defaultSalesSurcharge !== 'string'
+  )
+    throw new VouApplicationError('vou_reference_unavailable')
+  return {
+    objectId: row.id,
+    code: row.code,
+    name: row.name,
+    defaultSalesSurcharge: row.defaultSalesSurcharge,
+  }
 }
 
 function quantityFitsScale(value: string, scale: number): boolean {
@@ -1196,6 +1224,8 @@ export class VouService implements WflVouPort {
       customer_id: string | null
       code: string
       name: string
+      payment_snapshot?: unknown
+      default_sales_surcharge?: string
       default_useful_life_months?: number | null
       default_residual_rate?: string | null
     }>`
@@ -1208,11 +1238,26 @@ export class VouService implements WflVouPort {
             throw new VouApplicationError('vou_reference_unavailable')
           return {
             entity: 'customer-subunit',
+            paymentMethod: paymentMethodSnapshot(row.payment_snapshot),
             objectId: row.object_id,
             customerId: row.customer_id,
             approvalEntryId: row.approval_entry_id,
             code: row.code,
             name: row.name,
+          }
+        }),
+      }
+    if (entity === 'payment-method')
+      return {
+        items: result.rows.map((row) => {
+          if (row.default_sales_surcharge === undefined)
+            throw new VouApplicationError('vou_reference_unavailable')
+          return {
+            entity,
+            objectId: row.object_id,
+            code: row.code,
+            name: row.name,
+            defaultSalesSurcharge: row.default_sales_surcharge,
           }
         }),
       }
@@ -1601,7 +1646,7 @@ export class VouService implements WflVouPort {
         return dcl('product', 'dcl_product_versions', 'version.name')
       case 'customer-subunit':
         return `
-        SELECT root.subunit_id AS object_id, approval.id AS approval_entry_id, root.customer_id, root.code, subunit.name
+        SELECT root.subunit_id AS object_id, approval.id AS approval_entry_id, root.customer_id, root.code, subunit.name, subunit.payment_snapshot
         FROM dcl_customer_subunit_roots root
         JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'dcl' AND entry.entity = 'customer' AND entry.subject_id = root.customer_id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
         JOIN dcl_customer_versions customer ON customer.approval_entry_id = approval.id AND customer.enabled
@@ -1610,6 +1655,8 @@ export class VouService implements WflVouPort {
       case 'measurement-unit':
       case 'department':
         return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, code, COALESCE(data->>'name', code) AS name FROM aux_objects WHERE entity = '${entity}' AND enabled`
+      case 'payment-method':
+        return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, code, data->>'name' AS name, data->>'defaultSalesSurcharge' AS default_sales_surcharge FROM aux_objects WHERE entity = 'payment-method' AND enabled`
       case 'asset-category':
         return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, code, COALESCE(data->>'name', code) AS name, (data->>'defaultUsefulLifeMonths')::integer AS default_useful_life_months, data->>'defaultResidualRate' AS default_residual_rate FROM aux_objects WHERE entity = 'asset-category' AND enabled`
       case 'asset':
@@ -2092,7 +2139,67 @@ export class VouService implements WflVouPort {
     blockers.push(
       ...(await this.validateProductMeasurementUnits(transaction, payload)),
     )
+    if ('paymentMethod' in payload)
+      blockers.push(...(await this.validatePaymentMethod(transaction, payload)))
     return blockers.length === 0 ? { ok: true } : { ok: false, blockers }
+  }
+
+  private async validatePaymentMethod(
+    transaction: Transaction<DB>,
+    payload: VouPayloadFor<'sale-order'>,
+  ): Promise<VouReferenceBlocker[]> {
+    const selected = payload.paymentMethod
+    const customer = await transaction
+      .selectFrom('dcl_customer_version_subunits')
+      .select('payment_snapshot')
+      .where(
+        'customer_approval_entry_id',
+        '=',
+        payload.customerSubunit.approvalEntryId,
+      )
+      .where('subunit_id', '=', payload.customerSubunit.objectId)
+      .executeTakeFirst()
+    // validateReferences already locks and validates the owning approved customer entry.
+    let expected: VouPaymentMethodSnapshotInput | null = customer
+      ? paymentMethodSnapshot(customer.payment_snapshot)
+      : null
+    if (selected?.selectionOrigin === 'CURRENT') {
+      const current = await transaction
+        .selectFrom('aux_objects')
+        .select(['id', 'code', 'data'])
+        .where('id', '=', selected.objectId)
+        .where('entity', '=', 'payment-method')
+        .where('enabled', '=', true)
+        .forShare()
+        .executeTakeFirst()
+      expected = current
+        ? paymentMethodSnapshot({
+            ...(current.data as Record<string, unknown>),
+            id: current.id,
+            code: current.code,
+          })
+        : null
+    }
+    const matches =
+      selected === null
+        ? customer !== undefined && expected === null
+        : expected !== null &&
+          selected.objectId === expected.objectId &&
+          selected.code === expected.code &&
+          selected.name === expected.name &&
+          decimalToFixed(selected.defaultSalesSurcharge, 2) ===
+            decimalToFixed(expected.defaultSalesSurcharge, 2)
+    return matches
+      ? []
+      : [
+          {
+            kind: 'REFERENCE',
+            field: 'paymentMethod',
+            entity: 'payment-method',
+            objectId: selected?.objectId ?? expected?.objectId ?? '',
+            approvalEntryId: null,
+          },
+        ]
   }
 
   private async validateProductMeasurementUnits(
@@ -2954,13 +3061,20 @@ export class VouService implements WflVouPort {
           WHERE approval_entry_id = ${approvalEntryId}
         `)
         break
-      case 'sale-order':
+      case 'sale-order': {
+        const payment = (payload as VouPayloadFor<'sale-order'>).paymentMethod
         await update(sql`
           UPDATE vou_sale_order_details
-          SET credit_override_reason = ${value.creditOverrideReason ?? null}
+          SET credit_override_reason = ${value.creditOverrideReason ?? null},
+            payment_method_id = ${payment?.objectId ?? null},
+            payment_method_code = ${payment?.code ?? null},
+            payment_method_name = ${payment?.name ?? null},
+            payment_method_sales_surcharge_minor = ${payment ? decimalToFixed(payment.defaultSalesSurcharge, 2) : null},
+            payment_method_selection_origin = ${payment?.selectionOrigin ?? null}
           WHERE approval_entry_id = ${approvalEntryId}
         `)
         break
+      }
       case 'sale-return':
         await update(
           sql`UPDATE vou_sale_return_details SET return_reason = ${'returnReason' in payload ? payload.returnReason : null} WHERE approval_entry_id = ${approvalEntryId}`,
@@ -3496,7 +3610,12 @@ export class VouService implements WflVouPort {
           ? (
               await sql<{
                 credit_override_reason: string | null
-              }>`SELECT credit_override_reason FROM vou_sale_order_details WHERE approval_entry_id = ${approvalEntryId}`.execute(
+                payment_method_id: string | null
+                payment_method_code: string | null
+                payment_method_name: string | null
+                payment_method_sales_surcharge_minor: string | null
+                payment_method_selection_origin: 'CUSTOMER' | 'CURRENT' | null
+              }>`SELECT * FROM vou_sale_order_details WHERE approval_entry_id = ${approvalEntryId}`.execute(
                 executor,
               )
             ).rows[0]
@@ -3504,6 +3623,18 @@ export class VouService implements WflVouPort {
       const top =
         entity === 'sale-order'
           ? {
+              paymentMethod: detail?.payment_method_id
+                ? {
+                    objectId: detail.payment_method_id,
+                    code: detail.payment_method_code!,
+                    name: detail.payment_method_name!,
+                    defaultSalesSurcharge: fixed(
+                      detail.payment_method_sales_surcharge_minor!,
+                      2,
+                    ),
+                    selectionOrigin: detail.payment_method_selection_origin!,
+                  }
+                : null,
               customerSubunit: reference('customerSubunit'),
               operatingEntity: reference('operatingEntity'),
               ...(refs.has('salesperson:0:0')

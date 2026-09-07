@@ -88,6 +88,7 @@ test('VOU order quantities require a complete measurement-unit snapshot', () => 
       approvalEntryId: '01J00000000000000000000006',
       selectionOrigin: 'CURRENT',
     },
+    paymentMethod: null,
     productLines: [
       {
         lineId: '01J00000000000000000000007',
@@ -308,6 +309,7 @@ test('VOU customer-subunit reference candidates carry the exact customer identit
     approvalEntryId: view.submissionId,
     code: 'SUB-0001',
     name: '总部',
+    paymentMethod: null,
   }
   assert.equal(
     responseSchema('reference').safeParse(success({ items: [customerSubunit] }))
@@ -316,7 +318,33 @@ test('VOU customer-subunit reference candidates carry the exact customer identit
   )
   assert.equal(
     responseSchema('reference').safeParse(
+      success({
+        items: [
+          {
+            ...customerSubunit,
+            paymentMethod: {
+              objectId: '01J00000000000000000000007',
+              code: 'PMT-BANK',
+              name: '银行转账',
+              defaultSalesSurcharge: '0.25',
+            },
+          },
+        ],
+      }),
+    ).success,
+    true,
+  )
+  assert.equal(
+    responseSchema('reference').safeParse(
       success({ items: [{ ...customerSubunit, customerId: undefined }] }),
+    ).success,
+    false,
+  )
+  const { paymentMethod: _paymentMethod, ...missingPaymentMethod } =
+    customerSubunit
+  assert.equal(
+    responseSchema('reference').safeParse(
+      success({ items: [missingPaymentMethod] }),
     ).success,
     false,
   )
@@ -335,6 +363,112 @@ test('VOU customer-subunit reference candidates carry the exact customer identit
       }),
     ).success,
     true,
+  )
+})
+
+test('VOU sale-order and reference contracts expose exact payment-method snapshots', () => {
+  const paymentMethod = {
+    objectId: '01J00000000000000000000010',
+    code: 'PMT-BANK',
+    name: '银行转账',
+    defaultSalesSurcharge: '0.25',
+    selectionOrigin: 'CUSTOMER',
+  }
+  const saleOrder = {
+    businessDate: '2026-09-07',
+    currency: 'CNY',
+    attachments: [],
+    customerSubunit: {
+      objectId: id,
+      approvalEntryId: '01J00000000000000000000002',
+      selectionOrigin: 'CURRENT',
+    },
+    operatingEntity: {
+      objectId: '01J00000000000000000000003',
+      approvalEntryId: '01J00000000000000000000004',
+      selectionOrigin: 'CURRENT',
+    },
+    warehouse: {
+      objectId: '01J00000000000000000000005',
+      approvalEntryId: '01J00000000000000000000006',
+      selectionOrigin: 'CURRENT',
+    },
+    paymentMethod,
+    productLines: [
+      {
+        lineId: '01J00000000000000000000007',
+        product: { objectId: '01J00000000000000000000008' },
+        enteredQuantity: '1.00',
+        enteredUnit: {
+          objectId: '01J00000000000000000000009',
+          code: 'UNT-KG',
+          name: '千克',
+          symbol: 'kg',
+          quantityScale: 2,
+        },
+        baseQuantity: '1.000000',
+        unitPrice: '10.00',
+      },
+    ],
+  }
+
+  for (const selectionOrigin of ['CUSTOMER', 'CURRENT'])
+    assert.equal(
+      vouPayloadSchemaByEntity['sale-order'].safeParse({
+        ...saleOrder,
+        paymentMethod: { ...paymentMethod, selectionOrigin },
+      }).success,
+      true,
+    )
+  assert.equal(
+    vouPayloadSchemaByEntity['sale-order'].safeParse({
+      ...saleOrder,
+      paymentMethod: null,
+    }).success,
+    true,
+  )
+  for (const invalidPaymentMethod of [
+    { ...paymentMethod, objectId: 'not-an-id' },
+    { ...paymentMethod, code: '   ' },
+    { ...paymentMethod, name: '' },
+    { ...paymentMethod, defaultSalesSurcharge: '-0.01' },
+    { ...paymentMethod, defaultSalesSurcharge: '0.2' },
+    { ...paymentMethod, selectionOrigin: 'HISTORICAL' },
+  ])
+    assert.equal(
+      vouPayloadSchemaByEntity['sale-order'].safeParse({
+        ...saleOrder,
+        paymentMethod: invalidPaymentMethod,
+      }).success,
+      false,
+    )
+  const { paymentMethod: _orderPaymentMethod, ...missingPaymentMethod } =
+    saleOrder
+  assert.equal(
+    vouPayloadSchemaByEntity['sale-order'].safeParse(missingPaymentMethod)
+      .success,
+    false,
+  )
+
+  const candidate = {
+    entity: 'payment-method',
+    objectId: paymentMethod.objectId,
+    code: paymentMethod.code,
+    name: paymentMethod.name,
+    defaultSalesSurcharge: paymentMethod.defaultSalesSurcharge,
+  }
+  assert.equal(
+    responseSchema('reference').safeParse(success({ items: [candidate] }))
+      .success,
+    true,
+  )
+  assert.equal(
+    responseSchema('reference').safeParse(
+      success({
+        items: [{ ...candidate, defaultSalesSurcharge: undefined }],
+      }),
+    ).success,
+    false,
   )
 })
 

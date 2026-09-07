@@ -941,6 +941,15 @@ export class AuxService {
           FROM vou_production_material_snapshots WHERE entered_unit_id = ${id}
         `)
       }
+      if (entity === 'payment-method')
+        references.push(sql`
+          SELECT 'dcl_customer_version_subunits' AS source
+          FROM dcl_customer_version_subunits
+          WHERE payment_snapshot->>'id' = ${id}
+          UNION ALL
+          SELECT 'vou_sale_order_details' AS source
+          FROM vou_sale_order_details WHERE payment_method_id = ${id}
+        `)
       const blockers = await sql<{
         source: string
         count: string | number

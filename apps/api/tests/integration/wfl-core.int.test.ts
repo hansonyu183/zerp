@@ -231,6 +231,7 @@ async function seedSaleOrderReferences(
         name: '测试客户类型',
       }),
       settlement_snapshot: null,
+      payment_snapshot: null,
       credit_limits: JSON.stringify([]),
       enabled: true,
     })
@@ -285,6 +286,7 @@ function saleOrderPayload(
     currency: 'CNY',
     attachments: [],
     customerSubunit: ref('customer-subunit'),
+    paymentMethod: null,
     operatingEntity: ref('operating-entity'),
     salesperson: ref('salesperson'),
     warehouse: ref('warehouse'),

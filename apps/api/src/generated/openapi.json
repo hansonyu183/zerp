@@ -108400,6 +108400,7 @@
                       "asset",
                       "bill",
                       "settlement-method",
+                      "payment-method",
                       "measurement-unit",
                       "asset-category",
                       "department"
@@ -108481,6 +108482,38 @@
                                         "type": "string",
                                         "minLength": 26,
                                         "maxLength": 26
+                                      },
+                                      "paymentMethod": {
+                                        "type": "object",
+                                        "nullable": true,
+                                        "properties": {
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "code": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 64
+                                          },
+                                          "name": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 200
+                                          },
+                                          "defaultSalesSurcharge": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                                          }
+                                        },
+                                        "required": [
+                                          "objectId",
+                                          "code",
+                                          "name",
+                                          "defaultSalesSurcharge"
+                                        ],
+                                        "additionalProperties": false
                                       }
                                     },
                                     "required": [
@@ -108489,7 +108522,46 @@
                                       "code",
                                       "name",
                                       "entity",
-                                      "customerId"
+                                      "customerId",
+                                      "paymentMethod"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "objectId": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      },
+                                      "code": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 64
+                                      },
+                                      "name": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 200
+                                      },
+                                      "defaultSalesSurcharge": {
+                                        "type": "string",
+                                        "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                                      },
+                                      "entity": {
+                                        "type": "string",
+                                        "enum": [
+                                          "payment-method"
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "objectId",
+                                      "code",
+                                      "name",
+                                      "defaultSalesSurcharge",
+                                      "entity"
                                     ],
                                     "additionalProperties": false
                                   },
@@ -109561,6 +109633,46 @@
                                             ],
                                             "additionalProperties": false
                                           },
+                                          "paymentMethod": {
+                                            "type": "object",
+                                            "nullable": true,
+                                            "properties": {
+                                              "objectId": {
+                                                "type": "string",
+                                                "minLength": 26,
+                                                "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "defaultSalesSurcharge": {
+                                                "type": "string",
+                                                "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                                              },
+                                              "selectionOrigin": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "CUSTOMER",
+                                                  "CURRENT"
+                                                ]
+                                              }
+                                            },
+                                            "required": [
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "defaultSalesSurcharge",
+                                              "selectionOrigin"
+                                            ],
+                                            "additionalProperties": false
+                                          },
                                           "productLines": {
                                             "type": "array",
                                             "items": {
@@ -109859,6 +109971,7 @@
                                           "customerSubunit",
                                           "operatingEntity",
                                           "warehouse",
+                                          "paymentMethod",
                                           "productLines"
                                         ],
                                         "additionalProperties": false
@@ -120259,6 +120372,46 @@
                                       ],
                                       "additionalProperties": false
                                     },
+                                    "paymentMethod": {
+                                      "type": "object",
+                                      "nullable": true,
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "code": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "name": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "defaultSalesSurcharge": {
+                                          "type": "string",
+                                          "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                                        },
+                                        "selectionOrigin": {
+                                          "type": "string",
+                                          "enum": [
+                                            "CUSTOMER",
+                                            "CURRENT"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId",
+                                        "code",
+                                        "name",
+                                        "defaultSalesSurcharge",
+                                        "selectionOrigin"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "productLines": {
                                       "type": "array",
                                       "items": {
@@ -120557,6 +120710,7 @@
                                     "customerSubunit",
                                     "operatingEntity",
                                     "warehouse",
+                                    "paymentMethod",
                                     "productLines"
                                   ],
                                   "additionalProperties": false
@@ -131034,6 +131188,46 @@
                             ],
                             "additionalProperties": false
                           },
+                          "paymentMethod": {
+                            "type": "object",
+                            "nullable": true,
+                            "properties": {
+                              "objectId": {
+                                "type": "string",
+                                "minLength": 26,
+                                "maxLength": 26
+                              },
+                              "code": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "name": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "defaultSalesSurcharge": {
+                                "type": "string",
+                                "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                              },
+                              "selectionOrigin": {
+                                "type": "string",
+                                "enum": [
+                                  "CUSTOMER",
+                                  "CURRENT"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "objectId",
+                              "code",
+                              "name",
+                              "defaultSalesSurcharge",
+                              "selectionOrigin"
+                            ],
+                            "additionalProperties": false
+                          },
                           "productLines": {
                             "type": "array",
                             "items": {
@@ -131332,6 +131526,7 @@
                           "customerSubunit",
                           "operatingEntity",
                           "warehouse",
+                          "paymentMethod",
                           "productLines"
                         ],
                         "additionalProperties": false
@@ -141563,6 +141758,46 @@
                                       ],
                                       "additionalProperties": false
                                     },
+                                    "paymentMethod": {
+                                      "type": "object",
+                                      "nullable": true,
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "code": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "name": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "defaultSalesSurcharge": {
+                                          "type": "string",
+                                          "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                                        },
+                                        "selectionOrigin": {
+                                          "type": "string",
+                                          "enum": [
+                                            "CUSTOMER",
+                                            "CURRENT"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId",
+                                        "code",
+                                        "name",
+                                        "defaultSalesSurcharge",
+                                        "selectionOrigin"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "productLines": {
                                       "type": "array",
                                       "items": {
@@ -141861,6 +142096,7 @@
                                     "customerSubunit",
                                     "operatingEntity",
                                     "warehouse",
+                                    "paymentMethod",
                                     "productLines"
                                   ],
                                   "additionalProperties": false
@@ -152105,6 +152341,46 @@
                             ],
                             "additionalProperties": false
                           },
+                          "paymentMethod": {
+                            "type": "object",
+                            "nullable": true,
+                            "properties": {
+                              "objectId": {
+                                "type": "string",
+                                "minLength": 26,
+                                "maxLength": 26
+                              },
+                              "code": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "name": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "defaultSalesSurcharge": {
+                                "type": "string",
+                                "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                              },
+                              "selectionOrigin": {
+                                "type": "string",
+                                "enum": [
+                                  "CUSTOMER",
+                                  "CURRENT"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "objectId",
+                              "code",
+                              "name",
+                              "defaultSalesSurcharge",
+                              "selectionOrigin"
+                            ],
+                            "additionalProperties": false
+                          },
                           "productLines": {
                             "type": "array",
                             "items": {
@@ -152403,6 +152679,7 @@
                           "customerSubunit",
                           "operatingEntity",
                           "warehouse",
+                          "paymentMethod",
                           "productLines"
                         ],
                         "additionalProperties": false
@@ -162634,6 +162911,46 @@
                                       ],
                                       "additionalProperties": false
                                     },
+                                    "paymentMethod": {
+                                      "type": "object",
+                                      "nullable": true,
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "code": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "name": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "defaultSalesSurcharge": {
+                                          "type": "string",
+                                          "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                                        },
+                                        "selectionOrigin": {
+                                          "type": "string",
+                                          "enum": [
+                                            "CUSTOMER",
+                                            "CURRENT"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId",
+                                        "code",
+                                        "name",
+                                        "defaultSalesSurcharge",
+                                        "selectionOrigin"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "productLines": {
                                       "type": "array",
                                       "items": {
@@ -162932,6 +163249,7 @@
                                     "customerSubunit",
                                     "operatingEntity",
                                     "warehouse",
+                                    "paymentMethod",
                                     "productLines"
                                   ],
                                   "additionalProperties": false
@@ -173318,6 +173636,46 @@
                                       ],
                                       "additionalProperties": false
                                     },
+                                    "paymentMethod": {
+                                      "type": "object",
+                                      "nullable": true,
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "code": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "name": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "defaultSalesSurcharge": {
+                                          "type": "string",
+                                          "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                                        },
+                                        "selectionOrigin": {
+                                          "type": "string",
+                                          "enum": [
+                                            "CUSTOMER",
+                                            "CURRENT"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId",
+                                        "code",
+                                        "name",
+                                        "defaultSalesSurcharge",
+                                        "selectionOrigin"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "productLines": {
                                       "type": "array",
                                       "items": {
@@ -173616,6 +173974,7 @@
                                     "customerSubunit",
                                     "operatingEntity",
                                     "warehouse",
+                                    "paymentMethod",
                                     "productLines"
                                   ],
                                   "additionalProperties": false
@@ -184008,6 +184367,46 @@
                                       ],
                                       "additionalProperties": false
                                     },
+                                    "paymentMethod": {
+                                      "type": "object",
+                                      "nullable": true,
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "code": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "name": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "defaultSalesSurcharge": {
+                                          "type": "string",
+                                          "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                                        },
+                                        "selectionOrigin": {
+                                          "type": "string",
+                                          "enum": [
+                                            "CUSTOMER",
+                                            "CURRENT"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId",
+                                        "code",
+                                        "name",
+                                        "defaultSalesSurcharge",
+                                        "selectionOrigin"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "productLines": {
                                       "type": "array",
                                       "items": {
@@ -184306,6 +184705,7 @@
                                     "customerSubunit",
                                     "operatingEntity",
                                     "warehouse",
+                                    "paymentMethod",
                                     "productLines"
                                   ],
                                   "additionalProperties": false
@@ -194692,6 +195092,46 @@
                                       ],
                                       "additionalProperties": false
                                     },
+                                    "paymentMethod": {
+                                      "type": "object",
+                                      "nullable": true,
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "code": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "name": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "defaultSalesSurcharge": {
+                                          "type": "string",
+                                          "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                                        },
+                                        "selectionOrigin": {
+                                          "type": "string",
+                                          "enum": [
+                                            "CUSTOMER",
+                                            "CURRENT"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId",
+                                        "code",
+                                        "name",
+                                        "defaultSalesSurcharge",
+                                        "selectionOrigin"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "productLines": {
                                       "type": "array",
                                       "items": {
@@ -194990,6 +195430,7 @@
                                     "customerSubunit",
                                     "operatingEntity",
                                     "warehouse",
+                                    "paymentMethod",
                                     "productLines"
                                   ],
                                   "additionalProperties": false
@@ -205382,6 +205823,46 @@
                                       ],
                                       "additionalProperties": false
                                     },
+                                    "paymentMethod": {
+                                      "type": "object",
+                                      "nullable": true,
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "code": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "name": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "defaultSalesSurcharge": {
+                                          "type": "string",
+                                          "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                                        },
+                                        "selectionOrigin": {
+                                          "type": "string",
+                                          "enum": [
+                                            "CUSTOMER",
+                                            "CURRENT"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId",
+                                        "code",
+                                        "name",
+                                        "defaultSalesSurcharge",
+                                        "selectionOrigin"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "productLines": {
                                       "type": "array",
                                       "items": {
@@ -205680,6 +206161,7 @@
                                     "customerSubunit",
                                     "operatingEntity",
                                     "warehouse",
+                                    "paymentMethod",
                                     "productLines"
                                   ],
                                   "additionalProperties": false

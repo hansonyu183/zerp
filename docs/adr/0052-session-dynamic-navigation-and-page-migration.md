@@ -100,4 +100,4 @@ AUX 作为 APP 之外的实际消费者接入完整公共启停组件。外层 A
 
 Registry 当前为原 user 加 role、employee-category、position、measurement-unit、payment-method、asset-category，共七个真实页面。全部十二个 AUX 管理协议已切换，只有五个 AUX 页面登记；其余已授权资源仍通过同一 Host 显示尚未实现。七页、Session 与导航的真实浏览器流程已在独占 PostgreSQL/API/Web 环境验证，公共启停、严格契约、分页拼音和异步隔离也有实际测试证据。
 
-本批尚不能标记整体验收完成。B2-16 已补齐 VOU 产品单位精度校验和完整交易单位审计快照；B2-17 的销售订单最终收款方式及加价快照仍待后续切片；产品和客户历史快照测试通过不能替代交易消费者验收。现行 AUX/BOB/VOU 规则保留，不能以实现缺失改写规则。具体候选、逐项结果、命令及交付状态见 [#390 集成验收记录](../testing/second-batch-integration-issue-390-2026-09-07.md)。这不表示 DCL、审批、业务版本、ACC 期初已迁移，也不表示已合并或上线。
+本批按两个独立切片补齐 B2-16 的 VOU 产品单位精度校验和完整交易单位审计快照，以及 B2-17 的销售订单最终收款方式及加价快照。交易消费者通过公开 Service、真实 PostgreSQL 和 Hono 契约分别验证，不再以产品和客户历史快照测试替代。现行 AUX/BOB/VOU 规则保留。具体候选、逐项结果、命令及交付状态见 [#390 集成验收记录](../testing/second-batch-integration-issue-390-2026-09-07.md)。这不表示 DCL、审批、业务版本、ACC 期初已迁移，也不表示已合并或上线。

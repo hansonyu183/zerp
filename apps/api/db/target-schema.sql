@@ -768,6 +768,19 @@ CREATE TABLE vou_sale_order_details (
     business_date date NOT NULL,
     currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
     total_amount_minor bigint NOT NULL,
+    payment_method_id varchar(26),
+    payment_method_code varchar(64),
+    payment_method_name varchar(200),
+    payment_method_sales_surcharge_minor bigint CHECK (payment_method_sales_surcharge_minor >= 0),
+    payment_method_selection_origin varchar(16) CHECK (payment_method_selection_origin IN ('CUSTOMER', 'CURRENT')),
+    CHECK (
+        (payment_method_id IS NULL AND payment_method_code IS NULL
+            AND payment_method_name IS NULL AND payment_method_sales_surcharge_minor IS NULL
+            AND payment_method_selection_origin IS NULL)
+        OR (payment_method_id IS NOT NULL AND payment_method_code IS NOT NULL
+            AND payment_method_name IS NOT NULL AND payment_method_sales_surcharge_minor IS NOT NULL
+            AND payment_method_selection_origin IS NOT NULL)
+    ),
     credit_limit numeric(24, 8),
     credit_occupancy_before numeric(24, 8),
     credit_order_amount numeric(24, 8),

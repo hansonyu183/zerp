@@ -259,6 +259,7 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
         code: 'CUSTOMER-TYPE-TEST',
         name: '测试客户类型',
       }),
+      payment_snapshot: null,
       enabled: true,
     })
     .execute()
@@ -322,6 +323,7 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
       approvalEntryId: approvalIds.customer,
       selectionOrigin: 'CURRENT' as const,
     },
+    paymentMethod: null,
     operatingEntity: {
       objectId: subjectIds.operatingEntity,
       approvalEntryId: approvalIds.operatingEntity,
@@ -819,6 +821,7 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
         code: 'CUSTOMER-TYPE-TEST',
         name: '测试客户类型',
       }),
+      payment_snapshot: null,
       enabled: true,
     })
     .execute()
@@ -2255,6 +2258,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
           code: 'CUSTOMER-TYPE-TEST',
           name: '测试客户类型',
         }),
+        payment_snapshot: null,
         enabled: true,
       },
       {
@@ -2267,6 +2271,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
           code: 'CUSTOMER-TYPE-TEST',
           name: '测试客户类型',
         }),
+        payment_snapshot: null,
         enabled: true,
       },
     ])
@@ -2942,6 +2947,7 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
         code: 'CUSTOMER-TYPE-TEST',
         name: '测试客户类型',
       }),
+      payment_snapshot: null,
       enabled: true,
     })
     .execute()
@@ -3150,6 +3156,7 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
       approvalEntryId: customerApprovalId,
       code: `SUB-${customerSubunitId.slice(-6)}`,
       name: `${customerKeyword}总部`,
+      paymentMethod: null,
     },
   ])
   const units = await post(origin, allowed, {

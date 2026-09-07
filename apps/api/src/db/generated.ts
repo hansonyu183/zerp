@@ -1421,6 +1421,11 @@ export interface VouSaleOrderDetails {
   document_id: string;
   parent_document_id: string | null;
   parent_entity: string | null;
+  payment_method_code: string | null;
+  payment_method_id: string | null;
+  payment_method_name: string | null;
+  payment_method_sales_surcharge_minor: Int8 | null;
+  payment_method_selection_origin: string | null;
   remark: string | null;
   special_approval: boolean | null;
   total_amount_minor: Int8;

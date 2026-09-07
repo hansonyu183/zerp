@@ -601,6 +601,7 @@ function saleOrderPayload(
     currency: 'CNY',
     attachments: [],
     customerSubunit: reference('customer-subunit'),
+    paymentMethod: null,
     operatingEntity: reference('operating-entity'),
     salesperson: reference('salesperson'),
     warehouse: reference('warehouse'),

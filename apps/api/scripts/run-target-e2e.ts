@@ -1104,6 +1104,7 @@ async function seedApprovedSourceOrders() {
           approvalEntryId: customerSubunit.approvalEntryId,
           selectionOrigin: 'HISTORICAL' as const,
         },
+        paymentMethod: null,
         operatingEntity: {
           objectId: operatingEntityReference.objectId,
           approvalEntryId: operatingEntityReference.approvalEntryId,

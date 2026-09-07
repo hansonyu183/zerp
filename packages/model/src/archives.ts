@@ -147,6 +147,7 @@ function mechanics<T, E extends string>(
   facts: ArchiveFacts,
 ): ArchiveDecision<T, E> | SubmissionMechanicsPlan {
   const domain =
+    entity === 'product' ||
     entity === 'supplier' ||
     entity === 'other-unit' ||
     entity === 'sales-partner'
@@ -268,7 +269,6 @@ export interface ProductData {
   recyclable: boolean
   fixedFormula: ProductFixedFormula | null
   remark: Text
-  enabled: boolean
 }
 export interface ProductSubmitCommand extends ArchiveCommand<ProductData> {}
 export interface ProductSubmitFacts extends ArchiveFacts {
@@ -334,32 +334,39 @@ function normalizeProductQuantity(
     ? { enteredQuantity, enteredUnit, baseQuantity }
     : undefined
 }
-function normalizeProduct(data: ProductData): ProductData | undefined {
+export function normalizeProductData(
+  data: ProductData,
+  onInvalid?: (field: string) => void,
+): ProductData | undefined {
+  const invalid = (field: string): undefined => {
+    onInvalid?.(field)
+    return undefined
+  }
   const productType = normalizeProductReference(data.productType, false),
     productCategory = normalizeProductReference(data.productCategory, false),
     pricingUnit = normalizeProductUnit(data.pricingUnit),
     defaultInputUnit = normalizeProductUnit(data.defaultInputUnit)
   const unitIds = new Set<string>()
   const unitConversions: ProductUnitConversion[] = []
-  for (const conversion of data.unitConversions) {
+  for (const [index, conversion] of data.unitConversions.entries()) {
     const unit = normalizeProductUnit(conversion.unit)
     const factor = trim(conversion.factor)
     if (!unit || !positiveDecimal.test(factor) || unitIds.has(unit.id))
-      return undefined
+      return invalid(`unitConversions[${index}]`)
     unitIds.add(unit.id)
     unitConversions.push({ unit, factor })
   }
+  if (!hasText(data.name)) return invalid('name')
+  if (!productType) return invalid('productType')
+  if (!productCategory) return invalid('productCategory')
+  if (!pricingUnit) return invalid('pricingUnit')
+  if (!defaultInputUnit) return invalid('defaultInputUnit')
   if (
-    !hasText(data.name) ||
-    !productType ||
-    !productCategory ||
-    !pricingUnit ||
-    !defaultInputUnit ||
     !unitConversions.length ||
     !unitIds.has(pricingUnit.id) ||
     !unitIds.has(defaultInputUnit.id)
   )
-    return undefined
+    return invalid('unitConversions')
   const behaviorProfile = productType.behaviorProfile
   const defaultPackagingSpec = trim(data.defaultPackagingSpec)
   if (
@@ -368,7 +375,7 @@ function normalizeProduct(data: ProductData): ProductData | undefined {
       ? defaultPackagingSpec !== '' || pricingUnit.id !== defaultInputUnit.id
       : !positiveDecimal.test(defaultPackagingSpec))
   )
-    return undefined
+    return invalid('defaultPackagingSpec')
   let fixedFormula: ProductFixedFormula | null = null
   if (data.fixedFormula) {
     const output = normalizeProductQuantity(data.fixedFormula.output)
@@ -379,8 +386,10 @@ function normalizeProduct(data: ProductData): ProductData | undefined {
       data.fixedFormula.components.length < 1 ||
       data.fixedFormula.components.length > 200
     )
-      return undefined
-    for (const component of data.fixedFormula.components) {
+      return invalid(
+        !output ? 'fixedFormula.output' : 'fixedFormula.components',
+      )
+    for (const [index, component] of data.fixedFormula.components.entries()) {
       const material = {
         objectId: trim(component.material.objectId),
         approvalEntryId: trim(component.material.approvalEntryId),
@@ -398,7 +407,7 @@ function normalizeProduct(data: ProductData): ProductData | undefined {
         component.resolutionStatus !== 'CURRENT' ||
         component.requiresConfirmation
       )
-        return undefined
+        return invalid(`fixedFormula.components[${index}]`)
       materialIds.add(material.objectId)
       components.push({
         material,
@@ -413,7 +422,7 @@ function normalizeProduct(data: ProductData): ProductData | undefined {
     (behaviorProfile === 'STANDARD_FINISHED' && !fixedFormula) ||
     (behaviorProfile !== 'STANDARD_FINISHED' && fixedFormula)
   )
-    return undefined
+    return invalid('fixedFormula')
   return {
     ...data,
     name: trim(data.name),
@@ -440,7 +449,7 @@ export function prepareProductSubmit(
     facts,
   )
   if ('ok' in common) return common
-  const data = normalizeProduct(command.data)
+  const data = normalizeProductData(command.data)
   if (!data) return { ok: false, error: { errorKey: 'product_invalid_data' } }
   for (const [field, reference] of [
     ['productType', data.productType],

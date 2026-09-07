@@ -2,9 +2,9 @@
 
 ## 1. 文档目的
 
-本文定义 ZERP **BOB（Business Object）** 领域的业务模型、数据约束和事务边界。产品和客户仍由 DCL 管理为版本化资料；Supplier、Other Unit 与 Sales Partner 由 BOB 管理正式资料、Submission、版本与独立启停。客户子单位是 Customer Version 子项，不是独立 BOB/DCL 对象。HTTP 路径和数据结构由可执行 Hono/Zod 路由生成。
+本文定义 ZERP **BOB（Business Object）** 领域的业务模型、数据约束和事务边界。客户仍由 DCL 管理为版本化资料；产品、Supplier、Other Unit 与 Sales Partner 由 BOB 管理正式资料、Submission、版本与独立启停。客户子单位是 Customer Version 子项，不是独立 BOB/DCL 对象。HTTP 路径和数据结构由可执行 Hono/Zod 路由生成。
 
-BOB 使用固定领域标识 `bob`。本文记录 OpenAPI 无法独立表达的 highest-approved typed query、Submission、版本、独立启停、引用和业务不变量；Supplier、Other Unit 与 Sales Partner 的 stable subject、business code 和 typed snapshot 由 BOB 拥有，版本头、状态和 Submission revision 由中央 Approval 拥有。
+BOB 使用固定领域标识 `bob`。本文记录 OpenAPI 无法独立表达的 highest-approved typed query、Submission、版本、独立启停、引用和业务不变量；Product、Supplier、Other Unit 与 Sales Partner 的 stable subject、business code 和 typed snapshot 由 BOB 拥有，版本头、状态和 Submission revision 由中央 Approval 拥有。
 
 当前对外实体标识、字段、查询与引用协议由 `apps/api/` 的可执行 Hono/Zod 路由生成；本文不维护其副本。数据库内部名称可以使用 `fund_account`，对外 wire value 以生成契约为准。
 
@@ -12,7 +12,7 @@ BOB 使用固定领域标识 `bob`。本文记录 OpenAPI 无法独立表达的 
 
 BOB 负责：
 
-- 维护 Supplier、Other Unit 与 Sales Partner 的 stable subject、typed Submission snapshot、当前正式资料和独立启停；
+- 维护 Product、Supplier、Other Unit 与 Sales Partner 的 stable subject、typed Submission snapshot、当前正式资料和独立启停；
 - 为客户、供应商、其他单位和销售合作方等强类型业务档案定义业务规则；
 - 只允许新的业务引用当前启用资料，同时继续校验已有业务保存的精确 Approval Entry；
 - 为其他领域提供 stable ID、当前来源和业务发生时所需的类型化快照。
@@ -28,13 +28,13 @@ BOB 不负责：
 
 Customer、Supplier、Other Unit 和 Sales Partner 是相互独立的强类型业务档案。Customer 直接保存 `MAINLAND_ENTERPRISE|MAINLAND_INDIVIDUAL|OTHER` 身份和单一法定识别号；其余档案继续保存各自 `PERSON|ORGANIZATION` 身份和单一法定识别号。它们都直接保存名称、联系资料和业务专属资料；同一现实个人或组织具有多种身份时分别建档、分别审批，不共享或同步资料。
 
-Supplier、Other Unit 与 Sales Partner 的 stable subject、business code、Submission、版本和对象启停在业务归属上由 BOB 编排；共享实现的物理文件位置不改变该归属。BOB 为这三类档案登记 `query/get`、`submission-query/submission-get`、`versions`、`submit-new/submit-change`、Approval 生命周期、开放 Submission `delete` 及 `enable/disable`。Product 与 Customer 仍使用 DCL 边界。新增实体字段或查询规则不得继续堆入一个要求理解全部 BOB 实体的万能查询或保存流程，也不得为了消除表面重复而把实体规则改造成运行时 metadata。
+Product、Supplier、Other Unit 与 Sales Partner 的 stable subject、business code、Submission、版本和对象启停在业务归属上由 BOB 编排；共享实现的物理文件位置不改变该归属。BOB 为这四类档案登记 `query/get`、`submission-query/submission-get`、`versions`、`submit-new/submit-change`、Approval 生命周期、开放 Submission `delete` 及 `enable/disable`。Customer 仍使用 DCL 边界。新增实体字段或查询规则不得继续堆入一个要求理解全部 BOB 实体的万能查询或保存流程，也不得为了消除表面重复而把实体规则改造成运行时 metadata。
 
 BOB 列表只返回当前正式资料、stable ID、编码、`sourceApprovalEntryId`、`sourceVersionNo` 与实体所需最小字段，不返回 `latestApproved`、`openVersion`、Approval status 或候选摘要。`sourceApprovalEntryId` 与 `sourceVersionNo` 直接来自同一 highest APPROVED BOB Approval Entry，仅用于展示和来源追溯。详情同样不接受历史 entry 参数。
 
-法定识别号按“档案类型 + 规范化值”唯一；跨档案类型不比较、不复用、不提示和不合并。名称、电话、邮箱和地址不是唯一键。误建档案没有合并动作；Customer 与 Product 的版本化停用通过下一候选完成。Supplier、Other Unit 与 Sales Partner 可由独立 `disable` 立即停用其对象，仍不改写历史事实的稳定 ID、Approval Entry 或快照。
+法定识别号按“档案类型 + 规范化值”唯一；跨档案类型不比较、不复用、不提示和不合并。名称、电话、邮箱和地址不是唯一键。误建档案没有合并动作；Customer 的版本化停用通过下一候选完成。Product、Supplier、Other Unit 与 Sales Partner 可由独立 `disable` 立即停用其对象，仍不改写历史事实的稳定 ID、Approval Entry 或快照。
 
-BOB 为 Supplier、Other Unit 与 Sales Partner 提供 current `query|get|reference`、正式 Submission 读取、版本与维护入口；它们的待办和审批也使用 BOB 精确路径。Product 与 Customer 的资料浏览、创建、编辑、审批、版本和审计仍由 DCL HTTP 边界拥有。Party、Party 权限、Party 页面、关系卡片、关系 root、影响预览和合并均不存在。
+BOB 为 Product、Supplier、Other Unit 与 Sales Partner 提供 current `query|get|reference`、正式 Submission 读取、版本与维护入口；它们的待办和审批也使用 BOB 精确路径。Customer 的资料浏览、创建、编辑、审批、版本和审计仍由 DCL HTTP 边界拥有。Party、Party 权限、Party 页面、关系卡片、关系 root、影响预览和合并均不存在。
 
 服务类业务档案的用户名称固定为“其他单位”，实体与路径使用 `other-unit`；它的 current、Submission、版本、维护和启停 HTTP 边界均为 `/bob/other-unit/*`。
 
@@ -88,7 +88,7 @@ BOB 实体使用类型化版本明细，不使用无约束 JSONB 保存正式业
 产量数量快照、原料对象和用量数量快照不变。原料新版本不影响旧产品版本或已经生成的销售订单
 配方快照。原材料、定制成品和包装物不维护产品固定配方。
 
-产品草稿允许暂缺默认包装规格、单位配置和自制成品固定配方；创建和保存只校验已经填写的数据是否合法，不要求草稿完整。提交和审核必须通过同一套完整性规则，保证 `APPROVED` 产品满足其产品类型、默认包装规格、单位换算和固定配方约束。产品页面在提交前通过统一的前端检查模块执行对应检查并给出字段级提示，后端仍重复执行同一业务不变量，前端检查结果不能代替后端校验。
+产品临时表单允许暂缺默认包装规格、单位配置和自制成品固定配方；页面编辑只校验已经填写的数据是否合法，不要求草稿完整。提交和审核必须通过同一套完整性规则，保证 `APPROVED` 产品满足其产品类型、默认包装规格、单位换算和固定配方约束。产品页面在提交前通过统一的前端检查模块执行对应检查并给出字段级提示，后端仍重复执行同一业务不变量，前端检查结果不能代替后端校验。
 
 客户和供应商都通过 `settlementMethodId` 选择当前启用的结算方式辅助对象。选择时必须把 AUX stable ID 以及交易使用的结算方式名称、术语和到期计算参数复制进引用方版本，形成不可变的类型化快照。已有历史版本和单据快照不会随来源变更被改写；Customer 的 DCL candidate 与 Supplier 的 BOB Submission 配置了结算方式时，提交和审核只校验所存快照的内部完整与参数组合，不回查 AUX current。客户快照另保存销售加价，供应商采购不使用该销售加价。客户和供应商即使提交、审核或批准也可以不维护结算方式；缺失时整组快照为空且 offset 为 0，配置时则必须完整且内部一致。没有明确账期的正式客户或供应商不能用于创建销售订单或采购订单，由 VOU 返回固定 blocker。委托配制制造费等采购加价不属于供应商主数据，由对应专门采购单据维护并保存自身事实。交易单据的到期日和加价规则见 VOU 文档。
 
@@ -185,9 +185,9 @@ BOB 不物理删除 stable subject；它只删除开放 Submission。DCL 删除�
 
 ## 3. 聚合模型
 
-### 3.1 Supplier、Other Unit 与 Sales Partner stable subject
+### 3.1 Product、Supplier、Other Unit 与 Sales Partner stable subject
 
-三类已迁档案使用以下所有权结构：
+四类已迁档案使用以下所有权结构：
 
 ```text
 BOB Subject (stable ID, entity, business code, created metadata, enabled, object revision)
@@ -209,9 +209,17 @@ BOB 使用公共 Approval 与 Version 组件，不建立第二 Approval Entry、
 
 业务字段尚未确定前，不应仅为追求通用性把全部正式字段长期存入无约束 JSONB。客户 `pricingPolicy` 是因定价规则结构易变而明确限定的封闭值对象例外，不得扩展为通用客户属性包。
 
+### 3.3 产品版本与独立启停
+
+产品使用公共 Approval 与 Version，BOB 持有 stable ID、PRD 编码和完整产品版本。对象 enabled 与 revision 独立于版本，批准和反批准不得覆盖 enabled。正式读取先选最高已批准版本再应用过滤；停用不回退历史版本。提交件读取与完整版本历史分别提供独立动作。
+
+产品采用的 AUX typed snapshot 保存单位 quantityScale；批准只校验快照完整性。配方原料保存精确 BOB Approval Entry，新提交和批准验证其为当前可用最高正式版本。条码在各对象最高正式版本与开放提交之间大小写不敏感唯一。正式业务或产品配方精确引用阻止反批准，失败与审批、版本和审计同事务回滚。
+
+一次转换保留原产品 ID、编码、全部 Approval Entry、审批事件、业务快照与精确授权；历史 enabled 留为审计证据。交易、配方和库存权威基准数量不重算。页面临时表单只在本页面内存保存，关闭即销毁，提交未知结果核实后才能重试。
+
 ## 4. 当前有效资料读取
 
-Supplier、Other Unit 与 Sales Partner 的 BOB current 读取与 Submission/版本读取严格分离：
+Product、Supplier、Other Unit 与 Sales Partner 的 BOB current 读取与 Submission/版本读取严格分离：
 
 - V1 批准前，BOB typed query 无结果；
 - V1 批准后，BOB typed query 读取 V1；
@@ -224,7 +232,7 @@ BOB `query/get/reference` 不接受 lifecycle status 或历史 entry 作为读�
 
 ## 5. 领域动作
 
-公开动作及路径由 Hono route metadata 生成。Supplier、Other Unit 与 Sales Partner 各自登记 `query/get`、`submission-query/submission-get`、`versions`、`submit-new/submit-change`、`reject/approve/unreject/unapprove/delete`、`enable/disable`，共享引用入口登记 `reference/query`；每个动作都是独立 APP 权限。后端通过路由元数据绑定权限标识，不能由 Handler 以字符串前缀或角色名称推断。
+公开动作及路径由 Hono route metadata 生成。Product、Supplier、Other Unit 与 Sales Partner 各自登记 `query/get`、`submission-query/submission-get`、`versions`、`submit-new/submit-change`、`reject/approve/unreject/unapprove/delete`、`enable/disable`，共享引用入口登记 `reference/query`；每个动作都是独立 APP 权限。后端通过路由元数据绑定权限标识，不能由 Handler 以字符串前缀或角色名称推断。
 
 每种业务档案使用自己的 BOB 读取、维护、版本、生命周期与启停权限，不因现实主体可能相同而隐式授权另一类型。Product 与 Customer 的 DCL 权限不授予 BOB 迁入档案的任何操作。
 

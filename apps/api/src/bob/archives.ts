@@ -5,6 +5,8 @@ import {
   prepareOtherUnitSubmit,
   prepareSalesPartnerSubmit,
   prepareSupplierSubmit,
+  prepareProductSubmit,
+  type ProductMaterialFact,
   type ApprovalAction,
   type ApprovalActor,
   type ApprovalEntry,
@@ -36,7 +38,13 @@ export type ArchiveExecutor = Kysely<DB> | Transaction<DB>
 type Executor = ArchiveExecutor
 export type ArchiveSnapshot = Record<string, unknown>
 
-type AuxiliaryField = 'settlementMethod'
+type AuxiliaryField =
+  | 'settlementMethod'
+  | 'productType'
+  | 'productCategory'
+  | 'pricingUnit'
+  | 'defaultInputUnit'
+  | 'measurementUnit'
 type AuxiliaryFact = {
   field: AuxiliaryField
   objectId: string
@@ -48,6 +56,11 @@ type AuxiliaryFact = {
 
 const auxiliaryEntities: Record<AuxiliaryField, string> = {
   settlementMethod: 'settlement-method',
+  productType: 'product-type',
+  productCategory: 'product-category',
+  pricingUnit: 'measurement-unit',
+  defaultInputUnit: 'measurement-unit',
+  measurementUnit: 'measurement-unit',
 }
 
 function fixedAuxMoney(value: unknown, errorKey: string): string {
@@ -157,6 +170,8 @@ export interface ArchiveQueryInput {
   filters: {
     keyword?: string
     status?: ApprovalStatus
+    productTypeId?: string
+    productCategoryId?: string
     enabled?: boolean
   }
 }
@@ -179,6 +194,14 @@ type ArchiveQueryDetails = Omit<
 }
 
 export type ArchiveBlocker =
+  | {
+      kind: 'PRODUCT_REFERENCE'
+      domain: 'bob' | 'vou'
+      entity: string
+      objectId: string
+      approvalEntryId: string
+      field: string
+    }
   | {
       kind: 'AUX_CURRENT_REFERENCE'
       entity: 'vehicle'
@@ -344,11 +367,33 @@ function archiveSubmissionListItem(
 }
 
 function matchesArchiveSnapshot(
-  _entity: ArchiveEntity,
+  entity: ArchiveEntity,
   code: string | null,
   snapshot: ArchiveSnapshot,
   filters: ArchiveQueryInput['filters'],
 ): boolean {
+  if (entity === 'product') {
+    if (
+      filters.productTypeId &&
+      record(snapshot.productType).id !== filters.productTypeId
+    )
+      return false
+    if (
+      filters.productCategoryId &&
+      record(snapshot.productCategory).id !== filters.productCategoryId
+    )
+      return false
+    return (
+      !filters.keyword ||
+      includesKeyword(filters.keyword, [
+        code,
+        nullable(snapshot.name),
+        nullable(snapshot.barcode),
+        nullable(snapshot.specification),
+        nullable(snapshot.model),
+      ])
+    )
+  }
   if (filters.keyword) {
     const data = record(snapshot)
     if (
@@ -365,6 +410,7 @@ function matchesArchiveSnapshot(
 }
 
 const entityCodes: Record<ArchiveEntity, string> = {
+  product: 'PRD',
   supplier: 'SUP',
   'other-unit': 'OTU',
   'sales-partner': 'SLP',
@@ -650,6 +696,8 @@ export class BobArchiveService {
         await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${domain}:archive:${entity}:${input.subjectId}`}, 0))`.execute(
           tx,
         )
+        if (entity === 'product')
+          await this.lockProductSubjects(tx, input.subjectId, input.snapshot)
         const subject = await tx
           .selectFrom(subjectTable)
           .select('id')
@@ -670,6 +718,19 @@ export class BobArchiveService {
             tx,
             entity,
             input.snapshot,
+            entity === 'product' &&
+              action === 'submit-change' &&
+              history.some(
+                (entry) =>
+                  entry.id === input.expectedLatestApprovedSubmissionId &&
+                  entry.status === 'APPROVED',
+              )
+              ? await this.readSnapshot(
+                  tx,
+                  entity,
+                  input.expectedLatestApprovedSubmissionId!,
+                )
+              : undefined,
           ),
         }
         const prepared = await this.prepare(
@@ -795,6 +856,20 @@ export class BobArchiveService {
         await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${archiveDomain(entity)}:archive:${entity}:${input.subjectId}`}, 0))`.execute(
           tx,
         )
+        if (entity === 'product') {
+          await this.loadEntry(
+            tx,
+            entity,
+            input.submissionId,
+            input.subjectId,
+            false,
+          )
+          await this.lockProductSubjects(
+            tx,
+            input.subjectId,
+            await this.readSnapshot(tx, entity, input.submissionId),
+          )
+        }
         const entry = await this.loadEntry(
           tx,
           entity,
@@ -1014,11 +1089,41 @@ export class BobArchiveService {
     entity: ArchiveEntity,
     command: Record<string, unknown>,
     subject: ArchiveSubjectFacts,
-    _tx: Executor,
+    tx: Executor,
   ): Promise<unknown> {
     const data = record(command.data)
     const base = { ...command, data }
     switch (entity) {
+      case 'product':
+        return prepareProductSubmit(
+          base as never,
+          {
+            subject,
+            references: [
+              'productType',
+              'productCategory',
+              'pricingUnit',
+              'defaultInputUnit',
+            ].map((field) => ({
+              field,
+              objectId: String(record(data[field]).id ?? ''),
+              available: !!record(data[field]).id,
+            })),
+            materials: (
+              await this.productMaterialFacts(
+                tx,
+                array(record(data.fixedFormula).components).map((component) =>
+                  record(record(component).material),
+                ),
+              )
+            ).map((fact) =>
+              fact.objectId === command.subjectId
+                ? { ...fact, enabled: false }
+                : fact,
+            ),
+          } as never,
+        )
+
       case 'supplier':
         return prepareSupplierSubmit(
           base as never,
@@ -1059,6 +1164,20 @@ export class BobArchiveService {
     subjectId: string,
     data: ArchiveSnapshot,
   ): Promise<void> {
+    if (entity === 'product') {
+      const barcode = nullable(data.barcode)?.toUpperCase()
+      if (!barcode) return
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`bob:archive:product:barcode:${barcode}`},0))`.execute(
+        tx,
+      )
+      const duplicate =
+        await sql`SELECT e.id FROM bob_product_versions v JOIN approval_entries e ON e.id=v.approval_entry_id WHERE e.domain='bob' AND e.entity='product' AND e.subject_id<>${subjectId} AND upper(trim(v.barcode))=${barcode} AND (e.status IN ('PENDING','REJECTED') OR (e.status='APPROVED' AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain=e.domain AND newer.entity=e.entity AND newer.subject_id=e.subject_id AND newer.status='APPROVED' AND newer.version_no>e.version_no))) LIMIT 1`.execute(
+          tx,
+        )
+      if (duplicate.rows.length)
+        throw new BobArchiveApplicationError('product_duplicate_barcode')
+      return
+    }
     const table =
       entity === 'supplier'
         ? 'bob_supplier_versions'
@@ -1078,6 +1197,92 @@ export class BobArchiveService {
       tx,
     )
     if (duplicate.rows[0]) throw new BobArchiveApplicationError(errorKey)
+  }
+
+  private async lockProductSubjects(
+    tx: Executor,
+    subjectId: string,
+    snapshot: ArchiveSnapshot,
+  ): Promise<void> {
+    const ids = [
+      ...new Set([
+        subjectId,
+        ...array(record(snapshot.fixedFormula).components).map((value) =>
+          String(record(record(value).material).objectId ?? ''),
+        ),
+      ]),
+    ]
+      .filter(Boolean)
+      .sort()
+    await tx
+      .selectFrom('bob_subjects')
+      .select('id')
+      .where('entity', '=', 'product')
+      .where('id', 'in', ids)
+      .orderBy('id')
+      .forUpdate()
+      .execute()
+  }
+
+  private async productMaterialFacts(
+    tx: Executor,
+    references: Array<Record<string, unknown>>,
+  ): Promise<ProductMaterialFact[]> {
+    return Promise.all(
+      references.map(async (reference) => {
+        const objectId = String(reference.objectId ?? '')
+        const fact = await this.productApprovedFact(tx, objectId)
+        if (!fact)
+          return {
+            objectId,
+            latestApprovedEntryId: '',
+            enabled: false,
+            behaviorProfile: 'RAW_MATERIAL',
+          }
+        const snapshot = await this.readSnapshot(
+          tx,
+          'product',
+          fact.latestApprovedEntryId,
+        )
+        return {
+          objectId: fact.objectId,
+          latestApprovedEntryId: fact.latestApprovedEntryId,
+          enabled: fact.enabled,
+          behaviorProfile: String(
+            record(snapshot.productType).behaviorProfile ?? '',
+          ) as ProductMaterialFact['behaviorProfile'],
+        }
+      }),
+    )
+  }
+
+  private async productApprovedFact(tx: Executor, objectId: string) {
+    await tx
+      .selectFrom('bob_subjects')
+      .select('id')
+      .where('id', '=', objectId)
+      .where('entity', '=', 'product')
+      .forShare()
+      .execute()
+    const result = await sql<{
+      object_id: string
+      id: string
+      enabled: boolean
+      code: string
+      name: string
+    }>`SELECT s.id AS object_id,e.id,s.enabled,s.code,v.name FROM bob_subjects s JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='bob' AND entity='product' AND subject_id=s.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true JOIN bob_product_versions v ON v.approval_entry_id=e.id WHERE s.id=${objectId} AND s.entity='product'`.execute(
+      tx,
+    )
+    const row = result.rows[0]
+    return row
+      ? {
+          objectId: row.object_id,
+          latestApprovedEntryId: row.id,
+          enabled: row.enabled,
+          code: row.code,
+          name: row.name,
+        }
+      : undefined
   }
 
   private async auxFacts(
@@ -1187,11 +1392,192 @@ export class BobArchiveService {
     }
   }
 
+  private async freezeProductMaterial(tx: Executor, reference: unknown) {
+    const requested = record(reference)
+    const fact = await this.productApprovedFact(
+      tx,
+      String(requested.objectId ?? ''),
+    )
+    if (!fact || fact.latestApprovedEntryId !== requested.approvalEntryId)
+      return requested
+    return {
+      objectId: fact.objectId,
+      approvalEntryId: fact.latestApprovedEntryId,
+      code: fact.code,
+      name: fact.name,
+    }
+  }
+
+  private async freezeProductReference(
+    tx: Executor,
+    field: AuxiliaryField,
+    reference: unknown,
+    errorKey: string,
+    previous?: ArchiveSnapshot,
+  ): Promise<Record<string, unknown>> {
+    if (previous) {
+      const candidates =
+        auxiliaryEntities[field] === 'measurement-unit'
+          ? [
+              previous.pricingUnit,
+              previous.defaultInputUnit,
+              ...array(previous.unitConversions).map(
+                (value) => record(value).unit,
+              ),
+              record(record(previous.fixedFormula).output).enteredUnit,
+              ...array(record(previous.fixedFormula).components).map(
+                (value) => record(record(value).quantity).enteredUnit,
+              ),
+            ]
+          : [previous[field]]
+      const adopted = candidates
+        .map(record)
+        .find(
+          (value) =>
+            value.id === record(reference).id && typeof value.id === 'string',
+        )
+      if (adopted) return adopted
+    }
+    const fact = (await this.auxFacts(tx, [[field, record(reference).id]]))[0]
+    if (!fact || !fact.available) throw new BobArchiveApplicationError(errorKey)
+    if (auxiliaryEntities[field] === 'measurement-unit') {
+      const symbol = fact.data.symbol
+      const quantityScale = fact.data.quantityScale
+      if (
+        typeof symbol !== 'string' ||
+        !symbol.trim() ||
+        !Number.isInteger(quantityScale) ||
+        Number(quantityScale) < 0 ||
+        Number(quantityScale) > 6
+      )
+        throw new BobArchiveApplicationError(errorKey)
+      return {
+        id: fact.objectId,
+        code: fact.code,
+        name: fact.name,
+        symbol: symbol.trim(),
+        quantityScale,
+      }
+    }
+    if (field === 'productType') {
+      const behaviorProfile = fact.data.behaviorProfile
+      if (
+        behaviorProfile !== 'RAW_MATERIAL' &&
+        behaviorProfile !== 'STANDARD_FINISHED' &&
+        behaviorProfile !== 'CUSTOM_FINISHED' &&
+        behaviorProfile !== 'PACKAGING'
+      )
+        throw new BobArchiveApplicationError(errorKey)
+      return {
+        id: fact.objectId,
+        code: fact.code,
+        name: fact.name,
+        behaviorProfile,
+      }
+    }
+    return { id: fact.objectId, code: fact.code, name: fact.name }
+  }
+
+  private async freezeProductQuantity(
+    tx: Executor,
+    quantity: Record<string, unknown>,
+    previous?: ArchiveSnapshot,
+  ): Promise<Record<string, unknown>> {
+    return {
+      ...quantity,
+      enteredUnit: await this.freezeProductReference(
+        tx,
+        'measurementUnit',
+        quantity.enteredUnit,
+        'product_reference_unavailable',
+        previous,
+      ),
+    }
+  }
+
   private async freezeAuthoritativeReferences(
     tx: Transaction<DB>,
     entity: ArchiveEntity,
     snapshot: ArchiveSnapshot,
+    previous?: ArchiveSnapshot,
   ): Promise<ArchiveSnapshot> {
+    if (entity === 'product')
+      return {
+        ...snapshot,
+        productType: await this.freezeProductReference(
+          tx,
+          'productType',
+          snapshot.productType,
+          'product_reference_unavailable',
+          previous,
+        ),
+        productCategory: await this.freezeProductReference(
+          tx,
+          'productCategory',
+          snapshot.productCategory,
+          'product_reference_unavailable',
+          previous,
+        ),
+        pricingUnit: await this.freezeProductReference(
+          tx,
+          'pricingUnit',
+          snapshot.pricingUnit,
+          'product_reference_unavailable',
+          previous,
+        ),
+        defaultInputUnit: await this.freezeProductReference(
+          tx,
+          'defaultInputUnit',
+          snapshot.defaultInputUnit,
+          'product_reference_unavailable',
+          previous,
+        ),
+        unitConversions: await Promise.all(
+          array(snapshot.unitConversions).map(async (value) => {
+            const conversion = record(value)
+            return {
+              ...conversion,
+              unit: await this.freezeProductReference(
+                tx,
+                'measurementUnit',
+                conversion.unit,
+                'product_reference_unavailable',
+                previous,
+              ),
+            }
+          }),
+        ),
+        fixedFormula:
+          snapshot.fixedFormula === null
+            ? null
+            : {
+                ...record(snapshot.fixedFormula),
+                output: await this.freezeProductQuantity(
+                  tx,
+                  record(record(snapshot.fixedFormula).output),
+                  previous,
+                ),
+                components: await Promise.all(
+                  array(record(snapshot.fixedFormula).components).map(
+                    async (value) => {
+                      const component = record(value)
+                      return {
+                        ...component,
+                        material: await this.freezeProductMaterial(
+                          tx,
+                          component.material,
+                        ),
+                        quantity: await this.freezeProductQuantity(
+                          tx,
+                          record(component.quantity),
+                          previous,
+                        ),
+                      }
+                    },
+                  ),
+                ),
+              },
+      }
     return {
       ...snapshot,
       ...((entity === 'supplier' || entity === 'other-unit') &&
@@ -1260,6 +1646,39 @@ export class BobArchiveService {
     id: string,
     snapshot: ArchiveSnapshot,
   ): Promise<void> {
+    const d = snapshot
+    if (entity === 'product') {
+      await tx
+        .insertInto('bob_product_versions')
+        .values({
+          approval_entry_id: id,
+          name: String(d.name ?? ''),
+          category_id: nullable(record(d.productCategory).id),
+          product_type_id: nullable(record(d.productType).id),
+          behavior_profile: nullable(record(d.productType).behaviorProfile),
+          default_input_unit_id: nullable(record(d.defaultInputUnit).id),
+          pricing_unit_id: nullable(record(d.pricingUnit).id),
+          specification: nullable(d.specification),
+          model: nullable(d.model),
+          barcode: nullable(d.barcode),
+          source_snapshots: json({
+            productType: d.productType,
+            productCategory: d.productCategory,
+            pricingUnit: d.pricingUnit,
+            defaultInputUnit: d.defaultInputUnit,
+          }),
+          unit_conversions: json(array(d.unitConversions)),
+          default_packaging_snapshot: json({
+            defaultPackagingSpec: d.defaultPackagingSpec,
+          }),
+          recyclable: d.recyclable === true,
+          fixed_formula:
+            d.fixedFormula === null ? null : json(record(d.fixedFormula)),
+          remark: nullable(d.remark),
+        })
+        .execute()
+      return
+    }
     await this.writeIdentitySet(tx, entity, id, snapshot)
   }
 
@@ -1345,6 +1764,30 @@ export class BobArchiveService {
     entity: ArchiveEntity,
     id: string,
   ): Promise<ArchiveSnapshot> {
+    if (entity === 'product') {
+      const r = await tx
+        .selectFrom('bob_product_versions')
+        .selectAll()
+        .where('approval_entry_id', '=', id)
+        .executeTakeFirstOrThrow()
+      const sources = record(r.source_snapshots)
+      return {
+        name: r.name,
+        barcode: r.barcode ?? '',
+        specification: r.specification ?? '',
+        model: r.model ?? '',
+        productType: record(sources.productType),
+        productCategory: record(sources.productCategory),
+        pricingUnit: record(sources.pricingUnit),
+        defaultInputUnit: record(sources.defaultInputUnit),
+        unitConversions: array(r.unit_conversions),
+        defaultPackagingSpec:
+          record(r.default_packaging_snapshot).defaultPackagingSpec ?? '',
+        recyclable: r.recyclable,
+        fixedFormula: r.fixed_formula === null ? null : record(r.fixed_formula),
+        remark: r.remark ?? '',
+      }
+    }
     return this.readIdentitySet(tx, entity, id)
   }
 
@@ -1461,6 +1904,21 @@ export class BobArchiveService {
     const open = await this.versioning.open(tx as Transaction<DB>, scope)
     if (open)
       throw new BobArchiveApplicationError('approval_open_version_exists')
+    if (entity === 'product') {
+      const previous = (
+        await this.versioning.history(tx as Transaction<DB>, scope)
+      ).find(
+        (candidate) =>
+          candidate.id !== entry.id && candidate.status === 'APPROVED',
+      )
+      if (previous)
+        await this.ensureNoDuplicateBusinessKey(
+          tx,
+          entity,
+          entry.subjectId,
+          await this.readSnapshot(tx, entity, previous.id),
+        )
+    }
     const blockers = await this.exactReferenceBlockers(tx, entry)
     if (blockers.length)
       throw new BobArchiveApplicationError(
@@ -1473,6 +1931,32 @@ export class BobArchiveService {
     tx: Executor,
     entry: ApprovalEntry,
   ): Promise<ArchiveBlocker[]> {
+    if (entry.entity === 'product') {
+      const references = await sql<{
+        domain: 'bob' | 'vou'
+        entity: string
+        subject_id: string
+        id: string
+        field: string
+      }>`
+        SELECT e.domain,e.entity,e.subject_id,e.id,r.field
+        FROM vou_reference_snapshots r JOIN approval_entries e ON e.id=r.approval_entry_id
+        WHERE r.approval_reference_id=${entry.id} AND e.status='APPROVED'
+        UNION ALL
+        SELECT e.domain,e.entity,e.subject_id,e.id,'fixedFormula.components[' || (component.ordinality-1)::text || '].material'
+        FROM bob_product_versions v JOIN approval_entries e ON e.id=v.approval_entry_id
+        CROSS JOIN LATERAL jsonb_array_elements(COALESCE(v.fixed_formula->'components','[]'::jsonb)) WITH ORDINALITY AS component(value,ordinality)
+        WHERE e.status='APPROVED' AND component.value->'material'->>'approvalEntryId'=${entry.id}
+        ORDER BY domain,entity,subject_id,id,field`.execute(tx)
+      return references.rows.map((row) => ({
+        kind: 'PRODUCT_REFERENCE' as const,
+        domain: row.domain,
+        entity: row.entity,
+        objectId: row.subject_id,
+        approvalEntryId: row.id,
+        field: row.field,
+      }))
+    }
     if (entry.entity !== 'other-unit') return []
     const result = await sql<{
       id: string

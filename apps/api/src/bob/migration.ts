@@ -1,3 +1,4 @@
+import { preserveLegacyProductPermissions } from './product-permissions.ts'
 import { sql, type Kysely, type Transaction } from 'kysely'
 
 import type { DB } from '../db/generated.ts'
@@ -172,7 +173,13 @@ export class BobArchiveMigrationService {
       this.db,
     ).migratePermissionCatalogInTransaction(
       tx,
-      catalog,
+      preserveLegacyProductPermissions(
+        catalog,
+        await tx
+          .selectFrom('app_permissions')
+          .select(['id', 'path', 'domain', 'entity', 'action', 'description'])
+          .execute(),
+      ),
       bobArchivePermissionMappings,
     )
     const count = await sql<{

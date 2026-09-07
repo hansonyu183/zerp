@@ -71,3 +71,27 @@ test('both preceding AUX catalog stages retain every legacy BOB grant until its 
     target,
   )
 })
+
+test('product legacy grants survive earlier migrations and block ordinary catalog sync', async () => {
+  const { preserveLegacyBobArchivePermissionCatalog } =
+    await import('../../src/bob/migration-guard.ts')
+  const source = {
+    id: 'product-grant',
+    path: '/dcl/product/query',
+    domain: 'dcl',
+    entity: 'product',
+    action: 'query',
+    description: '产品提交查询',
+  }
+  assert.equal(
+    requiresBobArchivePermissionMigration(
+      [source.path],
+      ['/bob/product/submission-query'],
+    ),
+    true,
+  )
+  assert.equal(
+    preserveLegacyBobArchivePermissionCatalog([], [source])[0]?.path,
+    source.path,
+  )
+})

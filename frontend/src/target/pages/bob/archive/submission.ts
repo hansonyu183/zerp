@@ -1,4 +1,5 @@
-import { computed, shallowRef, toRaw } from 'vue'
+import { describeBobArchiveFailure } from './blockers.ts'
+import { computed, ref, shallowRef, toRaw, type Ref } from 'vue'
 import { ulid } from 'ulid'
 
 import { TargetApiError } from '../../../api.ts'
@@ -42,7 +43,7 @@ export function useArchiveSubmissionEditor<Snapshot>(options: {
   const subjectId = shallowRef('')
   const latestApprovedSubmissionId = shallowRef<string | null>(null)
   const latestApprovedRevision = shallowRef<string | null>(null)
-  const draft = shallowRef<Snapshot>(options.createSnapshot())
+  const draft = ref(options.createSnapshot()) as Ref<Snapshot>
   const command = shallowRef<ArchiveSubmissionCommand<Snapshot> | null>(null)
   let generation = 0
 
@@ -160,7 +161,9 @@ export function useArchiveSubmissionEditor<Snapshot>(options: {
       return 'changed' as const
     } catch (cause) {
       if (requestGeneration !== generation) return
-      error.value = cause instanceof Error ? cause.message : '提交失败。'
+      error.value =
+        describeBobArchiveFailure(cause) ??
+        (cause instanceof Error ? cause.message : '提交失败。')
       const unknown =
         !(cause instanceof TargetApiError) ||
         cause.errorKey === 'invalid_response'

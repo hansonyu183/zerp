@@ -178,7 +178,7 @@ CREATE TABLE dcl_subjects (
     id varchar(26) PRIMARY KEY,
     entity varchar(64) NOT NULL CHECK (entity IN (
         'customer', 'supplier', 'other-unit', 'employee', 'sales-partner',
-        'product', 'warehouse', 'vehicle', 'fund-account', 'operating-entity',
+        'warehouse', 'vehicle', 'fund-account', 'operating-entity',
         'acc-mapping', 'rpt-definition', 'wfl-process-definition'
     )),
     code varchar(64) CONSTRAINT dcl_subjects_entity_code_ck CHECK (
@@ -187,7 +187,6 @@ CREATE TABLE dcl_subjects (
         OR (entity = 'other-unit' AND code ~ '^OTU-[0-9]{4}$')
         OR (entity = 'employee' AND code ~ '^EMP-[0-9]{4}$')
         OR (entity = 'sales-partner' AND code ~ '^SLP-[0-9]{4}$')
-        OR (entity = 'product' AND code ~ '^PRD-[0-9]{4}$')
         OR (entity = 'warehouse' AND code ~ '^WHS-[0-9]{4}$')
         OR (entity = 'vehicle' AND code ~ '^VEH-[0-9]{4}$')
         OR (entity = 'fund-account' AND code ~ '^FAC-[0-9]{4}$')
@@ -204,7 +203,7 @@ CREATE UNIQUE INDEX dcl_subjects_entity_code_unique
 
 CREATE TABLE bob_subjects (
     id varchar(26) PRIMARY KEY,
-    entity varchar(64) NOT NULL CHECK (entity IN ('supplier', 'other-unit', 'sales-partner')),
+    entity varchar(64) NOT NULL CHECK (entity IN ('supplier', 'other-unit', 'sales-partner', 'product')),
     code varchar(64) NOT NULL,
     enabled boolean NOT NULL DEFAULT true,
     revision bigint NOT NULL DEFAULT 1 CHECK (revision > 0),
@@ -403,7 +402,7 @@ CREATE TABLE bob_sales_partner_version_operating_entities (
     PRIMARY KEY (approval_entry_id, operating_entity_id)
 );
 
-CREATE TABLE dcl_product_versions (
+CREATE TABLE bob_product_versions (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     name varchar(200) NOT NULL,
     category_id varchar(26),
@@ -419,8 +418,7 @@ CREATE TABLE dcl_product_versions (
     default_packaging_snapshot jsonb,
     recyclable boolean NOT NULL DEFAULT false,
     fixed_formula jsonb,
-    remark varchar(1000),
-    enabled boolean NOT NULL
+    remark varchar(1000)
 );
 
 CREATE TABLE dcl_warehouse_versions (

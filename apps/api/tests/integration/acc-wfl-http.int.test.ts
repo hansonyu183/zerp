@@ -1,3 +1,4 @@
+import { BobArchiveService } from '../../src/bob/archives.ts'
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
 import test from 'node:test'
@@ -167,6 +168,7 @@ function post(
 
 async function seedSaleOrderReferences(
   archives: ArchiveService,
+  bobArchives: BobArchiveService,
   aux: AuxService,
   actorId: string,
   reviewerId: string,
@@ -251,9 +253,14 @@ async function seedSaleOrderReferences(
     sortOrder: 1,
   })
   const submit = async (
-    entity: Parameters<ArchiveService['submit']>[0],
+    entity: Parameters<ArchiveService['submit']>[0] | 'product',
     snapshot: Record<string, unknown>,
   ) => {
+    if (entity === 'product') {
+      const { enabled: _enabled, ...content } = snapshot
+      snapshot = content
+    }
+    const domain = entity === 'product' ? 'bob' : 'dcl'
     const objectId = ulid(),
       approvalEntryId = ulid()
     const input = {
@@ -268,7 +275,12 @@ async function seedSaleOrderReferences(
       entity as 'product' | 'customer',
     )
     const pendingResponse = crossesHttp
-      ? await post(origin, submitterSession, `/dcl/${entity}/submit-new`, input)
+      ? await post(
+          origin,
+          submitterSession,
+          `/${domain}/${entity}/submit-new`,
+          input,
+        )
       : undefined
     if (pendingResponse)
       assert.equal(
@@ -278,13 +290,21 @@ async function seedSaleOrderReferences(
       )
     const pending = pendingResponse
       ? pendingResponse.data
-      : await archives.submit(
-          entity,
-          'submit-new',
-          input,
-          actor,
-          `wfl-http-${entity}-submit`,
-        )
+      : entity === 'product'
+        ? await bobArchives.submit(
+            entity,
+            'submit-new',
+            input,
+            actor,
+            `wfl-http-${entity}-submit`,
+          )
+        : await archives.submit(
+            entity,
+            'submit-new',
+            input,
+            actor,
+            `wfl-http-${entity}-submit`,
+          )
     const reviewInput = {
       subjectId: objectId,
       submissionId: approvalEntryId,
@@ -294,7 +314,7 @@ async function seedSaleOrderReferences(
       ? await post(
           origin,
           reviewerSession,
-          `/dcl/${entity}/approve`,
+          `/${domain}/${entity}/approve`,
           reviewInput,
         )
       : undefined
@@ -306,18 +326,26 @@ async function seedSaleOrderReferences(
       )
     const approved = approvedResponse
       ? approvedResponse.data
-      : await archives.review(
-          entity,
-          'approve',
-          reviewInput,
-          { ...actor, id: reviewerId },
-          `wfl-http-${entity}-approve`,
-        )
+      : entity === 'product'
+        ? await bobArchives.review(
+            entity,
+            'approve',
+            reviewInput,
+            { ...actor, id: reviewerId },
+            `wfl-http-${entity}-approve`,
+          )
+        : await archives.review(
+            entity,
+            'approve',
+            reviewInput,
+            { ...actor, id: reviewerId },
+            `wfl-http-${entity}-approve`,
+          )
     if (crossesHttp) {
       const readback = await post(
         origin,
         reviewerSession,
-        `/dcl/${entity}/get`,
+        `/${domain}/${entity}/${entity === 'product' ? 'submission-get' : 'get'}`,
         { subjectId: objectId },
       )
       assert.equal(readback.code, 0)
@@ -871,6 +899,7 @@ test('WFL definition, current, trial, instance and six actions cross the authent
     acc,
     wfl,
     archives,
+    bobArchives: new BobArchiveService(db),
     aux,
     logger: {
       info() {},
@@ -892,9 +921,9 @@ test('WFL definition, current, trial, instance and six actions cross the authent
   assert.ok(address && typeof address !== 'string')
   const origin = `http://127.0.0.1:${address.port}`
   const wflPaths = [
-    '/dcl/product/submit-new',
-    '/dcl/product/approve',
-    '/dcl/product/get',
+    '/bob/product/submit-new',
+    '/bob/product/approve',
+    '/bob/product/submission-get',
     '/dcl/customer/submit-new',
     '/dcl/customer/save-subunits',
     '/dcl/customer/approve',
@@ -995,7 +1024,7 @@ test('WFL definition, current, trial, instance and six actions cross the authent
           .where('id', 'in', [...refs.archiveApprovalEntryIds])
           .execute()
         await db
-          .deleteFrom('dcl_subjects')
+          .deleteFrom('bob_subjects')
           .where('id', 'in', refs.archiveSubjectIds)
           .execute()
         await db
@@ -1095,6 +1124,7 @@ test('WFL definition, current, trial, instance and six actions cross the authent
   const reviewerActor: Actor = { id: reviewer.id, permissions: allPermissions }
   refs = await seedSaleOrderReferences(
     archives,
+    new BobArchiveService(db),
     aux,
     submitter.id,
     reviewer.id,

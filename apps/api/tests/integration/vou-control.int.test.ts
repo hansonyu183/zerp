@@ -87,6 +87,16 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
         ])
         .execute()
       await db
+        .deleteFrom('bob_subjects')
+        .where('id', 'in', [
+          mappingId,
+          fundMappingId,
+          customerId,
+          productId,
+          warehouseId,
+        ])
+        .execute()
+      await db
         .deleteFrom('approval_events')
         .where('domain', '=', 'acc')
         .where('subject_id', '=', bookId)
@@ -147,13 +157,6 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
         created_by: actorId,
       },
       {
-        id: productId,
-        entity: 'product',
-        code: `PRD-${code}`,
-        created_at: now,
-        created_by: actorId,
-      },
-      {
         id: mappingId,
         entity: 'acc-mapping',
         code: null,
@@ -164,6 +167,18 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
         id: fundMappingId,
         entity: 'acc-mapping',
         code: null,
+        created_at: now,
+        created_by: actorId,
+      },
+    ])
+    .execute()
+  await db
+    .insertInto('bob_subjects')
+    .values([
+      {
+        id: productId,
+        entity: 'product',
+        code: `PRD-${code}`,
         created_at: now,
         created_by: actorId,
       },
@@ -189,7 +204,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
       },
       {
         id: productEntryId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'product',
         subject_id: productId,
         version_no: 1,
@@ -274,7 +289,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     })
     .execute()
   await db
-    .insertInto('dcl_product_versions')
+    .insertInto('bob_product_versions')
     .values({
       approval_entry_id: productEntryId,
       name: '控制产品',
@@ -292,7 +307,6 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
         },
       ]),
       recyclable: false,
-      enabled: true,
     })
     .execute()
   const currentWarehouse = await new AuxService(db).create(
@@ -826,6 +840,10 @@ test('sale signoff and purchase inbound price the approved source line batch ins
         .deleteFrom('dcl_subjects')
         .where('id', 'in', [customerId, productId, warehouseId])
         .execute()
+      await db
+        .deleteFrom('bob_subjects')
+        .where('id', 'in', [customerId, productId, warehouseId])
+        .execute()
       await sql`DELETE FROM bob_subjects WHERE id = ${supplierId}`.execute(db)
       await db
         .deleteFrom('aux_objects')
@@ -872,6 +890,11 @@ test('sale signoff and purchase inbound price the approved source line batch ins
         created_at: now,
         created_by: actorId,
       },
+    ])
+    .execute()
+  await db
+    .insertInto('bob_subjects')
+    .values([
       {
         id: productId,
         entity: 'product',
@@ -920,7 +943,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
       },
       {
         id: productEntryId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'product',
         subject_id: productId,
         version_no: 1,
@@ -1002,7 +1025,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     })
     .execute()
   await db
-    .insertInto('dcl_product_versions')
+    .insertInto('bob_product_versions')
     .values({
       approval_entry_id: productEntryId,
       name: '批次产品',
@@ -1020,7 +1043,6 @@ test('sale signoff and purchase inbound price the approved source line batch ins
         },
       ]),
       recyclable: false,
-      enabled: true,
     })
     .execute()
   const currentWarehouse = await new AuxService(db).create(

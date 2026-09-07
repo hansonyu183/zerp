@@ -2,7 +2,10 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { archiveSnapshotSchemas } from '../../src/dcl/archive-contract.ts'
-import { bobArchiveSnapshotSchemas, bobArchiveRouteSets } from '../../src/bob/archive-contract.ts'
+import {
+  bobArchiveSnapshotSchemas,
+  bobArchiveRouteSets,
+} from '../../src/bob/archive-contract.ts'
 import { auxReferenceCandidateSchema } from '../../src/app/aux-contract.ts'
 
 const id = (seed: string) => seed.padEnd(26, '0').slice(0, 26)
@@ -103,11 +106,13 @@ test('product snapshot closes unit conversions and fixed formula', () => {
       ],
     },
     remark: '',
-    enabled: true,
   }
-  assert.equal(archiveSnapshotSchemas.product.safeParse(snapshot).success, true)
   assert.equal(
-    archiveSnapshotSchemas.product.safeParse({
+    bobArchiveSnapshotSchemas.product.safeParse(snapshot).success,
+    true,
+  )
+  assert.equal(
+    bobArchiveSnapshotSchemas.product.safeParse({
       ...snapshot,
       unitConversions: undefined,
     }).success,
@@ -195,11 +200,31 @@ test('customer snapshot uses closed typed subunit business policies', () => {
   )
 })
 
- test('BOB business submissions have dedicated routes and cannot carry enablement', () => {
+test('BOB business submissions have dedicated routes and cannot carry enablement', () => {
   for (const entity of ['supplier', 'other-unit', 'sales-partner'] as const) {
-    assert.equal(bobArchiveRouteSets[entity].query.path, `/bob/${entity}/submission-query`)
-    assert.equal(bobArchiveRouteSets[entity].get.path, `/bob/${entity}/submission-get`)
-    assert.equal(bobArchiveRouteSets[entity].approve.path, `/bob/${entity}/approve`)
+    assert.equal(
+      bobArchiveRouteSets[entity].query.path,
+      `/bob/${entity}/submission-query`,
+    )
+    assert.equal(
+      bobArchiveRouteSets[entity].get.path,
+      `/bob/${entity}/submission-get`,
+    )
+    assert.equal(
+      bobArchiveRouteSets[entity].approve.path,
+      `/bob/${entity}/approve`,
+    )
     assert.equal('enabled' in bobArchiveSnapshotSchemas[entity].shape, false)
   }
+})
+
+test('product maintenance belongs to BOB with distinct submission reads', () => {
+  const routes = bobArchiveRouteSets as Record<
+    string,
+    Record<string, { path: string }>
+  >
+  assert.equal(routes.product?.query.path, '/bob/product/submission-query')
+  assert.equal(routes.product?.get.path, '/bob/product/submission-get')
+  assert.equal(routes.product?.approve.path, '/bob/product/approve')
+  assert.equal('product' in archiveSnapshotSchemas, false)
 })

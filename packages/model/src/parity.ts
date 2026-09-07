@@ -7,7 +7,7 @@ import {
 
 const corpusEntry: ApprovalEntry = {
   id: '01JMODELENTRY00000000000000',
-  domain: 'dcl',
+  domain: 'bob',
   entity: 'product',
   subjectId: '01JMODELSUBJECT000000000000',
   versionNo: 1,
@@ -24,10 +24,10 @@ const corpusEntry: ApprovalEntry = {
 const corpusReviewer: ApprovalActor = {
   id: '01JMODELREVIEWER00000000000',
   permissions: [
-    '/dcl/product/reject',
-    '/dcl/product/approve',
-    '/dcl/product/unreject',
-    '/dcl/product/unapprove',
+    '/bob/product/reject',
+    '/bob/product/approve',
+    '/bob/product/unreject',
+    '/bob/product/unapprove',
   ],
 }
 

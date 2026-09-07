@@ -276,7 +276,7 @@ test('archive query contract uses the fixed page shell and entity-specific filte
   )
 
   const product =
-    archiveRouteSets.product.query.request.body.content['application/json']
+    bobArchiveRouteSets.product.query.request.body.content['application/json']
       .schema
   assert.deepEqual(
     product.parse({
@@ -362,7 +362,8 @@ test('only RPT get accepts an explicit owned approval entry', () => {
     ].schema
   assert.deepEqual(rptGet.parse(request), request)
   const productGet =
-    archiveRouteSets.product.get.request.body.content['application/json'].schema
+    bobArchiveRouteSets.product.get.request.body.content['application/json']
+      .schema
   assert.throws(() => productGet.parse(request))
 })
 
@@ -473,7 +474,7 @@ test('target OpenAPI contains the separated DCL and BOB archive lifecycle routes
     paths: Record<string, unknown>
   }
   const paths = new Set(Object.keys(document.paths))
-  const entities = ['product', 'customer', 'acc-mapping', 'rpt-definition']
+  const entities = ['customer', 'acc-mapping', 'rpt-definition']
   const actions = [
     'query',
     'get',
@@ -493,7 +494,7 @@ test('target OpenAPI contains the separated DCL and BOB archive lifecycle routes
         paths.has(`/dcl/${entity}/${action}`),
         `missing issue #364 target path /dcl/${entity}/${action}`,
       )
-  for (const entity of ['supplier', 'other-unit', 'sales-partner']) {
+  for (const entity of ['supplier', 'other-unit', 'sales-partner', 'product']) {
     for (const action of [
       ...actions,
       'submission-query',
@@ -537,9 +538,8 @@ test('archive query exposes summaries only and RPT get admits one owned version'
     >
   }
   const querySchema =
-    document.paths['/dcl/product/query']!.post.responses[200].content[
-      'application/json'
-    ].schema
+    document.paths['/bob/product/submission-query']!.post.responses[200]
+      .content['application/json'].schema
   assert.doesNotMatch(JSON.stringify(querySchema), /"snapshot"/)
 
   const rptGetSchema =
@@ -548,7 +548,7 @@ test('archive query exposes summaries only and RPT get admits one owned version'
     ].schema
   assert.match(JSON.stringify(rptGetSchema), /"approvalEntryId"/)
   const productGetSchema =
-    document.paths['/dcl/product/get']!.post.requestBody.content[
+    document.paths['/bob/product/submission-get']!.post.requestBody.content[
       'application/json'
     ].schema
   assert.doesNotMatch(JSON.stringify(productGetSchema), /"approvalEntryId"/)

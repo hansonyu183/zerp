@@ -16,8 +16,8 @@ import {
 const actor: ApprovalActor = {
   id: 'user-1',
   permissions: [
-    '/dcl/product/submit-new',
-    '/dcl/product/submit-change',
+    '/bob/product/submit-new',
+    '/bob/product/submit-change',
     '/dcl/customer/submit-new',
     '/bob/sales-partner/submit-new',
     '/dcl/acc-mapping/submit-new',
@@ -434,7 +434,6 @@ test('prepares typed archive submissions with canonical payloads and exact permi
           ],
         },
         remark: ' ',
-        enabled: true,
       },
     },
     {
@@ -506,7 +505,6 @@ test('rechecks exact submit permission, one open version, latest approval revisi
       recyclable: false,
       fixedFormula: null,
       remark: '',
-      enabled: true,
     },
   }
   const productFacts: ProductSubmitFacts = {
@@ -538,7 +536,7 @@ test('rechecks exact submit permission, one open version, latest approval revisi
     prepareProductSubmit(
       {
         ...productCommand,
-        actor: { ...actor, permissions: ['/dcl/product/submit-new'] },
+        actor: { ...actor, permissions: ['/bob/product/submit-new'] },
       },
       productFacts,
     ),

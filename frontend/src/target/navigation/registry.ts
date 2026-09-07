@@ -1,3 +1,4 @@
+import ProductManagement from '../pages/bob/product/ProductManagement.vue'
 import type { Component } from 'vue'
 import {
   userListPage,
@@ -155,6 +156,12 @@ export const targetResourceRegistry = createResourceRegistry([
     entity: 'vehicle',
     definition: vehicleListPage,
     component: VehicleManagement,
+  },
+  {
+    domain: 'bob',
+    entity: 'product',
+    component: ProductManagement,
+    useCaseKey: 'bob/product-management',
   },
   {
     domain: 'bob',

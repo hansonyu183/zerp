@@ -71,9 +71,9 @@ test('real HTTP workbench returns only actionable BOB, DCL and VOU submissions',
   const supplierCode = `SUP-${codeSuffix}`
   const wflDefinitionCode = `wfl-00${codeSuffix}`
   const permissionPaths = [
-    '/dcl/product/query',
-    '/dcl/product/get',
-    '/dcl/product/approve',
+    '/bob/product/submission-query',
+    '/bob/product/submission-get',
+    '/bob/product/approve',
     '/bob/other-unit/submission-query',
     '/bob/supplier/submission-query',
     '/bob/supplier/submission-get',
@@ -108,6 +108,10 @@ test('real HTTP workbench returns only actionable BOB, DCL and VOU submissions',
         .execute()
       await db
         .deleteFrom('dcl_subjects')
+        .where('id', 'in', [productId, wflDefinitionId])
+        .execute()
+      await db
+        .deleteFrom('bob_subjects')
         .where('id', 'in', [productId, wflDefinitionId])
         .execute()
       await sql`DELETE FROM bob_subjects WHERE id IN (${otherUnitId}, ${supplierId})`.execute(
@@ -225,16 +229,21 @@ test('real HTTP workbench returns only actionable BOB, DCL and VOU submissions',
     .insertInto('dcl_subjects')
     .values([
       {
-        id: productId,
-        entity: 'product',
-        code: productCode,
-        created_at: now,
-        created_by: submitterId,
-      },
-      {
         id: wflDefinitionId,
         entity: 'wfl-process-definition',
         code: wflDefinitionCode,
+        created_at: now,
+        created_by: submitterId,
+      },
+    ])
+    .execute()
+  await db
+    .insertInto('bob_subjects')
+    .values([
+      {
+        id: productId,
+        entity: 'product',
+        code: productCode,
         created_at: now,
         created_by: submitterId,
       },
@@ -251,7 +260,7 @@ test('real HTTP workbench returns only actionable BOB, DCL and VOU submissions',
     .values([
       {
         id: productSubmissionId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'product',
         subject_id: productId,
         version_no: 1,
@@ -360,14 +369,13 @@ test('real HTTP workbench returns only actionable BOB, DCL and VOU submissions',
     ])
     .execute()
   await db
-    .insertInto('dcl_product_versions')
+    .insertInto('bob_product_versions')
     .values({
       approval_entry_id: productSubmissionId,
       name: '工作台产品',
       source_snapshots: {},
       unit_conversions: JSON.stringify([]),
       recyclable: false,
-      enabled: true,
     })
     .execute()
   await db
@@ -537,7 +545,7 @@ test('real HTTP workbench returns only actionable BOB, DCL and VOU submissions',
       updatedAt: '2026-09-05T04:00:00.000Z',
     },
     {
-      domain: 'dcl',
+      domain: 'bob',
       entity: 'product',
       subjectOrDocumentId: productId,
       submissionId: productSubmissionId,

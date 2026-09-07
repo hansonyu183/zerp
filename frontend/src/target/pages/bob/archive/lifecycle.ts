@@ -1,3 +1,4 @@
+import { describeBobArchiveFailure } from './blockers.ts'
 import { computed, shallowRef, type ComputedRef, type ShallowRef } from 'vue'
 import type { OtherUnitData, SalesPartnerData, SupplierData } from '@zerp/model'
 
@@ -19,7 +20,7 @@ export const archiveAuditActionPresentation = {
 } as const
 
 export type ArchiveSubmission = {
-  entity: 'supplier' | 'other-unit' | 'sales-partner'
+  entity: 'supplier' | 'other-unit' | 'sales-partner' | 'product'
   subjectId: string
   submissionId: string
   versionNo: number
@@ -370,7 +371,8 @@ export function useArchiveSubmissionLifecycle<
       return 'changed' as const
     } catch (cause) {
       if (generation !== detailGeneration) return
-      error.value = messageOf(cause, '审批操作失败。')
+      error.value =
+        describeBobArchiveFailure(cause) ?? messageOf(cause, '审批操作失败。')
       if (
         !(cause instanceof TargetApiError) ||
         cause.errorKey === 'invalid_response'

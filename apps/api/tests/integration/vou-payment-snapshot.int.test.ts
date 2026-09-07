@@ -76,6 +76,9 @@ test('sales orders adopt explicit customer or current payment snapshots without 
       await sql`DELETE FROM dcl_subjects WHERE id IN (${sql.join(Object.values(subjects))})`.execute(
         db,
       )
+      await sql`DELETE FROM bob_subjects WHERE id IN (${sql.join(Object.values(subjects))})`.execute(
+        db,
+      )
       await sql`DELETE FROM aux_objects WHERE created_by = ${actorId}`.execute(
         db,
       )
@@ -162,24 +165,24 @@ test('sales orders adopt explicit customer or current payment snapshots without 
   const codeSuffix = Math.floor(Math.random() * 10000)
     .toString()
     .padStart(4, '0')
-  await db
-    .insertInto('dcl_subjects')
-    .values(
-      Object.entries(subjects).map(([entity, id]) => ({
+  for (const [entity, id] of Object.entries(subjects)) {
+    await db
+      .insertInto(entity === 'product' ? 'bob_subjects' : 'dcl_subjects')
+      .values({
         id,
         entity,
         code: `${prefix[entity as keyof typeof prefix]}-${codeSuffix}`,
         created_at: now,
         created_by: actorId,
-      })),
-    )
-    .execute()
+      })
+      .execute()
+  }
   await db
     .insertInto('approval_entries')
     .values(
       Object.entries(entries).map(([entity, id]) => ({
         id,
-        domain: 'dcl',
+        domain: entity === 'product' ? 'bob' : 'dcl',
         entity,
         subject_id: subjects[entity as keyof typeof subjects],
         version_no: 1,
@@ -240,7 +243,7 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     )
     .execute()
   await db
-    .insertInto('dcl_product_versions')
+    .insertInto('bob_product_versions')
     .values({
       approval_entry_id: entries.product,
       name: '收款测试商品',
@@ -258,7 +261,6 @@ test('sales orders adopt explicit customer or current payment snapshots without 
         },
       ]),
       recyclable: false,
-      enabled: true,
     })
     .execute()
   const currentWarehouse = await new AuxService(db).create(

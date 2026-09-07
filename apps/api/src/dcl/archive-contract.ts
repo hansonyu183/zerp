@@ -8,7 +8,6 @@ import type { TargetRouteEnvironment } from '../app/contract.ts'
 import { archiveEntityPresentation } from '@zerp/model'
 
 export const archiveEntities = [
-  'product',
   'customer',
   'acc-mapping',
   'rpt-definition',
@@ -62,71 +61,6 @@ const identityKind = z.enum([
   'MAINLAND_INDIVIDUAL',
   'OTHER',
 ])
-
-const quantityUnit = auxSnapshot
-  .extend({
-    symbol: z.string().min(1).max(32),
-    quantityScale: z.number().int().min(0).max(12),
-  })
-  .strict()
-const productType = auxSnapshot
-  .extend({
-    behaviorProfile: z.enum([
-      'RAW_MATERIAL',
-      'STANDARD_FINISHED',
-      'CUSTOM_FINISHED',
-      'PACKAGING',
-    ]),
-  })
-  .strict()
-const positiveDecimal = z
-  .string()
-  .regex(/^(?:0*[1-9]\d*)(?:\.\d+)?$|^0*\.\d*[1-9]\d*$/)
-const productQuantity = z
-  .object({
-    enteredQuantity: positiveDecimal,
-    enteredUnit: quantityUnit,
-    baseQuantity: positiveDecimal,
-  })
-  .strict()
-const productFixedFormula = z
-  .object({
-    output: productQuantity,
-    components: z
-      .array(
-        z
-          .object({
-            material: exactReference,
-            quantity: productQuantity,
-            resolutionStatus: z.enum(['CURRENT', 'UNRESOLVED']),
-            requiresConfirmation: z.boolean(),
-          })
-          .strict(),
-      )
-      .min(1)
-      .max(200),
-  })
-  .strict()
-const productSnapshot = z
-  .object({
-    name: z.string().min(1).max(200),
-    barcode: z.string().max(128),
-    specification: z.string().max(200),
-    model: z.string().max(200),
-    productType,
-    productCategory: auxSnapshot,
-    pricingUnit: quantityUnit,
-    defaultInputUnit: quantityUnit,
-    unitConversions: z
-      .array(z.object({ unit: quantityUnit, factor: positiveDecimal }).strict())
-      .min(1),
-    defaultPackagingSpec: z.string().max(64),
-    recyclable: z.boolean(),
-    fixedFormula: productFixedFormula.nullable(),
-    remark: z.string().max(1000),
-    enabled: z.boolean(),
-  })
-  .strict()
 
 // Settlement methods are AUX facts. They intentionally do not carry an
 // Approval Entry: a DCL exact-version reference here would fabricate history.
@@ -453,7 +387,6 @@ const rptDefinitionSnapshot = z
   .strict()
 
 export const archiveSnapshotSchemas = {
-  product: productSnapshot,
   customer: customerSnapshot,
   'acc-mapping': accMappingSnapshot,
   'rpt-definition': rptDefinitionSnapshot,
@@ -465,13 +398,6 @@ const archiveQueryBaseFilters = z
     keyword: z.string().trim().min(1).max(200).optional(),
     status: z.enum(['PENDING', 'APPROVED', 'REJECTED']).optional(),
     enabled: z.boolean().optional(),
-  })
-  .strict()
-
-const archiveQueryProductFilters = archiveQueryBaseFilters
-  .extend({
-    productTypeId: z.string().length(26).optional(),
-    productCategoryId: z.string().length(26).optional(),
   })
   .strict()
 
@@ -492,7 +418,6 @@ const archiveQueryInput = <Filters extends z.ZodType>(filters: Filters) =>
     .strict()
 
 export const archiveQuerySchemas = {
-  product: archiveQueryInput(archiveQueryProductFilters),
   customer: archiveQueryInput(archiveQueryBaseFilters),
   'acc-mapping': archiveQueryInput(archiveQueryAccMappingFilters),
   'rpt-definition': archiveQueryInput(archiveQueryBaseFilters),
@@ -758,13 +683,6 @@ function defineArchiveRoutes<
 }
 
 export const archiveRouteSets = {
-  product: defineArchiveRoutes(
-    'dcl',
-    'query',
-    'get',
-    'product',
-    archiveSnapshotSchemas.product,
-  ),
   customer: defineArchiveRoutes(
     'dcl',
     'query',
@@ -947,50 +865,6 @@ export function registerArchiveRoutes(
   attachments: ArchiveAttachmentHandlers,
 ) {
   const archives = app.openapiRoutes([
-    {
-      route: archiveRouteSets['product']['query'],
-      handler: archiveHandler(handler, 'product', 'query'),
-    },
-    {
-      route: archiveRouteSets['product']['get'],
-      handler: archiveHandler(handler, 'product', 'get'),
-    },
-    {
-      route: archiveRouteSets['product']['versions'],
-      handler: archiveHandler(handler, 'product', 'versions'),
-    },
-    {
-      route: archiveRouteSets['product']['audit-history'],
-      handler: archiveHandler(handler, 'product', 'audit-history'),
-    },
-    {
-      route: archiveRouteSets['product']['submit-new'],
-      handler: archiveHandler(handler, 'product', 'submit-new'),
-    },
-    {
-      route: archiveRouteSets['product']['submit-change'],
-      handler: archiveHandler(handler, 'product', 'submit-change'),
-    },
-    {
-      route: archiveRouteSets['product']['approve'],
-      handler: archiveHandler(handler, 'product', 'approve'),
-    },
-    {
-      route: archiveRouteSets['product']['reject'],
-      handler: archiveHandler(handler, 'product', 'reject'),
-    },
-    {
-      route: archiveRouteSets['product']['unreject'],
-      handler: archiveHandler(handler, 'product', 'unreject'),
-    },
-    {
-      route: archiveRouteSets['product']['unapprove'],
-      handler: archiveHandler(handler, 'product', 'unapprove'),
-    },
-    {
-      route: archiveRouteSets['product']['delete'],
-      handler: archiveHandler(handler, 'product', 'delete'),
-    },
     {
       route: archiveRouteSets['customer']['query'],
       handler: archiveHandler(handler, 'customer', 'query'),

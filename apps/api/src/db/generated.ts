@@ -431,6 +431,25 @@ export interface BobOtherUnitVersions {
   settlement_method_snapshot: Json | null;
 }
 
+export interface BobProductVersions {
+  approval_entry_id: string;
+  barcode: string | null;
+  behavior_profile: string | null;
+  category_id: string | null;
+  default_input_unit_id: string | null;
+  default_packaging_snapshot: Json | null;
+  fixed_formula: Json | null;
+  model: string | null;
+  name: string;
+  pricing_unit_id: string | null;
+  product_type_id: string | null;
+  recyclable: Generated<boolean>;
+  remark: string | null;
+  source_snapshots: Generated<Json>;
+  specification: string | null;
+  unit_conversions: Generated<Json>;
+}
+
 export interface BobSalesPartnerVersionOperatingEntities {
   approval_entry_id: string;
   operating_entity_approval_entry_id: string | null;
@@ -670,26 +689,6 @@ export interface DclOperatingEntityVersions {
   registered_address: string;
   remark: string | null;
   short_name: string;
-}
-
-export interface DclProductVersions {
-  approval_entry_id: string;
-  barcode: string | null;
-  behavior_profile: string | null;
-  category_id: string | null;
-  default_input_unit_id: string | null;
-  default_packaging_snapshot: Json | null;
-  enabled: boolean;
-  fixed_formula: Json | null;
-  model: string | null;
-  name: string;
-  pricing_unit_id: string | null;
-  product_type_id: string | null;
-  recyclable: Generated<boolean>;
-  remark: string | null;
-  source_snapshots: Generated<Json>;
-  specification: string | null;
-  unit_conversions: Generated<Json>;
 }
 
 export interface DclRptDefinitionVersions {
@@ -1676,6 +1675,7 @@ export interface DB {
   bob_legacy_enablement_evidence: BobLegacyEnablementEvidence;
   bob_other_unit_version_operating_entities: BobOtherUnitVersionOperatingEntities;
   bob_other_unit_versions: BobOtherUnitVersions;
+  bob_product_versions: BobProductVersions;
   bob_sales_partner_version_operating_entities: BobSalesPartnerVersionOperatingEntities;
   bob_sales_partner_versions: BobSalesPartnerVersions;
   bob_subjects: BobSubjects;
@@ -1695,7 +1695,6 @@ export interface DB {
   dcl_employee_versions: DclEmployeeVersions;
   dcl_fund_account_versions: DclFundAccountVersions;
   dcl_operating_entity_versions: DclOperatingEntityVersions;
-  dcl_product_versions: DclProductVersions;
   dcl_rpt_definition_versions: DclRptDefinitionVersions;
   dcl_subjects: DclSubjects;
   dcl_vehicle_versions: DclVehicleVersions;

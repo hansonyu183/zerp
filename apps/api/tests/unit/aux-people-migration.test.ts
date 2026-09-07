@@ -252,7 +252,7 @@ test('people migration keeps legacy asset permissions for the following atomic c
         description: '旧仓库变更',
       },
       {
-        id: 'unrelated',
+        id: 'legacy-product',
         path: '/dcl/product/submit-change',
         domain: 'dcl',
         entity: 'product',
@@ -269,6 +269,14 @@ test('people migration keeps legacy asset permissions for the following atomic c
         entity: 'warehouse',
         action: 'submit-change',
         title: '旧仓库变更',
+      },
+      {
+        id: 'legacy-product',
+        path: '/dcl/product/submit-change',
+        domain: 'dcl',
+        entity: 'product',
+        action: 'submit-change',
+        title: '产品变更',
       },
     ],
   )

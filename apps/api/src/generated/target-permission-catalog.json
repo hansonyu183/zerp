@@ -1416,6 +1416,46 @@
     "title": "versions other-unit"
   },
   {
+    "id": "01J087A90B4F50F5EFD908B9B7",
+    "path": "/bob/product/approve",
+    "domain": "bob",
+    "entity": "product",
+    "action": "approve",
+    "title": "approve product"
+  },
+  {
+    "id": "01JE62833690D6EBEBE2BFEBD9",
+    "path": "/bob/product/audit-history",
+    "domain": "bob",
+    "entity": "product",
+    "action": "audit-history",
+    "title": "audit-history product"
+  },
+  {
+    "id": "01J4B40C8305922ED37D456808",
+    "path": "/bob/product/delete",
+    "domain": "bob",
+    "entity": "product",
+    "action": "delete",
+    "title": "delete product"
+  },
+  {
+    "id": "01JDB0CF090E0CF6B13BDABDAC",
+    "path": "/bob/product/disable",
+    "domain": "bob",
+    "entity": "product",
+    "action": "disable",
+    "title": "查看产品"
+  },
+  {
+    "id": "01J0B9C980825C6B293D8A1492",
+    "path": "/bob/product/enable",
+    "domain": "bob",
+    "entity": "product",
+    "action": "enable",
+    "title": "查看产品"
+  },
+  {
     "id": "01J5DD205F4B0DAF0CBCAF67A1",
     "path": "/bob/product/get",
     "domain": "bob",
@@ -1430,6 +1470,70 @@
     "entity": "product",
     "action": "query",
     "title": "查询产品"
+  },
+  {
+    "id": "01J0F04AC317742E3FE41EE613",
+    "path": "/bob/product/reject",
+    "domain": "bob",
+    "entity": "product",
+    "action": "reject",
+    "title": "reject product"
+  },
+  {
+    "id": "01JFCD018AEAD0284845AE189A",
+    "path": "/bob/product/submission-get",
+    "domain": "bob",
+    "entity": "product",
+    "action": "submission-get",
+    "title": "get product"
+  },
+  {
+    "id": "01J88C0DB458E9E890187D865B",
+    "path": "/bob/product/submission-query",
+    "domain": "bob",
+    "entity": "product",
+    "action": "submission-query",
+    "title": "产品"
+  },
+  {
+    "id": "01J7DCE4E223C2138A4F08F2BF",
+    "path": "/bob/product/submit-change",
+    "domain": "bob",
+    "entity": "product",
+    "action": "submit-change",
+    "title": "submit-change product"
+  },
+  {
+    "id": "01J1884B7CBBD28DDD1B895C5C",
+    "path": "/bob/product/submit-new",
+    "domain": "bob",
+    "entity": "product",
+    "action": "submit-new",
+    "title": "submit-new product"
+  },
+  {
+    "id": "01J78FE40DD68D1D76617B9FF4",
+    "path": "/bob/product/unapprove",
+    "domain": "bob",
+    "entity": "product",
+    "action": "unapprove",
+    "title": "unapprove product"
+  },
+  {
+    "id": "01J1FF659F5102163A99E5F62D",
+    "path": "/bob/product/unreject",
+    "domain": "bob",
+    "entity": "product",
+    "action": "unreject",
+    "title": "unreject product"
+  },
+  {
+    "id": "01J4359D2E2529E162A472C9A0",
+    "path": "/bob/product/versions",
+    "domain": "bob",
+    "entity": "product",
+    "action": "versions",
+    "title": "versions product"
   },
   {
     "id": "01J560D6C8B6290F677202E82D",
@@ -1878,94 +1982,6 @@
     "entity": "customer",
     "action": "versions",
     "title": "versions customer"
-  },
-  {
-    "id": "01J79A1EBF2FFEA8AC2DA6FE05",
-    "path": "/dcl/product/approve",
-    "domain": "dcl",
-    "entity": "product",
-    "action": "approve",
-    "title": "approve product"
-  },
-  {
-    "id": "01JF54F90B7801723F2D18094B",
-    "path": "/dcl/product/audit-history",
-    "domain": "dcl",
-    "entity": "product",
-    "action": "audit-history",
-    "title": "audit-history product"
-  },
-  {
-    "id": "01J14769F0E40A1EF159269C08",
-    "path": "/dcl/product/delete",
-    "domain": "dcl",
-    "entity": "product",
-    "action": "delete",
-    "title": "delete product"
-  },
-  {
-    "id": "01J64C7186912B002F45D81908",
-    "path": "/dcl/product/get",
-    "domain": "dcl",
-    "entity": "product",
-    "action": "get",
-    "title": "get product"
-  },
-  {
-    "id": "01JCE266589525590E25EBC694",
-    "path": "/dcl/product/query",
-    "domain": "dcl",
-    "entity": "product",
-    "action": "query",
-    "title": "产品"
-  },
-  {
-    "id": "01J2997AC7C18E2CD135190034",
-    "path": "/dcl/product/reject",
-    "domain": "dcl",
-    "entity": "product",
-    "action": "reject",
-    "title": "reject product"
-  },
-  {
-    "id": "01J707F64EB70B0334D85F88E4",
-    "path": "/dcl/product/submit-change",
-    "domain": "dcl",
-    "entity": "product",
-    "action": "submit-change",
-    "title": "submit-change product"
-  },
-  {
-    "id": "01JF9A0BA9B740FAB3B48A645A",
-    "path": "/dcl/product/submit-new",
-    "domain": "dcl",
-    "entity": "product",
-    "action": "submit-new",
-    "title": "submit-new product"
-  },
-  {
-    "id": "01J40AD793C48A541B76B981E0",
-    "path": "/dcl/product/unapprove",
-    "domain": "dcl",
-    "entity": "product",
-    "action": "unapprove",
-    "title": "unapprove product"
-  },
-  {
-    "id": "01J5326E8FF06093C34B80B31A",
-    "path": "/dcl/product/unreject",
-    "domain": "dcl",
-    "entity": "product",
-    "action": "unreject",
-    "title": "unreject product"
-  },
-  {
-    "id": "01J1E6D718280AD40C45FC25B2",
-    "path": "/dcl/product/versions",
-    "domain": "dcl",
-    "entity": "product",
-    "action": "versions",
-    "title": "versions product"
   },
   {
     "id": "01J8D09C7DFF10FEFB025388D9",

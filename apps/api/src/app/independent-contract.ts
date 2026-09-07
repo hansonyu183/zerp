@@ -350,22 +350,33 @@ const bobReferences = z.array(
   }),
 )
 
-const bobManagedEntities = ['supplier', 'other-unit', 'sales-partner'] as const
+const bobManagedEntities = [
+  'product',
+  'supplier',
+  'other-unit',
+  'sales-partner',
+] as const
 function bobCurrentRoutes<
   const Entity extends (typeof bobManagedEntities)[number],
->(entity: Entity) {
+  const Snapshot extends z.ZodType,
+>(entity: Entity, snapshot: Snapshot) {
   const object = bobObject.extend({
     entity: z.literal(entity),
     revision: z.string(),
     name: z.string(),
     py: z.string(),
-    data: bobArchiveSnapshotSchemas[entity],
+    data: snapshot,
   })
   const filters = z
     .object({
       keyword: z.string().trim().max(200).optional(),
       enabled: z.boolean().optional(),
-      operatingEntityId: z.string().length(26).optional(),
+      ...(entity === 'product'
+        ? {
+            productTypeId: z.string().length(26).optional(),
+            categoryId: z.string().length(26).optional(),
+          }
+        : { operatingEntityId: z.string().length(26).optional() }),
       ...(entity === 'supplier'
         ? { defaultPurchaserEmployeeId: z.string().length(26).optional() }
         : {}),
@@ -415,9 +426,22 @@ function bobCurrentRoutes<
     ),
   }
 }
-const supplierCurrentRoutes = bobCurrentRoutes('supplier')
-const otherUnitCurrentRoutes = bobCurrentRoutes('other-unit')
-const salesPartnerCurrentRoutes = bobCurrentRoutes('sales-partner')
+const productCurrentRoutes = bobCurrentRoutes(
+  'product',
+  bobArchiveSnapshotSchemas['product'],
+)
+const supplierCurrentRoutes = bobCurrentRoutes(
+  'supplier',
+  bobArchiveSnapshotSchemas['supplier'],
+)
+const otherUnitCurrentRoutes = bobCurrentRoutes(
+  'other-unit',
+  bobArchiveSnapshotSchemas['other-unit'],
+)
+const salesPartnerCurrentRoutes = bobCurrentRoutes(
+  'sales-partner',
+  bobArchiveSnapshotSchemas['sales-partner'],
+)
 function bobRoute<const Path extends string>(
   path: Path,
   action: 'query' | 'get',
@@ -1040,11 +1064,19 @@ export function registerIndependentRoutes(
       handler: handlers.bob(bobRouteBinding('customer', 'get')),
     },
     {
-      route: bobRoute('/bob/product/query', 'query'),
+      route: productCurrentRoutes.enable,
+      handler: handlers.bob(bobRouteBinding('product', 'enable')),
+    },
+    {
+      route: productCurrentRoutes.disable,
+      handler: handlers.bob(bobRouteBinding('product', 'disable')),
+    },
+    {
+      route: productCurrentRoutes.query,
       handler: handlers.bob(bobRouteBinding('product', 'query')),
     },
     {
-      route: bobRoute('/bob/product/get', 'get'),
+      route: productCurrentRoutes.get,
       handler: handlers.bob(bobRouteBinding('product', 'get')),
     },
     {

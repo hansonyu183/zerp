@@ -9,7 +9,10 @@ import { sql } from 'kysely'
 import pg from 'pg'
 import { ulid } from 'ulid'
 
-import { BobArchiveService } from '../../src/bob/archives.ts'
+import {
+  BobArchiveApplicationError,
+  BobArchiveService,
+} from '../../src/bob/archives.ts'
 import { AuxApplicationError, AuxService } from '../../src/aux/service.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { searchPinyin } from '../../src/platform/pinyin.ts'
@@ -202,8 +205,9 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
 
   function isBob(
     entity: string,
-  ): entity is 'supplier' | 'other-unit' | 'sales-partner' {
+  ): entity is 'supplier' | 'other-unit' | 'sales-partner' | 'product' {
     return (
+      entity === 'product' ||
       entity === 'supplier' ||
       entity === 'other-unit' ||
       entity === 'sales-partner'
@@ -466,7 +470,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     behaviorProfile: 'STANDARD_FINISHED',
   })
   const persistedFormula = await db
-    .selectFrom('dcl_product_versions')
+    .selectFrom('bob_product_versions')
     .select(['unit_conversions', 'fixed_formula'])
     .where('approval_entry_id', '=', formulaProduct.submissionId)
     .executeTakeFirstOrThrow()
@@ -475,7 +479,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   const invalidProductSubjectId = ulid()
   subjectIds.push(invalidProductSubjectId)
   await assert.rejects(
-    service.submit(
+    bobArchives.submit(
       'product',
       'submit-new',
       {
@@ -497,7 +501,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       ulid(),
     ),
     (error: unknown) =>
-      error instanceof ArchiveApplicationError &&
+      error instanceof BobArchiveApplicationError &&
       error.errorKey === 'product_reference_unavailable',
   )
   await db
@@ -508,7 +512,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   const malformedUnitSubjectId = ulid()
   subjectIds.push(malformedUnitSubjectId)
   await assert.rejects(
-    service.submit(
+    bobArchives.submit(
       'product',
       'submit-new',
       {
@@ -523,7 +527,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       ulid(),
     ),
     (error: unknown) =>
-      error instanceof ArchiveApplicationError &&
+      error instanceof BobArchiveApplicationError &&
       error.errorKey === 'product_reference_unavailable',
   )
   await db
@@ -1469,7 +1473,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     unitActor,
     ulid(),
   )
-  const historicalProduct = await service.get(
+  const historicalProduct = await bobArchives.get(
     'product',
     product.subjectId,
     reviewer,
@@ -1498,7 +1502,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       assert.ok(
         blockers.some(
           (blocker) =>
-            blocker.source === 'dcl_product_versions' && blocker.count > 0,
+            blocker.source === 'bob_product_versions' && blocker.count > 0,
         ),
       )
       return true
@@ -1512,7 +1516,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   const rejectedUnitSubjectId = ulid()
   subjectIds.push(rejectedUnitSubjectId)
   await assert.rejects(
-    service.submit(
+    bobArchives.submit(
       'product',
       'submit-new',
       {
@@ -1527,7 +1531,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       ulid(),
     ),
     (error: unknown) =>
-      error instanceof ArchiveApplicationError &&
+      error instanceof BobArchiveApplicationError &&
       error.errorKey === 'product_reference_unavailable',
   )
   const auxActor = {

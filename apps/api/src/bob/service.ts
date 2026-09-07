@@ -14,6 +14,7 @@ export const bobEntities = [
 ] as const
 
 export const managedBobEntities = [
+  'product',
   'supplier',
   'other-unit',
   'sales-partner',
@@ -141,32 +142,17 @@ function currentSource(entity: BobEntity) {
       JOIN dcl_customer_versions snapshot ON snapshot.approval_entry_id = entry.id
       WHERE subject.entity = 'customer'
 
-      UNION ALL
-      SELECT subject.id, subject.entity, subject.code, snapshot.enabled, entry.id,
-        entry.version_no, entry.updated_at,
-        jsonb_strip_nulls(jsonb_build_object(
-          'name', snapshot.name, 'categoryId', snapshot.category_id,
-          'productTypeId', snapshot.product_type_id,
-          'behaviorProfile', snapshot.behavior_profile,
-          'defaultInputUnitId', snapshot.default_input_unit_id,
-          'pricingUnitId', snapshot.pricing_unit_id
-        ))
-      FROM dcl_subjects subject
-      JOIN LATERAL (
-        SELECT * FROM approval_entries
-        WHERE domain = 'dcl' AND entity = 'product' AND subject_id = subject.id
-          AND status = 'APPROVED'
-        ORDER BY version_no DESC LIMIT 1
-      ) entry ON true
-      JOIN dcl_product_versions snapshot ON snapshot.approval_entry_id = entry.id
-      WHERE subject.entity = 'product'
-
     ) typed_current
     WHERE typed_current.entity = ${entity}`
 }
 
 /** One typed query; neither current queries nor references issue per-row reads. */
 function businessIdentityCurrent(entity: ManagedBobEntity) {
+  if (entity === 'product')
+    return sql<StoredBobObject>`SELECT subject.id AS object_id,subject.entity,subject.code,subject.enabled,subject.revision::text AS revision,entry.id AS source_approval_entry_id,entry.version_no AS source_version_no,entry.updated_at,
+    jsonb_build_object('name',v.name,'barcode',COALESCE(v.barcode,''),'specification',COALESCE(v.specification,''),'model',COALESCE(v.model,''),'productType',v.source_snapshots->'productType','productCategory',v.source_snapshots->'productCategory','pricingUnit',v.source_snapshots->'pricingUnit','defaultInputUnit',v.source_snapshots->'defaultInputUnit','unitConversions',v.unit_conversions,'defaultPackagingSpec',v.default_packaging_snapshot->>'defaultPackagingSpec','recyclable',v.recyclable,'fixedFormula',v.fixed_formula,'remark',COALESCE(v.remark,'')) AS data
+    FROM bob_subjects subject JOIN LATERAL (SELECT id,version_no,updated_at FROM approval_entries WHERE domain='bob' AND entity='product' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN bob_product_versions v ON v.approval_entry_id=entry.id WHERE subject.entity='product'`
+
   const tables = {
     supplier: [
       'bob_supplier_versions',
@@ -342,13 +328,13 @@ export class BobService {
     if (filter.enabled !== undefined)
       where.push(sql`enabled = ${filter.enabled}`)
     if (filter.categoryId)
-      where.push(sql`data->>'categoryId' = ${filter.categoryId}`)
+      where.push(sql`data->'productCategory'->>'id' = ${filter.categoryId}`)
     if (filter.defaultPurchaserEmployeeId)
       where.push(
         sql`data->>'defaultPurchaserEmployeeId' = ${filter.defaultPurchaserEmployeeId}`,
       )
     if (filter.productTypeId)
-      where.push(sql`data->>'productTypeId' = ${filter.productTypeId}`)
+      where.push(sql`data->'productType'->>'id' = ${filter.productTypeId}`)
     if (filter.operatingEntityId)
       where.push(
         sql`(data->>'operatingEntityId' = ${filter.operatingEntityId} OR data->>'defaultOperatingEntityId' = ${filter.operatingEntityId} OR data->'defaultOperatingEntity'->>'sourceObjectId' = ${filter.operatingEntityId})`,
@@ -418,15 +404,23 @@ export class BobService {
           'enabled',
           'defaultPurchaserEmployeeId',
           'operatingEntityId',
+          'productTypeId',
+          'categoryId',
         ].includes(key)
       )
         fail('validation_failed')
     for (const value of [
       filters.defaultPurchaserEmployeeId,
       filters.operatingEntityId,
+      filters.productTypeId,
+      filters.categoryId,
     ])
       if (value !== undefined && !validId(value)) fail('validation_failed')
     if (filters.defaultPurchaserEmployeeId && entity !== 'supplier')
+      fail('validation_failed')
+    if ((filters.productTypeId || filters.categoryId) && entity !== 'product')
+      fail('validation_failed')
+    if (filters.operatingEntityId && entity === 'product')
       fail('validation_failed')
     return this.db
       .transaction()
@@ -446,6 +440,12 @@ export class BobService {
               )) &&
             (filters.enabled === undefined ||
               view.enabled === filters.enabled) &&
+            (!filters.productTypeId ||
+              (view.data.productType as { id: string }).id ===
+                filters.productTypeId) &&
+            (!filters.categoryId ||
+              (view.data.productCategory as { id: string }).id ===
+                filters.categoryId) &&
             (!filters.defaultPurchaserEmployeeId ||
               (view.data.defaultPurchaser as { objectId?: string } | null)
                 ?.objectId === filters.defaultPurchaserEmployeeId) &&
@@ -484,7 +484,9 @@ export class BobService {
   private objectView(row: StoredBobObject): BobObjectView {
     const view = parseCurrent(row)
     if (!isManagedBobEntity(view.entity)) return view
-    const displayName = String(view.data.displayName)
+    const displayName = String(
+      view.entity === 'product' ? view.data.name : view.data.displayName,
+    )
     if (!row.revision) fail('internal_error')
     return {
       ...view,
@@ -610,7 +612,9 @@ export class BobService {
     if (input.entity === 'product' && input.sourceObjectId)
       where.push(sql`object_id <> ${input.sourceObjectId}`)
     if (input.behaviorProfile)
-      where.push(sql`data->>'behaviorProfile' = ${input.behaviorProfile}`)
+      where.push(
+        sql`data->'productType'->>'behaviorProfile' = ${input.behaviorProfile}`,
+      )
     if (input.operatingEntityId)
       where.push(
         sql`(data->>'operatingEntityId' = ${input.operatingEntityId} OR data->>'defaultOperatingEntityId' = ${input.operatingEntityId} OR data->'defaultOperatingEntity'->>'sourceObjectId' = ${input.operatingEntityId} OR EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(data->'operatingEntities', '[]'::jsonb)) AS item WHERE item->>'objectId' = ${input.operatingEntityId}))`,

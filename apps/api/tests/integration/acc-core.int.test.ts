@@ -1123,6 +1123,7 @@ test('ACC book, subjects, Opening and periods keep one transactional fact bounda
         .where('id', '=', productApprovalEntryId)
         .execute()
       await db.deleteFrom('dcl_subjects').where('id', '=', productId).execute()
+      await db.deleteFrom('bob_subjects').where('id', '=', productId).execute()
       await db.deleteFrom('acc_subjects').execute()
       await db.deleteFrom('acc_books').execute()
       await db
@@ -1150,20 +1151,22 @@ test('ACC book, subjects, Opening and periods keep one transactional fact bounda
     .execute()
   const now = new Date()
   await db
-    .insertInto('dcl_subjects')
-    .values({
-      id: productId,
-      entity: 'product',
-      code: 'PRD-0001',
-      created_at: now,
-      created_by: submitterId,
-    })
+    .insertInto('bob_subjects')
+    .values([
+      {
+        id: productId,
+        entity: 'product',
+        code: 'PRD-0001',
+        created_at: now,
+        created_by: submitterId,
+      },
+    ])
     .execute()
   await db
     .insertInto('approval_entries')
     .values({
       id: productApprovalEntryId,
-      domain: 'dcl',
+      domain: 'bob',
       entity: 'product',
       subject_id: productId,
       version_no: 1,
@@ -1178,14 +1181,13 @@ test('ACC book, subjects, Opening and periods keep one transactional fact bounda
     })
     .execute()
   await db
-    .insertInto('dcl_product_versions')
+    .insertInto('bob_product_versions')
     .values({
       approval_entry_id: productApprovalEntryId,
       name: '记账测试产品',
       source_snapshots: {},
       unit_conversions: JSON.stringify([]),
       recyclable: false,
-      enabled: true,
     })
     .execute()
   const pricingPayload = (amount: string): VouPayloadFor<'sale-pricing'> => ({

@@ -554,7 +554,7 @@ async function seedArchiveReference(
     snapshot,
   }
   const pending =
-    entity === 'supplier' || entity === 'other-unit'
+    entity === 'supplier' || entity === 'other-unit' || entity === 'product'
       ? await bobArchives.submit(
           entity,
           'submit-new',
@@ -575,7 +575,7 @@ async function seedArchiveReference(
     expectedRevision: pending.revision,
   }
   const approved =
-    entity === 'supplier' || entity === 'other-unit'
+    entity === 'supplier' || entity === 'other-unit' || entity === 'product'
       ? await bobArchives.review(
           entity,
           'approve',

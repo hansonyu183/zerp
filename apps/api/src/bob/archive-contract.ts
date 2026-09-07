@@ -8,6 +8,7 @@ import type { TargetRouteEnvironment } from '../app/contract.ts'
 import { archiveEntityPresentation } from '@zerp/model'
 
 export const bobArchiveEntities = [
+  'product',
   'supplier',
   'other-unit',
   'sales-partner',
@@ -46,6 +47,79 @@ const auxSnapshot = z
     id: z.string().min(1).max(26),
     code: z.string().min(1).max(64),
     name: z.string().min(1).max(200),
+  })
+  .strict()
+
+const exactReference = z
+  .object({
+    objectId: z.string().min(1).max(26),
+    approvalEntryId: z.string().length(26),
+    code: z.string().min(1).max(64),
+    name: z.string().min(1).max(200),
+  })
+  .strict()
+
+const quantityUnit = auxSnapshot
+  .extend({
+    symbol: z.string().min(1).max(32),
+    quantityScale: z.number().int().min(0).max(12),
+  })
+  .strict()
+const productType = auxSnapshot
+  .extend({
+    behaviorProfile: z.enum([
+      'RAW_MATERIAL',
+      'STANDARD_FINISHED',
+      'CUSTOM_FINISHED',
+      'PACKAGING',
+    ]),
+  })
+  .strict()
+const positiveDecimal = z
+  .string()
+  .regex(/^(?:0*[1-9]\d*)(?:\.\d+)?$|^0*\.\d*[1-9]\d*$/)
+const productQuantity = z
+  .object({
+    enteredQuantity: positiveDecimal,
+    enteredUnit: quantityUnit,
+    baseQuantity: positiveDecimal,
+  })
+  .strict()
+const productFixedFormula = z
+  .object({
+    output: productQuantity,
+    components: z
+      .array(
+        z
+          .object({
+            material: exactReference,
+            quantity: productQuantity,
+            resolutionStatus: z.enum(['CURRENT', 'UNRESOLVED']),
+            requiresConfirmation: z.boolean(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(200),
+  })
+  .strict()
+const productSnapshot = z
+  .object({
+    name: z.string().min(1).max(200),
+    barcode: z.string().max(128),
+    specification: z.string().max(200),
+    model: z.string().max(200),
+    productType,
+    productCategory: auxSnapshot,
+    pricingUnit: quantityUnit,
+    defaultInputUnit: quantityUnit,
+    unitConversions: z
+      .array(z.object({ unit: quantityUnit, factor: positiveDecimal }).strict())
+      .min(1),
+    defaultPackagingSpec: z.string().max(64),
+    recyclable: z.boolean(),
+    fixedFormula: productFixedFormula.nullable(),
+    remark: z.string().max(1000),
   })
   .strict()
 
@@ -110,6 +184,7 @@ const salesPartnerSnapshot = z
   .strict()
 
 export const bobArchiveSnapshotSchemas = {
+  product: productSnapshot,
   supplier: supplierSnapshot,
   'other-unit': otherUnitSnapshot,
   'sales-partner': salesPartnerSnapshot,
@@ -137,6 +212,14 @@ const archiveQueryInput = <Filters extends z.ZodType>(filters: Filters) =>
     .strict()
 
 export const archiveQuerySchemas = {
+  product: archiveQueryInput(
+    archiveQueryBaseFilters
+      .extend({
+        productTypeId: z.string().length(26).optional(),
+        productCategoryId: z.string().length(26).optional(),
+      })
+      .strict(),
+  ),
   supplier: archiveQueryInput(archiveQueryBaseFilters),
   'other-unit': archiveQueryInput(archiveQueryBaseFilters),
   'sales-partner': archiveQueryInput(archiveQueryBaseFilters),
@@ -183,6 +266,16 @@ export const archiveBlockerSchema = z.discriminatedUnion('kind', [
     })
     .strict(),
   submissionReferenceBlocker,
+  z
+    .object({
+      kind: z.literal('PRODUCT_REFERENCE'),
+      domain: z.enum(['bob', 'vou']),
+      entity: z.string(),
+      objectId: z.string().length(26),
+      approvalEntryId: z.string().length(26),
+      field: z.string(),
+    })
+    .strict(),
 ])
 
 const failureEnvelope = z.object({
@@ -378,6 +471,14 @@ function defineArchiveRoutes<
 }
 
 export const bobArchiveRouteSets = {
+  product: defineArchiveRoutes(
+    'bob',
+    'submission-query',
+    'submission-get',
+    'product',
+    archiveSnapshotSchemas.product,
+  ),
+
   supplier: defineArchiveRoutes(
     'bob',
     'submission-query',
@@ -448,6 +549,51 @@ export function registerBobArchiveRoutes(
   handler: BobArchiveRouteHandler,
 ) {
   return app.openapiRoutes([
+    {
+      route: archiveRouteSets['product']['query'],
+      handler: archiveHandler(handler, 'product', 'query'),
+    },
+    {
+      route: archiveRouteSets['product']['get'],
+      handler: archiveHandler(handler, 'product', 'get'),
+    },
+    {
+      route: archiveRouteSets['product']['versions'],
+      handler: archiveHandler(handler, 'product', 'versions'),
+    },
+    {
+      route: archiveRouteSets['product']['audit-history'],
+      handler: archiveHandler(handler, 'product', 'audit-history'),
+    },
+    {
+      route: archiveRouteSets['product']['submit-new'],
+      handler: archiveHandler(handler, 'product', 'submit-new'),
+    },
+    {
+      route: archiveRouteSets['product']['submit-change'],
+      handler: archiveHandler(handler, 'product', 'submit-change'),
+    },
+    {
+      route: archiveRouteSets['product']['approve'],
+      handler: archiveHandler(handler, 'product', 'approve'),
+    },
+    {
+      route: archiveRouteSets['product']['reject'],
+      handler: archiveHandler(handler, 'product', 'reject'),
+    },
+    {
+      route: archiveRouteSets['product']['unreject'],
+      handler: archiveHandler(handler, 'product', 'unreject'),
+    },
+    {
+      route: archiveRouteSets['product']['unapprove'],
+      handler: archiveHandler(handler, 'product', 'unapprove'),
+    },
+    {
+      route: archiveRouteSets['product']['delete'],
+      handler: archiveHandler(handler, 'product', 'delete'),
+    },
+
     {
       route: archiveRouteSets['supplier']['query'],
       handler: archiveHandler(handler, 'supplier', 'query'),

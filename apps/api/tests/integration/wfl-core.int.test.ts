@@ -90,24 +90,24 @@ async function seedSaleOrderReferences(
     quantityScale: 0,
   }
   const now = new Date()
-  await db
-    .insertInto('dcl_subjects')
-    .values(
-      facts.map((fact) => ({
+  for (const fact of facts) {
+    await db
+      .insertInto(fact.entity === 'product' ? 'bob_subjects' : 'dcl_subjects')
+      .values({
         id: fact.objectId,
         entity: fact.entity,
         code: fact.code,
         created_at: now,
         created_by: actorId,
-      })),
-    )
-    .execute()
+      })
+      .execute()
+  }
   await db
     .insertInto('approval_entries')
     .values(
       facts.map((fact) => ({
         id: fact.approvalEntryId,
-        domain: 'dcl',
+        domain: fact.entity === 'product' ? 'bob' : 'dcl',
         entity: fact.entity,
         subject_id: fact.objectId,
         version_no: 1,
@@ -146,7 +146,7 @@ async function seedSaleOrderReferences(
         .execute()
     if (fact.entity === 'product')
       await db
-        .insertInto('dcl_product_versions')
+        .insertInto('bob_product_versions')
         .values({
           approval_entry_id: fact.approvalEntryId,
           name: fact.name,
@@ -164,7 +164,6 @@ async function seedSaleOrderReferences(
             },
           ]),
           recyclable: false,
-          enabled: true,
         })
         .execute()
   }
@@ -418,6 +417,14 @@ async function cleanupSaleOrderReferences(
     .execute()
   await db
     .deleteFrom('dcl_subjects')
+    .where(
+      'id',
+      'in',
+      references.facts.map((item) => item.objectId),
+    )
+    .execute()
+  await db
+    .deleteFrom('bob_subjects')
     .where(
       'id',
       'in',

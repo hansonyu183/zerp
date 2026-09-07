@@ -9,14 +9,11 @@ import {
   decideApproval,
   prepareAccMappingSubmit,
   prepareCustomerSubmit,
-  prepareProductSubmit,
   prepareRptDefinitionSubmit,
   type ApprovalAction,
   type ApprovalActor,
   type ApprovalEntry,
   type ApprovalStatus,
-  type ProductReferenceFact,
-  type ProductMaterialFact,
   type ReferenceBlocker,
 } from '@zerp/model'
 import { sql, type Kysely, type Transaction } from 'kysely'
@@ -63,12 +60,7 @@ type ApprovedArchiveFact = {
   name: string
 }
 
-type AuxiliaryField =
-  | ProductReferenceFact['field']
-  | 'settlementMethod'
-  | 'paymentMethod'
-  | 'customerType'
-  | 'measurementUnit'
+type AuxiliaryField = 'settlementMethod' | 'paymentMethod' | 'customerType'
 type AuxiliaryFact = {
   field: AuxiliaryField
   objectId: string
@@ -79,17 +71,9 @@ type AuxiliaryFact = {
 }
 
 const auxiliaryEntities: Record<AuxiliaryField, string> = {
-  productType: 'product-type',
-  productCategory: 'product-category',
-  pricingUnit: 'measurement-unit',
-  defaultInputUnit: 'measurement-unit',
-  employeeCategory: 'employee-category',
-  department: 'department',
-  position: 'position',
   settlementMethod: 'settlement-method',
   paymentMethod: 'payment-method',
   customerType: 'dictionary-item',
-  measurementUnit: 'measurement-unit',
 }
 
 function fixedAuxMoney(value: unknown, errorKey: string): string {
@@ -174,8 +158,6 @@ export interface ArchiveQueryInput {
     keyword?: string
     status?: ApprovalStatus
     enabled?: boolean
-    productTypeId?: string
-    productCategoryId?: string
     bookId?: string
     vouEntity?: string
   }
@@ -338,47 +320,26 @@ function matchesArchiveSnapshot(
   if (keyword) {
     const data = record(snapshot)
     const keywordMatches =
-      entity === 'product'
+      entity === 'customer'
         ? includesKeyword(keyword, [
             code,
-            nullable(data.name),
-            nullable(data.barcode),
-            nullable(data.specification),
-            nullable(data.model),
+            nullable(data.legalName),
+            nullable(data.displayName),
+            nullable(data.legalIdentifier),
           ])
-        : entity === 'customer'
+        : entity === 'acc-mapping'
           ? includesKeyword(keyword, [
-              code,
-              nullable(data.legalName),
-              nullable(data.displayName),
-              nullable(data.legalIdentifier),
+              nullable(record(data.book).code),
+              nullable(record(data.book).name),
+              nullable(record(data.vouEntity).code),
+              nullable(record(data.vouEntity).name),
             ])
-          : entity === 'acc-mapping'
-            ? includesKeyword(keyword, [
-                nullable(record(data.book).code),
-                nullable(record(data.book).name),
-                nullable(record(data.vouEntity).code),
-                nullable(record(data.vouEntity).name),
-              ])
-            : includesKeyword(keyword, [
-                code,
-                nullable(data.name),
-                nullable(data.description),
-              ])
+          : includesKeyword(keyword, [
+              code,
+              nullable(data.name),
+              nullable(data.description),
+            ])
     if (!keywordMatches) return false
-  }
-  if (entity === 'product') {
-    const data = record(snapshot)
-    if (
-      filters.productTypeId &&
-      nullable(record(data.productType).id) !== filters.productTypeId
-    )
-      return false
-    if (
-      filters.productCategoryId &&
-      nullable(record(data.productCategory).id) !== filters.productCategoryId
-    )
-      return false
   }
   if (entity === 'acc-mapping') {
     const data = record(snapshot)
@@ -394,7 +355,6 @@ function matchesArchiveSnapshot(
 }
 
 const entityCodes: Record<ArchiveEntity, string> = {
-  product: 'PRD',
   customer: 'CUS',
   'acc-mapping': '',
   'rpt-definition': 'rpt',
@@ -910,17 +870,6 @@ export class ArchiveService {
         await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${archiveDomain(entity)}:archive:${entity}:${input.subjectId}`}, 0))`.execute(
           tx,
         )
-        if (
-          entity === 'product' &&
-          (action === 'approve' || action === 'unapprove')
-        )
-          await tx
-            .selectFrom('dcl_subjects')
-            .select('id')
-            .where('id', '=', input.subjectId)
-            .where('entity', '=', 'product')
-            .forUpdate()
-            .executeTakeFirst()
         const entry = await this.loadEntry(
           tx,
           entity,
@@ -1354,25 +1303,6 @@ export class ArchiveService {
     const base = { ...command, data }
     // The switches make each aggregate's accepted facts visible; no generic reference graph exists here.
     switch (entity) {
-      case 'product':
-        return prepareProductSubmit(
-          base as never,
-          {
-            subject,
-            references: await this.productReferenceFacts(tx, [
-              ['productType', record(data.productType).id],
-              ['productCategory', record(data.productCategory).id],
-              ['pricingUnit', record(data.pricingUnit).id],
-              ['defaultInputUnit', record(data.defaultInputUnit).id],
-            ]),
-            materials: await this.productMaterialFacts(
-              tx,
-              array(record(data.fixedFormula).components).map((component) =>
-                record(record(component).material),
-              ),
-            ),
-          } as never,
-        )
       case 'customer':
         return prepareCustomerSubmit(
           base as never,
@@ -1553,14 +1483,6 @@ export class ArchiveService {
       if (duplicate.rows[0]) throw new ArchiveApplicationError(errorKey)
     }
     switch (entity) {
-      case 'product':
-        await failIfDuplicate(
-          'dcl_product_versions',
-          'barcode',
-          data.barcode,
-          'product_duplicate_barcode',
-        )
-        return
       case 'customer':
         await failIfDuplicate(
           'dcl_customer_versions',
@@ -1625,49 +1547,6 @@ export class ArchiveService {
         data,
       }
     })
-  }
-
-  private async productReferenceFacts(
-    tx: Executor,
-    references: Array<[ProductReferenceFact['field'], unknown]>,
-  ): Promise<ProductReferenceFact[]> {
-    return (await this.auxFacts(tx, references)).map((fact) => ({
-      field: fact.field as ProductReferenceFact['field'],
-      objectId: fact.objectId,
-      available: fact.available,
-    }))
-  }
-
-  private async productMaterialFacts(
-    tx: Executor,
-    references: Array<Record<string, unknown>>,
-  ): Promise<ProductMaterialFact[]> {
-    return Promise.all(
-      references.map(async (reference) => {
-        const objectId = String(reference.objectId ?? '')
-        const fact = await this.approvedFact(tx, 'product', objectId)
-        if (!fact)
-          return {
-            objectId,
-            latestApprovedEntryId: '',
-            enabled: false,
-            behaviorProfile: 'RAW_MATERIAL',
-          }
-        const snapshot = await this.readSnapshot(
-          tx,
-          'product',
-          fact.latestApprovedEntryId,
-        )
-        return {
-          objectId: fact.objectId,
-          latestApprovedEntryId: fact.latestApprovedEntryId,
-          enabled: fact.enabled,
-          behaviorProfile: String(
-            record(snapshot.productType).behaviorProfile ?? '',
-          ) as ProductMaterialFact['behaviorProfile'],
-        }
-      }),
-    )
   }
 
   private displayName(
@@ -1790,57 +1669,7 @@ export class ArchiveService {
           errorKey,
         ),
       }
-    if (auxiliaryEntities[field] === 'measurement-unit') {
-      const symbol = fact.data.symbol
-      const quantityScale = fact.data.quantityScale
-      if (
-        typeof symbol !== 'string' ||
-        !symbol.trim() ||
-        !Number.isInteger(quantityScale) ||
-        Number(quantityScale) < 0 ||
-        Number(quantityScale) > 6
-      )
-        throw new ArchiveApplicationError(errorKey)
-      return {
-        id: fact.objectId,
-        code: fact.code,
-        name: fact.name,
-        symbol: symbol.trim(),
-        quantityScale,
-      }
-    }
-    if (field === 'productType') {
-      const behaviorProfile = fact.data.behaviorProfile
-      if (
-        behaviorProfile !== 'RAW_MATERIAL' &&
-        behaviorProfile !== 'STANDARD_FINISHED' &&
-        behaviorProfile !== 'CUSTOM_FINISHED' &&
-        behaviorProfile !== 'PACKAGING'
-      )
-        throw new ArchiveApplicationError(errorKey)
-      return {
-        id: fact.objectId,
-        code: fact.code,
-        name: fact.name,
-        behaviorProfile,
-      }
-    }
     return { id: fact.objectId, code: fact.code, name: fact.name }
-  }
-
-  private async freezeProductQuantity(
-    tx: Executor,
-    quantity: Record<string, unknown>,
-  ): Promise<Record<string, unknown>> {
-    return {
-      ...quantity,
-      enteredUnit: await this.freezeAuxiliaryReference(
-        tx,
-        'measurementUnit',
-        quantity.enteredUnit,
-        'product_reference_unavailable',
-      ),
-    }
   }
 
   private async freezeAuthoritativeReferences(
@@ -1849,77 +1678,6 @@ export class ArchiveService {
     snapshot: ArchiveSnapshot,
   ): Promise<ArchiveSnapshot> {
     switch (entity) {
-      case 'product':
-        return {
-          ...snapshot,
-          productType: await this.freezeAuxiliaryReference(
-            tx,
-            'productType',
-            snapshot.productType,
-            'product_reference_unavailable',
-          ),
-          productCategory: await this.freezeAuxiliaryReference(
-            tx,
-            'productCategory',
-            snapshot.productCategory,
-            'product_reference_unavailable',
-          ),
-          pricingUnit: await this.freezeAuxiliaryReference(
-            tx,
-            'pricingUnit',
-            snapshot.pricingUnit,
-            'product_reference_unavailable',
-          ),
-          defaultInputUnit: await this.freezeAuxiliaryReference(
-            tx,
-            'defaultInputUnit',
-            snapshot.defaultInputUnit,
-            'product_reference_unavailable',
-          ),
-          unitConversions: await Promise.all(
-            array(snapshot.unitConversions).map(async (value) => {
-              const conversion = record(value)
-              return {
-                ...conversion,
-                unit: await this.freezeAuxiliaryReference(
-                  tx,
-                  'measurementUnit',
-                  conversion.unit,
-                  'product_reference_unavailable',
-                ),
-              }
-            }),
-          ),
-          fixedFormula:
-            snapshot.fixedFormula === null
-              ? null
-              : {
-                  ...record(snapshot.fixedFormula),
-                  output: await this.freezeProductQuantity(
-                    tx,
-                    record(record(snapshot.fixedFormula).output),
-                  ),
-                  components: await Promise.all(
-                    array(record(snapshot.fixedFormula).components).map(
-                      async (value) => {
-                        const component = record(value)
-                        return {
-                          ...component,
-                          material: await this.freezeApprovedReference(
-                            tx,
-                            'product',
-                            component.material,
-                          ),
-                          quantity: await this.freezeProductQuantity(
-                            tx,
-                            record(component.quantity),
-                          ),
-                        }
-                      },
-                    ),
-                  ),
-                },
-        }
       case 'customer':
         return {
           ...snapshot,
@@ -2021,38 +1779,6 @@ export class ArchiveService {
   ): Promise<void> {
     const d = snapshot
     switch (entity) {
-      case 'product':
-        await tx
-          .insertInto('dcl_product_versions')
-          .values({
-            approval_entry_id: id,
-            name: String(d.name ?? ''),
-            category_id: nullable(record(d.productCategory).id),
-            product_type_id: nullable(record(d.productType).id),
-            behavior_profile: nullable(record(d.productType).behaviorProfile),
-            default_input_unit_id: nullable(record(d.defaultInputUnit).id),
-            pricing_unit_id: nullable(record(d.pricingUnit).id),
-            specification: nullable(d.specification),
-            model: nullable(d.model),
-            barcode: nullable(d.barcode),
-            source_snapshots: json({
-              productType: d.productType,
-              productCategory: d.productCategory,
-              pricingUnit: d.pricingUnit,
-              defaultInputUnit: d.defaultInputUnit,
-            }),
-            unit_conversions: json(array(d.unitConversions)),
-            default_packaging_snapshot: json({
-              defaultPackagingSpec: d.defaultPackagingSpec,
-            }),
-            recyclable: d.recyclable === true,
-            fixed_formula:
-              d.fixedFormula === null ? null : json(record(d.fixedFormula)),
-            remark: nullable(d.remark),
-            enabled: d.enabled === true,
-          })
-          .execute()
-        return
       case 'customer':
         await this.writeCustomer(tx, id, d)
         return
@@ -2394,32 +2120,6 @@ export class ArchiveService {
   ): Promise<ArchiveSnapshot> {
     // Each aggregate rehydrates its own version row. JSON fields retain exact submitted reference snapshots.
     switch (entity) {
-      case 'product': {
-        const r = await tx
-          .selectFrom('dcl_product_versions')
-          .selectAll()
-          .where('approval_entry_id', '=', id)
-          .executeTakeFirstOrThrow()
-        const sources = record(r.source_snapshots)
-        return {
-          name: r.name,
-          barcode: r.barcode ?? '',
-          specification: r.specification ?? '',
-          model: r.model ?? '',
-          productType: record(sources.productType),
-          productCategory: record(sources.productCategory),
-          pricingUnit: record(sources.pricingUnit),
-          defaultInputUnit: record(sources.defaultInputUnit),
-          unitConversions: array(r.unit_conversions),
-          defaultPackagingSpec:
-            record(r.default_packaging_snapshot).defaultPackagingSpec ?? '',
-          recyclable: r.recyclable,
-          fixedFormula:
-            r.fixed_formula === null ? null : record(r.fixed_formula),
-          remark: r.remark ?? '',
-          enabled: r.enabled,
-        }
-      }
       case 'customer':
         return this.readCustomer(tx, id)
       case 'acc-mapping': {

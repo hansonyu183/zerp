@@ -1,3 +1,7 @@
+import {
+  preserveLegacyMappedPermissions,
+  productPermissionMappings,
+} from './product-permissions.ts'
 import type { TargetPermissionCatalogEntry } from '../../scripts/target-artifacts.ts'
 import { bobArchivePermissionMappings } from './migration.ts'
 
@@ -11,7 +15,7 @@ export function requiresBobArchivePermissionMigration(
 ): boolean {
   const existing = new Set(existingPaths)
   const target = new Set(targetPaths)
-  return bobArchivePermissionMappings.some(
+  return [...bobArchivePermissionMappings, ...productPermissionMappings].some(
     (mapping) =>
       existing.has(mapping.from) &&
       !target.has(mapping.from) &&
@@ -31,22 +35,8 @@ export function preserveLegacyBobArchivePermissionCatalog(
     description: string | null
   }[],
 ): TargetPermissionCatalogEntry[] {
-  const targetPaths = new Set(targetCatalog.map((entry) => entry.path))
-  const legacyPaths = new Set(
-    bobArchivePermissionMappings.map((mapping) => mapping.from),
-  )
-  const retained = existing
-    .filter(
-      (entry) => legacyPaths.has(entry.path) && !targetPaths.has(entry.path),
-    )
-    .map((entry) => ({
-      id: entry.id,
-      path: entry.path,
-      domain: entry.domain,
-      entity: entry.entity,
-      action: entry.action,
-      title: entry.description ?? entry.path,
-    }))
-    .sort((left, right) => left.path.localeCompare(right.path))
-  return [...targetCatalog, ...retained]
+  return preserveLegacyMappedPermissions(targetCatalog, existing, [
+    ...bobArchivePermissionMappings,
+    ...productPermissionMappings,
+  ])
 }

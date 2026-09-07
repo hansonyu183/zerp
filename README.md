@@ -71,6 +71,8 @@ MIT，见 [LICENSE](LICENSE)。
 
 ## 资料一次性转换
 
-从仍有 DCL 人员、资产和三类版本化档案的基线升级时，使用受控环境依次执行 `pnpm --filter @zerp/api migrate:aux-people`、`pnpm --filter @zerp/api migrate:aux-assets`、`pnpm --filter @zerp/api migrate:bob-archives`，最后才执行 `pnpm --filter @zerp/api sync:catalog`。前两步保留后续迁移所需的旧授权；BOB 转换保留三类档案的 stable ID、历史与精确授权。普通 catalog sync 会拒绝删除尚未转换的人员、资产或 BOB 档案授权。
+从仍有 DCL 人员、资产和三类版本化档案的基线升级时，使用受控环境依次执行 `pnpm --filter @zerp/api migrate:aux-people`、`pnpm --filter @zerp/api migrate:aux-assets`、`pnpm --filter @zerp/api migrate:bob-archives`，再执行 `pnpm --filter @zerp/api migrate:bob-product`，最后才执行 `pnpm --filter @zerp/api sync:catalog`。前两步保留后续迁移所需的旧授权；BOB 转换保留三类档案的 stable ID、历史与精确授权。普通 catalog sync 会拒绝删除尚未转换的人员、资产或 BOB 档案授权。
 
 完整命令、失败处理和验收见[经营主体与员工一次性迁入 AUX](docs/operations/aux-people-migration.md)及[供应商、其他单位与销售合作方一次性迁入 BOB](docs/operations/bob-archives-migration.md)。转换不包含生产发布，也不使用会重建数据库的聚合命令。领域规则见 [AUX](docs/domains/aux.md#310-仓库资金账户与车辆)、[BOB](docs/domains/bob.md) 和 [ADR-0055](docs/adr/0055-bob-archives-use-shared-approval-and-version.md)。
+
+产品一次性迁移与历史连续性验证见[产品迁入 BOB](docs/operations/bob-product-migration.md)。

@@ -12,9 +12,8 @@ import {
   type AuxWriteData,
 } from '../../src/aux/service.ts'
 import { createDatabase } from '../../src/db/database.ts'
-import { ArchiveService } from '../../src/dcl/archives.ts'
+import { BobArchiveService } from '../../src/bob/archives.ts'
 import { searchPinyin } from '../../src/platform/pinyin.ts'
-import { PgRptDefinitionValidator } from '../../src/rpt/service.ts'
 import { VouService } from '../../src/vou/service.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
@@ -54,7 +53,7 @@ async function settleWithin<T>(promise: Promise<T>, milliseconds: number) {
       promise,
       new Promise<never>((_, reject) => {
         timeout = setTimeout(
-          () => reject(new Error('concurrent VOU/DCL operations timed out')),
+          () => reject(new Error('concurrent VOU/BOB operations timed out')),
           milliseconds,
         )
       }),
@@ -64,7 +63,7 @@ async function settleWithin<T>(promise: Promise<T>, milliseconds: number) {
   }
 }
 
-test('VOU product adoption serializes with DCL approval without cross-subject advisory cycles', async (context) => {
+test('VOU product adoption serializes with BOB approval without cross-subject advisory cycles', async (context) => {
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
   const suffix = ulid()
   const vouApplication = `vou-product-read-${suffix}`
@@ -81,10 +80,7 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
   const observer = new pg.Client({
     connectionString: databaseUrlFor(`vou-product-observer-${suffix}`),
   })
-  const archives = new ArchiveService(
-    dclDb,
-    new PgRptDefinitionValidator(validationPool, dclDb),
-  )
+  const archives = new BobArchiveService(dclDb)
   const vou = new VouService(vouDb, {
     acc: { async apply() {} },
     wfl: { async apply() {} },
@@ -165,7 +161,11 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
         .execute()
       await db
         .deleteFrom('dcl_subjects')
-        .where('id', 'in', [...productIds, ...Object.values(directSubjectIds)])
+        .where('id', 'in', Object.values(directSubjectIds))
+        .execute()
+      await db
+        .deleteFrom('bob_subjects')
+        .where('id', 'in', productIds)
         .execute()
       await db
         .deleteFrom('aux_objects')
@@ -523,7 +523,7 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
 
   await blocker.query('BEGIN')
   blockerTransactionOpen = true
-  await blocker.query('SELECT id FROM dcl_subjects WHERE id = $1 FOR UPDATE', [
+  await blocker.query('SELECT id FROM bob_subjects WHERE id = $1 FOR UPDATE', [
     blockingProductId,
   ])
   const vouSubmission = vou.submit(
@@ -539,7 +539,8 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
     actor,
     'vou-product-concurrent-submit',
   )
-  let review: Promise<Awaited<ReturnType<ArchiveService['review']>>> | undefined
+  let review:
+    Promise<Awaited<ReturnType<BobArchiveService['review']>>> | undefined
   try {
     await waitForLock(observer, vouApplication)
     review = archives.review(

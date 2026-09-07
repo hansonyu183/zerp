@@ -90,6 +90,9 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
       await sql`DELETE FROM dcl_subjects WHERE id IN (${sql.join(Object.values(subjectIds))})`.execute(
         db,
       )
+      await sql`DELETE FROM bob_subjects WHERE id IN (${sql.join(Object.values(subjectIds))})`.execute(
+        db,
+      )
       await sql`DELETE FROM aux_objects WHERE created_by = ${actorId}`.execute(
         db,
       )
@@ -191,6 +194,11 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
         created_at: now,
         created_by: actorId,
       },
+    ])
+    .execute()
+  await db
+    .insertInto('bob_subjects')
+    .values([
       {
         id: subjectIds.product,
         entity: 'product',
@@ -216,7 +224,7 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
         [approvalIds.material, 'product', subjectIds.material, 1],
       ].map(([id, entity, subjectId, versionNo]) => ({
         id: id as string,
-        domain: 'dcl',
+        domain: entity === 'product' ? 'bob' : 'dcl',
         entity: entity as string,
         subject_id: subjectId as string,
         version_no: versionNo as number,
@@ -265,7 +273,7 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
     })
     .execute()
   await db
-    .insertInto('dcl_product_versions')
+    .insertInto('bob_product_versions')
     .values([
       {
         approval_entry_id: approvalIds.productV1,
@@ -275,7 +283,6 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
           { unit: dclUnit(unitV1), factor: '1.000000' },
         ]),
         recyclable: false,
-        enabled: true,
       },
       {
         approval_entry_id: approvalIds.material,
@@ -285,7 +292,6 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
           { unit: dclUnit(materialUnit), factor: '1.000000' },
         ]),
         recyclable: false,
-        enabled: true,
       },
     ])
     .execute()
@@ -546,7 +552,7 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
     .insertInto('approval_entries')
     .values({
       id: approvalIds.productV2,
-      domain: 'dcl',
+      domain: 'bob',
       entity: 'product',
       subject_id: subjectIds.product,
       version_no: 2,
@@ -561,7 +567,7 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
     })
     .execute()
   await db
-    .insertInto('dcl_product_versions')
+    .insertInto('bob_product_versions')
     .values({
       approval_entry_id: approvalIds.productV2,
       name: '单位快照成品 V2',
@@ -570,7 +576,6 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
         { unit: dclUnit(unitV2), factor: '1.000000' },
       ]),
       recyclable: false,
-      enabled: true,
     })
     .execute()
 
@@ -786,6 +791,9 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     await sql`DELETE FROM dcl_subjects WHERE id IN (${productId}, ${supplierId}, ${customerId})`.execute(
       db,
     )
+    await sql`DELETE FROM bob_subjects WHERE id IN (${productId}, ${supplierId}, ${customerId})`.execute(
+      db,
+    )
     await db
       .deleteFrom('aux_objects')
       .where('created_by', '=', actorId)
@@ -826,14 +834,16 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     .execute()
   const now = new Date()
   await db
-    .insertInto('dcl_subjects')
-    .values({
-      id: productId,
-      entity: 'product',
-      code: productCode,
-      created_at: now,
-      created_by: actorId,
-    })
+    .insertInto('bob_subjects')
+    .values([
+      {
+        id: productId,
+        entity: 'product',
+        code: productCode,
+        created_at: now,
+        created_by: actorId,
+      },
+    ])
     .execute()
   const auxActor = {
     id: actorId,
@@ -915,7 +925,7 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     .insertInto('approval_entries')
     .values({
       id: productApprovalId,
-      domain: 'dcl',
+      domain: 'bob',
       entity: 'product',
       subject_id: productId,
       version_no: 1,
@@ -995,18 +1005,17 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     })
     .execute()
   await db
-    .insertInto('dcl_product_versions')
+    .insertInto('bob_product_versions')
     .values({
       approval_entry_id: productApprovalId,
       name: 'typed product',
       source_snapshots: {},
       unit_conversions: JSON.stringify([]),
       recyclable: false,
-      enabled: true,
     })
     .execute()
   await db
-    .insertInto('dcl_subjects')
+    .insertInto('bob_subjects')
     .values({
       id: supplierId,
       entity: 'supplier',
@@ -1019,7 +1028,7 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     .insertInto('approval_entries')
     .values({
       id: supplierApprovalId,
-      domain: 'dcl',
+      domain: 'bob',
       entity: 'supplier',
       subject_id: supplierId,
       version_no: 1,
@@ -1916,10 +1925,13 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
     await sql`DELETE FROM vou_documents WHERE created_by = ${ownerId}`.execute(
       db,
     )
-    await sql`DELETE FROM approval_entries WHERE domain = 'dcl' AND submitted_by = ${ownerId}`.execute(
+    await sql`DELETE FROM approval_entries WHERE domain IN ('dcl','bob') AND submitted_by = ${ownerId}`.execute(
       db,
     )
     await sql`DELETE FROM dcl_subjects WHERE created_by = ${ownerId}`.execute(
+      db,
+    )
+    await sql`DELETE FROM bob_subjects WHERE created_by = ${ownerId}`.execute(
       db,
     )
     await db
@@ -2023,21 +2035,23 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
     .toString()
     .padStart(4, '0')}`
   await db
-    .insertInto('dcl_subjects')
-    .values({
-      id: productId,
-      entity: 'product',
-      code: attachmentProductCode,
-      created_at: now,
-      created_by: ownerId,
-    })
+    .insertInto('bob_subjects')
+    .values([
+      {
+        id: productId,
+        entity: 'product',
+        code: attachmentProductCode,
+        created_at: now,
+        created_by: ownerId,
+      },
+    ])
     .execute()
   await db
     .insertInto('approval_entries')
     .values([
       {
         id: productApprovalId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'product',
         subject_id: productId,
         version_no: 1,
@@ -2052,7 +2066,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
       },
       {
         id: currentProductApprovalId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'product',
         subject_id: productId,
         version_no: 2,
@@ -2068,7 +2082,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
     ])
     .execute()
   await db
-    .insertInto('dcl_product_versions')
+    .insertInto('bob_product_versions')
     .values([
       {
         approval_entry_id: productApprovalId,
@@ -2076,7 +2090,6 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
         source_snapshots: {},
         unit_conversions: JSON.stringify([]),
         recyclable: false,
-        enabled: true,
       },
       {
         approval_entry_id: currentProductApprovalId,
@@ -2084,7 +2097,6 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
         source_snapshots: {},
         unit_conversions: JSON.stringify([]),
         recyclable: false,
-        enabled: true,
       },
     ])
     .execute()
@@ -2882,11 +2894,16 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
           .deleteFrom('vou_documents')
           .where('id', 'in', documentIds)
           .execute()
-      if (subjectIds.length > 0)
+      if (subjectIds.length > 0) {
         await db
           .deleteFrom('dcl_subjects')
           .where('id', 'in', subjectIds)
           .execute()
+        await db
+          .deleteFrom('bob_subjects')
+          .where('id', 'in', subjectIds)
+          .execute()
+      }
       await db
         .deleteFrom('aux_objects')
         .where('created_by', '=', actorId)
@@ -3012,7 +3029,7 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
     disabledProductApprovalId,
   )
   await db
-    .insertInto('dcl_subjects')
+    .insertInto('bob_subjects')
     .values([
       {
         id: productId,
@@ -3024,6 +3041,7 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
       {
         id: disabledProductId,
         entity: 'product',
+        enabled: false,
         code: disabledProductCode,
         created_at: now,
         created_by: actorId,
@@ -3035,7 +3053,7 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
     .values([
       {
         id: oldProductApprovalId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'product',
         subject_id: productId,
         version_no: 1,
@@ -3050,7 +3068,7 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
       },
       {
         id: currentProductApprovalId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'product',
         subject_id: productId,
         version_no: 2,
@@ -3065,7 +3083,7 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
       },
       {
         id: disabledProductApprovalId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'product',
         subject_id: disabledProductId,
         version_no: 1,
@@ -3081,7 +3099,7 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
     ])
     .execute()
   await db
-    .insertInto('dcl_product_versions')
+    .insertInto('bob_product_versions')
     .values([
       {
         approval_entry_id: oldProductApprovalId,
@@ -3089,7 +3107,6 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
         source_snapshots: {},
         unit_conversions: JSON.stringify([]),
         recyclable: false,
-        enabled: true,
       },
       {
         approval_entry_id: currentProductApprovalId,
@@ -3097,7 +3114,6 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
         source_snapshots: {},
         unit_conversions: JSON.stringify([]),
         recyclable: false,
-        enabled: true,
       },
       {
         approval_entry_id: disabledProductApprovalId,
@@ -3105,7 +3121,6 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
         source_snapshots: {},
         unit_conversions: JSON.stringify([]),
         recyclable: false,
-        enabled: false,
       },
     ])
     .execute()

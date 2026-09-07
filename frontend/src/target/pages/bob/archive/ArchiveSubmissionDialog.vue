@@ -1,4 +1,6 @@
 <script setup lang="ts" generic="Submission extends ArchiveSubmission">
+import type { ProductData } from '@zerp/model'
+import ProductSnapshotView from '../product/ProductSnapshot.vue'
 import { approvalStatusPresentation } from '@zerp/model'
 import { computed, onUnmounted, ref, toRaw, type UnwrapRef } from 'vue'
 
@@ -233,8 +235,12 @@ onUnmounted(() => props.lifecycle.dispose())
                 删除候选
               </v-btn>
             </div>
+            <ProductSnapshotView
+              v-if="lifecycle.selected.entity === 'product'"
+              :snapshot="lifecycle.selected.snapshot as ProductData"
+            />
             <IdentityArchiveSnapshotView
-              v-if="snapshot"
+              v-else-if="snapshot"
               :entity="lifecycle.selected.entity"
               :snapshot="snapshot"
             />

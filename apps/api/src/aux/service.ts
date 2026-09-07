@@ -1628,8 +1628,8 @@ export class AuxService {
       ]
       if (entity === 'measurement-unit') {
         references.push(sql`
-          SELECT 'dcl_product_versions' AS source
-          FROM dcl_product_versions
+          SELECT 'bob_product_versions' AS source
+          FROM bob_product_versions
           WHERE default_input_unit_id = ${id} OR pricing_unit_id = ${id}
             OR EXISTS (
               SELECT 1 FROM jsonb_array_elements(unit_conversions) conversion
@@ -2258,7 +2258,7 @@ export class AuxService {
     ) {
       const reference = await sql<{
         exists: boolean
-      }>`SELECT EXISTS(SELECT 1 FROM aux_reference_facts WHERE aux_object_id = ${objectId} AND source = 'dcl_product_versions') AS exists`.execute(
+      }>`SELECT EXISTS(SELECT 1 FROM aux_reference_facts WHERE aux_object_id = ${objectId} AND source = 'bob_product_versions') AS exists`.execute(
         transaction,
       )
       if (reference.rows[0]?.exists) applicationError('validation_failed')

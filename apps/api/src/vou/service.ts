@@ -1736,7 +1736,7 @@ export class VouService implements WflVouPort {
           'version.display_name',
         )
       case 'product':
-        return dcl('product', 'dcl_product_versions', 'version.name')
+        return bob('product', 'bob_product_versions', 'version.name')
       case 'customer-subunit':
         return `
         SELECT root.subunit_id AS object_id, approval.id AS approval_entry_id, root.customer_id, root.code, subunit.name, subunit.payment_snapshot
@@ -2169,7 +2169,24 @@ export class VouService implements WflVouPort {
     payload: VouPayload,
   ): Promise<VouReferenceValidation> {
     const blockers: VouReferenceBlocker[] = []
-    for (const fact of vouPayloadReferences(payload)) {
+    const referenceFacts = vouPayloadReferences(payload)
+    const productIds = [
+      ...new Set(
+        referenceFacts
+          .filter((fact) => fact.candidateEntity === 'product')
+          .map((fact) => fact.reference.objectId),
+      ),
+    ].sort()
+    if (productIds.length)
+      await transaction
+        .selectFrom('bob_subjects')
+        .select('id')
+        .where('entity', '=', 'product')
+        .where('id', 'in', productIds)
+        .orderBy('id')
+        .forShare()
+        .execute()
+    for (const fact of referenceFacts) {
       const { reference, candidateEntity } = fact
       const blocker: VouReferenceBlocker = {
         kind: 'REFERENCE',
@@ -2334,7 +2351,7 @@ export class VouService implements WflVouPort {
 
     const productIds = [...new Set(facts.map((fact) => fact.productId))].sort()
     await transaction
-      .selectFrom('dcl_subjects')
+      .selectFrom('bob_subjects')
       .select('id')
       .where('entity', '=', 'product')
       .where('id', 'in', productIds)
@@ -2349,12 +2366,13 @@ export class VouService implements WflVouPort {
     }>`
       SELECT approval.subject_id AS object_id,
         approval.id AS approval_entry_id,
-        version.enabled,
+        subject.enabled,
         version.unit_conversions
       FROM approval_entries approval
-      JOIN dcl_product_versions version
+      JOIN bob_subjects subject ON subject.id=approval.subject_id
+      JOIN bob_product_versions version
         ON version.approval_entry_id = approval.id
-      WHERE approval.domain = 'dcl'
+      WHERE approval.domain = 'bob'
         AND approval.entity = 'product'
         AND approval.status = 'APPROVED'
         AND approval.subject_id IN (${sql.join(productIds)})
@@ -2621,7 +2639,9 @@ export class VouService implements WflVouPort {
     const domain =
       entity === 'service-contract'
         ? 'vou'
-        : ['supplier', 'other-unit', 'sales-partner'].includes(entity)
+        : ['supplier', 'other-unit', 'sales-partner', 'product'].includes(
+              entity,
+            )
           ? 'bob'
           : 'dcl'
     const row = await transaction

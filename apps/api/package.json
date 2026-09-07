@@ -27,7 +27,8 @@
     "migrate:aux-people": "node scripts/migrate-aux-people.ts",
     "e2e": "node scripts/run-target-e2e.ts",
     "migrate:aux-assets": "node scripts/migrate-aux-assets.ts",
-    "migrate:bob-archives": "node scripts/migrate-bob-archives.ts"
+    "migrate:bob-archives": "node scripts/migrate-bob-archives.ts",
+    "migrate:bob-product": "node scripts/migrate-bob-product.ts"
   },
   "dependencies": {
     "@hono/node-server": "2.1.1",

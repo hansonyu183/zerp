@@ -2,7 +2,7 @@
 
 ## 1. 领域职责
 
-DCL（Declaration Control）当前拥有 `product`、`customer`、`acc-mapping`、`rpt-definition` 与 `wfl-process-definition` 的稳定 subject、business code 与强类型 Submission snapshot：用户在本地 Draft 编辑，DCL 在 submit 时创建或删除开放 Submission，并读取版本历史和审计；中央 Approval 唯一拥有版本号、`PENDING | APPROVED | REJECTED`、revision、审批元数据和审批事件。Supplier、Other Unit 与 Sales Partner 已迁入 BOB，DCL 不再注册它们的 subject、版本、资料或 HTTP 入口。Party 与独立 `customer-subunit` subject 不存在；客户子单位是 Customer Version 内的强类型子项。会计映射、报表定义和流程定义的既有领域边界不变。
+DCL（Declaration Control）当前拥有 `customer`、`acc-mapping`、`rpt-definition` 与 `wfl-process-definition` 的稳定 subject、business code 与强类型 Submission snapshot：用户在本地 Draft 编辑，DCL 在 submit 时创建或删除开放 Submission，并读取版本历史和审计；中央 Approval 唯一拥有版本号、`PENDING | APPROVED | REJECTED`、revision、审批元数据和审批事件。Product、Supplier、Other Unit 与 Sales Partner 已迁入 BOB，DCL 不再注册它们的 subject、版本、资料或 HTTP 入口。Party 与独立 `customer-subunit` subject 不存在；客户子单位是 Customer Version 内的强类型子项。会计映射、报表定义和流程定义的既有领域边界不变。
 
 ### 1.1 本地 Draft 与 Submission 生命周期
 
@@ -45,13 +45,9 @@ Submission 一旦持久化即不可编辑，唯一状态是 `PENDING | APPROVED 
 
 资金账户直接维护及账号唯一性归 [AUX](aux.md#310-仓库资金账户与车辆)。DCL 不提供资金账户入口、审批或新写入。
 
-## 3.4 产品申报
+## 3.4 产品资料
 
-产品 stable ID、`PRD-*` 编码和抽象基准单位跨全部版本不变。`dcl_product_versions` 以 `approvalEntryId` 为主键，保存完整的名称、产品类型、产品分类、规格、型号、条码、计价单位、默认录入单位、默认包装规格、可回收标志、备注和 `enabled`；类型、分类和单位均同时保存来源 AUX stable ID 及必要名称和 typed 参数快照，不保存 AUX Approval Entry。每个计量单位 snapshot 还必须保存当时的 `quantityScale`，单位换算和固定配方中的单位不得在读取或制单时回查 AUX 精度。单位换算与固定配方是同一产品版本的强类型明细，不是独立对象、独立 API 或独立生命周期；每个版本始终保存完整 snapshot，不保存 diff。
-
-Draft 规范化时解析当前启用且 entity 匹配的 AUX stable object，并按配方原料 stable ID 解析其 latest approved 产品版本；从正式版本克隆本地 Draft 时，原料 entry 自动前移但权威基准用量不变，需要确认的行保持显式待处理。submit 和批准使用同一套完整性规则：AUX 快照只校验完整性与 stable identity，不回查来源 current，也不因来源后续改名、修改或停用而漂移；配方原料的已存精确 DCL entry 仍须为 latest approved。条码在全部产品的 latest approved 与唯一开放候选之间大小写不敏感唯一；并发候选和条码占用由同一事务保证。
-
-`/dcl/product/*` 是产品维护 HTTP 边界，`/bob/product/query|get|reference` 只提供内部当前正式资料读取，不拥有独立业务写入或审批入口。批准或反批准只改变 Approval lifecycle；BOB 直接读取 highest APPROVED entry 对应的完整 DCL snapshot，不保存产品 current source，也不复制单位换算或固定配方事实。失败时 DCL snapshot、Approval 与标识占用全部回滚。库存、销售、采购、生产和 ACC 历史继续保存 product stable ID、实际采用的 Approval Entry、数量、名称及各自所需业务快照；任何后续产品版本都不得重算历史数量、配方、金额或库存事实。任一正式业务事实精确引用某产品 Approval Entry 时，该版本不得反批准。
+产品归属 BOB，规则见 [BOB 产品](bob.md#33-产品版本与独立启停)。DCL 不注册产品 subject、版本或维护入口。
 
 ## 3.5 强类型业务身份
 

@@ -702,17 +702,6 @@ export class RptService {
   }
 
   private referenceSource(referenceType: RptReferenceType): string | undefined {
-    const currentDcl = (entity: string, table: string, name: string) => `
-      SELECT subject.id, subject.code, ${name} AS name
-      FROM dcl_subjects subject
-      JOIN LATERAL (
-        SELECT id FROM approval_entries entry
-        WHERE entry.domain = 'dcl' AND entry.entity = '${entity}'
-          AND entry.subject_id = subject.id AND entry.status = 'APPROVED'
-        ORDER BY entry.version_no DESC LIMIT 1
-      ) approval ON TRUE
-      JOIN ${table} version ON version.approval_entry_id = approval.id AND version.enabled
-      WHERE subject.entity = '${entity}'`
     const currentBob = (entity: string, table: string, name: string) => `
       SELECT subject.id, subject.code, ${name} AS name
       FROM bob_subjects subject
@@ -768,7 +757,7 @@ export class RptService {
       case 'DEPARTMENT':
         return `SELECT id, code, data->>'name' AS name FROM aux_objects WHERE entity = 'department' AND enabled`
       case 'PRODUCT':
-        return currentDcl('product', 'dcl_product_versions', 'version.name')
+        return currentBob('product', 'bob_product_versions', 'version.name')
       case 'WAREHOUSE':
         return `SELECT id, code, data->>'name' AS name FROM aux_objects WHERE entity='warehouse' AND enabled`
       case 'FUND_ACCOUNT':

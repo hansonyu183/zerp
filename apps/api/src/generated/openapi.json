@@ -81095,6 +81095,21 @@
                         "type": "string",
                         "minLength": 26,
                         "maxLength": 26
+                      },
+                      "counterpartyName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "handlerName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "warehouseName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
                       }
                     },
                     "additionalProperties": false

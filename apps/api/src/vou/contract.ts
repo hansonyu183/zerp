@@ -856,6 +856,9 @@ const queryFilters = z
     submittedFrom: z.string().date().optional(),
     submittedTo: z.string().date().optional(),
     counterpartyObjectId: z.string().length(26).optional(),
+    counterpartyName: z.string().trim().min(1).max(200).optional(),
+    handlerName: z.string().trim().min(1).max(200).optional(),
+    warehouseName: z.string().trim().min(1).max(200).optional(),
   })
   .strict()
   .refine(

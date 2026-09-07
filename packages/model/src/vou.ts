@@ -2447,6 +2447,41 @@ export const vouEntityInputDescriptors: Readonly<
   }),
 ) as Readonly<Record<VouEntity, readonly VouInputFieldDescriptor[]>>
 
+/** List capabilities follow the authoritative payload directory, never a second type enum. */
+export const vouListCapabilities = Object.fromEntries(
+  vouEntities.map((entity) => {
+    const fields = vouEntityFieldDescriptors[entity].headerReferences.map(
+      (reference) => reference.key,
+    )
+    return [
+      entity,
+      Object.freeze({
+        counterpartyField:
+          [
+            'counterparty',
+            'customerSubunit',
+            'customer',
+            'supplier',
+            'employee',
+          ].find((key) => fields.includes(key)) ?? null,
+        handler: fields.includes('handler'),
+        warehouse: fields.includes('warehouse'),
+        manualCreate: userCreatableVouEntities.includes(entity),
+      }),
+    ]
+  }),
+) as Readonly<
+  Record<
+    VouEntity,
+    Readonly<{
+      counterpartyField: string | null
+      handler: boolean
+      warehouse: boolean
+      manualCreate: boolean
+    }>
+  >
+>
+
 function emptyValue(field: VouInputFieldDescriptor): unknown {
   if (field.nullable) return null
   switch (field.kind) {

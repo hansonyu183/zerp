@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import type { Kysely } from 'kysely'
 import { ulid } from 'ulid'
-import type { VouPayloadFor } from '@zerp/model'
+import type { VouPayloadFor, VouEntity } from '@zerp/model'
 import type { DB } from '../../src/db/generated.ts'
 import { TargetBootstrapService } from '../../src/app/bootstrap.ts'
 import { hashPassword } from '../../src/app/session.ts'
@@ -13,9 +13,13 @@ import {
   seedSaleOrderReferences,
 } from '../integration/wfl-fixture.ts'
 
-export async function seedOrderListFixture(db: Kysely<DB>, saleCount = 21) {
+export async function seedOrderListFixture(
+  db: Kysely<DB>,
+  saleCount = 21,
+  entities: readonly VouEntity[] = ['sale-order', 'purchase-order'],
+) {
   const bootstrap = new TargetBootstrapService(db)
-  const paths = ['sale-order', 'purchase-order'].flatMap((entity) =>
+  const paths = entities.flatMap((entity) =>
     [
       'query',
       'get',
@@ -43,7 +47,7 @@ export async function seedOrderListFixture(db: Kysely<DB>, saleCount = 21) {
   const submitter = await principal(paths),
     reviewer = await principal(paths),
     noQuery = await principal([
-      '/vou/sale-order/approve',
+      ...entities.map((entity) => `/vou/${entity}/approve`),
       '/bob/reference/query',
     ])
   const bob = new BobArchiveService(db)
@@ -169,5 +173,6 @@ export async function seedOrderListFixture(db: Kysely<DB>, saleCount = 21) {
     purchase,
     salePayload,
     supplierId,
+    references,
   }
 }

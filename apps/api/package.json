@@ -32,7 +32,8 @@
     "migrate:bob-product": "node scripts/migrate-bob-product.ts",
     "migrate:wfl": "node scripts/migrate-wfl.ts",
     "migrate:rpt": "node scripts/migrate-rpt.ts",
-    "migrate:acc-mapping": "node scripts/migrate-acc-mapping.ts"
+    "migrate:acc-mapping": "node scripts/migrate-acc-mapping.ts",
+    "e2e:vou-catalog": "node scripts/run-vou-catalog-e2e.mjs"
   },
   "dependencies": {
     "@hono/node-server": "2.1.1",

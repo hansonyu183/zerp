@@ -153,3 +153,14 @@ test('documents the constrained RPT code registration without accepting arbitrar
       .failures.length,
   )
 })
+
+test('documents the shared VOU catalog without accepting an arbitrary dynamic resource', () => {
+  const registration = `{domain:'vou',entity:':entity',component:VoucherManagement,useCaseKey:'vou/catalog'}`
+  const parsed = parseTargetRegisteredResourcePages(registration)
+  assert.deepEqual(parsed.failures, [])
+  assert.equal(parsed.pages[0].route, '/vou/:entity')
+  assert.ok(
+    parseTargetRegisteredResourcePages(registration.replace("'vou'", "'bob'"))
+      .failures.length,
+  )
+})

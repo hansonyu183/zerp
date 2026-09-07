@@ -1,5 +1,13 @@
 import OrderManagement from '../pages/vou/orders/OrderManagement.vue'
-import { saleOrderPage, purchaseOrderPage } from './vou-pages.ts'
+import {
+  vouPages,
+  saleOrderPage,
+  purchaseOrderPage,
+  type OrderFilters,
+} from './vou-pages.ts'
+import { vouEntities } from '@zerp/model'
+import VoucherManagement from '../pages/vou/VoucherManagement.vue'
+import type { VouPageRegistration } from '../components/vou-list-page/vm.ts'
 import DefinitionManagement from '../pages/wfl/definition/DefinitionManagement.vue'
 import ReportPage from '../pages/rpt/ReportPage.vue'
 import MappingManagement from '../pages/acc/mapping/MappingManagement.vue'
@@ -59,8 +67,7 @@ export type ResourceRegistration = {
   domain: BusinessTargetDomain
   entity: string
   component: Component
-  definition?:
-    RegisteredListPage | typeof saleOrderPage | typeof purchaseOrderPage
+  definition?: RegisteredListPage | VouPageRegistration<OrderFilters>
   vouType?: import('@zerp/model').VouEntity
   useCaseKey?: string
 }
@@ -76,6 +83,7 @@ export type ResourceRegistry = {
 export function createResourceRegistry(
   registrations: readonly ResourceRegistration[],
   reportPage?: ResourceRegistration,
+  voucherPage?: ResourceRegistration,
 ): ResourceRegistry {
   const entries = new Map(
     registrations.map((registration) => [
@@ -95,7 +103,21 @@ export function createResourceRegistry(
           capabilities: targetDomainCapabilities.rpt,
         }
 
-      return entries.get(`${domain}/${entity}`) ?? null
+      const registered = entries.get(`${domain}/${entity}`)
+      if (registered) return registered
+      const vouType =
+        domain === 'vou'
+          ? vouEntities.find((type) => type === entity)
+          : undefined
+      if (voucherPage && vouType)
+        return {
+          ...voucherPage,
+          entity: vouType,
+          vouType,
+          definition: vouPages[vouType],
+          capabilities: targetDomainCapabilities.vou,
+        }
+      return null
     },
   }
 }
@@ -244,5 +266,11 @@ export const targetResourceRegistry = createResourceRegistry(
     entity: ':code',
     component: ReportPage,
     useCaseKey: 'rpt/report-query',
+  },
+  {
+    domain: 'vou',
+    entity: ':entity',
+    component: VoucherManagement,
+    useCaseKey: 'vou/catalog',
   },
 )

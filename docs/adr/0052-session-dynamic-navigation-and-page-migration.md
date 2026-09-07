@@ -117,6 +117,10 @@ Registry 当前为原 user 加 role、employee-category、position、measurement
 
 销售与采购订单在同一个 Registry 登记独立 VouListPage；保留 vouType、documentId、documentNo、handlerName、字符串 revision，不继承资料页身份与启停。单据基础列、期间与单号筛选经过自身强契约校验后，与扩展列、提交日期范围、状态、相对方共用 DynamicForm、DynamicCols 和 RowActions。公共页面不内置销售或采购判断，登记绑定各自的查询与引用源，订单消费者提供只读业务详情。
 
-列表 query 切换为摘要，get 保留完整不可变内容；订单经办人不存在时为 null。审批仍由公共 Approval 在 VOU 的原有事务中执行，不引入业务版本。专用编辑器未实施时明确显示能力边界，不添加虚假创建入口。真实资源没有 query 权限时不请求列表或引用，Host 在资源或 Session generation 变化时重建实例。页面用例见[销售订单](../use-cases/vou/sale-order.md)与[采购订单](../use-cases/vou/purchase-order.md)，业务规则见 [VOU](../domains/vou.md)。本片不表示其余单据已登记，也不包含期初迁移或生产发布。
+列表 query 切换为摘要，get 保留完整不可变内容；订单经办人不存在时为 null。审批仍由公共 Approval 在 VOU 的原有事务中执行，不引入业务版本。专用编辑器未实施时明确显示能力边界，不添加虚假创建入口。真实资源没有 query 权限时不请求列表或引用，Host 在资源或 Session generation 变化时重建实例。页面用例见[销售订单](../use-cases/vou/sale-order.md)与[采购订单](../use-cases/vou/purchase-order.md)，业务规则见 [VOU](../domains/vou.md)。其余类型由后续 #403 切片接入；不包含期初迁移或生产发布。
 
 本片进一步部分取代 ADR-0051 中 VOU 本地 Draft 持久化与刷新恢复条款：单据未提交编辑态仅属于当前页面实例，关闭、刷新或切换账号销毁。共享模型、不可变 Submission、幂等、审批及同事务约束继续有效。
+
+## VOU catalog slice: #403
+
+以共享 `vouEntities` 及其字段目录装配所有既有类型的 Registry 登记，复用独立 VouListPage 与 RowActions。列表摘要和各类型合法筛选由服务端投影历史事实并在分页前匹配；公共字段与 VM 不增加类型业务分支。人工新建资格来自共享系统生成目录，缺失编辑器明确提示；保留精确权限和服务端审批资格。范围不含期初与全部专用编辑器重建，业务规则见 [VOU](../domains/vou.md#单据列表与详情)。

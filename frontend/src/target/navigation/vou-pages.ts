@@ -1,4 +1,11 @@
-import { approvalStatusPresentation, type ApprovalStatus } from '@zerp/model'
+import {
+  approvalStatusPresentation,
+  vouEntities,
+  vouEntityPresentation,
+  vouListCapabilities,
+  type VouEntity,
+  type ApprovalStatus,
+} from '@zerp/model'
 import { queryTargetVouchers } from '../api.ts'
 import {
   defineVouPage,
@@ -17,14 +24,18 @@ import type {
 export type OrderFilters = VouFilters & {
   submittedDate: FieldRange<string>
   status: ApprovalStatus | null
-  counterpartyId: string | null
+  counterpartyId?: string | null
+  counterpartyName?: string
+  handlerName?: string
+  warehouseName?: string
 }
-function orderPage(
-  vouType: 'sale-order' | 'purchase-order',
+function voucherPage(
+  vouType: VouEntity,
   title: string,
   counterparty: string,
-  source: ReferenceSource,
+  source?: ReferenceSource,
 ): VouPageRegistration<OrderFilters> {
+  const capability = vouListCapabilities[vouType]
   const statuses = Object.entries(approvalStatusPresentation).map(
     ([value, presentation]) => ({
       value,
@@ -57,13 +68,39 @@ function orderPage(
           type: 'decimal',
           scale: 2,
           caption: '金额',
-          required: true,
         },
         { key: '$actions', type: 'actions', caption: '操作' },
       ],
       filters: [
         { key: 'businessDate', type: 'date', range: true, caption: '期间' },
         { key: 'documentNo', type: 'text', caption: '单号' },
+        ...(capability.counterpartyField && !source
+          ? [
+              {
+                key: 'counterpartyName' as const,
+                type: 'text' as const,
+                caption: '相对方名称',
+              },
+            ]
+          : []),
+        ...(capability.handler
+          ? [
+              {
+                key: 'handlerName' as const,
+                type: 'text' as const,
+                caption: '经办人姓名',
+              },
+            ]
+          : []),
+        ...(capability.warehouse
+          ? [
+              {
+                key: 'warehouseName' as const,
+                type: 'text' as const,
+                caption: '仓库名称',
+              },
+            ]
+          : []),
         {
           key: 'submittedDate',
           type: 'date',
@@ -71,12 +108,16 @@ function orderPage(
           caption: '提交日期',
         },
         { key: 'status', type: 'enum', caption: '审批状态', options: statuses },
-        {
-          key: 'counterpartyId',
-          type: 'reference',
-          caption: counterparty,
-          source,
-        },
+        ...(source
+          ? [
+              {
+                key: 'counterpartyId' as const,
+                type: 'reference' as const,
+                caption: counterparty,
+                source,
+              },
+            ]
+          : []),
       ],
     }),
     initialFilters: () => ({
@@ -84,7 +125,12 @@ function orderPage(
       documentNo: '',
       submittedDate: { from: null, to: null },
       status: null,
-      counterpartyId: null,
+      ...(source ? { counterpartyId: null } : {}),
+      ...(capability.counterpartyField && !source
+        ? { counterpartyName: '' }
+        : {}),
+      ...(capability.handler ? { handlerName: '' } : {}),
+      ...(capability.warehouse ? { warehouseName: '' } : {}),
     }),
     search: (csrf, input) =>
       queryTargetVouchers(csrf, vouType, {
@@ -98,19 +144,31 @@ function orderPage(
           submittedTo: input.submittedDate.to ?? undefined,
           status: input.status ? [input.status] : undefined,
           counterpartyObjectId: input.counterpartyId ?? undefined,
+          counterpartyName: input.counterpartyName || undefined,
+          handlerName: input.handlerName || undefined,
+          warehouseName: input.warehouseName || undefined,
         },
       }),
   }
 }
-export const saleOrderPage = orderPage(
-  'sale-order',
-  '销售订单',
-  '客户子单位',
-  'bob/customer-subunit',
-)
-export const purchaseOrderPage = orderPage(
-  'purchase-order',
-  '采购订单',
-  '供应商',
-  'bob/supplier',
-)
+export const vouPages = Object.fromEntries(
+  vouEntities.map((vouType) => [
+    vouType,
+    voucherPage(
+      vouType,
+      vouEntityPresentation[vouType].label,
+      vouType === 'sale-order'
+        ? '客户子单位'
+        : vouType === 'purchase-order'
+          ? '供应商'
+          : '相对方',
+      vouType === 'sale-order'
+        ? 'bob/customer-subunit'
+        : vouType === 'purchase-order'
+          ? 'bob/supplier'
+          : undefined,
+    ),
+  ]),
+) as Record<VouEntity, VouPageRegistration<OrderFilters>>
+export const saleOrderPage = vouPages['sale-order']
+export const purchaseOrderPage = vouPages['purchase-order']

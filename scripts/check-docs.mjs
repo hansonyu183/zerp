@@ -1107,7 +1107,8 @@ export function parseTargetRegisteredResourcePages(source) {
     }
     if (
       !/^[a-z][a-z0-9-]*$/u.test(entity) &&
-      !(domain === 'rpt' && entity === ':code')
+      !(domain === 'rpt' && entity === ':code') &&
+      !(domain === 'vou' && entity === ':entity')
     ) {
       failures.push(`Registry entity 不合法：${entity}`)
       continue

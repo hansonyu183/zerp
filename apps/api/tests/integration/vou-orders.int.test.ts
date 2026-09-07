@@ -51,6 +51,20 @@ test('order HTTP lists summarize and filter before pagination, get immutable det
     const read = await client(fixture.submitter),
       review = await client(fixture.reviewer),
       denied = await client(fixture.noQuery)
+    const namedSupplier = await read('/vou/purchase-order/query', {
+      page: 1,
+      pageSize: 20,
+      filters: { counterpartyName: '订单测试供应商' },
+    })
+    assert.equal(namedSupplier.code, 0, namedSupplier.errorKey)
+    assert.equal(namedSupplier.data.total, 1)
+    // The entity is part of the public route contract: irrelevant filters fail.
+    const invalid = await read('/vou/purchase-order/query', {
+      page: 1,
+      pageSize: 20,
+      filters: { handlerName: '经办人' },
+    })
+    assert.equal(invalid.errorKey, 'validation_failed')
     const base = {
       page: 1,
       pageSize: 20,

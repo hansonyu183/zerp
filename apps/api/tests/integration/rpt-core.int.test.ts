@@ -1,18 +1,14 @@
 import assert from 'node:assert/strict'
-import { randomBytes } from 'node:crypto'
-import test from 'node:test'
-import { serve } from '@hono/node-server'
-import { argon2idAsync } from '@noble/hashes/argon2.js'
-import { modelBuildId } from '@zerp/model'
-import { createTargetApiClient } from '../../../../packages/api-client/src/index.ts'
+import test, { type TestContext } from 'node:test'
+import { sql } from 'kysely'
 import pg from 'pg'
 import { ulid } from 'ulid'
-
+import { randomBytes } from 'node:crypto'
+import { modelBuildId } from '@zerp/model'
 import { createApp } from '../../src/app.ts'
-import { SessionService } from '../../src/app/session.ts'
-import { searchPinyin } from '../../src/platform/pinyin.ts'
-import { createDatabase } from '../../src/db/database.ts'
+import { SessionService, hashPassword } from '../../src/app/session.ts'
 import { loadConfig } from '../../src/platform/config.ts'
+import { createDatabase } from '../../src/db/database.ts'
 import {
   PgRptDefinitionValidator,
   RptApplicationError,
@@ -21,662 +17,626 @@ import {
 } from '../../src/rpt/service.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
-
-async function passwordHash(password: string): Promise<string> {
-  const salt = randomBytes(16)
-  const hash = Buffer.from(
-    await argon2idAsync(password, salt, {
-      m: 64 * 1024,
-      t: 3,
-      p: 2,
-      dkLen: 32,
-    }),
-  ).toString('base64url')
-  return `$argon2id$v=19$m=65536,t=3,p=2$${salt.toString('base64url')}$${hash}`
+const totalColumn = {
+  alias: 'total',
+  name: '总数',
+  order: 1,
+  type: 'INTEGER' as const,
+  width: 120,
+  visible: true,
 }
+const isError = (key: string) => (error: unknown) =>
+  error instanceof RptApplicationError && error.errorKey === key
 
-test('RPT validation rejects incomplete ENUM and REFERENCE parameter contracts before preparing SQL', async (context) => {
+async function fixture(context: TestContext) {
   assert.ok(databaseUrl)
-  const db = createDatabase(databaseUrl)
-  const validationPool = new pg.Pool({ connectionString: databaseUrl })
-  context.after(async () => {
-    await validationPool.end()
-    await db.destroy()
-  })
-  const validator = new PgRptDefinitionValidator(validationPool, db)
-  const base: Omit<RptDefinition, 'parameters'> = {
-    subjectId: ulid(),
-    approvalEntryId: ulid(),
-    code: 'rpt-900000',
-    name: '参数契约',
-    sql: 'SELECT :value AS value WHERE false',
-    columns: [
-      {
-        alias: 'value',
-        name: '值',
-        order: 1,
-        type: 'TEXT',
-        width: 120,
-        visible: true,
-        format: '',
-      },
-    ],
-  }
-  for (const parameter of [
-    { key: 'value', name: '状态', type: 'ENUM', required: true },
-    { key: 'value', name: '客户', type: 'REFERENCE', required: true },
-  ] as const) {
-    await assert.rejects(
-      validator.validate({ ...base, parameters: [parameter] }),
-      (error: unknown) =>
-        error instanceof RptApplicationError &&
-        error.errorKey === 'rpt_parameter_contract_mismatch',
-    )
-  }
-})
-
-test('RPT executes only latest approved enabled valid definition and enforces columns', async (context) => {
-  assert.ok(databaseUrl)
-  const db = createDatabase(databaseUrl)
-  const validationPool = new pg.Pool({ connectionString: databaseUrl })
-  const service = new RptService(
-    db,
-    new PgRptDefinitionValidator(validationPool, db),
-  )
+  const db = createDatabase(databaseUrl),
+    pool = new pg.Pool({ connectionString: databaseUrl })
   const actorId = ulid(),
-    subjectId = ulid(),
-    entryId = ulid(),
     roleId = ulid(),
-    permissionId = ulid(),
-    bookId = ulid()
-  const username = `rpt-${randomBytes(5).toString('hex')}`
-  const password = randomBytes(18).toString('base64url')
-  context.after(async () => {
-    try {
-      await db
-        .deleteFrom('rpt_execution_audits')
-        .where('definition_subject_id', '=', subjectId)
-        .execute()
-      await db
-        .deleteFrom('app_sessions')
-        .where('user_id', '=', actorId)
-        .execute()
-      await db
-        .deleteFrom('app_user_roles')
-        .where('user_id', '=', actorId)
-        .execute()
-      await db
-        .deleteFrom('app_role_permissions')
-        .where('role_id', '=', roleId)
-        .execute()
-      await db.deleteFrom('app_roles').where('id', '=', roleId).execute()
-      await db
-        .deleteFrom('app_permissions')
-        .where('id', '=', permissionId)
-        .execute()
-      await db.deleteFrom('acc_periods').where('book_id', '=', bookId).execute()
-      await db.deleteFrom('acc_books').where('id', '=', bookId).execute()
-      await db
-        .deleteFrom('approval_events')
-        .where('entity', '=', 'rpt-definition')
-        .where('subject_id', '=', subjectId)
-        .execute()
-      await db
-        .deleteFrom('approval_entries')
-        .where('id', '=', entryId)
-        .execute()
-      await db.deleteFrom('dcl_subjects').where('id', '=', subjectId).execute()
-      await db.deleteFrom('app_users').where('id', '=', actorId).execute()
-    } finally {
-      await validationPool.end()
-      await db.destroy()
-    }
-  })
-  const now = new Date()
+    ids: string[] = []
+  const service = new RptService(db, new PgRptDefinitionValidator(pool, db))
   await db
     .insertInto('app_users')
     .values({
       id: actorId,
-      username,
-      display_name: 'RPT actor',
-      py: searchPinyin('RPT actor'),
-      password_hash: await passwordHash(password),
+      username: `rpt-${actorId}`,
+      display_name: '报表测试',
+      py: 'bbcs',
+      password_hash: 'unused',
       status: 'ENABLED',
-      password_changed_at: now,
+      password_changed_at: new Date(),
       password_change_required: false,
     })
+    .execute()
+  context.after(async () => {
+    try {
+      await db.transaction().execute(async (tx) => {
+        if (ids.length) {
+          const definitions = await tx
+            .selectFrom('rpt_definitions')
+            .select(['code'])
+            .where('id', 'in', ids)
+            .execute()
+          const codes = definitions.map((row) => row.code)
+          if (codes.length) {
+            await tx
+              .deleteFrom('app_role_permissions')
+              .where(
+                'permission_id',
+                'in',
+                tx
+                  .selectFrom('app_permissions')
+                  .select('id')
+                  .where('domain', '=', 'rpt')
+                  .where('entity', 'in', codes),
+              )
+              .execute()
+            await tx
+              .deleteFrom('app_permissions')
+              .where('domain', '=', 'rpt')
+              .where('entity', 'in', codes)
+              .execute()
+          }
+          await tx
+            .deleteFrom('rpt_execution_audits')
+            .where('definition_subject_id', 'in', ids)
+            .execute()
+          await tx
+            .deleteFrom('rpt_definition_audits')
+            .where('definition_id', 'in', ids)
+            .execute()
+          await tx
+            .deleteFrom('rpt_definitions')
+            .where('id', 'in', ids)
+            .execute()
+        }
+        await tx
+          .deleteFrom('app_sessions')
+          .where('user_id', '=', actorId)
+          .execute()
+        await tx
+          .deleteFrom('app_user_roles')
+          .where('user_id', '=', actorId)
+          .execute()
+        await tx
+          .deleteFrom('app_role_permissions')
+          .where('role_id', '=', roleId)
+          .execute()
+        await tx.deleteFrom('app_roles').where('id', '=', roleId).execute()
+        await tx.deleteFrom('app_users').where('id', '=', actorId).execute()
+      })
+    } finally {
+      await pool.end()
+      await db.destroy()
+    }
+  })
+  const actor = {
+    id: actorId,
+    permissions: ['/rpt/definition/get', '/rpt/definition/save'],
+  }
+  const input = () => {
+    const subjectId = ulid()
+    ids.push(subjectId)
+    return {
+      subjectId,
+      expectedRevision: null as string | null,
+      name: '报表测试',
+      description: '',
+      enabled: true,
+      sql: 'SELECT 1::integer AS total',
+      parameters: [],
+      columns: [totalColumn],
+    }
+  }
+  return { db, pool, service, actor, input, roleId }
+}
+
+test('RPT save validates current configuration, rejects stale edits and keeps execution separate from maintenance', async (context) => {
+  const { service, actor, input } = await fixture(context)
+  const command = input()
+  const current = await service.save(command, actor, 'create-current')
+  assert.equal(current.revision, '1')
+  assert.equal(current.validity, 'VALID')
+  assert.equal('approvalEntryId' in current, false)
+  const reader = { id: actor.id, permissions: [`/rpt/${current.code}/query`] }
+  assert.deepEqual(
+    (await service.directory(reader)).map((row) => row.code),
+    [current.code],
+  )
+  assert.deepEqual(
+    await service.directory({ id: actor.id, permissions: [] }),
+    [],
+  )
+  await assert.rejects(
+    service.get(current.subjectId, reader),
+    isError('rpt_permission_denied'),
+  )
+  await assert.rejects(
+    service.save({ ...command, expectedRevision: '1' }, reader, 'denied-save'),
+    isError('rpt_permission_denied'),
+  )
+  await assert.rejects(
+    service.export(current.code, {}, reader, 'denied-export'),
+    isError('rpt_permission_denied'),
+  )
+  assert.deepEqual(
+    (
+      await service.query(
+        current.code,
+        { parameters: {}, page: 1, pageSize: 10 },
+        reader,
+        'query-current',
+      )
+    ).rows,
+    [{ total: 1 }],
+  )
+  await assert.rejects(
+    service.save(
+      {
+        ...command,
+        expectedRevision: '1',
+        sql: 'SELECT absent_column FROM absent_table',
+      },
+      actor,
+      'invalid-save',
+    ),
+    isError('rpt_definition_invalid_data'),
+  )
+  assert.equal((await service.get(current.subjectId, actor)).revision, '1')
+  const updated = await service.save(
+    { ...command, expectedRevision: '1', sql: 'SELECT 2::integer AS total' },
+    actor,
+    'update-current',
+  )
+  assert.equal(updated.subjectId, current.subjectId)
+  assert.equal(updated.code, current.code)
+  assert.equal(updated.revision, '2')
+  await assert.rejects(
+    service.save({ ...command, expectedRevision: '1' }, actor, 'stale-save'),
+    isError('rpt_revision_conflict'),
+  )
+  assert.deepEqual(
+    (
+      await service.query(
+        current.code,
+        { parameters: {}, page: 1, pageSize: 10 },
+        reader,
+        'updated-query',
+      )
+    ).rows,
+    [{ total: 2 }],
+  )
+})
+
+test('RPT binds multiple parameters, preserves decimal/false/zero and reuses the column contract for export', async (context) => {
+  const { service, actor, input } = await fixture(context)
+  const command = {
+    ...input(),
+    sql: 'SELECT n::integer AS total, :name::text AS name, :amount::numeric AS amount, :flag::boolean AS flag FROM generate_series(1,3) n WHERE n >= :minimum::integer ORDER BY n',
+    parameters: [
+      { key: 'name', name: '名称', type: 'TEXT' as const, required: true },
+      { key: 'amount', name: '金额', type: 'DECIMAL' as const, required: true },
+      { key: 'flag', name: '标记', type: 'BOOLEAN' as const, required: true },
+      {
+        key: 'minimum',
+        name: '最小值',
+        type: 'INTEGER' as const,
+        required: true,
+      },
+    ],
+    columns: [
+      totalColumn,
+      {
+        alias: 'name',
+        name: '名称',
+        order: 2,
+        type: 'TEXT' as const,
+        width: 120,
+        visible: true,
+      },
+      {
+        alias: 'amount',
+        name: '金额',
+        order: 3,
+        type: 'DECIMAL' as const,
+        width: 120,
+        visible: true,
+      },
+      {
+        alias: 'flag',
+        name: '标记',
+        order: 4,
+        type: 'BOOLEAN' as const,
+        width: 80,
+        visible: true,
+      },
+    ],
+  }
+  const current = await service.save(command, actor, 'multi-save')
+  const reader = {
+    id: actor.id,
+    permissions: [`/rpt/${current.code}/query`, `/rpt/${current.code}/export`],
+  }
+  const parameters = {
+    name: "历史客户子单位 ' OR true --",
+    amount: '9007199254740993.00',
+    flag: false,
+    minimum: 0,
+  }
+  const first = await service.query(
+    current.code,
+    { parameters, page: 1, pageSize: 2 },
+    reader,
+    'multi-first',
+  )
+  assert.equal(first.hasMore, true)
+  assert.deepEqual(first.rows, [
+    {
+      total: 1,
+      name: parameters.name,
+      amount: '9007199254740993.00',
+      flag: false,
+    },
+    {
+      total: 2,
+      name: parameters.name,
+      amount: '9007199254740993.00',
+      flag: false,
+    },
+  ])
+  const second = await service.query(
+    current.code,
+    { parameters, page: 2, pageSize: 2 },
+    reader,
+    'multi-second',
+  )
+  assert.equal(second.hasMore, false)
+  assert.deepEqual(
+    second.rows.map((row) => row.total),
+    [3],
+  )
+  const exported = await service.export(
+    current.code,
+    parameters,
+    reader,
+    'multi-export',
+  )
+  assert.deepEqual(exported.rows, [...first.rows, ...second.rows])
+  assert.deepEqual(exported.columns, first.columns)
+  await assert.rejects(
+    service.query(
+      current.code,
+      { parameters: { ...parameters, other: 1 }, page: 1, pageSize: 1 },
+      reader,
+      'extra',
+    ),
+    isError('rpt_parameter_unknown'),
+  )
+  const exporter = {
+    id: actor.id,
+    permissions: [`/rpt/${current.code}/export`],
+  }
+  assert.equal((await service.directory(exporter)).length, 1)
+  await assert.rejects(
+    service.query(
+      current.code,
+      { parameters, page: 1, pageSize: 1 },
+      exporter,
+      'no-query',
+    ),
+    isError('rpt_permission_denied'),
+  )
+})
+
+test('RPT rejects zero-row column mismatches and incomplete enum/reference declarations', async (context) => {
+  const { service, actor, input, pool, db } = await fixture(context)
+  const command = input()
+  await assert.rejects(
+    service.save(
+      { ...command, sql: 'SELECT 1::integer AS wrong_alias WHERE false' },
+      actor,
+      'wrong-name',
+    ),
+    isError('rpt_definition_invalid_data'),
+  )
+  await assert.rejects(
+    service.save(
+      { ...command, sql: "SELECT '1'::text AS total WHERE false" },
+      actor,
+      'wrong-type',
+    ),
+    isError('rpt_definition_invalid_data'),
+  )
+  const validator = new PgRptDefinitionValidator(pool, db)
+  for (const type of ['ENUM', 'REFERENCE'] as const) {
+    const definition: RptDefinition = {
+      subjectId: command.subjectId,
+      revision: '1',
+      code: 'rpt-900000',
+      name: '非法参数',
+      sql: 'SELECT :value AS value WHERE false',
+      parameters: [{ key: 'value', name: '值', type, required: true }],
+      columns: [{ ...totalColumn, alias: 'value', type: 'TEXT' }],
+    }
+    await assert.rejects(
+      validator.validate(definition),
+      isError('rpt_parameter_contract_mismatch'),
+    )
+  }
+})
+
+test('RPT deterministic schema drift stops current execution; a validated correction restores the same identity', async (context) => {
+  const { service, actor, input, db } = await fixture(context)
+  const table = `rpt_test_${ulid().toLowerCase()}`
+  await sql.raw(`CREATE TABLE ${table}(old_total integer)`).execute(db)
+  context.after(async () => {
+    const cleanup = createDatabase(databaseUrl!)
+    try {
+      await sql.raw(`DROP TABLE ${table}`).execute(cleanup)
+    } finally {
+      await cleanup.destroy()
+    }
+  })
+  const command = { ...input(), sql: `SELECT old_total AS total FROM ${table}` }
+  const current = await service.save(command, actor, 'drift-create')
+  const reader = { id: actor.id, permissions: [`/rpt/${current.code}/query`] }
+  await sql
+    .raw(`ALTER TABLE ${table} RENAME COLUMN old_total TO new_total`)
+    .execute(db)
+  await assert.rejects(
+    service.query(
+      current.code,
+      { parameters: {}, page: 1, pageSize: 10 },
+      reader,
+      'drift-query',
+    ),
+    isError('rpt_definition_not_executable'),
+  )
+  assert.equal(
+    (await service.get(current.subjectId, actor)).validity,
+    'INVALID',
+  )
+  assert.deepEqual(await service.directory(reader), [])
+  const repaired = await service.save(
+    {
+      ...command,
+      expectedRevision: '1',
+      sql: `SELECT new_total AS total FROM ${table}`,
+    },
+    actor,
+    'drift-repair',
+  )
+  assert.equal(repaired.revision, '2')
+  assert.equal(repaired.validity, 'VALID')
+  assert.deepEqual(
+    (
+      await service.query(
+        current.code,
+        { parameters: {}, page: 1, pageSize: 10 },
+        reader,
+        'repaired-query',
+      )
+    ).rows,
+    [],
+  )
+})
+
+test('RPT HTTP uses current contracts and exact grants; removed DCL routes are absent', async (context) => {
+  const { db, service, actor, input, roleId } = await fixture(context)
+  const password = randomBytes(18).toString('base64url')
+  await db
+    .updateTable('app_users')
+    .set({ password_hash: await hashPassword(password) })
+    .where('id', '=', actor.id)
     .execute()
   await db
     .insertInto('app_roles')
     .values({
       id: roleId,
-      code: username,
-      name: 'RPT actor',
+      code: `rpt-http-${roleId}`,
+      name: '报表 HTTP 测试',
       status: 'ENABLED',
     })
-    .execute()
-  await db
-    .insertInto('app_permissions')
-    .values({
-      id: permissionId,
-      path: '/rpt/rpt-900001/query',
-      domain: 'rpt',
-      entity: 'rpt-900001',
-      action: 'query',
-      description: '会计月份',
-      status: 'ENABLED',
-      created_by: actorId,
-      updated_by: actorId,
-    })
-    .execute()
-  await db
-    .insertInto('app_role_permissions')
-    .values({ role_id: roleId, permission_id: permissionId })
     .execute()
   await db
     .insertInto('app_user_roles')
-    .values({ user_id: actorId, role_id: roleId })
+    .values({ user_id: actor.id, role_id: roleId })
     .execute()
-  await db
-    .insertInto('acc_books')
-    .values({
-      id: bookId,
-      code: 'ACC-9001',
-      name: 'RPT 测试账簿',
-      description: '',
-      start_month: '2026-01',
-      base_currency: 'CNY',
-      control_book: false,
-      created_at: now,
-      created_by: actorId,
-      updated_at: now,
-      updated_by: actorId,
-    })
-    .execute()
-  await db
-    .insertInto('acc_periods')
-    .values([
-      {
-        book_id: bookId,
-        period_month: '2026-01',
-        locked: false,
-        revision: 1,
-        updated_at: now,
-        updated_by: actorId,
-      },
-      {
-        book_id: bookId,
-        period_month: '2026-02',
-        locked: false,
-        revision: 1,
-        updated_at: now,
-        updated_by: actorId,
-      },
-    ])
-    .execute()
-  await db
-    .insertInto('dcl_subjects')
-    .values({
-      id: subjectId,
-      entity: 'rpt-definition',
-      code: 'rpt-900001',
-      created_at: now,
-      created_by: actorId,
-    })
-    .execute()
-  await db
-    .insertInto('approval_entries')
-    .values({
-      id: entryId,
-      domain: 'dcl',
-      entity: 'rpt-definition',
-      subject_id: subjectId,
-      version_no: 1,
-      status: 'APPROVED',
-      revision: 2,
-      submitted_by: actorId,
-      submitted_at: now,
-      approved_by: actorId,
-      approved_at: now,
-      updated_by: actorId,
-      updated_at: now,
-    })
-    .execute()
-  await db
-    .insertInto('dcl_rpt_definition_versions')
-    .values({
-      approval_entry_id: entryId,
-      name: '会计月份',
-      description: '',
-      enabled: true,
-      sql_text:
-        'SELECT period_month AS month, locked FROM acc_periods WHERE :bookId::varchar IS NOT NULL ORDER BY period_month',
-      parameters: JSON.stringify([
-        {
-          key: 'bookId',
-          name: '账簿',
-          type: 'REFERENCE',
-          required: true,
-          referenceType: 'ACCOUNTING_BOOK',
-        },
-      ]),
-      columns: JSON.stringify([
-        {
-          alias: 'month',
-          name: '月份',
-          order: 1,
-          type: 'TEXT',
-          width: 120,
-          visible: true,
-          format: '',
-        },
-        {
-          alias: 'locked',
-          name: '已锁定',
-          order: 2,
-          type: 'BOOLEAN',
-          width: 80,
-          visible: true,
-          format: '',
-        },
-      ]),
-    })
-    .execute()
-  await db
-    .insertInto('rpt_definition_validities')
-    .values({
-      approval_entry_id: entryId,
-      status: 'VALID',
-      diagnostic: null,
-      validated_at: now,
-      validated_by: actorId,
-    })
-    .execute()
-  await service.assertAllEnabled()
+  const grant = async (paths: string[]) => {
+    await db
+      .deleteFrom('app_role_permissions')
+      .where('role_id', '=', roleId)
+      .execute()
+    const permissions = await db
+      .selectFrom('app_permissions')
+      .select('id')
+      .where('path', 'in', paths)
+      .execute()
+    assert.equal(permissions.length, paths.length)
+    await db
+      .insertInto('app_role_permissions')
+      .values(
+        permissions.map((permission) => ({
+          role_id: roleId,
+          permission_id: permission.id,
+        })),
+      )
+      .execute()
+  }
+  await grant(['/rpt/definition/save', '/rpt/definition/get'])
   const config = loadConfig({
     DATABASE_URL: databaseUrl,
     TARGET_DATABASE_SCOPE: process.env.TARGET_DATABASE_SCOPE,
     APP_SESSION_COOKIE_SECURE: 'false',
   })
   const app = createApp({
+    config,
     session: new SessionService(db, config),
     rpt: service,
-    config,
   })
-  let listening: (() => void) | undefined
-  const started = new Promise<void>((resolve) => {
-    listening = resolve
-  })
-  const server = serve(
-    { fetch: app.fetch, hostname: '127.0.0.1', port: 0 },
-    () => listening?.(),
-  )
-  context.after(async () => {
-    await new Promise<void>((resolve, reject) =>
-      server.close((error) => (error ? reject(error) : resolve())),
-    )
-  })
-  await started
-  const address = server.address()
-  assert.ok(address && typeof address !== 'string')
-  const origin = `http://127.0.0.1:${address.port}`
-  const client = createTargetApiClient({ baseUrl: origin, modelBuildId })
-  const signin = await client.session.auth.signin.$post({
-    json: { code: username, password },
-  })
-  const signedIn = await signin.json()
-  assert.equal(signedIn.code, 0)
-  const response = await fetch(`${origin}/rpt/rpt-900001/query`, {
+  const signin = await app.request('/session/auth/signin', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
       'x-zerp-model-build': modelBuildId,
-      'x-csrf-token': signedIn.data.csrfToken,
-      cookie: signin.headers.getSetCookie()[0]!,
-      connection: 'close',
     },
-    body: JSON.stringify({ parameters: { bookId }, page: 1, pageSize: 1 }),
+    body: JSON.stringify({ code: `rpt-${actor.id}`, password }),
   })
-  const envelope = await response.json()
-  assert.equal(envelope.code, 0, JSON.stringify(envelope))
+  const auth = await signin.json()
+  assert.equal(auth.code, 0)
+  const headers = {
+    'content-type': 'application/json',
+    'x-zerp-model-build': modelBuildId,
+    'x-csrf-token': auth.data.csrfToken,
+    cookie: signin.headers.getSetCookie()[0]!,
+  }
+  const post = async (path: string, body: unknown) =>
+    (
+      await app.request(path, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      })
+    ).json()
+  const command = input()
+  const saved = await post('/rpt/definition/save', command)
+  assert.equal(saved.code, 0)
+  assert.equal(saved.data.revision, '1')
+  assert.equal('approvalEntryId' in saved.data, false)
+  await grant([`/rpt/${saved.data.code}/query`])
+  const directory = await post('/rpt/directory/query', {})
+  assert.equal(directory.code, 0)
   assert.deepEqual(
-    envelope.data.columns.map((column: { alias: string }) => column.alias),
-    ['month', 'locked'],
+    directory.data.map((item: { code: string }) => item.code),
+    [saved.data.code],
   )
-  assert.equal(envelope.data.rows.length, 1)
-  assert.equal(envelope.data.hasMore, true)
-  const secondPageResponse = await fetch(`${origin}/rpt/rpt-900001/query`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-zerp-model-build': modelBuildId,
-      'x-csrf-token': signedIn.data.csrfToken,
-      cookie: signin.headers.getSetCookie()[0]!,
-      connection: 'close',
-    },
-    body: JSON.stringify({ parameters: { bookId }, page: 2, pageSize: 1 }),
+  const queried = await post(`/rpt/${saved.data.code}/query`, {
+    parameters: {},
+    page: 1,
+    pageSize: 20,
   })
-  const secondPageEnvelope = await secondPageResponse.json()
-  assert.equal(secondPageEnvelope.code, 0, JSON.stringify(secondPageEnvelope))
-  assert.equal(secondPageEnvelope.data.rows.length, 1)
-  assert.equal(secondPageEnvelope.data.hasMore, false)
-  const candidates = await fetch(`${origin}/rpt/rpt-900001/reference-query`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-zerp-model-build': modelBuildId,
-      'x-csrf-token': signedIn.data.csrfToken,
-      cookie: signin.headers.getSetCookie()[0]!,
-      connection: 'close',
-    },
-    body: JSON.stringify({ parameterKey: 'bookId', selectedId: bookId }),
-  })
-  const candidateEnvelope = await candidates.json()
-  assert.equal(candidateEnvelope.code, 0)
-  assert.deepEqual(
-    candidateEnvelope.data.items.map((item: { id: string }) => item.id),
-    [bookId],
+  assert.equal(queried.code, 0)
+  assert.deepEqual(queried.data.rows, [{ total: 1 }])
+  assert.equal(
+    (await post('/rpt/definition/get', { subjectId: command.subjectId }))
+      .errorKey,
+    'rpt_permission_denied',
   )
   assert.equal(
-    (
-      await db
-        .selectFrom('rpt_execution_audits')
-        .select('id')
-        .where('definition_subject_id', '=', subjectId)
-        .execute()
-    ).length,
-    2,
+    (await post('/rpt/definition/save', { ...command, expectedRevision: '1' }))
+      .errorKey,
+    'rpt_permission_denied',
   )
+  assert.equal(
+    (await post(`/rpt/${saved.data.code}/export`, { parameters: {} })).errorKey,
+    'rpt_permission_denied',
+  )
+  for (const action of [
+    'get',
+    'query',
+    'submit-new',
+    'submit-change',
+    'approve',
+    'reject',
+    'unreject',
+    'unapprove',
+    'delete',
+    'versions',
+  ]) {
+    const response = await app.request(`/dcl/rpt-definition/${action}`, {
+      method: 'POST',
+      headers,
+      body: '{}',
+    })
+    assert.equal(response.status, 404)
+  }
 })
 
-test('RPT readiness rejects latest enabled VALID definitions whose zero-row metadata breaks column names or types', async (context) => {
-  assert.ok(databaseUrl)
-  const db = createDatabase(databaseUrl),
-    validationPool = new pg.Pool({ connectionString: databaseUrl })
-  const service = new RptService(
-    db,
-    new PgRptDefinitionValidator(validationPool, db),
+test('RPT user parameter errors and export limits never invalidate a valid definition', async (context) => {
+  const { service, actor, input } = await fixture(context)
+  const command = {
+    ...input(),
+    sql: 'SELECT n::integer AS total FROM generate_series(1,100001) n',
+  }
+  const current = await service.save(command, actor, 'large-report')
+  const exporter = {
+    id: actor.id,
+    permissions: [`/rpt/${current.code}/export`],
+  }
+  await assert.rejects(
+    service.export(current.code, {}, exporter, 'too-large'),
+    isError('rpt_export_limit_exceeded'),
   )
-  const actorId = ulid(),
-    subjectIds = [ulid(), ulid(), ulid()],
-    entryIds = [ulid(), ulid(), ulid(), ulid()],
-    now = new Date()
-  context.after(async () => {
-    try {
-      await db
-        .deleteFrom('rpt_definition_validities')
-        .where('approval_entry_id', 'in', entryIds)
-        .execute()
-      await db
-        .deleteFrom('approval_entries')
-        .where('id', 'in', entryIds)
-        .execute()
-      await db
-        .deleteFrom('dcl_subjects')
-        .where('id', 'in', subjectIds)
-        .execute()
-      await db.deleteFrom('app_users').where('id', '=', actorId).execute()
-    } finally {
-      await validationPool.end()
-      await db.destroy()
-    }
-  })
+  assert.equal((await service.get(current.subjectId, actor)).validity, 'VALID')
+  assert.equal((await service.directory(exporter)).length, 1)
+})
+
+test('RPT date and datetime results have stable wire values and enum captions are validated', async (context) => {
+  const { service, actor, input } = await fixture(context)
+  const current = await service.save(
+    {
+      ...input(),
+      sql: "SELECT (:dates::date[])[1] AS report_date, TIMESTAMPTZ '2026-09-07 08:00:00+08' AS report_time, :status::text AS report_status",
+      parameters: [
+        { key: 'dates', name: '日期范围', type: 'DATE_RANGE', required: true },
+        {
+          key: 'status',
+          name: '状态',
+          type: 'ENUM',
+          required: true,
+          enumValues: ['OPEN', 'CLOSED'],
+          enumCaptions: { OPEN: '开放', CLOSED: '关闭' },
+        },
+      ],
+      columns: [
+        { ...totalColumn, alias: 'report_date', type: 'DATE' },
+        { ...totalColumn, alias: 'report_time', type: 'DATETIME', order: 2 },
+        { ...totalColumn, alias: 'report_status', type: 'TEXT', order: 3 },
+      ],
+    },
+    actor,
+    'date-save',
+  )
+  const reader = { id: actor.id, permissions: [`/rpt/${current.code}/query`] }
+  const result = await service.query(
+    current.code,
+    {
+      parameters: { dates: ['2026-09-01', '2026-09-30'], status: 'OPEN' },
+      page: 1,
+      pageSize: 20,
+    },
+    reader,
+    'date-query',
+  )
+  assert.deepEqual(result.rows, [
+    {
+      report_date: '2026-09-01',
+      report_time: '2026-09-07T00:00:00.000Z',
+      report_status: 'OPEN',
+    },
+  ])
+})
+
+test('RPT readiness remains unavailable for an INVALID current definition until validated save', async (context) => {
+  const { service, actor, input, db } = await fixture(context)
+  const command = input(),
+    current = await service.save(command, actor, 'readiness-create')
   await db
-    .insertInto('app_users')
-    .values({
-      id: actorId,
-      username: `rpt-readiness-${actorId}`,
-      display_name: 'RPT readiness actor',
-      py: searchPinyin('RPT readiness actor'),
-      password_hash: 'unused',
-      status: 'ENABLED',
-      password_changed_at: now,
-      password_change_required: false,
-    })
-    .execute()
-  await db
-    .insertInto('dcl_subjects')
-    .values(
-      subjectIds.map((id, index) => ({
-        id,
-        entity: 'rpt-definition',
-        code: `rpt-90000${index + 2}`,
-        created_at: now,
-        created_by: actorId,
-      })),
-    )
-    .execute()
-  const entrySubjectIds = [
-    subjectIds[0]!,
-    subjectIds[0]!,
-    subjectIds[1]!,
-    subjectIds[2]!,
-  ]
-  await db
-    .insertInto('approval_entries')
-    .values(
-      entryIds.map((id, index) => ({
-        id,
-        domain: 'dcl',
-        entity: 'rpt-definition',
-        subject_id: entrySubjectIds[index]!,
-        version_no: index === 1 ? 2 : 1,
-        status: 'APPROVED' as const,
-        revision: 2,
-        submitted_by: actorId,
-        submitted_at: now,
-        approved_by: actorId,
-        approved_at: now,
-        updated_by: actorId,
-        updated_at: now,
-      })),
-    )
-    .execute()
-  await db
-    .insertInto('dcl_rpt_definition_versions')
-    .values([
-      {
-        approval_entry_id: entryIds[0]!,
-        name: '被新版替代的兼容版本',
-        description: '',
-        enabled: true,
-        sql_text: 'SELECT 1::integer AS reported_total WHERE false',
-        parameters: '[]',
-        columns: JSON.stringify([
-          {
-            alias: 'reported_total',
-            name: '总数',
-            order: 1,
-            type: 'INTEGER',
-            width: 120,
-            visible: true,
-            format: '',
-          },
-        ]),
-      },
-      {
-        approval_entry_id: entryIds[1]!,
-        name: '零行列名失配',
-        description: '',
-        enabled: true,
-        sql_text: 'SELECT 1::integer AS actual_total WHERE false',
-        parameters: '[]',
-        columns: JSON.stringify([
-          {
-            alias: 'reported_total',
-            name: '总数',
-            order: 1,
-            type: 'INTEGER',
-            width: 120,
-            visible: true,
-            format: '',
-          },
-        ]),
-      },
-      {
-        approval_entry_id: entryIds[2]!,
-        name: '零行类型失配',
-        description: '',
-        enabled: true,
-        sql_text: 'SELECT 1::integer AS total WHERE false',
-        parameters: '[]',
-        columns: JSON.stringify([
-          {
-            alias: 'total',
-            name: '总数',
-            order: 1,
-            type: 'TEXT',
-            width: 120,
-            visible: true,
-            format: '',
-          },
-        ]),
-      },
-      {
-        approval_entry_id: entryIds[3]!,
-        name: '全部类型化参数',
-        description: '',
-        enabled: true,
-        sql_text:
-          'SELECT :text_value AS text_value, :integer_value AS integer_value, :decimal_value AS decimal_value, :boolean_value AS boolean_value, :date_value AS date_value, :date_range[1] AS range_start, :enum_value AS enum_value, :reference_value AS reference_value WHERE false',
-        parameters: JSON.stringify([
-          { key: 'text_value', name: '文本', type: 'TEXT', required: true },
-          {
-            key: 'integer_value',
-            name: '整数',
-            type: 'INTEGER',
-            required: true,
-          },
-          {
-            key: 'decimal_value',
-            name: '小数',
-            type: 'DECIMAL',
-            required: true,
-          },
-          {
-            key: 'boolean_value',
-            name: '布尔',
-            type: 'BOOLEAN',
-            required: true,
-          },
-          { key: 'date_value', name: '日期', type: 'DATE', required: true },
-          {
-            key: 'date_range',
-            name: '日期范围',
-            type: 'DATE_RANGE',
-            required: true,
-          },
-          {
-            key: 'enum_value',
-            name: '枚举',
-            type: 'ENUM',
-            required: true,
-            enumValues: ['OPEN'],
-          },
-          {
-            key: 'reference_value',
-            name: '引用',
-            type: 'REFERENCE',
-            required: true,
-            referenceType: 'CUSTOMER_SUBUNIT',
-          },
-        ]),
-        columns: JSON.stringify([
-          {
-            alias: 'text_value',
-            name: '文本',
-            order: 1,
-            type: 'TEXT',
-            width: 120,
-            visible: true,
-            format: '',
-          },
-          {
-            alias: 'integer_value',
-            name: '整数',
-            order: 2,
-            type: 'INTEGER',
-            width: 120,
-            visible: true,
-            format: '',
-          },
-          {
-            alias: 'decimal_value',
-            name: '小数',
-            order: 3,
-            type: 'DECIMAL',
-            width: 120,
-            visible: true,
-            format: '',
-          },
-          {
-            alias: 'boolean_value',
-            name: '布尔',
-            order: 4,
-            type: 'BOOLEAN',
-            width: 120,
-            visible: true,
-            format: '',
-          },
-          {
-            alias: 'date_value',
-            name: '日期',
-            order: 5,
-            type: 'DATE',
-            width: 120,
-            visible: true,
-            format: '',
-          },
-          {
-            alias: 'range_start',
-            name: '范围开始',
-            order: 6,
-            type: 'DATE',
-            width: 120,
-            visible: true,
-            format: '',
-          },
-          {
-            alias: 'enum_value',
-            name: '枚举',
-            order: 7,
-            type: 'TEXT',
-            width: 120,
-            visible: true,
-            format: '',
-          },
-          {
-            alias: 'reference_value',
-            name: '引用',
-            order: 8,
-            type: 'TEXT',
-            width: 120,
-            visible: true,
-            format: '',
-          },
-        ]),
-      },
-    ])
-    .execute()
-  await db
-    .insertInto('rpt_definition_validities')
-    .values(
-      entryIds.map((approval_entry_id) => ({
-        approval_entry_id,
-        status: 'VALID',
-        diagnostic: null,
-        validated_at: now,
-        validated_by: actorId,
-      })),
-    )
+    .updateTable('rpt_definitions')
+    .set({ validity: 'INVALID' })
+    .where('id', '=', current.subjectId)
     .execute()
   await assert.rejects(
     service.assertAllEnabled(),
-    (error: unknown) =>
-      error instanceof Error &&
-      error.message.includes('rpt-900002') &&
-      error.message.includes('rpt_result_columns_mismatch') &&
-      error.message.includes('rpt-900003') &&
-      error.message.includes('rpt_result_column_type_mismatch'),
+    (error) =>
+      error instanceof RptApplicationError &&
+      error.errorKey.startsWith('rpt_validation_failed:'),
   )
+  await service.save(
+    { ...command, expectedRevision: current.revision },
+    actor,
+    'readiness-repair',
+  )
+  await service.assertAllEnabled()
 })

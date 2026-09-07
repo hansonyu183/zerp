@@ -13,11 +13,7 @@ import {
   registerIndependentRoutes,
   type IndependentRouteHandlers,
 } from './independent-contract.ts'
-import {
-  archiveRouteMetadata,
-  registerArchiveRoutes,
-  type ArchiveRouteHandler,
-} from '../dcl/archive-contract.ts'
+
 import {
   bobArchiveRouteMetadata,
   registerBobArchiveRoutes,
@@ -481,13 +477,11 @@ export const targetRouteMetadata = [
     title,
   })),
   ...independentRouteMetadata,
-  ...archiveRouteMetadata,
   ...bobArchiveRouteMetadata,
 ] as const
 
 export interface TargetRouteHandlers {
   independent: IndependentRouteHandlers
-  archive: ArchiveRouteHandler
   bobArchive: BobArchiveRouteHandler
   archiveAttachments: ArchiveAttachmentHandlers
   signin: RouteHandler<typeof signinRoute, TargetRouteEnvironment>
@@ -533,19 +527,12 @@ export function registerTargetRoutes<
     new OpenAPIHono<TargetRouteEnvironment>(),
     handlers.independent,
   )
-  const archives = registerArchiveRoutes(
-    new OpenAPIHono<TargetRouteEnvironment>(),
-    handlers.archive,
-  )
   const bobArchives = registerBobArchiveRoutes(
     new OpenAPIHono<TargetRouteEnvironment>(),
     handlers.bobArchive,
     handlers.archiveAttachments,
   )
-  return base
-    .route('/', independent)
-    .route('/', archives)
-    .route('/', bobArchives)
+  return base.route('/', independent).route('/', bobArchives)
 }
 
 function targetAppType() {

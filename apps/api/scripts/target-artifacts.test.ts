@@ -8,13 +8,10 @@ import test from 'node:test'
 
 import { auxRouteBinding } from '../src/app/aux-contract.ts'
 import { targetRouteMetadata as appTargetRouteMetadata } from '../src/app/contract.ts'
-import {
-  archiveBlockerSchema,
-  archiveReviewSchemas,
-  archiveRouteSets,
-} from '../src/dcl/archive-contract.ts'
+
 import {
   bobArchiveRouteSets,
+  archiveReviewSchemas,
   archiveBlockerSchema as bobArchiveBlockerSchema,
 } from '../src/bob/archive-contract.ts'
 import { validateTargetRouteMetadata } from './target-artifacts.ts'
@@ -317,27 +314,11 @@ test('archive failures expose typed current AUX and ACC blockers', () => {
     },
   )
   assert.throws(() =>
-    archiveBlockerSchema.parse({
+    bobArchiveBlockerSchema.parse({
       entity: 'vehicle',
       field: 'carrier',
     }),
   )
-})
-
-test('only RPT get accepts an explicit owned approval entry', () => {
-  const request = {
-    subjectId: '01J00000000000000000000001',
-    approvalEntryId: '01J00000000000000000000002',
-  }
-  const rptGet =
-    archiveRouteSets['rpt-definition'].get.request.body.content[
-      'application/json'
-    ].schema
-  assert.deepEqual(rptGet.parse(request), request)
-  const productGet =
-    bobArchiveRouteSets.product.get.request.body.content['application/json']
-      .schema
-  assert.throws(() => productGet.parse(request))
 })
 
 test('independent route bindings carry the exact registered permission', () => {
@@ -442,7 +423,7 @@ test('target OpenAPI contains the complete issue 363 APP, AUX, and BOB inventory
   )
 })
 
-test('target OpenAPI contains the separated DCL and BOB archive lifecycle routes', async () => {
+test('target OpenAPI keeps BOB lifecycle and removes DCL RPT lifecycle', async () => {
   const document = JSON.parse(await readFile(generatedOpenApi, 'utf8')) as {
     paths: Record<string, unknown>
   }
@@ -464,8 +445,8 @@ test('target OpenAPI contains the separated DCL and BOB archive lifecycle routes
   for (const entity of entities)
     for (const action of actions)
       assert.ok(
-        paths.has(`/dcl/${entity}/${action}`),
-        `missing issue #364 target path /dcl/${entity}/${action}`,
+        !paths.has(`/dcl/${entity}/${action}`),
+        `retired RPT lifecycle /dcl/${entity}/${action}`,
       )
   for (const entity of [
     'customer',
@@ -502,7 +483,7 @@ test('target OpenAPI contains the separated DCL and BOB archive lifecycle routes
       )
 })
 
-test('archive query exposes summaries only and RPT get admits one owned version', async () => {
+test('archive query exposes summaries while RPT get reads only current configuration', async () => {
   const document = JSON.parse(await readFile(generatedOpenApi, 'utf8')) as {
     paths: Record<
       string,
@@ -522,10 +503,10 @@ test('archive query exposes summaries only and RPT get admits one owned version'
   assert.doesNotMatch(JSON.stringify(querySchema), /"snapshot"/)
 
   const rptGetSchema =
-    document.paths['/dcl/rpt-definition/get']!.post.requestBody.content[
+    document.paths['/rpt/definition/get']!.post.requestBody.content[
       'application/json'
     ].schema
-  assert.match(JSON.stringify(rptGetSchema), /"approvalEntryId"/)
+  assert.doesNotMatch(JSON.stringify(rptGetSchema), /"approvalEntryId"/)
   const productGetSchema =
     document.paths['/bob/product/submission-get']!.post.requestBody.content[
       'application/json'

@@ -1,3 +1,4 @@
+import ReportPage from '../pages/rpt/ReportPage.vue'
 import MappingManagement from '../pages/acc/mapping/MappingManagement.vue'
 import CustomerManagement from '../pages/bob/customer/CustomerManagement.vue'
 import ProductManagement from '../pages/bob/product/ProductManagement.vue'
@@ -69,6 +70,7 @@ export type ResourceRegistry = {
 
 export function createResourceRegistry(
   registrations: readonly ResourceRegistration[],
+  reportPage?: ResourceRegistration,
 ): ResourceRegistry {
   const entries = new Map(
     registrations.map((registration) => [
@@ -81,118 +83,133 @@ export function createResourceRegistry(
   )
   return {
     resolve(domain, entity) {
+      if (reportPage && domain === 'rpt' && /^rpt-[0-9]{6}$/.test(entity))
+        return {
+          ...reportPage,
+          entity,
+          capabilities: targetDomainCapabilities.rpt,
+        }
+
       return entries.get(`${domain}/${entity}`) ?? null
     },
   }
 }
 
-export const targetResourceRegistry = createResourceRegistry([
+export const targetResourceRegistry = createResourceRegistry(
+  [
+    {
+      domain: 'acc',
+      entity: 'mapping',
+      component: MappingManagement,
+      useCaseKey: 'acc/mapping-management',
+    },
+    {
+      domain: 'app',
+      entity: 'user',
+      definition: userListPage,
+      component: UserManagement,
+    },
+    {
+      domain: 'app',
+      entity: 'role',
+      definition: roleListPage,
+      component: RoleManagement,
+    },
+    {
+      domain: 'aux',
+      entity: 'employee-category',
+      definition: employeeCategoryListPage,
+      component: EmployeeCategoryManagement,
+    },
+    {
+      domain: 'aux',
+      entity: 'position',
+      definition: positionListPage,
+      component: PositionManagement,
+    },
+    {
+      domain: 'aux',
+      entity: 'measurement-unit',
+      definition: measurementUnitListPage,
+      component: MeasurementUnitManagement,
+    },
+    {
+      domain: 'aux',
+      entity: 'payment-method',
+      definition: paymentMethodListPage,
+      component: PaymentMethodManagement,
+    },
+    {
+      domain: 'aux',
+      entity: 'asset-category',
+      definition: assetCategoryListPage,
+      component: AssetCategoryManagement,
+    },
+    {
+      domain: 'aux',
+      entity: 'operating-entity',
+      definition: operatingEntityListPage,
+      component: OperatingEntityManagement,
+    },
+    {
+      domain: 'aux',
+      entity: 'employee',
+      definition: employeeListPage,
+      component: EmployeeManagement,
+    },
+    {
+      domain: 'aux',
+      entity: 'warehouse',
+      definition: warehouseListPage,
+      component: WarehouseManagement,
+    },
+    {
+      domain: 'aux',
+      entity: 'fund-account',
+      definition: fundAccountListPage,
+      component: FundAccountManagement,
+    },
+    {
+      domain: 'aux',
+      entity: 'vehicle',
+      definition: vehicleListPage,
+      component: VehicleManagement,
+    },
+    {
+      domain: 'bob',
+      entity: 'customer',
+      component: CustomerManagement,
+      useCaseKey: 'bob/customer-management',
+    },
+    {
+      domain: 'bob',
+      entity: 'product',
+      component: ProductManagement,
+      useCaseKey: 'bob/product-management',
+    },
+    {
+      domain: 'bob',
+      entity: 'supplier',
+      component: SupplierManagement,
+      useCaseKey: 'bob/supplier-management',
+    },
+    {
+      domain: 'bob',
+      entity: 'other-unit',
+      component: OtherUnitManagement,
+      useCaseKey: 'bob/other-unit-management',
+    },
+    {
+      domain: 'bob',
+      entity: 'sales-partner',
+      component: SalesPartnerManagement,
+      useCaseKey: 'bob/sales-partner-management',
+    },
+  ],
   {
-    domain: 'acc',
-    entity: 'mapping',
-    component: MappingManagement,
-    useCaseKey: 'acc/mapping-management',
+    domain: 'rpt',
+    entity: ':code',
+    component: ReportPage,
+    useCaseKey: 'rpt/report-query',
   },
-  {
-    domain: 'app',
-    entity: 'user',
-    definition: userListPage,
-    component: UserManagement,
-  },
-  {
-    domain: 'app',
-    entity: 'role',
-    definition: roleListPage,
-    component: RoleManagement,
-  },
-  {
-    domain: 'aux',
-    entity: 'employee-category',
-    definition: employeeCategoryListPage,
-    component: EmployeeCategoryManagement,
-  },
-  {
-    domain: 'aux',
-    entity: 'position',
-    definition: positionListPage,
-    component: PositionManagement,
-  },
-  {
-    domain: 'aux',
-    entity: 'measurement-unit',
-    definition: measurementUnitListPage,
-    component: MeasurementUnitManagement,
-  },
-  {
-    domain: 'aux',
-    entity: 'payment-method',
-    definition: paymentMethodListPage,
-    component: PaymentMethodManagement,
-  },
-  {
-    domain: 'aux',
-    entity: 'asset-category',
-    definition: assetCategoryListPage,
-    component: AssetCategoryManagement,
-  },
-  {
-    domain: 'aux',
-    entity: 'operating-entity',
-    definition: operatingEntityListPage,
-    component: OperatingEntityManagement,
-  },
-  {
-    domain: 'aux',
-    entity: 'employee',
-    definition: employeeListPage,
-    component: EmployeeManagement,
-  },
-  {
-    domain: 'aux',
-    entity: 'warehouse',
-    definition: warehouseListPage,
-    component: WarehouseManagement,
-  },
-  {
-    domain: 'aux',
-    entity: 'fund-account',
-    definition: fundAccountListPage,
-    component: FundAccountManagement,
-  },
-  {
-    domain: 'aux',
-    entity: 'vehicle',
-    definition: vehicleListPage,
-    component: VehicleManagement,
-  },
-  {
-    domain: 'bob',
-    entity: 'customer',
-    component: CustomerManagement,
-    useCaseKey: 'bob/customer-management',
-  },
-  {
-    domain: 'bob',
-    entity: 'product',
-    component: ProductManagement,
-    useCaseKey: 'bob/product-management',
-  },
-  {
-    domain: 'bob',
-    entity: 'supplier',
-    component: SupplierManagement,
-    useCaseKey: 'bob/supplier-management',
-  },
-  {
-    domain: 'bob',
-    entity: 'other-unit',
-    component: OtherUnitManagement,
-    useCaseKey: 'bob/other-unit-management',
-  },
-  {
-    domain: 'bob',
-    entity: 'sales-partner',
-    component: SalesPartnerManagement,
-    useCaseKey: 'bob/sales-partner-management',
-  },
-])
+)

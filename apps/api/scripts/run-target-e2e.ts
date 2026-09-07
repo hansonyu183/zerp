@@ -1,3 +1,6 @@
+import pg from 'pg'
+import { RptService, PgRptDefinitionValidator } from '../src/rpt/service.ts'
+import { createRptBrowserFixture } from '../tests/fixtures/rpt-browser.ts'
 import { ulid } from 'ulid'
 import { spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
@@ -13,7 +16,6 @@ import {
   type VouPayload,
   type VouPayloadFor,
 } from '@zerp/model'
-import pg from 'pg'
 
 import { TargetBootstrapService } from '../src/app/bootstrap.ts'
 import { AccMappingCatalogService } from '../src/acc/mapping-catalog.ts'
@@ -21,8 +23,7 @@ import { AccService } from '../src/acc/service.ts'
 import { AuxService } from '../src/aux/service.ts'
 import { createDatabase } from '../src/db/database.ts'
 import { BobArchiveService } from '../src/bob/archives.ts'
-import { ArchiveService, type ArchiveSnapshot } from '../src/dcl/archives.ts'
-import { PgRptDefinitionValidator } from '../src/rpt/service.ts'
+import type { ArchiveSnapshot } from '../src/bob/archives.ts'
 import { VouService } from '../src/vou/service.ts'
 
 const databaseUrl = process.env.TARGET_DATABASE_URL
@@ -33,7 +34,7 @@ if (!new URL(databaseUrl).pathname.slice(1).endsWith('_test'))
 
 const suffix = randomBytes(8).toString('hex')
 async function principal(
-  kind: 'submitter' | 'reviewer' | 'report' | 'create-only',
+  kind: 'submitter' | 'reviewer' | 'report' | 'create-only' | 'report-export',
   index: number,
 ) {
   const password = randomBytes(24).toString('base64url')
@@ -56,9 +57,11 @@ async function principal(
 }
 const database = createDatabase(databaseUrl)
 const bootstrap = new TargetBootstrapService(database)
-const rptValidationPool = new pg.Pool({ connectionString: databaseUrl })
-const rptValidator = new PgRptDefinitionValidator(rptValidationPool, database)
-const archives = new ArchiveService(database, rptValidator)
+const rptPool = new pg.Pool({ connectionString: databaseUrl })
+const rpt = new RptService(
+  database,
+  new PgRptDefinitionValidator(rptPool, database),
+)
 const bobArchives = new BobArchiveService(database)
 const acc = new AccService(database)
 const aux = new AuxService(database)
@@ -70,6 +73,7 @@ const submitter = await principal('submitter', 1)
 const reviewer = await principal('reviewer', 2)
 const reportAdmin = await principal('report', 3)
 const createOnly = await principal('create-only', 4)
+const reportExporter = await principal('report-export', 5)
 let managerEmployeeId = `M${suffix}`.toUpperCase().padEnd(26, '0').slice(0, 26)
 const managerApprovalEntryId = `A${suffix}`
   .toUpperCase()
@@ -518,7 +522,6 @@ async function deleteE2ECatalogFacts() {
 }
 
 async function seedArchiveReference(
-  archives: ArchiveService,
   entity: Exclude<
     (typeof vouReferenceFacts.references)[number]['entity'],
     | 'warehouse'
@@ -543,53 +546,29 @@ async function seedArchiveReference(
     expectedLatestApprovedRevision: null,
     snapshot,
   }
-  const pending =
-    entity === 'customer' ||
-    entity === 'supplier' ||
-    entity === 'other-unit' ||
-    entity === 'product'
-      ? await bobArchives.submit(
-          entity,
-          'submit-new',
-          input,
-          serviceActor(submitter.userId),
-          `e2e-${entity}-submit`,
-        )
-      : await archives.submit(
-          entity,
-          'submit-new',
-          input,
-          serviceActor(submitter.userId),
-          `e2e-${entity}-submit`,
-        )
+  const pending = await bobArchives.submit(
+    entity,
+    'submit-new',
+    input,
+    serviceActor(submitter.userId),
+    `e2e-${entity}-submit`,
+  )
   const review = {
     subjectId: reference.objectId,
     submissionId: reference.approvalEntryId,
     expectedRevision: pending.revision,
   }
-  const approved =
-    entity === 'customer' ||
-    entity === 'supplier' ||
-    entity === 'other-unit' ||
-    entity === 'product'
-      ? await bobArchives.review(
-          entity,
-          'approve',
-          review,
-          serviceActor(reviewer.userId),
-          `e2e-${entity}-approve`,
-        )
-      : await archives.review(
-          entity,
-          'approve',
-          review,
-          serviceActor(reviewer.userId),
-          `e2e-${entity}-approve`,
-        )
+  const approved = await bobArchives.review(
+    entity,
+    'approve',
+    review,
+    serviceActor(reviewer.userId),
+    `e2e-${entity}-approve`,
+  )
   reference.code = approved.code ?? reference.code
 }
 
-async function seedVouReferences(archives: ArchiveService, aux: AuxService) {
+async function seedVouReferences(aux: AuxService) {
   const reference = (key: string) => {
     const found = vouReferenceFacts.references.find((item) => item.key === key)
     if (!found) throw new Error(`missing ${key} E2E VOU reference`)
@@ -758,7 +737,7 @@ async function seedVouReferences(archives: ArchiveService, aux: AuxService) {
     'e2e-customer-partner-approve',
   )
   const customerSubunit = reference('customerSubunit')
-  await seedArchiveReference(archives, 'customer', reference('customer'), {
+  await seedArchiveReference('customer', reference('customer'), {
     identityKind: 'OTHER',
     legalName: '目标客户',
     displayName: '目标客户',
@@ -818,7 +797,7 @@ async function seedVouReferences(archives: ArchiveService, aux: AuxService) {
     .where('subunit_id', '=', customerSubunit.objectId)
     .executeTakeFirstOrThrow()
   customerSubunit.code = storedSubunit.code
-  await seedArchiveReference(archives, 'supplier', reference('supplier'), {
+  await seedArchiveReference('supplier', reference('supplier'), {
     identityKind: 'ORGANIZATION',
     legalName: '目标供应商',
     displayName: '目标供应商',
@@ -832,7 +811,7 @@ async function seedVouReferences(archives: ArchiveService, aux: AuxService) {
     defaultPurchaser: null,
     remark: '',
   })
-  await seedArchiveReference(archives, 'other-unit', reference('otherUnit'), {
+  await seedArchiveReference('other-unit', reference('otherUnit'), {
     identityKind: 'ORGANIZATION',
     legalName: '目标其他单位',
     displayName: '目标其他单位',
@@ -868,7 +847,7 @@ async function seedVouReferences(archives: ArchiveService, aux: AuxService) {
     objectId: account.id,
     code: accountDetail.code,
   })
-  await seedArchiveReference(archives, 'product', reference('product'), {
+  await seedArchiveReference('product', reference('product'), {
     name: '目标产品',
     barcode: `PRD-${suffix}`,
     specification: '',
@@ -1559,9 +1538,16 @@ try {
   await bootstrap.createE2EPrincipal(reviewer)
   await bootstrap.createE2EPrincipal(reportAdmin, true)
   await bootstrap.createE2EPrincipal(createOnly, false, ['/app/user/create'])
+  const report = await createRptBrowserFixture(
+    rpt,
+    serviceActor(submitter.userId),
+  )
+  await bootstrap.createE2EPrincipal(reportExporter, false, [
+    `/rpt/${report.code}/export`,
+  ])
   await seedAuxFacts(aux)
   await seedAccFacts(acc)
-  await seedVouReferences(archives, aux)
+  await seedVouReferences(aux)
   await seedVouAccObjects()
   await seedApprovedOpeningAndMappings()
   await seedApprovedSourceOrders()
@@ -1584,6 +1570,9 @@ try {
         TARGET_E2E_REVIEWER_PASSWORD: reviewer.password,
         TARGET_E2E_REPORT_USERNAME: reportAdmin.username,
         TARGET_E2E_REPORT_PASSWORD: reportAdmin.password,
+        TARGET_E2E_RPT_CODE: report.code,
+        TARGET_E2E_RPT_EXPORT_USERNAME: reportExporter.username,
+        TARGET_E2E_RPT_EXPORT_PASSWORD: reportExporter.password,
         TARGET_E2E_CREATE_ONLY_USERNAME: createOnly.username,
         TARGET_E2E_CREATE_ONLY_PASSWORD: createOnly.password,
         TARGET_E2E_MANAGER_EMPLOYEE_ID: managerEmployeeId,
@@ -1682,9 +1671,8 @@ try {
       throw error
   }
   const reportSubjects = await database
-    .selectFrom('dcl_subjects')
+    .selectFrom('rpt_definitions')
     .select('code')
-    .where('entity', '=', 'rpt-definition')
     .where('created_by', '=', submitter.userId)
     .execute()
   await bootstrap.deleteE2EWarehouseFixtures(submitter.userId)
@@ -1748,8 +1736,9 @@ try {
   ])
   await bootstrap.deleteE2EPrincipal(reviewer)
   await bootstrap.deleteE2EPrincipal(createOnly)
+  await bootstrap.deleteE2EPrincipal(reportExporter)
   await bootstrap.deleteE2EPrincipal(reportAdmin)
   await bootstrap.deleteE2EPrincipal(submitter)
-  await rptValidationPool.end()
+  await rptPool.end()
   await database.destroy()
 }

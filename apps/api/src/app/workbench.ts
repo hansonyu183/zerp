@@ -7,13 +7,9 @@ import {
 import { sql, type Kysely } from 'kysely'
 
 import type { DB } from '../db/generated.ts'
-import { archiveEntities } from '../dcl/archive-contract.ts'
 import { vouEntities } from '@zerp/model'
 
-const dclApprovalEntities = [
-  ...archiveEntities,
-  'wfl-process-definition',
-] as const
+const dclApprovalEntities = ['wfl-process-definition'] as const
 const bobApprovalEntities = [
   'customer',
   'product',
@@ -200,12 +196,10 @@ export class WorkbenchService {
         e.rejection_reason, e.updated_at,
         COALESCE(s.code, e.subject_id) AS code,
         COALESCE(
-          rpt_definition.name,
           wfl_definition.compiled_graph->>'name', s.code, e.subject_id
         ) AS name
       FROM approval_entries e
       INNER JOIN dcl_subjects s ON s.id = e.subject_id
-      LEFT JOIN dcl_rpt_definition_versions rpt_definition ON rpt_definition.approval_entry_id = e.id
       LEFT JOIN wfl_definition_versions wfl_definition ON wfl_definition.approval_entry_id = e.id
       WHERE e.domain = 'dcl'
         AND e.status IN ('PENDING', 'REJECTED')

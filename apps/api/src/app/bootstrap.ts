@@ -312,6 +312,37 @@ export class TargetBootstrapService {
     catalog: readonly TargetPermissionCatalogEntry[],
     pathMappings: readonly PermissionPathMapping[] = [],
   ): Promise<PermissionCatalogMigrationReport> {
+    const reportPermissions = await transaction
+      .selectFrom('app_permissions')
+      .selectAll()
+      .where('domain', '=', 'rpt')
+      .where('entity', '~', '^rpt-[0-9]{6}$')
+      .where('action', 'in', ['query', 'export'])
+      .execute()
+    // Earlier one-time conversions must not retire RPT grants before RPT itself is converted.
+    const pendingRptPermissions = pathMappings.some((mapping) =>
+      mapping.from.startsWith('/dcl/rpt-definition/'),
+    )
+      ? []
+      : await transaction
+          .selectFrom('app_permissions')
+          .selectAll()
+          .where('domain', '=', 'dcl')
+          .where('entity', '=', 'rpt-definition')
+          .execute()
+    catalog = [
+      ...catalog,
+      ...[...reportPermissions, ...pendingRptPermissions]
+        .filter((row) => !catalog.some((entry) => entry.path === row.path))
+        .map((row) => ({
+          id: row.id,
+          path: row.path,
+          domain: row.domain,
+          entity: row.entity,
+          action: row.action,
+          title: row.description ?? row.entity,
+        })),
+    ]
     const desiredPaths = new Set(catalog.map((entry) => entry.path))
     const mappingsBySource = new Map(
       pathMappings.map((mapping) => [mapping.from, [...mapping.to]]),
@@ -608,10 +639,25 @@ export class TargetBootstrapService {
           'definition_subject_id',
           'in',
           transaction
-            .selectFrom('dcl_subjects')
+            .selectFrom('rpt_definitions')
             .select('id')
             .where('created_by', '=', createdByUserId),
         )
+        .execute()
+      await transaction
+        .deleteFrom('rpt_definition_audits')
+        .where(
+          'definition_id',
+          'in',
+          transaction
+            .selectFrom('rpt_definitions')
+            .select('id')
+            .where('created_by', '=', createdByUserId),
+        )
+        .execute()
+      await transaction
+        .deleteFrom('rpt_definitions')
+        .where('created_by', '=', createdByUserId)
         .execute()
       await transaction
         .deleteFrom('bob_customer_attachment_staging')

@@ -218,7 +218,7 @@ test('RPT routes validate exact directory, query, export and reference result sh
   }
   const definition = {
     subjectId: '01J00000000000000000000001',
-    approvalEntryId: '01J00000000000000000000002',
+    revision: '1',
     code: 'rpt-000001',
     name: '单据报表',
     parameters: [],
@@ -239,7 +239,7 @@ test('RPT routes validate exact directory, query, export and reference result sh
   assert.equal(
     responseSchema(rptRouteSet.query).safeParse(
       success({
-        approvalEntryId: definition.approvalEntryId,
+        revision: definition.revision,
         columns: [column],
         rows: [{ document_no: 'SO-1' }],
         page: 1,
@@ -252,7 +252,7 @@ test('RPT routes validate exact directory, query, export and reference result sh
   assert.equal(
     responseSchema(rptRouteSet.query).safeParse(
       success({
-        approvalEntryId: definition.approvalEntryId,
+        revision: definition.revision,
         columns: [column],
         rows: [],
         page: 1,
@@ -264,7 +264,7 @@ test('RPT routes validate exact directory, query, export and reference result sh
   assert.equal(
     responseSchema(rptRouteSet.export).safeParse(
       success({
-        approvalEntryId: definition.approvalEntryId,
+        revision: definition.revision,
         columns: [column],
         rows: [{ document_no: 'SO-1' }],
       }),

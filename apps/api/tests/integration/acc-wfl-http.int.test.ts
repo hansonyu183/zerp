@@ -21,7 +21,6 @@ import {
   type AuxWriteData,
 } from '../../src/aux/service.ts'
 import { createDatabase } from '../../src/db/database.ts'
-import { ArchiveService } from '../../src/dcl/archives.ts'
 import { loadConfig } from '../../src/platform/config.ts'
 import { VouService } from '../../src/vou/service.ts'
 import { WflService, type WflVouPort } from '../../src/wfl/service.ts'
@@ -167,7 +166,6 @@ function post(
 }
 
 async function seedSaleOrderReferences(
-  archives: ArchiveService,
   bobArchives: BobArchiveService,
   aux: AuxService,
   actorId: string,
@@ -253,14 +251,14 @@ async function seedSaleOrderReferences(
     sortOrder: 1,
   })
   const submit = async (
-    entity: Parameters<ArchiveService['submit']>[0] | 'product' | 'customer',
+    entity: 'product' | 'customer',
     snapshot: Record<string, unknown>,
   ) => {
     if (entity === 'product') {
       const { enabled: _enabled, ...content } = snapshot
       snapshot = content
     }
-    const domain = entity === 'product' || entity === 'customer' ? 'bob' : 'dcl'
+    const domain = 'bob'
     const objectId = ulid(),
       approvalEntryId = ulid()
     const input = {
@@ -290,21 +288,13 @@ async function seedSaleOrderReferences(
       )
     const pending = pendingResponse
       ? pendingResponse.data
-      : entity === 'product' || entity === 'customer'
-        ? await bobArchives.submit(
-            entity,
-            'submit-new',
-            input,
-            actor,
-            `wfl-http-${entity}-submit`,
-          )
-        : await archives.submit(
-            entity,
-            'submit-new',
-            input,
-            actor,
-            `wfl-http-${entity}-submit`,
-          )
+      : await bobArchives.submit(
+          entity,
+          'submit-new',
+          input,
+          actor,
+          `wfl-http-${entity}-submit`,
+        )
     const reviewInput = {
       subjectId: objectId,
       submissionId: approvalEntryId,
@@ -326,21 +316,13 @@ async function seedSaleOrderReferences(
       )
     const approved = approvedResponse
       ? approvedResponse.data
-      : entity === 'product' || entity === 'customer'
-        ? await bobArchives.review(
-            entity,
-            'approve',
-            reviewInput,
-            { ...actor, id: reviewerId },
-            `wfl-http-${entity}-approve`,
-          )
-        : await archives.review(
-            entity,
-            'approve',
-            reviewInput,
-            { ...actor, id: reviewerId },
-            `wfl-http-${entity}-approve`,
-          )
+      : await bobArchives.review(
+          entity,
+          'approve',
+          reviewInput,
+          { ...actor, id: reviewerId },
+          `wfl-http-${entity}-approve`,
+        )
     if (crossesHttp) {
       const readback = await post(
         origin,
@@ -877,7 +859,6 @@ test('WFL definition, current, trial, instance and six actions cross the authent
   const runtime = await createNodeWflStarlark()
   const acc = new AccService(db)
   const aux = new AuxService(db)
-  const archives = new ArchiveService(db, { async validate() {} })
   let vou!: VouService
   const port: WflVouPort = {
     createChild: (...args) => vou.createChild(...args),
@@ -897,7 +878,6 @@ test('WFL definition, current, trial, instance and six actions cross the authent
     vou,
     acc,
     wfl,
-    archives,
     bobArchives: new BobArchiveService(db),
     aux,
     logger: {
@@ -1122,7 +1102,6 @@ test('WFL definition, current, trial, instance and six actions cross the authent
   }
   const reviewerActor: Actor = { id: reviewer.id, permissions: allPermissions }
   refs = await seedSaleOrderReferences(
-    archives,
     new BobArchiveService(db),
     aux,
     submitter.id,

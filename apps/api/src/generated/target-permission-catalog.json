@@ -1920,94 +1920,6 @@
     "title": "versions supplier"
   },
   {
-    "id": "01J8D09C7DFF10FEFB025388D9",
-    "path": "/dcl/rpt-definition/approve",
-    "domain": "dcl",
-    "entity": "rpt-definition",
-    "action": "approve",
-    "title": "approve rpt-definition"
-  },
-  {
-    "id": "01J2BCA89225B62438942F2C31",
-    "path": "/dcl/rpt-definition/audit-history",
-    "domain": "dcl",
-    "entity": "rpt-definition",
-    "action": "audit-history",
-    "title": "audit-history rpt-definition"
-  },
-  {
-    "id": "01JF2F8EF6DABCAD1783154C93",
-    "path": "/dcl/rpt-definition/delete",
-    "domain": "dcl",
-    "entity": "rpt-definition",
-    "action": "delete",
-    "title": "delete rpt-definition"
-  },
-  {
-    "id": "01JB36E4BA35E3908F3382DF52",
-    "path": "/dcl/rpt-definition/get",
-    "domain": "dcl",
-    "entity": "rpt-definition",
-    "action": "get",
-    "title": "get rpt-definition"
-  },
-  {
-    "id": "01J3D6AAE09D4868E8EBE425A5",
-    "path": "/dcl/rpt-definition/query",
-    "domain": "dcl",
-    "entity": "rpt-definition",
-    "action": "query",
-    "title": "报表定义"
-  },
-  {
-    "id": "01JE5E2D48C71D884FB2C752A2",
-    "path": "/dcl/rpt-definition/reject",
-    "domain": "dcl",
-    "entity": "rpt-definition",
-    "action": "reject",
-    "title": "reject rpt-definition"
-  },
-  {
-    "id": "01J0736DE615F2AEE276ECA5C2",
-    "path": "/dcl/rpt-definition/submit-change",
-    "domain": "dcl",
-    "entity": "rpt-definition",
-    "action": "submit-change",
-    "title": "submit-change rpt-definition"
-  },
-  {
-    "id": "01J9FD577055E0C5E259720218",
-    "path": "/dcl/rpt-definition/submit-new",
-    "domain": "dcl",
-    "entity": "rpt-definition",
-    "action": "submit-new",
-    "title": "submit-new rpt-definition"
-  },
-  {
-    "id": "01J495B79EBF3E7551B0ECA1C1",
-    "path": "/dcl/rpt-definition/unapprove",
-    "domain": "dcl",
-    "entity": "rpt-definition",
-    "action": "unapprove",
-    "title": "unapprove rpt-definition"
-  },
-  {
-    "id": "01JC9FA0D8E38CF598CF161323",
-    "path": "/dcl/rpt-definition/unreject",
-    "domain": "dcl",
-    "entity": "rpt-definition",
-    "action": "unreject",
-    "title": "unreject rpt-definition"
-  },
-  {
-    "id": "01J442609DAE28F71B0D60D62C",
-    "path": "/dcl/rpt-definition/versions",
-    "domain": "dcl",
-    "entity": "rpt-definition",
-    "action": "versions",
-    "title": "versions rpt-definition"
-  },
-  {
     "id": "01J3EA01BD1E805635FB649C10",
     "path": "/dcl/wfl-process-definition/approve",
     "domain": "dcl",
@@ -2112,12 +2024,20 @@
     "title": "/dcl/wfl-process-definition/versions"
   },
   {
-    "id": "01J83A4A309FA3922E5B470AEF",
-    "path": "/rpt/directory/query",
+    "id": "01J80618E229A52BF9652132DC",
+    "path": "/rpt/definition/get",
     "domain": "rpt",
-    "entity": "directory",
-    "action": "query",
-    "title": "报表目录"
+    "entity": "definition",
+    "action": "get",
+    "title": "报表定义读取"
+  },
+  {
+    "id": "01J51C7C6E4563E36849AFF3D9",
+    "path": "/rpt/definition/save",
+    "domain": "rpt",
+    "entity": "definition",
+    "action": "save",
+    "title": "报表定义保存"
   },
   {
     "id": "01JF8865F1002BF6E3F604EF43",

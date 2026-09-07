@@ -171,7 +171,6 @@ INSERT INTO archive_code_counters(entity, next_value) VALUES
     ('vehicle', 1),
     ('fund-account', 1),
     ('operating-entity', 1),
-    ('rpt-definition', 1),
     ('wfl-process-definition', 1);
 
 CREATE TABLE dcl_subjects (
@@ -502,7 +501,40 @@ CREATE TABLE acc_mapping_history (
     mapping_definition jsonb NOT NULL CHECK (jsonb_typeof(mapping_definition) = 'object')
 );
 
-CREATE TABLE dcl_rpt_definition_versions (
+CREATE TABLE rpt_code_counter (
+    key varchar(16) PRIMARY KEY CHECK (key='definition'),
+    next_value integer NOT NULL CHECK (next_value BETWEEN 1 AND 1000000)
+);
+INSERT INTO rpt_code_counter(key,next_value) VALUES ('definition',1);
+
+CREATE TABLE rpt_definitions (
+    id varchar(26) PRIMARY KEY,
+    code varchar(10) NOT NULL UNIQUE CHECK (code ~ '^rpt-[0-9]{6}$'),
+    name varchar(200) NOT NULL,
+    description varchar(1000) NOT NULL,
+    enabled boolean NOT NULL,
+    sql_text text NOT NULL,
+    parameters jsonb NOT NULL CHECK (jsonb_typeof(parameters) = 'array'),
+    columns jsonb NOT NULL CHECK (jsonb_typeof(columns) = 'array'),
+    revision bigint NOT NULL DEFAULT 1 CHECK (revision > 0),
+    validity varchar(16) NOT NULL CHECK (validity IN ('VALID', 'INVALID')),
+    diagnostic text,
+    created_at timestamptz NOT NULL,
+    created_by varchar(26) NOT NULL REFERENCES app_users(id),
+    updated_at timestamptz NOT NULL,
+    updated_by varchar(26) NOT NULL REFERENCES app_users(id)
+);
+CREATE TABLE rpt_definition_audits (
+    id varchar(26) PRIMARY KEY,
+    definition_id varchar(26) NOT NULL REFERENCES rpt_definitions(id),
+    revision bigint NOT NULL,
+    actor_id varchar(26) NOT NULL REFERENCES app_users(id),
+    request_id varchar(128) NOT NULL,
+    created_at timestamptz NOT NULL
+);
+
+-- Read-only pre-conversion evidence. Never selected for current execution.
+CREATE TABLE rpt_definition_history (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     name varchar(200) NOT NULL,
     description varchar(1000) NOT NULL,
@@ -512,7 +544,7 @@ CREATE TABLE dcl_rpt_definition_versions (
     columns jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(columns) = 'array')
 );
 
-CREATE TABLE rpt_definition_validities (
+CREATE TABLE rpt_definition_validity_history (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     status varchar(16) NOT NULL CHECK (status IN ('VALID', 'INVALID')),
     diagnostic text,
@@ -1830,8 +1862,9 @@ CREATE TABLE wfl_runtime_audits (
 
 CREATE TABLE rpt_execution_audits (
     id varchar(26) PRIMARY KEY,
-    definition_subject_id varchar(26) NOT NULL REFERENCES dcl_subjects(id) ON DELETE RESTRICT,
-    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    definition_subject_id varchar(26) NOT NULL REFERENCES rpt_definitions(id) ON DELETE RESTRICT,
+    approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    definition_revision bigint,
     actor_id varchar(26) NOT NULL REFERENCES app_users(id),
     action varchar(16) NOT NULL CHECK (action IN ('QUERY', 'EXPORT', 'VALIDATE')),
     parameters jsonb NOT NULL CHECK (jsonb_typeof(parameters) = 'object'),

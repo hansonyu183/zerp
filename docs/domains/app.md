@@ -414,7 +414,7 @@ CSRF Token 按 Cookie 会话固定，并由服务端从随机会话令牌单向�
 - 目标 Workbench Pending Stage 只有 `APPROVE`：本地 Draft 是设备内编辑状态，不进入服务器工作台。它不是 Approval Status；每行“状态”只显示真实的 `PENDING` 或 `REJECTED` Approval Status。
 - 待批准 Submission 只在拥有 `query` 且中央 [Approval Action Availability](approval.md#32-approval-action-availability) 返回 `reject`、`approve` 或 `unreject` 至少一项时进入 `APPROVE`。`APPROVED` 不产生工作台人工待办。
 - 聚合响应只返回列表摘要和当前会话动作快照。APP 只组合 `view`、`edit`、`delete` 等资源动作，`reject`、`approve`、`unreject`、`unapprove` 生命周期动作必须原样来自中央 Approval 的确定顺序，不能在 APP 或前端按状态、提交人或权限再次推断。
-- 资料详情必须通过对应 DCL `get` 读取，当前正式档案浏览才使用 BOB `get`，单据详情使用 VOU `get`；正向和反向处理调用行所属 DCL/VOU 动作接口。ACC Mapping、RPT Definition、WFL Definition 与其他已登记 DCL 实体都使用自身 `/dcl/{entity}/{action}`，不得按展示分类改路由。
+- 资料详情必须通过对应 DCL `get` 读取，当前正式档案浏览才使用 BOB `get`，单据详情使用 VOU `get`；正向和反向处理调用行所属 DCL/VOU 动作接口。ACC Mapping 与 RPT Definition 不进入审批工作台；WFL Definition 及仍登记的版本化实体使用自身可执行契约，不得按展示分类改路由。
 - 强类型业务档案待办显示该 candidate 自己的名称；Customer 的账户变更只产生一个 Customer 待办，不产生账户独立待办。名称缺失时回退显示档案编码。
 - 列表按更新时间倒序进行服务端分页；关键词只匹配资料编码/名称或单据号/往来方。
 - 资料和单据均可按实体类型与待办状态进行服务端筛选；客户端提交的实体筛选只用于缩小结果集，后端仍必须先按当前会话权限推导可见实体并取交集，不能将筛选值视为权限范围。

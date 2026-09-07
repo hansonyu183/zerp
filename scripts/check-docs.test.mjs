@@ -142,3 +142,14 @@ test('use-case baseline can only describe current target-route gaps', () => {
     /只能随债务减少/,
   )
 })
+
+test('documents the constrained RPT code registration without accepting arbitrary dynamic resources', () => {
+  const registration = `{domain:'rpt',entity:':code',component:ReportPage,useCaseKey:'rpt/report-query'}`
+  const parsed = parseTargetRegisteredResourcePages(registration)
+  assert.deepEqual(parsed.failures, [])
+  assert.equal(parsed.pages[0].route, '/rpt/:code')
+  assert.ok(
+    parseTargetRegisteredResourcePages(registration.replace("'rpt'", "'bob'"))
+      .failures.length,
+  )
+})

@@ -1105,7 +1105,10 @@ export function parseTargetRegisteredResourcePages(source) {
       failures.push(`Registry domain 不合法：${domain}`)
       continue
     }
-    if (!/^[a-z][a-z0-9-]*$/u.test(entity)) {
+    if (
+      !/^[a-z][a-z0-9-]*$/u.test(entity) &&
+      !(domain === 'rpt' && entity === ':code')
+    ) {
       failures.push(`Registry entity 不合法：${entity}`)
       continue
     }

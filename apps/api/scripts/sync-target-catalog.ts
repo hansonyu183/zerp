@@ -46,6 +46,14 @@ try {
     throw new Error(
       'legacy DCL BOB archive permissions require pnpm migrate:bob-archives before catalog sync',
     )
+  if (
+    existingPermissions.some((permission) =>
+      permission.path.startsWith('/dcl/rpt-definition/'),
+    )
+  )
+    throw new Error(
+      'legacy RPT permissions require pnpm migrate:rpt before catalog sync',
+    )
   await new TargetBootstrapService(database).migratePermissionCatalog(catalog)
   await new AccService(database).syncVouEntityCatalog()
 } finally {

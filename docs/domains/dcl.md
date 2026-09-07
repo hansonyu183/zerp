@@ -2,7 +2,7 @@
 
 ## 1. 领域职责
 
-DCL（Declaration Control）当前拥有 `rpt-definition` 与 `wfl-process-definition` 的稳定 subject、business code 与强类型 Submission snapshot：用户在本地 Draft 编辑，DCL 在 submit 时创建或删除开放 Submission，并读取版本历史和审计；中央 Approval 唯一拥有版本号、`PENDING | APPROVED | REJECTED`、revision、审批元数据和审批事件。Customer、Product、Supplier、Other Unit 与 Sales Partner 已迁入 BOB，DCL 不再注册它们的 subject、版本、资料或 HTTP 入口。Party 与独立 `customer-subunit` subject 不存在；客户子单位是 Customer Version 内的强类型子项。会计映射已回归 ACC 当前配置；报表定义和流程定义的既有领域边界不变。
+DCL（Declaration Control）当前拥有 `wfl-process-definition` 的稳定 subject、business code 与强类型 Submission snapshot：用户在本地 Draft 编辑，DCL 在 submit 时创建或删除开放 Submission，并读取版本历史和审计；中央 Approval 唯一拥有版本号、`PENDING | APPROVED | REJECTED`、revision、审批元数据和审批事件。Customer、Product、Supplier、Other Unit 与 Sales Partner 已迁入 BOB，DCL 不再注册它们的 subject、版本、资料或 HTTP 入口。Party 与独立 `customer-subunit` subject 不存在；客户子单位是 Customer Version 内的强类型子项。会计映射已回归 ACC 当前配置；报表定义归 RPT 当前配置；流程定义保留既有生命周期。
 
 ### 1.1 本地 Draft 与 Submission 生命周期
 
@@ -14,7 +14,7 @@ Submission 一旦持久化即不可编辑，唯一状态是 `PENDING | APPROVED 
 
 当前有效态永远由最高 `APPROVED` 版本推导，不保存 current pointer。开放候选与当前态并存：`PENDING` 或 `REJECTED` 不会取代当前态，批准后自然切换，反批准最高版本后自然回落到上一最高批准版本，无批准版本时为空。路由、响应和权限目录从 Hono route metadata 生成。
 
-`dcl_subjects` 是 DCL 当前版本化业务对象的通用稳定身份，最小保存不可变 ID、entity、nullable code、createdAt 与 createdBy；非空 `(entity, upper(code))` 唯一。只有 ACC Mapping 是合法的无编码 subject。RPT 与 WFL 编码规则不变。DCL 不复制 Approval 版本头，不保存 current pointer 或第二套 revision，也不提供 BOB 写入别名、双写、过渡视图或失败回退。
+`dcl_subjects` 是 DCL 当前版本化业务对象的通用稳定身份，最小保存不可变 ID、entity、nullable code、createdAt 与 createdBy；非空 `(entity, upper(code))` 唯一。只有 ACC Mapping 是合法的无编码 subject。WFL 编码规则不变。DCL 不复制 Approval 版本头，不保存 current pointer 或第二套 revision，也不提供 BOB 写入别名、双写、过渡视图或失败回退。
 
 ## 2. 经营主体与员工的归属
 
@@ -67,11 +67,7 @@ Submission 一旦持久化即不可编辑，唯一状态是 `PENDING | APPROVED 
 
 ## 3.8 报表定义申报
 
-报表定义的 stable subject 是 DCL 的 `(definitionId, code)`；`submit-new` 时由服务端按 `rpt-NNNNNN` 分配 `code`，提交审计与 code 永久冻结在 `dcl_subjects`。`dcl_rpt_definition_versions` 以 `approvalEntryId` 为主键，保存完整的 `name`、`description`、`enabled`、`sql_text`、`parameters` 和 `columns`；所有可变字段随候选版本冻结。RPT 以 `rpt_definition_validities(approvalEntryId)` 保存 `VALID | INVALID` 及其技术失效审计，独立于 Approval 状态；`APPROVED + INVALID` 合法但不可执行。不存在 RPT root、root revision 或 current pointer。
-
-`/dcl/rpt-definition/*` 是报表定义唯一维护 HTTP 边界；`/rpt/directory` 和 `/rpt/{code}/query|export` 只提供当前有效定义的查询和执行，不在 RPT 内创建、保存或审批候选。
-
-`submit-new`/`submit-change` 时必须发送 `enabled`；已持久化 Submission 不可编辑，已经 `APPROVED` 的定义必须从本地 Draft 提交下一 Submission。批准或反批准在同一事务内原子注册或停用 RPT 的 `query`/`export` 使用权限：首次批准时 RPT 与 APP 在同一事务注册该 code 的精确权限；新版本批准后切换使用权限到新 entry；反批准后回落到上一正式版本或停用。已执行报表的 runtime audit 继续保存原 `approvalEntryId`，定义后续改版不重解释历史运行。execution 只使用当前最新 `APPROVED + enabled + VALID` 定义，不回退旧版本或候选。
+报表定义归 [RPT 当前定义](rpt.md#3-当前定义)。DCL 不注册报表维护、提交、审批、版本和权限入口。旧 subject、版本、Approval 与运行审计仅为转换前只读历史证据，不参与当前执行。
 
 ## 3.9 流程定义申报
 
@@ -93,7 +89,7 @@ DCL 可变 subject 的根级 `Dcl*ListItem` 与根级 `Dcl*View` 必须返回必
 
 ## 3.11 Subject code 的 nullable 查询边界
 
-`dcl_subjects.code` 在数据库和查询边界保持 nullable 事实。DCL、BOB、APP 和 RPT 查询直接读取该值；要求业务编码的 Go Domain consumer 必须在消费处拒绝缺失的 `Subject code`，返回应用数据不变量错误。消费方不得把 `NULL` 转为空字符串、占位编码或 `COALESCE` 结果，也不得静默过滤缺失 code 的 subject。ACC Mapping 是合法的无编码例外，支持该实体的消费方必须保留空值语义。
+`dcl_subjects.code` 在数据库和查询边界保持 nullable 事实。仍消费 DCL 历史 subject 的查询读取该值；要求业务编码的 Go Domain consumer 必须在消费处拒绝缺失的 `Subject code`，返回应用数据不变量错误。消费方不得把 `NULL` 转为空字符串、占位编码或 `COALESCE` 结果，也不得静默过滤缺失 code 的 subject。ACC Mapping 是合法的无编码例外，支持该实体的消费方必须保留空值语义。
 
 DCL 写入路径仍负责为要求编码的实体分配并校验业务编码，但不依赖数据库函数在读取时抛出业务异常；查询层只返回事实，缺失事实的拒绝属于对应 Go Domain consumer 的职责。
 
@@ -107,4 +103,4 @@ DCL 当前资源按各自 query、get、submit、review、versions、audit 与 d
 
 ## 6. 验收边界
 
-真实 PostgreSQL 验收必须覆盖最高已批准版本的切换与回落、同一 subject 唯一开放 Submission、submit 幂等、旧 revision 冲突及 subscriber 失败整笔回滚。报表定义与流程定义还需覆盖各自执行面、精确引用和权限的同事务规则。客户与全部子单位的完整验收归 [BOB 客户管理](../use-cases/bob/customer-management.md)。
+真实 PostgreSQL 验收必须覆盖最高已批准版本的切换与回落、同一 subject 唯一开放 Submission、submit 幂等、旧 revision 冲突及 subscriber 失败整笔回滚。流程定义还需覆盖自身执行面、精确引用和权限的同事务规则。客户与全部子单位的完整验收归 [BOB 客户管理](../use-cases/bob/customer-management.md)。

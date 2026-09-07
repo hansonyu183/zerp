@@ -2373,3 +2373,91 @@ export async function saveTargetMapping(
     ).json(),
   )
 }
+
+export type TargetReportSaveInput = PostJson<
+  (typeof client.rpt.definition.save)['$post']
+>
+export type TargetReportQueryInput = PostJson<
+  (typeof client)['rpt'][':code']['query']['$post']
+>
+export type TargetReportReferenceInput = PostJson<
+  (typeof client)['rpt'][':code']['reference-query']['$post']
+>
+export async function queryTargetReportDirectory(csrfToken: string) {
+  return unwrapTarget(
+    await (
+      await client.rpt.directory.query.$post(
+        { json: {} },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function queryTargetReport(
+  csrfToken: string,
+  code: string,
+  input: TargetReportQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.rpt[':code'].query.$post(
+        { param: { code }, json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function exportTargetReport(
+  csrfToken: string,
+  code: string,
+  parameters: TargetReportQueryInput['parameters'],
+) {
+  return unwrapTarget(
+    await (
+      await client.rpt[':code'].export.$post(
+        { param: { code }, json: { parameters } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function queryTargetReportReference(
+  csrfToken: string,
+  code: string,
+  input: TargetReportReferenceInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.rpt[':code']['reference-query'].$post(
+        { param: { code }, json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function getTargetReportDefinition(
+  csrfToken: string,
+  subjectId: string,
+) {
+  return unwrapTarget(
+    await (
+      await client.rpt.definition.get.$post(
+        { json: { subjectId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function saveTargetReportDefinition(
+  csrfToken: string,
+  input: TargetReportSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.rpt.definition.save.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}

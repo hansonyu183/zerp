@@ -31,6 +31,7 @@ const reportParameter = z
     required: z.boolean(),
     defaultValue: z.unknown().optional(),
     enumValues: z.array(z.string()).readonly().optional(),
+    enumCaptions: z.record(z.string(), z.string().trim().min(1)).optional(),
     referenceType: z
       .enum([
         'ACCOUNTING_BOOK',
@@ -74,17 +75,38 @@ const reportColumn = z
 const directoryItem = z
   .object({
     subjectId: z.string().length(26),
-    approvalEntryId: z.string().length(26),
+    revision: z.string().regex(/^[1-9][0-9]*$/),
     code: z.string().regex(/^rpt-[0-9]{6}$/),
     name: z.string(),
     parameters: z.array(reportParameter),
     columns: z.array(reportColumn),
   })
   .strict()
+export const definitionInput = z
+  .object({
+    subjectId: z.string().length(26),
+    expectedRevision: z
+      .string()
+      .regex(/^[1-9][0-9]*$/)
+      .nullable(),
+    name: z.string().trim().min(1).max(200),
+    description: z.string().max(1000),
+    enabled: z.boolean(),
+    sql: z.string().min(1),
+    parameters: z.array(reportParameter),
+    columns: z.array(reportColumn),
+  })
+  .strict()
+const definitionResult = directoryItem.extend({
+  description: z.string(),
+  enabled: z.boolean(),
+  sql: z.string(),
+  validity: z.enum(['VALID', 'INVALID']),
+})
 const row = z.record(z.string(), z.unknown())
 const queryResult = z
   .object({
-    approvalEntryId: z.string().length(26),
+    revision: z.string().regex(/^[1-9][0-9]*$/),
     columns: z.array(reportColumn),
     rows: z.array(row),
     page: z.number().int().positive(),
@@ -94,7 +116,7 @@ const queryResult = z
   .strict()
 const exportResult = z
   .object({
-    approvalEntryId: z.string().length(26),
+    revision: z.string().regex(/^[1-9][0-9]*$/),
     columns: z.array(reportColumn),
     rows: z.array(row),
   })
@@ -154,6 +176,16 @@ function route<
   })
 }
 export const rptRouteSet = {
+  get: route(
+    '/rpt/definition/get',
+    z.object({ subjectId: z.string().length(26) }).strict(),
+    envelope(definitionResult),
+  ),
+  save: route(
+    '/rpt/definition/save',
+    definitionInput,
+    envelope(definitionResult),
+  ),
   directory: route(
     '/rpt/directory/query',
     z.object({}).strict(),
@@ -187,8 +219,19 @@ export const rptRouteSet = {
 export const rptRouteMetadata = [
   {
     method: 'post',
+    path: '/rpt/definition/get',
+    permission: '/rpt/definition/get',
+    title: '报表定义读取',
+  },
+  {
+    method: 'post',
+    path: '/rpt/definition/save',
+    permission: '/rpt/definition/save',
+    title: '报表定义保存',
+  },
+  {
+    method: 'post',
     path: '/rpt/directory/query',
-    permission: '/rpt/directory/query',
     title: '报表目录',
   },
   { method: 'post', path: '/rpt/{code}/query', title: '报表查询' },
@@ -211,7 +254,15 @@ export function registerRptRoutes<
   app: OpenAPIHono<TargetRouteEnvironment, AppSchema, BasePath>,
   handler: RptRouteHandler,
 ) {
-  const directory = app.openapi(
+  const saved = app.openapi(
+    rptRouteSet.save,
+    (c) => handler('save', c) as never,
+  )
+  const configured = saved.openapi(
+    rptRouteSet.get,
+    (c) => handler('get', c) as never,
+  )
+  const directory = configured.openapi(
     rptRouteSet.directory,
     (c) => handler('directory', c) as never,
   )

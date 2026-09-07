@@ -696,16 +696,6 @@ export interface DclOperatingEntityVersions {
   short_name: string
 }
 
-export interface DclRptDefinitionVersions {
-  approval_entry_id: string
-  columns: Generated<Json>
-  description: string
-  enabled: boolean
-  name: string
-  parameters: Generated<Json>
-  sql_text: string
-}
-
 export interface DclSubjects {
   code: string | null
   created_at: Timestamp
@@ -788,7 +778,49 @@ export interface ObjectNumberCounters {
   last_value: Generated<number>
 }
 
-export interface RptDefinitionValidities {
+export interface RptCodeCounter {
+  key: string
+  next_value: number
+}
+
+export interface RptDefinitionAudits {
+  actor_id: string
+  created_at: Timestamp
+  definition_id: string
+  id: string
+  request_id: string
+  revision: Int8
+}
+
+export interface RptDefinitionHistory {
+  approval_entry_id: string
+  columns: Generated<Json>
+  description: string
+  enabled: boolean
+  name: string
+  parameters: Generated<Json>
+  sql_text: string
+}
+
+export interface RptDefinitions {
+  code: string
+  columns: Json
+  created_at: Timestamp
+  created_by: string
+  description: string
+  diagnostic: string | null
+  enabled: boolean
+  id: string
+  name: string
+  parameters: Json
+  revision: Generated<Int8>
+  sql_text: string
+  updated_at: Timestamp
+  updated_by: string
+  validity: string
+}
+
+export interface RptDefinitionValidityHistory {
   approval_entry_id: string
   diagnostic: string | null
   status: string
@@ -799,8 +831,9 @@ export interface RptDefinitionValidities {
 export interface RptExecutionAudits {
   action: string
   actor_id: string
-  approval_entry_id: string
+  approval_entry_id: string | null
   created_at: Timestamp
+  definition_revision: Int8 | null
   definition_subject_id: string
   id: string
   parameters: Json
@@ -1699,7 +1732,6 @@ export interface DB {
   dcl_employee_versions: DclEmployeeVersions
   dcl_fund_account_versions: DclFundAccountVersions
   dcl_operating_entity_versions: DclOperatingEntityVersions
-  dcl_rpt_definition_versions: DclRptDefinitionVersions
   dcl_subjects: DclSubjects
   dcl_vehicle_versions: DclVehicleVersions
   dcl_warehouse_idempotency: DclWarehouseIdempotency
@@ -1707,7 +1739,11 @@ export interface DB {
   dcl_warehouse_usage_facts: DclWarehouseUsageFacts
   dcl_warehouse_versions: DclWarehouseVersions
   object_number_counters: ObjectNumberCounters
-  rpt_definition_validities: RptDefinitionValidities
+  rpt_code_counter: RptCodeCounter
+  rpt_definition_audits: RptDefinitionAudits
+  rpt_definition_history: RptDefinitionHistory
+  rpt_definition_validity_history: RptDefinitionValidityHistory
+  rpt_definitions: RptDefinitions
   rpt_execution_audits: RptExecutionAudits
   vou_amount_allocation_snapshots: VouAmountAllocationSnapshots
   vou_asset_acquisition_details: VouAssetAcquisitionDetails

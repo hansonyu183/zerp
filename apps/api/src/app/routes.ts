@@ -17,16 +17,6 @@ import {
   type BobArchiveRouteHandler,
 } from '../bob/archive-contract.ts'
 import {
-  ArchiveApplicationError,
-  type ArchiveReviewInput,
-  type ArchiveService,
-  type ArchiveSubmitInput,
-} from '../dcl/archives.ts'
-import {
-  archiveQuerySchemas,
-  type ArchiveRouteHandler,
-} from '../dcl/archive-contract.ts'
-import {
   AccMappingCatalogError,
   type AccMappingCatalogService,
 } from '../acc/mapping-catalog.ts'
@@ -112,7 +102,7 @@ function archiveFailure(
   requestId: string,
   error: {
     errorKey: string
-    data: ArchiveApplicationError['data'] | BobArchiveApplicationError['data']
+    data: BobArchiveApplicationError['data']
   },
 ) {
   const code: 1002 | 3001 = error.errorKey === 'forbidden' ? 1002 : 3001
@@ -129,7 +119,6 @@ export function registerAppRoutes(
   app: OpenAPIHono<TargetRouteEnvironment>,
   service: SessionService,
   config: TargetConfig,
-  archives?: ArchiveService,
   bobArchives?: BobArchiveService,
   accMappingCatalog?: AccMappingCatalogService,
   management?: ManagementService,
@@ -170,8 +159,6 @@ export function registerAppRoutes(
       }
     } catch (error) {
       if (error instanceof SessionError) return sessionFailure(error, requestId)
-      if (error instanceof ArchiveApplicationError)
-        return archiveFailure(requestId, error)
       if (error instanceof BobArchiveApplicationError)
         return archiveFailure(requestId, error)
       throw error
@@ -307,70 +294,6 @@ export function registerAppRoutes(
       throw error
     }
   }
-  const archiveHandler: ArchiveRouteHandler = async (
-    entity,
-    action,
-    context,
-  ) => {
-    const requestId = currentRequestId(context)
-    const input = context.req.valid('json')
-    const response = await executeArchive(context, requestId, async (actor) => {
-      if (!archives) throw new Error('DCL archive service is unavailable')
-      if (action === 'query') {
-        return archives!.query(
-          entity,
-          archiveQuerySchemas[entity].parse(input),
-          actor,
-        )
-      }
-      if (action === 'get')
-        return archives!.get(
-          entity,
-          (input as { subjectId: string }).subjectId,
-          actor,
-          entity === 'rpt-definition'
-            ? (input as { approvalEntryId?: string }).approvalEntryId
-            : (input as { submissionId?: string }).submissionId,
-        )
-      if (action === 'versions') {
-        const items = await archives!.versions(
-          entity,
-          (input as { subjectId: string }).subjectId,
-          actor,
-        )
-        return { items, total: items.length }
-      }
-      if (action === 'audit-history')
-        return archives!.auditHistory(
-          entity,
-          (input as { subjectId: string }).subjectId,
-          actor,
-        )
-      if (action === 'submit-new' || action === 'submit-change')
-        return archives!.submit(
-          entity,
-          action,
-          input as ArchiveSubmitInput,
-          actor,
-          requestId,
-        )
-      if (action === 'delete')
-        return archives!.delete(
-          entity,
-          input as ArchiveReviewInput,
-          actor,
-          requestId,
-        )
-      return archives!.review(
-        entity,
-        action,
-        input as ArchiveReviewInput,
-        actor,
-        requestId,
-      )
-    })
-    return context.json(response as never, 200)
-  }
   const bobArchiveHandler: BobArchiveRouteHandler = async (
     entity,
     action,
@@ -440,7 +363,6 @@ export function registerAppRoutes(
       aux,
       bob,
     }),
-    archive: archiveHandler,
     bobArchive: bobArchiveHandler,
     archiveAttachments: {
       stage: async (context) =>
@@ -816,6 +738,9 @@ export function registerAppRoutes(
       const input = context.req.valid('json')
       const response = await executeCore<unknown>(context, (actor) => {
         if (action === 'directory') return rpt.directory(actor)
+        if (action === 'get') return rpt.get(input.subjectId, actor)
+        if (action === 'save')
+          return rpt.save(input, actor, currentRequestId(context))
         const code = context.req.valid('param').code
         if (action === 'query')
           return rpt.query(code, input, actor, currentRequestId(context))

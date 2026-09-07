@@ -50,8 +50,11 @@ test('isolated target schema contains every target typed aggregate', async () =>
       'dcl_fund_account_versions',
       'dcl_operating_entity_versions',
       'acc_mapping_history',
-      'dcl_rpt_definition_versions',
-      'rpt_definition_validities',
+      'rpt_code_counter',
+      'rpt_definitions',
+      'rpt_definition_audits',
+      'rpt_definition_history',
+      'rpt_definition_validity_history',
       'acc_mapping_vou_entities',
       'acc_mapping_legacy_reference_facts',
       'approval_events',
@@ -205,7 +208,7 @@ test('isolated target schema contains every target typed aggregate', async () =>
     schema,
     /acc_period_balances[\s\S]*opening_balance numeric\(24, 8\) NOT NULL/,
   )
-  assert.match(schema, /dcl_rpt_definition_versions/)
+  assert.match(schema, /rpt_definitions/)
   assert.match(schema, /status IN \('VALID', 'INVALID'\)/)
   assert.match(
     schema,

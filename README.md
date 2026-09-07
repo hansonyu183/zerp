@@ -80,3 +80,5 @@ MIT，见 [LICENSE](LICENSE)。
 客户及全部子单位的受控转换见[客户迁入 BOB](docs/operations/bob-customer-migration.md)。
 
 会计映射的受控转换使用 `pnpm --filter @zerp/api migrate:acc-mapping`，见[会计映射迁入 ACC](docs/operations/acc-mapping-migration.md)。
+
+报表定义的受控转换使用 `pnpm --filter @zerp/api migrate:rpt`，见 [RPT 当前定义一次性转换](docs/operations/rpt-definition-migration.md)。

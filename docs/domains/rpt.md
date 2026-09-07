@@ -4,13 +4,13 @@
 
 RPT（Reporting）定义、验证、执行和导出面向用户的查询报表。它读取其他领域已形成的事实，不拥有或改写客户、供应商、单据、会计分录、库存数量或核算对象。
 
-RPT 拥有以 `approvalEntryId` 键控的技术有效性（VALID/INVALID）、按报表授权的查询与导出，以及运行时审计。报表定义的 stable ID、code 与创建审计在 DCL subject；本地 Draft、Submission、审批、开放 Submission 删除、版本历史和审计读取也由 DCL 统一拥有。RPT 不保存 definition root、root revision、current pointer 或业务 snapshot；它只保留执行与独立 VALID/INVALID 规则。它不拥有 ACC 查询投影、第二套角色权限、用户账簿分配或执行层账簿过滤，也不提供未授权报表菜单或集中报表中心。
+RPT 拥有单一当前定义、稳定身份与编码、revision、技术有效性（VALID/INVALID）、精确查询/导出权限和运行审计。定义不使用 Approval、候选、提交或业务版本；配置维护由独立权限保护。页面仅保留临时参数，不持久化草稿。RPT 不增加账簿授权过滤，也不改写其他领域事实。
 
 公开动作、路径和数据结构由可执行 Hono/Zod 路由生成。
 
 ## 2. 首批报表
 
-所有报表统一由 stable definition 与 Approval Version 提供。首批预置报表 SQL 可以直接读取各领域内部数据表，不经 ACC 查询接口，也不建立报表投影或只读视图。
+所有报表统一由 稳定身份与当前定义 提供。首批预置报表 SQL 可以直接读取各领域内部数据表，不经 ACC 查询接口，也不建立报表投影或只读视图。
 
 ### 2.1 科目流水与科目余额
 
@@ -20,7 +20,7 @@ RPT 拥有以 `approvalEntryId` 键控的技术有效性（VALID/INVALID）、�
 
 应收预收、应付预付分别按账簿、往来单位、币种和截止日展示原额与净额，并按到期日和先进先出倒推未结金额及账龄。报表必须区分应收与预收、应付与预付，不把不同方向抵销成无法解释的单一余额。
 
-客户账龄中的客户子单位编码和名称必须读取会计分录 `dimensionReferences` 保存的事实快照；不得关联 DCL 当前版本重解释历史名称。存在多笔事实时，展示截止日范围内最后一笔事实携带的快照，单纯改名、停用或移除客户子单位不得改变既有账龄结果。
+客户账龄中的客户子单位编码和名称必须读取会计分录 `dimensionReferences` 保存的事实快照；不得关联 当前资料重解释历史名称。存在多笔事实时，展示截止日范围内最后一笔事实携带的快照，单纯改名、停用或移除客户子单位不得改变既有账龄结果。
 
 客户账龄和供应商账龄的最小账龄天数筛选必须大于或等于 0；`0` 表示不排除任何非负账龄，负数不得进入查询或导出执行。
 
@@ -40,34 +40,30 @@ RPT 拥有以 `approvalEntryId` 键控的技术有效性（VALID/INVALID）、�
 
 员工借款报表按账簿、员工、币种和截止日展示借款、还款、费用核销、余额及先进先出账龄。余额为负时必须明确标识为应付员工，而不是继续显示为员工借款。
 
-## 3. 报表定义与 DCL
+## 3. 当前定义
 
-报表定义的生命周期完全由 [DCL 报表定义申报](dcl.md#38-报表定义申报) 拥有。`/dcl/rpt-definition` 是唯一维护入口，覆盖本地 Draft、submit、开放 Submission 删除、驳回、恢复审核、批准、反批准、版本和审计。RPT 不保存 `currentVersionId`、effective pointer、next pointer 或 domain version header。
+定义在 RPT 直接保存，稳定 ID/code 不变，以字符串 revision 并发保护。保存先验证 SQL、参数、PREPARE、EXPLAIN、限量试跑和零行结果元数据，全部成功才在事务内更新内容、revision、有效性、审计和精确权限。非法更新不改变旧内容。没有提交、批准、反批准、候选或 versions 入口。
 
-最新 `APPROVED + enabled + VALID` entry 是唯一执行版本。不存在这类 entry 时定义不能执行；开放 Submission 和非最新批准 entry 不能执行，也不能替代正式版本。`enabled` 是 DCL typed snapshot 的版本事实，只能在本地 Draft 编辑；当前 approved 定义需先创建下一 Draft 并 submit。前端只渲染 shared TypeScript model 的 View State，不在 RPT 另建状态映射。
+配置维护使用独立 definition/get、definition/save 授权；普通报表 query/export 不授予维护能力。enabled 是当前配置，供维护人员控制可用性，不是使用页的资料启停动作。
 
-## 4. 查询 SQL 安全与版本契约
+## 4. 查询 SQL 与类型契约
 
-每个版本 payload 包含单条只读 SQL、类型化绑定参数和显式结果列契约。SQL 只允许一条 `SELECT` 或 `WITH ... SELECT`，由数据库只读角色在只读事务执行；禁止字符串拼接、多语句、写入、DDL、可写函数和绕过只读角色的路径。参数类型为 `TEXT`、`INTEGER`、`DECIMAL`、`BOOLEAN`、`DATE`、`DATE_RANGE`、`ENUM` 与受控 `REFERENCE`；受控引用只开放会计账簿、会计科目、客户子单位、供应商、其他单位、员工、销售合作方、部门、产品、仓库、资金账户、资产、票据和票据已记录的原始往来方，执行时只绑定稳定 ID。票据原始往来方候选读取票据事实中的历史快照，不以当前主数据覆盖历史名称。
+单条 SELECT 或 WITH ... SELECT 在只读事务执行，绑定参数，不拼接值。禁止多语句、写入和 DDL。参数闭集为 TEXT、INTEGER、DECIMAL、BOOLEAN、DATE、DATE_RANGE、ENUM、REFERENCE；结果列闭集为 TEXT、INTEGER、DECIMAL、BOOLEAN、DATE、DATETIME、ID。沿用类型化契约和受控引用源；中文字段名称来自定义，枚举每个 enumValues 值必须由同一定义的 enumCaptions 给出显示名；不回退显示协议原码。布尔值显示是/否。decimal 保持字符串精度。
 
-`CUSTOMER_SUBUNIT` 候选只读取 Customer 最新 `APPROVED` 且 Customer 与子单位均启用的内嵌子单位快照；每项返回 subunit stable ID、subunit code/name 和所属 Customer code/display name。子单位 code 只在 Customer 内唯一，界面必须同时展示 Customer code 与子单位 code。
+结果列名称、类型和顺序按定义校验，空结果也验证元数据。查询每页最多 100 条，读取额外一条判定 hasMore；导出最多 100,000 条。查询/导出分别使用 10s/30s statement timeout，1s lock timeout。引用读取也需该报表查询或导出权限。
 
-结果列必须声明 SQL alias、显示名、顺序、数据类型、宽度、默认可见性和格式。批准时实际返回列必须与契约完全一致；页面和导出只按该 entry 的列契约展示，不能自行猜测字段含义。查询每页最多 100 条；服务端读取 `pageSize + 1` 条后只返回 `pageSize` 条，并以 `hasMore` 明确下一页，不为任意 SQL 追加高成本 COUNT。导出最多 100,000 条；两者都有只读事务、超时和资源限制。预置 SQL 依赖的科目编码变更时，同次变更必须提供并批准兼容新版本或明确停用受影响定义；不保留兼容视图、别名或第二套口径。 <!-- docs-check: legacy-exception=release-gate ref=ADR-0026 -->
+## 5. 有效性
 
-## 5. 批准、执行与有效性
+VALID（有效）、INVALID（无效）是当前定义技术状态。执行前验证当前定义；确定性的结构或列契约错误把同一 revision 标为 INVALID，停止执行并关闭使用权限；瞬时连接或超时错误不改变状态。修正当前定义并验证保存后恢复。不得回退历史定义。readiness 验证所有启用定义，INVALID 在修正保存前持续不就绪；API 保留维护入口以便修复，不因单张报表失效终止整个进程。
 
-approve 前必须验证：单条允许的只读 SQL、参数占位符与类型声明、只读角色的 `PREPARE` 和无 `ANALYZE` 的 `EXPLAIN`、审批人验证参数下的限量试跑，以及实际返回列与契约完全一致。任一步失败都不得批准。
+## 6. 权限与页面
 
-技术有效性独立于 Approval：唯一值为 `VALID | INVALID`。`APPROVED + INVALID` 合法，但该 entry 不可执行；RPT 停止其 query/export，并且绝不改为执行较低版本的 APPROVED entry。确定性的 SQL 结构错误（不存在表、列、函数或类型不匹配）将该 entry 标为 INVALID 并停用该定义的 query/export 权限；连接失败、超时等瞬时错误只返回运行错误，不改变有效性。恢复只能批准一个重新验证过的新版本，且新 latest APPROVED 必须是 VALID。
+报表 stable code 的 query/export 分别精确授权，拥有任一权限可读取该报表参数与列元数据。目录按调用者精确使用权限过滤，不需要额外目录权限。定义创建/保存时同事务登记 query/export 权限，不自动赋予任何普通角色；不可用时保留角色关联。
 
-## 6. 权限、导航资源与定义启停
+真实已授权 rpt/{code} 装配专用查询/导出页，不使用 ListPage。无 query 权限不发起结果查询；只有 export 权限仍可填写参数并导出。查询提交完整参数快照，翻页复用快照；输入变化不自动查询，资源或账号变化销毁实例，过期异步结果不得覆盖新页。
 
-DCL 定义及其版本的 `query|get|submit|delete|versions|audit-history`、完整 Approval 生命周期和本地 Draft 的 `enable|disable` 是独立高权限管理动作；普通使用者的 query 与 export 按报表 stable code 分别授权。首次批准时，RPT 与 APP 在同一事务注册该 code 的精确 `query`、`export` 权限；本地 Draft 不创建使用权限。latest approved snapshot 的 enabled 为 false、没有 latest APPROVED 或 latest APPROVED 为 INVALID 时，查询与导出不可用，但既有角色关联和审批/运行审计保留。
+## 7. 一次性转换与验收
 
-获得某报表的 query 或 export 权限即可读取该定义 SQL 返回的全部数据，包括跨账簿数据；RPT 执行层不追加 ACC 账簿过滤。已授权 `rpt/{code}` 由 Navigation Resource 规则产生入口；本票的空 Registry 不提供报表页面。报表定义维护继续使用 `/dcl/rpt-definition/*` HTTP 边界，不与普通报表执行混合。
+从最高 APPROVED 内容初始化，只有开放 V1 时保留内容为 INVALID 待维护，不自动批准或执行。其他未决候选返回 blocker。保留 stable ID、code、创建事实、历史定义、Approval 和运行审计；历史证据不参与当前执行。旧管理读取权限只映射到 definition/get，提交与审批授权退休，save 必须显式授予；保留原报表精确使用授权。
 
-## 7. 发布门禁与验收边界
-
-RPT 提供显式应用发布校验命令。命令枚举全部 `enabled` definition 的 latest `APPROVED + VALID` entry，并逐条复用批准时的同一应用校验核心（只读 SQL、类型化参数、`PREPARE`、`EXPLAIN`、限量执行和结果列契约）；任一不兼容即以非零状态指出对应 definition 并阻断数据库基线重建或发布。该校验不依赖 schema 执行、数据库函数或触发器，也不回退到其他版本。继续发布前，必须在同次变更中提供并批准兼容的新版本，或由管理员明确停用受影响定义；不得为旧表或字段保留兼容视图、别名、fallback 或第二套查询口径。 <!-- docs-check: legacy-exception=release-gate ref=ADR-0026 -->
-
-验收覆盖 stable definition 与 V1/V2、候选删除复号、完整 Approval 生命周期与 reason、exact entry 读取、latest-only unapprove 和执行、VALID/INVALID 独立、APPROVED+INVALID 停止执行且不改用其他版本、SQL/参数/列契约批准门禁、独立 query/export 权限、跨账簿授权、Navigation Resource 入口、八类首批报表口径，以及任一事务失败整体回滚。
+验收覆盖当前保存/CAS、非法定义、确定性失效与修复、多参数查询/导出、部分权限、历史快照口径、迁移 blocker、旧入口删除和异步页面隔离。使用显式分项命令，不隐式清空共享数据库。

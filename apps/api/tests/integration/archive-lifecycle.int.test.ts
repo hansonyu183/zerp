@@ -6,7 +6,6 @@ import { join } from 'node:path'
 import test from 'node:test'
 
 import { sql } from 'kysely'
-import pg from 'pg'
 import { ulid } from 'ulid'
 
 import {
@@ -16,29 +15,19 @@ import {
 import { AuxApplicationError, AuxService } from '../../src/aux/service.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { searchPinyin } from '../../src/platform/pinyin.ts'
-import {
-  ArchiveApplicationError,
-  ArchiveService,
-} from '../../src/dcl/archives.ts'
 import { AttachmentStore } from '../../src/platform/attachment-store.ts'
-import { PgRptDefinitionValidator } from '../../src/rpt/service.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
 
 test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attachment finalization', async (context) => {
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
   const db = createDatabase(databaseUrl)
-  const validationPool = new pg.Pool({ connectionString: databaseUrl })
   const attachmentRoot = await mkdtemp(
     join(tmpdir(), 'zerp-customer-attachments-'),
   )
   const attachmentStore = new AttachmentStore(attachmentRoot, {
     orphanGraceMs: 0,
   })
-  const service = new ArchiveService(
-    db,
-    new PgRptDefinitionValidator(validationPool, db),
-  )
   const bobArchives = new BobArchiveService(db, { attachmentStore })
   const submitterId = ulid()
   const reviewerId = ulid()
@@ -58,36 +47,6 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
 
   context.after(async () => {
     try {
-      const reports = await db
-        .selectFrom('dcl_subjects')
-        .select('code')
-        .where('created_by', '=', submitterId)
-        .where('entity', '=', 'rpt-definition')
-        .execute()
-      const paths = reports.flatMap(({ code }) => [
-        `/rpt/${code}/query`,
-        `/rpt/${code}/export`,
-      ])
-      if (paths.length) {
-        const permissions = await db
-          .selectFrom('app_permissions')
-          .select('id')
-          .where('path', 'in', paths)
-          .execute()
-        if (permissions.length)
-          await db
-            .deleteFrom('app_role_permissions')
-            .where(
-              'permission_id',
-              'in',
-              permissions.map(({ id }) => id),
-            )
-            .execute()
-        await db
-          .deleteFrom('app_permissions')
-          .where('path', 'in', paths)
-          .execute()
-      }
       if (subjectIds.length) {
         await db
           .deleteFrom('archive_idempotency')
@@ -128,7 +87,6 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
         .where('id', 'in', [submitterId, reviewerId])
         .execute()
     } finally {
-      await validationPool.end()
       await db.destroy()
       await rm(attachmentRoot, { recursive: true, force: true })
     }
@@ -205,22 +163,8 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       })),
     )
     .execute()
-  function isBob(
-    entity: string,
-  ): entity is
-    'customer' | 'supplier' | 'other-unit' | 'sales-partner' | 'product' {
-    return (
-      entity === 'customer' ||
-      entity === 'product' ||
-      entity === 'supplier' ||
-      entity === 'other-unit' ||
-      entity === 'sales-partner'
-    )
-  }
   async function submitAndApprove(
-    entity:
-      | Parameters<ArchiveService['submit']>[0]
-      | Parameters<BobArchiveService['submit']>[0],
+    entity: Parameters<BobArchiveService['submit']>[0],
     snapshot: Record<string, unknown>,
   ) {
     const subjectId = ulid()
@@ -234,22 +178,28 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       expectedLatestApprovedRevision: null,
       snapshot,
     }
-    const pending = isBob(entity)
-      ? await bobArchives.submit(entity, 'submit-new', input, submitter, ulid())
-      : await service.submit(entity, 'submit-new', input, submitter, ulid())
+    const pending = await bobArchives.submit(
+      entity,
+      'submit-new',
+      input,
+      submitter,
+      ulid(),
+    )
     const review = {
       subjectId,
       submissionId,
       expectedRevision: pending.revision,
     }
-    const approved = isBob(entity)
-      ? await bobArchives.review(entity, 'approve', review, reviewer, ulid())
-      : await service.review(entity, 'approve', review, reviewer, ulid())
+    const approved = await bobArchives.review(
+      entity,
+      'approve',
+      review,
+      reviewer,
+      ulid(),
+    )
     assert.equal(approved.status, 'APPROVED')
     assert.deepEqual(approved.snapshot, pending.snapshot)
-    const history = isBob(entity)
-      ? await bobArchives.auditHistory(entity, subjectId, reviewer)
-      : await service.auditHistory(entity, subjectId, reviewer)
+    const history = await bobArchives.auditHistory(entity, subjectId, reviewer)
     assert.equal(history.length, 2)
     return approved
   }
@@ -1131,123 +1081,18 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     undefined,
   )
 
-  const validReport = await submitAndApprove('rpt-definition', {
-    name: '测试报表',
-    description: '目标报表定义',
-    enabled: true,
-    sql: 'SELECT 1 AS total',
-    parameters: [],
-    columns: [
-      {
-        alias: 'total',
-        name: '总数',
-        order: 1,
-        type: 'INTEGER',
-        width: 120,
-        visible: true,
-        format: '',
-      },
-    ],
-  })
-  assert.equal(validReport.validity?.status, 'VALID')
-  assert.equal(validReport.validity?.validatedBy, reviewerId)
-  assert.match(validReport.validity?.validatedAt ?? '', /^\d{4}-\d{2}-\d{2}T/)
-  const invalidReportSubjectId = ulid()
-  const invalidReportSubmissionId = ulid()
-  subjectIds.push(invalidReportSubjectId)
-  const invalidReport = await service.submit(
-    'rpt-definition',
-    'submit-new',
-    {
-      subjectId: invalidReportSubjectId,
-      submissionId: invalidReportSubmissionId,
-      idempotencyKey: invalidReportSubmissionId,
-      expectedLatestApprovedSubmissionId: null,
-      expectedLatestApprovedRevision: null,
-      snapshot: {
-        name: '失效但可批准的报表',
-        description: '批准前必须通过技术校验',
-        enabled: true,
-        sql: 'SELECT missing_column FROM missing_table',
-        parameters: [],
-        columns: [
-          {
-            alias: 'missing_column',
-            name: '缺失列',
-            order: 1,
-            type: 'TEXT',
-            width: 120,
-            visible: true,
-            format: '',
-          },
-        ],
-      },
-    },
-    submitter,
-    ulid(),
-  )
-  await assert.rejects(
-    service.review(
-      'rpt-definition',
-      'approve',
-      {
-        subjectId: invalidReportSubjectId,
-        submissionId: invalidReportSubmissionId,
-        expectedRevision: invalidReport.revision,
-      },
-      reviewer,
-      ulid(),
-    ),
-    (error: unknown) =>
-      error instanceof ArchiveApplicationError &&
-      error.errorKey === 'rpt_definition_invalid',
-  )
-  const invalidAfterReview = await service.get(
-    'rpt-definition',
-    invalidReportSubjectId,
-    reviewer,
-    invalidReportSubmissionId,
-  )
-  assert.equal(invalidAfterReview.status, 'PENDING')
-  assert.equal(invalidAfterReview.validity?.status, 'INVALID')
-  assert.equal(invalidAfterReview.validity?.validatedBy, reviewerId)
-  const reportVersion = await service.get(
-    'rpt-definition',
-    validReport.subjectId,
-    reviewer,
-    validReport.submissionId,
-  )
-  assert.equal(reportVersion.submissionId, validReport.submissionId)
-  await assert.rejects(
-    service.get(
-      'rpt-definition',
-      validReport.subjectId,
-      reviewer,
-      invalidReportSubmissionId,
-    ),
-    (error: unknown) =>
-      error instanceof ArchiveApplicationError &&
-      error.errorKey === 'approval_not_found',
-  )
   for (const entity of [
     'product',
     'supplier',
     'customer',
     'other-unit',
     'sales-partner',
-    'rpt-definition',
   ] as const) {
-    const items = isBob(entity)
-      ? await bobArchives.query(
-          entity,
-          { page: 1, pageSize: 20, filters: {} },
-          reviewer,
-        )
-      : await service.query(
-          entity,
-          { page: 1, pageSize: 20, filters: {} },
-          reviewer,
-        )
+    const items = await bobArchives.query(
+      entity,
+      { page: 1, pageSize: 20, filters: {} },
+      reviewer,
+    )
     const item = items.items.find((candidate) =>
       subjectIds.includes(candidate.subjectId),
     )

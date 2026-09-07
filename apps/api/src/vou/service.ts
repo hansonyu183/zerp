@@ -24,6 +24,7 @@ import {
   type VouSourceLineSourceEntity,
   type VouSourceLineTargetEntity,
   vouDocumentPrefixes,
+  vouEntityInputDescriptors,
   vouPayloadReferences,
   vouAuxCurrentReferences,
   type VouAuxCurrentReferenceInput,
@@ -190,10 +191,12 @@ export interface VouQueryInput {
   page: number
   pageSize: 20
   filters?: {
-    keyword?: string
+    documentNo?: string
     status?: ApprovalStatus[]
     dateFrom?: string
     dateTo?: string
+    submittedFrom?: string
+    submittedTo?: string
     counterpartyObjectId?: string
   }
   sort?: Array<{
@@ -202,8 +205,21 @@ export interface VouQueryInput {
   }>
 }
 
+export interface VouSummary {
+  vouType: VouEntity
+  documentId: string
+  documentNo: string
+  handlerName: string | null
+  revision: string
+  status: ApprovalStatus
+  businessDate: string
+  submittedDate: string
+  counterpartyName: string | null
+  amount: string | null
+  currency: string
+}
 export interface VouPage {
-  items: VouView[]
+  items: VouSummary[]
   total: number
   page: number
   pageSize: 20
@@ -1220,8 +1236,18 @@ export class VouService implements WflVouPort {
     requirePermission(actor, `/vou/${entity}/query`)
     const filters = input.filters
     const conditions = [sql`d.entity = ${entity}`]
-    if (filters?.keyword)
-      conditions.push(sql`d.document_no ILIKE ${`%${filters.keyword}%`}`)
+    if (filters?.documentNo)
+      conditions.push(
+        sql`strpos(lower(d.document_no), lower(${filters.documentNo})) > 0`,
+      )
+    if (filters?.submittedFrom)
+      conditions.push(
+        sql`(e.submitted_at AT TIME ZONE 'Asia/Shanghai')::date >= ${filters.submittedFrom}::date`,
+      )
+    if (filters?.submittedTo)
+      conditions.push(
+        sql`(e.submitted_at AT TIME ZONE 'Asia/Shanghai')::date <= ${filters.submittedTo}::date`,
+      )
     if (filters?.status?.length)
       conditions.push(
         sql`e.status IN (${sql.join(filters.status.map((status) => sql`${status}`))})`,
@@ -1259,17 +1285,45 @@ export class VouService implements WflVouPort {
       JOIN ${detailTable} detail ON detail.approval_entry_id = e.id
       WHERE ${where}
     `.execute(this.db)
+    // Match the existing orderAmount fixed-point rule: truncate each line to
+    // minor currency units before summing; never interpret the unused header as zero.
+    const amountMinor =
+      entity === 'sale-order' || entity === 'purchase-order'
+        ? sql`(SELECT COALESCE(SUM(TRUNC(line.base_quantity_micros::numeric * line.unit_price_minor / 1000000)), 0)
+          FROM vou_product_line_snapshots line WHERE line.approval_entry_id = e.id)`
+        : vouEntityInputDescriptors[entity].some(
+              (field) => field.key === 'amount',
+            )
+          ? sql`detail.total_amount_minor`
+          : sql`NULL::numeric`
     const sort = input.sort?.[0] ?? { field: 'documentNo', order: 'desc' }
     const orderBy = {
       updatedAt: sql`e.updated_at`,
       documentNo: sql`d.document_no`,
       businessDate: sql`detail.business_date`,
       status: sql`e.status`,
-      amount: sql`detail.total_amount_minor`,
+      amount: amountMinor,
     }[sort.field]
     const direction = sort.order === 'asc' ? sql`ASC` : sql`DESC`
-    const rows = await sql<{ id: string }>`
-      SELECT d.id
+    const rows = await sql<VouSummary>`
+      SELECT d.entity AS "vouType", d.id AS "documentId", d.document_no AS "documentNo",
+        e.revision::text AS revision, e.status,
+        detail.business_date::text AS "businessDate",
+        (e.submitted_at AT TIME ZONE 'Asia/Shanghai')::date::text AS "submittedDate",
+        ROUND(${amountMinor} / 100, 2)::text AS amount,
+        detail.currency,
+        (SELECT r.reference_name FROM vou_reference_snapshots r
+          WHERE r.approval_entry_id = e.id AND r.field = 'handler'
+            AND r.line_no = 0 AND r.item_no = 0) AS "handlerName",
+        (SELECT CASE r.field
+            WHEN 'customerSubunit' THEN (SELECT u.name FROM bob_customer_version_subunits u
+              WHERE u.customer_approval_entry_id = r.approval_reference_id AND u.subunit_id = r.object_id)
+            WHEN 'supplier' THEN (SELECT v.display_name FROM bob_supplier_versions v
+              WHERE v.approval_entry_id = r.approval_reference_id)
+            ELSE r.reference_name END
+          FROM vou_reference_snapshots r
+          WHERE r.approval_entry_id = e.id AND r.field IN ('customerSubunit','customer','supplier','counterparty','employee')
+            AND r.line_no = 0 AND r.item_no = 0 ORDER BY r.field LIMIT 1) AS "counterpartyName"
       FROM vou_documents d
       JOIN LATERAL (
         SELECT candidate.*
@@ -1289,9 +1343,7 @@ export class VouService implements WflVouPort {
       LIMIT 20 OFFSET ${(input.page - 1) * 20}
     `.execute(this.db)
     return {
-      items: await Promise.all(
-        rows.rows.map((row) => this.readView(this.db, entity, row.id, actor)),
-      ),
+      items: rows.rows,
       total: Number(count.rows[0]?.total ?? 0),
       page: input.page,
       pageSize: 20,

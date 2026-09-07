@@ -38,6 +38,7 @@ const instanceKey = computed(() => `${session.generation}:${resourceKey.value}`)
     v-else-if="registration"
     :key="instanceKey"
     :definition="registration.definition"
+    :vou-type="registration.vouType"
     :entity="entity"
   />
   <ManagementPageFrame

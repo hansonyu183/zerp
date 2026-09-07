@@ -1,3 +1,5 @@
+import OrderManagement from '../pages/vou/orders/OrderManagement.vue'
+import { saleOrderPage, purchaseOrderPage } from './vou-pages.ts'
 import DefinitionManagement from '../pages/wfl/definition/DefinitionManagement.vue'
 import ReportPage from '../pages/rpt/ReportPage.vue'
 import MappingManagement from '../pages/acc/mapping/MappingManagement.vue'
@@ -57,7 +59,9 @@ export type ResourceRegistration = {
   domain: BusinessTargetDomain
   entity: string
   component: Component
-  definition?: RegisteredListPage
+  definition?:
+    RegisteredListPage | typeof saleOrderPage | typeof purchaseOrderPage
+  vouType?: import('@zerp/model').VouEntity
   useCaseKey?: string
 }
 
@@ -98,6 +102,22 @@ export function createResourceRegistry(
 
 export const targetResourceRegistry = createResourceRegistry(
   [
+    {
+      domain: 'vou',
+      entity: 'sale-order',
+      vouType: 'sale-order',
+      definition: saleOrderPage,
+      component: OrderManagement,
+      useCaseKey: 'vou/sale-order',
+    },
+    {
+      domain: 'vou',
+      entity: 'purchase-order',
+      vouType: 'purchase-order',
+      definition: purchaseOrderPage,
+      component: OrderManagement,
+      useCaseKey: 'vou/purchase-order',
+    },
     {
       domain: 'wfl',
       entity: 'process-instance',

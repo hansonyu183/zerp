@@ -34,7 +34,13 @@ if (!new URL(databaseUrl).pathname.slice(1).endsWith('_test'))
 
 const suffix = randomBytes(8).toString('hex')
 async function principal(
-  kind: 'submitter' | 'reviewer' | 'report' | 'create-only' | 'report-export',
+  kind:
+    | 'submitter'
+    | 'reviewer'
+    | 'report'
+    | 'create-only'
+    | 'report-export'
+    | 'order-review-only',
   index: number,
 ) {
   const password = randomBytes(24).toString('base64url')
@@ -74,6 +80,7 @@ const reviewer = await principal('reviewer', 2)
 const reportAdmin = await principal('report', 3)
 const createOnly = await principal('create-only', 4)
 const reportExporter = await principal('report-export', 5)
+const orderReviewOnly = await principal('order-review-only', 6)
 let managerEmployeeId = `M${suffix}`.toUpperCase().padEnd(26, '0').slice(0, 26)
 const managerApprovalEntryId = `A${suffix}`
   .toUpperCase()
@@ -1389,6 +1396,58 @@ async function verifyTrustedSystemVouLifecycle() {
   )
 }
 
+async function seedPendingOrderPages() {
+  async function pending(
+    entity: 'sale-order' | 'purchase-order',
+    sourceDocumentId: string,
+    referenceKey: 'customerSubunit' | 'supplier',
+  ) {
+    const source = await vou.get(
+      entity,
+      sourceDocumentId,
+      serviceActor(submitter.userId),
+    )
+    const documentId = ulid(),
+      submissionId = ulid()
+    const result = await vou.submit(
+      entity,
+      'submit-new',
+      {
+        documentId,
+        submissionId,
+        idempotencyKey: submissionId,
+        expectedRevision: null,
+        payload: {
+          ...source.payload,
+          remark: entity === 'sale-order' ? '销售完整备注' : '采购完整备注',
+        },
+      },
+      serviceActor(submitter.userId),
+      'e2e-order-page-submit',
+    )
+    return {
+      documentId,
+      documentNo: result.documentNo,
+      businessDate: result.payload.businessDate,
+      counterpartyName: vouReferenceFacts.references.find(
+        (reference) => reference.key === referenceKey,
+      )!.name,
+    }
+  }
+  return {
+    sale: await pending(
+      'sale-order',
+      vouSourceFacts.saleOrder.documentId,
+      'customerSubunit',
+    ),
+    purchase: await pending(
+      'purchase-order',
+      vouSourceFacts.purchaseOrder.documentId,
+      'supplier',
+    ),
+  }
+}
+
 async function seedVouAccObjects() {
   const auxActor = {
     id: submitter.userId,
@@ -1538,6 +1597,10 @@ try {
   await bootstrap.createE2EPrincipal(reviewer)
   await bootstrap.createE2EPrincipal(reportAdmin, true)
   await bootstrap.createE2EPrincipal(createOnly, false, ['/app/user/create'])
+  await bootstrap.createE2EPrincipal(orderReviewOnly, false, [
+    '/vou/sale-order/approve',
+    '/bob/reference/query',
+  ])
   const report = await createRptBrowserFixture(
     rpt,
     serviceActor(submitter.userId),
@@ -1551,6 +1614,7 @@ try {
   await seedVouAccObjects()
   await seedApprovedOpeningAndMappings()
   await seedApprovedSourceOrders()
+  const orderPageFacts = await seedPendingOrderPages()
   await verifyTrustedSystemVouLifecycle()
 
   const playwrightArgs = process.argv.slice(2).filter((arg) => arg !== '--')
@@ -1562,6 +1626,9 @@ try {
       stdio: 'inherit',
       env: {
         ...process.env,
+        TARGET_E2E_ORDER_FACTS_JSON: JSON.stringify(orderPageFacts),
+        TARGET_E2E_ORDER_NO_QUERY_USERNAME: orderReviewOnly.username,
+        TARGET_E2E_ORDER_NO_QUERY_PASSWORD: orderReviewOnly.password,
         TARGET_E2E_CUSTOMER_TYPE: auxReference('dictionary-item').name,
         TARGET_E2E_CUSTOMER_PARTNER: `目标客户渠道商${suffix}`,
         TARGET_E2E_USERNAME: submitter.username,
@@ -1736,6 +1803,7 @@ try {
   ])
   await bootstrap.deleteE2EPrincipal(reviewer)
   await bootstrap.deleteE2EPrincipal(createOnly)
+  await bootstrap.deleteE2EPrincipal(orderReviewOnly)
   await bootstrap.deleteE2EPrincipal(reportExporter)
   await bootstrap.deleteE2EPrincipal(reportAdmin)
   await bootstrap.deleteE2EPrincipal(submitter)

@@ -1,6 +1,6 @@
 import { ref, shallowRef } from 'vue'
 
-import { queryTargetRoles } from '../../api.ts'
+import { queryTargetRoles, queryTargetBobReferences } from '../../api.ts'
 import { useTargetSession } from '../../session/vm.ts'
 
 import { FieldContractError } from './contract.ts'
@@ -10,7 +10,11 @@ import type {
   ReferenceSource,
 } from './types.ts'
 
-const roleQueryPath = '/app/role/query'
+const sourcePermissions: Record<ReferenceSource, string> = {
+  'app/role': '/app/role/query',
+  'bob/customer-subunit': '/bob/reference/query',
+  'bob/supplier': '/bob/reference/query',
+}
 const pageSize = 20 as const
 
 function messageOf(cause: unknown): string {
@@ -22,7 +26,8 @@ function messageOf(cause: unknown): string {
 function assertReferenceSource(
   source: unknown,
 ): asserts source is ReferenceSource {
-  if (source !== 'app/role') throw new FieldContractError('使用未登记的引用源')
+  if (typeof source !== 'string' || !Object.hasOwn(sourcePermissions, source))
+    throw new FieldContractError('使用未登记的引用源')
 }
 
 export function useReferenceOptionsViewModel() {
@@ -33,11 +38,14 @@ export function useReferenceOptionsViewModel() {
   let disposed = false
   let requestVersion = 0
 
-  function tokenFor(generation: number): string | null {
+  function tokenFor(
+    generation: number,
+    source: ReferenceSource = 'app/role',
+  ): string | null {
     if (
       disposed ||
       session.generation !== generation ||
-      !session.can(roleQueryPath) ||
+      !session.can(sourcePermissions[source]) ||
       !session.csrfToken
     )
       return null
@@ -46,7 +54,7 @@ export function useReferenceOptionsViewModel() {
 
   function canRead(source: ReferenceSource): boolean {
     assertReferenceSource(source)
-    return tokenFor(session.generation) !== null
+    return tokenFor(session.generation, source) !== null
   }
 
   function isCurrent(request: number, generation: number): boolean {
@@ -95,7 +103,7 @@ export function useReferenceOptionsViewModel() {
     assertReferenceSource(source)
     const request = ++requestVersion
     const generation = session.generation
-    const token = tokenFor(generation)
+    const token = tokenFor(generation, source)
     if (!token) {
       if (!disposed && request === requestVersion) {
         options.value = {}
@@ -110,6 +118,20 @@ export function useReferenceOptionsViewModel() {
     options.value = {}
     try {
       switch (source) {
+        case 'bob/customer-subunit':
+        case 'bob/supplier': {
+          const result = await queryTargetBobReferences(token, {
+            entity: source === 'bob/supplier' ? 'supplier' : 'customer-subunit',
+          })
+          if (isCurrent(request, generation) && tokenFor(generation, source))
+            options.value = {
+              [source]: result.map((item) => ({
+                id: item.objectId,
+                name: item.name,
+              })),
+            }
+          return
+        }
         case 'app/role':
           await loadRoles(request, generation, token)
           return

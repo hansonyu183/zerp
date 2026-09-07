@@ -2780,3 +2780,113 @@ export async function wflNodeDocument(
     ).json(),
   )
 }
+
+export type TargetVouQueryInput = PostJson<
+  (typeof client.vou)[':entity']['query']['$post']
+>
+export type TargetVouReviewInput = PostJson<
+  (typeof client.vou)[':entity']['approve']['$post']
+>
+export async function queryTargetVouchers(
+  csrfToken: string,
+  entity: import('@zerp/model').VouEntity,
+  input: TargetVouQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou[':entity'].query.$post(
+        { param: { entity }, json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function getTargetVoucher(
+  csrfToken: string,
+  entity: import('@zerp/model').VouEntity,
+  documentId: string,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou[':entity'].get.$post(
+        { param: { entity }, json: { documentId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function reviewTargetVoucher(
+  csrfToken: string,
+  entity: import('@zerp/model').VouEntity,
+  action: import('@zerp/model').ApprovalAction,
+  input: TargetVouReviewInput,
+  reason: string,
+) {
+  switch (action) {
+    case 'approve':
+      return unwrapTarget(
+        await (
+          await client.vou[':entity'].approve.$post(
+            { param: { entity }, json: input },
+            csrfHeaders(csrfToken),
+          )
+        ).json(),
+      )
+    case 'reject':
+      return unwrapTarget(
+        await (
+          await client.vou[':entity'].reject.$post(
+            { param: { entity }, json: { ...input, reason } },
+            csrfHeaders(csrfToken),
+          )
+        ).json(),
+      )
+    case 'unreject':
+      return unwrapTarget(
+        await (
+          await client.vou[':entity'].unreject.$post(
+            { param: { entity }, json: input },
+            csrfHeaders(csrfToken),
+          )
+        ).json(),
+      )
+    case 'unapprove':
+      return unwrapTarget(
+        await (
+          await client.vou[':entity'].unapprove.$post(
+            { param: { entity }, json: { ...input, reason } },
+            csrfHeaders(csrfToken),
+          )
+        ).json(),
+      )
+  }
+}
+
+export async function queryTargetVoucherAudit(
+  csrfToken: string,
+  entity: import('@zerp/model').VouEntity,
+  documentId: string,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou[':entity']['audit-history'].$post(
+        { param: { entity }, json: { documentId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function readTargetVoucherAttachment(
+  csrfToken: string,
+  entity: import('@zerp/model').VouEntity,
+  input: PostJson<(typeof client.vou)[':entity']['attachment-read']['$post']>,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou[':entity']['attachment-read'].$post(
+        { param: { entity }, json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}

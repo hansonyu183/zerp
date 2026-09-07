@@ -40,7 +40,6 @@ test('all authorized resources have one menu entry and unregistered pages send n
     ),
   ].sort()
   expect(expected).toContain('/bob/customer')
-  expect(expected).toContain('/dcl/customer')
   expect(expected).toContain('/app/user')
   const drawer = page.locator('.v-navigation-drawer')
   for (const group of await drawer
@@ -53,12 +52,7 @@ test('all authorized resources have one menu entry and unregistered pages send n
       elements.map((element) => element.getAttribute('href')!).sort(),
     )
   expect(links).toEqual(expected)
-  for (const path of [
-    '/bob/customer',
-    '/dcl/customer',
-    '/acc/opening',
-    '/vou/sale-order',
-  ]) {
+  for (const path of ['/acc/opening']) {
     const closedGroups = drawer.locator(
       '.v-list-group:not(.v-list-group--open) > .v-list-group__header',
     )

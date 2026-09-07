@@ -9,6 +9,7 @@ import { useTargetSession } from '@/target/session/vm.ts'
 vi.mock('@/target/api.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/target/api.ts')>()),
   queryTargetRoles: vi.fn(),
+  queryTargetBobReferences: vi.fn(),
 }))
 
 const queryRoles = vi.mocked(targetApi.queryTargetRoles)
@@ -213,4 +214,25 @@ describe('reference-options public view-model seam', () => {
     expect(vm.error.value).toBeNull()
     expect(vm.loading.value).toBe(false)
   })
+})
+
+it('loads current BOB customer subunits only with the exact reference permission', async () => {
+  setActivePinia(createPinia())
+  vi.mocked(targetApi.queryTargetBobReferences).mockResolvedValue([
+    { objectId: 'subunit', name: '真实子单位' },
+  ] as never)
+  authorize('/bob/customer/query')
+  const denied = useReferenceOptionsViewModel()
+  await denied.load('bob/customer-subunit')
+  expect(targetApi.queryTargetBobReferences).not.toHaveBeenCalled()
+  authorize('/bob/reference/query')
+  const allowed = useReferenceOptionsViewModel()
+  await allowed.load('bob/customer-subunit')
+  expect(targetApi.queryTargetBobReferences).toHaveBeenCalledWith(
+    'csrf-token',
+    { entity: 'customer-subunit' },
+  )
+  expect(allowed.options.value['bob/customer-subunit']).toEqual([
+    { id: 'subunit', name: '真实子单位' },
+  ])
 })

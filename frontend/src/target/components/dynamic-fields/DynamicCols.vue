@@ -10,8 +10,9 @@ const props = withDefaults(
     fields: readonly ColumnField[]
     items: readonly Row[]
     loading?: boolean
+    identityKey?: 'id' | 'documentId'
   }>(),
-  { loading: false },
+  { loading: false, identityKey: 'id' },
 )
 
 defineSlots<{
@@ -33,6 +34,7 @@ const checkedItems = computed(() => validateRows(props.fields, props.items))
   <v-data-table
     :headers="headers"
     :items="checkedItems"
+    :item-value="identityKey"
     :loading="loading"
     :items-per-page="-1"
     disable-sort

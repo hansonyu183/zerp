@@ -112,3 +112,11 @@ Registry 当前为原 user 加 role、employee-category、position、measurement
 七个既有资料页保留专有编辑器与服务端业务校验。实例拥有完整 filterInput 和深复制 appliedQuery，翻页及写后刷新复用已提交快照。输入法选词不查询；迟到、卸载及会话变化后的结果失效。changed 刷新一次、取消不刷新、已确认写入后刷新失败不重放；普通查询不能解除未知写入锁定。编辑输入只在当前实例存在。
 
 本片不执行其他领域的数据迁移、不恢复 CI、不生产部署，验证分项运行且不调用隐式清库的聚合命令。
+
+## VOU order slice: #402
+
+销售与采购订单在同一个 Registry 登记独立 VouListPage；保留 vouType、documentId、documentNo、handlerName、字符串 revision，不继承资料页身份与启停。单据基础列、期间与单号筛选经过自身强契约校验后，与扩展列、提交日期范围、状态、相对方共用 DynamicForm、DynamicCols 和 RowActions。公共页面不内置销售或采购判断，登记绑定各自的查询与引用源，订单消费者提供只读业务详情。
+
+列表 query 切换为摘要，get 保留完整不可变内容；订单经办人不存在时为 null。审批仍由公共 Approval 在 VOU 的原有事务中执行，不引入业务版本。专用编辑器未实施时明确显示能力边界，不添加虚假创建入口。真实资源没有 query 权限时不请求列表或引用，Host 在资源或 Session generation 变化时重建实例。页面用例见[销售订单](../use-cases/vou/sale-order.md)与[采购订单](../use-cases/vou/purchase-order.md)，业务规则见 [VOU](../domains/vou.md)。本片不表示其余单据已登记，也不包含期初迁移或生产发布。
+
+本片进一步部分取代 ADR-0051 中 VOU 本地 Draft 持久化与刷新恢复条款：单据未提交编辑态仅属于当前页面实例，关闭、刷新或切换账号销毁。共享模型、不可变 Submission、幂等、审批及同事务约束继续有效。

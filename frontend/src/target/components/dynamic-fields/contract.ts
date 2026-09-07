@@ -6,7 +6,11 @@ export class FieldContractError extends Error {
 
 type UnknownField = Record<string, unknown>
 
-const referenceSources = new Set<ReferenceSource>(['app/role'])
+const referenceSources = new Set<ReferenceSource>([
+  'app/role',
+  'bob/customer-subunit',
+  'bob/supplier',
+])
 
 const commonKeys = new Set(['key', 'type', 'caption', 'required'])
 const rangeKeys = new Set([...commonKeys, 'range'])

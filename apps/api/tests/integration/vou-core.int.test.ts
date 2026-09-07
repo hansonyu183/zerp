@@ -3440,7 +3440,7 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
     {
       page: 1,
       pageSize: 20,
-      filters: { keyword: httpView.documentNo, status: ['PENDING'] },
+      filters: { documentNo: httpView.documentNo, status: ['PENDING'] },
       sort: [{ field: 'documentNo', order: 'desc' }],
     },
     '/vou/sale-pricing/query',

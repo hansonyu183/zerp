@@ -849,13 +849,24 @@ const auditEvent = z
   .strict()
 const queryFilters = z
   .object({
-    keyword: z.string().trim().min(1).max(200).optional(),
+    documentNo: z.string().trim().min(1).max(200).optional(),
     status: z.array(approvalStatus).min(1).max(3).optional(),
     dateFrom: z.string().date().optional(),
     dateTo: z.string().date().optional(),
+    submittedFrom: z.string().date().optional(),
+    submittedTo: z.string().date().optional(),
     counterpartyObjectId: z.string().length(26).optional(),
   })
   .strict()
+  .refine(
+    (v) => !v.dateFrom || !v.dateTo || v.dateFrom <= v.dateTo,
+    '期间起止顺序错误',
+  )
+  .refine(
+    (v) =>
+      !v.submittedFrom || !v.submittedTo || v.submittedFrom <= v.submittedTo,
+    '提交日期起止顺序错误',
+  )
 const querySort = z
   .object({
     field: z.enum([
@@ -876,9 +887,24 @@ export const vouQueryRequestSchema = z
     sort: z.array(querySort).min(1).max(1).optional(),
   })
   .strict()
+const vouSummary = z
+  .object({
+    vouType: z.enum(vouEntities),
+    documentId: z.string().length(26),
+    documentNo: z.string().min(1),
+    handlerName: z.string().nullable(),
+    revision: z.string().regex(/^[1-9]\d*$/),
+    status: approvalStatus,
+    businessDate: z.string().date(),
+    submittedDate: z.string().date(),
+    counterpartyName: z.string().nullable(),
+    amount: money.nullable(),
+    currency: z.string(),
+  })
+  .strict()
 const vouPage = z
   .object({
-    items: z.array(vouView),
+    items: z.array(vouSummary),
     total: z.number().int().nonnegative(),
     page: z.number().int().positive(),
     pageSize: z.literal(20),

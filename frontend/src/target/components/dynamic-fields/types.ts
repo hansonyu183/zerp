@@ -14,7 +14,8 @@ export interface ReferenceOption extends ReferenceSummary {
   disabled?: boolean
 }
 
-export type ReferenceSource = 'app/role'
+export type ReferenceSource =
+  'app/role' | 'bob/customer-subunit' | 'bob/supplier'
 
 export type ReferenceOptions = Readonly<
   Partial<Record<ReferenceSource, readonly ReferenceOption[]>>

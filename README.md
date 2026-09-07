@@ -78,3 +78,5 @@ MIT，见 [LICENSE](LICENSE)。
 产品一次性迁移与历史连续性验证见[产品迁入 BOB](docs/operations/bob-product-migration.md)。
 
 客户及全部子单位的受控转换见[客户迁入 BOB](docs/operations/bob-customer-migration.md)。
+
+会计映射的受控转换使用 `pnpm --filter @zerp/api migrate:acc-mapping`，见[会计映射迁入 ACC](docs/operations/acc-mapping-migration.md)。

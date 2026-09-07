@@ -491,7 +491,8 @@ CREATE TABLE dcl_operating_entity_versions (
     enabled boolean NOT NULL
 );
 
-CREATE TABLE dcl_acc_mapping_versions (
+-- Read-only pre-cutover evidence. Never selected by current mapping consumers.
+CREATE TABLE acc_mapping_history (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     book_id varchar(26) NOT NULL,
     vou_entity_id varchar(26) NOT NULL,
@@ -519,16 +520,7 @@ CREATE TABLE rpt_definition_validities (
     validated_by varchar(26) NOT NULL REFERENCES app_users(id)
 );
 
--- ACC owns these typed reference facts in the next cutover slice. DCL only
--- revalidates them while accepting an ACC mapping definition.
-CREATE TABLE dcl_acc_book_facts (
-    id varchar(26) PRIMARY KEY,
-    code varchar(64) NOT NULL,
-    name varchar(200) NOT NULL,
-    enabled boolean NOT NULL
-);
-
-CREATE TABLE dcl_acc_vou_entity_facts (
+CREATE TABLE acc_mapping_vou_entities (
     id varchar(26) PRIMARY KEY,
     code varchar(64) NOT NULL,
     name varchar(200) NOT NULL,
@@ -543,28 +535,8 @@ CREATE TABLE dcl_acc_vou_entity_facts (
     enabled boolean NOT NULL
 );
 
--- Narrow ACC catalog facts used only to validate a submitted MappingDefinition.
--- They are not ACC postings, current mappings, or a transactional #365 surface.
-CREATE TABLE dcl_acc_subject_facts (
-    id varchar(26) PRIMARY KEY,
-    book_id varchar(26) NOT NULL REFERENCES dcl_acc_book_facts(id) ON DELETE RESTRICT,
-    code varchar(64) NOT NULL,
-    name varchar(200) NOT NULL,
-    leaf boolean NOT NULL,
-    enabled boolean NOT NULL,
-    required_dimensions jsonb NOT NULL DEFAULT '[]'::jsonb
-        CHECK (jsonb_typeof(required_dimensions) = 'array')
-);
-
-CREATE TABLE dcl_acc_mapping_subject_usages (
-    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
-    subject_id varchar(26) NOT NULL REFERENCES dcl_acc_subject_facts(id),
-    PRIMARY KEY (approval_entry_id, subject_id)
-);
-
--- #365-owned VOU/document writers persist exact mapping-version consumption
--- here. DCL only reads this typed fact before unapproving a mapping version.
-CREATE TABLE dcl_acc_mapping_reference_facts (
+-- Read-only historical mapping consumption evidence.
+CREATE TABLE acc_mapping_legacy_reference_facts (
     mapping_approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
     document_type varchar(64) NOT NULL,
     document_id varchar(64) NOT NULL,
@@ -717,6 +689,29 @@ CREATE TABLE acc_subjects (
     updated_at timestamptz NOT NULL,
     updated_by varchar(26) NOT NULL REFERENCES app_users(id),
     UNIQUE (book_id, code)
+);
+
+CREATE TABLE acc_mappings (
+    id varchar(26) PRIMARY KEY,
+    book_id varchar(26) NOT NULL REFERENCES acc_books(id),
+    vou_entity_id varchar(26) NOT NULL REFERENCES acc_mapping_vou_entities(id),
+    vou_entity varchar(64) NOT NULL,
+    book_snapshot jsonb NOT NULL,
+    vou_entity_snapshot jsonb NOT NULL,
+    default_result varchar(16) NOT NULL CHECK (default_result IN ('POST', 'UN_POST')),
+    mapping_definition jsonb NOT NULL CHECK (jsonb_typeof(mapping_definition) = 'object'),
+    revision bigint NOT NULL DEFAULT 1 CHECK (revision > 0),
+    created_at timestamptz NOT NULL,
+    created_by varchar(26) NOT NULL REFERENCES app_users(id),
+    updated_at timestamptz NOT NULL,
+    updated_by varchar(26) NOT NULL REFERENCES app_users(id),
+    UNIQUE (book_id, vou_entity)
+);
+
+CREATE TABLE acc_mapping_subject_usages (
+    mapping_id varchar(26) NOT NULL REFERENCES acc_mappings(id) ON DELETE CASCADE,
+    subject_id varchar(26) NOT NULL REFERENCES acc_subjects(id),
+    PRIMARY KEY (mapping_id, subject_id)
 );
 
 CREATE TABLE acc_opening_snapshots (
@@ -1600,6 +1595,8 @@ CREATE INDEX vou_attachment_download_tokens_expires_idx
 CREATE TABLE acc_journal_entries (
     id varchar(26) PRIMARY KEY,
     book_id varchar(26) NOT NULL REFERENCES acc_books(id) ON DELETE RESTRICT,
+    mapping_id varchar(26) REFERENCES acc_mappings(id),
+    mapping_revision bigint,
     source_kind varchar(32) NOT NULL DEFAULT 'VOU' CHECK (source_kind IN ('VOU', 'OPENING', 'COST_SETTLEMENT', 'DEPRECIATION')),
     vou_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
     vou_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
@@ -1731,6 +1728,8 @@ CREATE TABLE acc_register_entries (
     id varchar(26) PRIMARY KEY,
     register_kind varchar(32) NOT NULL CHECK (register_kind IN ('ASSET', 'BILL', 'CONTAINER', 'EMPLOYEE_LOAN')),
     object_id varchar(26) NOT NULL,
+    mapping_id varchar(26) REFERENCES acc_mappings(id),
+    mapping_revision bigint,
     source_kind varchar(32) NOT NULL DEFAULT 'VOU' CHECK (source_kind IN ('VOU', 'OPENING')),
     vou_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
     opening_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,

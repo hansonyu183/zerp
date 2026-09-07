@@ -134,6 +134,8 @@ export interface AccJournalEntries {
   created_at: Timestamp
   currency: string
   id: string
+  mapping_id: string | null
+  mapping_revision: Int8 | null
   opening_approval_entry_id: string | null
   reversed_at: Timestamp | null
   source_kind: Generated<string>
@@ -148,6 +150,51 @@ export interface AccJournalLines {
   id: string
   journal_entry_id: string
   subject_id: string
+}
+
+export interface AccMappingHistory {
+  approval_entry_id: string
+  book_id: string
+  book_snapshot: Json
+  default_result: string
+  mapping_definition: Json
+  vou_entity_id: string
+  vou_entity_snapshot: Json
+}
+
+export interface AccMappingLegacyReferenceFacts {
+  document_id: string
+  document_type: string
+  mapping_approval_entry_id: string
+}
+
+export interface AccMappings {
+  book_id: string
+  book_snapshot: Json
+  created_at: Timestamp
+  created_by: string
+  default_result: string
+  id: string
+  mapping_definition: Json
+  revision: Generated<Int8>
+  updated_at: Timestamp
+  updated_by: string
+  vou_entity: string
+  vou_entity_id: string
+  vou_entity_snapshot: Json
+}
+
+export interface AccMappingSubjectUsages {
+  mapping_id: string
+  subject_id: string
+}
+
+export interface AccMappingVouEntities {
+  code: string
+  enabled: boolean
+  field_catalog: Generated<Json>
+  id: string
+  name: string
 }
 
 export interface AccOpeningContainerBalances {
@@ -593,52 +640,6 @@ export interface BobSupplierVersions {
   legal_name: string
   remark: string | null
   settlement_method_snapshot: Json | null
-}
-
-export interface DclAccBookFacts {
-  code: string
-  enabled: boolean
-  id: string
-  name: string
-}
-
-export interface DclAccMappingReferenceFacts {
-  document_id: string
-  document_type: string
-  mapping_approval_entry_id: string
-}
-
-export interface DclAccMappingSubjectUsages {
-  approval_entry_id: string
-  subject_id: string
-}
-
-export interface DclAccMappingVersions {
-  approval_entry_id: string
-  book_id: string
-  book_snapshot: Json
-  default_result: string
-  mapping_definition: Json
-  vou_entity_id: string
-  vou_entity_snapshot: Json
-}
-
-export interface DclAccSubjectFacts {
-  book_id: string
-  code: string
-  enabled: boolean
-  id: string
-  leaf: boolean
-  name: string
-  required_dimensions: Generated<Json>
-}
-
-export interface DclAccVouEntityFacts {
-  code: string
-  enabled: boolean
-  field_catalog: Generated<Json>
-  id: string
-  name: string
 }
 
 export interface DclEmployeeVersions {
@@ -1653,6 +1654,11 @@ export interface DB {
   acc_inventory_entries: AccInventoryEntries
   acc_journal_entries: AccJournalEntries
   acc_journal_lines: AccJournalLines
+  acc_mapping_history: AccMappingHistory
+  acc_mapping_legacy_reference_facts: AccMappingLegacyReferenceFacts
+  acc_mapping_subject_usages: AccMappingSubjectUsages
+  acc_mapping_vou_entities: AccMappingVouEntities
+  acc_mappings: AccMappings
   acc_opening_container_balances: AccOpeningContainerBalances
   acc_opening_snapshots: AccOpeningSnapshots
   acc_period_balances: AccPeriodBalances
@@ -1690,12 +1696,6 @@ export interface DB {
   bob_subjects: BobSubjects
   bob_supplier_version_operating_entities: BobSupplierVersionOperatingEntities
   bob_supplier_versions: BobSupplierVersions
-  dcl_acc_book_facts: DclAccBookFacts
-  dcl_acc_mapping_reference_facts: DclAccMappingReferenceFacts
-  dcl_acc_mapping_subject_usages: DclAccMappingSubjectUsages
-  dcl_acc_mapping_versions: DclAccMappingVersions
-  dcl_acc_subject_facts: DclAccSubjectFacts
-  dcl_acc_vou_entity_facts: DclAccVouEntityFacts
   dcl_employee_versions: DclEmployeeVersions
   dcl_fund_account_versions: DclFundAccountVersions
   dcl_operating_entity_versions: DclOperatingEntityVersions

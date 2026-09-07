@@ -615,7 +615,7 @@ export class AccService
         }
         flatten('', vouEntityInputDescriptors[entity])
         await tx
-          .insertInto('dcl_acc_vou_entity_facts')
+          .insertInto('acc_mapping_vou_entities')
           .values({
             id: entity,
             code: entity,
@@ -637,70 +637,6 @@ export class AccService
               enabled: true,
             }),
           )
-          .execute()
-      }
-    })
-  }
-
-  async publishMappingCatalog(
-    bookId: string,
-    actor: ApprovalActor,
-  ): Promise<void> {
-    requirePermission(actor, '/acc/book/save')
-    await this.db.transaction().execute(async (tx) => {
-      await this.requireBookAccess(tx, bookId, actor, true)
-      const book = await tx
-        .selectFrom('acc_books')
-        .select(['id', 'code', 'name'])
-        .where('id', '=', bookId)
-        .executeTakeFirstOrThrow()
-      const subjects = await tx
-        .selectFrom('acc_subjects')
-        .select([
-          'id',
-          'code',
-          'name',
-          'parent_id',
-          'enabled',
-          'required_dimensions',
-        ])
-        .where('book_id', '=', bookId)
-        .execute()
-      if (subjects.length === 0)
-        throw new AccApplicationError('acc_mapping_catalog_subject_invalid')
-      await tx
-        .insertInto('dcl_acc_book_facts')
-        .values({
-          id: book.id,
-          code: book.code,
-          name: book.name,
-          enabled: true,
-        })
-        .onConflict((conflict) =>
-          conflict.column('id').doUpdateSet({
-            code: book.code,
-            name: book.name,
-            enabled: true,
-          }),
-        )
-        .execute()
-      for (const subject of subjects) {
-        const fact = {
-          book_id: book.id,
-          code: subject.code,
-          name: subject.name,
-          leaf: !subjects.some(
-            (candidate) => candidate.parent_id === subject.id,
-          ),
-          enabled: subject.enabled,
-          required_dimensions: JSON.stringify(
-            subject.required_dimensions,
-          ) as unknown as JsonValue,
-        }
-        await tx
-          .insertInto('dcl_acc_subject_facts')
-          .values({ id: subject.id, ...fact })
-          .onConflict((conflict) => conflict.column('id').doUpdateSet(fact))
           .execute()
       }
     })
@@ -758,17 +694,14 @@ export class AccService
     await this.applyGlobalRegistrations(tx, plan, books)
     for (const book of books) {
       const mappingResult = await sql<{
+        id: string
+        revision: string | bigint
         default_result: string
         mapping_definition: JsonValue
-      }>`
-        SELECT mapping.default_result, mapping.mapping_definition
-        FROM dcl_acc_mapping_versions mapping
-        JOIN approval_entries entry ON entry.id = mapping.approval_entry_id
-        WHERE entry.domain = 'dcl' AND entry.entity = 'acc-mapping'
-          AND entry.status = 'APPROVED' AND mapping.book_id = ${book.id}
-          AND mapping.vou_entity_snapshot->>'code' = ${plan.entity}
-        ORDER BY entry.version_no DESC LIMIT 1
-      `.execute(tx)
+      }>`SELECT id,revision,default_result,mapping_definition FROM acc_mappings
+        WHERE book_id=${book.id} AND vou_entity=${plan.entity} FOR SHARE`.execute(
+        tx,
+      )
       const mapping = mappingResult.rows[0]
       if (!mapping) throw new AccApplicationError('acc_mapping_not_found')
       const definition = mapping.mapping_definition as unknown as {
@@ -942,6 +875,8 @@ export class AccService
         .insertInto('acc_journal_entries')
         .values({
           id: journalId,
+          mapping_id: mapping.id,
+          mapping_revision: BigInt(mapping.revision),
           book_id: book.id,
           vou_document_id: plan.documentId,
           vou_approval_entry_id: plan.approvalEntryId,
@@ -1806,7 +1741,13 @@ export class AccService
         .select('id')
         .where('book_id', '=', bookId)
         .executeTakeFirst()
+      const mapping = await sql<{
+        id: string
+      }>`SELECT id FROM acc_mappings WHERE book_id=${bookId} LIMIT 1`.execute(
+        tx,
+      )
       const blockers = [
+        mapping.rows[0] && { kind: 'MAPPING', id: mapping.rows[0].id },
         subject && { kind: 'SUBJECT', id: subject.id },
         opening && { kind: 'OPENING', id: opening.approval_entry_id },
         journal && { kind: 'JOURNAL', id: journal.id },
@@ -1821,20 +1762,35 @@ export class AccService
     })
   }
 
+  private async validateSubjectParent(
+    tx: Transaction<DB>,
+    bookId: string,
+    parentId: string | null,
+  ) {
+    if (!parentId) return
+    const parent = await tx
+      .selectFrom('acc_subjects')
+      .select('book_id')
+      .where('id', '=', parentId)
+      .forUpdate()
+      .executeTakeFirst()
+    if (!parent || parent.book_id !== bookId)
+      throw new AccApplicationError('acc_subject_parent_invalid')
+    const references =
+      await sql`SELECT subject_id FROM acc_mapping_subject_usages WHERE subject_id=${parentId}
+      UNION ALL SELECT subject_id FROM acc_journal_lines WHERE subject_id=${parentId} LIMIT 1`.execute(
+        tx,
+      )
+    if (references.rows.length)
+      throw new AccApplicationError('acc_subject_frozen')
+  }
+
   async createSubject(input: AccSubjectInput, actor: ApprovalActor) {
     requirePermission(actor, '/acc/subject/create')
     return this.db.transaction().execute(async (tx) => {
       await this.requireBookAccess(tx, input.bookId, actor, true)
       validateAccSubjectAttributes(input)
-      if (input.parentId) {
-        const parent = await tx
-          .selectFrom('acc_subjects')
-          .select('book_id')
-          .where('id', '=', input.parentId)
-          .executeTakeFirst()
-        if (!parent || parent.book_id !== input.bookId)
-          throw new AccApplicationError('acc_subject_parent_invalid')
-      }
+      await this.validateSubjectParent(tx, input.bookId, input.parentId)
       const now = new Date()
       await tx
         .insertInto('acc_subjects')
@@ -1933,8 +1889,13 @@ export class AccService
         .select('id')
         .where('subject_id', '=', input.id)
         .executeTakeFirst()
+      const mappingReference = await sql<{
+        mapping_id: string
+      }>`SELECT mapping_id FROM acc_mapping_subject_usages WHERE subject_id=${input.id} LIMIT 1`.execute(
+        tx,
+      )
       if (
-        referenced &&
+        (referenced || mappingReference.rows.length > 0) &&
         (row.code !== input.code ||
           row.name !== input.name.trim() ||
           row.parent_id !== input.parentId ||
@@ -1945,6 +1906,8 @@ export class AccService
           row.settlement_purpose !== input.settlementPurpose)
       )
         throw new AccApplicationError('acc_subject_frozen')
+      if (row.parent_id !== input.parentId)
+        await this.validateSubjectParent(tx, input.bookId, input.parentId)
       const revision = BigInt(row.revision) + 1n
       await tx
         .updateTable('acc_subjects')
@@ -1997,10 +1960,19 @@ export class AccService
         .select('id')
         .where('subject_id', '=', id)
         .executeTakeFirst()
-      if (child || line)
+      const mappingReference = await sql<{
+        mapping_id: string
+      }>`SELECT mapping_id FROM acc_mapping_subject_usages WHERE subject_id=${id} LIMIT 1`.execute(
+        tx,
+      )
+      if (child || line || mappingReference.rows.length > 0)
         throw new AccApplicationError(
           'acc_subject_delete_blocked',
           [
+            mappingReference.rows[0] && {
+              kind: 'MAPPING',
+              id: mappingReference.rows[0].mapping_id,
+            },
             child && { kind: 'CHILD_SUBJECT', id: child.id },
             line && { kind: 'JOURNAL_LINE', id: line.id },
           ].filter(Boolean),
@@ -2372,15 +2344,11 @@ export class AccService
         { kind: 'VOU', id: openDocument.id, entity: openDocument.entity },
       ])
 
-    const mappedEntities = await sql<{ entity: string }>`
-      SELECT DISTINCT mapping.vou_entity_snapshot->>'code' AS entity
-      FROM dcl_acc_mapping_versions mapping
-      JOIN approval_entries mapping_entry ON mapping_entry.id = mapping.approval_entry_id
-      WHERE mapping.book_id = ${bookId}
-        AND mapping_entry.domain = 'dcl'
-        AND mapping_entry.entity = 'acc-mapping'
-        AND mapping_entry.status = 'APPROVED'
-    `.execute(tx)
+    const mappedEntities = await sql<{
+      entity: string
+    }>`SELECT vou_entity AS entity FROM acc_mappings WHERE book_id=${bookId}`.execute(
+      tx,
+    )
     const mapped = new Set(mappedEntities.rows.map((row) => row.entity))
     const missingMapping = monthEntries.find(
       (entry) => entry.status === 'APPROVED' && !mapped.has(entry.entity),
@@ -2951,12 +2919,7 @@ export class AccService
 
   private async openingAssetConfiguration(executor: Executor, bookId: string) {
     const rows = await sql<{ mapping_definition: JsonValue }>`
-      SELECT DISTINCT ON (mapping.vou_entity_id) mapping.mapping_definition
-      FROM dcl_acc_mapping_versions mapping
-      JOIN approval_entries entry ON entry.id = mapping.approval_entry_id
-      WHERE entry.domain = 'dcl' AND entry.entity = 'acc-mapping'
-        AND entry.status = 'APPROVED' AND mapping.book_id = ${bookId}
-      ORDER BY mapping.vou_entity_id, entry.version_no DESC
+      SELECT mapping_definition FROM acc_mappings WHERE book_id = ${bookId}
     `.execute(executor)
     const configurations: Array<{
       assetSubjectId: string

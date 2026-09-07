@@ -2,7 +2,7 @@
 
 ## 1. 领域职责
 
-DCL（Declaration Control）当前拥有 `acc-mapping`、`rpt-definition` 与 `wfl-process-definition` 的稳定 subject、business code 与强类型 Submission snapshot：用户在本地 Draft 编辑，DCL 在 submit 时创建或删除开放 Submission，并读取版本历史和审计；中央 Approval 唯一拥有版本号、`PENDING | APPROVED | REJECTED`、revision、审批元数据和审批事件。Customer、Product、Supplier、Other Unit 与 Sales Partner 已迁入 BOB，DCL 不再注册它们的 subject、版本、资料或 HTTP 入口。Party 与独立 `customer-subunit` subject 不存在；客户子单位是 Customer Version 内的强类型子项。会计映射、报表定义和流程定义的既有领域边界不变。
+DCL（Declaration Control）当前拥有 `rpt-definition` 与 `wfl-process-definition` 的稳定 subject、business code 与强类型 Submission snapshot：用户在本地 Draft 编辑，DCL 在 submit 时创建或删除开放 Submission，并读取版本历史和审计；中央 Approval 唯一拥有版本号、`PENDING | APPROVED | REJECTED`、revision、审批元数据和审批事件。Customer、Product、Supplier、Other Unit 与 Sales Partner 已迁入 BOB，DCL 不再注册它们的 subject、版本、资料或 HTTP 入口。Party 与独立 `customer-subunit` subject 不存在；客户子单位是 Customer Version 内的强类型子项。会计映射已回归 ACC 当前配置；报表定义和流程定义的既有领域边界不变。
 
 ### 1.1 本地 Draft 与 Submission 生命周期
 
@@ -61,15 +61,9 @@ Submission 一旦持久化即不可编辑，唯一状态是 `PENDING | APPROVED 
 
 客户及全部子单位归 [BOB Customer 聚合](bob.md#34-客户与客户子单位)。DCL 不注册客户 subject、版本、附件或维护入口。
 
-## 3.7 会计映射申报
+## 3.7 会计映射归属
 
-会计映射的 stable subject 是 `(bookId, vouEntity)`，其中 `vouEntity` 是 VOU domain stable ID；每个业务 payload 由一个中央 Approval Version entry 承载。`dcl_acc_mapping_versions` 以 `approvalEntryId` 为主键，保存完整的 `defaultResult`（`POST` 或 `UN_POST`）、声明式 `MappingDefinition`（条件规则、凭证模板和可选资产配置）；所有可变字段随候选版本冻结，不直接修改 ACC 当前记账解释。
-
-`/dcl/acc-mapping/{query|get|versions|audit-history|submit-new|submit-change|approve|reject|unreject|unapprove|delete}` 是会计映射唯一维护 HTTP 边界。本地 Draft 的完整 MappingDefinition 只在 `submit-new`/`submit-change` 写入服务端 `PENDING`；服务端按 `(bookId, vouEntity)` 历史和 expected latest approved 事实分配 V1/Vn。`/acc/mapping` 只提供当前最新批准映射的 `query|get` 和稳定字段目录 `catalog`，不在 ACC 内创建、保存或审批候选。
-
-批准或反批准在同一事务内原子更新 ACC 的最新批准当前记账解释和精确科目引用登记：批准新版本时登记新版本的末级科目引用，反批准时回落到上一正式版本的引用集合。已被 VOU 会计凭证以精确 `mappingApprovalEntryId` 引用的版本不得反批准，但该 stable subject 的下一候选仍允许经 `submit-change` 建立和审批；历史凭证的身份和记账结果永远不被重算。新批准版本只影响之后发生的会计事实；自动凭证保存实际使用的 `approvalEntryId`。
-
-映射只读取 ACC 发布的稳定字段目录，允许使用头字段和 `lines` 行集合迭代，不执行脚本或任意表达式。条件只允许 `EQ`、`NE`、`IN`、`NOT_IN`、`IS_EMPTY` 和 `IS_NOT_EMPTY`；Draft 规范化和 submit 时拒绝可能同时命中的规则，确保一张单据最多选择一个结果。每个映射必须明确设置未命中规则时的 `POST` 或 `UN_POST`。`POST` 结果引用凭证模板，模板逐行声明固定科目或字段取科目、借贷方向、金额字段、币种字段、辅助核算字段以及可选数量字段；`UN_POST` 不引用模板。固定科目必须是本账簿启用的末级科目。
+会计映射由 [ACC 当前记账映射](acc.md#7-当前记账映射) 直接维护，不属于 DCL Submission 或 Approval Version。DCL 不注册映射维护、审批、版本或权限入口。历史批准、审计和记账来源仅保留为只读证据，不能成为当前配置的回退来源。
 
 ## 3.8 报表定义申报
 
@@ -113,4 +107,4 @@ DCL 当前资源按各自 query、get、submit、review、versions、audit 与 d
 
 ## 6. 验收边界
 
-真实 PostgreSQL 验收必须覆盖最高已批准版本的切换与回落、同一 subject 唯一开放 Submission、submit 幂等、旧 revision 冲突及 subscriber 失败整笔回滚。会计映射、报表定义与流程定义还需覆盖各自执行面、精确引用和权限的同事务规则。客户与全部子单位的完整验收归 [BOB 客户管理](../use-cases/bob/customer-management.md)。
+真实 PostgreSQL 验收必须覆盖最高已批准版本的切换与回落、同一 subject 唯一开放 Submission、submit 幂等、旧 revision 冲突及 subscriber 失败整笔回滚。报表定义与流程定义还需覆盖各自执行面、精确引用和权限的同事务规则。客户与全部子单位的完整验收归 [BOB 客户管理](../use-cases/bob/customer-management.md)。

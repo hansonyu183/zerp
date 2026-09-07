@@ -107,6 +107,10 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
         .where('subject_id', '=', bookId)
         .execute()
       await db
+        .deleteFrom('acc_mappings')
+        .where('book_id', '=', bookId)
+        .execute()
+      await db
         .deleteFrom('acc_subjects')
         .where('book_id', '=', bookId)
         .execute()
@@ -431,11 +435,16 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     'control-opening-approve',
   )
   await db
-    .insertInto('dcl_acc_mapping_versions')
+    .insertInto('acc_mappings')
     .values({
-      approval_entry_id: mappingEntryId,
+      id: mappingEntryId,
+      created_at: new Date(),
+      updated_at: new Date(),
+      created_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
+      updated_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
       book_id: book.id,
       vou_entity_id: 'sale-order',
+      vou_entity: 'sale-order',
       book_snapshot: JSON.stringify({}),
       vou_entity_snapshot: JSON.stringify({ code: 'sale-order' }),
       default_result: 'UN_POST',
@@ -447,11 +456,16 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     })
     .execute()
   await db
-    .insertInto('dcl_acc_mapping_versions')
+    .insertInto('acc_mappings')
     .values({
-      approval_entry_id: fundMappingEntryId,
+      id: fundMappingEntryId,
+      created_at: new Date(),
+      updated_at: new Date(),
+      created_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
+      updated_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
       book_id: book.id,
       vou_entity_id: 'sale-pricing',
+      vou_entity: 'sale-pricing',
       book_snapshot: JSON.stringify({}),
       vou_entity_snapshot: JSON.stringify({ code: 'sale-pricing' }),
       default_result: 'POST',

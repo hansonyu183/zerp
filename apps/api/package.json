@@ -29,7 +29,8 @@
     "migrate:aux-assets": "node scripts/migrate-aux-assets.ts",
     "migrate:bob-archives": "node scripts/migrate-bob-archives.ts",
     "migrate:bob-customer": "node scripts/migrate-bob-customer.ts",
-    "migrate:bob-product": "node scripts/migrate-bob-product.ts"
+    "migrate:bob-product": "node scripts/migrate-bob-product.ts",
+    "migrate:acc-mapping": "node scripts/migrate-acc-mapping.ts"
   },
   "dependencies": {
     "@hono/node-server": "2.1.1",

@@ -12,7 +12,6 @@ export const archiveEntityPresentation = {
   customer: { label: '客户', draftLabel: '客户资料' },
   'other-unit': { label: '其他单位', draftLabel: '其他单位资料' },
   'sales-partner': { label: '销售合作方', draftLabel: '销售合作方资料' },
-  'acc-mapping': { label: '记账映射', draftLabel: '记账映射规则' },
   'rpt-definition': { label: '报表定义', draftLabel: '报表定义资料' },
 } as const
 
@@ -1368,13 +1367,13 @@ export interface AccMappingData {
   defaultResult: MappingResult
   definition: MappingDefinition
 }
-export interface AccMappingSubmitCommand extends ArchiveCommand<AccMappingData> {}
-export interface AccMappingSubmitFacts extends ArchiveFacts {
+export interface AccMappingValidationFacts {
   book: { id: string; enabled: boolean }
   vouEntity: { id: string; enabled: boolean }
   fieldCatalog: {
     headerFields: readonly string[]
     lineFields: readonly string[]
+    collections: readonly string[]
   }
   accounts: readonly {
     id: string
@@ -1384,15 +1383,10 @@ export interface AccMappingSubmitFacts extends ArchiveFacts {
     requiredDimensions: readonly string[]
   }[]
 }
-export type AccMappingSubmitErrorKey =
+export type AccMappingErrorKey =
   | 'acc_mapping_invalid_data'
   | 'acc_mapping_book_unavailable'
   | 'acc_mapping_vou_entity_unavailable'
-export type AccMappingSubmissionPlan = ArchivePlan<AccMappingData>
-export type AccMappingSubmitDecision = ArchiveDecision<
-  AccMappingData,
-  AccMappingSubmitErrorKey
->
 function normalizeMappingRule(rule: MappingRule): MappingRule | undefined {
   const conditions = rule.conditions.map((condition) => ({
     field: trim(condition.field),
@@ -1459,7 +1453,7 @@ function rulesAreExclusive(left: MappingRule, right: MappingRule): boolean {
 
 function subjectIsAvailable(
   id: string,
-  facts: AccMappingSubmitFacts,
+  facts: AccMappingValidationFacts,
   bookId: string,
 ): boolean {
   return facts.accounts.some(
@@ -1470,7 +1464,7 @@ function subjectIsAvailable(
 
 function subjectRequiredDimensions(
   id: string,
-  facts: AccMappingSubmitFacts,
+  facts: AccMappingValidationFacts,
   bookId: string,
 ): readonly string[] | undefined {
   const account = facts.accounts.find(
@@ -1484,7 +1478,7 @@ function subjectRequiredDimensions(
 function dimensionsMatchSubject(
   dimensions: Readonly<Record<string, string>>,
   subjectId: string,
-  facts: AccMappingSubmitFacts,
+  facts: AccMappingValidationFacts,
   bookId: string,
 ): boolean {
   const required = subjectRequiredDimensions(subjectId, facts, bookId)
@@ -1498,7 +1492,7 @@ function dimensionsMatchSubject(
 
 function normalizeDimensions(
   dimensions: Readonly<Record<string, string>>,
-  facts: AccMappingSubmitFacts,
+  facts: AccMappingValidationFacts,
 ): Record<string, string> | undefined {
   const normalized = Object.fromEntries(
     Object.entries(dimensions).map(([key, value]) => [trim(key), trim(value)]),
@@ -1512,10 +1506,15 @@ function normalizeDimensions(
 
 function normalizeVoucherTemplate(
   template: MappingVoucherTemplate,
-  facts: AccMappingSubmitFacts,
+  facts: AccMappingValidationFacts,
   bookId: string,
 ): MappingVoucherTemplate | undefined {
   const templateId = trim(template.templateId)
+  if (
+    template.collection !== null &&
+    !facts.fieldCatalog.collections.includes(trim(template.collection))
+  )
+    return undefined
   const lines: MappingVoucherTemplateLine[] = []
   for (const line of template.lines) {
     const subjectValue = trim(line.subjectValue)
@@ -1582,40 +1581,35 @@ function normalizeVoucherTemplate(
 
 function mappingFieldExists(
   field: string,
-  facts: AccMappingSubmitFacts,
+  facts: AccMappingValidationFacts,
 ): boolean {
   return [...facts.fieldCatalog.headerFields, ...facts.fieldCatalog.lineFields]
     .map(trim)
     .includes(field)
 }
 
-export function prepareAccMappingSubmit(
-  command: AccMappingSubmitCommand,
-  facts: AccMappingSubmitFacts,
-): AccMappingSubmitDecision {
-  const common = mechanics<AccMappingData, AccMappingSubmitErrorKey>(
-    'acc-mapping',
-    command,
-    facts,
-  )
-  if ('ok' in common) return common
+export function prepareAccMappingSave(
+  data: AccMappingData,
+  facts: AccMappingValidationFacts,
+):
+  | { ok: true; data: AccMappingData }
+  | { ok: false; error: { errorKey: AccMappingErrorKey } } {
   const book = {
-      id: trim(command.data.book.id),
-      code: trim(command.data.book.code),
-      name: trim(command.data.book.name),
+      id: trim(data.book.id),
+      code: trim(data.book.code),
+      name: trim(data.book.name),
     },
     vouEntity = {
-      id: trim(command.data.vouEntity.id),
-      code: trim(command.data.vouEntity.code),
-      name: trim(command.data.vouEntity.name),
+      id: trim(data.vouEntity.id),
+      code: trim(data.vouEntity.code),
+      name: trim(data.vouEntity.name),
     }
   if (
     !book.id ||
     !book.code ||
     !vouEntity.id ||
     !vouEntity.code ||
-    (command.data.defaultResult !== 'POST' &&
-      command.data.defaultResult !== 'UN_POST') ||
+    (data.defaultResult !== 'POST' && data.defaultResult !== 'UN_POST') ||
     !facts.book.enabled ||
     facts.book.id !== book.id ||
     !facts.vouEntity.enabled ||
@@ -1632,12 +1626,12 @@ export function prepareAccMappingSubmit(
               : 'acc_mapping_invalid_data',
       },
     }
-  const templates = command.data.definition.templates.map((template) =>
+  const templates = data.definition.templates.map((template) =>
     normalizeVoucherTemplate(template, facts, book.id),
   )
   const templateIds = new Set<string>()
-  const rules = command.data.definition.rules.map(normalizeMappingRule)
-  const assetConfiguration = command.data.definition.assetConfiguration
+  const rules = data.definition.rules.map(normalizeMappingRule)
+  const assetConfiguration = data.definition.assetConfiguration
   const normalizedAssetConfiguration =
     assetConfiguration === null
       ? null
@@ -1664,14 +1658,12 @@ export function prepareAccMappingSubmit(
         }
   if (
     templates.some((template) => template === undefined) ||
-    templates.some(
-      (template) =>
-        template !== undefined && templateIds.has(template.templateId),
-    ) ||
-    templates.some(
-      (template) =>
-        template !== undefined && !templateIds.add(template.templateId),
-    ) ||
+    templates.some((template) => {
+      if (!template) return false
+      if (templateIds.has(template.templateId)) return true
+      templateIds.add(template.templateId)
+      return false
+    }) ||
     rules.some(
       (rule) =>
         rule === undefined ||
@@ -1693,10 +1685,10 @@ export function prepareAccMappingSubmit(
                 candidate !== undefined && !rulesAreExclusive(rule, candidate),
             ),
     ) ||
-    (command.data.defaultResult === 'POST'
-      ? command.data.definition.defaultTemplateId === null ||
-        !templateIds.has(trim(command.data.definition.defaultTemplateId))
-      : command.data.definition.defaultTemplateId !== null) ||
+    (data.defaultResult === 'POST'
+      ? data.definition.defaultTemplateId === null ||
+        !templateIds.has(trim(data.definition.defaultTemplateId))
+      : data.definition.defaultTemplateId !== null) ||
     (normalizedAssetConfiguration !== null &&
       (!subjectIsAvailable(
         normalizedAssetConfiguration.assetSubjectId,
@@ -1740,33 +1732,23 @@ export function prepareAccMappingSubmit(
     return { ok: false, error: { errorKey: 'acc_mapping_invalid_data' } }
   return {
     ok: true,
-    plan: {
-      ...common,
-      data: {
-        book,
-        vouEntity,
-        defaultResult: command.data.defaultResult,
-        definition: {
-          defaultTemplateId:
-            command.data.definition.defaultTemplateId === null
-              ? null
-              : trim(command.data.definition.defaultTemplateId),
-          rules: rules as MappingRule[],
-          templates: templates as MappingVoucherTemplate[],
-          assetConfiguration:
-            normalizedAssetConfiguration as MappingAssetConfiguration | null,
-        },
+    data: {
+      book,
+      vouEntity,
+      defaultResult: data.defaultResult,
+      definition: {
+        defaultTemplateId:
+          data.definition.defaultTemplateId === null
+            ? null
+            : trim(data.definition.defaultTemplateId),
+        rules: rules as MappingRule[],
+        templates: templates as MappingVoucherTemplate[],
+        assetConfiguration:
+          normalizedAssetConfiguration as MappingAssetConfiguration | null,
       },
     },
   }
 }
-export function projectAccMappingViewState(
-  command: AccMappingSubmitCommand,
-  facts: AccMappingSubmitFacts,
-): ArchiveViewState<AccMappingSubmitErrorKey> {
-  return project(prepareAccMappingSubmit(command, facts))
-}
-
 export type RptParameterType =
   | 'TEXT'
   | 'INTEGER'

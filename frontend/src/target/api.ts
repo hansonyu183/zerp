@@ -2317,3 +2317,59 @@ export async function stageTargetCustomerAttachment(
     ).json(),
   )
 }
+
+export type TargetMappingSaveInput = PostJson<
+  (typeof client.acc.mapping.save)['$post']
+>
+export type TargetMappingQueryInput = PostJson<
+  (typeof client.acc.mapping.query)['$post']
+>
+export async function queryTargetMappings(
+  csrfToken: string,
+  input: TargetMappingQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.acc.mapping.query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function getTargetMapping(
+  csrfToken: string,
+  input: { bookId: string; vouEntity: string },
+) {
+  return unwrapTarget(
+    await (
+      await client.acc.mapping.get.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function getTargetMappingCatalog(csrfToken: string) {
+  return unwrapTarget(
+    await (
+      await client.acc.mapping.catalog.$post(
+        { json: {} },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function saveTargetMapping(
+  csrfToken: string,
+  input: TargetMappingSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.acc.mapping.save.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}

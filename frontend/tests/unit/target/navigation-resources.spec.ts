@@ -34,7 +34,6 @@ describe('apiPath navigation resources', () => {
       'aux/fund-account': '资金账户',
       'bob/reference': '业务资料引用',
       'dcl/customer': '客户申报',
-      'dcl/acc-mapping': '会计映射申报',
       'dcl/rpt-definition': '报表定义申报',
       'dcl/wfl-process-definition': '流程定义申报',
       'acc/book': '会计账簿',

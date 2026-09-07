@@ -64,6 +64,14 @@
     "title": "查询当前会计映射"
   },
   {
+    "id": "01J8F0C86C9FA52229523AF57D",
+    "path": "/acc/mapping/save",
+    "domain": "acc",
+    "entity": "mapping",
+    "action": "save",
+    "title": "保存当前会计映射"
+  },
+  {
     "id": "01JDF94E56553FF1D6D559A4BE",
     "path": "/acc/opening/approve",
     "domain": "acc",
@@ -1910,94 +1918,6 @@
     "entity": "supplier",
     "action": "versions",
     "title": "versions supplier"
-  },
-  {
-    "id": "01JF2CCEE69ED97F84647B0CEE",
-    "path": "/dcl/acc-mapping/approve",
-    "domain": "dcl",
-    "entity": "acc-mapping",
-    "action": "approve",
-    "title": "approve acc-mapping"
-  },
-  {
-    "id": "01JFEE385A9CD1288A84E6D712",
-    "path": "/dcl/acc-mapping/audit-history",
-    "domain": "dcl",
-    "entity": "acc-mapping",
-    "action": "audit-history",
-    "title": "audit-history acc-mapping"
-  },
-  {
-    "id": "01J3AC3973349C13458DF86EAE",
-    "path": "/dcl/acc-mapping/delete",
-    "domain": "dcl",
-    "entity": "acc-mapping",
-    "action": "delete",
-    "title": "delete acc-mapping"
-  },
-  {
-    "id": "01J7F90D65A3190DFEA8C1DCC7",
-    "path": "/dcl/acc-mapping/get",
-    "domain": "dcl",
-    "entity": "acc-mapping",
-    "action": "get",
-    "title": "get acc-mapping"
-  },
-  {
-    "id": "01JFCA28726FB9EAEACC4F7F79",
-    "path": "/dcl/acc-mapping/query",
-    "domain": "dcl",
-    "entity": "acc-mapping",
-    "action": "query",
-    "title": "记账映射"
-  },
-  {
-    "id": "01J0F610FEAA8A3CA283E01DF6",
-    "path": "/dcl/acc-mapping/reject",
-    "domain": "dcl",
-    "entity": "acc-mapping",
-    "action": "reject",
-    "title": "reject acc-mapping"
-  },
-  {
-    "id": "01JF3B1ED3070AA96571EE6792",
-    "path": "/dcl/acc-mapping/submit-change",
-    "domain": "dcl",
-    "entity": "acc-mapping",
-    "action": "submit-change",
-    "title": "submit-change acc-mapping"
-  },
-  {
-    "id": "01J5DF679AF9F77D7F2041131F",
-    "path": "/dcl/acc-mapping/submit-new",
-    "domain": "dcl",
-    "entity": "acc-mapping",
-    "action": "submit-new",
-    "title": "submit-new acc-mapping"
-  },
-  {
-    "id": "01J2DA1EEA1F88FAD77A50614F",
-    "path": "/dcl/acc-mapping/unapprove",
-    "domain": "dcl",
-    "entity": "acc-mapping",
-    "action": "unapprove",
-    "title": "unapprove acc-mapping"
-  },
-  {
-    "id": "01J92B4A62D7D78708FA0C7978",
-    "path": "/dcl/acc-mapping/unreject",
-    "domain": "dcl",
-    "entity": "acc-mapping",
-    "action": "unreject",
-    "title": "unreject acc-mapping"
-  },
-  {
-    "id": "01J743B74F124908C7BA488811",
-    "path": "/dcl/acc-mapping/versions",
-    "domain": "dcl",
-    "entity": "acc-mapping",
-    "action": "versions",
-    "title": "versions acc-mapping"
   },
   {
     "id": "01J8D09C7DFF10FEFB025388D9",

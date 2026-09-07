@@ -116,7 +116,6 @@ export function resourceDisplayName(domain: string, entity: string): string {
     if (name) return name
   }
   if (domain === 'dcl') {
-    if (entity === 'acc-mapping') return '会计映射申报'
     const name = archiveName(entity)
     if (name) return `${name}申报`
   }

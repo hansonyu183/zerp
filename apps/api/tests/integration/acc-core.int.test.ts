@@ -73,6 +73,10 @@ test('ACC opening freezes AUX bill and employee-dimension adoptions until its su
         .where('id', '=', submissionId)
         .execute()
       await db
+        .deleteFrom('acc_mappings')
+        .where('book_id', '=', bookId)
+        .execute()
+      await db
         .deleteFrom('acc_subjects')
         .where('book_id', '=', bookId)
         .execute()
@@ -413,6 +417,10 @@ test('ACC restores f856118f subject templates and independent book access scopes
   context.after(async () => {
     try {
       await db
+        .deleteFrom('acc_mappings')
+        .where('book_id', 'in', bookIds)
+        .execute()
+      await db
         .deleteFrom('acc_subjects')
         .where('book_id', 'in', bookIds)
         .execute()
@@ -630,6 +638,10 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
       await sql`DELETE FROM bob_subjects WHERE id IN (${supplierId}, ${customerId})`.execute(
         db,
       )
+      await db
+        .deleteFrom('acc_mappings')
+        .where('book_id', '=', bookId)
+        .execute()
       await db
         .deleteFrom('acc_subjects')
         .where('book_id', '=', bookId)
@@ -892,11 +904,16 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
     })
     .execute()
   await db
-    .insertInto('dcl_acc_mapping_versions')
+    .insertInto('acc_mappings')
     .values({
-      approval_entry_id: mappingEntryId,
+      id: mappingEntryId,
+      created_at: new Date(),
+      updated_at: new Date(),
+      created_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
+      updated_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
       book_id: book.id,
       vou_entity_id: 'asset-acquisition',
+      vou_entity: 'asset-acquisition',
       book_snapshot: JSON.stringify({}),
       vou_entity_snapshot: JSON.stringify({}),
       default_result: 'UN_POST',
@@ -1181,6 +1198,10 @@ test('ACC book, subjects, Opening and periods keep one transactional fact bounda
         .execute()
       await db.deleteFrom('dcl_subjects').where('id', '=', productId).execute()
       await db.deleteFrom('bob_subjects').where('id', '=', productId).execute()
+      await db
+        .deleteFrom('acc_mappings')
+        .where('book_id', '=', book.id)
+        .execute()
       await db.deleteFrom('acc_subjects').execute()
       await db.deleteFrom('acc_books').execute()
       await db
@@ -1459,11 +1480,16 @@ test('ACC book, subjects, Opening and periods keep one transactional fact bounda
     })
     .execute()
   await db
-    .insertInto('dcl_acc_mapping_versions')
+    .insertInto('acc_mappings')
     .values({
-      approval_entry_id: mappingEntryId,
+      id: mappingEntryId,
+      created_at: new Date(),
+      updated_at: new Date(),
+      created_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
+      updated_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
       book_id: book.id,
       vou_entity_id: 'sale-pricing',
+      vou_entity: 'sale-pricing',
       book_snapshot: JSON.stringify({
         id: book.id,
         code: book.code,
@@ -1785,6 +1811,10 @@ test('ACC automatic inventory posting rejects missing product or warehouse dimen
         .where('id', '=', mappingSubjectId)
         .execute()
       await db
+        .deleteFrom('acc_mappings')
+        .where('book_id', '=', bookId)
+        .execute()
+      await db
         .deleteFrom('acc_subjects')
         .where('book_id', '=', bookId)
         .execute()
@@ -1930,11 +1960,16 @@ test('ACC automatic inventory posting rejects missing product or warehouse dimen
     })
     .execute()
   await db
-    .insertInto('dcl_acc_mapping_versions')
+    .insertInto('acc_mappings')
     .values({
-      approval_entry_id: mappingEntryId,
+      id: mappingEntryId,
+      created_at: new Date(),
+      updated_at: new Date(),
+      created_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
+      updated_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
       book_id: book.id,
       vou_entity_id: 'sale-pricing',
+      vou_entity: 'sale-pricing',
       book_snapshot: JSON.stringify({
         id: book.id,
         code: book.code,
@@ -2080,6 +2115,10 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
         .where('id', '=', assetCategoryId)
         .execute()
       await db
+        .deleteFrom('acc_mappings')
+        .where('book_id', '=', bookId)
+        .execute()
+      await db
         .deleteFrom('acc_subjects')
         .where('book_id', '=', bookId)
         .execute()
@@ -2203,11 +2242,16 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
     defaultResult: 'POST' | 'UN_POST',
   ) =>
     db
-      .insertInto('dcl_acc_mapping_versions')
+      .insertInto('acc_mappings')
       .values({
-        approval_entry_id: mappingEntryId,
+        id: mappingEntryId,
+        created_at: new Date(),
+        updated_at: new Date(),
+        created_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${bookId})`,
+        updated_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${bookId})`,
         book_id: bookId,
         vou_entity_id: entity,
+        vou_entity: entity,
         book_snapshot: JSON.stringify({
           id: bookId,
           code: book.code,
@@ -2385,8 +2429,9 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
     .execute()
   assert.deepEqual(await readCategorySnapshot(), expectedCategorySnapshot)
   await db
-    .updateTable('dcl_acc_mapping_versions')
+    .updateTable('acc_mappings')
     .set({
+      vou_entity: 'asset-sale',
       vou_entity_id: 'asset-sale',
       vou_entity_snapshot: JSON.stringify({
         id: 'asset-sale',
@@ -2400,7 +2445,7 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
         templates: [],
       }),
     })
-    .where('approval_entry_id', '=', mappingEntryId)
+    .where('id', '=', mappingEntryId)
     .execute()
   await createVou(
     assetSaleDocumentId,
@@ -2538,8 +2583,9 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
     '0',
   )
   await db
-    .updateTable('dcl_acc_mapping_versions')
+    .updateTable('acc_mappings')
     .set({
+      vou_entity: 'sale-pricing',
       vou_entity_id: 'sale-pricing',
       vou_entity_snapshot: JSON.stringify({
         id: 'sale-pricing',
@@ -2614,7 +2660,7 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
         ],
       }),
     })
-    .where('approval_entry_id', '=', mappingEntryId)
+    .where('id', '=', mappingEntryId)
     .execute()
   const warehouseId = ulid(),
     productId = ulid()
@@ -2888,11 +2934,16 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
     })
     .execute()
   await db
-    .insertInto('dcl_acc_mapping_versions')
+    .insertInto('acc_mappings')
     .values({
-      approval_entry_id: mappingEntryId,
+      id: mappingEntryId,
+      created_at: new Date(),
+      updated_at: new Date(),
+      created_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
+      updated_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
       book_id: book.id,
       vou_entity_id: 'sale-signoff',
+      vou_entity: 'sale-signoff',
       book_snapshot: JSON.stringify({
         id: book.id,
         code: book.code,

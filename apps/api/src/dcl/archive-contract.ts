@@ -7,7 +7,7 @@ import {
 import type { TargetRouteEnvironment } from '../app/contract.ts'
 import { archiveEntityPresentation } from '@zerp/model'
 
-export const archiveEntities = ['acc-mapping', 'rpt-definition'] as const
+export const archiveEntities = ['rpt-definition'] as const
 
 export type ArchiveEntity = (typeof archiveEntities)[number]
 
@@ -26,95 +26,6 @@ export const archiveActions = [
 ] as const
 
 export type ArchiveAction = (typeof archiveActions)[number]
-
-const auxSnapshot = z
-  .object({
-    id: z.string().min(1).max(26),
-    code: z.string().min(1).max(64),
-    name: z.string().min(1).max(200),
-  })
-  .strict()
-
-const accMappingSnapshot = z
-  .object({
-    book: auxSnapshot,
-    vouEntity: auxSnapshot,
-    defaultResult: z.enum(['POST', 'UN_POST']),
-    definition: z
-      .object({
-        defaultTemplateId: z.string().min(1).max(64).nullable(),
-        rules: z.array(
-          z
-            .object({
-              conditions: z
-                .array(
-                  z
-                    .object({
-                      field: z.string().min(1).max(128),
-                      operator: z.enum([
-                        'EQ',
-                        'NE',
-                        'IN',
-                        'NOT_IN',
-                        'IS_EMPTY',
-                        'IS_NOT_EMPTY',
-                      ]),
-                      values: z.array(z.string().min(1).max(256)),
-                    })
-                    .strict(),
-                )
-                .min(1),
-              result: z.enum(['POST', 'UN_POST']),
-              templateId: z.string().min(1).max(64).nullable(),
-            })
-            .strict(),
-        ),
-        templates: z.array(
-          z
-            .object({
-              templateId: z.string().min(1).max(64),
-              collection: z.string().min(1).max(128).nullable(),
-              lines: z
-                .array(
-                  z
-                    .object({
-                      subjectSource: z.enum(['FIXED', 'FIELD']),
-                      subjectValue: z.string().min(1).max(128),
-                      direction: z.enum(['DEBIT', 'CREDIT']),
-                      amountField: z.string().min(1).max(128),
-                      currencyField: z.string().min(1).max(128),
-                      dimensions: z.record(z.string(), z.string()),
-                      quantityField: z.string().min(1).max(128).nullable(),
-                      costCounterpartSubjectId: z
-                        .string()
-                        .length(26)
-                        .nullable(),
-                      costCounterpartDimensions: z.record(
-                        z.string(),
-                        z.string(),
-                      ),
-                    })
-                    .strict(),
-                )
-                .min(2),
-            })
-            .strict(),
-        ),
-        assetConfiguration: z
-          .object({
-            assetSubjectId: z.string().length(26),
-            assetDimensions: z.record(z.string(), z.string()),
-            accumulatedDepreciationSubjectId: z.string().length(26),
-            accumulatedDepreciationDimensions: z.record(z.string(), z.string()),
-            depreciationExpenseSubjectId: z.string().length(26),
-            depreciationExpenseDimensions: z.record(z.string(), z.string()),
-          })
-          .strict()
-          .nullable(),
-      })
-      .strict(),
-  })
-  .strict()
 
 const rptDefinitionSnapshot = z
   .object({
@@ -187,7 +98,6 @@ const rptDefinitionSnapshot = z
   .strict()
 
 export const archiveSnapshotSchemas = {
-  'acc-mapping': accMappingSnapshot,
   'rpt-definition': rptDefinitionSnapshot,
 } as const satisfies Record<ArchiveEntity, z.ZodType>
 
@@ -197,13 +107,6 @@ const archiveQueryBaseFilters = z
     keyword: z.string().trim().min(1).max(200).optional(),
     status: z.enum(['PENDING', 'APPROVED', 'REJECTED']).optional(),
     enabled: z.boolean().optional(),
-  })
-  .strict()
-
-const archiveQueryAccMappingFilters = archiveQueryBaseFilters
-  .extend({
-    bookId: z.string().length(26).optional(),
-    vouEntity: z.string().trim().min(1).max(64).optional(),
   })
   .strict()
 
@@ -217,7 +120,6 @@ const archiveQueryInput = <Filters extends z.ZodType>(filters: Filters) =>
     .strict()
 
 export const archiveQuerySchemas = {
-  'acc-mapping': archiveQueryInput(archiveQueryAccMappingFilters),
   'rpt-definition': archiveQueryInput(archiveQueryBaseFilters),
 } as const satisfies Record<ArchiveEntity, z.ZodType>
 
@@ -254,14 +156,6 @@ const dclApprovalReferenceBlocker = z
     approvalEntryId: z.string().length(26),
   })
   .strict()
-const accMappingReferenceBlocker = z
-  .object({
-    kind: z.literal('ACC_MAPPING_REFERENCE'),
-    mappingApprovalEntryId: z.string().length(26),
-    documentType: z.string().min(1).max(64),
-    documentId: z.string().min(1).max(64),
-  })
-  .strict()
 export const archiveBlockerSchema = z.discriminatedUnion('kind', [
   z
     .object({
@@ -272,7 +166,6 @@ export const archiveBlockerSchema = z.discriminatedUnion('kind', [
     .strict(),
   submissionReferenceBlocker,
   dclApprovalReferenceBlocker,
-  accMappingReferenceBlocker,
 ])
 
 const failureEnvelope = z.object({
@@ -481,13 +374,6 @@ function defineArchiveRoutes<
 }
 
 export const archiveRouteSets = {
-  'acc-mapping': defineArchiveRoutes(
-    'dcl',
-    'query',
-    'get',
-    'acc-mapping',
-    archiveSnapshotSchemas['acc-mapping'],
-  ),
   'rpt-definition': defineArchiveRoutes(
     'dcl',
     'query',
@@ -543,50 +429,6 @@ export function registerArchiveRoutes(
   handler: ArchiveRouteHandler,
 ) {
   const archives = app.openapiRoutes([
-    {
-      route: archiveRouteSets['acc-mapping']['query'],
-      handler: archiveHandler(handler, 'acc-mapping', 'query'),
-    },
-    {
-      route: archiveRouteSets['acc-mapping']['get'],
-      handler: archiveHandler(handler, 'acc-mapping', 'get'),
-    },
-    {
-      route: archiveRouteSets['acc-mapping']['versions'],
-      handler: archiveHandler(handler, 'acc-mapping', 'versions'),
-    },
-    {
-      route: archiveRouteSets['acc-mapping']['audit-history'],
-      handler: archiveHandler(handler, 'acc-mapping', 'audit-history'),
-    },
-    {
-      route: archiveRouteSets['acc-mapping']['submit-new'],
-      handler: archiveHandler(handler, 'acc-mapping', 'submit-new'),
-    },
-    {
-      route: archiveRouteSets['acc-mapping']['submit-change'],
-      handler: archiveHandler(handler, 'acc-mapping', 'submit-change'),
-    },
-    {
-      route: archiveRouteSets['acc-mapping']['approve'],
-      handler: archiveHandler(handler, 'acc-mapping', 'approve'),
-    },
-    {
-      route: archiveRouteSets['acc-mapping']['reject'],
-      handler: archiveHandler(handler, 'acc-mapping', 'reject'),
-    },
-    {
-      route: archiveRouteSets['acc-mapping']['unreject'],
-      handler: archiveHandler(handler, 'acc-mapping', 'unreject'),
-    },
-    {
-      route: archiveRouteSets['acc-mapping']['unapprove'],
-      handler: archiveHandler(handler, 'acc-mapping', 'unapprove'),
-    },
-    {
-      route: archiveRouteSets['acc-mapping']['delete'],
-      handler: archiveHandler(handler, 'acc-mapping', 'delete'),
-    },
     {
       route: archiveRouteSets['rpt-definition']['query'],
       handler: archiveHandler(handler, 'rpt-definition', 'query'),

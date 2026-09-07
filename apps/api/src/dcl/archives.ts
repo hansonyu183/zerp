@@ -3,7 +3,6 @@ import { createHash } from 'node:crypto'
 import {
   availableApprovalActions,
   decideApproval,
-  prepareAccMappingSubmit,
   prepareRptDefinitionSubmit,
   type ApprovalAction,
   type ApprovalActor,
@@ -152,12 +151,6 @@ export type ArchiveBlocker =
       field: string
       approvalEntryId: string
     }
-  | {
-      kind: 'ACC_MAPPING_REFERENCE'
-      mappingApprovalEntryId: string
-      documentType: string
-      documentId: string
-    }
 
 export interface ArchiveAuditView {
   id: string
@@ -237,7 +230,7 @@ function archiveSubmissionListItem(
 }
 
 function matchesArchiveSnapshot(
-  entity: ArchiveEntity,
+  _entity: ArchiveEntity,
   code: string | null,
   snapshot: ArchiveSnapshot,
   filters: ArchiveQueryInput['filters'],
@@ -250,28 +243,12 @@ function matchesArchiveSnapshot(
   const keyword = filters.keyword
   if (keyword) {
     const data = record(snapshot)
-    const keywordMatches =
-      entity === 'acc-mapping'
-        ? includesKeyword(keyword, [
-            nullable(record(data.book).code),
-            nullable(record(data.book).name),
-            nullable(record(data.vouEntity).code),
-            nullable(record(data.vouEntity).name),
-          ])
-        : includesKeyword(keyword, [
-            code,
-            nullable(data.name),
-            nullable(data.description),
-          ])
-    if (!keywordMatches) return false
-  }
-  if (entity === 'acc-mapping') {
-    const data = record(snapshot)
-    if (filters.bookId && nullable(record(data.book).id) !== filters.bookId)
-      return false
     if (
-      filters.vouEntity &&
-      nullable(record(data.vouEntity).code) !== filters.vouEntity
+      !includesKeyword(keyword, [
+        code,
+        nullable(data.name),
+        nullable(data.description),
+      ])
     )
       return false
   }
@@ -279,7 +256,6 @@ function matchesArchiveSnapshot(
 }
 
 const entityCodes: Record<ArchiveEntity, string> = {
-  'acc-mapping': '',
   'rpt-definition': 'rpt',
 }
 
@@ -603,16 +579,9 @@ export class ArchiveService {
             prepared.blockers,
           )
         const plan = prepared.plan
-        await this.ensureNoDuplicateBusinessKey(
-          tx,
-          entity,
-          input.subjectId.trim(),
-          plan.data,
-        )
         let code: string | null
         if (plan.createSubject) {
-          if (entity === 'acc-mapping') code = null
-          else {
+          {
             const counter = await tx
               .updateTable('archive_code_counters')
               .set((eb) => ({ next_value: eb('next_value', '+', 1) }))
@@ -747,13 +716,6 @@ export class ArchiveService {
           requestId,
           ...(input.reason === undefined ? {} : { reason: input.reason }),
         })
-        if (entity === 'acc-mapping') {
-          if (updatedEntry.status === 'APPROVED')
-            await this.syncAccMappingSubjectUsages(tx, entry.id)
-          else if (entry.status === 'APPROVED')
-            await sql`DELETE FROM dcl_acc_mapping_subject_usages
-            WHERE approval_entry_id = ${entry.id}`.execute(tx)
-        }
         if (
           entity === 'rpt-definition' &&
           (updatedEntry.status === 'APPROVED' || entry.status === 'APPROVED')
@@ -939,105 +901,20 @@ export class ArchiveService {
     )
     if (!prepared.ok)
       throw new ArchiveApplicationError(prepared.errorKey, prepared.blockers)
-    await this.ensureNoDuplicateBusinessKey(
-      tx,
-      entity,
-      entry.subjectId,
-      prepared.plan.data,
-    )
   }
 
   private async prepareByEntity(
     entity: ArchiveEntity,
     command: Record<string, unknown>,
     subject: ArchiveSubjectFacts,
-    tx: Executor,
+    _tx: Executor,
   ): Promise<unknown> {
     const data = record(command.data)
     const base = { ...command, data }
     // The switches make each aggregate's accepted facts visible; no generic reference graph exists here.
     switch (entity) {
-      case 'acc-mapping': {
-        const vouEntity = await sql<{
-          id: string
-          enabled: boolean
-          field_catalog: JsonValue
-        }>`SELECT id, enabled, field_catalog FROM dcl_acc_vou_entity_facts WHERE id = ${String(record(data.vouEntity).id ?? '')}`.execute(
-          tx,
-        )
-        const fieldCatalog = record(vouEntity.rows[0]?.field_catalog)
-        const accounts = await sql<{
-          id: string
-          book_id: string
-          enabled: boolean
-          leaf: boolean
-          required_dimensions: JsonValue
-        }>`SELECT id, book_id, enabled, leaf, required_dimensions FROM dcl_acc_subject_facts WHERE book_id = ${String(record(data.book).id ?? '')}`.execute(
-          tx,
-        )
-        return prepareAccMappingSubmit(
-          base as never,
-          {
-            subject,
-            book: (await tx
-              .selectFrom('dcl_acc_book_facts')
-              .select(['id', 'enabled'])
-              .where('id', '=', String(record(data.book).id ?? ''))
-              .executeTakeFirst()) ?? { id: '', enabled: false },
-            vouEntity: vouEntity.rows[0] ?? { id: '', enabled: false },
-            fieldCatalog: {
-              headerFields: array(fieldCatalog.headerFields).map(String),
-              lineFields: array(fieldCatalog.lineFields).map(String),
-            },
-            accounts: accounts.rows.map((account) => ({
-              id: account.id,
-              bookId: account.book_id,
-              enabled: account.enabled,
-              leaf: account.leaf,
-              requiredDimensions: array(account.required_dimensions).map(
-                String,
-              ),
-            })),
-          } as never,
-        )
-      }
       case 'rpt-definition':
         return prepareRptDefinitionSubmit(base as never, { subject } as never)
-    }
-  }
-
-  private async ensureNoDuplicateBusinessKey(
-    tx: Executor,
-    entity: ArchiveEntity,
-    subjectId: string,
-    data: ArchiveSnapshot,
-  ): Promise<void> {
-    switch (entity) {
-      case 'acc-mapping': {
-        const bookId = String(record(data.book).id ?? '')
-        const vouEntityId = String(record(data.vouEntity).id ?? '')
-        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:archive:acc-mapping:business-key:${bookId}:${vouEntityId}`}, 0))`.execute(
-          tx,
-        )
-        const row = await tx
-          .selectFrom('dcl_acc_mapping_versions as v')
-          .innerJoin('approval_entries as e', 'e.id', 'v.approval_entry_id')
-          .select('e.id')
-          .where('e.domain', '=', 'dcl')
-          .where('e.entity', '=', 'acc-mapping')
-          .where('e.subject_id', '!=', subjectId)
-          .where('e.status', 'in', ['PENDING', 'APPROVED', 'REJECTED'])
-          .where('v.book_id', '=', bookId)
-          .where('v.vou_entity_id', '=', vouEntityId)
-          .executeTakeFirst()
-        if (row)
-          throw new ArchiveApplicationError(
-            'acc_mapping_duplicate_book_vou_entity',
-          )
-        return
-      }
-      case 'rpt-definition':
-        return
     }
   }
 
@@ -1049,20 +926,6 @@ export class ArchiveService {
   ): Promise<void> {
     const d = snapshot
     switch (entity) {
-      case 'acc-mapping':
-        await tx
-          .insertInto('dcl_acc_mapping_versions')
-          .values({
-            approval_entry_id: id,
-            book_id: String(record(d.book).id ?? ''),
-            vou_entity_id: String(record(d.vouEntity).id ?? ''),
-            book_snapshot: json(record(d.book)),
-            vou_entity_snapshot: json(record(d.vouEntity)),
-            default_result: String(d.defaultResult ?? ''),
-            mapping_definition: json(record(d.definition)),
-          })
-          .execute()
-        return
       case 'rpt-definition':
         await tx
           .insertInto('dcl_rpt_definition_versions')
@@ -1087,19 +950,6 @@ export class ArchiveService {
   ): Promise<ArchiveSnapshot> {
     // Each aggregate rehydrates its own version row. JSON fields retain exact submitted reference snapshots.
     switch (entity) {
-      case 'acc-mapping': {
-        const r = await tx
-          .selectFrom('dcl_acc_mapping_versions')
-          .selectAll()
-          .where('approval_entry_id', '=', id)
-          .executeTakeFirstOrThrow()
-        return {
-          book: record(r.book_snapshot),
-          vouEntity: record(r.vou_entity_snapshot),
-          defaultResult: r.default_result,
-          definition: record(r.mapping_definition),
-        }
-      }
       case 'rpt-definition': {
         const r = await tx
           .selectFrom('dcl_rpt_definition_versions')
@@ -1242,76 +1092,6 @@ export class ArchiveService {
       throw new ArchiveApplicationError('approval_not_latest_approved')
     const open = await this.versioning.open(tx as Transaction<DB>, scope)
     if (open) throw new ArchiveApplicationError('approval_open_version_exists')
-    const blockers =
-      entry.entity === 'acc-mapping'
-        ? await this.accMappingReferenceBlockers(tx, entry.id)
-        : []
-    if (blockers.length)
-      throw new ArchiveApplicationError(
-        'approval_strong_reference_exists',
-        blockers,
-      )
-  }
-
-  private async syncAccMappingSubjectUsages(
-    tx: Executor,
-    approvalEntryId: string,
-  ): Promise<void> {
-    const mapping = await sql<{ mapping_definition: JsonValue }>`
-      SELECT mapping_definition
-      FROM dcl_acc_mapping_versions
-      WHERE approval_entry_id = ${approvalEntryId}
-    `.execute(tx)
-    const definition = record(mapping.rows[0]?.mapping_definition)
-    const subjectIds = new Set<string>()
-    for (const template of array(definition.templates)) {
-      for (const line of array(record(template).lines)) {
-        const normalized = record(line)
-        if (normalized.subjectSource === 'FIXED') {
-          const subjectId = String(normalized.subjectValue ?? '').trim()
-          if (subjectId) subjectIds.add(subjectId)
-        }
-        const counterpartId = String(
-          normalized.costCounterpartSubjectId ?? '',
-        ).trim()
-        if (counterpartId) subjectIds.add(counterpartId)
-      }
-    }
-    const asset = record(definition.assetConfiguration)
-    for (const field of [
-      'assetSubjectId',
-      'accumulatedDepreciationSubjectId',
-      'depreciationExpenseSubjectId',
-    ]) {
-      const subjectId = String(asset[field] ?? '').trim()
-      if (subjectId) subjectIds.add(subjectId)
-    }
-    await sql`DELETE FROM dcl_acc_mapping_subject_usages
-      WHERE approval_entry_id = ${approvalEntryId}`.execute(tx)
-    for (const subjectId of subjectIds)
-      await sql`INSERT INTO dcl_acc_mapping_subject_usages (
-        approval_entry_id, subject_id
-      ) VALUES (${approvalEntryId}, ${subjectId})
-      ON CONFLICT DO NOTHING`.execute(tx)
-  }
-
-  private async accMappingReferenceBlockers(
-    tx: Executor,
-    approvalEntryId: string,
-  ): Promise<ArchiveBlocker[]> {
-    const references = await sql<{
-      document_type: string
-      document_id: string
-    }>`SELECT document_type, document_id
-      FROM dcl_acc_mapping_reference_facts
-      WHERE mapping_approval_entry_id = ${approvalEntryId}
-      ORDER BY document_type, document_id`.execute(tx)
-    return references.rows.map((reference) => ({
-      kind: 'ACC_MAPPING_REFERENCE' as const,
-      mappingApprovalEntryId: approvalEntryId,
-      documentType: reference.document_type,
-      documentId: reference.document_id,
-    }))
   }
 
   private async validateReport(

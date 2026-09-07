@@ -16,6 +16,7 @@ import {
 import pg from 'pg'
 
 import { TargetBootstrapService } from '../src/app/bootstrap.ts'
+import { AccMappingCatalogService } from '../src/acc/mapping-catalog.ts'
 import { AccService } from '../src/acc/service.ts'
 import { AuxService } from '../src/aux/service.ts'
 import { createDatabase } from '../src/db/database.ts'
@@ -490,6 +491,10 @@ async function deleteAccFixtureBooks(bookIds: readonly string[]) {
       .where('book_id', 'in', bookIds)
       .execute()
     await transaction
+      .deleteFrom('acc_mappings')
+      .where('book_id', 'in', bookIds)
+      .execute()
+    await transaction
       .deleteFrom('acc_subjects')
       .where('book_id', 'in', bookIds)
       .execute()
@@ -502,22 +507,6 @@ async function deleteAccFixtureBooks(bookIds: readonly string[]) {
 
 async function deleteE2ECatalogFacts() {
   await database.transaction().execute(async (transaction) => {
-    await transaction
-      .deleteFrom('dcl_acc_subject_facts')
-      .where('id', 'in', [
-        ...archiveFacts.accounting.subjects.map((subject) => subject.id),
-        ...accUiFacts.subjects.map((subject) => subject.id),
-        ...accMappingUiFacts.subjects.map((subject) => subject.id),
-      ])
-      .execute()
-    await transaction
-      .deleteFrom('dcl_acc_book_facts')
-      .where('id', 'in', [
-        archiveFacts.accounting.book.id,
-        accUiFacts.book.id,
-        accMappingUiFacts.book.id,
-      ])
-      .execute()
     await transaction
       .deleteFrom('aux_objects')
       .where('id', 'in', [
@@ -969,26 +958,23 @@ async function seedAccFacts(acc: AccService) {
     })),
   )
   archiveFacts.accounting.book.code = effectBook.code
-  await acc.publishMappingCatalog(effectBook.id, submitterActor)
   const uiBook = await createBook(accUiFacts.book, accUiFacts.subjects)
   accUiFacts.book.code = uiBook.code
-  await acc.publishMappingCatalog(uiBook.id, submitterActor)
   const mappingUiBook = await createBook(
     accMappingUiFacts.book,
     accMappingUiFacts.subjects,
   )
   accMappingUiFacts.book.code = mappingUiBook.code
-  await acc.publishMappingCatalog(mappingUiBook.id, submitterActor)
 }
 
 async function seedApprovedOpeningAndMappings() {
   const submitterActor = {
     id: submitter.userId,
-    permissions: ['/acc/opening/submit-new', '/dcl/acc-mapping/submit-new'],
+    permissions: ['/acc/opening/submit-new', '/acc/mapping/save'],
   }
   const reviewerActor = {
     id: reviewer.userId,
-    permissions: ['/acc/opening/approve', '/dcl/acc-mapping/approve'],
+    permissions: ['/acc/opening/approve'],
   }
   const submissionId = fixtureId('O', 1)
   const pending = await acc.submitOpening(
@@ -1022,103 +1008,72 @@ async function seedApprovedOpeningAndMappings() {
     },
     { book: accUiFacts.book, subjects: accUiFacts.subjects },
   ]
-  for (const [bookIndex, mappedBook] of mappedBooks.entries()) {
-    for (const [
-      index,
-      vouEntity,
-    ] of archiveFacts.accounting.vouEntities.entries()) {
-      const mappingIndex =
-        bookIndex * archiveFacts.accounting.vouEntities.length + index + 1
-      const subjectId = fixtureId('G', mappingIndex)
-      const mappingSubmissionId = fixtureId('H', mappingIndex)
+  for (const mappedBook of mappedBooks) {
+    for (const vouEntity of archiveFacts.accounting.vouEntities) {
       const posting = vouPostingSource(vouEntity.code as VouEntity)
       const [debitSubject, creditSubject] = mappedBook.subjects
       if (!debitSubject || !creditSubject)
         throw new Error('target E2E effect book requires two posting subjects')
-      const mapping = await archives.submit(
-        'acc-mapping',
-        'submit-new',
+      await new AccMappingCatalogService(database).save(
         {
-          subjectId,
-          submissionId: mappingSubmissionId,
-          idempotencyKey: mappingSubmissionId,
-          expectedLatestApprovedSubmissionId: null,
-          expectedLatestApprovedRevision: null,
-          snapshot: {
-            book: {
-              id: mappedBook.book.id,
-              code: mappedBook.book.code,
-              name: mappedBook.book.name,
-            },
-            vouEntity: {
-              id: vouEntity.id,
-              code: vouEntity.code,
-              name: vouEntity.name,
-            },
-            defaultResult: posting ? 'POST' : 'UN_POST',
-            definition: {
-              defaultTemplateId: posting ? 'e2e-effect' : null,
-              rules: [],
-              templates: posting
-                ? [
-                    {
-                      templateId: 'e2e-effect',
-                      collection: posting.collection,
-                      lines: [
-                        {
-                          subjectSource: 'FIXED',
-                          subjectValue: debitSubject.id,
-                          direction: 'DEBIT',
-                          amountField: posting.amountField,
-                          currencyField: 'currency',
-                          dimensions: {},
-                          quantityField: null,
-                          costCounterpartSubjectId: null,
-                          costCounterpartDimensions: {},
-                        },
-                        {
-                          subjectSource: 'FIXED',
-                          subjectValue: creditSubject.id,
-                          direction: 'CREDIT',
-                          amountField: posting.amountField,
-                          currencyField: 'currency',
-                          dimensions: {},
-                          quantityField: null,
-                          costCounterpartSubjectId: null,
-                          costCounterpartDimensions: {},
-                        },
-                      ],
-                    },
-                  ]
-                : [],
-              assetConfiguration:
-                bookIndex === 1 && vouEntity.code === 'asset-acquisition'
-                  ? {
-                      assetSubjectId: accUiFacts.subjects[0]!.id,
-                      assetDimensions: {},
-                      accumulatedDepreciationSubjectId:
-                        accUiFacts.subjects[1]!.id,
-                      accumulatedDepreciationDimensions: {},
-                      depreciationExpenseSubjectId: accUiFacts.subjects[1]!.id,
-                      depreciationExpenseDimensions: {},
-                    }
-                  : null,
-            },
+          bookId: mappedBook.book.id,
+          vouEntity: vouEntity.code,
+          expectedRevision: null,
+          defaultResult: posting ? 'POST' : 'UN_POST',
+          definition: {
+            defaultTemplateId: posting ? 'e2e-effect' : null,
+            rules: [],
+            templates: posting
+              ? [
+                  {
+                    templateId: 'e2e-effect',
+                    collection: posting.collection,
+                    lines: [
+                      {
+                        subjectSource: 'FIXED',
+                        subjectValue: debitSubject.id,
+                        direction: 'DEBIT',
+                        amountField: posting.amountField,
+                        currencyField: 'currency',
+                        dimensions: {},
+                        quantityField: null,
+                        costCounterpartSubjectId: null,
+                        costCounterpartDimensions: {},
+                      },
+                      {
+                        subjectSource: 'FIXED',
+                        subjectValue: creditSubject.id,
+                        direction: 'CREDIT',
+                        amountField: posting.amountField,
+                        currencyField: 'currency',
+                        dimensions: {},
+                        quantityField: null,
+                        costCounterpartSubjectId: null,
+                        costCounterpartDimensions: {},
+                      },
+                    ],
+                  },
+                ]
+              : [],
+            assetConfiguration:
+              mappedBook.book.id === accUiFacts.book.id &&
+              vouEntity.code === 'asset-acquisition'
+                ? {
+                    assetSubjectId: accUiFacts.subjects[0]!.id,
+                    assetDimensions: {},
+                    accumulatedDepreciationSubjectId:
+                      accUiFacts.subjects[1]!.id,
+                    accumulatedDepreciationDimensions: {},
+                    depreciationExpenseSubjectId: accUiFacts.subjects[1]!.id,
+                    depreciationExpenseDimensions: {},
+                  }
+                : null,
           },
         },
-        submitterActor,
-        `e2e-acc-mapping-${vouEntity.code}-submit`,
-      )
-      await archives.review(
-        'acc-mapping',
-        'approve',
         {
-          subjectId,
-          submissionId: mappingSubmissionId,
-          expectedRevision: mapping.revision,
+          ...submitterActor,
+          permissions: [...submitterActor.permissions, '/acc/mapping/save'],
         },
-        reviewerActor,
-        `e2e-acc-mapping-${vouEntity.code}-approve`,
       )
     }
   }

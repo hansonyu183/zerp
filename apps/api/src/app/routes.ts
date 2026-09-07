@@ -182,7 +182,7 @@ export function registerAppRoutes(
       req: { header(name: string): string | undefined; path: string }
     },
     requestId: string,
-    operation: (actor: { permissions: string[] }) => Promise<T>,
+    operation: (actor: { id: string; permissions: string[] }) => Promise<T>,
   ) {
     try {
       if (!accMappingCatalog)
@@ -200,7 +200,10 @@ export function registerAppRoutes(
         code: 0 as const,
         errorKey: '' as const,
         message: 'ok' as const,
-        data: await operation({ permissions: current.apiPaths }),
+        data: await operation({
+          id: current.user.id,
+          permissions: current.apiPaths,
+        }),
         requestId,
       }
     } catch (error) {
@@ -462,6 +465,13 @@ export function registerAppRoutes(
       context.json(
         (await executeAccCatalog(context, currentRequestId(context), (actor) =>
           accMappingCatalog!.query(context.req.valid('json'), actor),
+        )) as never,
+        200,
+      ),
+    accMappingSave: async (context) =>
+      context.json(
+        (await executeAccCatalog(context, currentRequestId(context), (actor) =>
+          accMappingCatalog!.save(context.req.valid('json'), actor),
         )) as never,
         200,
       ),

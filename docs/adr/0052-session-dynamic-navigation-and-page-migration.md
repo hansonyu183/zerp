@@ -3,7 +3,7 @@ id: ADR-0052
 date: 2026-09-06
 status: accepted
 partially_supersedes: ADR-0051
-partially_superseded_by: ADR-0055
+partially_superseded_by: ADR-0055, ADR-0056
 ---
 
 # 独立 Session、权限驱动导航与动态业务页面的分片迁移

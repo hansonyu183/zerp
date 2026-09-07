@@ -55,9 +55,6 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   const subjectIds: string[] = []
   const currentPeopleIds: string[] = []
   const auxIds = Array.from({ length: 10 }, () => ulid())
-  const bookId = ulid()
-  const vouEntityId = ulid()
-  const accountId = ulid()
 
   context.after(async () => {
     try {
@@ -125,17 +122,6 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       await db
         .deleteFrom('app_audit_events')
         .where('actor_user_id', '=', submitterId)
-        .execute()
-      await sql`DELETE FROM dcl_acc_subject_facts WHERE id = ${accountId}`.execute(
-        db,
-      )
-      await db
-        .deleteFrom('dcl_acc_book_facts')
-        .where('id', '=', bookId)
-        .execute()
-      await db
-        .deleteFrom('dcl_acc_vou_entity_facts')
-        .where('id', '=', vouEntityId)
         .execute()
       await db
         .deleteFrom('app_users')
@@ -219,19 +205,6 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       })),
     )
     .execute()
-  await db
-    .insertInto('dcl_acc_book_facts')
-    .values({ id: bookId, code: 'BOOK-01', name: '测试账簿', enabled: true })
-    .execute()
-  await sql`INSERT INTO dcl_acc_vou_entity_facts (id, code, name, field_catalog, enabled)
-    VALUES (${vouEntityId}, 'SALE', '销售凭证', ${JSON.stringify({ headerFields: ['status'], lineFields: ['amount', 'currency', 'customer'] })}::jsonb, true)`.execute(
-    db,
-  )
-  await sql`INSERT INTO dcl_acc_subject_facts (id, book_id, code, name, leaf, enabled, required_dimensions)
-    VALUES (${accountId}, ${bookId}, '1001', '测试科目', true, true, '["customer"]'::jsonb)`.execute(
-    db,
-  )
-
   function isBob(
     entity: string,
   ): entity is
@@ -1158,221 +1131,6 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     undefined,
   )
 
-  const accMappingSubjectId = ulid()
-  const accMappingSubmissionId = ulid()
-  subjectIds.push(accMappingSubjectId)
-  const accMapping = await service.submit(
-    'acc-mapping',
-    'submit-new',
-    {
-      subjectId: accMappingSubjectId,
-      submissionId: accMappingSubmissionId,
-      idempotencyKey: accMappingSubmissionId,
-      expectedLatestApprovedSubmissionId: null,
-      expectedLatestApprovedRevision: null,
-      snapshot: {
-        book: { id: bookId, code: 'BOOK-01', name: '测试账簿' },
-        vouEntity: { id: vouEntityId, code: 'SALE', name: '销售凭证' },
-        defaultResult: 'UN_POST',
-        definition: {
-          defaultTemplateId: null,
-          rules: [
-            {
-              conditions: [
-                { field: 'status', operator: 'EQ', values: ['READY'] },
-              ],
-              result: 'POST',
-              templateId: 'standard',
-            },
-          ],
-          templates: [
-            {
-              templateId: 'standard',
-              collection: null,
-              lines: [
-                {
-                  subjectSource: 'FIXED',
-                  subjectValue: accountId,
-                  direction: 'DEBIT',
-                  amountField: 'amount',
-                  currencyField: 'currency',
-                  dimensions: { customer: 'customer' },
-                  quantityField: null,
-                  costCounterpartSubjectId: null,
-                  costCounterpartDimensions: {},
-                },
-                {
-                  subjectSource: 'FIXED',
-                  subjectValue: accountId,
-                  direction: 'CREDIT',
-                  amountField: 'amount',
-                  currencyField: 'currency',
-                  dimensions: { customer: 'customer' },
-                  quantityField: null,
-                  costCounterpartSubjectId: null,
-                  costCounterpartDimensions: {},
-                },
-              ],
-            },
-          ],
-          assetConfiguration: null,
-        },
-      },
-    },
-    submitter,
-    ulid(),
-  )
-  assert.equal(accMapping.code, null)
-  await sql`UPDATE dcl_acc_subject_facts
-    SET required_dimensions = '["department"]'::jsonb
-    WHERE id = ${accountId}`.execute(db)
-  await assert.rejects(
-    service.review(
-      'acc-mapping',
-      'approve',
-      {
-        subjectId: accMappingSubjectId,
-        submissionId: accMappingSubmissionId,
-        expectedRevision: accMapping.revision,
-      },
-      reviewer,
-      ulid(),
-    ),
-    (error: unknown) =>
-      error instanceof ArchiveApplicationError &&
-      error.errorKey === 'acc_mapping_invalid_data',
-  )
-  await sql`UPDATE dcl_acc_subject_facts
-    SET required_dimensions = '["customer"]'::jsonb
-    WHERE id = ${accountId}`.execute(db)
-  const approvedAccMapping = await service.review(
-    'acc-mapping',
-    'approve',
-    {
-      subjectId: accMappingSubjectId,
-      submissionId: accMappingSubmissionId,
-      expectedRevision: accMapping.revision,
-    },
-    reviewer,
-    ulid(),
-  )
-  assert.equal(approvedAccMapping.status, 'APPROVED')
-  assert.deepEqual(
-    (
-      await sql<{ approval_entry_id: string; subject_id: string }>`
-      SELECT approval_entry_id, subject_id
-      FROM dcl_acc_mapping_subject_usages
-      WHERE approval_entry_id = ${accMappingSubmissionId}
-      ORDER BY subject_id
-    `.execute(db)
-    ).rows,
-    [{ approval_entry_id: accMappingSubmissionId, subject_id: accountId }],
-  )
-  const accMappingV2Id = ulid()
-  const accMappingV2 = await service.submit(
-    'acc-mapping',
-    'submit-change',
-    {
-      subjectId: accMappingSubjectId,
-      submissionId: accMappingV2Id,
-      idempotencyKey: accMappingV2Id,
-      expectedLatestApprovedSubmissionId: accMappingSubmissionId,
-      expectedLatestApprovedRevision: approvedAccMapping.revision,
-      snapshot: accMapping.snapshot,
-    },
-    submitter,
-    ulid(),
-  )
-  const approvedAccMappingV2 = await service.review(
-    'acc-mapping',
-    'approve',
-    {
-      subjectId: accMappingSubjectId,
-      submissionId: accMappingV2Id,
-      expectedRevision: accMappingV2.revision,
-    },
-    reviewer,
-    ulid(),
-  )
-  assert.equal(approvedAccMappingV2.status, 'APPROVED')
-  assert.equal(
-    (
-      await sql<{ count: string }>`
-      SELECT count(*)::text AS count
-      FROM dcl_acc_mapping_subject_usages
-      WHERE approval_entry_id IN (${accMappingSubmissionId}, ${accMappingV2Id})
-    `.execute(db)
-    ).rows[0]!.count,
-    '2',
-  )
-  await sql`
-    INSERT INTO dcl_acc_mapping_reference_facts (
-      mapping_approval_entry_id, document_type, document_id
-    ) VALUES (${accMappingV2Id}, 'VOU', 'vou-usage-1')
-  `.execute(db)
-  await assert.rejects(
-    service.review(
-      'acc-mapping',
-      'unapprove',
-      {
-        subjectId: accMappingSubjectId,
-        submissionId: accMappingV2Id,
-        expectedRevision: approvedAccMappingV2.revision,
-        reason: '已被凭证精确引用',
-      },
-      reviewer,
-      ulid(),
-    ),
-    (error: unknown) =>
-      error instanceof ArchiveApplicationError &&
-      error.errorKey === 'approval_strong_reference_exists',
-  )
-  assert.equal(
-    (
-      await db
-        .selectFrom('approval_entries')
-        .select('status')
-        .where('id', '=', accMappingV2Id)
-        .executeTakeFirstOrThrow()
-    ).status,
-    'APPROVED',
-  )
-  assert.equal(
-    (
-      await sql<{ count: string }>`
-      SELECT count(*)::text AS count
-      FROM dcl_acc_mapping_subject_usages
-      WHERE approval_entry_id IN (${accMappingSubmissionId}, ${accMappingV2Id})
-    `.execute(db)
-    ).rows[0]!.count,
-    '2',
-  )
-  await sql`DELETE FROM dcl_acc_mapping_reference_facts
-    WHERE mapping_approval_entry_id = ${accMappingV2Id}`.execute(db)
-  const unapprovedAccMappingV2 = await service.review(
-    'acc-mapping',
-    'unapprove',
-    {
-      subjectId: accMappingSubjectId,
-      submissionId: accMappingV2Id,
-      expectedRevision: approvedAccMappingV2.revision,
-      reason: '移除凭证引用后回落',
-    },
-    reviewer,
-    ulid(),
-  )
-  assert.equal(unapprovedAccMappingV2.status, 'PENDING')
-  assert.deepEqual(
-    (
-      await sql<{ approval_entry_id: string; subject_id: string }>`
-      SELECT approval_entry_id, subject_id
-      FROM dcl_acc_mapping_subject_usages
-      WHERE approval_entry_id IN (${accMappingSubmissionId}, ${accMappingV2Id})
-      ORDER BY approval_entry_id, subject_id
-    `.execute(db)
-    ).rows,
-    [{ approval_entry_id: accMappingSubmissionId, subject_id: accountId }],
-  )
   const validReport = await submitAndApprove('rpt-definition', {
     name: '测试报表',
     description: '目标报表定义',
@@ -1477,7 +1235,6 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     'customer',
     'other-unit',
     'sales-partner',
-    'acc-mapping',
     'rpt-definition',
   ] as const) {
     const items = isBob(entity)

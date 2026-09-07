@@ -1,3 +1,4 @@
+import MappingManagement from '../pages/acc/mapping/MappingManagement.vue'
 import CustomerManagement from '../pages/bob/customer/CustomerManagement.vue'
 import ProductManagement from '../pages/bob/product/ProductManagement.vue'
 import type { Component } from 'vue'
@@ -86,6 +87,12 @@ export function createResourceRegistry(
 }
 
 export const targetResourceRegistry = createResourceRegistry([
+  {
+    domain: 'acc',
+    entity: 'mapping',
+    component: MappingManagement,
+    useCaseKey: 'acc/mapping-management',
+  },
   {
     domain: 'app',
     entity: 'user',

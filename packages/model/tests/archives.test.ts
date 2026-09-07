@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
-  prepareAccMappingSubmit,
+  prepareAccMappingSave,
   prepareCustomerSubmit,
   prepareProductSubmit,
   prepareRptDefinitionSubmit,
@@ -20,7 +20,6 @@ const actor: ApprovalActor = {
     '/bob/product/submit-change',
     '/bob/customer/submit-new',
     '/bob/sales-partner/submit-new',
-    '/dcl/acc-mapping/submit-new',
     '/dcl/rpt-definition/submit-new',
   ],
 }
@@ -750,26 +749,27 @@ test('enforces sales partner capabilities, customer subunits, and legal identifi
 })
 
 test('keeps ACC and RPT payloads typed and frozen in their plans', () => {
-  const mapping = prepareAccMappingSubmit(
+  const mapping = prepareAccMappingSave(
     {
-      ...command(),
-      data: {
-        book: { id: 'book-1', code: 'BOOK', name: '账簿' },
-        vouEntity: { id: 'sale-order', code: 'sale-order', name: '销售订单' },
-        defaultResult: 'UN_POST',
-        definition: {
-          defaultTemplateId: null,
-          rules: [],
-          templates: [],
-          assetConfiguration: null,
-        },
+      book: { id: 'book-1', code: 'BOOK', name: '账簿' },
+      vouEntity: { id: 'sale-order', code: 'sale-order', name: '销售订单' },
+      defaultResult: 'UN_POST',
+      definition: {
+        defaultTemplateId: null,
+        rules: [],
+        templates: [],
+        assetConfiguration: null,
       },
     },
     {
       ...newFacts,
       book: { id: 'book-1', enabled: true },
       vouEntity: { id: 'sale-order', enabled: true },
-      fieldCatalog: { headerFields: ['status'], lineFields: [] },
+      fieldCatalog: {
+        collections: ['lines'],
+        headerFields: ['status'],
+        lineFields: [],
+      },
       accounts: [],
     },
   )
@@ -859,48 +859,45 @@ test('keeps ACC and RPT payloads typed and frozen in their plans', () => {
 })
 
 test('rejects a fixed mapping subject whose dimensions do not match its required dimensions', () => {
-  const mapping = prepareAccMappingSubmit(
+  const mapping = prepareAccMappingSave(
     {
-      ...command(),
-      data: {
-        book: { id: 'book-1', code: 'BOOK', name: '账簿' },
-        vouEntity: { id: 'vou-1', code: 'SALE', name: '销售订单' },
-        defaultResult: 'UN_POST',
-        definition: {
-          defaultTemplateId: null,
-          rules: [],
-          templates: [
-            {
-              templateId: 'sale-post',
-              collection: null,
-              lines: [
-                {
-                  subjectSource: 'FIXED',
-                  subjectValue: 'account-1',
-                  direction: 'DEBIT',
-                  amountField: 'amount',
-                  currencyField: 'currency',
-                  dimensions: {},
-                  quantityField: null,
-                  costCounterpartSubjectId: null,
-                  costCounterpartDimensions: {},
-                },
-                {
-                  subjectSource: 'FIELD',
-                  subjectValue: 'lineSubject',
-                  direction: 'CREDIT',
-                  amountField: 'amount',
-                  currencyField: 'currency',
-                  dimensions: {},
-                  quantityField: null,
-                  costCounterpartSubjectId: null,
-                  costCounterpartDimensions: {},
-                },
-              ],
-            },
-          ],
-          assetConfiguration: null,
-        },
+      book: { id: 'book-1', code: 'BOOK', name: '账簿' },
+      vouEntity: { id: 'vou-1', code: 'SALE', name: '销售订单' },
+      defaultResult: 'UN_POST',
+      definition: {
+        defaultTemplateId: null,
+        rules: [],
+        templates: [
+          {
+            templateId: 'sale-post',
+            collection: null,
+            lines: [
+              {
+                subjectSource: 'FIXED',
+                subjectValue: 'account-1',
+                direction: 'DEBIT',
+                amountField: 'amount',
+                currencyField: 'currency',
+                dimensions: {},
+                quantityField: null,
+                costCounterpartSubjectId: null,
+                costCounterpartDimensions: {},
+              },
+              {
+                subjectSource: 'FIELD',
+                subjectValue: 'lineSubject',
+                direction: 'CREDIT',
+                amountField: 'amount',
+                currencyField: 'currency',
+                dimensions: {},
+                quantityField: null,
+                costCounterpartSubjectId: null,
+                costCounterpartDimensions: {},
+              },
+            ],
+          },
+        ],
+        assetConfiguration: null,
       },
     },
     {
@@ -908,6 +905,7 @@ test('rejects a fixed mapping subject whose dimensions do not match its required
       book: { id: 'book-1', enabled: true },
       vouEntity: { id: 'vou-1', enabled: true },
       fieldCatalog: {
+        collections: ['lines'],
         headerFields: ['currency'],
         lineFields: ['amount', 'lineSubject', 'customer'],
       },
@@ -928,8 +926,7 @@ test('rejects a fixed mapping subject whose dimensions do not match its required
 })
 
 test('rejects ACC counterpart and asset dimensions that differ from their fixed subjects', () => {
-  const input: Parameters<typeof prepareAccMappingSubmit>[0] = {
-    ...command(),
+  const input: { data: Parameters<typeof prepareAccMappingSave>[0] } = {
     data: {
       book: { id: 'book-1', code: 'BOOK', name: '账簿' },
       vouEntity: { id: 'vou-1', code: 'SALE', name: '销售订单' },
@@ -978,11 +975,12 @@ test('rejects ACC counterpart and asset dimensions that differ from their fixed 
       },
     },
   }
-  const facts: Parameters<typeof prepareAccMappingSubmit>[1] = {
+  const facts: Parameters<typeof prepareAccMappingSave>[1] = {
     ...newFacts,
     book: { id: 'book-1', enabled: true },
     vouEntity: { id: 'vou-1', enabled: true },
     fieldCatalog: {
+      collections: ['lines'],
       headerFields: ['currency'],
       lineFields: ['amount', 'lineSubject', 'customer', 'department'],
     },
@@ -1024,85 +1022,85 @@ test('rejects ACC counterpart and asset dimensions that differ from their fixed 
       },
     ],
   }
-  assert.equal(prepareAccMappingSubmit(input, facts).ok, true)
+  assert.equal(prepareAccMappingSave(input.data, facts).ok, true)
 
   const nullCounterpart = structuredClone(input)
   nullCounterpart.data.definition.templates[0]!.lines[1]!.costCounterpartDimensions =
     {
       customer: 'customer',
     }
-  assert.equal(prepareAccMappingSubmit(nullCounterpart, facts).ok, false)
+  assert.equal(prepareAccMappingSave(nullCounterpart.data, facts).ok, false)
 
   const mismatchedCounterpart = structuredClone(input)
   mismatchedCounterpart.data.definition.templates[0]!.lines[0]!.costCounterpartDimensions =
     {
       customer: 'customer',
     }
-  assert.equal(prepareAccMappingSubmit(mismatchedCounterpart, facts).ok, false)
+  assert.equal(
+    prepareAccMappingSave(mismatchedCounterpart.data, facts).ok,
+    false,
+  )
 
   const mismatchedAsset = structuredClone(input)
   mismatchedAsset.data.definition.assetConfiguration!.accumulatedDepreciationDimensions =
     {}
-  assert.equal(prepareAccMappingSubmit(mismatchedAsset, facts).ok, false)
+  assert.equal(prepareAccMappingSave(mismatchedAsset.data, facts).ok, false)
 })
 
 test('validates full MappingDefinition facts and keeps RPT validity separate from Approval', () => {
-  const valid = prepareAccMappingSubmit(
+  const valid = prepareAccMappingSave(
     {
-      ...command(),
-      data: {
-        book: { id: 'book-1', code: 'BOOK', name: '账簿' },
-        vouEntity: { id: 'vou-1', code: 'SALE', name: '销售订单' },
-        defaultResult: 'UN_POST',
-        definition: {
-          defaultTemplateId: null,
-          rules: [
-            {
-              conditions: [
-                { field: 'header.status', operator: 'EQ', values: ['READY'] },
-              ],
-              result: 'POST',
-              templateId: 'sale-post',
-            },
-          ],
-          templates: [
-            {
-              templateId: 'sale-post',
-              collection: 'lines',
-              lines: [
-                {
-                  subjectSource: 'FIXED',
-                  subjectValue: 'account-1',
-                  direction: 'DEBIT',
-                  amountField: 'lines.amount',
-                  currencyField: 'header.currency',
-                  dimensions: { customer: 'header.customerId' },
-                  quantityField: 'lines.quantity',
-                  costCounterpartSubjectId: null,
-                  costCounterpartDimensions: {},
-                },
-                {
-                  subjectSource: 'FIELD',
-                  subjectValue: 'lines.subjectId',
-                  direction: 'CREDIT',
-                  amountField: 'lines.amount',
-                  currencyField: 'header.currency',
-                  dimensions: {},
-                  quantityField: null,
-                  costCounterpartSubjectId: null,
-                  costCounterpartDimensions: {},
-                },
-              ],
-            },
-          ],
-          assetConfiguration: {
-            assetSubjectId: 'asset-account',
-            assetDimensions: {},
-            accumulatedDepreciationSubjectId: 'accumulated-account',
-            accumulatedDepreciationDimensions: {},
-            depreciationExpenseSubjectId: 'expense-account',
-            depreciationExpenseDimensions: {},
+      book: { id: 'book-1', code: 'BOOK', name: '账簿' },
+      vouEntity: { id: 'vou-1', code: 'SALE', name: '销售订单' },
+      defaultResult: 'UN_POST',
+      definition: {
+        defaultTemplateId: null,
+        rules: [
+          {
+            conditions: [
+              { field: 'header.status', operator: 'EQ', values: ['READY'] },
+            ],
+            result: 'POST',
+            templateId: 'sale-post',
           },
+        ],
+        templates: [
+          {
+            templateId: 'sale-post',
+            collection: 'lines',
+            lines: [
+              {
+                subjectSource: 'FIXED',
+                subjectValue: 'account-1',
+                direction: 'DEBIT',
+                amountField: 'lines.amount',
+                currencyField: 'header.currency',
+                dimensions: { customer: 'header.customerId' },
+                quantityField: 'lines.quantity',
+                costCounterpartSubjectId: null,
+                costCounterpartDimensions: {},
+              },
+              {
+                subjectSource: 'FIELD',
+                subjectValue: 'lines.subjectId',
+                direction: 'CREDIT',
+                amountField: 'lines.amount',
+                currencyField: 'header.currency',
+                dimensions: {},
+                quantityField: null,
+                costCounterpartSubjectId: null,
+                costCounterpartDimensions: {},
+              },
+            ],
+          },
+        ],
+        assetConfiguration: {
+          assetSubjectId: 'asset-account',
+          assetDimensions: {},
+          accumulatedDepreciationSubjectId: 'accumulated-account',
+          accumulatedDepreciationDimensions: {},
+          depreciationExpenseSubjectId: 'expense-account',
+          depreciationExpenseDimensions: {},
         },
       },
     },
@@ -1111,6 +1109,7 @@ test('validates full MappingDefinition facts and keeps RPT validity separate fro
       book: { id: 'book-1', enabled: true },
       vouEntity: { id: 'vou-1', enabled: true },
       fieldCatalog: {
+        collections: ['lines'],
         headerFields: ['header.status', 'header.currency', 'header.customerId'],
         lineFields: [
           'lines.amount',

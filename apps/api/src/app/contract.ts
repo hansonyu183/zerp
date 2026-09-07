@@ -258,6 +258,7 @@ const accMappingCatalog = z
           name: z.string(),
           fieldCatalog: z
             .object({
+              collections: z.array(z.string()),
               headerFields: z.array(z.string()),
               lineFields: z.array(z.string()),
             })
@@ -350,13 +351,16 @@ const accMappingDefinition = z
 const accMappingCurrent = z
   .object({
     subjectId: z.string().length(26),
-    approvalEntryId: z.string().length(26),
-    approvalRevision: z.string(),
+    revision: z.string(),
     book: z
       .object({ id: z.string().length(26), code: z.string(), name: z.string() })
       .strict(),
     vouEntity: z
-      .object({ id: z.string().length(26), code: z.string(), name: z.string() })
+      .object({
+        id: z.string().min(1).max(26),
+        code: z.string(),
+        name: z.string(),
+      })
       .strict(),
     defaultResult: z.enum(['POST', 'UN_POST']),
     definition: accMappingDefinition,
@@ -416,7 +420,7 @@ export const accMappingQueryRoute = accMappingRoute(
     })
     .strict(),
   accMappingQueryData,
-  'Current approved ACC mappings envelope',
+  'Current ACC mappings envelope',
 )
 export const accMappingGetRoute = accMappingRoute(
   '/acc/mapping/get',
@@ -427,7 +431,24 @@ export const accMappingGetRoute = accMappingRoute(
     })
     .strict(),
   accMappingCurrent,
-  'Current approved ACC mapping envelope',
+  'Current ACC mapping envelope',
+)
+export const accMappingSaveRoute = accMappingRoute(
+  '/acc/mapping/save',
+  z
+    .object({
+      bookId: z.string().length(26),
+      vouEntity: z.string().min(1).max(64),
+      expectedRevision: z
+        .string()
+        .regex(/^[1-9]\d*$/)
+        .nullable(),
+      defaultResult: z.enum(['POST', 'UN_POST']),
+      definition: accMappingDefinition,
+    })
+    .strict(),
+  accMappingCurrent,
+  'Saved ACC current mapping envelope',
 )
 export const accMappingCatalogRoute = accMappingRoute(
   '/acc/mapping/catalog',
@@ -451,6 +472,7 @@ export const targetRouteMetadata = [
       ['query', accMappingQueryRoute, '查询当前会计映射'],
       ['get', accMappingGetRoute, '查看当前会计映射'],
       ['catalog', accMappingCatalogRoute, '会计映射目录'],
+      ['save', accMappingSaveRoute, '保存当前会计映射'],
     ] as const
   ).map(([action, route, title]) => ({
     method: route.method,
@@ -479,6 +501,10 @@ export interface TargetRouteHandlers {
     typeof accMappingQueryRoute,
     TargetRouteEnvironment
   >
+  accMappingSave: RouteHandler<
+    typeof accMappingSaveRoute,
+    TargetRouteEnvironment
+  >
   accMappingGet: RouteHandler<typeof accMappingGetRoute, TargetRouteEnvironment>
   accMappingCatalog: RouteHandler<
     typeof accMappingCatalogRoute,
@@ -500,6 +526,7 @@ export function registerTargetRoutes<
     { route: queryWorkbenchRoute, handler: handlers.queryWorkbench },
     { route: accMappingQueryRoute, handler: handlers.accMappingQuery },
     { route: accMappingGetRoute, handler: handlers.accMappingGet },
+    { route: accMappingSaveRoute, handler: handlers.accMappingSave },
     { route: accMappingCatalogRoute, handler: handlers.accMappingCatalog },
   ] as const)
   const independent = registerIndependentRoutes(

@@ -49,14 +49,11 @@ test('isolated target schema contains every target typed aggregate', async () =>
       'dcl_vehicle_versions',
       'dcl_fund_account_versions',
       'dcl_operating_entity_versions',
-      'dcl_acc_mapping_versions',
+      'acc_mapping_history',
       'dcl_rpt_definition_versions',
       'rpt_definition_validities',
-      'dcl_acc_book_facts',
-      'dcl_acc_vou_entity_facts',
-      'dcl_acc_subject_facts',
-      'dcl_acc_mapping_subject_usages',
-      'dcl_acc_mapping_reference_facts',
+      'acc_mapping_vou_entities',
+      'acc_mapping_legacy_reference_facts',
       'approval_events',
       'attachment_deletion_jobs',
       'dcl_warehouse_idempotency',
@@ -68,6 +65,8 @@ test('isolated target schema contains every target typed aggregate', async () =>
       'acc_books',
       'acc_book_access',
       'acc_subjects',
+      'acc_mappings',
+      'acc_mapping_subject_usages',
       'acc_opening_snapshots',
       'acc_periods',
       'acc_period_balances',
@@ -195,7 +194,7 @@ test('isolated target schema contains every target typed aggregate', async () =>
   assert.match(schema, /rpt_execution_audits/)
   assert.doesNotMatch(schema, /CREATE (?:FUNCTION|TRIGGER|PROCEDURE)/i)
   assert.match(schema, /'acc-mapping'/)
-  assert.match(schema, /dcl_acc_mapping_versions/)
+  assert.match(schema, /acc_mapping_history/)
   assert.match(
     schema,
     /acc_journal_entries[\s\S]*source_kind varchar\(32\) NOT NULL DEFAULT 'VOU'/,
@@ -210,12 +209,9 @@ test('isolated target schema contains every target typed aggregate', async () =>
   assert.match(schema, /status IN \('VALID', 'INVALID'\)/)
   assert.match(
     schema,
-    /dcl_acc_vou_entity_facts[\s\S]*field_catalog jsonb NOT NULL/,
+    /acc_mapping_vou_entities[\s\S]*field_catalog jsonb NOT NULL/,
   )
-  assert.match(
-    schema,
-    /dcl_acc_subject_facts[\s\S]*required_dimensions jsonb NOT NULL/,
-  )
+  assert.match(schema, /acc_subjects[\s\S]*required_dimensions jsonb NOT NULL/)
   assert.doesNotMatch(schema, /current_(?:version|approval)_?(?:id|entry)/i)
   for (const legacy of ['DRAFT', 'WITHDRAWN', 'REVOKED', 'UNSUBMITTED'])
     assert.doesNotMatch(schema, new RegExp(`\\b${legacy}\\b`))

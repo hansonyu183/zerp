@@ -297,21 +297,6 @@ test('archive query contract uses the fixed page shell and entity-specific filte
     },
   )
   assert.throws(() => product.parse({ ...input, pageSize: 10 }))
-
-  const mapping =
-    archiveRouteSets['acc-mapping'].query.request.body.content[
-      'application/json'
-    ].schema
-  assert.deepEqual(
-    mapping.parse({
-      ...input,
-      filters: { bookId: '01J00000000000000000000001', vouEntity: 'SALE' },
-    }),
-    {
-      ...input,
-      filters: { bookId: '01J00000000000000000000001', vouEntity: 'SALE' },
-    },
-  )
 })
 
 test('archive failures expose typed current AUX and ACC blockers', () => {
@@ -329,20 +314,6 @@ test('archive failures expose typed current AUX and ACC blockers', () => {
       objectId: '01J00000000000000000000001',
       field: 'carrier',
       approvalEntryId: '01J00000000000000000000003',
-    },
-  )
-  assert.deepEqual(
-    archiveBlockerSchema.parse({
-      kind: 'ACC_MAPPING_REFERENCE',
-      mappingApprovalEntryId: '01J00000000000000000000003',
-      documentType: 'VOUCHER',
-      documentId: 'vou-1',
-    }),
-    {
-      kind: 'ACC_MAPPING_REFERENCE',
-      mappingApprovalEntryId: '01J00000000000000000000003',
-      documentType: 'VOUCHER',
-      documentId: 'vou-1',
     },
   )
   assert.throws(() =>
@@ -476,7 +447,7 @@ test('target OpenAPI contains the separated DCL and BOB archive lifecycle routes
     paths: Record<string, unknown>
   }
   const paths = new Set(Object.keys(document.paths))
-  const entities = ['acc-mapping', 'rpt-definition']
+  const entities = ['rpt-definition']
   const actions = [
     'query',
     'get',
@@ -570,6 +541,7 @@ test('target OpenAPI exposes typed ACC mapping current-read permissions', async 
     '/acc/mapping/query',
     '/acc/mapping/get',
     '/acc/mapping/catalog',
+    '/acc/mapping/save',
   ])
     assert.ok(document.paths[path])
   const catalog = JSON.parse(
@@ -581,6 +553,7 @@ test('target OpenAPI exposes typed ACC mapping current-read permissions', async 
     '/acc/mapping/query',
     '/acc/mapping/get',
     '/acc/mapping/catalog',
+    '/acc/mapping/save',
   ])
     assert.ok(catalog.some((entry) => entry.path === path))
 })

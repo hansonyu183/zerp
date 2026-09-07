@@ -198,14 +198,13 @@ export class WorkbenchService {
         e.id, e.domain, e.entity, e.subject_id, e.status, e.revision,
         e.submitted_by, e.submitted_at, e.rejected_by, e.rejected_at,
         e.rejection_reason, e.updated_at,
-        COALESCE(s.code, mapping.vou_entity_snapshot->>'code', e.subject_id) AS code,
+        COALESCE(s.code, e.subject_id) AS code,
         COALESCE(
-          mapping.vou_entity_snapshot->>'name', rpt_definition.name,
+          rpt_definition.name,
           wfl_definition.compiled_graph->>'name', s.code, e.subject_id
         ) AS name
       FROM approval_entries e
       INNER JOIN dcl_subjects s ON s.id = e.subject_id
-      LEFT JOIN dcl_acc_mapping_versions mapping ON mapping.approval_entry_id = e.id
       LEFT JOIN dcl_rpt_definition_versions rpt_definition ON rpt_definition.approval_entry_id = e.id
       LEFT JOIN wfl_definition_versions wfl_definition ON wfl_definition.approval_entry_id = e.id
       WHERE e.domain = 'dcl'

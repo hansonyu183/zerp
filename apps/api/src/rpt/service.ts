@@ -746,11 +746,8 @@ export class RptService {
           'version.display_name',
         )
       case 'EMPLOYEE':
-        return currentDcl(
-          'employee',
-          'dcl_employee_versions',
-          'version.display_name',
-        )
+        return `SELECT id, code, data->>'displayName' AS name
+          FROM aux_objects WHERE entity = 'employee' AND enabled`
       case 'SALES_PARTNER':
         return currentDcl(
           'sales-partner',
@@ -803,10 +800,11 @@ export class RptService {
         JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'dcl' AND entry.entity = subject.entity AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
         JOIN dcl_other_unit_versions version ON subject.entity = 'other-unit' AND version.approval_entry_id = approval.id AND version.enabled
         UNION ALL
-        SELECT subject.id, subject.code, version.display_name AS name, subject.entity, subject.id AS object_id, approval.id AS approval_entry_id
-        FROM dcl_subjects subject
-        JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'dcl' AND entry.entity = subject.entity AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
-        JOIN dcl_employee_versions version ON subject.entity = 'employee' AND version.approval_entry_id = approval.id AND version.enabled
+        SELECT employee.id, employee.code, employee.data->>'displayName' AS name,
+          'employee'::varchar AS entity, employee.id AS object_id,
+          NULL::varchar AS approval_entry_id
+        FROM aux_objects employee
+        WHERE employee.entity = 'employee' AND employee.enabled
         UNION ALL
         SELECT subject.id, subject.code, version.display_name AS name, subject.entity, subject.id AS object_id, approval.id AS approval_entry_id
         FROM dcl_subjects subject
@@ -829,7 +827,7 @@ export class RptService {
       return rows.map(({ id: _id, object_id, approval_entry_id, ...item }) => ({
         ...item,
         objectId: object_id!,
-        approvalEntryId: approval_entry_id!,
+        ...(approval_entry_id ? { approvalEntryId: approval_entry_id } : {}),
       }))
     return rows
   }

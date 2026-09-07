@@ -12,7 +12,9 @@ vi.mock('@/target/api.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/target/api.ts')>()),
   queryTargetAssetCategories: vi.fn(),
   queryTargetEmployeeCategories: vi.fn(),
+  queryTargetEmployees: vi.fn(),
   queryTargetMeasurementUnits: vi.fn(),
+  queryTargetOperatingEntities: vi.fn(),
   queryTargetPaymentMethods: vi.fn(),
   queryTargetPermissions: vi.fn(),
   queryTargetPositions: vi.fn(),
@@ -24,7 +26,9 @@ const queryAssetCategories = vi.mocked(targetApi.queryTargetAssetCategories)
 const queryEmployeeCategories = vi.mocked(
   targetApi.queryTargetEmployeeCategories,
 )
+const queryEmployees = vi.mocked(targetApi.queryTargetEmployees)
 const queryMeasurementUnits = vi.mocked(targetApi.queryTargetMeasurementUnits)
+const queryOperatingEntities = vi.mocked(targetApi.queryTargetOperatingEntities)
 const queryPaymentMethods = vi.mocked(targetApi.queryTargetPaymentMethods)
 const queryPermissions = vi.mocked(targetApi.queryTargetPermissions)
 const queryPositions = vi.mocked(targetApi.queryTargetPositions)
@@ -139,6 +143,7 @@ function configureApi(): void {
   queryEmployeeCategories.mockResolvedValue(
     page([identity('employee-category')]) as never,
   )
+  queryEmployees.mockResolvedValue(page([identity('employee')]) as never)
   queryPositions.mockResolvedValue(page([identity('position')]) as never)
   queryMeasurementUnits.mockResolvedValue(
     page([
@@ -151,6 +156,9 @@ function configureApi(): void {
   queryAssetCategories.mockResolvedValue(
     page([identity('asset-category')]) as never,
   )
+  queryOperatingEntities.mockResolvedValue(
+    page([identity('operating-entity')]) as never,
+  )
 }
 
 function authorize(paths: string[]): void {
@@ -160,7 +168,7 @@ function authorize(paths: string[]): void {
   session.apiPaths = paths
 }
 
-describe('seven registered ListPage consumers', () => {
+describe('registered ListPage consumers', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     configureApi()
@@ -233,6 +241,24 @@ describe('seven registered ListPage consumers', () => {
         editor: '新增资产类别',
         code: 'asset-category-code',
         name: 'asset-category 名称',
+      },
+      {
+        domain: 'aux',
+        entity: 'operating-entity',
+        query: queryOperatingEntities,
+        paths: ['/aux/operating-entity/query', '/aux/operating-entity/create'],
+        editor: '新增经营主体',
+        code: 'operating-entity-code',
+        name: 'operating-entity 名称',
+      },
+      {
+        domain: 'aux',
+        entity: 'employee',
+        query: queryEmployees,
+        paths: ['/aux/employee/query', '/aux/employee/create'],
+        editor: '新增员工',
+        code: 'employee-code',
+        name: 'employee 名称',
       },
     ] as const
 

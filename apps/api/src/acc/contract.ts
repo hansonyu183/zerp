@@ -1,4 +1,6 @@
 import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
+
+import { auxPeopleDataSchemas } from '../app/aux-contract.ts'
 import type { Schema } from 'hono'
 import { accBookTemplates, accSettlementPurposes, accSubjectDimensions } from '@zerp/model'
 
@@ -18,14 +20,42 @@ const subjectQuery = bookIdentity.extend({ page: z.number().int().min(1).default
 const money = z.string().regex(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/)
 const nonNegativeMoney = money
 const optionalId = z.string().length(26).optional()
-const archiveReference = z.object({
-  entity: z.enum(['customer', 'supplier', 'other-unit', 'employee', 'sales-partner', 'operating-entity']),
+const versionedCounterpartyReference = z.object({
+  entity: z.enum(['customer', 'supplier', 'other-unit', 'sales-partner']),
   objectId: z.string().length(26),
   customerId: z.string().length(26).optional(),
   approvalEntryId: z.string().length(26),
   code: z.string().min(1).max(64),
   name: z.string().min(1).max(200),
 }).strict()
+const auxPeopleCounterpartyReference = z.object({
+  entity: z.enum(['employee', 'operating-entity']),
+  objectId: z.string().length(26),
+  // The submit handler derives these fields. They are present in persisted views.
+  code: z.string().min(1).max(64).optional(),
+  name: z.string().min(1).max(200).optional(),
+  snapshot: z.union([
+    auxPeopleDataSchemas['employee'],
+    auxPeopleDataSchemas['operating-entity'],
+  ]).optional(),
+}).strict()
+const historicalAuxPeopleCounterpartyReference = z.object({
+  entity: z.enum(['employee', 'operating-entity']),
+  objectId: z.string().length(26),
+  approvalEntryId: z.string().length(26),
+  code: z.string().min(1).max(64),
+  name: z.string().min(1).max(200),
+}).strict()
+const archiveReference = z.union([
+  versionedCounterpartyReference,
+  auxPeopleCounterpartyReference,
+  // Existing opening snapshots retain their old approved identity on read.
+  historicalAuxPeopleCounterpartyReference,
+])
+const openingSubmitArchiveReference = z.union([
+  versionedCounterpartyReference,
+  auxPeopleCounterpartyReference,
+])
 const openingAsset = z.object({
   assetId: optionalId,
   assetNo: z.string().trim().max(64).optional(),
@@ -59,6 +89,9 @@ const openingBill = z.object({
   valueAmount: money,
   originatingCounterparty: archiveReference.optional(),
 }).strict()
+const openingSubmitBill = openingBill.extend({
+  originatingCounterparty: openingSubmitArchiveReference.optional(),
+}).strict()
 const openingContainer = z.object({
   subunit: z.object({
     entity: z.literal('customer-subunit'),
@@ -76,6 +109,7 @@ const opening = z.object({
   lines: z.array(z.object({ subjectId: z.string().length(26), currency: z.string().regex(/^[A-Z]{3}$/), direction: z.enum(['DEBIT', 'CREDIT']), amount: money, dimensions: z.record(z.string(), z.string().length(26)), quantity: z.string().regex(/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/).optional() }).strict()),
   assets: z.array(openingAsset), bills: z.array(openingBill), containers: z.array(openingContainer),
 }).strict()
+const openingSubmit = opening.extend({ bills: z.array(openingSubmitBill) }).strict()
 const openingReview = z.object({ bookId: z.string().length(26), submissionId: z.string().length(26), expectedRevision: z.string().regex(/^[1-9]\d*$/) }).strict()
 const openingReason = openingReview.extend({ reason: z.string().trim().min(1).max(1000) }).strict()
 const period = z.object({ bookId: z.string().length(26), month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), expectedRevision: z.string().regex(/^[1-9]\d*$/).nullable() }).strict()
@@ -124,7 +158,7 @@ export const accRouteSet = {
   bookCreate: route('/acc/book/create', bookCreate, envelope(bookView)), bookSave: route('/acc/book/save', bookSave, envelope(bookView)), bookDelete: route('/acc/book/delete', revisionIdentity, envelope(deleted)),
   subjectQuery: route('/acc/subject/query', subjectQuery, envelope(z.object({ items: z.array(subjectView), total: z.number().int().nonnegative(), page: z.number().int().positive(), pageSize: z.number().int().positive() }).strict())), subjectGet: route('/acc/subject/get', identity, envelope(subjectView)),
   subjectCreate: route('/acc/subject/create', subject, envelope(subjectView)), subjectSave: route('/acc/subject/save', subjectSave, envelope(subjectView)), subjectDelete: route('/acc/subject/delete', revisionIdentity, envelope(deleted)),
-  openingQuery: route('/acc/opening/query', bookIdentity, envelope(openingView)), openingSubmit: route('/acc/opening/submit-new', opening, envelope(openingView)),
+  openingQuery: route('/acc/opening/query', bookIdentity, envelope(openingView)), openingSubmit: route('/acc/opening/submit-new', openingSubmit, envelope(openingView)),
   openingApprove: route('/acc/opening/approve', openingReview, envelope(openingView)), openingReject: route('/acc/opening/reject', openingReason, envelope(openingView)), openingUnreject: route('/acc/opening/unreject', openingReview, envelope(openingView)), openingUnapprove: route('/acc/opening/unapprove', openingReason, envelope(openingView)), openingDelete: route('/acc/opening/delete', openingReview, envelope(deletedSubmission)),
   periodQuery: route('/acc/period/query', bookIdentity, envelope(z.array(periodView))), periodLock: route('/acc/period/lock', period, envelope(periodView)), periodUnlock: route('/acc/period/unlock', period, envelope(periodView)),
 } as const

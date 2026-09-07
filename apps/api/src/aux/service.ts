@@ -1,6 +1,14 @@
 import type { Kysely, Transaction } from 'kysely'
 import { sql } from 'kysely'
 import { ulid } from 'ulid'
+import type {
+  AuxCurrentEntity,
+  AuxCurrentSnapshot,
+  EmployeeCurrentData,
+  EmployeeCurrentInput,
+  OperatingEntityCurrentData,
+  OperatingEntityCurrentInput,
+} from '@zerp/model'
 
 import type { DB } from '../db/generated.ts'
 import { changeEnablement } from '../enablement/service.ts'
@@ -21,6 +29,8 @@ export const auxEntities = [
   'measurement-unit',
   'income-expense-type',
   'asset-category',
+  'operating-entity',
+  'employee',
 ] as const
 
 export type AuxEntity = (typeof auxEntities)[number]
@@ -93,6 +103,8 @@ export interface AuxDataByEntity {
     defaultResidualRate: string
     description: string
   }
+  'operating-entity': OperatingEntityCurrentData
+  employee: EmployeeCurrentData
 }
 
 export interface AuxWriteDataByEntity {
@@ -131,6 +143,8 @@ export interface AuxWriteDataByEntity {
   'asset-category': Omit<AuxDataByEntity['asset-category'], 'description'> & {
     description?: string
   }
+  'operating-entity': OperatingEntityCurrentInput
+  employee: EmployeeCurrentInput
 }
 
 export type AuxWriteData<Entity extends AuxEntity> =
@@ -160,6 +174,19 @@ export interface AuxMutationResult {
   enabled: boolean
 }
 
+/** One legacy current fact imported by the migration inside its transaction. */
+export interface AuxCurrentImportRow {
+  entity: AuxCurrentEntity
+  id: string
+  code: string
+  data: OperatingEntityCurrentInput | EmployeeCurrentData
+  enabled: boolean
+  createdAt: Date | string
+  createdBy: string
+  updatedAt: Date | string
+  updatedBy: string
+}
+
 export interface AuxIdentifierInput {
   id: string
 }
@@ -187,6 +214,13 @@ interface ParsedAuxRow<Entity extends AuxEntity = AuxEntity> {
   data: AuxDataByEntity[Entity]
   updatedAt: string
   updatedBy: string
+}
+
+export interface AuxPeopleReference<Entity extends AuxCurrentEntity> {
+  objectId: string
+  code: string
+  name: string
+  data: AuxDataByEntity[Entity]
 }
 
 export interface AuxReferenceQueryInput {
@@ -233,7 +267,12 @@ export interface AuxReferenceCandidate {
 
 export class AuxApplicationError extends Error {
   readonly errorKey:
-    'validation_failed' | 'conflict' | 'forbidden' | 'internal_error'
+    | 'validation_failed'
+    | 'conflict'
+    | 'forbidden'
+    | 'internal_error'
+    | 'operating_entity_duplicate_legal_identifier'
+    | 'employee_duplicate_legal_identifier'
   readonly data: unknown
 
   constructor(errorKey: AuxApplicationError['errorKey'], data: unknown = null) {
@@ -268,6 +307,8 @@ const codePrefixes: Record<AuxEntity, string> = {
   'measurement-unit': 'UNT',
   'income-expense-type': 'IET',
   'asset-category': 'ACT',
+  'operating-entity': 'OPE',
+  employee: 'EMP',
 }
 
 function applicationError(
@@ -360,6 +401,14 @@ function requiredString(value: unknown): string {
   return normalized
 }
 
+function requiredText(value: unknown, maxLength: number): string {
+  if (typeof value !== 'string') applicationError('validation_failed')
+  const normalized = value.trim()
+  if (normalized.length === 0 || [...normalized].length > maxLength)
+    applicationError('validation_failed')
+  return normalized
+}
+
 function optionalString(value: unknown, maxLength = 1000): string {
   if (value === undefined || value === null) return ''
   if (typeof value !== 'string' || [...value].length > maxLength)
@@ -372,6 +421,45 @@ function optionalId(value: unknown): string | null {
   if (typeof value !== 'string' || !/^[0-9A-HJKMNP-TV-Z]{26}$/.test(value))
     applicationError('validation_failed')
   return value
+}
+
+function requiredId(value: unknown): string {
+  return optionalId(value) ?? applicationError('validation_failed')
+}
+
+function normalizedLegalIdentifier(value: unknown): string {
+  if (typeof value !== 'string') applicationError('validation_failed')
+  const normalized = value.replace(/[\s-]/g, '').toUpperCase()
+  if (!normalized || [...normalized].length > 128)
+    applicationError('validation_failed')
+  return normalized
+}
+
+function employmentDate(value: unknown): string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value))
+    applicationError('validation_failed')
+  const date = new Date(`${value}T00:00:00.000Z`)
+  if (Number.isNaN(date.valueOf()) || date.toISOString().slice(0, 10) !== value)
+    applicationError('validation_failed')
+  return value
+}
+
+function currentEntity(value: AuxEntity): value is AuxCurrentEntity {
+  return value === 'operating-entity' || value === 'employee'
+}
+
+function snapshot(value: unknown): AuxCurrentSnapshot {
+  const source = asRecord(value)
+  only(source, ['id', 'code', 'name'])
+  return {
+    id: requiredId(source.id),
+    code: requiredText(source.code, 64),
+    name: requiredText(source.name, 200),
+  }
+}
+
+function employeeReferenceSource(employeeId: string): string {
+  return `aux_employee:${employeeId}`
 }
 
 function integer(value: unknown, minimum: number, maximum: number): number {
@@ -456,6 +544,77 @@ function parentData(
 
 function normaliseData(entity: AuxEntity, source: unknown): AuxData {
   const data = asRecord(source)
+  if (entity === 'operating-entity') {
+    only(data, [
+      'legalName',
+      'shortName',
+      'legalIdentifier',
+      'registeredAddress',
+      'contactName',
+      'contactPhone',
+      'invoiceTitle',
+      'invoiceAddress',
+      'invoicePhone',
+      'invoiceBank',
+      'invoiceAccount',
+      'remark',
+    ])
+    const legalIdentifier = normalizedLegalIdentifier(data.legalIdentifier)
+    if (!/^[0-9A-Z]{18}$/.test(legalIdentifier))
+      applicationError('validation_failed')
+    return {
+      legalName: requiredText(data.legalName, 200),
+      shortName: optionalString(data.shortName, 100),
+      legalIdentifier,
+      registeredAddress: optionalString(data.registeredAddress, 500),
+      contactName: optionalString(data.contactName, 100),
+      contactPhone: optionalString(data.contactPhone, 32),
+      invoiceTitle: optionalString(data.invoiceTitle, 200),
+      invoiceAddress: optionalString(data.invoiceAddress, 500),
+      invoicePhone: optionalString(data.invoicePhone, 32),
+      invoiceBank: optionalString(data.invoiceBank, 200),
+      invoiceAccount: optionalString(data.invoiceAccount, 128),
+      remark: optionalString(data.remark),
+    }
+  }
+  if (entity === 'employee') {
+    only(data, [
+      'identityKind',
+      'legalName',
+      'displayName',
+      'legalIdentifier',
+      'contactName',
+      'phone',
+      'address',
+      'employeeCategoryId',
+      'departmentId',
+      'positionId',
+      'employmentDate',
+      'workPhone',
+      'workEmail',
+      'operatingEntityId',
+      'remark',
+    ])
+    if (data.identityKind !== 'PERSON' && data.identityKind !== 'ORGANIZATION')
+      applicationError('validation_failed')
+    return {
+      identityKind: data.identityKind,
+      legalName: requiredText(data.legalName, 200),
+      displayName: requiredText(data.displayName, 200),
+      legalIdentifier: normalizedLegalIdentifier(data.legalIdentifier),
+      contactName: optionalString(data.contactName, 100),
+      phone: optionalString(data.phone, 32),
+      address: optionalString(data.address, 500),
+      employeeCategoryId: requiredId(data.employeeCategoryId),
+      departmentId: requiredId(data.departmentId),
+      positionId: requiredId(data.positionId),
+      employmentDate: employmentDate(data.employmentDate),
+      workPhone: optionalString(data.workPhone, 32),
+      workEmail: optionalString(data.workEmail, 320),
+      operatingEntityId: requiredId(data.operatingEntityId),
+      remark: optionalString(data.remark),
+    }
+  }
   const name = requiredString(data.name)
   switch (entity) {
     case 'product-category':
@@ -606,6 +765,57 @@ function parseData(
   source: unknown,
 ): AuxDataByEntity[AuxEntity] {
   const stored = asRecord(source)
+  if (entity === 'employee') {
+    const data = stored
+    only(data, [
+      'identityKind',
+      'legalName',
+      'displayName',
+      'legalIdentifier',
+      'contactName',
+      'phone',
+      'address',
+      'employeeCategory',
+      'department',
+      'position',
+      'employmentDate',
+      'workPhone',
+      'workEmail',
+      'operatingEntity',
+      'remark',
+    ])
+    const normalized = normaliseData('employee', {
+      identityKind: data.identityKind,
+      legalName: data.legalName,
+      displayName: data.displayName,
+      legalIdentifier: data.legalIdentifier,
+      contactName: data.contactName,
+      phone: data.phone,
+      address: data.address,
+      employeeCategoryId: snapshot(data.employeeCategory).id,
+      departmentId: snapshot(data.department).id,
+      positionId: snapshot(data.position).id,
+      employmentDate: data.employmentDate,
+      workPhone: data.workPhone,
+      workEmail: data.workEmail,
+      operatingEntityId: snapshot(data.operatingEntity).id,
+      remark: data.remark,
+    })
+    const {
+      employeeCategoryId: _employeeCategoryId,
+      departmentId: _departmentId,
+      positionId: _positionId,
+      operatingEntityId: _operatingEntityId,
+      ...employee
+    } = normalized
+    return {
+      ...employee,
+      employeeCategory: snapshot(data.employeeCategory),
+      department: snapshot(data.department),
+      position: snapshot(data.position),
+      operatingEntity: snapshot(data.operatingEntity),
+    } as EmployeeCurrentData
+  }
   const normalized = normaliseReferenceData(entity, stored)
   if (entity !== 'dictionary-item')
     return normalized as AuxDataByEntity[AuxEntity]
@@ -646,12 +856,20 @@ function availableActions(
   return actions
 }
 
+function currentName(row: ParsedAuxRow): string {
+  if (row.entity === 'operating-entity')
+    return (row.data as OperatingEntityCurrentData).legalName
+  if (row.entity === 'employee')
+    return (row.data as EmployeeCurrentData).displayName
+  return (row.data as { name: string }).name
+}
+
 function listItem(row: ParsedAuxRow, actor: AuxActor): AuxListItem {
   return {
     id: row.id,
     code: row.code,
-    py: searchPinyin(row.data.name),
-    name: row.data.name,
+    py: searchPinyin(currentName(row)),
+    name: currentName(row),
     enabled: row.enabled,
     revision: row.revision,
     availableActions: availableActions(row.entity, row.enabled, actor),
@@ -670,11 +888,105 @@ function detail<Entity extends AuxEntity>(
   }
 }
 
+/**
+ * Resolves an enabled AUX person/archive reference inside the caller's
+ * transaction. Consumers persist the returned typed snapshot with their own
+ * business fact; later current edits never reinterpret that adoption.
+ */
+export async function resolveAuxPeopleReference<
+  Entity extends AuxCurrentEntity,
+>(
+  transaction: Transaction<DB>,
+  entity: Entity,
+  id: string,
+): Promise<AuxPeopleReference<Entity>> {
+  if (!/^[0-9A-HJKMNP-TV-Z]{26}$/.test(id))
+    applicationError('validation_failed')
+  const result =
+    await sql<StoredAuxObject>`SELECT id, entity, code, enabled, revision, data, updated_at, updated_by
+    FROM aux_objects WHERE id = ${id} AND entity = ${entity} AND enabled = true FOR SHARE`.execute(
+      transaction,
+    )
+  const row = result.rows[0]
+  if (!row)
+    applicationError('conflict', {
+      blockers: [{ field: 'reference', objectId: id, entity }],
+    })
+  const parsed = parseRow(row) as ParsedAuxRow<Entity>
+  return {
+    objectId: parsed.id,
+    code: parsed.code,
+    name: currentName(parsed),
+    data: parsed.data as AuxDataByEntity[Entity],
+  }
+}
+
 export class AuxService {
   private readonly db: Kysely<DB>
 
   constructor(db: Kysely<DB>) {
     this.db = db
+  }
+
+  /**
+   * Imports one selected DCL current fact into the caller's migration
+   * transaction. Employee snapshots are historical adopted facts: validate
+   * their stable identities and codes, but never replace their frozen names
+   * with a later AUX current value.
+   */
+  async importCurrent(
+    transaction: Transaction<DB>,
+    row: AuxCurrentImportRow,
+  ): Promise<void> {
+    if (!currentEntity(row.entity) || !requiredId(row.id))
+      applicationError('validation_failed')
+    const code = requiredText(row.code, 64)
+    if (!new RegExp(`^${codePrefixes[row.entity]}-\\d{4}$`).test(code))
+      applicationError('validation_failed')
+    if (
+      typeof row.enabled !== 'boolean' ||
+      !row.createdBy ||
+      !row.updatedBy ||
+      !row.createdAt ||
+      !row.updatedAt
+    )
+      applicationError('validation_failed')
+    await this.lock(transaction)
+    const data: OperatingEntityCurrentData | EmployeeCurrentData =
+      row.entity === 'operating-entity'
+        ? (normaliseData(
+            'operating-entity',
+            row.data,
+          ) as unknown as OperatingEntityCurrentData)
+        : (parseData('employee', row.data) as EmployeeCurrentData)
+    await this.assertUniqueLegalIdentifier(
+      transaction,
+      row.entity,
+      row.id,
+      String(data.legalIdentifier),
+    )
+    if (row.entity === 'employee')
+      await this.validateImportedEmployeeReferences(
+        transaction,
+        data as EmployeeCurrentData,
+      )
+    await sql`INSERT INTO aux_objects(id, entity, code, enabled, revision, data, created_at, updated_at, created_by, updated_by)
+      VALUES (${row.id}, ${row.entity}, ${code}, ${row.enabled}, 1, ${JSON.stringify(data)}::jsonb, ${row.createdAt}, ${row.updatedAt}, ${row.createdBy}, ${row.updatedBy})`.execute(
+      transaction,
+    )
+    const importedNumber = Number(code.slice(-4))
+    await sql`INSERT INTO object_number_counters(domain, entity, last_value)
+      VALUES ('aux', ${row.entity}, ${importedNumber})
+      ON CONFLICT (domain, entity) DO UPDATE
+        SET last_value = GREATEST(object_number_counters.last_value, EXCLUDED.last_value)`.execute(
+      transaction,
+    )
+    if (row.entity === 'employee')
+      await this.replaceEmployeeReferenceFacts(
+        transaction,
+        row.id,
+        data as EmployeeCurrentData,
+      )
   }
 
   async query<Entity extends AuxEntity>(
@@ -764,6 +1076,7 @@ export class AuxService {
     entity: Entity,
     data: AuxWriteData<Entity>,
     actor: AuxActor,
+    requestId?: string,
   ): Promise<AuxMutationResult> {
     assertEntity(entity)
     assertPermission(actor, `/aux/${entity}/create`)
@@ -787,6 +1100,22 @@ export class AuxService {
       await sql`INSERT INTO aux_objects(id, entity, code, enabled, revision, data, created_by, updated_by) VALUES (${id}, ${entity}, ${`${codePrefixes[entity]}-${String(number).padStart(4, '0')}`}, true, 1, ${JSON.stringify(normalised)}::jsonb, ${actor.id}, ${actor.id})`.execute(
         transaction,
       )
+      if (entity === 'employee')
+        await this.replaceEmployeeReferenceFacts(
+          transaction,
+          id,
+          normalised as unknown as EmployeeCurrentData,
+        )
+      if (currentEntity(entity))
+        await this.recordCurrentAudit(
+          transaction,
+          entity,
+          'CREATED',
+          id,
+          '1',
+          actor,
+          requestId,
+        )
       return { id, revision: '1', enabled: true }
     })
   }
@@ -846,6 +1175,7 @@ export class AuxService {
     entity: Entity,
     input: AuxSaveInput<Entity>,
     actor: AuxActor,
+    requestId?: string,
   ): Promise<AuxMutationResult> {
     assertEntity(entity)
     assertPermission(actor, `/aux/${entity}/save`)
@@ -883,9 +1213,26 @@ export class AuxService {
         applicationError('conflict', {
           revision: revisionString(current.revision),
         })
+      const nextRevision = revisionString(revision(current.revision) + 1n)
+      if (entity === 'employee')
+        await this.replaceEmployeeReferenceFacts(
+          transaction,
+          id,
+          normalised as unknown as EmployeeCurrentData,
+        )
+      if (currentEntity(entity))
+        await this.recordCurrentAudit(
+          transaction,
+          entity,
+          'SAVED',
+          id,
+          nextRevision,
+          actor,
+          requestId,
+        )
       return {
         id,
-        revision: revisionString(revision(current.revision) + 1n),
+        revision: nextRevision,
         enabled: current.enabled,
       }
     })
@@ -913,6 +1260,7 @@ export class AuxService {
     entity: AuxEntity,
     input: AuxRevisionInput,
     actor: AuxActor,
+    requestId?: string,
   ): Promise<void> {
     assertEntity(entity)
     assertPermission(actor, `/aux/${entity}/delete`)
@@ -984,9 +1332,24 @@ export class AuxService {
             count: Number(row.count),
           })),
         })
+      if (entity === 'employee')
+        await transaction
+          .deleteFrom('aux_reference_facts')
+          .where('source', '=', employeeReferenceSource(id))
+          .execute()
       await sql`DELETE FROM aux_objects WHERE id = ${id} AND entity = ${entity}`.execute(
         transaction,
       )
+      if (currentEntity(entity))
+        await this.recordCurrentAudit(
+          transaction,
+          entity,
+          'DELETED',
+          id,
+          revisionString(current.revision),
+          actor,
+          requestId,
+        )
     })
   }
 
@@ -1146,7 +1509,23 @@ export class AuxService {
         {
           beforeWrite: async (current) => {
             if (enabled) {
-              const currentData = normaliseReferenceData(entity, current.data)
+              let currentData: AuxData
+              if (entity === 'employee') {
+                const {
+                  employeeCategory,
+                  department,
+                  position,
+                  operatingEntity,
+                  ...fields
+                } = parseData('employee', current.data) as EmployeeCurrentData
+                currentData = {
+                  ...fields,
+                  employeeCategoryId: employeeCategory.id,
+                  departmentId: department.id,
+                  positionId: position.id,
+                  operatingEntityId: operatingEntity.id,
+                }
+              } else currentData = normaliseReferenceData(entity, current.data)
               await this.validateData(
                 transaction,
                 entity,
@@ -1195,6 +1574,27 @@ export class AuxService {
     current?: AuxData,
   ): Promise<AuxData> {
     const data = normaliseData(entity, source)
+    if (entity === 'operating-entity') {
+      await this.assertUniqueLegalIdentifier(
+        transaction,
+        entity,
+        objectId,
+        String(data.legalIdentifier),
+      )
+      return data
+    }
+    if (entity === 'employee') {
+      await this.assertUniqueLegalIdentifier(
+        transaction,
+        entity,
+        objectId,
+        String(data.legalIdentifier),
+      )
+      return (await this.resolveEmployeeReferences(
+        transaction,
+        data,
+      )) as unknown as AuxData
+    }
     if (
       entity === 'product-category' ||
       entity === 'department' ||
@@ -1251,6 +1651,176 @@ export class AuxService {
       if (reference.rows[0]?.exists) applicationError('validation_failed')
     }
     return data
+  }
+
+  private async assertUniqueLegalIdentifier(
+    transaction: Transaction<DB>,
+    entity: 'operating-entity' | 'employee',
+    objectId: string | null,
+    legalIdentifier: string,
+  ): Promise<void> {
+    const duplicate = await sql<{ id: string }>`SELECT id FROM aux_objects
+      WHERE entity = ${entity}
+        AND data->>'legalIdentifier' = ${legalIdentifier}
+        AND (${objectId}::varchar IS NULL OR id <> ${objectId})
+      FOR SHARE`.execute(transaction)
+    if (duplicate.rows[0])
+      applicationError(
+        entity === 'operating-entity'
+          ? 'operating_entity_duplicate_legal_identifier'
+          : 'employee_duplicate_legal_identifier',
+      )
+  }
+
+  private async resolveEmployeeReferences(
+    transaction: Transaction<DB>,
+    source: AuxData,
+  ): Promise<EmployeeCurrentData> {
+    const input = source as unknown as EmployeeCurrentInput
+    const [employeeCategory, department, position, operatingEntity] =
+      await Promise.all([
+        this.currentSnapshot(
+          transaction,
+          'employee-category',
+          input.employeeCategoryId,
+        ),
+        this.currentSnapshot(transaction, 'department', input.departmentId),
+        this.currentSnapshot(transaction, 'position', input.positionId),
+        this.currentSnapshot(
+          transaction,
+          'operating-entity',
+          input.operatingEntityId,
+        ),
+      ])
+    return {
+      identityKind: input.identityKind,
+      legalName: input.legalName,
+      displayName: input.displayName,
+      legalIdentifier: input.legalIdentifier,
+      contactName: input.contactName,
+      phone: input.phone,
+      address: input.address,
+      employeeCategory,
+      department,
+      position,
+      employmentDate: input.employmentDate,
+      workPhone: input.workPhone,
+      workEmail: input.workEmail,
+      operatingEntity,
+      remark: input.remark,
+    }
+  }
+
+  private async validateImportedEmployeeReferences(
+    transaction: Transaction<DB>,
+    data: EmployeeCurrentData,
+  ): Promise<void> {
+    await Promise.all([
+      this.assertImportedSnapshot(
+        transaction,
+        'employee-category',
+        data.employeeCategory,
+      ),
+      this.assertImportedSnapshot(transaction, 'department', data.department),
+      this.assertImportedSnapshot(transaction, 'position', data.position),
+      this.assertImportedSnapshot(
+        transaction,
+        'operating-entity',
+        data.operatingEntity,
+      ),
+    ])
+  }
+
+  private async assertImportedSnapshot(
+    transaction: Transaction<DB>,
+    entity:
+      'employee-category' | 'department' | 'position' | 'operating-entity',
+    expected: AuxCurrentSnapshot,
+  ): Promise<void> {
+    const result = await sql<{
+      id: string
+      code: string
+    }>`SELECT id, code FROM aux_objects
+      WHERE id = ${expected.id} AND entity = ${entity} FOR SHARE`.execute(
+      transaction,
+    )
+    const actual = result.rows[0]
+    if (!actual || actual.code !== expected.code)
+      applicationError('validation_failed')
+  }
+
+  private async currentSnapshot(
+    transaction: Transaction<DB>,
+    entity:
+      'employee-category' | 'department' | 'position' | 'operating-entity',
+    id: string,
+  ): Promise<AuxCurrentSnapshot> {
+    const result =
+      await sql<StoredAuxObject>`SELECT id, entity, code, enabled, revision, data, updated_at, updated_by
+      FROM aux_objects WHERE id = ${id} AND entity = ${entity} AND enabled = true FOR SHARE`.execute(
+        transaction,
+      )
+    const row = result.rows[0]
+    if (!row) applicationError('validation_failed')
+    const parsed = parseRow(row)
+    return { id: parsed.id, code: parsed.code, name: currentName(parsed) }
+  }
+
+  private async replaceEmployeeReferenceFacts(
+    transaction: Transaction<DB>,
+    employeeId: string,
+    data: EmployeeCurrentData,
+  ): Promise<void> {
+    const source = employeeReferenceSource(employeeId)
+    await transaction
+      .deleteFrom('aux_reference_facts')
+      .where('source', '=', source)
+      .execute()
+    await transaction
+      .insertInto('aux_reference_facts')
+      .values(
+        [
+          data.employeeCategory,
+          data.department,
+          data.position,
+          data.operatingEntity,
+        ].map((reference) => ({
+          id: ulid(),
+          aux_object_id: reference.id,
+          source,
+        })),
+      )
+      .execute()
+  }
+
+  private async recordCurrentAudit(
+    transaction: Transaction<DB>,
+    entity: AuxCurrentEntity,
+    action: 'CREATED' | 'SAVED' | 'DELETED',
+    id: string,
+    revision: string,
+    actor: AuxActor,
+    requestId: string | undefined,
+  ): Promise<void> {
+    await transaction
+      .insertInto('app_audit_events')
+      .values({
+        id: ulid(),
+        event_type: `AUX_${entity.replaceAll('-', '_').toUpperCase()}_${action}`,
+        actor_user_id: actor.id,
+        target_type: entity,
+        target_id: id,
+        result: 'SUCCESS',
+        request_id: requestId ?? null,
+        summary: JSON.stringify({
+          domain: 'aux',
+          entity,
+          action,
+          revision,
+        }),
+        created_by: actor.id,
+      })
+      .execute()
   }
 
   private async validateParent(

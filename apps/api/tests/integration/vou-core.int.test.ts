@@ -18,6 +18,7 @@ import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { loadConfig } from '../../src/platform/config.ts'
 import { AttachmentStore } from '../../src/platform/attachment-store.ts'
+import { vouPayloadSchemaByEntity } from '../../src/vou/contract.ts'
 import {
   readVouPersistence,
   VouApplicationError,
@@ -45,6 +46,11 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
       '/aux/measurement-unit/save',
       '/aux/measurement-unit/disable',
       '/aux/measurement-unit/delete',
+      '/aux/operating-entity/create',
+      '/aux/operating-entity/get',
+      '/aux/operating-entity/save',
+      '/aux/operating-entity/disable',
+      '/aux/operating-entity/delete',
     ],
   }
   const subjectIds = {
@@ -52,7 +58,6 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
     product: ulid(),
     material: ulid(),
     warehouse: ulid(),
-    operatingEntity: ulid(),
   }
   const approvalIds = {
     customer: ulid(),
@@ -60,7 +65,6 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
     productV2: ulid(),
     material: ulid(),
     warehouse: ulid(),
-    operatingEntity: ulid(),
   }
   const customerSubunitId = ulid()
   const documentIds: string[] = []
@@ -111,6 +115,24 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
       password_change_required: false,
     })
     .execute()
+  const operatingEntity = await aux.create(
+    'operating-entity',
+    {
+      legalName: '单位快照经营主体',
+      shortName: '单位主体',
+      legalIdentifier: `A${actorId.slice(-17)}`,
+      registeredAddress: '',
+      contactName: '',
+      contactPhone: '',
+      invoiceTitle: '',
+      invoiceAddress: '',
+      invoicePhone: '',
+      invoiceBank: '',
+      invoiceAccount: '',
+      remark: '',
+    },
+    auxActor,
+  )
   const createdUnit = await aux.create(
     'measurement-unit',
     { name: '历史千克', symbol: 'kg', quantityScale: 2 },
@@ -190,13 +212,6 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
         created_at: now,
         created_by: actorId,
       },
-      {
-        id: subjectIds.operatingEntity,
-        entity: 'operating-entity',
-        code: `OPE-${codeSuffix}`,
-        created_at: now,
-        created_by: actorId,
-      },
     ])
     .execute()
   await db
@@ -207,12 +222,6 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
         [approvalIds.productV1, 'product', subjectIds.product, 1],
         [approvalIds.material, 'product', subjectIds.material, 1],
         [approvalIds.warehouse, 'warehouse', subjectIds.warehouse, 1],
-        [
-          approvalIds.operatingEntity,
-          'operating-entity',
-          subjectIds.operatingEntity,
-          1,
-        ],
       ].map(([id, entity, subjectId, versionNo]) => ({
         id: id as string,
         domain: 'dcl',
@@ -296,24 +305,6 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
       enabled: true,
     })
     .execute()
-  await db
-    .insertInto('dcl_operating_entity_versions')
-    .values({
-      approval_entry_id: approvalIds.operatingEntity,
-      legal_name: '单位快照经营主体',
-      short_name: '单位主体',
-      registered_address: '',
-      contact_name: '',
-      contact_phone: '',
-      invoice_title: '',
-      invoice_address: '',
-      invoice_phone: '',
-      invoice_bank: '',
-      invoice_account: '',
-      enabled: true,
-    })
-    .execute()
-
   const header = {
     businessDate: '2026-09-07',
     currency: 'CNY',
@@ -325,9 +316,7 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
     },
     paymentMethod: null,
     operatingEntity: {
-      objectId: subjectIds.operatingEntity,
-      approvalEntryId: approvalIds.operatingEntity,
-      selectionOrigin: 'CURRENT' as const,
+      objectId: operatingEntity.id,
     },
     warehouse: {
       objectId: subjectIds.warehouse,
@@ -635,6 +624,7 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     acc: { async apply() {} },
     wfl: { async apply() {} },
   })
+  const aux = new AuxService(db)
   const actorId = ulid()
   const reviewerId = ulid()
   const actor = { id: actorId, permissions: [] as string[], trusted: true }
@@ -652,8 +642,6 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
   const customerId = ulid()
   const customerApprovalId = ulid()
   const customerSubunitId = ulid()
-  const employeeId = ulid()
-  const employeeApprovalId = ulid()
   const assetCategoryId = ulid()
   const productCode = `PRD-${Math.floor(Math.random() * 10_000)
     .toString()
@@ -669,15 +657,19 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     await sql`DELETE FROM vou_documents WHERE created_by = ${actorId}`.execute(
       db,
     )
-    await sql`DELETE FROM approval_entries WHERE id IN (${productApprovalId}, ${supplierApprovalId}, ${customerApprovalId}, ${employeeApprovalId})`.execute(
+    await sql`DELETE FROM approval_entries WHERE id IN (${productApprovalId}, ${supplierApprovalId}, ${customerApprovalId})`.execute(
       db,
     )
-    await sql`DELETE FROM dcl_subjects WHERE id IN (${productId}, ${supplierId}, ${customerId}, ${employeeId})`.execute(
+    await sql`DELETE FROM dcl_subjects WHERE id IN (${productId}, ${supplierId}, ${customerId})`.execute(
       db,
     )
     await db
       .deleteFrom('aux_objects')
-      .where('id', '=', assetCategoryId)
+      .where('created_by', '=', actorId)
+      .execute()
+    await db
+      .deleteFrom('app_audit_events')
+      .where('actor_user_id', 'in', [actorId, reviewerId])
       .execute()
     await sql`DELETE FROM app_users WHERE id IN (${actorId}, ${reviewerId})`.execute(
       db,
@@ -720,6 +712,82 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
       created_by: actorId,
     })
     .execute()
+  const auxActor = {
+    id: actorId,
+    permissions: [
+      ...(
+        [
+          'operating-entity',
+          'employee',
+          'employee-category',
+          'department',
+          'position',
+        ] as const
+      ).flatMap((entity) =>
+        ['create', 'get', 'save', 'disable'].map(
+          (action) => `/aux/${entity}/${action}`,
+        ),
+      ),
+    ],
+  }
+  const operatingEntity = await aux.create(
+    'operating-entity',
+    {
+      legalName: '佣金快照经营主体',
+      shortName: '佣金主体',
+      legalIdentifier: `B${actorId.slice(-17)}`,
+      registeredAddress: '',
+      contactName: '',
+      contactPhone: '',
+      invoiceTitle: '',
+      invoiceAddress: '',
+      invoicePhone: '',
+      invoiceBank: '',
+      invoiceAccount: '',
+      remark: '',
+    },
+    auxActor,
+  )
+  const [employeeCategory, department, position] = await Promise.all([
+    aux.create('employee-category', { name: '佣金类别' }, auxActor),
+    aux.create('department', { name: '佣金部门' }, auxActor),
+    aux.create('position', { name: '佣金岗位' }, auxActor),
+  ])
+  const employeeData = {
+    identityKind: 'PERSON' as const,
+    legalName: '历史员工',
+    displayName: '历史员工',
+    legalIdentifier: '11010519491231002X',
+    contactName: '',
+    phone: '',
+    address: '',
+    employmentDate: '2026-09-01',
+    workPhone: '',
+    workEmail: '',
+    remark: '',
+    operatingEntityId: operatingEntity.id,
+    employeeCategoryId: employeeCategory.id,
+    departmentId: department.id,
+    positionId: position.id,
+  }
+  const employee = await aux.create('employee', employeeData, auxActor)
+  const employeeDetail = await aux.get(
+    'employee',
+    { id: employee.id },
+    auxActor,
+  )
+  const {
+    id: _employeeId,
+    code: _employeeCode,
+    py: _employeePy,
+    name: _employeeName,
+    enabled: _employeeEnabled,
+    revision: _employeeRevision,
+    availableActions: _employeeAvailableActions,
+    updatedAt: _employeeUpdatedAt,
+    updatedBy: _employeeUpdatedBy,
+    ...employeeSnapshot
+  } = employeeDetail
   await db
     .insertInto('approval_entries')
     .values({
@@ -748,13 +816,6 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
         created_at: now,
         created_by: actorId,
       },
-      {
-        id: employeeId,
-        entity: 'employee',
-        code: `EMP-${productCode.slice(4)}`,
-        created_at: now,
-        created_by: actorId,
-      },
     ])
     .execute()
   await db
@@ -765,21 +826,6 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
         domain: 'dcl',
         entity: 'customer',
         subject_id: customerId,
-        version_no: 1,
-        status: 'APPROVED',
-        revision: 1,
-        submitted_by: actorId,
-        submitted_at: now,
-        approved_by: actorId,
-        approved_at: now,
-        updated_by: actorId,
-        updated_at: now,
-      },
-      {
-        id: employeeApprovalId,
-        domain: 'dcl',
-        entity: 'employee',
-        subject_id: employeeId,
         version_no: 1,
         status: 'APPROVED',
         revision: 1,
@@ -1225,10 +1271,9 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
       }
     if (entity === 'employee')
       return {
-        objectId: employeeId,
-        approvalEntryId: employeeApprovalId,
+        objectId: employee.id,
         entity,
-        code: `EMP-${productCode.slice(4)}`,
+        code: employeeDetail.code,
         name: '历史员工',
       }
     return {
@@ -1324,16 +1369,55 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     actor,
     'intermediary-roundtrip',
   )
-  assert.deepEqual(
+  const readIntermediary = await service.get(
+    'intermediary-calculation',
+    intermediary.documentId,
+    actor,
+  )
+  const parsedIntermediary = vouPayloadSchemaByEntity[
+    'intermediary-calculation'
+  ].safeParse(readIntermediary.payload)
+  assert.equal(
+    parsedIntermediary.success,
+    true,
+    JSON.stringify(parsedIntermediary.error?.issues),
+  )
+  const adoptedSalesperson = (
+    readIntermediary.payload as VouPayloadFor<'intermediary-calculation'>
+  ).intermediaryCalculation.source.lines[0]!.salesperson
+  assert.deepEqual(adoptedSalesperson, {
+    objectId: employee.id,
+    entity: 'employee',
+    code: employeeDetail.code,
+    name: employeeData.displayName,
+    snapshot: employeeSnapshot,
+  })
+  const renamedEmployee = await aux.save(
+    'employee',
+    {
+      id: employee.id,
+      revision: employeeDetail.revision,
+      ...employeeData,
+      displayName: '采用后改名',
+    },
+    auxActor,
+  )
+  await aux.disable(
+    'employee',
+    { id: employee.id, revision: renamedEmployee.revision },
+    auxActor,
+    'disable-adopted-intermediary-employee',
+  )
+  const frozenSalesperson = (
     (
       await service.get(
         'intermediary-calculation',
         intermediary.documentId,
         actor,
       )
-    ).payload,
-    intermediary.payload,
-  )
+    ).payload as VouPayloadFor<'intermediary-calculation'>
+  ).intermediaryCalculation.source.lines[0]!.salesperson
+  assert.deepEqual(frozenSalesperson, adoptedSalesperson)
 
   const tooLongRequestId = 'forced-rollback-'.padEnd(129, 'x')
   const failedDocumentId = ulid(),
@@ -1690,6 +1774,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
     { acc: { async apply() {} }, wfl: { async apply() {} } },
     { attachmentStore },
   )
+  const aux = new AuxService(db)
   const ownerId = ulid(),
     otherId = ulid(),
     productId = ulid(),
@@ -1714,6 +1799,14 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
     await sql`DELETE FROM dcl_subjects WHERE created_by = ${ownerId}`.execute(
       db,
     )
+    await db
+      .deleteFrom('aux_objects')
+      .where('created_by', '=', ownerId)
+      .execute()
+    await db
+      .deleteFrom('app_audit_events')
+      .where('actor_user_id', 'in', [ownerId, otherId])
+      .execute()
     await sql`DELETE FROM app_users WHERE id IN (${ownerId}, ${otherId})`.execute(
       db,
     )
@@ -1745,6 +1838,64 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
       },
     ])
     .execute()
+  const auxActor = {
+    id: ownerId,
+    permissions: (
+      [
+        'operating-entity',
+        'employee-category',
+        'department',
+        'position',
+        'employee',
+      ] as const
+    ).flatMap((entity) =>
+      ['create', 'get'].map((action) => `/aux/${entity}/${action}`),
+    ),
+  }
+  const operatingEntity = await aux.create(
+    'operating-entity',
+    {
+      legalName: '附件测试经营主体',
+      shortName: '附件主体',
+      legalIdentifier: `C${ownerId.slice(-17)}`,
+      registeredAddress: '',
+      contactName: '',
+      contactPhone: '',
+      invoiceTitle: '',
+      invoiceAddress: '',
+      invoicePhone: '',
+      invoiceBank: '',
+      invoiceAccount: '',
+      remark: '',
+    },
+    auxActor,
+  )
+  const [employeeCategory, department, position] = await Promise.all([
+    aux.create('employee-category', { name: '附件员工类别' }, auxActor),
+    aux.create('department', { name: '附件员工部门' }, auxActor),
+    aux.create('position', { name: '附件员工岗位' }, auxActor),
+  ])
+  const employee = await aux.create(
+    'employee',
+    {
+      identityKind: 'PERSON',
+      legalName: '附件经办人',
+      displayName: '附件经办人',
+      legalIdentifier: `EMP-${ownerId}`,
+      contactName: '',
+      phone: '',
+      address: '',
+      employeeCategoryId: employeeCategory.id,
+      departmentId: department.id,
+      positionId: position.id,
+      employmentDate: '2026-09-04',
+      workPhone: '',
+      workEmail: '',
+      operatingEntityId: operatingEntity.id,
+      remark: '',
+    },
+    auxActor,
+  )
   const attachmentProductCode = `PRD-${Math.floor(Math.random() * 10_000)
     .toString()
     .padStart(4, '0')}`
@@ -2125,9 +2276,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
     subunitId = ulid(),
     customerOldApprovalId = ulid(),
     customerCurrentApprovalId = ulid()
-  const employeeId = ulid(),
-    employeeApprovalId = ulid(),
-    fundAccountId = ulid(),
+  const fundAccountId = ulid(),
     fundAccountApprovalId = ulid()
   const code = (prefix: string) =>
     `${prefix}-${Math.floor(Math.random() * 10_000)
@@ -2140,13 +2289,6 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
         id: customerId,
         entity: 'customer',
         code: code('CUS'),
-        created_at: now,
-        created_by: ownerId,
-      },
-      {
-        id: employeeId,
-        entity: 'employee',
-        code: code('EMP'),
         created_at: now,
         created_by: ownerId,
       },
@@ -2183,21 +2325,6 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
         entity: 'customer',
         subject_id: customerId,
         version_no: 2,
-        status: 'APPROVED',
-        revision: 1,
-        submitted_by: ownerId,
-        submitted_at: now,
-        approved_by: ownerId,
-        approved_at: now,
-        updated_by: ownerId,
-        updated_at: now,
-      },
-      {
-        id: employeeApprovalId,
-        domain: 'dcl',
-        entity: 'employee',
-        subject_id: employeeId,
-        version_no: 1,
         status: 'APPROVED',
         revision: 1,
         submitted_by: ownerId,
@@ -2277,15 +2404,6 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
     ])
     .execute()
   await db
-    .insertInto('dcl_employee_versions')
-    .values({
-      approval_entry_id: employeeApprovalId,
-      display_name: '经办人',
-      source_snapshots: {},
-      enabled: true,
-    })
-    .execute()
-  await db
     .insertInto('dcl_fund_account_versions')
     .values({
       approval_entry_id: fundAccountApprovalId,
@@ -2309,9 +2427,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
       selectionOrigin: 'CURRENT' as const,
     },
     handler: {
-      objectId: employeeId,
-      approvalEntryId: employeeApprovalId,
-      selectionOrigin: 'CURRENT' as const,
+      objectId: employee.id,
     },
   })
   const currentReceiptSubmissionId = ulid(),
@@ -2589,7 +2705,10 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
 test('VOU reference candidates use session, CSRF and current typed facts', async (context) => {
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
   const db = createDatabase(databaseUrl)
-  const config = loadConfig({ DATABASE_URL: databaseUrl })
+  const config = loadConfig({
+    DATABASE_URL: databaseUrl,
+    TARGET_DATABASE_SCOPE: process.env.TARGET_DATABASE_SCOPE,
+  })
   const vou = new VouService(db, {
     acc: { async apply() {} },
     wfl: { async apply() {} },
@@ -2668,6 +2787,10 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
       await db
         .deleteFrom('aux_objects')
         .where('created_by', '=', actorId)
+        .execute()
+      await db
+        .deleteFrom('app_audit_events')
+        .where('actor_user_id', 'in', [actorId, deniedId])
         .execute()
       await db
         .deleteFrom('app_sessions')

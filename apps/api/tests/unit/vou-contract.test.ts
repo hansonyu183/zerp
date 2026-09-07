@@ -80,8 +80,6 @@ test('VOU order quantities require a complete measurement-unit snapshot', () => 
     },
     operatingEntity: {
       objectId: '01J00000000000000000000003',
-      approvalEntryId: '01J00000000000000000000004',
-      selectionOrigin: 'CURRENT',
     },
     warehouse: {
       objectId: '01J00000000000000000000005',
@@ -385,8 +383,6 @@ test('VOU sale-order and reference contracts expose exact payment-method snapsho
     },
     operatingEntity: {
       objectId: '01J00000000000000000000003',
-      approvalEntryId: '01J00000000000000000000004',
-      selectionOrigin: 'CURRENT',
     },
     warehouse: {
       objectId: '01J00000000000000000000005',

@@ -107,6 +107,8 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
       '/aux/product-type/get',
       '/aux/product-category/create',
       '/aux/product-category/get',
+      '/aux/operating-entity/create',
+      '/aux/operating-entity/get',
     ],
   }
   const productIds = [ulid(), ulid(), ulid()].sort()
@@ -118,12 +120,10 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
   const directSubjectIds = {
     customer: ulid(),
     warehouse: ulid(),
-    operatingEntity: ulid(),
   }
   const directApprovalIds = {
     customer: ulid(),
     warehouse: ulid(),
-    operatingEntity: ulid(),
   }
   const customerSubunitId = ulid()
   const vouDocumentId = ulid()
@@ -170,6 +170,10 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
       await db
         .deleteFrom('aux_objects')
         .where('id', 'in', auxObjectIds)
+        .execute()
+      await db
+        .deleteFrom('app_audit_events')
+        .where('actor_user_id', 'in', [actorId, reviewerId])
         .execute()
       await db
         .deleteFrom('app_users')
@@ -392,6 +396,20 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
     'product-v2-submit',
   )
 
+  const operatingEntity = await createAux('operating-entity', {
+    legalName: '并发经营主体',
+    shortName: '并发主体',
+    legalIdentifier: '91310000MA1K123456',
+    registeredAddress: '',
+    contactName: '',
+    contactPhone: '',
+    invoiceTitle: '',
+    invoiceAddress: '',
+    invoicePhone: '',
+    invoiceBank: '',
+    invoiceAccount: '',
+    remark: '',
+  })
   const now = new Date()
   const codeSeed = Math.floor(Math.random() * 10_000)
   const code = (prefix: string, offset: number) =>
@@ -413,13 +431,6 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
         created_at: now,
         created_by: actorId,
       },
-      {
-        id: directSubjectIds.operatingEntity,
-        entity: 'operating-entity',
-        code: code('OPE', 2),
-        created_at: now,
-        created_by: actorId,
-      },
     ])
     .execute()
   await db
@@ -428,11 +439,6 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
       [
         [directApprovalIds.customer, 'customer', directSubjectIds.customer],
         [directApprovalIds.warehouse, 'warehouse', directSubjectIds.warehouse],
-        [
-          directApprovalIds.operatingEntity,
-          'operating-entity',
-          directSubjectIds.operatingEntity,
-        ],
       ].map(([id, entity, subjectId]) => ({
         id: id!,
         domain: 'dcl',
@@ -491,23 +497,6 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
       enabled: true,
     })
     .execute()
-  await db
-    .insertInto('dcl_operating_entity_versions')
-    .values({
-      approval_entry_id: directApprovalIds.operatingEntity,
-      legal_name: '并发经营主体',
-      short_name: '并发主体',
-      registered_address: '',
-      contact_name: '',
-      contact_phone: '',
-      invoice_title: '',
-      invoice_address: '',
-      invoice_phone: '',
-      invoice_bank: '',
-      invoice_account: '',
-      enabled: true,
-    })
-    .execute()
 
   const payload: VouPayloadFor<'sale-order'> = {
     businessDate: '2026-09-07',
@@ -519,11 +508,7 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
       selectionOrigin: 'CURRENT',
     },
     paymentMethod: null,
-    operatingEntity: {
-      objectId: directSubjectIds.operatingEntity,
-      approvalEntryId: directApprovalIds.operatingEntity,
-      selectionOrigin: 'CURRENT',
-    },
+    operatingEntity: { objectId: operatingEntity.id },
     warehouse: {
       objectId: directSubjectIds.warehouse,
       approvalEntryId: directApprovalIds.warehouse,

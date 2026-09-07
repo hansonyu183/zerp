@@ -191,6 +191,10 @@ async function seedSaleOrderReferences(
       '/aux/department/get',
       '/aux/position/create',
       '/aux/position/get',
+      '/aux/operating-entity/create',
+      '/aux/operating-entity/get',
+      '/aux/employee/create',
+      '/aux/employee/get',
       '/aux/dictionary-type/create',
       '/aux/dictionary-type/get',
       '/aux/dictionary-item/create',
@@ -260,9 +264,9 @@ async function seedSaleOrderReferences(
       expectedLatestApprovedRevision: null,
       snapshot,
     }
-    const crossesHttp = (
-      ['operating-entity', 'product', 'customer'] as const
-    ).includes(entity as 'operating-entity' | 'product' | 'customer')
+    const crossesHttp = (['product', 'customer'] as const).includes(
+      entity as 'product' | 'customer',
+    )
     const pendingResponse = crossesHttp
       ? await post(origin, submitterSession, `/dcl/${entity}/submit-new`, input)
       : undefined
@@ -326,10 +330,10 @@ async function seedSaleOrderReferences(
       name: String(snapshot.name ?? snapshot.displayName ?? snapshot.legalName),
     }
   }
-  const operatingEntity = await submit('operating-entity', {
+  const operatingEntity = await auxiliary('operating-entity', {
     legalName: 'HTTP 经营主体',
     shortName: 'HTTP 主体',
-    legalIdentifier: '91310000MA1K123456',
+    legalIdentifier: `F${actorId.slice(-17)}`,
     registeredAddress: '',
     contactName: '',
     contactPhone: '',
@@ -339,9 +343,8 @@ async function seedSaleOrderReferences(
     invoiceBank: '',
     invoiceAccount: '',
     remark: '',
-    enabled: true,
   })
-  const employee = await submit('employee', {
+  const employee = await auxiliary('employee', {
     identityKind: 'PERSON',
     legalName: 'HTTP 销售员',
     displayName: 'HTTP 销售员',
@@ -349,20 +352,14 @@ async function seedSaleOrderReferences(
     contactName: '',
     phone: '',
     address: '',
-    employeeCategory,
-    department,
-    position,
+    employeeCategoryId: employeeCategory.id,
+    departmentId: department.id,
+    positionId: position.id,
     employmentDate: '2026-09-04',
     workPhone: '',
     workEmail: '',
-    operatingEntity: {
-      objectId: operatingEntity.objectId,
-      approvalEntryId: operatingEntity.approvalEntryId,
-      code: operatingEntity.code,
-      name: operatingEntity.name,
-    },
+    operatingEntityId: operatingEntity.id,
     remark: '',
-    enabled: true,
   })
   const customerSubunitId = ulid()
   const customer = await submit('customer', {
@@ -411,8 +408,7 @@ async function seedSaleOrderReferences(
         creditLimits: [],
         primarySalesAttribution: {
           type: 'INTERNAL_EMPLOYEE',
-          objectId: employee.objectId,
-          approvalEntryId: employee.approvalEntryId,
+          objectId: employee.id,
           code: employee.code,
           name: employee.name,
         },
@@ -488,7 +484,6 @@ async function seedSaleOrderReferences(
         contactName: '',
         contactPhone: '',
         managerEmployeeId: null,
-        managerEmployeeApprovalEntryId: null,
         managerEmployeeCode: null,
         managerEmployeeName: null,
         remark: '',
@@ -518,14 +513,12 @@ async function seedSaleOrderReferences(
     {
       entity: 'operating-entity',
       field: 'operating-entity',
-      objectId: operatingEntity.objectId,
-      approvalEntryId: operatingEntity.approvalEntryId,
+      objectId: operatingEntity.id,
     },
     {
       entity: 'employee',
       field: 'salesperson',
-      objectId: employee.objectId,
-      approvalEntryId: employee.approvalEntryId,
+      objectId: employee.id,
     },
     {
       entity: 'warehouse',
@@ -558,17 +551,12 @@ async function seedSaleOrderReferences(
       position.id,
       dictionaryType.id,
       customerType.id,
+      operatingEntity.id,
+      employee.id,
     ],
-    archiveSubjectIds: [
-      operatingEntity.objectId,
-      customer.objectId,
-      employee.objectId,
-      product.objectId,
-    ],
+    archiveSubjectIds: [customer.objectId, product.objectId],
     archiveApprovalEntryIds: [
-      operatingEntity.approvalEntryId,
       customer.approvalEntryId,
-      employee.approvalEntryId,
       product.approvalEntryId,
     ],
     warehouseSubjectId,
@@ -580,31 +568,30 @@ async function seedSaleOrderReferences(
 function saleOrderPayload(
   references: Awaited<ReturnType<typeof seedSaleOrderReferences>>,
 ): VouPayload {
-  const reference = (
-    field:
-      | 'customer-subunit'
-      | 'operating-entity'
-      | 'salesperson'
-      | 'warehouse'
-      | 'product',
-  ) => {
-    const fact = references.facts.find((item) => item.field === field)!
+  const versionedReference = (field: 'customer-subunit' | 'warehouse') => {
+    const fact = references.facts.find((item) => item.field === field)
+    if (!fact || !('approvalEntryId' in fact))
+      throw new Error(`missing versioned ${field} fixture`)
     return {
       objectId: fact.objectId,
       approvalEntryId: fact.approvalEntryId,
       selectionOrigin: 'CURRENT' as const,
     }
   }
+  const currentReference = (field: 'operating-entity' | 'salesperson') => {
+    const fact = references.facts.find((item) => item.field === field)!
+    return { objectId: fact.objectId }
+  }
   const product = references.facts.find((item) => item.field === 'product')!
   return {
     businessDate: '2026-09-04',
     currency: 'CNY',
     attachments: [],
-    customerSubunit: reference('customer-subunit'),
+    customerSubunit: versionedReference('customer-subunit'),
     paymentMethod: null,
-    operatingEntity: reference('operating-entity'),
-    salesperson: reference('salesperson'),
-    warehouse: reference('warehouse'),
+    operatingEntity: currentReference('operating-entity'),
+    salesperson: currentReference('salesperson'),
+    warehouse: versionedReference('warehouse'),
     productLines: [
       {
         lineId: sourceOrderLineId,
@@ -621,7 +608,10 @@ function saleOrderPayload(
 test('ACC HTTP routes enforce session, CSRF, permissions, envelope, opening and period facts', async (context) => {
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
   const db = createDatabase(databaseUrl)
-  const config = loadConfig({ DATABASE_URL: databaseUrl })
+  const config = loadConfig({
+    DATABASE_URL: databaseUrl,
+    TARGET_DATABASE_SCOPE: process.env.TARGET_DATABASE_SCOPE,
+  })
   const acc = new AccService(db)
   const app = createApp({
     database: { ping: async () => undefined },
@@ -878,7 +868,10 @@ test('ACC HTTP routes enforce session, CSRF, permissions, envelope, opening and 
 test('WFL definition, current, trial, instance and six actions cross the authenticated HTTP seam', async (context) => {
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
   const db = createDatabase(databaseUrl)
-  const config = loadConfig({ DATABASE_URL: databaseUrl })
+  const config = loadConfig({
+    DATABASE_URL: databaseUrl,
+    TARGET_DATABASE_SCOPE: process.env.TARGET_DATABASE_SCOPE,
+  })
   const runtime = await createNodeWflStarlark()
   const acc = new AccService(db)
   const aux = new AuxService(db)
@@ -926,9 +919,6 @@ test('WFL definition, current, trial, instance and six actions cross the authent
   assert.ok(address && typeof address !== 'string')
   const origin = `http://127.0.0.1:${address.port}`
   const wflPaths = [
-    '/dcl/operating-entity/submit-new',
-    '/dcl/operating-entity/approve',
-    '/dcl/operating-entity/get',
     '/dcl/product/submit-new',
     '/dcl/product/approve',
     '/dcl/product/get',
@@ -1054,6 +1044,14 @@ test('WFL definition, current, trial, instance and six actions cross the authent
           .execute()
       }
       if (users.length > 0) {
+        await db
+          .deleteFrom('app_audit_events')
+          .where(
+            'actor_user_id',
+            'in',
+            users.map((user) => user.id),
+          )
+          .execute()
         await db
           .deleteFrom('app_sessions')
           .where(

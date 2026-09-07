@@ -68,10 +68,7 @@ const submitter = await principal('submitter', 1)
 const reviewer = await principal('reviewer', 2)
 const reportAdmin = await principal('report', 3)
 const createOnly = await principal('create-only', 4)
-const managerEmployeeId = `M${suffix}`
-  .toUpperCase()
-  .padEnd(26, '0')
-  .slice(0, 26)
+let managerEmployeeId = `M${suffix}`.toUpperCase().padEnd(26, '0').slice(0, 26)
 const managerApprovalEntryId = `A${suffix}`
   .toUpperCase()
   .padEnd(26, '0')
@@ -534,7 +531,7 @@ async function seedArchiveReference(
   archives: ArchiveService,
   entity: Exclude<
     (typeof vouReferenceFacts.references)[number]['entity'],
-    'warehouse' | 'customer-subunit'
+    'warehouse' | 'customer-subunit' | 'operating-entity' | 'employee'
   >,
   reference: {
     objectId: string
@@ -575,34 +572,55 @@ async function seedArchiveReference(
 async function seedVouReferences(
   archives: ArchiveService,
   warehouse: WarehouseService,
+  aux: AuxService,
 ) {
   const reference = (key: string) => {
     const found = vouReferenceFacts.references.find((item) => item.key === key)
     if (!found) throw new Error(`missing ${key} E2E VOU reference`)
     return found
   }
-  const operatingEntity = reference('operatingEntity')
-  await seedArchiveReference(archives, 'operating-entity', operatingEntity, {
-    legalName: '目标经营主体有限公司',
-    shortName: '目标经营主体',
-    legalIdentifier: `91${suffix.toUpperCase()}`,
-    registeredAddress: '上海市',
-    contactName: '目标联系人',
-    contactPhone: '13800000000',
-    invoiceTitle: '目标经营主体有限公司',
-    invoiceAddress: '上海市',
-    invoicePhone: '021-10000000',
-    invoiceBank: '目标银行',
-    invoiceAccount: '6222000000000000',
-    remark: '',
-    enabled: true,
-  })
-  const operatingEntityReference = {
-    objectId: operatingEntity.objectId,
-    approvalEntryId: operatingEntity.approvalEntryId,
-    code: operatingEntity.code,
-    name: operatingEntity.name,
+  const peopleActor = {
+    id: submitter.userId,
+    permissions: [
+      '/aux/operating-entity/create',
+      '/aux/operating-entity/get',
+      '/aux/employee/create',
+      '/aux/employee/get',
+    ],
   }
+  const operatingEntity = reference('operatingEntity')
+  const createdOperatingEntity = await aux.create(
+    'operating-entity',
+    {
+      legalName: '目标经营主体有限公司',
+      shortName: '目标经营主体',
+      legalIdentifier: `91${suffix.toUpperCase()}`,
+      registeredAddress: '上海市',
+      contactName: '目标联系人',
+      contactPhone: '13800000000',
+      invoiceTitle: '目标经营主体有限公司',
+      invoiceAddress: '上海市',
+      invoicePhone: '021-10000000',
+      invoiceBank: '目标银行',
+      invoiceAccount: '6222000000000000',
+      remark: '',
+    },
+    peopleActor,
+  )
+  const storedOperatingEntity = await aux.get(
+    'operating-entity',
+    { id: createdOperatingEntity.id },
+    peopleActor,
+  )
+  operatingEntity.objectId = storedOperatingEntity.id
+  operatingEntity.code = storedOperatingEntity.code
+  operatingEntity.name = storedOperatingEntity.name
+  const operatingEntityReference = {
+    objectId: storedOperatingEntity.id,
+    code: storedOperatingEntity.code,
+    name: storedOperatingEntity.name,
+  }
+
   const manager = {
     key: 'manager',
     entity: 'employee' as const,
@@ -611,24 +629,53 @@ async function seedVouReferences(
     code: 'EMP-E2E',
     name: '目标负责人',
   }
-  await seedArchiveReference(archives, 'employee', manager, {
-    identityKind: 'PERSON',
-    legalName: '目标负责人',
-    displayName: manager.name,
-    legalIdentifier: `MGR-${suffix}`,
+  const employeeInput = (legalName: string, displayName: string) => ({
+    identityKind: 'PERSON' as const,
+    legalName,
+    displayName,
+    legalIdentifier: `EMP-${suffix}-${displayName}`,
     contactName: '',
     phone: '',
     address: '',
-    employeeCategory: auxReference('employee-category'),
-    department: auxReference('department'),
-    position: auxReference('position'),
+    employeeCategoryId: auxReference('employee-category').id,
+    departmentId: auxReference('department').id,
+    positionId: auxReference('position').id,
     employmentDate: '2026-08-01',
     workPhone: '',
     workEmail: '',
-    operatingEntity: operatingEntityReference,
+    operatingEntityId: storedOperatingEntity.id,
     remark: '',
-    enabled: true,
   })
+  const createdManager = await aux.create(
+    'employee',
+    employeeInput('目标负责人', manager.name),
+    peopleActor,
+  )
+  const storedManager = await aux.get(
+    'employee',
+    { id: createdManager.id },
+    peopleActor,
+  )
+  managerEmployeeId = storedManager.id
+  manager.objectId = storedManager.id
+  manager.code = storedManager.code
+  manager.name = storedManager.name
+
+  const employee = reference('employee')
+  const createdEmployee = await aux.create(
+    'employee',
+    employeeInput('目标员工', '目标员工'),
+    peopleActor,
+  )
+  const storedEmployee = await aux.get(
+    'employee',
+    { id: createdEmployee.id },
+    peopleActor,
+  )
+  employee.objectId = storedEmployee.id
+  employee.code = storedEmployee.code
+  employee.name = storedEmployee.name
+
   const warehouseReference = reference('warehouse')
   const warehousePending = await warehouse.submit(
     'submit-new',
@@ -644,7 +691,6 @@ async function seedVouReferences(
         contactName: '目标仓管员',
         contactPhone: '13800000000',
         managerEmployeeId: manager.objectId,
-        managerEmployeeApprovalEntryId: manager.approvalEntryId,
         managerEmployeeCode: manager.code,
         managerEmployeeName: manager.name,
         remark: '',
@@ -710,7 +756,6 @@ async function seedVouReferences(
         primarySalesAttribution: {
           type: 'INTERNAL_EMPLOYEE',
           objectId: manager.objectId,
-          approvalEntryId: manager.approvalEntryId,
           code: manager.code,
           name: manager.name,
         },
@@ -803,24 +848,6 @@ async function seedVouReferences(
     defaultPackagingSpec: '1.000000',
     recyclable: false,
     fixedFormula: null,
-    remark: '',
-    enabled: true,
-  })
-  await seedArchiveReference(archives, 'employee', reference('employee'), {
-    identityKind: 'PERSON',
-    legalName: '目标员工',
-    displayName: '目标员工',
-    legalIdentifier: `EMP-${suffix}`,
-    contactName: '',
-    phone: '',
-    address: '',
-    employeeCategory: auxReference('employee-category'),
-    department: auxReference('department'),
-    position: auxReference('position'),
-    employmentDate: '2026-08-01',
-    workPhone: '',
-    workEmail: '',
-    operatingEntity: operatingEntityReference,
     remark: '',
     enabled: true,
   })
@@ -1107,8 +1134,6 @@ async function seedApprovedSourceOrders() {
         paymentMethod: null,
         operatingEntity: {
           objectId: operatingEntityReference.objectId,
-          approvalEntryId: operatingEntityReference.approvalEntryId,
-          selectionOrigin: 'HISTORICAL' as const,
         },
         warehouse: warehouseSnapshot,
         productLines: [productLine(vouSourceFacts.saleOrder.lineId)],
@@ -1519,7 +1544,7 @@ try {
   await bootstrap.createE2EPrincipal(createOnly, false, ['/app/user/create'])
   await seedAuxFacts(aux)
   await seedAccFacts(acc)
-  await seedVouReferences(archives, warehouse)
+  await seedVouReferences(archives, warehouse, aux)
   await seedVouAccObjects()
   await seedApprovedOpeningAndMappings()
   await seedApprovedSourceOrders()

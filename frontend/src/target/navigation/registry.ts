@@ -7,6 +7,8 @@ import {
   measurementUnitListPage,
   paymentMethodListPage,
   assetCategoryListPage,
+  employeeListPage,
+  operatingEntityListPage,
 } from './list-pages.ts'
 
 export type RegisteredListPage =
@@ -17,6 +19,8 @@ export type RegisteredListPage =
   | typeof measurementUnitListPage
   | typeof paymentMethodListPage
   | typeof assetCategoryListPage
+  | typeof employeeListPage
+  | typeof operatingEntityListPage
 
 import UserManagement from '../pages/app/user/UserManagement.vue'
 import RoleManagement from '../pages/app/role/RoleManagement.vue'
@@ -25,6 +29,8 @@ import PositionManagement from '../pages/aux/position/PositionManagement.vue'
 import MeasurementUnitManagement from '../pages/aux/measurement-unit/MeasurementUnitManagement.vue'
 import PaymentMethodManagement from '../pages/aux/payment-method/PaymentMethodManagement.vue'
 import AssetCategoryManagement from '../pages/aux/asset-category/AssetCategoryManagement.vue'
+import EmployeeManagement from '../pages/aux/employee/EmployeeManagement.vue'
+import OperatingEntityManagement from '../pages/aux/operating-entity/OperatingEntityManagement.vue'
 import {
   targetDomainCapabilities,
   type BusinessTargetDomain,
@@ -106,5 +112,17 @@ export const targetResourceRegistry = createResourceRegistry([
     entity: 'asset-category',
     definition: assetCategoryListPage,
     component: AssetCategoryManagement,
+  },
+  {
+    domain: 'aux',
+    entity: 'operating-entity',
+    definition: operatingEntityListPage,
+    component: OperatingEntityManagement,
+  },
+  {
+    domain: 'aux',
+    entity: 'employee',
+    definition: employeeListPage,
+    component: EmployeeManagement,
   },
 ])

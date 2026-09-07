@@ -585,7 +585,7 @@ export interface DclOperatingEntityVersions {
 
 export interface DclOtherUnitVersionOperatingEntities {
   approval_entry_id: string;
-  operating_entity_approval_entry_id: string;
+  operating_entity_approval_entry_id: string | null;
   operating_entity_code: string;
   operating_entity_id: string;
   operating_entity_name: string;
@@ -639,7 +639,7 @@ export interface DclRptDefinitionVersions {
 
 export interface DclSalesPartnerVersionOperatingEntities {
   approval_entry_id: string;
-  operating_entity_approval_entry_id: string;
+  operating_entity_approval_entry_id: string | null;
   operating_entity_code: string;
   operating_entity_id: string;
   operating_entity_name: string;
@@ -671,7 +671,7 @@ export interface DclSubjects {
 
 export interface DclSupplierVersionOperatingEntities {
   approval_entry_id: string;
-  operating_entity_approval_entry_id: string;
+  operating_entity_approval_entry_id: string | null;
   operating_entity_code: string;
   operating_entity_id: string;
   operating_entity_name: string;
@@ -1378,6 +1378,7 @@ export interface VouPurchaseReturnDetails {
 export interface VouReferenceSnapshots {
   approval_entry_id: string;
   approval_reference_id: string | null;
+  aux_snapshot: Json | null;
   field: string;
   item_no: Generated<number>;
   line_no: Generated<number>;

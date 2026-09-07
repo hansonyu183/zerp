@@ -32,6 +32,11 @@ export interface PermissionCatalogMigrationReport {
   duplicateRoleGrants: number
 }
 
+export interface PermissionPathMapping {
+  from: string
+  to: readonly string[]
+}
+
 interface EffectiveAuthoritySnapshot {
   roles: Map<string, { wildcard: boolean; paths: string[] }>
   users: Map<string, { wildcard: boolean; paths: string[] }>
@@ -138,11 +143,16 @@ export class TargetBootstrapService {
 
   async migratePermissionCatalog(
     catalog: readonly TargetPermissionCatalogEntry[],
+    pathMappings: readonly PermissionPathMapping[] = [],
   ): Promise<PermissionCatalogMigrationReport> {
     return this.db
       .transaction()
       .execute((transaction) =>
-        this.migratePermissionCatalogInTransaction(transaction, catalog),
+        this.migratePermissionCatalogInTransaction(
+          transaction,
+          catalog,
+          pathMappings,
+        ),
       )
   }
 
@@ -297,14 +307,37 @@ export class TargetBootstrapService {
     })
   }
 
-  private async migratePermissionCatalogInTransaction(
+  async migratePermissionCatalogInTransaction(
     transaction: Transaction<DB>,
     catalog: readonly TargetPermissionCatalogEntry[],
+    pathMappings: readonly PermissionPathMapping[] = [],
   ): Promise<PermissionCatalogMigrationReport> {
     const desiredPaths = new Set(catalog.map((entry) => entry.path))
+    const mappingsBySource = new Map(
+      pathMappings.map((mapping) => [mapping.from, [...mapping.to]]),
+    )
+    if (mappingsBySource.size !== pathMappings.length)
+      throw new Error('permission path migration contains duplicate sources')
+    for (const mapping of pathMappings) {
+      if (desiredPaths.has(mapping.from))
+        throw new Error(
+          `permission path migration source remains in target catalog: ${mapping.from}`,
+        )
+      if (
+        mapping.to.length === 0 ||
+        mapping.to.some((path) => !desiredPaths.has(path))
+      )
+        throw new Error(
+          `permission path migration target is absent from target catalog: ${mapping.from}`,
+        )
+    }
+    const authorityPaths = new Set([
+      ...desiredPaths,
+      ...pathMappings.map((mapping) => mapping.from),
+    ])
     const authorityBefore = await effectiveAuthoritySnapshot(
       transaction,
-      desiredPaths,
+      authorityPaths,
     )
     const previousPermissions = await transaction
       .selectFrom('app_permissions')
@@ -319,9 +352,76 @@ export class TargetBootstrapService {
     const previousPermissionByPath = new Map(
       previousPermissions.map((permission) => [permission.path, permission]),
     )
-    const preserved = previousGrants.filter((grant) =>
-      desiredByPath.has(grant.path),
+    const mappedAuthority = (snapshot: EffectiveAuthoritySnapshot) => ({
+      roles: new Map(
+        [...snapshot.roles].map(([id, authority]) => [
+          id,
+          {
+            wildcard: authority.wildcard,
+            paths: [
+              ...new Set(
+                authority.paths.flatMap((path) =>
+                  desiredPaths.has(path)
+                    ? [path]
+                    : (mappingsBySource.get(path) ?? []),
+                ),
+              ),
+            ].sort(),
+          },
+        ]),
+      ),
+      users: new Map(
+        [...snapshot.users].map(([id, authority]) => [
+          id,
+          {
+            wildcard: authority.wildcard,
+            paths: [
+              ...new Set(
+                authority.paths.flatMap((path) =>
+                  desiredPaths.has(path)
+                    ? [path]
+                    : (mappingsBySource.get(path) ?? []),
+                ),
+              ),
+            ].sort(),
+          },
+        ]),
+      ),
+    })
+    const targetStatus = new Map(
+      catalog.map((entry) => {
+        const exact = previousPermissionByPath.get(entry.path)?.status
+        const mappedSources = pathMappings
+          .filter((mapping) => mapping.to.includes(entry.path))
+          .map((mapping) => previousPermissionByPath.get(mapping.from)?.status)
+          .filter((status) => status !== undefined)
+        const status =
+          exact ??
+          (mappedSources.length > 0 &&
+          mappedSources.every((sourceStatus) => sourceStatus === 'DISABLED')
+            ? 'DISABLED'
+            : 'ENABLED')
+        if (
+          exact === 'DISABLED' &&
+          mappedSources.some((sourceStatus) => sourceStatus === 'ENABLED')
+        )
+          throw new Error(
+            `permission path migration cannot merge enabled authority into disabled target: ${entry.path}`,
+          )
+        return [entry.path, status] as const
+      }),
     )
+    const preservedTargetsByGrant = previousGrants.map((grant) => {
+      if (desiredByPath.has(grant.path)) return [grant]
+      const sourceEnabled =
+        previousPermissionByPath.get(grant.path)?.status === 'ENABLED'
+      return (mappingsBySource.get(grant.path) ?? [])
+        .filter(
+          (path) => sourceEnabled || targetStatus.get(path) === 'DISABLED',
+        )
+        .map((path) => ({ role_id: grant.role_id, path }))
+    })
+    const preserved = preservedTargetsByGrant.flat()
     await transaction.deleteFrom('app_role_permissions').execute()
     await transaction.deleteFrom('app_permissions').execute()
     if (catalog.length > 0) {
@@ -335,8 +435,7 @@ export class TargetBootstrapService {
             entity: entry.entity,
             action: entry.action,
             description: entry.title,
-            status:
-              previousPermissionByPath.get(entry.path)?.status ?? 'ENABLED',
+            status: targetStatus.get(entry.path)!,
           })),
         )
         .execute()
@@ -373,12 +472,14 @@ export class TargetBootstrapService {
       .having((builder) => builder.fn.countAll(), '>', 1)
       .execute()
     assertAuthorityPreserved(
-      authorityBefore,
+      mappedAuthority(authorityBefore),
       await effectiveAuthoritySnapshot(transaction, desiredPaths),
     )
     return {
       preservedRoleGrants: uniquePreserved.length,
-      droppedStaleRoleGrants: previousGrants.length - preserved.length,
+      droppedStaleRoleGrants:
+        previousGrants.length -
+        preservedTargetsByGrant.filter((targets) => targets.length > 0).length,
       orphanedRoleGrants: Number(orphaned.count),
       duplicateRoleGrants: duplicates.length,
     }

@@ -3,7 +3,6 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
 import { auxRouteBinding } from '../src/app/aux-contract.ts'
-import { bobRouteBinding } from '../src/app/independent-contract.ts'
 import { targetRouteMetadata as appTargetRouteMetadata } from '../src/app/contract.ts'
 import {
   archiveCapabilityPermissionMetadata,
@@ -257,13 +256,12 @@ test('archive query contract uses the fixed page shell and entity-specific filte
     pageSize: 20,
     filters: { keyword: 'water', status: 'APPROVED', enabled: true },
   }
-  const operatingEntity =
-    archiveRouteSets['operating-entity'].query.request.body.content[
-      'application/json'
-    ].schema
-  assert.deepEqual(operatingEntity.parse(input), input)
+  const vehicle =
+    archiveRouteSets.vehicle.query.request.body.content['application/json']
+      .schema
+  assert.deepEqual(vehicle.parse(input), input)
   assert.throws(() =>
-    operatingEntity.parse({
+    vehicle.parse({
       ...input,
       filters: {
         ...input.filters,
@@ -371,10 +369,10 @@ test('independent route bindings carry the exact registered permission', () => {
     action: 'create',
     permission: '/aux/department/create',
   })
-  assert.deepEqual(bobRouteBinding('employee', 'get'), {
+  assert.deepEqual(auxRouteBinding('employee', 'get'), {
     entity: 'employee',
     action: 'get',
-    permission: '/bob/employee/get',
+    permission: '/aux/employee/get',
   })
 })
 
@@ -417,6 +415,8 @@ test('target OpenAPI contains the complete issue 363 APP, AUX, and BOB inventory
     'measurement-unit',
     'income-expense-type',
     'asset-category',
+    'operating-entity',
+    'employee',
   ]
   const auxPaths = auxEntities.flatMap((entity) =>
     ['query', 'get', 'save', 'enable', 'disable', 'create', 'delete']
@@ -431,14 +431,12 @@ test('target OpenAPI contains the complete issue 363 APP, AUX, and BOB inventory
   const bobPaths = [
     'customer',
     'supplier',
-    'employee',
     'other-unit',
     'sales-partner',
     'product',
     'warehouse',
     'vehicle',
     'fund-account',
-    'operating-entity',
   ].flatMap((entity) => [`/bob/${entity}/query`, `/bob/${entity}/get`])
   bobPaths.push('/bob/reference/query')
   const removedMenuPaths = [
@@ -461,7 +459,10 @@ test('target OpenAPI contains the complete issue 363 APP, AUX, and BOB inventory
     assert.ok(paths.has(path), `missing issue #363 target path ${path}`)
   for (const path of removedMenuPaths)
     assert.equal(paths.has(path), false, `removed legacy menu path ${path}`)
-  assert.ok(paths.has('/app/workbench/query'), 'missing issue #366 APP Workbench path')
+  assert.ok(
+    paths.has('/app/workbench/query'),
+    'missing issue #366 APP Workbench path',
+  )
 })
 
 test('target OpenAPI contains every issue 364 DCL lifecycle route', async () => {
@@ -470,11 +471,9 @@ test('target OpenAPI contains every issue 364 DCL lifecycle route', async () => 
   }
   const paths = new Set(Object.keys(document.paths))
   const entities = [
-    'operating-entity',
     'vehicle',
     'fund-account',
     'product',
-    'employee',
     'supplier',
     'customer',
     'other-unit',
@@ -526,7 +525,7 @@ test('archive query exposes summaries only and RPT get admits one owned version'
     >
   }
   const querySchema =
-    document.paths['/dcl/operating-entity/query']!.post.responses[200].content[
+    document.paths['/dcl/vehicle/query']!.post.responses[200].content[
       'application/json'
     ].schema
   assert.doesNotMatch(JSON.stringify(querySchema), /"snapshot"/)
@@ -571,40 +570,91 @@ test('target OpenAPI and catalog expose the complete VOU cutover surface without
     paths: Record<string, unknown>
   }
   for (const action of [
-    'query', 'get', 'audit-history', 'submit-new', 'submit-change',
-    'approve', 'reject', 'unreject', 'unapprove', 'delete',
-    'attachment-stage', 'attachment-cleanup',
+    'query',
+    'get',
+    'audit-history',
+    'submit-new',
+    'submit-change',
+    'approve',
+    'reject',
+    'unreject',
+    'unapprove',
+    'delete',
+    'attachment-stage',
+    'attachment-cleanup',
   ])
     assert.ok(document.paths[`/vou/{entity}/${action}`])
   for (const legacy of ['create', 'save', 'submit', 'unsubmit'])
     assert.ok(!document.paths[`/vou/{entity}/${legacy}`])
 
-  const catalog = JSON.parse(await readFile(generatedCatalog, 'utf8')) as Array<{ path: string }>
+  const catalog = JSON.parse(
+    await readFile(generatedCatalog, 'utf8'),
+  ) as Array<{ path: string }>
   for (const entity of vouEntities)
-    for (const action of ['query', 'get', 'approve', 'reject', 'unreject', 'unapprove', 'delete'])
-      assert.ok(catalog.some((entry) => entry.path === `/vou/${entity}/${action}`))
+    for (const action of [
+      'query',
+      'get',
+      'approve',
+      'reject',
+      'unreject',
+      'unapprove',
+      'delete',
+    ])
+      assert.ok(
+        catalog.some((entry) => entry.path === `/vou/${entity}/${action}`),
+      )
   for (const entity of userCreatableVouEntities)
     for (const action of ['submit-new', 'submit-change'])
-      assert.ok(catalog.some((entry) => entry.path === `/vou/${entity}/${action}`))
+      assert.ok(
+        catalog.some((entry) => entry.path === `/vou/${entity}/${action}`),
+      )
 })
 
 test('target OpenAPI exposes executable ACC, WFL and RPT transaction cores', async () => {
-  const openapi = JSON.parse(await readFile(generatedOpenApi, 'utf8')) as { paths: Record<string, unknown> }
+  const openapi = JSON.parse(await readFile(generatedOpenApi, 'utf8')) as {
+    paths: Record<string, unknown>
+  }
   const required = [
-    '/acc/book/query', '/acc/book/get', '/acc/book/create', '/acc/book/save', '/acc/book/delete',
-    '/acc/subject/query', '/acc/subject/get', '/acc/subject/create', '/acc/subject/save', '/acc/subject/delete',
-    '/acc/opening/query', '/acc/opening/submit-new', '/acc/opening/approve', '/acc/opening/reject',
-    '/acc/opening/unreject', '/acc/opening/unapprove', '/acc/opening/delete',
-    '/acc/period/query', '/acc/period/lock', '/acc/period/unlock',
-    '/dcl/wfl-process-definition/submit-new', '/dcl/wfl-process-definition/submit-change',
-    '/dcl/wfl-process-definition/approve', '/dcl/wfl-process-definition/reject',
-    '/dcl/wfl-process-definition/unreject', '/dcl/wfl-process-definition/unapprove',
-    '/dcl/wfl-process-definition/enable', '/dcl/wfl-process-definition/disable',
-    '/wfl/process-definition/get', '/wfl/process-definition/trial',
-    '/rpt/directory/query', '/rpt/{code}/query', '/rpt/{code}/export',
+    '/acc/book/query',
+    '/acc/book/get',
+    '/acc/book/create',
+    '/acc/book/save',
+    '/acc/book/delete',
+    '/acc/subject/query',
+    '/acc/subject/get',
+    '/acc/subject/create',
+    '/acc/subject/save',
+    '/acc/subject/delete',
+    '/acc/opening/query',
+    '/acc/opening/submit-new',
+    '/acc/opening/approve',
+    '/acc/opening/reject',
+    '/acc/opening/unreject',
+    '/acc/opening/unapprove',
+    '/acc/opening/delete',
+    '/acc/period/query',
+    '/acc/period/lock',
+    '/acc/period/unlock',
+    '/dcl/wfl-process-definition/submit-new',
+    '/dcl/wfl-process-definition/submit-change',
+    '/dcl/wfl-process-definition/approve',
+    '/dcl/wfl-process-definition/reject',
+    '/dcl/wfl-process-definition/unreject',
+    '/dcl/wfl-process-definition/unapprove',
+    '/dcl/wfl-process-definition/enable',
+    '/dcl/wfl-process-definition/disable',
+    '/wfl/process-definition/get',
+    '/wfl/process-definition/trial',
+    '/rpt/directory/query',
+    '/rpt/{code}/query',
+    '/rpt/{code}/export',
   ]
   for (const path of required) assert.ok(openapi.paths[path], path)
-  for (const legacy of ['/acc/opening/save', '/acc/opening/unsubmit', '/dcl/wfl-process-definition/save'])
+  for (const legacy of [
+    '/acc/opening/save',
+    '/acc/opening/unsubmit',
+    '/dcl/wfl-process-definition/save',
+  ])
     assert.equal(openapi.paths[legacy], undefined, legacy)
 })
 

@@ -2,11 +2,11 @@
 
 ## 1. 领域职责
 
-DCL（Declaration Control）拥有全部版本化业务对象的稳定 subject、business code 与强类型 Submission snapshot。当前实体是 `operating-entity`、`warehouse`、`vehicle`、`fund-account`、`product`、`employee`、`customer`、`supplier`、`other-unit`、`sales-partner`、`acc-mapping`、`rpt-definition` 与 `wfl-process-definition`：用户在本地 Draft 编辑，DCL 在 submit 时创建或删除开放 Submission，并读取版本历史和审计；中央 Approval 唯一拥有版本号、`PENDING | APPROVED | REJECTED`、revision、审批元数据和审批事件。BOB 只通过 highest APPROVED typed snapshot 提供当前有效业务资料的只读查询与交易引用解析。Party 与独立 `customer-subunit` subject 不存在；客户子单位是 Customer Version 内的强类型子项。会计映射、报表定义和流程定义的既有领域边界不变。
+DCL（Declaration Control）拥有全部版本化业务对象的稳定 subject、business code 与强类型 Submission snapshot。当前实体是 `warehouse`、`vehicle`、`fund-account`、`product`、`customer`、`supplier`、`other-unit`、`sales-partner`、`acc-mapping`、`rpt-definition` 与 `wfl-process-definition`：用户在本地 Draft 编辑，DCL 在 submit 时创建或删除开放 Submission，并读取版本历史和审计；中央 Approval 唯一拥有版本号、`PENDING | APPROVED | REJECTED`、revision、审批元数据和审批事件。BOB 只通过 highest APPROVED typed snapshot 提供当前有效业务资料的只读查询与交易引用解析。Party 与独立 `customer-subunit` subject 不存在；客户子单位是 Customer Version 内的强类型子项。会计映射、报表定义和流程定义的既有领域边界不变。
 
 ### 1.1 本地 Draft 与 Submission 生命周期
 
-全部 13 个 DCL 聚合采用同一生命周期：浏览器在当前登录用户和设备命名空间的 IndexedDB 中可同时保留多个本地 Draft。Draft 保存客户端生成的 draft/subject/submission 标识、未发送的完整表单、引用显示快照以及支持该聚合的附件 Blob 和元数据；刷新恢复、克隆和本地删除不写业务数据库。Draft 删除不请求 HTTP，也不属于 Approval。Warehouse 与 WFL Process Definition 的领域特有规则分别见下文。
+当前 DCL 聚合采用同一生命周期：浏览器只在当前页面实例内保留临时输入、引用显示快照和未提交附件，不持久化草稿。确定提交失败保留当前输入；关闭、刷新、切换资源或账号后销毁，不恢复。克隆仅预填新临时表单，不请求业务写入，也不属于 Approval。Warehouse 与 WFL Process Definition 的领域特有规则分别见下文。
 
 只有 `POST /dcl/{entity}/submit-new` 与 `POST /dcl/{entity}/submit-change`（可执行 Hono/Zod 目标路由）会在服务器事务中创建 Submission、版本 payload 和必要 stable subject。请求必须带 `expectedLatestApprovedSubmissionId` 与 `expectedLatestApprovedRevision`；服务端锁内重新读取历史和当前事实、权限及引用后决定这是 V1 还是最高已批准版本之后的 Vn，并拒绝与事实不符的 submit mode、过期 expected 值、重复开放候选或重复标识。浏览器规范化和决定只作提示，不能替代服务端复核。
 
@@ -16,11 +16,9 @@ Submission 一旦持久化即不可编辑，唯一状态是 `PENDING | APPROVED 
 
 `dcl_subjects` 是版本化业务对象唯一通用稳定身份，最小保存不可变 ID、entity、nullable code、createdAt 与 createdBy；非空 `(entity, upper(code))` 唯一。只有 ACC Mapping 是合法的无编码 subject。Operating Entity、Warehouse、Vehicle、Fund Account、Product、Employee、Customer、Supplier、Other Unit 与 Sales Partner 必须分别匹配 `OPE/WHS/VEH/FAC/PRD/EMP/CUS/SUP/OTU/SLP-[0-9]{4}`；客户子单位不占用 DCL subject 或全局编码空间，其稳定 ID 由 Customer 聚合持有，编码只在所属客户内大小写不敏感唯一。RPT 与 WFL 编码规则不变。DCL 不复制 Approval 版本头，不保存 current pointer 或第二套 revision，也不提供 BOB 写入别名、双写、过渡视图或失败回退。
 
-## 2. 经营主体申报
+## 2. 经营主体与员工的归属
 
-`dcl_subjects` 保存经营主体唯一稳定 ID 与 `OPE-*` 业务编码；二者跨全部版本不可变。`dcl_operating_entity_versions` 以 `approvalEntryId` 为主键，保存该版本完整的法定名称、简称、税号、地址、电话、备注和 `enabled`。所有可变字段均随候选版本冻结；启用或停用同样通过本地 Draft 经 `submit-change` 形成新候选并审批，不存在 BOB current 写入。
-
-HTTP 协议由可执行 Hono/Zod 路由生成。经营主体的 Submission 查询、当前正式资料、详情和全部写动作固定使用 `/dcl/operating-entity/*`；这是维护 HTTP 边界，不是当前已登记页面。`/bob/operating-entity/query|get` 只作为内部当前正式资料读取边界，不拥有独立业务写入或审批入口。
+经营主体与员工归 [AUX 直接维护](aux.md#39-经营主体与员工)，不注册 DCL 路由、提交、审批或业务版本写入。迁移保留的旧 subject、版本与 Approval 仅为历史证据，不作为 current 或新引用来源。
 
 ## 3. 版本与当前读取
 
@@ -37,7 +35,7 @@ HTTP 协议由可执行 Hono/Zod 路由生成。经营主体的 Submission 查�
 
 ## 3.1 仓库申报
 
-仓库 stable ID 与 `WHS-*` 编码跨全部版本不变。`dcl_warehouse_versions` 以 `approvalEntryId` 为主键，保存完整的名称、地址、联系人、联系电话、仓库负责人稳定 ID、负责人精确 Approval Entry、备注和 `enabled`。仓库负责人可空且只表达责任与联系，不授予任何操作权限；本地 Draft、submit 和批准时分别按最新选择或已保存精确版本校验该负责人。
+仓库 stable ID 与 `WHS-*` 编码跨全部版本不变。`dcl_warehouse_versions` 以 `approvalEntryId` 为主键，保存完整的名称、地址、联系人、联系电话、仓库负责人稳定 ID、负责人采用时快照、备注和 `enabled`。仓库负责人可空且只表达责任与联系，不授予任何操作权限；本地 Draft、submit 和批准时分别按最新选择或已保存精确版本校验该负责人；已持久化快照不回查 AUX current。
 
 `/dcl/warehouse/*` 是仓库维护 HTTP 边界，`/bob/warehouse/query|get` 只提供内部当前正式资料读取，不拥有独立业务写入或审批入口。启停同样通过完整 DCL candidate 的 `enabled` 改变，不存在 BOB 直接 `enable/disable`。批准 `enabled=false` 或反批准回落到 disabled/absent 前，在同一事务锁定仓库、库存和相关 VOU，并检查非零库存、进行中单据、仍可产生后续库存动作的来源单和当前正式引用；存在任一 blocker 时返回 `warehouse_disable_blocked`，Approval 保持不变。
 
@@ -45,15 +43,15 @@ VOU 与 ACC 继续保存 warehouse stable ID；VOU 同时保存实际采用的�
 
 ## 3.2 车辆申报
 
-车辆 stable ID 与 `VEH-*` 编码跨全部版本不变。`dcl_vehicle_versions` 以 `approvalEntryId` 为主键，保存完整的名称、车牌、车型字典编码及来源 Approval Entry、承运归属封闭对象、VIN、发动机号、核定载重、散水承运能力、备注和 `enabled`。承运归属的 wire value 只有 `INTERNAL` 与 `EXTERNAL`：自有车辆必须引用一个当前可用经营主体及其精确 Approval Entry，外部车辆必须直接引用一个当前可用其他单位档案及其精确 Approval Entry。
+车辆 stable ID 与 `VEH-*` 编码跨全部版本不变。`dcl_vehicle_versions` 以 `approvalEntryId` 为主键，保存完整的名称、车牌、车型字典编码及来源 Approval Entry、承运归属封闭对象、VIN、发动机号、核定载重、散水承运能力、备注和 `enabled`。承运归属的 wire value 只有 `INTERNAL` 与 `EXTERNAL`：自有车辆必须引用一个当前可用 AUX 经营主体及采用时快照，外部车辆必须直接引用一个当前可用其他单位档案及其精确 Approval Entry。
 
-`/dcl/vehicle/*` 是车辆维护 HTTP 边界，`/bob/vehicle/query|get|reference` 只提供内部当前正式资料读取，不拥有独立业务写入或审批入口。启停只能在本地 Draft 编辑完整 DCL snapshot，再经 `submit-new`/`submit-change` 形成候选，不存在 BOB 直接 `enable/disable`。Draft 与 submit 按最新引用解析车型与承运归属；服务端 submit 和批准时重新校验已保存的精确来源版本仍是 latest approved。承运方后续改版不会自动改写车辆快照，必须由用户建立车辆下一候选显式采用新版本。
+`/dcl/vehicle/*` 是车辆维护 HTTP 边界，`/bob/vehicle/query|get|reference` 只提供内部当前正式资料读取，不拥有独立业务写入或审批入口。启停只能在本地 Draft 编辑完整 DCL snapshot，再经 `submit-new`/`submit-change` 形成候选，不存在 BOB 直接 `enable/disable`。Draft 与 submit 按最新引用解析车型与承运归属；服务端 submit 时采用经营主体 AUX current；其他单位的精确来源版本在 submit 和批准时仍须为 latest approved。承运方后续改版不会自动改写车辆快照，必须由用户建立车辆下一候选显式采用新版本。
 
 批准或反批准只改变 Approval lifecycle；BOB 通过 highest APPROVED typed query 自然切换、回落或隐藏车辆资料，不保存车辆 current copy。被任一 VOU 正式事实精确引用的车辆 Approval Entry 不得反批准；当前车辆引用的经营主体或其他单位档案也不得失效，必须先通过车辆正常候选与审批流程修改承运归属。VOU 与运输事实继续保存 vehicle stable ID、实际采用的 Approval Entry ID、承运归属和车辆能力快照，任何车辆后续版本均不得重算或改写历史。
 
 ## 3.3 资金账户申报
 
-资金账户 stable ID 与 `FAC-*` 编码跨全部版本不变。`dcl_fund_account_versions` 以 `approvalEntryId` 为主键，保存完整的名称、币种、户名、银行、支行、规范化账号、备注、所属经营主体 stable ID、精确 Approval Entry、编码与名称快照，以及 `enabled`。资金账户必须且只能属于一个当前可用经营主体；Draft 规范化时解析 latest approved，submit 和批准时确认已存精确来源仍为 latest approved。所属主体后续改版不自动改写资金账户快照，必须通过新的 `submit-change` 显式采用。
+资金账户 stable ID 与 `FAC-*` 编码跨全部版本不变。`dcl_fund_account_versions` 以 `approvalEntryId` 为主键，保存完整的名称、币种、户名、银行、支行、规范化账号、备注、所属经营主体 AUX stable ID、编码与名称快照，以及 `enabled`。资金账户必须且只能属于一个当前可用经营主体；submit 时解析启用的 AUX current 并冻结快照，批准使用已保存快照。所属主体后续改版不自动改写资金账户快照，必须通过新的 `submit-change` 显式采用。
 
 `/dcl/fund-account/*` 是资金账户维护 HTTP 边界，`/bob/fund-account/query|get|reference` 只提供内部当前正式资料读取，不拥有独立业务写入或审批入口。账号移除空白和连字符并转为大写；非空账号在全部资金账户的 latest approved 与唯一 open candidate 之间大小写不敏感唯一，旧批准版本在新版本批准后释放账号。批准或反批准只改变 Approval lifecycle，并在同一事务更新账号占用；BOB 通过 highest APPROVED typed query 自然切换、回落或隐藏资料，冲突时 Approval 与账号占用均不改变。
 
@@ -69,17 +67,13 @@ Draft 规范化时解析当前启用且 entity 匹配的 AUX stable object，并
 
 ## 3.5 强类型业务身份
 
-Customer、Supplier、Employee、Other Unit 与 Sales Partner 各自在自己的完整 typed version 中保存身份、法定名称、显示名称、单一法定识别号和联系资料，不引用共享 Party。法定识别号按“业务档案类型 + 规范化值”在该类型的 latest approved 与唯一 open candidate 间共同占用；跨业务档案类型不比较、不复用、不同步，也不提供跨类型或同类型合并。误建且已有历史引用的档案只能通过下一候选停用，历史快照保持原值。
+Customer、Supplier、Other Unit 与 Sales Partner 各自在自己的完整 typed version 中保存身份、法定名称、显示名称、单一法定识别号和联系资料，不引用共享 Party。法定识别号按“业务档案类型 + 规范化值”在该类型的 latest approved 与唯一 open candidate 间共同占用；跨业务档案类型不比较、不复用、不同步，也不提供跨类型或同类型合并。误建且已有历史引用的档案只能通过下一候选停用，历史快照保持原值。
 
 Party subject、版本、强标识数组、标识类型、重复税号字段、关系 root、影响预览、合并预检/确认、权限、页面和 API 全部不存在。每种业务档案都由本地 Draft 通过 `submit-new` 在同一事务建立自己的 DCL subject、V1 candidate 和 typed snapshot；失败时整体回滚。法定识别号变更与其他身份资料一起进入该档案正常的候选和审批流程。
 
-## 3.6 员工申报
+## 3.6 员工
 
-员工 stable ID 与 `EMP-*` 编码由 `dcl_subjects(entity=employee)` 持有。`dcl_employee_versions` 以 `approvalEntryId` 保存完整身份和雇佣 snapshot：人员法律身份、单一法定识别号、姓名、人员类别、部门、岗位、工作电话、工作邮箱、入职日期、任职经营主体、备注与 `enabled`。人员类别、部门、岗位与经营主体均保存稳定来源及必要快照。
-
-`/dcl/employee/*` 是员工唯一维护 HTTP 边界，`/bob/employee` 只提供 current `query|get|reference`。`submit-new` 只提交员工完整资料，不选择或创建 Party。任职经营主体必须存在且当前有效，但只是员工资料，不限制其他经营主体的业务单据选择该员工；单据选择资格仍由自身权限和业务规则决定。V1 的 `enabled` 默认为 `true`，后续启停通过本地 Draft 与 `submit-change` 完成。
-
-批准或反批准只改变 Approval lifecycle；BOB 直接读取 highest APPROVED employee snapshot 并返回来源 Approval Entry。VOU/ACC 与其他正式事实继续保存 employee stable ID、精确 Approval Entry 以及各自所需 snapshot。任一正式事实精确引用目标 employee entry 时，反批准必须返回 blocker；新 employee candidate 和后续批准版本不改写历史。
+员工由 [AUX 直接维护](aux.md#39-经营主体与员工)。其他申报通过 stable ID 采用任职与身份的 typed snapshot，已保存的快照不回查 current。任职主体不限制其他主体单据选择员工。
 
 ## 3.6.1 客户与客户子单位申报
 

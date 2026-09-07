@@ -12,7 +12,7 @@ import { createApp } from '../../src/app.ts'
 import { SessionService } from '../../src/app/session.ts'
 import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { createDatabase } from '../../src/db/database.ts'
-import { ArchiveService } from '../../src/dcl/archives.ts'
+import { AuxService } from '../../src/aux/service.ts'
 import { WarehouseService } from '../../src/dcl/warehouse.ts'
 import { loadConfig } from '../../src/platform/config.ts'
 
@@ -43,9 +43,8 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
   const reviewerId = ulid()
   const submitterRoleId = ulid()
   const reviewerRoleId = ulid()
-  const managerEmployeeId = ulid()
-  const managerApprovalEntryId = ulid()
-  const previousManagerApprovalEntryId = ulid()
+  let managerEmployeeId = ''
+  const auxObjectIds: string[] = []
   const submitterUsername = `warehouse-submitter-${randomBytes(5).toString('hex')}`
   const reviewerUsername = `warehouse-reviewer-${randomBytes(5).toString('hex')}`
   const submitterPassword = randomBytes(18).toString('base64url')
@@ -67,6 +66,20 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
       await db
         .deleteFrom('dcl_subjects')
         .where('created_by', '=', submitterId)
+        .execute()
+      if (auxObjectIds.length) {
+        await db
+          .deleteFrom('aux_reference_facts')
+          .where('aux_object_id', 'in', auxObjectIds)
+          .execute()
+        await db
+          .deleteFrom('aux_objects')
+          .where('id', 'in', auxObjectIds)
+          .execute()
+      }
+      await db
+        .deleteFrom('app_audit_events')
+        .where('actor_user_id', 'in', [submitterId, reviewerId])
         .execute()
       await db
         .deleteFrom('app_sessions')
@@ -164,103 +177,94 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
     ])
     .execute()
 
-  await db
-    .insertInto('dcl_subjects')
-    .values({
-      id: managerEmployeeId,
-      entity: 'employee',
-      code: 'EMP-0001',
-      created_at: new Date(),
-      created_by: submitterId,
-    })
-    .execute()
-  await db
-    .insertInto('approval_entries')
-    .values([
-      {
-        id: previousManagerApprovalEntryId,
-        domain: 'dcl',
-        entity: 'employee',
-        subject_id: managerEmployeeId,
-        version_no: 1,
-        status: 'APPROVED',
-        revision: '1',
-        submitted_by: submitterId,
-        submitted_at: new Date(),
-        approved_by: reviewerId,
-        approved_at: new Date(),
-        rejected_by: null,
-        rejected_at: null,
-        rejection_reason: null,
-        updated_by: reviewerId,
-        updated_at: new Date(),
-      },
-      {
-        id: managerApprovalEntryId,
-        domain: 'dcl',
-        entity: 'employee',
-        subject_id: managerEmployeeId,
-        version_no: 2,
-        status: 'APPROVED',
-        revision: '1',
-        submitted_by: submitterId,
-        submitted_at: new Date(),
-        approved_by: reviewerId,
-        approved_at: new Date(),
-        rejected_by: null,
-        rejected_at: null,
-        rejection_reason: null,
-        updated_by: reviewerId,
-        updated_at: new Date(),
-      },
-    ])
-    .execute()
-  await db
-    .insertInto('dcl_employee_versions')
-    .values([
-      {
-        approval_entry_id: previousManagerApprovalEntryId,
-        display_name: '权威负责人 V1',
-        legal_name: null,
-        legal_identifier: null,
-        employee_category_id: null,
-        department_id: null,
-        position_id: null,
-        operating_entity_id: null,
-        operating_entity_approval_entry_id: null,
-        operating_entity_code: null,
-        operating_entity_name: null,
-        work_phone: null,
-        work_email: null,
-        hired_on: null,
-        remark: null,
-        source_snapshots: {},
-        enabled: true,
-      },
-      {
-        approval_entry_id: managerApprovalEntryId,
-        display_name: '权威负责人 V2',
-        legal_name: null,
-        legal_identifier: null,
-        employee_category_id: null,
-        department_id: null,
-        position_id: null,
-        operating_entity_id: null,
-        operating_entity_approval_entry_id: null,
-        operating_entity_code: null,
-        operating_entity_name: null,
-        work_phone: null,
-        work_email: null,
-        hired_on: null,
-        remark: null,
-        source_snapshots: {},
-        enabled: true,
-      },
-    ])
-    .execute()
-
+  const aux = new AuxService(db)
+  const auxActor = {
+    id: submitterId,
+    permissions: [
+      '/aux/operating-entity/create',
+      '/aux/operating-entity/get',
+      '/aux/employee-category/create',
+      '/aux/employee-category/get',
+      '/aux/department/create',
+      '/aux/department/get',
+      '/aux/position/create',
+      '/aux/position/get',
+      '/aux/employee/create',
+      '/aux/employee/get',
+      '/aux/employee/save',
+      '/aux/employee/disable',
+    ],
+  }
+  const operatingEntityCreated = await aux.create(
+    'operating-entity',
+    {
+      legalName: '仓库测试经营主体',
+      shortName: '仓库主体',
+      legalIdentifier: `E${submitterId.slice(-17)}`,
+      registeredAddress: '',
+      contactName: '',
+      contactPhone: '',
+      invoiceTitle: '',
+      invoiceAddress: '',
+      invoicePhone: '',
+      invoiceBank: '',
+      invoiceAccount: '',
+      remark: '',
+    },
+    auxActor,
+  )
+  const employeeCategoryCreated = await aux.create(
+    'employee-category',
+    { name: '仓库员工分类', description: '' },
+    auxActor,
+  )
+  const departmentCreated = await aux.create(
+    'department',
+    { name: '仓库部门', parentId: '', description: '' },
+    auxActor,
+  )
+  const positionCreated = await aux.create(
+    'position',
+    { name: '仓库负责人', description: '' },
+    auxActor,
+  )
+  auxObjectIds.push(
+    operatingEntityCreated.id,
+    employeeCategoryCreated.id,
+    departmentCreated.id,
+    positionCreated.id,
+  )
+  const managerCreated = await aux.create(
+    'employee',
+    {
+      identityKind: 'PERSON',
+      legalName: '权威负责人',
+      displayName: '权威负责人 V1',
+      legalIdentifier: 'WAREHOUSE-MANAGER-01',
+      contactName: '',
+      phone: '',
+      address: '',
+      employeeCategoryId: employeeCategoryCreated.id,
+      departmentId: departmentCreated.id,
+      positionId: positionCreated.id,
+      employmentDate: '2026-09-07',
+      workPhone: '',
+      workEmail: '',
+      operatingEntityId: operatingEntityCreated.id,
+      remark: '',
+    },
+    auxActor,
+  )
+  auxObjectIds.push(managerCreated.id)
+  managerEmployeeId = managerCreated.id
+  const managerV1 = await aux.get(
+    'employee',
+    { id: managerEmployeeId },
+    auxActor,
+  )
   const config = loadConfig({
     DATABASE_URL: databaseUrl,
+    TARGET_DATABASE_SCOPE: process.env.TARGET_DATABASE_SCOPE,
     APP_SESSION_COOKIE_SECURE: 'false',
   })
   const app = createApp({
@@ -336,7 +340,6 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
       contactName: null,
       contactPhone: null,
       managerEmployeeId,
-      managerEmployeeApprovalEntryId: previousManagerApprovalEntryId,
       managerEmployeeCode: 'FORGED-CODE',
       managerEmployeeName: '伪造负责人',
       remark: null,
@@ -360,7 +363,6 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
       idempotencyKey: ulid(),
       snapshot: {
         ...input.snapshot,
-        managerEmployeeApprovalEntryId: null,
         managerEmployeeCode: null,
         managerEmployeeName: null,
       },
@@ -391,39 +393,50 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
   )
   assert.equal(managerFactWithSubmitPermission.code, 0)
   assert.equal(
-    managerFactWithSubmitPermission.data.latestApprovedEntryId,
-    managerApprovalEntryId,
+    managerFactWithSubmitPermission.data.employeeId,
+    managerEmployeeId,
   )
+  assert.equal(managerFactWithSubmitPermission.data.code, managerV1.code)
   assert.equal(
     managerFactWithSubmitPermission.data.displayName,
-    '权威负责人 V2',
+    '权威负责人 V1',
   )
-  const archiveService = new ArchiveService(db, {
-    validate: async () => undefined,
-  })
-  await archiveService.review(
+  await aux.save(
     'employee',
-    'unapprove',
     {
-      subjectId: managerEmployeeId,
-      submissionId: managerApprovalEntryId,
-      expectedRevision: '1',
-      reason: '负责人版本回落',
+      id: managerV1.id,
+      revision: managerV1.revision,
+      identityKind: managerV1.identityKind,
+      legalName: managerV1.legalName,
+      displayName: '权威负责人 V2',
+      legalIdentifier: managerV1.legalIdentifier,
+      contactName: managerV1.contactName,
+      phone: managerV1.phone,
+      address: managerV1.address,
+      employeeCategoryId: managerV1.employeeCategory.id,
+      departmentId: managerV1.department.id,
+      positionId: managerV1.position.id,
+      employmentDate: managerV1.employmentDate,
+      workPhone: managerV1.workPhone,
+      workEmail: managerV1.workEmail,
+      operatingEntityId: managerV1.operatingEntity.id,
+      remark: managerV1.remark,
     },
-    { id: reviewerId, permissions: [], trusted: true },
-    ulid(),
+    auxActor,
   )
-  const managerFactAfterUnapprove = await post(
+  const managerV2 = await aux.get(
+    'employee',
+    { id: managerEmployeeId },
+    auxActor,
+  )
+  const managerFactAfterSave = await post(
     '/dcl/warehouse/manager-reference',
     { employeeId: managerEmployeeId, action: 'submit-new' },
     submitter,
   )
-  assert.equal(managerFactAfterUnapprove.code, 0)
-  assert.equal(
-    managerFactAfterUnapprove.data.latestApprovedEntryId,
-    previousManagerApprovalEntryId,
-  )
-  assert.equal(managerFactAfterUnapprove.data.displayName, '权威负责人 V1')
+  assert.equal(managerFactAfterSave.code, 0)
+  assert.equal(managerFactAfterSave.data.code, managerV2.code)
+  assert.equal(managerFactAfterSave.data.displayName, '权威负责人 V2')
   const wrongSubmitPermission = await post(
     '/dcl/warehouse/manager-reference',
     { employeeId: managerEmployeeId, action: 'submit-change' },
@@ -449,12 +462,22 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
   assert.equal(submitted.data.status, 'PENDING')
   assert.equal(submitted.data.versionNo, 1)
   assert.equal(submitted.data.snapshot.name, '一号仓')
+  assert.equal(submitted.data.snapshot.managerEmployeeCode, managerV2.code)
+  assert.equal(submitted.data.snapshot.managerEmployeeName, '权威负责人 V2')
   assert.equal(
-    submitted.data.snapshot.managerEmployeeApprovalEntryId,
-    previousManagerApprovalEntryId,
+    await db
+      .selectFrom('aux_reference_facts')
+      .select((builder) => builder.fn.countAll<string>().as('count'))
+      .where('aux_object_id', '=', managerEmployeeId)
+      .where(
+        'source',
+        '=',
+        `dcl:warehouse:${submitted.data.submissionId}:manager`,
+      )
+      .executeTakeFirstOrThrow()
+      .then((row) => Number(row.count)),
+    1,
   )
-  assert.equal(submitted.data.snapshot.managerEmployeeCode, 'EMP-0001')
-  assert.equal(submitted.data.snapshot.managerEmployeeName, '权威负责人 V1')
   assert.equal(
     await db
       .selectFrom('dcl_subjects')
@@ -482,8 +505,8 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
       snapshot: {
         ...input.snapshot,
         name: '一号仓',
-        managerEmployeeCode: 'EMP-0001',
-        managerEmployeeName: '权威负责人',
+        managerEmployeeCode: 'FORGED-CODE',
+        managerEmployeeName: '伪造负责人',
       },
     },
     submitter,
@@ -580,7 +603,7 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
         managerName: item.managerName,
       }),
     ),
-    [{ name: '一号仓', enabled: true, managerName: '权威负责人 V1' }],
+    [{ name: '一号仓', enabled: true, managerName: '权威负责人 V2' }],
   )
   assert.deepEqual(
     rejectedQuery.data.items.map(
@@ -900,4 +923,59 @@ test('Warehouse runs local-Draft submission and the complete target lifecycle th
       (event: { action: string }) => event.action === 'UNAPPROVED',
     ),
   )
+  const renamedManager = await aux.get(
+    'employee',
+    { id: managerEmployeeId },
+    auxActor,
+  )
+  await aux.save(
+    'employee',
+    {
+      id: renamedManager.id,
+      revision: renamedManager.revision,
+      identityKind: renamedManager.identityKind,
+      legalName: renamedManager.legalName,
+      displayName: '权威负责人 V3',
+      legalIdentifier: renamedManager.legalIdentifier,
+      contactName: renamedManager.contactName,
+      phone: renamedManager.phone,
+      address: renamedManager.address,
+      employeeCategoryId: renamedManager.employeeCategory.id,
+      departmentId: renamedManager.department.id,
+      positionId: renamedManager.position.id,
+      employmentDate: renamedManager.employmentDate,
+      workPhone: renamedManager.workPhone,
+      workEmail: renamedManager.workEmail,
+      operatingEntityId: renamedManager.operatingEntity.id,
+      remark: renamedManager.remark,
+    },
+    auxActor,
+  )
+  const persistedSubmission = await post(
+    '/dcl/warehouse/get',
+    { subjectId },
+    reviewer,
+  )
+  assert.equal(
+    persistedSubmission.data.snapshot.managerEmployeeName,
+    '权威负责人 V2',
+  )
+  const managerV3 = await aux.get(
+    'employee',
+    { id: managerEmployeeId },
+    auxActor,
+  )
+  await aux.disable(
+    'employee',
+    { id: managerV3.id, revision: managerV3.revision },
+    auxActor,
+    ulid(),
+  )
+  const disabledManager = await post(
+    '/dcl/warehouse/manager-reference',
+    { employeeId: managerEmployeeId, action: 'submit-new' },
+    submitter,
+  )
+  assert.equal(disabledManager.code, 0)
+  assert.equal(disabledManager.data, null)
 })

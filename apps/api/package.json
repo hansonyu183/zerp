@@ -24,6 +24,7 @@
     "sync:catalog": "node scripts/sync-target-catalog.ts",
     "cleanup:legacy-menu": "node scripts/cleanup-legacy-menu.ts",
     "backfill:user-py": "node scripts/backfill-user-pinyin.ts",
+    "migrate:aux-people": "node scripts/migrate-aux-people.ts",
     "e2e": "node scripts/run-target-e2e.ts"
   },
   "dependencies": {

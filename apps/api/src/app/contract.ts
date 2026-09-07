@@ -60,18 +60,6 @@ const failureEnvelope = z.object({
         references: z.array(z.record(z.string(), z.unknown())),
       })
       .strict(),
-    z
-      .object({
-        fieldBlockers: z.array(
-          z.object({
-            field: z.literal('manager'),
-            objectId: z.string(),
-            expectedApprovalEntryId: z.string(),
-            currentApprovalEntryId: z.string().optional(),
-          }),
-        ),
-      })
-      .strict(),
   ]),
   requestId: z.string(),
 })
@@ -259,7 +247,6 @@ const warehouseSnapshot = z
     contactName: z.string().max(100).nullable(),
     contactPhone: z.string().max(32).nullable(),
     managerEmployeeId: z.string().max(26).nullable(),
-    managerEmployeeApprovalEntryId: z.string().max(26).nullable(),
     managerEmployeeCode: z.string().max(64).nullable(),
     managerEmployeeName: z.string().max(200).nullable(),
     remark: z.string().max(1000).nullable(),
@@ -269,7 +256,6 @@ const warehouseSnapshot = z
   .superRefine((snapshot, context) => {
     const managerFields = [
       snapshot.managerEmployeeId,
-      snapshot.managerEmployeeApprovalEntryId,
       snapshot.managerEmployeeCode,
       snapshot.managerEmployeeName,
     ]
@@ -455,10 +441,8 @@ const warehouseManagerReferenceEnvelope = z.union([
     data: z
       .object({
         employeeId: z.string(),
-        latestApprovedEntryId: z.string(),
         code: z.string(),
         displayName: z.string(),
-        enabled: z.boolean(),
       })
       .nullable(),
     requestId: z.string(),

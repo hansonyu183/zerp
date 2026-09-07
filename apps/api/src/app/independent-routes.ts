@@ -339,12 +339,14 @@ export function createIndependentHandlers(
             entity,
             input as unknown as AuxWriteData<typeof entity>,
             actor,
+            requestId,
           )
         else if (binding.action === 'save')
           data = await service.save(
             entity,
             input as unknown as AuxSaveInput<typeof entity>,
             actor,
+            requestId,
           )
         else if (binding.action === 'enable' || binding.action === 'disable')
           data = await service[binding.action](
@@ -358,6 +360,7 @@ export function createIndependentHandlers(
             entity,
             input as unknown as AuxRevisionInput,
             actor,
+            requestId,
           )
           data = { deleted: true }
         }

@@ -135,7 +135,8 @@ CREATE TABLE aux_objects (
     entity varchar(32) NOT NULL CHECK (entity IN (
         'product-category', 'product-type', 'employee-category', 'department',
         'position', 'settlement-method', 'payment-method', 'dictionary-type',
-        'dictionary-item', 'measurement-unit', 'income-expense-type', 'asset-category'
+        'dictionary-item', 'measurement-unit', 'income-expense-type', 'asset-category',
+        'operating-entity', 'employee'
     )),
     code varchar(64) NOT NULL CHECK (code ~ '^[A-Z]{3}-[0-9]{4}$'),
     data jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(data) = 'object'),
@@ -314,7 +315,7 @@ CREATE TABLE dcl_supplier_versions (
 CREATE TABLE dcl_supplier_version_operating_entities (
     approval_entry_id varchar(26) NOT NULL REFERENCES dcl_supplier_versions(approval_entry_id) ON DELETE CASCADE,
     operating_entity_id varchar(26) NOT NULL,
-    operating_entity_approval_entry_id varchar(26) NOT NULL,
+    operating_entity_approval_entry_id varchar(26),
     operating_entity_code varchar(64) NOT NULL,
     operating_entity_name varchar(200) NOT NULL,
     PRIMARY KEY (approval_entry_id, operating_entity_id)
@@ -338,7 +339,7 @@ CREATE TABLE dcl_other_unit_versions (
 CREATE TABLE dcl_other_unit_version_operating_entities (
     approval_entry_id varchar(26) NOT NULL REFERENCES dcl_other_unit_versions(approval_entry_id) ON DELETE CASCADE,
     operating_entity_id varchar(26) NOT NULL,
-    operating_entity_approval_entry_id varchar(26) NOT NULL,
+    operating_entity_approval_entry_id varchar(26),
     operating_entity_code varchar(64) NOT NULL,
     operating_entity_name varchar(200) NOT NULL,
     PRIMARY KEY (approval_entry_id, operating_entity_id)
@@ -382,7 +383,7 @@ CREATE TABLE dcl_sales_partner_versions (
 CREATE TABLE dcl_sales_partner_version_operating_entities (
     approval_entry_id varchar(26) NOT NULL REFERENCES dcl_sales_partner_versions(approval_entry_id) ON DELETE CASCADE,
     operating_entity_id varchar(26) NOT NULL,
-    operating_entity_approval_entry_id varchar(26) NOT NULL,
+    operating_entity_approval_entry_id varchar(26),
     operating_entity_code varchar(64) NOT NULL,
     operating_entity_name varchar(200) NOT NULL,
     PRIMARY KEY (approval_entry_id, operating_entity_id)
@@ -1219,6 +1220,7 @@ CREATE TABLE vou_reference_snapshots (
     reference_entity varchar(64),
     reference_code varchar(64),
     reference_name varchar(200),
+    aux_snapshot jsonb CHECK (aux_snapshot IS NULL OR jsonb_typeof(aux_snapshot) = 'object'),
     PRIMARY KEY (approval_entry_id, field, line_no, item_no),
     CHECK ((approval_reference_id IS NULL) = (selection_origin IS NULL))
 );

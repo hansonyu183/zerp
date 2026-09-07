@@ -13,6 +13,10 @@ import { sql, type Kysely, type Transaction } from 'kysely'
 import { ulid } from 'ulid'
 
 import type { DB, JsonValue } from '../db/generated.ts'
+import {
+  AuxApplicationError,
+  resolveAuxPeopleReference,
+} from '../aux/service.ts'
 
 type Executor = Kysely<DB> | Transaction<DB>
 
@@ -22,7 +26,6 @@ export interface WarehouseWireSnapshot {
   contactName: string | null
   contactPhone: string | null
   managerEmployeeId: string | null
-  managerEmployeeApprovalEntryId: string | null
   managerEmployeeCode: string | null
   managerEmployeeName: string | null
   remark: string | null
@@ -106,15 +109,6 @@ interface WarehouseReferenceBlockerData {
   }>
 }
 
-interface WarehouseFieldBlockerData {
-  fieldBlockers: Array<{
-    field: 'manager'
-    objectId: string
-    expectedApprovalEntryId: string
-    currentApprovalEntryId?: string
-  }>
-}
-
 interface WarehouseDisableBlockerData {
   inventory: Array<Record<string, unknown>>
   documents: Array<Record<string, unknown>>
@@ -124,7 +118,6 @@ interface WarehouseDisableBlockerData {
 
 type WarehouseFailureData =
   | WarehouseReferenceBlockerData
-  | WarehouseFieldBlockerData
   | WarehouseDisableBlockerData
   | null
 
@@ -145,17 +138,19 @@ function asNullable(value: string): string | null {
   return normalized === '' ? null : normalized
 }
 
+function warehouseManagerReferenceSource(submissionId: string): string {
+  return `dcl:warehouse:${submissionId}:manager`
+}
+
 function toModelData(snapshot: WarehouseWireSnapshot): WarehouseData {
   const hasManager = [
     snapshot.managerEmployeeId,
-    snapshot.managerEmployeeApprovalEntryId,
     snapshot.managerEmployeeCode,
     snapshot.managerEmployeeName,
   ].some((value) => value !== null)
   const manager = hasManager
     ? {
         employeeId: snapshot.managerEmployeeId ?? '',
-        approvalEntryId: snapshot.managerEmployeeApprovalEntryId ?? '',
         code: snapshot.managerEmployeeCode ?? '',
         displayName: snapshot.managerEmployeeName ?? '',
       }
@@ -191,9 +186,6 @@ function hashRequest(action: string, input: WarehouseSubmitInput): string {
           contactName: asNullable(snapshot.contactName ?? ''),
           contactPhone: asNullable(snapshot.contactPhone ?? ''),
           managerEmployeeId: asNullable(snapshot.managerEmployeeId ?? ''),
-          managerEmployeeApprovalEntryId: asNullable(
-            snapshot.managerEmployeeApprovalEntryId ?? '',
-          ),
           remark: asNullable(snapshot.remark ?? ''),
           enabled: snapshot.enabled,
         },
@@ -537,19 +529,15 @@ export class WarehouseService {
         let manager:
           | {
               employeeId: string
-              latestApprovedEntryId: string
               code: string
               displayName: string
-              enabled: boolean
             }
           | undefined
-        if (input.snapshot.managerEmployeeId) {
-          manager =
-            (await this.currentManagerReference(
-              transaction,
-              input.snapshot.managerEmployeeId,
-            )) ?? undefined
-        }
+        if (input.snapshot.managerEmployeeId)
+          manager = await this.resolveCurrentManagerReference(
+            transaction,
+            input.snapshot.managerEmployeeId,
+          )
         const occurredAt = new Date().toISOString()
         const decision = prepareWarehouseSubmit(
           {
@@ -579,12 +567,7 @@ export class WarehouseService {
           },
         )
         if (!decision.ok)
-          throw new WarehouseApplicationError(
-            decision.error.errorKey,
-            decision.error.blockers
-              ? { fieldBlockers: decision.error.blockers }
-              : null,
-          )
+          throw new WarehouseApplicationError(decision.error.errorKey)
         const plan = decision.plan
         let code: string
         if (plan.createSubject) {
@@ -645,14 +628,22 @@ export class WarehouseService {
             contact_name: asNullable(plan.data.contactName),
             contact_phone: asNullable(plan.data.contactPhone),
             manager_employee_id: plan.data.manager?.employeeId ?? null,
-            manager_employee_approval_entry_id:
-              plan.data.manager?.approvalEntryId ?? null,
+            manager_employee_approval_entry_id: null,
             manager_employee_code: plan.data.manager?.code ?? null,
             manager_employee_name: plan.data.manager?.displayName ?? null,
             remark: asNullable(plan.data.remark),
             enabled: plan.data.enabled,
           })
           .execute()
+        if (plan.data.manager)
+          await transaction
+            .insertInto('aux_reference_facts')
+            .values({
+              id: ulid(),
+              aux_object_id: plan.data.manager.employeeId,
+              source: warehouseManagerReferenceSource(plan.submissionId),
+            })
+            .execute()
         await transaction
           .insertInto('approval_events')
           .values({
@@ -870,6 +861,10 @@ export class WarehouseService {
           created_at: occurredAt,
         })
         .execute()
+      await transaction
+        .deleteFrom('aux_reference_facts')
+        .where('source', '=', warehouseManagerReferenceSource(input.submissionId))
+        .execute()
       const deleted = await transaction
         .deleteFrom('approval_entries')
         .where('id', '=', input.submissionId)
@@ -944,43 +939,48 @@ export class WarehouseService {
     employeeId: string,
   ): Promise<{
     employeeId: string
-    latestApprovedEntryId: string
     code: string
     displayName: string
-    enabled: boolean
   } | null> {
-    const row = await sql<{
+    const result = await sql<{
       employee_id: string
-      latest_approved_entry_id: string
       code: string
       display_name: string
-      enabled: boolean
-    }>`
-      SELECT e.subject_id AS employee_id,
-        e.id AS latest_approved_entry_id,
-        s.code,
-        v.display_name,
-        v.enabled
-      FROM approval_entries e
-      JOIN dcl_subjects s ON s.id = e.subject_id
-      JOIN dcl_employee_versions v ON v.approval_entry_id = e.id
-      WHERE e.domain = 'dcl'
-        AND e.entity = 'employee'
-        AND e.subject_id = ${employeeId}
-        AND e.status = 'APPROVED'
-      ORDER BY e.version_no DESC
-      LIMIT 1
-    `.execute(executor)
-    const current = row.rows[0]
+    }>`SELECT id AS employee_id, code, data->>'displayName' AS display_name
+      FROM aux_objects
+      WHERE id = ${employeeId} AND entity = 'employee' AND enabled = true`.execute(
+      executor,
+    )
+    const current = result.rows[0]
     return current
       ? {
           employeeId: current.employee_id,
-          latestApprovedEntryId: current.latest_approved_entry_id,
           code: current.code,
           displayName: current.display_name,
-          enabled: current.enabled,
         }
       : null
+  }
+
+  private async resolveCurrentManagerReference(
+    transaction: Transaction<DB>,
+    employeeId: string,
+  ): Promise<{ employeeId: string; code: string; displayName: string }> {
+    try {
+      const reference = await resolveAuxPeopleReference(
+        transaction,
+        'employee',
+        employeeId,
+      )
+      return {
+        employeeId: reference.objectId,
+        code: reference.code,
+        displayName: reference.name,
+      }
+    } catch (error) {
+      if (error instanceof AuxApplicationError)
+        throw new WarehouseApplicationError('warehouse_reference_unavailable')
+      throw error
+    }
   }
 
   private async readSubmission(
@@ -1046,7 +1046,6 @@ export class WarehouseService {
         contactName: row.contact_name,
         contactPhone: row.contact_phone,
         managerEmployeeId: row.manager_employee_id,
-        managerEmployeeApprovalEntryId: row.manager_employee_approval_entry_id,
         managerEmployeeCode: row.manager_employee_code,
         managerEmployeeName: row.manager_employee_name,
         remark: row.remark,

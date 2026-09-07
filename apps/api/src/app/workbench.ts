@@ -187,8 +187,8 @@ export class WorkbenchService {
         COALESCE(s.code, mapping.vou_entity_snapshot->>'code', e.subject_id) AS code,
         COALESCE(
           customer.display_name, supplier.display_name, other_unit.display_name,
-          employee.display_name, sales_partner.display_name, product.name,
-          warehouse.name, vehicle.name, fund_account.name, operating_entity.legal_name,
+          sales_partner.display_name, product.name,
+          warehouse.name, vehicle.name, fund_account.name,
           mapping.vou_entity_snapshot->>'name', rpt_definition.name,
           wfl_definition.compiled_graph->>'name', s.code, e.subject_id
         ) AS name
@@ -197,13 +197,11 @@ export class WorkbenchService {
       LEFT JOIN dcl_customer_versions customer ON customer.approval_entry_id = e.id
       LEFT JOIN dcl_supplier_versions supplier ON supplier.approval_entry_id = e.id
       LEFT JOIN dcl_other_unit_versions other_unit ON other_unit.approval_entry_id = e.id
-      LEFT JOIN dcl_employee_versions employee ON employee.approval_entry_id = e.id
       LEFT JOIN dcl_sales_partner_versions sales_partner ON sales_partner.approval_entry_id = e.id
       LEFT JOIN dcl_product_versions product ON product.approval_entry_id = e.id
       LEFT JOIN dcl_warehouse_versions warehouse ON warehouse.approval_entry_id = e.id
       LEFT JOIN dcl_vehicle_versions vehicle ON vehicle.approval_entry_id = e.id
       LEFT JOIN dcl_fund_account_versions fund_account ON fund_account.approval_entry_id = e.id
-      LEFT JOIN dcl_operating_entity_versions operating_entity ON operating_entity.approval_entry_id = e.id
       LEFT JOIN dcl_acc_mapping_versions mapping ON mapping.approval_entry_id = e.id
       LEFT JOIN dcl_rpt_definition_versions rpt_definition ON rpt_definition.approval_entry_id = e.id
       LEFT JOIN wfl_definition_versions wfl_definition ON wfl_definition.approval_entry_id = e.id

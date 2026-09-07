@@ -42,34 +42,6 @@ test('measurement-unit reference exposes its authoritative symbol', () => {
   )
 })
 
-test('operating entity snapshot requires the versioned short name', () => {
-  const snapshot = {
-    legalName: '测试科技有限公司',
-    shortName: '测试科技',
-    legalIdentifier: '91350211M000100Y46',
-    registeredAddress: '',
-    contactName: '',
-    contactPhone: '',
-    invoiceTitle: '',
-    invoiceAddress: '',
-    invoicePhone: '',
-    invoiceBank: '',
-    invoiceAccount: '',
-    remark: '',
-    enabled: true,
-  }
-  assert.equal(
-    archiveSnapshotSchemas['operating-entity'].safeParse(snapshot).success,
-    true,
-  )
-  const { shortName: _, ...withoutShortName } = snapshot
-  assert.equal(
-    archiveSnapshotSchemas['operating-entity'].safeParse(withoutShortName)
-      .success,
-    false,
-  )
-})
-
 test('product snapshot closes unit conversions and fixed formula', () => {
   const kilogram = {
     id: id('unit-kg'),
@@ -190,7 +162,6 @@ test('customer snapshot uses closed typed subunit business policies', () => {
         primarySalesAttribution: {
           type: 'INTERNAL_EMPLOYEE',
           objectId: id('employee'),
-          approvalEntryId: id('employee-entry'),
           code: 'EMP-0001',
           name: '业务员',
         },

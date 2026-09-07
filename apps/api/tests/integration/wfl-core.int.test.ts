@@ -4,6 +4,7 @@ import type { VouPayload } from '@zerp/model'
 import { createNodeWflStarlark } from '@zerp/wfl-starlark/node'
 import { ulid } from 'ulid'
 
+import { AuxService } from '../../src/aux/service.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { VouApplicationError, VouService } from '../../src/vou/service.ts'
@@ -46,6 +47,7 @@ async function seedSaleOrderReferences(
   db: ReturnType<typeof createDatabase>,
   actorId: string,
 ) {
+  const aux = new AuxService(db)
   const codeSuffix = String(
     [...actorId].reduce((sum, character) => sum + character.charCodeAt(0), 0) %
       10_000,
@@ -56,18 +58,6 @@ async function seedSaleOrderReferences(
       field: 'customer',
       code: `CUS-${codeSuffix}`,
       name: 'WFL 客户',
-    },
-    {
-      entity: 'operating-entity',
-      field: 'operating-entity',
-      code: `OPE-${codeSuffix}`,
-      name: 'WFL 经营主体',
-    },
-    {
-      entity: 'employee',
-      field: 'salesperson',
-      code: `EMP-${codeSuffix}`,
-      name: 'WFL 销售员',
     },
     {
       entity: 'warehouse',
@@ -145,36 +135,6 @@ async function seedSaleOrderReferences(
           enabled: true,
         })
         .execute()
-    if (fact.entity === 'employee')
-      await db
-        .insertInto('dcl_employee_versions')
-        .values({
-          approval_entry_id: fact.approvalEntryId,
-          display_name: fact.name,
-          source_snapshots: {},
-          enabled: true,
-        })
-        .execute()
-    if (fact.entity === 'operating-entity')
-      await db
-        .insertInto('dcl_operating_entity_versions')
-        .values({
-          approval_entry_id: fact.approvalEntryId,
-          legal_name: fact.name,
-          short_name: fact.name,
-          legal_identifier: `OPE-${codeSuffix}`,
-          registered_address: '',
-          contact_name: '',
-          contact_phone: '',
-          invoice_title: '',
-          invoice_address: '',
-          invoice_phone: '',
-          invoice_bank: '',
-          invoice_account: '',
-          remark: null,
-          enabled: true,
-        })
-        .execute()
     if (fact.entity === 'warehouse')
       await db
         .insertInto('dcl_warehouse_versions')
@@ -236,8 +196,78 @@ async function seedSaleOrderReferences(
       enabled: true,
     })
     .execute()
+  const auxActor = {
+    id: actorId,
+    permissions: (
+      [
+        'operating-entity',
+        'employee-category',
+        'department',
+        'position',
+        'employee',
+      ] as const
+    ).flatMap((entity) =>
+      ['create'].map((action) => `/aux/${entity}/${action}`),
+    ),
+  }
+  const operatingEntity = await aux.create(
+    'operating-entity',
+    {
+      legalName: 'WFL 经营主体',
+      shortName: 'WFL 主体',
+      legalIdentifier: `D${actorId.slice(-17)}`,
+      registeredAddress: '',
+      contactName: '',
+      contactPhone: '',
+      invoiceTitle: '',
+      invoiceAddress: '',
+      invoicePhone: '',
+      invoiceBank: '',
+      invoiceAccount: '',
+      remark: '',
+    },
+    auxActor,
+  )
+  const [employeeCategory, department, position] = await Promise.all([
+    aux.create('employee-category', { name: 'WFL 员工类别' }, auxActor),
+    aux.create('department', { name: 'WFL 员工部门' }, auxActor),
+    aux.create('position', { name: 'WFL 员工岗位' }, auxActor),
+  ])
+  const employee = await aux.create(
+    'employee',
+    {
+      identityKind: 'PERSON',
+      legalName: 'WFL 销售员',
+      displayName: 'WFL 销售员',
+      legalIdentifier: `WFL-EMP-${actorId}`,
+      contactName: '',
+      phone: '',
+      address: '',
+      employeeCategoryId: employeeCategory.id,
+      departmentId: department.id,
+      positionId: position.id,
+      employmentDate: '2026-09-04',
+      workPhone: '',
+      workEmail: '',
+      operatingEntityId: operatingEntity.id,
+      remark: '',
+    },
+    auxActor,
+  )
   const referenceFacts = [
     ...facts,
+    {
+      entity: 'operating-entity',
+      field: 'operating-entity',
+      objectId: operatingEntity.id,
+      name: 'WFL 经营主体',
+    },
+    {
+      entity: 'employee',
+      field: 'salesperson',
+      objectId: employee.id,
+      name: 'WFL 销售员',
+    },
     {
       entity: 'customer-subunit',
       field: 'customer-subunit',
@@ -259,37 +289,51 @@ async function seedSaleOrderReferences(
       updated_by: actorId,
     })
     .execute()
-  return { facts: referenceFacts, unitId, unit }
+  return {
+    facts: referenceFacts,
+    auxIds: [
+      unitId,
+      operatingEntity.id,
+      employeeCategory.id,
+      department.id,
+      position.id,
+      employee.id,
+    ],
+    auxActorId: actorId,
+    unit,
+  }
 }
 
 function saleOrderPayload(
   references: Awaited<ReturnType<typeof seedSaleOrderReferences>>,
 ): VouPayload {
-  const ref = (
-    field:
-      | 'customer-subunit'
-      | 'operating-entity'
-      | 'salesperson'
-      | 'warehouse'
-      | 'product',
+  const versionedReference = (
+    field: 'customer-subunit' | 'warehouse' | 'product',
   ) => {
     const fact = references.facts.find((item) => item.field === field)!
+    const approvalEntryId =
+      'approvalEntryId' in fact ? fact.approvalEntryId : undefined
+    if (typeof approvalEntryId !== 'string')
+      throw new Error(`missing approval entry for ${field}`)
     return {
       objectId: fact.objectId,
-      approvalEntryId: fact.approvalEntryId,
+      approvalEntryId,
       selectionOrigin: 'CURRENT' as const,
     }
   }
+  const currentReference = (field: 'operating-entity' | 'salesperson') => ({
+    objectId: references.facts.find((item) => item.field === field)!.objectId,
+  })
   const product = references.facts.find((item) => item.field === 'product')!
   return {
     businessDate: '2026-09-04',
     currency: 'CNY',
     attachments: [],
-    customerSubunit: ref('customer-subunit'),
+    customerSubunit: versionedReference('customer-subunit'),
     paymentMethod: null,
-    operatingEntity: ref('operating-entity'),
-    salesperson: ref('salesperson'),
-    warehouse: ref('warehouse'),
+    operatingEntity: currentReference('operating-entity'),
+    salesperson: currentReference('salesperson'),
+    warehouse: versionedReference('warehouse'),
     productLines: [
       {
         lineId: sourceOrderLineId,
@@ -350,15 +394,26 @@ async function cleanupSaleOrderReferences(
   references: Awaited<ReturnType<typeof seedSaleOrderReferences>>,
 ) {
   await db
+    .deleteFrom('app_audit_events')
+    .where('actor_user_id', '=', references.auxActorId)
+    .execute()
+  await db
     .deleteFrom('aux_objects')
-    .where('id', '=', references.unitId)
+    .where('id', 'in', references.auxIds)
     .execute()
   await db
     .deleteFrom('approval_entries')
     .where(
       'id',
       'in',
-      references.facts.map((item) => item.approvalEntryId),
+      references.facts.flatMap((item) => {
+        if (
+          'approvalEntryId' in item &&
+          typeof item.approvalEntryId === 'string'
+        )
+          return [item.approvalEntryId]
+        return []
+      }),
     )
     .execute()
   await db

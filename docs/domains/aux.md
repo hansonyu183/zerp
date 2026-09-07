@@ -5,6 +5,8 @@
 AUX（Auxiliary Object）管理会被业务规则或其他对象引用、但不独立形成交易的辅助对象。固定领域标识为 `aux`，当前实体为：
 
 ```text
+operating-entity
+employee
 product-category
 product-type
 employee-category
@@ -29,14 +31,14 @@ asset-category
 
 - 创建成功后对象立即成为启用的 current data，可供新 DCL/VOU 选择；`code` 由服务端生成且创建后永久不可修改。
 - 保存直接替换同一 stable ID 的 typed data 并递增对象 `revision`。十进制字符串 `revision` 同时保护保存、启停和删除，冲突必须拒绝，不做覆盖或合并。
-- 停用立即阻止新引用，但已经固化在 DCL/VOU 中的 typed snapshot 继续可读、可提交、可计算；重新启用恢复新选择。
+- 停用立即阻止新引用，但已经固化在 DCL/VOU Submission 中的 typed snapshot 继续可读、可批准、可计算；重新启用恢复新选择。
 - 只有完全没有任何持久化引用的对象才可物理删除。删除检查 DCL 所有版本状态、BOB current、VOU 所有持久化状态和其他引用，返回按来源聚合的结构化 blocker；不得自动清空、迁移或改写引用。
 - 树形对象禁止自引用和循环引用；字典归属、同层唯一性、方向一致性和其他 typed 规则在同一事务内重新校验。AUX 写事务取得域写锁，保证校验与 current mutation 原子化。
 - 系统 baseline 直接写入同一 current 模型；系统身份不能绕过 typed 校验、stable identity、revision 或引用 blocker。
 
 ### 2.1 管理查询与并发
 
-全部十二个实体采用同一管理身份与并发语义。名称只有 typed data 中一份可写事实；列表的名称与拼音从当前名称派生。拼音复用后端纯转换工具，不另存拼音列或执行 AUX 回填。查询默认包含启用和停用对象，在完整授权集合对编码、拼音、名称作 OR 包含匹配，按编码和稳定 ID 升序排列后分页，每页 20 条，总数来自同一匹配集合；改名后检索立即采用新名称。计量单位查询额外接受可选的 `quantityScale`（0–6 整数），与 `keyword` 作 AND 匹配后再计算总数和分页；该筛选不扩展到其他 AUX 实体。
+全部 AUX 实体采用同一管理身份与并发语义。名称只有 typed data 中一份可写事实；列表的名称与拼音从当前名称派生。拼音复用后端纯转换工具，不另存拼音列或执行 AUX 回填。查询默认包含启用和停用对象，在完整授权集合对编码、拼音、名称作 OR 包含匹配，按编码和稳定 ID 升序排列后分页，每页 20 条，总数来自同一匹配集合；改名后检索立即采用新名称。计量单位查询额外接受可选的 `quantityScale`（0–6 整数），与 `keyword` 作 AND 匹配后再计算总数和分页；该筛选不扩展到其他 AUX 实体。
 
 管理动作资格只有 `edit`、`enable`、`disable`，中文分别为编辑、启用、停用，由服务端结合精确权限和对象事实提供；布尔启用事实显示为启用或停用。动作资格不是执行授权，执行时重新检查。创建不接受服务端身份、编码、拼音、启用事实或 revision；保存只改变 typed data，不能夹带启停。管理输入不接受旧身份别名或数字 revision，所有 revision 运算保持大整数精度。引用候选与历史嵌入快照保留自身身份语义。
 
@@ -50,6 +52,7 @@ AUX 与 APP 用户、角色共同消费完整公共启停组件。组件参与 A
 不复用的四位流水号。达到 `9999` 后拒绝继续创建。前缀固定为：
 
 ```text
+operating-entity OPE          employee EMP
 product-category PCT         department DEP
 position POS                 product-type PTP
 employee-category ECT
@@ -74,7 +77,7 @@ payment-method PMT
 
 ### 3.2 人员类别、部门与岗位
 
-`employee-category` 是扁平通用辅助对象，字段只有 `name`、`description`，供 DCL 员工申报选择。它不预置基线值，不保存等级、薪酬、权限、组织归属或任意业务规则；停用只阻止新的员工 candidate 选择，不改写已批准员工与历史 VOU/ACC 快照。
+`employee-category` 是扁平通用辅助对象，字段只有 `name`、`description`，供 AUX 员工直接维护时选择。它不预置基线值，不保存等级、薪酬、权限、组织归属或任意业务规则；停用只阻止新的员工引用选择，不改写已批准员工与历史 VOU/ACC 快照。
 
 `department` 是独立树形对象，字段为 `name`、`parentId`、`description`，为未来按部门配置业务规则保留稳定引用。`position` 字段为 `name`、`description`；本阶段只提供岗位身份，不在 AUX 中保存工资公式，工资计算规则由未来薪资领域拥有。
 
@@ -118,6 +121,22 @@ payment-method PMT
 
 `asset-category` 为固定资产购置和台账提供稳定分类。字段为 `name`、`defaultUsefulLifeMonths`、`defaultResidualRate` 和 `description`；默认使用期限为 1–1200 个自然月，默认残值率为 `0.00`–`99.99`。购置单选择启用的类别时，在 VOU 资产行固化类别的 ID、编码、名称及两项默认值；单据行仍可覆盖实际使用月数和残值率。之后类别改名、调整默认值或停用不重解释既有资产，新单据不得选择已停用类别。
 
+### 3.9 经营主体与员工
+
+`operating-entity` 是我方实际承担合同、开票和收款责任的法人公司。保留法定名称 `legalName`、简称 `shortName`、税号 `legalIdentifier`、注册地址 `registeredAddress`、联系人及电话、开票抬头/地址/电话/开户行/账号和备注。税号按既有规则规范化为 18 位大写字母数字，并在经营主体内唯一；名称、电话不是唯一键。列表名称由简称（空时法定名称）派生，不能另写一份 `name`。
+
+`employee` 独立保存身份类型、法定名称、显示名称、单一法定识别号、联系人、电话、地址、备注、任职日期、工作电话及邮箱。身份值保持 `PERSON`（个人）和 `ORGANIZATION`（组织），沿用既有身份校验；列表名称来自显示名称。员工类别、部门、岗位和任职经营主体在创建/保存时以 stable ID 选择，服务端在同一事务核对当前启用事实并冻结 typed snapshot。任职经营主体描述任职归属，不限制其他经营主体单据选择该员工。
+
+两类对象不创建 Submission、Approval 或业务版本。`create` 默认启用，`save` 只修改内容；启停独立、即时生效。保存、revision、引用登记与审计在同一事务，陈旧 revision 和重复法定标识拒绝。停用只阻止新采用，已保存快照继续解释历史；物理删除必须没有任何持久化引用，包括历史版本、业务快照和 current 引用。
+
+DCL 的仓库负责人、客户默认主体/内部业务员、供应商采购员与主体集合、其他单位/合作方主体集合、车辆内部承运方及资金账户所属主体，以及 VOU/ACC/RPT 的直接选择均采用 AUX stable ID；采用时保存自身所需 typed snapshot，不再选择旧审批版本，也不因来源后续修改或停用改变已保存解释。必要旧精确 Approval 引用仅作为历史证据保存。
+
+#### 3.9.1 既有资料与授权转换
+
+一次性转换保留 stable ID、OPE/EMP 编码、创建审计和所有历史快照。存在正式资料时采用最高已批准内容；仅有开放 V1 时保留该内容进入直接维护，旧 V1 不标记为批准。另有未决内容时返回迁移 blocker，由正常流程显式处理，不能静默丢弃或批准。编码计数延续，不复用历史编号。旧 subject、版本与 Approval 只作为必要历史证据，不参与 current 查询或新写入。 新建 Submission（包括从历史内容预填新表单）在提交时重新采用当前资料；原 Submission 的读取、审批和幂等重试只使用已保存快照。
+
+已确认的动作映射为旧 `submit-new` → AUX `create`，旧 `submit-change` → AUX `save`、`enable`、`disable`；旧 DCL/BOB `query`、`get` 分别转为对应 AUX 读取动作。旧审批、版本查询及开放 Submission `delete` 不获得新的 mutation 权限，物理删除需明确独立授权。转换保持原授权启用事实、角色与用户有效权限，不把一个人的权限组合转授整个角色，不从通用引用权限推导资料维护权。
+
 ## 4. 数据与引用
 
 `aux_objects` 是 AUX 唯一事实表；`data` 保存严格白名单校验的 typed JSON 对象。AUX 不向中央 Approval 注册实体，不写 `approval_entries`、`approval_events` 或版本 payload。
@@ -132,9 +151,11 @@ AUX current 修改不会覆盖既有交易快照。结算方式在客户或供�
 
 | AUX 对象                                  | 业务解释字段                                                                                         | 采用边界                                                                                       | 后续改动对既有业务                             |
 | ----------------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| operating-entity                          | stable ID、code、法定名称、简称、税号、地址、联系方式和开票资料                                      | DCL 引用按其字段保存编码名称；VOU 与 ACC 期初票据保存完整 typed snapshot                       | 已有事实不回查 current，不重解释历史           |
+| employee                                  | stable ID、code、身份、姓名、联系方式及任职资料                                                      | DCL 负责人及归属引用保存编码姓名；VOU 与 ACC 期初票据保存完整 typed snapshot                   | 不改写已有经办、归属及交易快照                 |
 | product-category                          | stable ID、code、name、parentId                                                                      | DCL product snapshot                                                                           | 不重解释；层级仅影响新选择与当前分类浏览       |
 | product-type                              | stable ID、code、name、behaviorProfile                                                               | DCL product snapshot，VOU 再采用该产品 snapshot                                                | 不重解释产品行为、库存或生产                   |
-| employee-category / department / position | stable ID、code、name、parentId                                                                      | DCL employee snapshot                                                                          | 不改写既有雇佣或交易人员快照                   |
+| employee-category / department / position | stable ID、code、name、parentId                                                                      | AUX employee snapshot                                                                          | 不改写既有雇佣或交易人员快照                   |
 | settlement-method                         | stable ID、code、name、termCode、ruleType、monthOffset、dayOfMonth、dayOffset、defaultSalesSurcharge | DCL customer/supplier snapshot；订单复制最终结算事实                                           | 不重算到期日、金额或加价                       |
 | payment-method                            | stable ID、code、name、defaultSalesSurcharge                                                         | DCL Customer Version 的核算账户 snapshot；销售订单保存最终方式与加价                           | 不重算既有订单金额                             |
 | measurement-unit                          | stable ID、code、name、symbol、quantityScale                                                         | DCL product unit/formula snapshot；VOU 采用产品 snapshot                                       | 不改变历史数量精度、换算、库存或展示           |

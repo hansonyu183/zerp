@@ -616,6 +616,62 @@
     "title": "保存员工分类"
   },
   {
+    "id": "01JB88152D89C59B4E444A1AF7",
+    "path": "/aux/employee/create",
+    "domain": "aux",
+    "entity": "employee",
+    "action": "create",
+    "title": "创建员工"
+  },
+  {
+    "id": "01J3BF8FF7C6D48A9D83F0E59E",
+    "path": "/aux/employee/delete",
+    "domain": "aux",
+    "entity": "employee",
+    "action": "delete",
+    "title": "删除员工"
+  },
+  {
+    "id": "01J66FFBB6D9273F6D6EDF70CE",
+    "path": "/aux/employee/disable",
+    "domain": "aux",
+    "entity": "employee",
+    "action": "disable",
+    "title": "停用员工"
+  },
+  {
+    "id": "01J94D3CFAEA2BAEEEC1DF71C3",
+    "path": "/aux/employee/enable",
+    "domain": "aux",
+    "entity": "employee",
+    "action": "enable",
+    "title": "启用员工"
+  },
+  {
+    "id": "01J882139A15DC32DF27D2BCB1",
+    "path": "/aux/employee/get",
+    "domain": "aux",
+    "entity": "employee",
+    "action": "get",
+    "title": "查看员工"
+  },
+  {
+    "id": "01J2E8345C00D06C82DBB73839",
+    "path": "/aux/employee/query",
+    "domain": "aux",
+    "entity": "employee",
+    "action": "query",
+    "title": "查询员工"
+  },
+  {
+    "id": "01J11D4EA17D33D22386E78BD8",
+    "path": "/aux/employee/save",
+    "domain": "aux",
+    "entity": "employee",
+    "action": "save",
+    "title": "保存员工"
+  },
+  {
     "id": "01J2D6071B62D3BB994D1F7D6D",
     "path": "/aux/income-expense-type/create",
     "domain": "aux",
@@ -726,6 +782,62 @@
     "entity": "measurement-unit",
     "action": "save",
     "title": "保存计量单位"
+  },
+  {
+    "id": "01JAE31C847E241C479D8DFB10",
+    "path": "/aux/operating-entity/create",
+    "domain": "aux",
+    "entity": "operating-entity",
+    "action": "create",
+    "title": "创建经营主体"
+  },
+  {
+    "id": "01J5A5C896643173F3F2C8F369",
+    "path": "/aux/operating-entity/delete",
+    "domain": "aux",
+    "entity": "operating-entity",
+    "action": "delete",
+    "title": "删除经营主体"
+  },
+  {
+    "id": "01J37B2001ABEDD91BE0B435A0",
+    "path": "/aux/operating-entity/disable",
+    "domain": "aux",
+    "entity": "operating-entity",
+    "action": "disable",
+    "title": "停用经营主体"
+  },
+  {
+    "id": "01JBB8661F1EA0D3527F54D525",
+    "path": "/aux/operating-entity/enable",
+    "domain": "aux",
+    "entity": "operating-entity",
+    "action": "enable",
+    "title": "启用经营主体"
+  },
+  {
+    "id": "01J5C67195FC8185943DAB96F9",
+    "path": "/aux/operating-entity/get",
+    "domain": "aux",
+    "entity": "operating-entity",
+    "action": "get",
+    "title": "查看经营主体"
+  },
+  {
+    "id": "01JEFC18D7DBF13857B27042FE",
+    "path": "/aux/operating-entity/query",
+    "domain": "aux",
+    "entity": "operating-entity",
+    "action": "query",
+    "title": "查询经营主体"
+  },
+  {
+    "id": "01J7BFD73AB7158B16490A0C5B",
+    "path": "/aux/operating-entity/save",
+    "domain": "aux",
+    "entity": "operating-entity",
+    "action": "save",
+    "title": "保存经营主体"
   },
   {
     "id": "01J483862F670E450DEAAEC662",
@@ -1016,22 +1128,6 @@
     "title": "查询客户"
   },
   {
-    "id": "01JCC8B8C42FA75B4CD173B071",
-    "path": "/bob/employee/get",
-    "domain": "bob",
-    "entity": "employee",
-    "action": "get",
-    "title": "查看员工"
-  },
-  {
-    "id": "01J287DF3EDFC42EB2741C322C",
-    "path": "/bob/employee/query",
-    "domain": "bob",
-    "entity": "employee",
-    "action": "query",
-    "title": "查询员工"
-  },
-  {
     "id": "01J308DA5017E09C1370E6F3DE",
     "path": "/bob/fund-account/get",
     "domain": "bob",
@@ -1046,22 +1142,6 @@
     "entity": "fund-account",
     "action": "query",
     "title": "查询资金账户"
-  },
-  {
-    "id": "01J7050C7E9E371641CE861832",
-    "path": "/bob/operating-entity/get",
-    "domain": "bob",
-    "entity": "operating-entity",
-    "action": "get",
-    "title": "查看经营主体"
-  },
-  {
-    "id": "01JE7E89F40305511A6555C20B",
-    "path": "/bob/operating-entity/query",
-    "domain": "bob",
-    "entity": "operating-entity",
-    "action": "query",
-    "title": "查询经营主体"
   },
   {
     "id": "01J12069514CDA1F89CECEEF3D",
@@ -1376,94 +1456,6 @@
     "title": "versions customer"
   },
   {
-    "id": "01J732B242AFB4D8E2A6486A0A",
-    "path": "/dcl/employee/approve",
-    "domain": "dcl",
-    "entity": "employee",
-    "action": "approve",
-    "title": "approve employee"
-  },
-  {
-    "id": "01J295A793F4AEFA615786A6B0",
-    "path": "/dcl/employee/audit-history",
-    "domain": "dcl",
-    "entity": "employee",
-    "action": "audit-history",
-    "title": "audit-history employee"
-  },
-  {
-    "id": "01J3309585F59AACA51F57B8D7",
-    "path": "/dcl/employee/delete",
-    "domain": "dcl",
-    "entity": "employee",
-    "action": "delete",
-    "title": "delete employee"
-  },
-  {
-    "id": "01JA1BC3074C7F88B119DB0865",
-    "path": "/dcl/employee/get",
-    "domain": "dcl",
-    "entity": "employee",
-    "action": "get",
-    "title": "get employee"
-  },
-  {
-    "id": "01J3BBC2C8DE986635277B591A",
-    "path": "/dcl/employee/query",
-    "domain": "dcl",
-    "entity": "employee",
-    "action": "query",
-    "title": "员工"
-  },
-  {
-    "id": "01JCA72906E742DC091CFEBD12",
-    "path": "/dcl/employee/reject",
-    "domain": "dcl",
-    "entity": "employee",
-    "action": "reject",
-    "title": "reject employee"
-  },
-  {
-    "id": "01J7D5C9F7C53C198D527603AF",
-    "path": "/dcl/employee/submit-change",
-    "domain": "dcl",
-    "entity": "employee",
-    "action": "submit-change",
-    "title": "submit-change employee"
-  },
-  {
-    "id": "01JE6E066E9EEE9102DC75E5E0",
-    "path": "/dcl/employee/submit-new",
-    "domain": "dcl",
-    "entity": "employee",
-    "action": "submit-new",
-    "title": "submit-new employee"
-  },
-  {
-    "id": "01JB316CE4F0D8008F7EDB5F66",
-    "path": "/dcl/employee/unapprove",
-    "domain": "dcl",
-    "entity": "employee",
-    "action": "unapprove",
-    "title": "unapprove employee"
-  },
-  {
-    "id": "01J172893D1649F15D3DF6D337",
-    "path": "/dcl/employee/unreject",
-    "domain": "dcl",
-    "entity": "employee",
-    "action": "unreject",
-    "title": "unreject employee"
-  },
-  {
-    "id": "01J75722B0CA83E3A75FA4294C",
-    "path": "/dcl/employee/versions",
-    "domain": "dcl",
-    "entity": "employee",
-    "action": "versions",
-    "title": "versions employee"
-  },
-  {
     "id": "01J7187645FD151606B25CFF99",
     "path": "/dcl/fund-account/approve",
     "domain": "dcl",
@@ -1550,94 +1542,6 @@
     "entity": "fund-account",
     "action": "versions",
     "title": "versions fund-account"
-  },
-  {
-    "id": "01JC63EC0F73F0D4B51CA287C9",
-    "path": "/dcl/operating-entity/approve",
-    "domain": "dcl",
-    "entity": "operating-entity",
-    "action": "approve",
-    "title": "approve operating-entity"
-  },
-  {
-    "id": "01JAB65D6E952A4FA2BB8F0A3C",
-    "path": "/dcl/operating-entity/audit-history",
-    "domain": "dcl",
-    "entity": "operating-entity",
-    "action": "audit-history",
-    "title": "audit-history operating-entity"
-  },
-  {
-    "id": "01JDC2B19C4C72AEE7AA87193A",
-    "path": "/dcl/operating-entity/delete",
-    "domain": "dcl",
-    "entity": "operating-entity",
-    "action": "delete",
-    "title": "delete operating-entity"
-  },
-  {
-    "id": "01J12A9EFF233B0C8BD8412093",
-    "path": "/dcl/operating-entity/get",
-    "domain": "dcl",
-    "entity": "operating-entity",
-    "action": "get",
-    "title": "get operating-entity"
-  },
-  {
-    "id": "01J57B2907C278D9A94998A8EB",
-    "path": "/dcl/operating-entity/query",
-    "domain": "dcl",
-    "entity": "operating-entity",
-    "action": "query",
-    "title": "经营主体"
-  },
-  {
-    "id": "01J460CCBF2822FB62F956E7B5",
-    "path": "/dcl/operating-entity/reject",
-    "domain": "dcl",
-    "entity": "operating-entity",
-    "action": "reject",
-    "title": "reject operating-entity"
-  },
-  {
-    "id": "01JF8E2751CD8185D39DCA3A2D",
-    "path": "/dcl/operating-entity/submit-change",
-    "domain": "dcl",
-    "entity": "operating-entity",
-    "action": "submit-change",
-    "title": "submit-change operating-entity"
-  },
-  {
-    "id": "01J6B649218D24038426EB4869",
-    "path": "/dcl/operating-entity/submit-new",
-    "domain": "dcl",
-    "entity": "operating-entity",
-    "action": "submit-new",
-    "title": "submit-new operating-entity"
-  },
-  {
-    "id": "01J6F518681F85645600B3E4ED",
-    "path": "/dcl/operating-entity/unapprove",
-    "domain": "dcl",
-    "entity": "operating-entity",
-    "action": "unapprove",
-    "title": "unapprove operating-entity"
-  },
-  {
-    "id": "01J1C4F1BCEB15944DF33A207B",
-    "path": "/dcl/operating-entity/unreject",
-    "domain": "dcl",
-    "entity": "operating-entity",
-    "action": "unreject",
-    "title": "unreject operating-entity"
-  },
-  {
-    "id": "01J3D7737098E80D381E47489B",
-    "path": "/dcl/operating-entity/versions",
-    "domain": "dcl",
-    "entity": "operating-entity",
-    "action": "versions",
-    "title": "versions operating-entity"
   },
   {
     "id": "01JC2E6C5A198CCF211B0D0A93",

@@ -6,11 +6,397 @@ import { ulid } from 'ulid'
 
 import { createDatabase } from '../../src/db/database.ts'
 import { AccApplicationError, AccService } from '../../src/acc/service.ts'
+import { AuxApplicationError, AuxService } from '../../src/aux/service.ts'
 import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { VouService } from '../../src/vou/service.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
 const customerTypeId = '01J00000000000000000000105'
+
+test('ACC opening freezes AUX bill and employee-dimension adoptions until its submission is deleted', async (context) => {
+  assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
+  const db = createDatabase(databaseUrl)
+  const acc = new AccService(db)
+  const aux = new AuxService(db)
+  const submitterId = ulid()
+  const reviewerId = ulid()
+  const bookId = ulid()
+  const submissionId = ulid()
+  const auxObjectIds: string[] = []
+  const submitter = {
+    id: submitterId,
+    permissions: [] as string[],
+    trusted: true,
+  }
+  const reviewer = {
+    id: reviewerId,
+    permissions: [] as string[],
+    trusted: true,
+  }
+  const auxActor = {
+    id: submitterId,
+    permissions: [
+      ...(['operating-entity', 'employee'] as const).flatMap((entity) =>
+        ['create', 'get', 'save', 'disable', 'delete'].map(
+          (action) => `/aux/${entity}/${action}`,
+        ),
+      ),
+      ...(['employee-category', 'department', 'position'] as const).flatMap(
+        (entity) => [`/aux/${entity}/create`],
+      ),
+    ],
+  }
+  context.after(async () => {
+    try {
+      await sql`DELETE FROM acc_journal_entries WHERE opening_approval_entry_id = ${submissionId}`.execute(
+        db,
+      )
+      await sql`DELETE FROM acc_bill_book_values WHERE opening_approval_entry_id = ${submissionId}`.execute(
+        db,
+      )
+      await sql`DELETE FROM acc_bill_registers WHERE created_opening_approval_entry_id = ${submissionId}`.execute(
+        db,
+      )
+      await sql`DELETE FROM acc_register_entries WHERE opening_approval_entry_id = ${submissionId}`.execute(
+        db,
+      )
+      await db
+        .deleteFrom('aux_reference_facts')
+        .where('source', 'like', `acc:opening:${submissionId}:%`)
+        .execute()
+      await db
+        .deleteFrom('approval_entries')
+        .where('id', '=', submissionId)
+        .execute()
+      await db
+        .deleteFrom('acc_subjects')
+        .where('book_id', '=', bookId)
+        .execute()
+      await db.deleteFrom('acc_books').where('id', '=', bookId).execute()
+      await db
+        .deleteFrom('aux_reference_facts')
+        .where('aux_object_id', 'in', auxObjectIds)
+        .execute()
+      await db
+        .deleteFrom('aux_objects')
+        .where('id', 'in', auxObjectIds)
+        .execute()
+      await db
+        .deleteFrom('approval_events')
+        .where('actor_id', 'in', [submitterId, reviewerId])
+        .execute()
+      await db
+        .deleteFrom('app_audit_events')
+        .where('actor_user_id', 'in', [submitterId, reviewerId])
+        .execute()
+      await db
+        .deleteFrom('app_users')
+        .where('id', 'in', [submitterId, reviewerId])
+        .execute()
+    } finally {
+      await db.destroy()
+    }
+  })
+
+  const now = new Date()
+  await db
+    .insertInto('app_users')
+    .values(
+      [submitterId, reviewerId].map((id) => ({
+        id,
+        username: `acc-opening-aux-${id}`,
+        display_name: 'ACC opening AUX actor',
+        py: searchPinyin('ACC opening AUX actor'),
+        password_hash: 'unused',
+        status: 'ENABLED' as const,
+        password_changed_at: now,
+        password_change_required: false,
+      })),
+    )
+    .execute()
+
+  const operatingEntity = await aux.create(
+    'operating-entity',
+    {
+      legalName: '期初员工所属主体',
+      shortName: '期初主体',
+      legalIdentifier: '91310000MA1K123456',
+      registeredAddress: '',
+      contactName: '',
+      contactPhone: '',
+      invoiceTitle: '',
+      invoiceAddress: '',
+      invoicePhone: '',
+      invoiceBank: '',
+      invoiceAccount: '',
+      remark: '',
+    },
+    auxActor,
+  )
+  const [employeeCategory, department, position] = await Promise.all([
+    aux.create(
+      'employee-category',
+      { name: `期初类别${submissionId}` },
+      auxActor,
+    ),
+    aux.create('department', { name: `期初部门${submissionId}` }, auxActor),
+    aux.create('position', { name: `期初岗位${submissionId}` }, auxActor),
+  ])
+  auxObjectIds.push(
+    operatingEntity.id,
+    employeeCategory.id,
+    department.id,
+    position.id,
+  )
+  const employee = await aux.create(
+    'employee',
+    {
+      identityKind: 'PERSON',
+      legalName: '期初人员 V1',
+      displayName: '期初人员 V1',
+      legalIdentifier: `EMP-${submissionId}`,
+      contactName: '',
+      phone: '',
+      address: '',
+      employeeCategoryId: employeeCategory.id,
+      departmentId: department.id,
+      positionId: position.id,
+      employmentDate: '2026-09-07',
+      workPhone: '',
+      workEmail: '',
+      operatingEntityId: operatingEntity.id,
+      remark: '',
+    },
+    auxActor,
+  )
+  auxObjectIds.push(employee.id)
+  const employeeV1 = await aux.get('employee', { id: employee.id }, auxActor)
+
+  const book = await acc.createBook(
+    {
+      id: bookId,
+      name: '期初 AUX 引用',
+      description: '',
+      startMonth: '2026-09',
+      baseCurrency: 'CNY',
+      subjectTemplate: 'EMPTY',
+      queryUserIds: [],
+      operateUserIds: [],
+    },
+    submitter,
+  )
+  const employeeSubject = await acc.createSubject(
+    {
+      id: ulid(),
+      bookId: book.id,
+      code: '122101',
+      name: '员工借款',
+      parentId: null,
+      balanceDirection: 'DEBIT',
+      enabled: true,
+      requiredDimensions: ['EMPLOYEE'],
+      inventoryQuantity: false,
+      settlementPurpose: 'OTHER',
+    },
+    submitter,
+  )
+  const billSubject = await acc.createSubject(
+    {
+      id: ulid(),
+      bookId: book.id,
+      code: '1121',
+      name: '应收票据',
+      parentId: null,
+      balanceDirection: 'DEBIT',
+      enabled: true,
+      requiredDimensions: ['BILL'],
+      inventoryQuantity: false,
+      settlementPurpose: 'NONE',
+    },
+    submitter,
+  )
+  const equitySubject = await acc.createSubject(
+    {
+      id: ulid(),
+      bookId: book.id,
+      code: '4001',
+      name: '期初权益',
+      parentId: null,
+      balanceDirection: 'CREDIT',
+      enabled: true,
+      requiredDimensions: [],
+      inventoryQuantity: false,
+      settlementPurpose: 'NONE',
+    },
+    submitter,
+  )
+  const billId = ulid()
+  const pending = await acc.submitOpening(
+    {
+      bookId,
+      submissionId,
+      idempotencyKey: submissionId,
+      lines: [
+        {
+          subjectId: employeeSubject.id,
+          currency: 'CNY',
+          direction: 'DEBIT',
+          amount: '50.00',
+          dimensions: { EMPLOYEE: employee.id },
+        },
+        {
+          subjectId: billSubject.id,
+          currency: 'CNY',
+          direction: 'DEBIT',
+          amount: '50.00',
+          dimensions: { BILL: billId },
+        },
+        {
+          subjectId: equitySubject.id,
+          currency: 'CNY',
+          direction: 'CREDIT',
+          amount: '100.00',
+          dimensions: {},
+        },
+      ],
+      assets: [],
+      bills: [
+        {
+          billId,
+          billNo: `BILL-${submissionId}`,
+          billType: 'RECEIVABLE',
+          positionType: 'ASSET',
+          medium: 'PAPER',
+          faceAmount: '50.00',
+          issueDate: '2026-09-01',
+          maturityDate: '2026-10-01',
+          drawer: '出票人',
+          acceptor: '承兑人',
+          payee: '收款人',
+          annualRateBps: 0,
+          interestDays: 0,
+          interestAmount: '0.00',
+          customerCostAmount: '0.00',
+          currency: 'CNY',
+          valueAmount: '50.00',
+          originatingCounterparty: {
+            entity: 'employee',
+            objectId: employee.id,
+          },
+        },
+      ],
+      containers: [],
+    },
+    submitter,
+    'acc-opening-aux-submit',
+  )
+  assert.equal(pending.payload.lines[0]!.dimensions.EMPLOYEE, employee.id)
+  const sources = await sql<{ source: string }>`
+    SELECT source FROM aux_reference_facts
+    WHERE aux_object_id = ${employee.id} AND source LIKE ${`acc:opening:${submissionId}:%`}
+    ORDER BY source
+  `.execute(db)
+  assert.deepEqual(
+    sources.rows.map((row) => row.source),
+    [
+      `acc:opening:${submissionId}:bill:${billId}:originating-counterparty`,
+      `acc:opening:${submissionId}:line:1:dimension:EMPLOYEE`,
+    ],
+  )
+
+  await aux.save(
+    'employee',
+    {
+      id: employeeV1.id,
+      revision: employeeV1.revision,
+      identityKind: employeeV1.identityKind,
+      legalName: employeeV1.legalName,
+      displayName: '期初人员 V2',
+      legalIdentifier: employeeV1.legalIdentifier,
+      contactName: employeeV1.contactName,
+      phone: employeeV1.phone,
+      address: employeeV1.address,
+      employeeCategoryId: employeeV1.employeeCategory.id,
+      departmentId: employeeV1.department.id,
+      positionId: employeeV1.position.id,
+      employmentDate: employeeV1.employmentDate,
+      workPhone: employeeV1.workPhone,
+      workEmail: employeeV1.workEmail,
+      operatingEntityId: employeeV1.operatingEntity.id,
+      remark: employeeV1.remark,
+    },
+    auxActor,
+  )
+  const employeeV2 = await aux.get('employee', { id: employee.id }, auxActor)
+  const disabled = await aux.disable(
+    'employee',
+    { id: employee.id, revision: employeeV2.revision },
+    auxActor,
+    'acc-opening-aux-disable',
+  )
+  const approved = await acc.reviewOpening(
+    'approve',
+    {
+      bookId,
+      submissionId,
+      expectedRevision: pending.approval.revision,
+    },
+    reviewer,
+    'acc-opening-aux-approve',
+  )
+  const frozen = await acc.getOpening(bookId, submitter)
+  assert.equal(
+    frozen.payload.bills[0]!.originatingCounterparty?.name,
+    '期初人员 V1',
+  )
+  assert.equal(approved.approval.status, 'APPROVED')
+  await assert.rejects(
+    aux.delete(
+      'employee',
+      { id: employee.id, revision: disabled.revision },
+      auxActor,
+      'acc-opening-aux-delete-blocked',
+    ),
+    (error: unknown) =>
+      error instanceof AuxApplicationError && error.errorKey === 'conflict',
+  )
+  const unapproved = await acc.reviewOpening(
+    'unapprove',
+    {
+      bookId,
+      submissionId,
+      expectedRevision: approved.approval.revision,
+      reason: '撤回期初',
+    },
+    reviewer,
+    'acc-opening-aux-unapprove',
+  )
+  await acc.deleteOpening(
+    {
+      bookId,
+      submissionId,
+      expectedRevision: unapproved.approval.revision,
+    },
+    submitter,
+    'acc-opening-aux-delete',
+  )
+  await aux.delete(
+    'employee',
+    { id: employee.id, revision: disabled.revision },
+    auxActor,
+    'acc-opening-aux-delete',
+  )
+  assert.equal(
+    (
+      await db
+        .selectFrom('aux_objects')
+        .select('id')
+        .where('id', '=', employee.id)
+        .execute()
+    ).length,
+    0,
+  )
+})
 
 test('ACC restores f856118f subject templates and independent book access scopes', async (context) => {
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')

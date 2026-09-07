@@ -10,7 +10,7 @@ Approval 是跨领域的中央审批能力，唯一拥有持久化 Submission �
 
 ## 2. 审批条目与主体边界
 
-Draft 只保存在已认证用户当前浏览器的 IndexedDB。它可保留未完成输入、显示快照与待提交附件，支持多个草稿、刷新恢复、同设备用户隔离、克隆 Submission 和本地删除；它不产生服务器记录、Approval Entry 或永久业务附件。
+Draft 只表示当前页面实例的临时编辑输入，可保留未完成输入、显示快照与待提交附件；不持久化、不支持草稿列表或刷新恢复。确定提交失败保留当前输入，取消、关闭、刷新、切换资源或账号后销毁；克隆 Submission 仅预填新的临时表单。它不产生服务器记录、Approval Entry 或永久业务附件。
 
 `approval_entries` 保存 Submission 的 `id`、`domain`、`entity`、`subject_id`、可空 `version_no`、`status`、`revision` 和统一元数据。Approval-only 条目的 `version_no` 必须为空，同一 `(domain, entity, subject_id)` 最多一条。Approval Version 条目的 `version_no` 必须为正数，`(domain, entity, subject_id, version_no)` 唯一；同一 stable subject 的 `PENDING` 与 `REJECTED` 合计最多一条开放 Submission。
 

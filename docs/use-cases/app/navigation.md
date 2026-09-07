@@ -4,7 +4,7 @@
 
 - 唯一业务资源路由为 `/:domain/:entity`，由 `app/navigation` 登记并由动态 Resource Host 承载。
 - Navigation Resource 和 Navigation Entry 的来源、权限边界及未实现语义以 [APP 导航资源](../../domains/app.md#39-导航资源) 和 [ADR-0052](../../adr/0052-session-dynamic-navigation-and-page-migration.md) 为准。
-- Registry 登记 `app/user`、`app/role`、`aux/employee-category`、`aux/position`、`aux/measurement-unit`、`aux/payment-method` 与 `aux/asset-category` 的公共列表与编辑流程；其他未登记资源显示尚未实现。资源既有 API 及领域规则继续由各自领域文档拥有。
+- Registry 登记 `app/user`、`app/role`、`aux/employee-category`、`aux/position`、`aux/measurement-unit`、`aux/payment-method` 、`aux/asset-category`、`aux/operating-entity` 与 `aux/employee` 的公共列表与编辑流程；其他未登记资源显示尚未实现。资源既有 API 及领域规则继续由各自领域文档拥有。
 
 ## `APP-NAVIGATION-01` 从会话装配入口
 
@@ -115,3 +115,13 @@
 3. 提交筛选后修改尚未提交输入，翻页及写后刷新仍使用完整深复制快照；范围端点、0、false 不丢失。无权查询或引用不请求，仅有非 query 权限仍可进入。
 4. 取消不刷新，changed 只刷新一次；查询成功不能解锁未知写入。已确认写成功但刷新失败单独反馈，不能自动重放写入。
 5. 七页在桌面和 390px 可查询、分页及打开专有编辑器；非法字段、缺必需字段、未知枚举、重复身份明确报错，不使用空白或替代身份掩盖。
+
+## 经营主体与员工管理（#394）
+
+两页通过 Registry、动态 Host 和公共 ListPageShell 进入，同目录 VM 经类型化 API 管理查询、新建、编辑与启停。完整业务字段、采用和删除规则引用 [AUX 经营主体与员工](../../domains/aux.md#39-经营主体与员工)，接口以 [AUX 可执行契约](../../../apps/api/src/app/aux-contract.ts) 为准。
+
+1. 列表名称由经营主体简称或法定名称、员工显示名称派生；编码由服务端生成。已知身份类型统一显示中文。
+2. 员工编辑器选择员工类别、部门、岗位和任职经营主体；选择项由对应 current 查询提供，服务端在写入事务中校验。
+3. 编辑及启停携带详情 revision；冲突后要求重新读取，不自动重放。新建、编辑、启用、停用按各自精确权限显示，页面不提供物理删除。
+4. 输入只属于本次页面实例。关闭、刷新、切换资源或退出账号销毁输入；取消不刷新，确定写失败保留输入。
+5. 验收覆盖动态字段列表、专有编辑器、启停与冲突；其他档案和单据新采用 AUX current，已保存历史名称、税号及联系资料不随后续编辑改变。旧 DCL 和 BOB 两实体入口不再注册。

@@ -77,7 +77,6 @@ export function runTargetModelCorpus() {
           enabled: true,
           operatingEntity: {
             objectId: '01JMODELOPERATINGENTITY00000',
-            approvalEntryId: '01JMODELOPERATINGENTRY000000',
             code: 'OE-0001',
             name: ' 示例主体 ',
           },
@@ -87,7 +86,6 @@ export function runTargetModelCorpus() {
         subject: { exists: false, history: [] },
         operatingEntity: {
           objectId: '01JMODELOPERATINGENTITY00000',
-          latestApprovedEntryId: '01JMODELOPERATINGENTRY000000',
           enabled: true,
         },
       },

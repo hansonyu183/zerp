@@ -1,3 +1,8 @@
+import {
+  AuxApplicationError,
+  resolveAuxPeopleReference,
+} from '../aux/service.ts'
+import { auxPeopleDataSchemas } from '../app/aux-contract.ts'
 import { createHash, randomBytes } from 'node:crypto'
 
 import {
@@ -20,6 +25,8 @@ import {
   type VouSourceLineTargetEntity,
   vouDocumentPrefixes,
   vouPayloadReferences,
+  vouAuxPeopleReferences,
+  type VouAuxPeopleReferenceInput,
 } from '@zerp/model'
 import { sql, type Kysely, type Transaction } from 'kysely'
 import { ulid } from 'ulid'
@@ -811,6 +818,36 @@ export class VouService implements WflVouPort {
       },
     )
     if (!preflight.ok) throw new VouApplicationError(preflight.errorKey)
+    // Client display values are never authoritative for a new AUX adoption.
+    input = { ...input, payload: structuredClone(input.payload) }
+    for (const { candidateEntity, reference } of vouAuxPeopleReferences(
+      input.payload,
+    )) {
+      if ('approvalEntryId' in reference || 'selectionOrigin' in reference)
+        throw new VouApplicationError('vou_invalid_payload')
+      try {
+        const adopted = await resolveAuxPeopleReference(
+          tx,
+          candidateEntity,
+          reference.objectId,
+        )
+        Object.assign(reference, {
+          code: adopted.code,
+          name: adopted.name,
+          snapshot: adopted.data,
+        })
+      } catch (error) {
+        if (error instanceof AuxApplicationError)
+          throw new VouApplicationError('vou_reference_unavailable', [
+            {
+              kind: 'AUX_REFERENCE',
+              entity: candidateEntity,
+              objectId: reference.objectId,
+            },
+          ])
+        throw error
+      }
+    }
     const referenceValidation = await this.validateReferences(tx, input.payload)
     if (!referenceValidation.ok)
       throw new VouApplicationError('vou_reference_unavailable', [
@@ -1617,13 +1654,9 @@ export class VouService implements WflVouPort {
       case 'supplier':
         return dcl('supplier', 'dcl_supplier_versions', 'version.display_name')
       case 'operating-entity':
-        return dcl(
-          'operating-entity',
-          'dcl_operating_entity_versions',
-          'version.legal_name',
-        )
+        return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, code, COALESCE(NULLIF(data->>'shortName',''),data->>'legalName') AS name FROM aux_objects WHERE entity='operating-entity' AND enabled`
       case 'employee':
-        return dcl('employee', 'dcl_employee_versions', 'version.display_name')
+        return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, code, data->>'displayName' AS name FROM aux_objects WHERE entity='employee' AND enabled`
       case 'warehouse':
         return dcl('warehouse', 'dcl_warehouse_versions', 'version.name')
       case 'other-unit':
@@ -1774,6 +1807,9 @@ export class VouService implements WflVouPort {
         created_at: now,
       })
       .execute()
+    await sql`DELETE FROM aux_reference_facts WHERE source LIKE ${`vou:${row.id}:%`}`.execute(
+      tx,
+    )
     await tx.deleteFrom('approval_entries').where('id', '=', row.id).execute()
     let unreferencedStorageKeys = candidateStorageKeys
     if (candidateStorageKeys.length > 0) {
@@ -2909,6 +2945,17 @@ export class VouService implements WflVouPort {
           ? { ...reference, entity: candidateEntity }
           : reference,
       )
+    for (const { field, candidateEntity, reference } of vouAuxPeopleReferences(
+      payload,
+    ))
+      await this.writeReferenceSnapshot(
+        transaction,
+        approvalEntryId,
+        field,
+        0,
+        0,
+        { ...reference, entity: candidateEntity },
+      )
   }
 
   private async writeReferenceSnapshot(
@@ -2924,18 +2971,23 @@ export class VouService implements WflVouPort {
       entity?: string
       code?: string
       name?: string
+      snapshot?: VouAuxPeopleReferenceInput['snapshot']
     },
   ) {
     await sql`
       INSERT INTO vou_reference_snapshots (
         approval_entry_id, field, line_no, item_no, object_id, approval_reference_id, selection_origin,
-        reference_entity, reference_code, reference_name
+        reference_entity, reference_code, reference_name, aux_snapshot
       ) VALUES (
         ${approvalEntryId}, ${field}, ${lineNo}, ${itemNo}, ${reference.objectId},
         ${reference.approvalEntryId ?? null}, ${reference.selectionOrigin ?? null},
-        ${reference.entity ?? null}, ${reference.code ?? null}, ${reference.name ?? null}
+        ${reference.entity ?? null}, ${reference.code ?? null}, ${reference.name ?? null}, ${reference.snapshot ? JSON.stringify(reference.snapshot) : null}::jsonb
       )
     `.execute(transaction)
+    if (reference.snapshot)
+      await sql`INSERT INTO aux_reference_facts(id,aux_object_id,source) VALUES (${ulid()},${reference.objectId},${`vou:${approvalEntryId}:${field}:${lineNo}:${itemNo}`})`.execute(
+        transaction,
+      )
   }
 
   private async writeIntermediaryCalculation(
@@ -2987,7 +3039,12 @@ export class VouService implements WflVouPort {
             `intermediary.${field}`,
             lineNo,
             0,
-            { ...reference, selectionOrigin: 'HISTORICAL' },
+            {
+              ...reference,
+              ...(reference.entity === 'employee'
+                ? {}
+                : { selectionOrigin: 'HISTORICAL' as const }),
+            },
           )
     }
     for (const [index, bill] of calculation.source.bills.entries()) {
@@ -3035,7 +3092,12 @@ export class VouService implements WflVouPort {
         'intermediary.summary.payee',
         lineNo,
         0,
-        { ...summary.payee, selectionOrigin: 'HISTORICAL' },
+        {
+          ...summary.payee,
+          ...(summary.payee.entity === 'employee'
+            ? {}
+            : { selectionOrigin: 'HISTORICAL' as const }),
+        },
       )
     }
   }
@@ -3531,9 +3593,12 @@ export class VouService implements WflVouPort {
       if (!found) throw new VouApplicationError('vou_not_found')
       return found
     }
-    const rows = async <Row extends Record<string, unknown>>(table: string) =>
+    const rows = async <Row extends Record<string, unknown>>(
+      table: string,
+      dateColumns: readonly string[] = [],
+    ) =>
       (
-        await sql<Row>`SELECT * FROM ${sql.raw(table)} WHERE approval_entry_id = ${approvalEntryId} ORDER BY line_no`.execute(
+        await sql<Row>`SELECT * ${dateColumns.length ? sql`, ${sql.join(dateColumns.map((column) => sql`${sql.ref(column)}::text AS ${sql.ref(column)}`))}` : sql``} FROM ${sql.raw(table)} WHERE approval_entry_id = ${approvalEntryId} ORDER BY line_no`.execute(
           executor,
         )
       ).rows
@@ -4199,18 +4264,26 @@ export class VouService implements WflVouPort {
     if (entity === 'intermediary-calculation') {
       const intermediaryReference = (field: string, lineNo: number) => {
         const value = reference(field, lineNo)
-        return {
-          objectId: value.objectId,
-          approvalEntryId: value.approvalEntryId!,
-          entity: value.entity!,
-          code: value.code!,
-          name: value.name!,
-        }
+        return value.entity === 'employee'
+          ? {
+              objectId: value.objectId,
+              entity: 'employee' as const,
+              code: value.code!,
+              name: value.name!,
+              snapshot: value.snapshot,
+            }
+          : {
+              objectId: value.objectId,
+              approvalEntryId: value.approvalEntryId!,
+              entity: value.entity!,
+              code: value.code!,
+              name: value.name!,
+            }
       }
       const detail = (
         await sql<
           Record<string, unknown>
-        >`SELECT * FROM vou_intermediary_calculation_details WHERE approval_entry_id = ${approvalEntryId}`.execute(
+        >`SELECT *, period_start::text AS period_start, period_end::text AS period_end FROM vou_intermediary_calculation_details WHERE approval_entry_id = ${approvalEntryId}`.execute(
           executor,
         )
       ).rows[0]!
@@ -4247,7 +4320,14 @@ export class VouService implements WflVouPort {
         return_document_nos: string[]
         adjustment_employee_amount_minor: string
         adjustment_intermediary_amount_minor: string
-      }>('vou_intermediary_source_line_snapshots')
+      }>('vou_intermediary_source_line_snapshots', [
+        'signoff_date',
+        'order_date',
+        'due_date',
+        'collection_date',
+        'sales_contract_applicable_from',
+        'sales_contract_applicable_to',
+      ])
       const bills = await rows<{
         line_no: number
         bill_line_id: string
@@ -4259,7 +4339,11 @@ export class VouService implements WflVouPort {
         issue_date: string
         maturity_date: string
         cost_days: number
-      }>('vou_intermediary_bill_snapshots')
+      }>('vou_intermediary_bill_snapshots', [
+        'receipt_date',
+        'issue_date',
+        'maturity_date',
+      ])
       const resultLines = await rows<{
         source_signoff_line_id: string
         premium_unit_price_minor: string
@@ -4514,8 +4598,9 @@ export class VouService implements WflVouPort {
       reference_entity: string | null
       reference_code: string | null
       reference_name: string | null
+      aux_snapshot: unknown | null
     }>`
-      SELECT field, line_no, item_no, object_id, approval_reference_id, selection_origin, reference_entity, reference_code, reference_name
+      SELECT field, line_no, item_no, object_id, approval_reference_id, selection_origin, reference_entity, reference_code, reference_name, aux_snapshot
       FROM vou_reference_snapshots WHERE approval_entry_id = ${approvalEntryId}
     `.execute(executor)
     const refs = new Map<
@@ -4527,26 +4612,47 @@ export class VouService implements WflVouPort {
         entity?: string
         code?: string
         name?: string
+        snapshot?: VouAuxPeopleReferenceInput['snapshot']
       }
     >()
     for (const row of result.rows)
       refs.set(
         `${row.field}:${row.line_no}:${row.item_no}`,
-        row.approval_reference_id
+        row.aux_snapshot !== null
           ? {
               objectId: row.object_id,
-              approvalEntryId: row.approval_reference_id,
-              selectionOrigin: row.selection_origin!,
-              ...(row.reference_entity ? { entity: row.reference_entity } : {}),
-              ...(row.reference_code ? { code: row.reference_code } : {}),
-              ...(row.reference_name ? { name: row.reference_name } : {}),
+              code: row.reference_code ?? undefined,
+              name: row.reference_name ?? undefined,
+              ...(row.field.startsWith('intermediary.')
+                ? { entity: 'employee' as const }
+                : {}),
+              snapshot:
+                row.reference_entity === 'operating-entity' ||
+                row.field === 'operatingEntity'
+                  ? auxPeopleDataSchemas['operating-entity'].parse(
+                      row.aux_snapshot,
+                    )
+                  : auxPeopleDataSchemas.employee.parse(row.aux_snapshot),
             }
-          : {
-              objectId: row.object_id,
-              ...(row.reference_entity ? { entity: row.reference_entity } : {}),
-              ...(row.reference_code ? { code: row.reference_code } : {}),
-              ...(row.reference_name ? { name: row.reference_name } : {}),
-            },
+          : row.approval_reference_id
+            ? {
+                objectId: row.object_id,
+                approvalEntryId: row.approval_reference_id,
+                selectionOrigin: row.selection_origin!,
+                ...(row.reference_entity
+                  ? { entity: row.reference_entity }
+                  : {}),
+                ...(row.reference_code ? { code: row.reference_code } : {}),
+                ...(row.reference_name ? { name: row.reference_name } : {}),
+              }
+            : {
+                objectId: row.object_id,
+                ...(row.reference_entity
+                  ? { entity: row.reference_entity }
+                  : {}),
+                ...(row.reference_code ? { code: row.reference_code } : {}),
+                ...(row.reference_name ? { name: row.reference_name } : {}),
+              },
       )
     return refs
   }

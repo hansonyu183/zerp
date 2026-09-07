@@ -7,11 +7,9 @@ import {
 import type { ApprovalStatus } from './approval.ts'
 
 export const archiveEntityPresentation = {
-  'operating-entity': { label: '经营主体', draftLabel: '经营主体资料' },
   vehicle: { label: '车辆', draftLabel: '车辆资料' },
   'fund-account': { label: '资金账户', draftLabel: '资金账户资料' },
   product: { label: '产品', draftLabel: '产品资料' },
-  employee: { label: '员工', draftLabel: '员工资料' },
   supplier: { label: '供应商', draftLabel: '供应商资料' },
   customer: { label: '客户', draftLabel: '客户资料' },
   'other-unit': { label: '其他单位', draftLabel: '其他单位资料' },
@@ -25,6 +23,34 @@ const trim = (value: string): string => value.trim()
 const hasText = (value: string): boolean => trim(value).length > 0
 const upperCompact = (value: string): string =>
   value.replace(/[\s-]/g, '').toUpperCase()
+
+export interface StableArchiveReference {
+  objectId: string
+  code: string
+  name: string
+}
+export interface StableArchiveReferenceFact {
+  objectId: string
+  enabled: boolean
+}
+
+function stableReference(
+  field: string,
+  reference: StableArchiveReference,
+  fact: StableArchiveReferenceFact | undefined,
+): { ok: true } | { ok: false; stale: false; blocker: ReferenceBlocker } {
+  return fact?.objectId === reference.objectId && fact.enabled
+    ? { ok: true }
+    : {
+        ok: false,
+        stale: false,
+        blocker: {
+          field,
+          objectId: reference.objectId,
+          expectedApprovalEntryId: '',
+        },
+      }
+}
 
 export interface ExactReference {
   objectId: string
@@ -176,80 +202,18 @@ function exactReference(
   return { ok: true }
 }
 
-export interface OperatingEntityData {
-  legalName: Text
-  shortName: Text
-  legalIdentifier: Text
-  registeredAddress: Text
-  contactName: Text
-  contactPhone: Text
-  invoiceTitle: Text
-  invoiceAddress: Text
-  invoicePhone: Text
-  invoiceBank: Text
-  invoiceAccount: Text
-  remark: Text
-  enabled: boolean
-}
-export interface OperatingEntitySubmitCommand extends ArchiveCommand<OperatingEntityData> {}
-export interface OperatingEntitySubmitFacts extends ArchiveFacts {}
-export type OperatingEntitySubmitErrorKey = 'operating_entity_invalid_data'
-export type OperatingEntitySubmissionPlan = ArchivePlan<OperatingEntityData>
-export type OperatingEntitySubmitDecision = ArchiveDecision<
-  OperatingEntityData,
-  OperatingEntitySubmitErrorKey
->
-function normalizeOperatingEntity(
-  data: OperatingEntityData,
-): OperatingEntityData | undefined {
-  const legalName = trim(data.legalName)
-  const legalIdentifier = upperCompact(data.legalIdentifier)
-  if (!legalName || !/^[0-9A-Z]{18}$/.test(legalIdentifier)) return undefined
-  return {
-    ...data,
-    legalName,
-    shortName: trim(data.shortName),
-    legalIdentifier,
-    registeredAddress: trim(data.registeredAddress),
-    contactName: trim(data.contactName),
-    contactPhone: trim(data.contactPhone),
-    invoiceTitle: trim(data.invoiceTitle),
-    invoiceAddress: trim(data.invoiceAddress),
-    invoicePhone: trim(data.invoicePhone),
-    invoiceBank: trim(data.invoiceBank),
-    invoiceAccount: trim(data.invoiceAccount),
-    remark: trim(data.remark),
-  }
-}
-export function prepareOperatingEntitySubmit(
-  command: OperatingEntitySubmitCommand,
-  facts: OperatingEntitySubmitFacts,
-): OperatingEntitySubmitDecision {
-  const common = mechanics<OperatingEntityData, OperatingEntitySubmitErrorKey>(
-    'operating-entity',
-    command,
-    facts,
-  )
-  if ('ok' in common) return common
-  const data = normalizeOperatingEntity(command.data)
-  return data
-    ? { ok: true, plan: { ...common, data } }
-    : { ok: false, error: { errorKey: 'operating_entity_invalid_data' } }
-}
-export function projectOperatingEntityViewState(
-  command: OperatingEntitySubmitCommand,
-  facts: OperatingEntitySubmitFacts,
-): ArchiveViewState<OperatingEntitySubmitErrorKey> {
-  return project(prepareOperatingEntitySubmit(command, facts))
-}
-
 export interface VehicleTypeReference {
   id: string
   code: string
   name: string
 }
 export type VehicleCarrier =
-  | { kind: 'INTERNAL'; operatingEntityId: string; approvalEntryId: string }
+  | {
+      kind: 'INTERNAL'
+      operatingEntityId: string
+      code?: string
+      name?: string
+    }
   | { kind: 'EXTERNAL'; otherUnitId: string; approvalEntryId: string }
 export interface VehicleData {
   name: Text
@@ -265,7 +229,7 @@ export interface VehicleData {
 }
 export interface VehicleSubmitCommand extends ArchiveCommand<VehicleData> {}
 export interface VehicleSubmitFacts extends ArchiveFacts {
-  operatingEntity?: ExactReferenceFact
+  operatingEntity?: StableArchiveReferenceFact
   otherUnit?: ExactReferenceFact
 }
 export type VehicleSubmitErrorKey =
@@ -303,7 +267,8 @@ function normalizeVehicle(data: VehicleData): VehicleData | undefined {
       ? {
           kind: 'INTERNAL' as const,
           operatingEntityId: trim(data.carrier.operatingEntityId),
-          approvalEntryId: trim(data.carrier.approvalEntryId),
+          code: trim(data.carrier.code ?? ''),
+          name: trim(data.carrier.name ?? ''),
         }
       : {
           kind: 'EXTERNAL' as const,
@@ -314,7 +279,7 @@ function normalizeVehicle(data: VehicleData): VehicleData | undefined {
     !(carrier.kind === 'INTERNAL'
       ? carrier.operatingEntityId
       : carrier.otherUnitId) ||
-    !carrier.approvalEntryId
+    (carrier.kind === 'EXTERNAL' && !carrier.approvalEntryId)
   )
     return undefined
   return {
@@ -340,25 +305,23 @@ export function prepareVehicleSubmit(
   if ('ok' in common) return common
   const data = normalizeVehicle(command.data)
   if (!data) return { ok: false, error: { errorKey: 'vehicle_invalid_data' } }
-  const ref: ExactReference =
+  const checked =
     data.carrier.kind === 'INTERNAL'
-      ? {
-          objectId: data.carrier.operatingEntityId,
-          approvalEntryId: data.carrier.approvalEntryId,
-          code: '',
-          name: '',
-        }
-      : {
-          objectId: data.carrier.otherUnitId,
-          approvalEntryId: data.carrier.approvalEntryId,
-          code: '',
-          name: '',
-        }
-  const checked = exactReference(
-    'carrier',
-    ref,
-    data.carrier.kind === 'INTERNAL' ? facts.operatingEntity : facts.otherUnit,
-  )
+      ? stableReference(
+          'carrier',
+          { objectId: data.carrier.operatingEntityId, code: '', name: '' },
+          facts.operatingEntity,
+        )
+      : exactReference(
+          'carrier',
+          {
+            objectId: data.carrier.otherUnitId,
+            approvalEntryId: data.carrier.approvalEntryId,
+            code: '',
+            name: '',
+          },
+          facts.otherUnit,
+        )
   if (!checked.ok)
     return block(
       checked.stale
@@ -384,11 +347,11 @@ export interface FundAccountData {
   accountNumber: Text
   remark: Text
   enabled: boolean
-  operatingEntity: ExactReference
+  operatingEntity: StableArchiveReference
 }
 export interface FundAccountSubmitCommand extends ArchiveCommand<FundAccountData> {}
 export interface FundAccountSubmitFacts extends ArchiveFacts {
-  operatingEntity?: ExactReferenceFact
+  operatingEntity?: StableArchiveReferenceFact
 }
 export type FundAccountSubmitErrorKey =
   | 'fund_account_invalid_data'
@@ -404,7 +367,6 @@ function normalizeFundAccount(
 ): FundAccountData | undefined {
   const operatingEntity = {
     objectId: trim(data.operatingEntity.objectId),
-    approvalEntryId: trim(data.operatingEntity.approvalEntryId),
     code: trim(data.operatingEntity.code),
     name: trim(data.operatingEntity.name),
   }
@@ -415,8 +377,7 @@ function normalizeFundAccount(
     !hasText(data.accountName) ||
     !hasText(data.bank) ||
     !accountNumber ||
-    !operatingEntity.objectId ||
-    !operatingEntity.approvalEntryId
+    !operatingEntity.objectId
   )
     return undefined
   return {
@@ -444,7 +405,7 @@ export function prepareFundAccountSubmit(
   const data = normalizeFundAccount(command.data)
   if (!data)
     return { ok: false, error: { errorKey: 'fund_account_invalid_data' } }
-  const checked = exactReference(
+  const checked = stableReference(
     'operatingEntity',
     data.operatingEntity,
     facts.operatingEntity,
@@ -842,132 +803,8 @@ function normalizeIdentity<T extends IdentityArchiveData>(
   }
 }
 
-export interface EmployeeData extends IdentityArchiveData {
-  employeeCategory: ProductAuxReference
-  department: ProductAuxReference
-  position: ProductAuxReference
-  employmentDate: Text
-  workPhone: Text
-  workEmail: Text
-  operatingEntity: ExactReference
-}
-export interface EmployeeSubmitCommand extends ArchiveCommand<EmployeeData> {}
-export interface EmployeeSubmitFacts extends ArchiveFacts {
-  operatingEntity?: ExactReferenceFact
-  references: readonly ProductReferenceFact[]
-}
-export type EmployeeSubmitErrorKey =
-  | 'employee_invalid_data'
-  | 'employee_reference_stale'
-  | 'employee_reference_unavailable'
-export type EmployeeSubmissionPlan = ArchivePlan<EmployeeData>
-export type EmployeeSubmitDecision = ArchiveDecision<
-  EmployeeData,
-  EmployeeSubmitErrorKey
->
-export function prepareEmployeeSubmit(
-  command: EmployeeSubmitCommand,
-  facts: EmployeeSubmitFacts,
-): EmployeeSubmitDecision {
-  const common = mechanics<EmployeeData, EmployeeSubmitErrorKey>(
-    'employee',
-    command,
-    facts,
-  )
-  if ('ok' in common) return common
-  const base = normalizeIdentity(command.data),
-    operatingEntity = command.data.operatingEntity
-  if (
-    !base ||
-    !hasText(base.employmentDate) ||
-    !hasText(operatingEntity.objectId) ||
-    !hasText(operatingEntity.approvalEntryId) ||
-    [base.employeeCategory, base.department, base.position].some(
-      (reference) =>
-        !hasText(reference.id) ||
-        !hasText(reference.code) ||
-        !hasText(reference.name),
-    )
-  )
-    return { ok: false, error: { errorKey: 'employee_invalid_data' } }
-  const checked = exactReference(
-    'operatingEntity',
-    operatingEntity,
-    facts.operatingEntity,
-  )
-  if (!checked.ok)
-    return block(
-      checked.stale
-        ? 'employee_reference_stale'
-        : 'employee_reference_unavailable',
-      checked.blocker,
-    )
-  for (const [field, reference] of [
-    ['employeeCategory', base.employeeCategory],
-    ['department', base.department],
-    ['position', base.position],
-  ] as const) {
-    if (
-      !facts.references.some(
-        (fact) =>
-          fact.field === field &&
-          fact.objectId === reference.id &&
-          fact.available,
-      )
-    )
-      return block('employee_reference_unavailable', {
-        field,
-        objectId: reference.id,
-        expectedApprovalEntryId: '',
-      })
-  }
-  return {
-    ok: true,
-    plan: {
-      ...common,
-      data: {
-        ...base,
-        employeeCategory: {
-          ...base.employeeCategory,
-          id: trim(base.employeeCategory.id),
-          code: trim(base.employeeCategory.code),
-          name: trim(base.employeeCategory.name),
-        },
-        department: {
-          ...base.department,
-          id: trim(base.department.id),
-          code: trim(base.department.code),
-          name: trim(base.department.name),
-        },
-        position: {
-          ...base.position,
-          id: trim(base.position.id),
-          code: trim(base.position.code),
-          name: trim(base.position.name),
-        },
-        employmentDate: trim(base.employmentDate),
-        workPhone: trim(base.workPhone),
-        workEmail: trim(base.workEmail),
-        operatingEntity: {
-          ...operatingEntity,
-          objectId: trim(operatingEntity.objectId),
-          approvalEntryId: trim(operatingEntity.approvalEntryId),
-          code: trim(operatingEntity.code),
-          name: trim(operatingEntity.name),
-        },
-      },
-    },
-  }
-}
-export function projectEmployeeViewState(
-  command: EmployeeSubmitCommand,
-  facts: EmployeeSubmitFacts,
-): ArchiveViewState<EmployeeSubmitErrorKey> {
-  return project(prepareEmployeeSubmit(command, facts))
-}
-
 export interface OperatingEntitySetData {
-  operatingEntities: readonly ExactReference[]
+  operatingEntities: readonly StableArchiveReference[]
   defaultOperatingEntityId: string | null
 }
 function normalizeOperatingEntitySet(
@@ -976,7 +813,6 @@ function normalizeOperatingEntitySet(
   const ids = new Set<string>()
   const operatingEntities = data.operatingEntities.map((reference) => ({
     objectId: trim(reference.objectId),
-    approvalEntryId: trim(reference.approvalEntryId),
     code: trim(reference.code),
     name: trim(reference.name),
   }))
@@ -984,7 +820,6 @@ function normalizeOperatingEntitySet(
     operatingEntities.some(
       (reference) =>
         !reference.objectId ||
-        !reference.approvalEntryId ||
         ids.has(reference.objectId) ||
         !ids.add(reference.objectId),
     )
@@ -1001,12 +836,12 @@ function normalizeOperatingEntitySet(
 export interface SupplierData
   extends IdentityArchiveData, OperatingEntitySetData {
   settlementMethod: (AuxSnapshot | SettlementMethodSnapshot) | null
-  defaultPurchaser: ExactReference | null
+  defaultPurchaser: StableArchiveReference | null
 }
 export interface SupplierSubmitCommand extends ArchiveCommand<SupplierData> {}
 export interface SupplierSubmitFacts extends ArchiveFacts {
-  operatingEntities: readonly ExactReferenceFact[]
-  defaultPurchaser?: ExactReferenceFact
+  operatingEntities: readonly StableArchiveReferenceFact[]
+  defaultPurchaser?: StableArchiveReferenceFact
 }
 export type SupplierSubmitErrorKey =
   | 'supplier_invalid_data'
@@ -1048,7 +883,7 @@ export function prepareSupplierSubmit(
   )
   if ('ok' in prepared) return prepared
   for (const reference of prepared.data.operatingEntities) {
-    const checked = exactReference(
+    const checked = stableReference(
       'operatingEntities',
       reference,
       facts.operatingEntities.find(
@@ -1064,7 +899,7 @@ export function prepareSupplierSubmit(
       )
   }
   if (command.data.defaultPurchaser) {
-    const checked = exactReference(
+    const checked = stableReference(
       'defaultPurchaser',
       command.data.defaultPurchaser,
       facts.defaultPurchaser,
@@ -1102,7 +937,7 @@ export interface OtherUnitData
 }
 export interface OtherUnitSubmitCommand extends ArchiveCommand<OtherUnitData> {}
 export interface OtherUnitSubmitFacts extends ArchiveFacts {
-  operatingEntities: readonly ExactReferenceFact[]
+  operatingEntities: readonly StableArchiveReferenceFact[]
 }
 export type OtherUnitSubmitErrorKey =
   | 'other_unit_invalid_data'
@@ -1125,7 +960,7 @@ export function prepareOtherUnitSubmit(
   )
   if ('ok' in prepared) return prepared
   for (const reference of prepared.data.operatingEntities) {
-    const checked = exactReference(
+    const checked = stableReference(
       'operatingEntities',
       reference,
       facts.operatingEntities.find(
@@ -1165,7 +1000,7 @@ export interface SalesPartnerData
 }
 export interface SalesPartnerSubmitCommand extends ArchiveCommand<SalesPartnerData> {}
 export interface SalesPartnerSubmitFacts extends ArchiveFacts {
-  operatingEntities: readonly ExactReferenceFact[]
+  operatingEntities: readonly StableArchiveReferenceFact[]
 }
 export type SalesPartnerSubmitErrorKey =
   | 'sales_partner_invalid_data'
@@ -1197,7 +1032,7 @@ export function prepareSalesPartnerSubmit(
   )
     return { ok: false, error: { errorKey: 'sales_partner_invalid_data' } }
   for (const reference of prepared.data.operatingEntities) {
-    const checked = exactReference(
+    const checked = stableReference(
       'operatingEntities',
       reference,
       facts.operatingEntities.find(
@@ -1257,9 +1092,9 @@ export interface CustomerPricingPolicy {
 }
 export type CustomerSalesAttributionType =
   'INTERNAL_EMPLOYEE' | 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER'
-export interface CustomerSalesAttribution extends ExactReference {
-  type: CustomerSalesAttributionType
-}
+export type CustomerSalesAttribution =
+  | (StableArchiveReference & { type: 'INTERNAL_EMPLOYEE' })
+  | (ExactReference & { type: 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER' })
 interface CustomerSubunitBase {
   id: string
   name: string
@@ -1305,14 +1140,14 @@ export interface CustomerData {
     bank: string
     accountNumber: string
   }[]
-  defaultOperatingEntity: ExactReference | null
+  defaultOperatingEntity: StableArchiveReference | null
   identityAttachments: readonly AttachmentMetadata[]
   subunits: readonly CustomerSubunit[]
   enabled: boolean
 }
 export interface CustomerSubmitCommand extends ArchiveCommand<CustomerData> {}
 export interface CustomerSubmitFacts extends ArchiveFacts {
-  defaultOperatingEntity?: ExactReferenceFact
+  defaultOperatingEntity?: StableArchiveReferenceFact
   customerTypes: readonly { objectId: string; available: boolean }[]
   salesAttributions: readonly (ExactReferenceFact & {
     type: CustomerSalesAttributionType
@@ -1456,6 +1291,22 @@ function normalizePricingPolicy(
     thirdPartyIntermediaryVariableUnitCost,
   }
 }
+function normalizeSalesAttribution(
+  reference: CustomerSalesAttribution,
+): CustomerSalesAttribution {
+  const base = {
+    objectId: trim(reference.objectId),
+    code: trim(reference.code),
+    name: trim(reference.name),
+  }
+  return reference.type === 'INTERNAL_EMPLOYEE'
+    ? { ...base, type: reference.type }
+    : {
+        ...base,
+        type: reference.type,
+        approvalEntryId: trim(reference.approvalEntryId),
+      }
+}
 function normalizeCustomer(data: CustomerData): CustomerData | undefined {
   const legalIdentifier = normalizedIdentifier(
     data.identityKind,
@@ -1513,14 +1364,9 @@ function normalizeCustomer(data: CustomerData): CustomerData | undefined {
       paymentMethod,
       transportPolicy,
       pricingPolicy,
-      primarySalesAttribution: {
-        ...subunit.primarySalesAttribution,
-        type: subunit.primarySalesAttribution.type,
-        objectId: trim(subunit.primarySalesAttribution.objectId),
-        approvalEntryId: trim(subunit.primarySalesAttribution.approvalEntryId),
-        code: trim(subunit.primarySalesAttribution.code),
-        name: trim(subunit.primarySalesAttribution.name),
-      },
+      primarySalesAttribution: normalizeSalesAttribution(
+        subunit.primarySalesAttribution,
+      ),
       internalReminder: trim(subunit.internalReminder),
       defaultSalesOrderRemark: trim(subunit.defaultSalesOrderRemark),
       attachments: attachments as AttachmentMetadata[],
@@ -1543,7 +1389,8 @@ function normalizeCustomer(data: CustomerData): CustomerData | undefined {
   for (const subunit of subunits) {
     if (
       !subunit.primarySalesAttribution.objectId ||
-      !subunit.primarySalesAttribution.approvalEntryId ||
+      (subunit.primarySalesAttribution.type !== 'INTERNAL_EMPLOYEE' &&
+        !subunit.primarySalesAttribution.approvalEntryId) ||
       !subunit.primarySalesAttribution.code ||
       !subunit.primarySalesAttribution.name
     )
@@ -1571,15 +1418,10 @@ function normalizeCustomer(data: CustomerData): CustomerData | undefined {
       ? null
       : {
           objectId: trim(data.defaultOperatingEntity.objectId),
-          approvalEntryId: trim(data.defaultOperatingEntity.approvalEntryId),
           code: trim(data.defaultOperatingEntity.code),
           name: trim(data.defaultOperatingEntity.name),
         }
-  if (
-    defaultOperatingEntity &&
-    (!defaultOperatingEntity.objectId ||
-      !defaultOperatingEntity.approvalEntryId)
-  )
+  if (defaultOperatingEntity && !defaultOperatingEntity.objectId)
     return undefined
   const remittanceProfiles = data.remittanceProfiles.map((profile) => ({
     payerName: trim(profile.payerName),
@@ -1619,7 +1461,7 @@ export function prepareCustomerSubmit(
   const data = normalizeCustomer(command.data)
   if (!data) return { ok: false, error: { errorKey: 'customer_invalid_data' } }
   if (data.defaultOperatingEntity) {
-    const checked = exactReference(
+    const checked = stableReference(
       'defaultOperatingEntity',
       data.defaultOperatingEntity,
       facts.defaultOperatingEntity,
@@ -1648,11 +1490,18 @@ export function prepareCustomerSubmit(
         candidate.objectId === subunit.primarySalesAttribution.objectId &&
         candidate.type === subunit.primarySalesAttribution.type,
     )
-    const checked = exactReference(
-      'subunits.primarySalesAttribution',
-      subunit.primarySalesAttribution,
-      fact,
-    )
+    const checked =
+      subunit.primarySalesAttribution.type === 'INTERNAL_EMPLOYEE'
+        ? stableReference(
+            'subunits.primarySalesAttribution',
+            subunit.primarySalesAttribution,
+            fact,
+          )
+        : exactReference(
+            'subunits.primarySalesAttribution',
+            subunit.primarySalesAttribution,
+            fact,
+          )
     if (!checked.ok)
       return block(
         checked.stale

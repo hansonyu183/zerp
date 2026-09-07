@@ -85,6 +85,13 @@ describe('business resource registry', () => {
     expect(
       targetResourceRegistry.resolve('aux', 'asset-category'),
     ).toMatchObject({ domain: 'aux', entity: 'asset-category' })
+    expect(
+      targetResourceRegistry.resolve('aux', 'operating-entity'),
+    ).toMatchObject({ domain: 'aux', entity: 'operating-entity' })
+    expect(targetResourceRegistry.resolve('aux', 'employee')).toMatchObject({
+      domain: 'aux',
+      entity: 'employee',
+    })
     expect('dcl' in targetDomainCapabilities).toBe(false)
     for (const [domain, entity] of [
       ['app', 'user'],
@@ -94,6 +101,8 @@ describe('business resource registry', () => {
       ['aux', 'measurement-unit'],
       ['aux', 'payment-method'],
       ['aux', 'asset-category'],
+      ['aux', 'operating-entity'],
+      ['aux', 'employee'],
     ]) {
       const definition = targetResourceRegistry.resolve(
         domain!,

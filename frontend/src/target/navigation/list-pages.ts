@@ -9,6 +9,8 @@ import type {
 import type { MeasurementUnitListItem } from '../pages/aux/measurement-unit/vm.ts'
 import type { PaymentMethodListItem } from '../pages/aux/payment-method/vm.ts'
 import type { AssetCategoryListItem } from '../pages/aux/asset-category/vm.ts'
+import type { EmployeeListItem } from '../pages/aux/employee/vm.ts'
+import type { OperatingEntityListItem } from '../pages/aux/operating-entity/vm.ts'
 
 const identityColumns = [
   { key: 'code', type: 'text', caption: '编码' },
@@ -98,6 +100,18 @@ export const paymentMethodListPage = defineListPage<PaymentMethodListItem>({
 export const assetCategoryListPage = defineListPage<AssetCategoryListItem>({
   title: '资产类别',
   createLabel: '新增资产类别',
+  columns: baseColumns,
+  filters: baseFilters,
+})
+export const operatingEntityListPage = defineListPage<OperatingEntityListItem>({
+  title: '经营主体',
+  createLabel: '新增经营主体',
+  columns: baseColumns,
+  filters: baseFilters,
+})
+export const employeeListPage = defineListPage<EmployeeListItem>({
+  title: '员工',
+  createLabel: '新增员工',
   columns: baseColumns,
   filters: baseFilters,
 })

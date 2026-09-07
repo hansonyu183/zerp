@@ -2,7 +2,6 @@ import type { ApprovalActor, ApprovalStatus } from './approval.ts'
 
 export interface WarehouseManagerReference {
   employeeId: string
-  approvalEntryId: string
   code: string
   displayName: string
 }
@@ -44,10 +43,8 @@ export interface WarehouseSubjectFacts {
 
 export interface WarehouseManagerFact {
   employeeId: string
-  latestApprovedEntryId: string
   code: string
   displayName: string
-  enabled: boolean
 }
 
 export interface WarehouseSubmitFacts {
@@ -62,17 +59,9 @@ export type WarehouseSubmitErrorKey =
   | 'approval_open_version_exists'
   | 'warehouse_invalid_data'
   | 'warehouse_invalid_history'
-  | 'warehouse_reference_stale'
   | 'warehouse_reference_unavailable'
   | 'warehouse_stale_facts'
   | 'warehouse_submit_mode_mismatch'
-
-export interface WarehouseReferenceBlocker {
-  field: 'manager'
-  objectId: string
-  expectedApprovalEntryId: string
-  currentApprovalEntryId?: string
-}
 
 export interface WarehouseSubmissionPlan {
   kind: 'warehouse-submit'
@@ -104,7 +93,6 @@ export type WarehouseSubmitDecision =
       ok: false
       error: {
         errorKey: WarehouseSubmitErrorKey
-        blockers?: WarehouseReferenceBlocker[]
       }
     }
 
@@ -114,7 +102,7 @@ export type WarehouseViewState =
       kind: 'blocked'
       canSubmit: false
       errorKey: WarehouseSubmitErrorKey
-      blockers: WarehouseReferenceBlocker[]
+      blockers: []
     }
 
 function trim(value: string): string {
@@ -147,7 +135,6 @@ function normalizeData(data: WarehouseData): WarehouseData | undefined {
   const manager = data.manager
     ? {
         employeeId: trim(data.manager.employeeId),
-        approvalEntryId: trim(data.manager.approvalEntryId),
         code: trim(data.manager.code),
         displayName: trim(data.manager.displayName),
       }
@@ -155,7 +142,6 @@ function normalizeData(data: WarehouseData): WarehouseData | undefined {
   if (
     manager &&
     (!manager.employeeId ||
-      !manager.approvalEntryId ||
       !manager.code ||
       !manager.displayName)
   )
@@ -269,45 +255,16 @@ export function prepareWarehouseSubmit(
     if (
       !manager ||
       manager.employeeId !== data.manager.employeeId ||
-      !manager.enabled
+      !hasText(manager.code) ||
+      !hasText(manager.displayName)
     )
-      return {
-        ok: false,
-        error: {
-          errorKey: 'warehouse_reference_unavailable',
-          blockers: [
-            {
-              field: 'manager',
-              objectId: data.manager.employeeId,
-              expectedApprovalEntryId: data.manager.approvalEntryId,
-              ...(manager
-                ? { currentApprovalEntryId: manager.latestApprovedEntryId }
-                : {}),
-            },
-          ],
-        },
-      }
-    if (manager.latestApprovedEntryId !== data.manager.approvalEntryId)
-      return {
-        ok: false,
-        error: {
-          errorKey: 'warehouse_reference_stale',
-          blockers: [
-            {
-              field: 'manager',
-              objectId: data.manager.employeeId,
-              expectedApprovalEntryId: data.manager.approvalEntryId,
-              currentApprovalEntryId: manager.latestApprovedEntryId,
-            },
-          ],
-        },
-      }
-    if (!hasText(manager.code) || !hasText(manager.displayName))
       return decisionError('warehouse_reference_unavailable')
+    // The selected current employee is frozen into this warehouse version.
+    // Client code/name fields never redefine a persisted personnel reference.
     plannedData = {
       ...data,
       manager: {
-        ...data.manager,
+        employeeId: manager.employeeId,
         code: trim(manager.code),
         displayName: trim(manager.displayName),
       },
@@ -358,6 +315,6 @@ export function projectWarehouseViewState(
     kind: 'blocked',
     canSubmit: false,
     errorKey: decision.error.errorKey,
-    blockers: decision.error.blockers ?? [],
+    blockers: [],
   }
 }

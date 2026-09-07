@@ -9,12 +9,14 @@ import {
   auxEnableRoute,
   auxEntities,
   auxGetRoute,
+  employeeGetRoute,
   auxQueryRoute,
   measurementUnitQueryRoute,
   auxReferenceRoute,
   auxReferenceRouteBinding,
   auxRouteBinding,
   auxSaveRoute,
+  operatingEntityGetRoute,
   type AuxRouteBinding,
 } from './aux-contract.ts'
 import { userRevisionSchema, userSummarySchema } from './user-contract.ts'
@@ -315,8 +317,6 @@ const bobReferenceRequest = z
   .object({
     entity: z.enum([
       'customer-subunit',
-      'operating-entity',
-      'employee',
       'other-unit',
       'supplier',
       'sales-partner',
@@ -358,14 +358,12 @@ function bobRoute<const Path extends string>(
 export const bobEntities = [
   'customer',
   'supplier',
-  'employee',
   'other-unit',
   'sales-partner',
   'product',
   'warehouse',
   'vehicle',
   'fund-account',
-  'operating-entity',
 ] as const
 
 type BobRouteAction = 'query' | 'get'
@@ -437,6 +435,62 @@ export function registerIndependentRoutes(
   // Keep the finite AUX inventory as literal executable routes so the Hono
   // AppType exposes every direct-CRUD seam to the generated client.
   const withAux = fixed.openapiRoutes([
+    {
+      route: auxQueryRoute('/aux/operating-entity/query'),
+      handler: handlers.aux(auxRouteBinding('operating-entity', 'query')),
+    },
+    {
+      route: operatingEntityGetRoute('/aux/operating-entity/get'),
+      handler: handlers.aux(auxRouteBinding('operating-entity', 'get')),
+    },
+    {
+      route: auxCreateRoute('/aux/operating-entity/create', 'operating-entity'),
+      handler: handlers.aux(auxRouteBinding('operating-entity', 'create')),
+    },
+    {
+      route: auxSaveRoute('/aux/operating-entity/save', 'operating-entity'),
+      handler: handlers.aux(auxRouteBinding('operating-entity', 'save')),
+    },
+    {
+      route: auxEnableRoute('/aux/operating-entity/enable'),
+      handler: handlers.aux(auxRouteBinding('operating-entity', 'enable')),
+    },
+    {
+      route: auxDisableRoute('/aux/operating-entity/disable'),
+      handler: handlers.aux(auxRouteBinding('operating-entity', 'disable')),
+    },
+    {
+      route: auxDeleteRoute('/aux/operating-entity/delete'),
+      handler: handlers.aux(auxRouteBinding('operating-entity', 'delete')),
+    },
+    {
+      route: auxQueryRoute('/aux/employee/query'),
+      handler: handlers.aux(auxRouteBinding('employee', 'query')),
+    },
+    {
+      route: employeeGetRoute('/aux/employee/get'),
+      handler: handlers.aux(auxRouteBinding('employee', 'get')),
+    },
+    {
+      route: auxCreateRoute('/aux/employee/create', 'employee'),
+      handler: handlers.aux(auxRouteBinding('employee', 'create')),
+    },
+    {
+      route: auxSaveRoute('/aux/employee/save', 'employee'),
+      handler: handlers.aux(auxRouteBinding('employee', 'save')),
+    },
+    {
+      route: auxEnableRoute('/aux/employee/enable'),
+      handler: handlers.aux(auxRouteBinding('employee', 'enable')),
+    },
+    {
+      route: auxDisableRoute('/aux/employee/disable'),
+      handler: handlers.aux(auxRouteBinding('employee', 'disable')),
+    },
+    {
+      route: auxDeleteRoute('/aux/employee/delete'),
+      handler: handlers.aux(auxRouteBinding('employee', 'delete')),
+    },
     {
       route: auxQueryRoute('/aux/product-category/query'),
       handler: handlers.aux(auxRouteBinding('product-category', 'query')),
@@ -828,19 +882,19 @@ const auxNames: Record<(typeof auxEntities)[number], string> = {
   'measurement-unit': '计量单位',
   'income-expense-type': '收支类型',
   'asset-category': '资产类别',
+  'operating-entity': '经营主体',
+  employee: '员工',
 }
 
 const bobNames: Record<(typeof bobEntities)[number], string> = {
   customer: '客户',
   supplier: '供应商',
-  employee: '员工',
   'other-unit': '其他单位',
   'sales-partner': '销售合作方',
   product: '产品',
   warehouse: '仓库',
   vehicle: '车辆',
   'fund-account': '资金账户',
-  'operating-entity': '经营主体',
 }
 
 export const independentRouteMetadata = [

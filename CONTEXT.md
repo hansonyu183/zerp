@@ -23,9 +23,9 @@ _Authority_: [APP 最终权限计算](docs/domains/app.md#4-最终权限计算)�
 _Avoid_: Domain 审批行、审批 Store Adapter、审批主体注册表
 _Authority_: [Approval 领域](docs/domains/approval.md#2-审批条目与主体边界)
 
-**Draft（本地草稿）**:
-仅属于已认证用户当前浏览器与设备的 IndexedDB 编辑状态；它可以保存未完成输入、展示快照和待提交附件，但不是服务器业务事实、Approval 条目或跨设备协作对象。
-_Avoid_: 服务端草稿、Approval `DRAFT`、共享候选、自动上传的业务附件
+**Draft（临时编辑输入）**:
+仅属于当前页面实例的未提交编辑状态；它保留未完成输入、展示快照和待提交附件，关闭、刷新或切换账号后销毁，不是服务器业务事实或 Approval 条目。
+_Avoid_: 持久化草稿、刷新恢复、Approval `DRAFT`、共享候选、自动上传的业务附件
 _Authority_: [Approval 草稿与 Submission](docs/domains/approval.md#2-审批条目与主体边界)
 
 **Submission（提交件）**:
@@ -117,7 +117,7 @@ _Avoid_: 持久化默认子单位、第一行默认、最低编码默认、最�
 **Operating Entity（经营主体）**:
 我方实际承担合同销售方、开票方和收款方责任的法人公司；只有经营主体自身保留税号语义。
 _Avoid_: 商品品牌、客户类型、报表标签、客户的固定归属主体、允许跨经营主体收款分摊
-_Authority_: [DCL 经营主体申报](docs/domains/dcl.md#2-经营主体申报)、[BOB 领域边界](docs/domains/bob.md#2-领域职责与边界)、[VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
+_Authority_: [AUX 经营主体与员工](docs/domains/aux.md#39-经营主体与员工)、[BOB 领域边界](docs/domains/bob.md#2-领域职责与边界)、[VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
 
 **Sales Receipt Allocation（销售收款分摊）**:
 一笔客户来款分配到该客户下一个或多个客户子单位及其未结应收的金额明细；付款户名和付款银行账号等识别资料属于 Customer，不属于客户子单位。

@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto'
 import test from 'node:test'
 
 import { TargetBootstrapService } from '../../src/app/bootstrap.ts'
+import { auxPeoplePermissionMappings } from '../../src/aux/migration.ts'
 import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { readTargetPermissionCatalog } from '../../scripts/target-artifacts.ts'
@@ -81,7 +82,6 @@ test('one-time target permission migration preserves every effective authority b
   const suffix = randomBytes(8).toString('hex').toUpperCase()
   const roleId = `M${suffix}`.padEnd(26, '0')
   const userId = `U${suffix}`.padEnd(26, '0')
-  const superadminRoleId = `R${suffix}`.padEnd(26, '0')
   const superadminUserId = `V${suffix}`.padEnd(26, '0')
   const desired = await readTargetPermissionCatalog()
   const migratedPath = '/aux/department/query'
@@ -93,6 +93,12 @@ test('one-time target permission migration preserves every effective authority b
       id: `${index === 0 ? 'A' : 'B'}${suffix}`.padEnd(26, '0'),
     }))
   const bootstrap = new TargetBootstrapService(db)
+  const superadminRole = await db
+    .selectFrom('app_roles')
+    .select('id')
+    .where('code', '=', 'superadmin')
+    .executeTakeFirstOrThrow()
+  const superadminRoleId = superadminRole.id
   context.after(async () => {
     try {
       await db
@@ -105,12 +111,9 @@ test('one-time target permission migration preserves every effective authority b
         .execute()
       await db
         .deleteFrom('app_role_permissions')
-        .where('role_id', 'in', [roleId, superadminRoleId])
+        .where('role_id', '=', roleId)
         .execute()
-      await db
-        .deleteFrom('app_roles')
-        .where('id', 'in', [roleId, superadminRoleId])
-        .execute()
+      await db.deleteFrom('app_roles').where('id', '=', roleId).execute()
       await bootstrap.migratePermissionCatalog(desired)
     } finally {
       await db.destroy()
@@ -145,20 +148,12 @@ test('one-time target permission migration preserves every effective authority b
     .execute()
   await db
     .insertInto('app_roles')
-    .values([
-      {
-        id: roleId,
-        code: `migration-${suffix.toLowerCase()}`,
-        name: 'Migration Role',
-        status: 'ENABLED',
-      },
-      {
-        id: superadminRoleId,
-        code: 'superadmin',
-        name: 'Migration Superadmin Role',
-        status: 'ENABLED',
-      },
-    ])
+    .values({
+      id: roleId,
+      code: `migration-${suffix.toLowerCase()}`,
+      name: 'Migration Role',
+      status: 'ENABLED',
+    })
     .execute()
   await db
     .insertInto('app_user_roles')
@@ -215,6 +210,138 @@ test('one-time target permission migration preserves every effective authority b
     Number(expectedPreservedRoleGrants.count),
   )
   assert.equal(report.droppedStaleRoleGrants, 0)
+  assert.equal(report.orphanedRoleGrants, 0)
+  assert.equal(report.duplicateRoleGrants, 0)
+})
+
+test('one-time AUX people permission migration replaces enabled authority without activating disabled source grants', async (context) => {
+  assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
+  const db = createDatabase(databaseUrl)
+  const suffix = randomBytes(8).toString('hex').toUpperCase()
+  const roleId = `M${suffix}`.padEnd(26, '0')
+  const disabledRoleId = `D${suffix}`.padEnd(26, '0')
+  const enabledQueryRoleId = `Q${suffix}`.padEnd(26, '0')
+  const legacyPermissionId = `P${suffix}`.padEnd(26, '0')
+  const disabledPermissionId = `X${suffix}`.padEnd(26, '0')
+  const enabledQueryPermissionId = `Y${suffix}`.padEnd(26, '0')
+  const legacyPath = '/dcl/employee/submit-change'
+  const mapping = auxPeoplePermissionMappings.find(
+    (candidate) => candidate.from === legacyPath,
+  )
+  assert.ok(mapping)
+  const desired = await readTargetPermissionCatalog()
+  const bootstrap = new TargetBootstrapService(db)
+  context.after(async () => {
+    try {
+      await db
+        .deleteFrom('app_roles')
+        .where('id', 'in', [roleId, disabledRoleId, enabledQueryRoleId])
+        .execute()
+      await bootstrap.migratePermissionCatalog(desired)
+    } finally {
+      await db.destroy()
+    }
+  })
+
+  await db
+    .insertInto('app_permissions')
+    .values([
+      {
+        id: legacyPermissionId,
+        path: legacyPath,
+        domain: 'dcl',
+        entity: 'employee',
+        action: 'submit-change',
+        description: '旧员工变更',
+        status: 'ENABLED',
+      },
+      {
+        id: disabledPermissionId,
+        path: '/bob/employee/query',
+        domain: 'bob',
+        entity: 'employee',
+        action: 'query',
+        description: '旧停用员工查询',
+        status: 'DISABLED',
+      },
+      {
+        id: enabledQueryPermissionId,
+        path: '/dcl/employee/query',
+        domain: 'dcl',
+        entity: 'employee',
+        action: 'query',
+        description: '旧启用员工查询',
+        status: 'ENABLED',
+      },
+    ])
+    .execute()
+  await db
+    .insertInto('app_roles')
+    .values([
+      {
+        id: roleId,
+        code: `aux-migration-${suffix.toLowerCase()}`,
+        name: 'AUX Migration Role',
+        status: 'ENABLED',
+      },
+      {
+        id: disabledRoleId,
+        code: `aux-disabled-${suffix.toLowerCase()}`,
+        name: 'AUX Disabled Source Role',
+        status: 'ENABLED',
+      },
+      {
+        id: enabledQueryRoleId,
+        code: `aux-query-${suffix.toLowerCase()}`,
+        name: 'AUX Enabled Query Role',
+        status: 'ENABLED',
+      },
+    ])
+    .execute()
+  await db
+    .insertInto('app_role_permissions')
+    .values([
+      { role_id: roleId, permission_id: legacyPermissionId },
+      { role_id: disabledRoleId, permission_id: disabledPermissionId },
+      {
+        role_id: enabledQueryRoleId,
+        permission_id: enabledQueryPermissionId,
+      },
+    ])
+    .execute()
+
+  const report = await bootstrap.migratePermissionCatalog(
+    desired,
+    auxPeoplePermissionMappings,
+  )
+  const migrated = await db
+    .selectFrom('app_role_permissions as rp')
+    .innerJoin('app_permissions as p', 'p.id', 'rp.permission_id')
+    .select('p.path')
+    .where('rp.role_id', '=', roleId)
+    .orderBy('p.path')
+    .execute()
+  assert.deepEqual(
+    migrated.map((permission) => permission.path),
+    [...mapping.to].sort(),
+  )
+  const mappedQueryRoles = await db
+    .selectFrom('app_role_permissions as rp')
+    .innerJoin('app_permissions as p', 'p.id', 'rp.permission_id')
+    .select('rp.role_id')
+    .where('p.path', '=', '/aux/employee/query')
+    .where('rp.role_id', 'in', [disabledRoleId, enabledQueryRoleId])
+    .orderBy('rp.role_id')
+    .execute()
+  assert.deepEqual(mappedQueryRoles, [{ role_id: enabledQueryRoleId }])
+  assert.equal(
+    await db
+      .selectFrom('app_permissions')
+      .select('id')
+      .where('path', '=', legacyPath)
+      .executeTakeFirst(),
+    undefined,
+  )
   assert.equal(report.orphanedRoleGrants, 0)
   assert.equal(report.duplicateRoleGrants, 0)
 })

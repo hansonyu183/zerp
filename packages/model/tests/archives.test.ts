@@ -5,7 +5,6 @@ import {
   prepareAccMappingSubmit,
   prepareCustomerSubmit,
   prepareFundAccountSubmit,
-  prepareOperatingEntitySubmit,
   prepareProductSubmit,
   prepareRptDefinitionSubmit,
   prepareSalesPartnerSubmit,
@@ -21,7 +20,6 @@ const actor: ApprovalActor = {
   permissions: [
     '/dcl/vehicle/submit-new',
     '/dcl/fund-account/submit-new',
-    '/dcl/operating-entity/submit-new',
     '/dcl/product/submit-new',
     '/dcl/product/submit-change',
     '/dcl/customer/submit-new',
@@ -46,33 +44,6 @@ function command(action: 'submit-new' | 'submit-change' = 'submit-new') {
 }
 
 const newFacts = { subject: { exists: false, history: [] } } as const
-
-test('freezes the operating entity short name in the canonical submission', () => {
-  const result = prepareOperatingEntitySubmit(
-    {
-      ...command(),
-      data: {
-        legalName: ' 上海测试科技有限公司 ',
-        shortName: ' 测试科技 ',
-        legalIdentifier: '91350211M000100Y46',
-        registeredAddress: '',
-        contactName: '',
-        contactPhone: '',
-        invoiceTitle: '',
-        invoiceAddress: '',
-        invoicePhone: '',
-        invoiceBank: '',
-        invoiceAccount: '',
-        remark: '',
-        enabled: true,
-      },
-    },
-    newFacts,
-  )
-
-  assert.equal(result.ok, true)
-  if (result.ok) assert.equal(result.plan.data.shortName, '测试科技')
-})
 
 test('requires a complete product unit snapshot and confirmed latest fixed formula', () => {
   const data = {
@@ -397,7 +368,6 @@ test('prepares typed archive submissions with canonical payloads and exact permi
         carrier: {
           kind: 'INTERNAL',
           operatingEntityId: 'oe-1',
-          approvalEntryId: 'oe-entry-1',
         },
         vin: ' lsv123 ',
         engineNumber: ' eng-1 ',
@@ -411,7 +381,6 @@ test('prepares typed archive submissions with canonical payloads and exact permi
       ...newFacts,
       operatingEntity: {
         objectId: 'oe-1',
-        latestApprovedEntryId: 'oe-entry-1',
         enabled: true,
       },
     },
@@ -436,7 +405,6 @@ test('prepares typed archive submissions with canonical payloads and exact permi
         enabled: true,
         operatingEntity: {
           objectId: 'oe-1',
-          approvalEntryId: 'oe-entry-1',
           code: 'OE-1',
           name: '主体',
         },
@@ -446,7 +414,6 @@ test('prepares typed archive submissions with canonical payloads and exact permi
       ...newFacts,
       operatingEntity: {
         objectId: 'oe-1',
-        latestApprovedEntryId: 'oe-entry-1',
         enabled: true,
       },
     },
@@ -819,7 +786,6 @@ test('enforces sales partner capabilities, customer subunits, and legal identifi
             primarySalesAttribution: {
               type: 'INTERNAL_EMPLOYEE',
               objectId: 'employee-1',
-              approvalEntryId: 'employee-entry-1',
               code: 'EMP-0001',
               name: '业务员',
             },

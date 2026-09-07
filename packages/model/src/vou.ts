@@ -1,3 +1,7 @@
+import type {
+  OperatingEntityCurrentData,
+  EmployeeCurrentData,
+} from './aux-current.ts'
 import {
   decideApproval,
   type ApprovalAction,
@@ -166,6 +170,14 @@ export interface VouVersionedReferenceInput {
   objectId: string
   approvalEntryId: string
   selectionOrigin: VouSelectionOrigin
+}
+
+/** AUX people use one stable identity; data is frozen by the server at adoption. */
+export interface VouAuxPeopleReferenceInput {
+  objectId: string
+  code?: string
+  name?: string
+  snapshot?: OperatingEntityCurrentData | EmployeeCurrentData
 }
 
 /** OpenAPI auxiliary/ACC object references never carry Approval versions. */
@@ -339,7 +351,7 @@ type PricePayload = VouPayloadBase & {
 type AmountPayload = VouPayloadBase & {
   amount: string
   fundAccount: VouVersionedReferenceInput
-  handler: VouVersionedReferenceInput
+  handler: VouAuxPeopleReferenceInput
 }
 type SourcePayload = VouPayloadBase & {
   sourceLines: readonly {
@@ -353,14 +365,28 @@ type BillPayload = VouPayloadBase & {
   billCashLines?: readonly VouBillCashLineInput[]
 }
 
-export interface VouIntermediaryReference {
+export type VouIntermediaryReference = {
   objectId: string
-  approvalEntryId: string
-  entity:
-    'customer-subunit' | 'employee' | 'sales-partner' | 'other-unit' | 'product'
   code: string
   name: string
-}
+} & (
+  | { entity: 'employee'; snapshot?: EmployeeCurrentData }
+  | {
+      entity: 'customer-subunit' | 'sales-partner' | 'other-unit' | 'product'
+      approvalEntryId: string
+    }
+)
+
+type VouMixedCounterparty =
+  | {
+      counterparty: VouAuxPeopleReferenceInput
+      counterpartyType: 'employee'
+    }
+  | {
+      counterparty: VouVersionedReferenceInput
+      counterpartyType:
+        'customer-subunit' | 'supplier' | 'other-unit' | 'sales-partner'
+    }
 
 export interface VouIntermediaryCalculationInput {
   source: {
@@ -459,8 +485,8 @@ export interface VouPayloadShapes {
   'sale-pricing': PricePayload
   'sale-order': ProductPayload & {
     customerSubunit: VouVersionedReferenceInput
-    operatingEntity: VouVersionedReferenceInput
-    salesperson?: VouVersionedReferenceInput
+    operatingEntity: VouAuxPeopleReferenceInput
+    salesperson?: VouAuxPeopleReferenceInput
     warehouse: VouVersionedReferenceInput
     paymentMethod: VouPaymentMethodSelectionInput | null
     creditOverrideReason?: string
@@ -497,7 +523,7 @@ export interface VouPayloadShapes {
   'purchase-inquiry': PricePayload & { supplier: VouVersionedReferenceInput }
   'purchase-order': ProductPayload & {
     supplier: VouVersionedReferenceInput
-    purchaser?: VouVersionedReferenceInput
+    purchaser?: VouAuxPeopleReferenceInput
     warehouse: VouVersionedReferenceInput
   }
   'purchase-inbound': SourcePayload & {
@@ -531,46 +557,34 @@ export interface VouPayloadShapes {
   }
   'sales-receipt': AmountPayload & {
     customer: VouVersionedReferenceInput
-    operatingEntity: VouVersionedReferenceInput
+    operatingEntity: VouAuxPeopleReferenceInput
     subunitAllocations: readonly {
       subunit: VouVersionedReferenceInput
       amount: string
     }[]
   }
   'purchase-refund': AmountPayload & { supplier: VouVersionedReferenceInput }
-  'other-receipt': AmountPayload & {
-    counterparty: VouVersionedReferenceInput
-    counterpartyType:
-      | 'customer-subunit'
-      | 'supplier'
-      | 'other-unit'
-      | 'employee'
-      | 'sales-partner'
-    otherCategory?: 'COMMISSION' | 'INTERMEDIARY'
-  }
+  'other-receipt': AmountPayload &
+    VouMixedCounterparty & {
+      otherCategory?: 'COMMISSION' | 'INTERMEDIARY'
+    }
   'sales-refund': AmountPayload & { customer: VouVersionedReferenceInput }
   'purchase-payment': AmountPayload & { supplier: VouVersionedReferenceInput }
-  'other-payment': AmountPayload & {
-    counterparty: VouVersionedReferenceInput
-    counterpartyType:
-      | 'customer-subunit'
-      | 'supplier'
-      | 'other-unit'
-      | 'employee'
-      | 'sales-partner'
-    otherCategory?: 'COMMISSION' | 'INTERMEDIARY'
-  }
-  'employee-loan': AmountPayload & { employee: VouVersionedReferenceInput }
-  'employee-repayment': AmountPayload & { employee: VouVersionedReferenceInput }
+  'other-payment': AmountPayload &
+    VouMixedCounterparty & {
+      otherCategory?: 'COMMISSION' | 'INTERMEDIARY'
+    }
+  'employee-loan': AmountPayload & { employee: VouAuxPeopleReferenceInput }
+  'employee-repayment': AmountPayload & { employee: VouAuxPeopleReferenceInput }
   'employee-loan-writeoff': VouPayloadBase & {
-    employee: VouVersionedReferenceInput
+    employee: VouAuxPeopleReferenceInput
     expenseLines: readonly VouExpenseLineInput[]
   }
   'expense-reimbursement': VouPayloadBase & {
-    employee: VouVersionedReferenceInput
+    employee: VouAuxPeopleReferenceInput
     expenseLines: readonly VouExpenseLineInput[]
   }
-  'expense-payment': AmountPayload & { employee: VouVersionedReferenceInput }
+  'expense-payment': AmountPayload & { employee: VouAuxPeopleReferenceInput }
   'other-income': AmountPayload & {
     sourceName: string
     counterparty?: VouVersionedReferenceInput
@@ -591,7 +605,7 @@ export interface VouPayloadShapes {
       usefulLifeMonths: number
       residualRate: string
       department: VouObjectReferenceInput
-      custodian?: VouVersionedReferenceInput
+      custodian?: VouAuxPeopleReferenceInput
       location?: string
       remark?: string
     }[]
@@ -616,12 +630,12 @@ export interface VouPayloadShapes {
   }
   'bill-receipt': BillPayload & {
     customer: VouVersionedReferenceInput
-    handler: VouVersionedReferenceInput
+    handler: VouAuxPeopleReferenceInput
     internalCostRateBps?: number
   }
   'bill-payment': BillPayload & {
     supplier: VouVersionedReferenceInput
-    handler: VouVersionedReferenceInput
+    handler: VouAuxPeopleReferenceInput
   }
   'bill-issue': BillPayload & {
     supplier: VouObjectReferenceInput
@@ -645,7 +659,7 @@ export interface VouPayloadShapes {
   'service-contract': VouPayloadBase & {
     counterparty: VouVersionedReferenceInput
     counterpartyType: 'other-unit' | 'sales-partner'
-    employee: VouVersionedReferenceInput
+    employee: VouAuxPeopleReferenceInput
     serviceContract: {
       capabilities?: readonly ('EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER')[]
       applicableFrom?: string
@@ -654,7 +668,7 @@ export interface VouPayloadShapes {
     }
   }
   'service-acceptance': VouPayloadBase & {
-    employee: VouVersionedReferenceInput
+    employee: VouAuxPeopleReferenceInput
     serviceAcceptance: {
       contractDocumentId: string
       serviceDate: string
@@ -804,7 +818,7 @@ export function vouPayloadReferences(
       })
       return
     }
-    if (isIntermediaryReference(value)) {
+    if (isIntermediaryReference(value) && value.entity !== 'employee') {
       result.push({
         field: path,
         candidateEntity: value.entity,
@@ -822,6 +836,62 @@ export function vouPayloadReferences(
     }
     if (!value || typeof value !== 'object') return
     for (const [key, child] of Object.entries(value))
+      visit(child, path ? `${path}.${key}` : key, key)
+  }
+  visit(payload, '', '')
+  return result
+}
+
+export function vouAuxPeopleReferences(payload: VouPayload): readonly {
+  field: string
+  candidateEntity: 'operating-entity' | 'employee'
+  reference: VouAuxPeopleReferenceInput
+}[] {
+  const result: {
+    field: string
+    candidateEntity: 'operating-entity' | 'employee'
+    reference: VouAuxPeopleReferenceInput
+  }[] = []
+  const visit = (value: unknown, path: string, field: string): void => {
+    if (isIntermediaryReference(value)) {
+      if (value.entity === 'employee')
+        result.push({
+          field: path,
+          candidateEntity: 'employee',
+          reference: value,
+        })
+      return
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => visit(item, `${path}[${index}]`, field))
+      return
+    }
+    if (!value || typeof value !== 'object') return
+    const reference = value as Record<string, unknown>
+    const candidateEntity =
+      field === 'operatingEntity'
+        ? 'operating-entity'
+        : [
+              'handler',
+              'salesperson',
+              'purchaser',
+              'employee',
+              'custodian',
+            ].includes(field) ||
+            (field === 'counterparty' &&
+              'counterpartyType' in payload &&
+              payload.counterpartyType === 'employee')
+          ? 'employee'
+          : undefined
+    if (candidateEntity && isAuxPeopleReference(reference)) {
+      result.push({
+        field: path,
+        candidateEntity,
+        reference: reference as VouAuxPeopleReferenceInput,
+      })
+      return
+    }
+    for (const [key, child] of Object.entries(reference))
       visit(child, path ? `${path}.${key}` : key, key)
   }
   visit(payload, '', '')
@@ -911,21 +981,48 @@ function isVersionedReference(
   )
 }
 
+function isAuxPeopleReference(
+  value: unknown,
+): value is VouAuxPeopleReferenceInput {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const reference = value as Record<string, unknown>
+  return (
+    typeof reference.objectId === 'string' &&
+    reference.objectId.length === 26 &&
+    Object.keys(reference).every(
+      (key) =>
+        key === 'objectId' ||
+        key === 'code' ||
+        key === 'name' ||
+        key === 'snapshot',
+    )
+  )
+}
+
 function isIntermediaryReference(
   value: unknown,
 ): value is VouIntermediaryReference {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const reference = value as Record<string, unknown>
-  return (
+  const common =
     typeof reference.objectId === 'string' &&
-    typeof reference.approvalEntryId === 'string' &&
+    typeof reference.code === 'string' &&
+    typeof reference.name === 'string'
+  if (!common) return false
+  if (reference.entity === 'employee')
+    return Object.keys(reference).every(
+      (key) =>
+        key === 'objectId' ||
+        key === 'entity' ||
+        key === 'code' ||
+        key === 'name',
+    )
+  return (
     (reference.entity === 'customer-subunit' ||
-      reference.entity === 'employee' ||
       reference.entity === 'sales-partner' ||
       reference.entity === 'other-unit' ||
       reference.entity === 'product') &&
-    typeof reference.code === 'string' &&
-    typeof reference.name === 'string' &&
+    typeof reference.approvalEntryId === 'string' &&
     Object.keys(reference).every(
       (key) =>
         key === 'objectId' ||
@@ -959,6 +1056,18 @@ function canonicalPayload<Entity extends VouEntity>(
     (!decimal(value.amount, 2) || value.amount.startsWith('-'))
   )
     return undefined
+  if (entity === 'other-receipt' || entity === 'other-payment') {
+    const counterparty = (value as unknown as Record<string, unknown>)
+      .counterparty
+    const counterpartyType = (value as unknown as Record<string, unknown>)
+      .counterpartyType
+    if (
+      (counterpartyType === 'employee' &&
+        !isAuxPeopleReference(counterparty)) ||
+      (counterpartyType !== 'employee' && !isVersionedReference(counterparty))
+    )
+      return undefined
+  }
   if (entity === 'sale-order') {
     const paymentMethod = (value as VouPayloadShapes['sale-order'])
       .paymentMethod
@@ -1389,6 +1498,13 @@ export const vouEntityFieldDescriptors: Readonly<
               return Object.freeze({
                 key,
                 reference:
+                  [
+                    'operatingEntity',
+                    'salesperson',
+                    'purchaser',
+                    'handler',
+                    'employee',
+                  ].includes(key) ||
                   key === 'settlementMethod' ||
                   key === 'paymentMethod' ||
                   (entity === 'bill-issue' && key === 'supplier')
@@ -1556,7 +1672,7 @@ export const vouLineFieldDescriptors: Readonly<
     {
       key: 'custodian',
       required: false,
-      reference: 'versioned',
+      reference: 'object',
       ...referenceCandidateMetadata('custodian'),
     },
     { key: 'location', required: false },

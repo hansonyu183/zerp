@@ -77,3 +77,53 @@ test('ACC book query response validates the exact successful data shape', () => 
   assert.equal(parsed.success, true)
   assert.equal(responseSchema('bookQuery').safeParse({ ...response, data: { items: [{ arbitrary: true }], total: 1, page: 1, pageSize: 20 } }).success, false)
 })
+
+
+test('ACC opening adopts AUX employee and operating-entity counterparties by stable ID', () => {
+  const opening = {
+    bookId: '01J00000000000000000000001',
+    submissionId: '01J00000000000000000000002',
+    idempotencyKey: 'opening-current-person',
+    lines: [],
+    assets: [],
+    containers: [],
+    bills: [{
+      currency: 'CNY',
+      valueAmount: '1.00',
+      originatingCounterparty: {
+        entity: 'employee',
+        objectId: '01J00000000000000000000003',
+      },
+    }],
+  }
+  assert.equal(requestSchema('openingSubmit').safeParse(opening).success, true)
+  assert.equal(
+    requestSchema('openingSubmit').safeParse({
+      ...opening,
+      bills: [{
+        ...opening.bills[0],
+        originatingCounterparty: {
+          entity: 'supplier',
+          objectId: '01J00000000000000000000003',
+        },
+      }],
+    }).success,
+    false,
+  )
+  assert.equal(
+    requestSchema('openingSubmit').safeParse({
+      ...opening,
+      bills: [{
+        ...opening.bills[0],
+        originatingCounterparty: {
+          entity: 'employee',
+          objectId: '01J00000000000000000000003',
+          approvalEntryId: '01J00000000000000000000004',
+          code: 'EMP-0001',
+          name: '历史员工',
+        },
+      }],
+    }).success,
+    false,
+  )
+})

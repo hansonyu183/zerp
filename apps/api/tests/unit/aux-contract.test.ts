@@ -20,6 +20,20 @@ const principal = {
     '/aux/employee-category/disable',
     '/aux/employee-category/delete',
     '/aux/measurement-unit/query',
+    '/aux/operating-entity/query',
+    '/aux/operating-entity/get',
+    '/aux/operating-entity/create',
+    '/aux/operating-entity/save',
+    '/aux/operating-entity/enable',
+    '/aux/operating-entity/disable',
+    '/aux/operating-entity/delete',
+    '/aux/employee/query',
+    '/aux/employee/get',
+    '/aux/employee/create',
+    '/aux/employee/save',
+    '/aux/employee/enable',
+    '/aux/employee/disable',
+    '/aux/employee/delete',
   ],
   passwordChangeRequired: false,
   passwordMinLength: 12,
@@ -479,4 +493,191 @@ test('all twelve AUX entities expose one strict typed management protocol', asyn
       ).errorKey,
       'validation_failed',
     )
+})
+
+test('AUX operating entities and employees expose current CRUD with server-derived names and frozen references', async () => {
+  const received: Array<[string, unknown, unknown]> = []
+  const operatingEntity = {
+    id,
+    code: 'OPE-0001',
+    py: 'shanghaiceshi',
+    name: '上海测试科技有限公司',
+    legalName: '上海测试科技有限公司',
+    shortName: '测试科技',
+    legalIdentifier: '91350211M000100Y46',
+    registeredAddress: '上海市',
+    contactName: '张三',
+    contactPhone: '13800000000',
+    invoiceTitle: '上海测试科技有限公司',
+    invoiceAddress: '上海市',
+    invoicePhone: '13800000000',
+    invoiceBank: '测试银行',
+    invoiceAccount: '123456',
+    remark: '',
+    enabled: true,
+    revision: '1',
+    availableActions: ['edit', 'disable'] as const,
+    updatedAt: '2026-09-07T00:00:00.000Z',
+    updatedBy: principal.user.id,
+  }
+  const employee = {
+    id,
+    code: 'EMP-0001',
+    py: 'zhangsan',
+    name: '张三',
+    identityKind: 'PERSON' as const,
+    legalName: '张三',
+    displayName: '张三',
+    legalIdentifier: '11010519491231002X',
+    contactName: '张三',
+    phone: '13800000000',
+    address: '上海市',
+    employeeCategory: { id, code: 'ECT-0001', name: '一线员工' },
+    department: { id, code: 'DEP-0001', name: '生产部' },
+    position: { id, code: 'POS-0001', name: '操作员' },
+    employmentDate: '2026-09-07',
+    workPhone: '021-00000000',
+    workEmail: 'zhangsan@example.com',
+    operatingEntity: { id, code: 'OPE-0001', name: '上海测试科技有限公司' },
+    remark: '',
+    enabled: true,
+    revision: '1',
+    availableActions: ['edit', 'disable'] as const,
+    updatedAt: '2026-09-07T00:00:00.000Z',
+    updatedBy: principal.user.id,
+  }
+  const app = appWith({
+    query: async (entity: unknown, input: unknown) => {
+      received.push(['query', entity, input])
+      const value = entity === 'operating-entity' ? operatingEntity : employee
+      return {
+        items: [
+          {
+            id: value.id,
+            code: value.code,
+            py: value.py,
+            name: value.name,
+            enabled: value.enabled,
+            revision: value.revision,
+            availableActions: value.availableActions,
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+      }
+    },
+    get: async (entity: unknown, input: unknown) => {
+      received.push(['get', entity, input])
+      return entity === 'operating-entity' ? operatingEntity : employee
+    },
+    create: async (entity: unknown, input: unknown) => {
+      received.push(['create', entity, input])
+      return { id, revision: '1', enabled: true }
+    },
+    save: async (entity: unknown, input: unknown) => {
+      received.push(['save', entity, input])
+      return { id, revision: '2', enabled: true }
+    },
+    enable: async (entity: unknown, input: unknown) => {
+      received.push(['enable', entity, input])
+      return { id, revision: '2', enabled: true }
+    },
+    disable: async (entity: unknown, input: unknown) => {
+      received.push(['disable', entity, input])
+      return { id, revision: '2', enabled: false }
+    },
+    delete: async (entity: unknown, input: unknown) => {
+      received.push(['delete', entity, input])
+    },
+  } as unknown as AuxService)
+
+  const operatingEntityInput = {
+    legalName: operatingEntity.legalName,
+    shortName: operatingEntity.shortName,
+    legalIdentifier: operatingEntity.legalIdentifier,
+    registeredAddress: operatingEntity.registeredAddress,
+    contactName: operatingEntity.contactName,
+    contactPhone: operatingEntity.contactPhone,
+    invoiceTitle: operatingEntity.invoiceTitle,
+    invoiceAddress: operatingEntity.invoiceAddress,
+    invoicePhone: operatingEntity.invoicePhone,
+    invoiceBank: operatingEntity.invoiceBank,
+    invoiceAccount: operatingEntity.invoiceAccount,
+    remark: operatingEntity.remark,
+  }
+  const employeeInput = {
+    identityKind: employee.identityKind,
+    legalName: employee.legalName,
+    displayName: employee.displayName,
+    legalIdentifier: employee.legalIdentifier,
+    contactName: employee.contactName,
+    phone: employee.phone,
+    address: employee.address,
+    employeeCategoryId: id,
+    departmentId: id,
+    positionId: id,
+    employmentDate: employee.employmentDate,
+    workPhone: employee.workPhone,
+    workEmail: employee.workEmail,
+    operatingEntityId: id,
+    remark: employee.remark,
+  }
+
+  for (const [entity, input, expected] of [
+    ['operating-entity', operatingEntityInput, operatingEntity],
+    ['employee', employeeInput, employee],
+  ] as const) {
+    const queried = await post(app, `/aux/${entity}/query`, {
+      page: 1,
+      pageSize: 20,
+    })
+    assert.equal(queried.code, 0)
+    assert.deepEqual(queried.data.items[0], {
+      id: expected.id,
+      code: expected.code,
+      py: expected.py,
+      name: expected.name,
+      enabled: expected.enabled,
+      revision: expected.revision,
+      availableActions: expected.availableActions,
+    })
+    assert.equal((await post(app, `/aux/${entity}/get`, { id })).code, 0)
+    assert.equal((await post(app, `/aux/${entity}/create`, input)).code, 0)
+    assert.equal(
+      (
+        await post(app, `/aux/${entity}/save`, {
+          id,
+          revision: '1',
+          ...input,
+        })
+      ).code,
+      0,
+    )
+    for (const action of ['enable', 'disable', 'delete'] as const)
+      assert.equal(
+        (await post(app, `/aux/${entity}/${action}`, { id, revision: '1' }))
+          .code,
+        0,
+      )
+    assert.equal(
+      (await post(app, `/aux/${entity}/create`, { ...input, code: 'CLIENT' }))
+        .errorKey,
+      'validation_failed',
+    )
+  }
+
+  assert.deepEqual(
+    received.find(
+      ([action, entity]) =>
+        action === 'create' && entity === 'operating-entity',
+    ),
+    ['create', 'operating-entity', operatingEntityInput],
+  )
+  assert.deepEqual(
+    received.find(
+      ([action, entity]) => action === 'create' && entity === 'employee',
+    ),
+    ['create', 'employee', employeeInput],
+  )
 })

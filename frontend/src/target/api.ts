@@ -50,6 +50,9 @@ export type TargetEmployeeCategorySaveInput = PostJson<
 export type TargetEmployeeCategoryEnabledInput = PostJson<
   (typeof client)['aux']['employee-category']['enable']['$post']
 >
+export type TargetDepartmentQueryInput = PostJson<
+  (typeof client)['aux']['department']['query']['$post']
+>
 export type TargetPositionQueryInput = PostJson<
   (typeof client)['aux']['position']['query']['$post']
 >
@@ -97,6 +100,30 @@ export type TargetAssetCategorySaveInput = PostJson<
 >
 export type TargetAssetCategoryEnabledInput = PostJson<
   (typeof client)['aux']['asset-category']['enable']['$post']
+>
+export type TargetOperatingEntityQueryInput = PostJson<
+  (typeof client)['aux']['operating-entity']['query']['$post']
+>
+export type TargetOperatingEntityCreateInput = PostJson<
+  (typeof client)['aux']['operating-entity']['create']['$post']
+>
+export type TargetOperatingEntitySaveInput = PostJson<
+  (typeof client)['aux']['operating-entity']['save']['$post']
+>
+export type TargetOperatingEntityEnabledInput = PostJson<
+  (typeof client)['aux']['operating-entity']['enable']['$post']
+>
+export type TargetEmployeeQueryInput = PostJson<
+  (typeof client)['aux']['employee']['query']['$post']
+>
+export type TargetEmployeeCreateInput = PostJson<
+  (typeof client)['aux']['employee']['create']['$post']
+>
+export type TargetEmployeeSaveInput = PostJson<
+  (typeof client)['aux']['employee']['save']['$post']
+>
+export type TargetEmployeeEnabledInput = PostJson<
+  (typeof client)['aux']['employee']['enable']['$post']
 >
 
 export class TargetApiError extends Error {
@@ -390,6 +417,20 @@ export async function setTargetEmployeeCategoryEnabled(
   )
 }
 
+export async function queryTargetDepartments(
+  csrfToken: string,
+  input: TargetDepartmentQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux.department.query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
 export async function queryTargetPositions(
   csrfToken: string,
   input: TargetPositionQueryInput,
@@ -647,6 +688,142 @@ export async function setTargetAssetCategoryEnabled(
   const endpoint = enabled
     ? client.aux['asset-category'].enable
     : client.aux['asset-category'].disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function queryTargetOperatingEntities(
+  csrfToken: string,
+  input: TargetOperatingEntityQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['operating-entity'].query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function getTargetOperatingEntity(csrfToken: string, id: string) {
+  return unwrapTarget(
+    await (
+      await client.aux['operating-entity'].get.$post(
+        { json: { id } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function createTargetOperatingEntity(
+  csrfToken: string,
+  input: TargetOperatingEntityCreateInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['operating-entity'].create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function saveTargetOperatingEntity(
+  csrfToken: string,
+  input: TargetOperatingEntitySaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['operating-entity'].save.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function setTargetOperatingEntityEnabled(
+  csrfToken: string,
+  input: TargetOperatingEntityEnabledInput,
+  enabled: boolean,
+) {
+  const endpoint = enabled
+    ? client.aux['operating-entity'].enable
+    : client.aux['operating-entity'].disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function queryTargetEmployees(
+  csrfToken: string,
+  input: TargetEmployeeQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux.employee.query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function getTargetEmployee(csrfToken: string, id: string) {
+  return unwrapTarget(
+    await (
+      await client.aux.employee.get.$post(
+        { json: { id } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function createTargetEmployee(
+  csrfToken: string,
+  input: TargetEmployeeCreateInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux.employee.create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function saveTargetEmployee(
+  csrfToken: string,
+  input: TargetEmployeeSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux.employee.save.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function setTargetEmployeeEnabled(
+  csrfToken: string,
+  input: TargetEmployeeEnabledInput,
+  enabled: boolean,
+) {
+  const endpoint = enabled
+    ? client.aux.employee.enable
+    : client.aux.employee.disable
   return unwrapTarget(
     await (
       await endpoint.$post({ json: input }, csrfHeaders(csrfToken))

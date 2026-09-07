@@ -1,3 +1,7 @@
+import {
+  AuxApplicationError,
+  resolveAuxPeopleReference,
+} from '../aux/service.ts'
 import { createHash } from 'node:crypto'
 
 import {
@@ -5,9 +9,7 @@ import {
   decideApproval,
   prepareAccMappingSubmit,
   prepareCustomerSubmit,
-  prepareEmployeeSubmit,
   prepareFundAccountSubmit,
-  prepareOperatingEntitySubmit,
   prepareOtherUnitSubmit,
   prepareProductSubmit,
   prepareRptDefinitionSubmit,
@@ -224,6 +226,11 @@ type ArchiveQueryDetails = Omit<
 
 export type ArchiveBlocker =
   | {
+      kind: 'AUX_REFERENCE'
+      entity: 'operating-entity' | 'employee'
+      objectId: string
+    }
+  | {
       kind: 'SUBMISSION_REFERENCE'
       field: string
       objectId: string
@@ -356,63 +363,50 @@ function matchesArchiveSnapshot(
   if (filters.keyword) {
     const data = record(snapshot)
     const keywordMatches =
-      entity === 'operating-entity'
+      entity === 'vehicle'
         ? includesKeyword(filters.keyword, [
             code,
-            nullable(data.legalName),
-            nullable(data.legalIdentifier),
+            nullable(data.name),
+            nullable(data.plateNumber),
+            nullable(data.vin),
           ])
-        : entity === 'vehicle'
+        : entity === 'fund-account'
           ? includesKeyword(filters.keyword, [
               code,
               nullable(data.name),
-              nullable(data.plateNumber),
-              nullable(data.vin),
+              nullable(data.accountName),
+              nullable(data.accountNumber),
             ])
-          : entity === 'fund-account'
+          : entity === 'product'
             ? includesKeyword(filters.keyword, [
                 code,
                 nullable(data.name),
-                nullable(data.accountName),
-                nullable(data.accountNumber),
+                nullable(data.barcode),
+                nullable(data.specification),
+                nullable(data.model),
               ])
-            : entity === 'product'
+            : entity === 'supplier' ||
+                entity === 'customer' ||
+                entity === 'other-unit' ||
+                entity === 'sales-partner'
               ? includesKeyword(filters.keyword, [
                   code,
-                  nullable(data.name),
-                  nullable(data.barcode),
-                  nullable(data.specification),
-                  nullable(data.model),
+                  nullable(data.legalName),
+                  nullable(data.displayName),
+                  nullable(data.legalIdentifier),
                 ])
-              : entity === 'employee'
+              : entity === 'acc-mapping'
                 ? includesKeyword(filters.keyword, [
-                    code,
-                    nullable(data.legalName),
-                    nullable(data.displayName),
-                    nullable(data.legalIdentifier),
+                    nullable(record(data.book).code),
+                    nullable(record(data.book).name),
+                    nullable(record(data.vouEntity).code),
+                    nullable(record(data.vouEntity).name),
                   ])
-                : entity === 'supplier' ||
-                    entity === 'customer' ||
-                    entity === 'other-unit' ||
-                    entity === 'sales-partner'
-                  ? includesKeyword(filters.keyword, [
-                      code,
-                      nullable(data.legalName),
-                      nullable(data.displayName),
-                      nullable(data.legalIdentifier),
-                    ])
-                  : entity === 'acc-mapping'
-                    ? includesKeyword(filters.keyword, [
-                        nullable(record(data.book).code),
-                        nullable(record(data.book).name),
-                        nullable(record(data.vouEntity).code),
-                        nullable(record(data.vouEntity).name),
-                      ])
-                    : includesKeyword(filters.keyword, [
-                        code,
-                        nullable(data.name),
-                        nullable(data.description),
-                      ])
+                : includesKeyword(filters.keyword, [
+                    code,
+                    nullable(data.name),
+                    nullable(data.description),
+                  ])
     if (!keywordMatches) return false
   }
   if (entity === 'product') {
@@ -442,11 +436,9 @@ function matchesArchiveSnapshot(
 }
 
 const entityCodes: Record<ArchiveEntity, string> = {
-  'operating-entity': 'OPE',
   vehicle: 'VEH',
   'fund-account': 'FAC',
   product: 'PRD',
-  employee: 'EMP',
   supplier: 'SUP',
   customer: 'CUS',
   'other-unit': 'OTU',
@@ -860,6 +852,12 @@ export class ArchiveService {
           input.submissionId.trim(),
           plan.data,
         )
+        await this.registerPeopleReferences(
+          tx,
+          entity,
+          input.submissionId.trim(),
+          plan.data,
+        )
         if (entity === 'customer')
           await this.promoteCustomerAttachments(
             tx,
@@ -1105,6 +1103,9 @@ export class ArchiveService {
           created_at: new Date(),
         })
         .execute()
+      await sql`DELETE FROM aux_reference_facts WHERE source LIKE ${`dcl:${entity}:${input.submissionId}:%`}`.execute(
+        tx,
+      )
       const deleted = await tx
         .deleteFrom('approval_entries')
         .where('id', '=', entry.id)
@@ -1439,8 +1440,6 @@ export class ArchiveService {
     const base = { ...command, data }
     // The switches make each aggregate's accepted facts visible; no generic reference graph exists here.
     switch (entity) {
-      case 'operating-entity':
-        return prepareOperatingEntitySubmit(base as never, { subject } as never)
       case 'vehicle': {
         const vehicleType = (
           await this.auxFacts(tx, [
@@ -1458,11 +1457,9 @@ export class ArchiveService {
             subject,
             ...(data.carrier && record(data.carrier).kind === 'INTERNAL'
               ? {
-                  operatingEntity: await this.approvedFact(
-                    tx,
-                    'operating-entity',
-                    String(record(data.carrier).operatingEntityId ?? ''),
-                  ),
+                  operatingEntity: adoptedAuxFact({
+                    objectId: record(data.carrier).operatingEntityId,
+                  }),
                 }
               : {
                   otherUnit: await this.approvedFact(
@@ -1479,11 +1476,7 @@ export class ArchiveService {
           base as never,
           {
             subject,
-            operatingEntity: await this.approvedFact(
-              tx,
-              'operating-entity',
-              String(record(data.operatingEntity).objectId ?? ''),
-            ),
+            operatingEntity: adoptedAuxFact(data.operatingEntity),
           } as never,
         )
       case 'product':
@@ -1505,40 +1498,15 @@ export class ArchiveService {
             ),
           } as never,
         )
-      case 'employee':
-        return prepareEmployeeSubmit(
-          base as never,
-          {
-            subject,
-            operatingEntity: await this.approvedFact(
-              tx,
-              'operating-entity',
-              String(record(data.operatingEntity).objectId ?? ''),
-            ),
-            references: await this.productReferenceFacts(tx, [
-              ['employeeCategory', record(data.employeeCategory).id],
-              ['department', record(data.department).id],
-              ['position', record(data.position).id],
-            ]),
-          } as never,
-        )
       case 'supplier':
         return prepareSupplierSubmit(
           base as never,
           {
             subject,
-            operatingEntities: await this.approvedFacts(
-              tx,
-              'operating-entity',
-              array(data.operatingEntities).map((value) =>
-                String(record(value).objectId ?? ''),
-              ),
+            operatingEntities: array(data.operatingEntities).map(
+              adoptedAuxFact,
             ),
-            defaultPurchaser: await this.approvedFact(
-              tx,
-              'employee',
-              String(record(data.defaultPurchaser).objectId ?? ''),
-            ),
+            defaultPurchaser: adoptedAuxFact(data.defaultPurchaser),
           } as never,
         )
       case 'customer':
@@ -1546,11 +1514,7 @@ export class ArchiveService {
           base as never,
           {
             subject,
-            defaultOperatingEntity: await this.approvedFact(
-              tx,
-              'operating-entity',
-              String(record(data.defaultOperatingEntity).objectId ?? ''),
-            ),
+            defaultOperatingEntity: adoptedAuxFact(data.defaultOperatingEntity),
             customerTypes: (
               await this.auxFacts(
                 tx,
@@ -1570,8 +1534,13 @@ export class ArchiveService {
                 )
                 const type = String(attribution.type ?? '') as
                   'INTERNAL_EMPLOYEE' | 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER'
-                const entity =
-                  type === 'INTERNAL_EMPLOYEE' ? 'employee' : 'sales-partner'
+                if (type === 'INTERNAL_EMPLOYEE')
+                  return {
+                    ...adoptedAuxFact(attribution),
+                    latestApprovedEntryId: '',
+                    type,
+                  }
+                const entity = 'sales-partner'
                 const fact = await this.approvedFact(
                   tx,
                   entity,
@@ -1609,12 +1578,8 @@ export class ArchiveService {
           base as never,
           {
             subject,
-            operatingEntities: await this.approvedFacts(
-              tx,
-              'operating-entity',
-              array(data.operatingEntities).map((value) =>
-                String(record(value).objectId ?? ''),
-              ),
+            operatingEntities: array(data.operatingEntities).map(
+              adoptedAuxFact,
             ),
           } as never,
         )
@@ -1623,12 +1588,8 @@ export class ArchiveService {
           base as never,
           {
             subject,
-            operatingEntities: await this.approvedFacts(
-              tx,
-              'operating-entity',
-              array(data.operatingEntities).map((value) =>
-                String(record(value).objectId ?? ''),
-              ),
+            operatingEntities: array(data.operatingEntities).map(
+              adoptedAuxFact,
             ),
           } as never,
         )
@@ -1711,19 +1672,6 @@ export class ArchiveService {
     }
   }
 
-  private async approvedFacts(
-    tx: Executor,
-    entity: ArchiveEntity,
-    ids: string[],
-  ): Promise<ApprovedArchiveFact[]> {
-    const facts: ApprovedArchiveFact[] = []
-    for (const id of [...new Set(ids)].sort()) {
-      const fact = await this.approvedFact(tx, entity, id)
-      if (fact) facts.push(fact)
-    }
-    return facts
-  }
-
   private async ensureNoDuplicateBusinessKey(
     tx: Executor,
     entity: ArchiveEntity,
@@ -1749,14 +1697,6 @@ export class ArchiveService {
       if (duplicate.rows[0]) throw new ArchiveApplicationError(errorKey)
     }
     switch (entity) {
-      case 'operating-entity':
-        await failIfDuplicate(
-          'dcl_operating_entity_versions',
-          'legal_identifier',
-          data.legalIdentifier,
-          'operating_entity_duplicate_legal_identifier',
-        )
-        return
       case 'vehicle':
         await failIfDuplicate(
           'dcl_vehicle_versions',
@@ -1785,14 +1725,6 @@ export class ArchiveService {
           'barcode',
           data.barcode,
           'product_duplicate_barcode',
-        )
-        return
-      case 'employee':
-        await failIfDuplicate(
-          'dcl_employee_versions',
-          'legal_identifier',
-          data.legalIdentifier,
-          'employee_duplicate_legal_identifier',
         )
         return
       case 'supplier':
@@ -1939,6 +1871,28 @@ export class ArchiveService {
     return named ?? entity
   }
 
+  private async freezeCurrentReference(
+    tx: Transaction<DB>,
+    entity: 'operating-entity' | 'employee',
+    reference: unknown,
+  ): Promise<Record<string, unknown>> {
+    const objectId = String(record(reference).objectId ?? '')
+    try {
+      const current = await resolveAuxPeopleReference(tx, entity, objectId)
+      return {
+        objectId: current.objectId,
+        code: current.code,
+        name: current.name,
+      }
+    } catch (error) {
+      if (error instanceof AuxApplicationError)
+        throw new ArchiveApplicationError('archive_reference_unavailable', [
+          { kind: 'AUX_REFERENCE', entity, objectId },
+        ])
+      throw error
+    }
+  }
+
   private async freezeApprovedReference(
     tx: Executor,
     entity: ArchiveEntity,
@@ -2080,16 +2034,22 @@ export class ArchiveService {
   }
 
   private async freezeAuthoritativeReferences(
-    tx: Executor,
+    tx: Transaction<DB>,
     entity: ArchiveEntity,
     snapshot: ArchiveSnapshot,
   ): Promise<ArchiveSnapshot> {
     switch (entity) {
       case 'vehicle': {
         const carrier = record(snapshot.carrier)
-        const reference = await this.freezeApprovedReference(
+        const reference = await (
+          carrier.kind === 'INTERNAL'
+            ? this.freezeCurrentReference.bind(this)
+            : this.freezeApprovedReference.bind(this)
+        )(
           tx,
-          carrier.kind === 'INTERNAL' ? 'operating-entity' : 'other-unit',
+          (carrier.kind === 'INTERNAL'
+            ? 'operating-entity'
+            : 'other-unit') as never,
           {
             objectId:
               carrier.kind === 'INTERNAL'
@@ -2108,43 +2068,22 @@ export class ArchiveService {
           ),
           carrier: {
             ...carrier,
-            approvalEntryId: reference.approvalEntryId,
+            ...(carrier.kind === 'EXTERNAL'
+              ? { approvalEntryId: reference.approvalEntryId }
+              : {}),
             code: reference.code,
             name: reference.name,
           },
         }
       }
       case 'fund-account':
-      case 'employee':
         return {
           ...snapshot,
-          operatingEntity: await this.freezeApprovedReference(
+          operatingEntity: await this.freezeCurrentReference(
             tx,
             'operating-entity',
             snapshot.operatingEntity,
           ),
-          ...(entity === 'employee'
-            ? {
-                employeeCategory: await this.freezeAuxiliaryReference(
-                  tx,
-                  'employeeCategory',
-                  snapshot.employeeCategory,
-                  'employee_reference_unavailable',
-                ),
-                department: await this.freezeAuxiliaryReference(
-                  tx,
-                  'department',
-                  snapshot.department,
-                  'employee_reference_unavailable',
-                ),
-                position: await this.freezeAuxiliaryReference(
-                  tx,
-                  'position',
-                  snapshot.position,
-                  'employee_reference_unavailable',
-                ),
-              }
-            : {}),
         }
       case 'product':
         return {
@@ -2235,7 +2174,7 @@ export class ArchiveService {
             : {}),
           operatingEntities: await Promise.all(
             array(snapshot.operatingEntities).map((reference) =>
-              this.freezeApprovedReference(tx, 'operating-entity', reference),
+              this.freezeCurrentReference(tx, 'operating-entity', reference),
             ),
           ),
           ...(entity === 'supplier'
@@ -2243,7 +2182,7 @@ export class ArchiveService {
                 defaultPurchaser:
                   snapshot.defaultPurchaser === null
                     ? null
-                    : await this.freezeApprovedReference(
+                    : await this.freezeCurrentReference(
                         tx,
                         'employee',
                         snapshot.defaultPurchaser,
@@ -2257,7 +2196,7 @@ export class ArchiveService {
           defaultOperatingEntity:
             snapshot.defaultOperatingEntity === null
               ? null
-              : await this.freezeApprovedReference(
+              : await this.freezeCurrentReference(
                   tx,
                   'operating-entity',
                   snapshot.defaultOperatingEntity,
@@ -2294,13 +2233,17 @@ export class ArchiveService {
                         'customer_invalid_data',
                       ),
                 primarySalesAttribution: {
-                  ...(await this.freezeApprovedReference(
-                    tx,
-                    attributionType === 'INTERNAL_EMPLOYEE'
-                      ? 'employee'
-                      : 'sales-partner',
-                    attribution,
-                  )),
+                  ...(attributionType === 'INTERNAL_EMPLOYEE'
+                    ? await this.freezeCurrentReference(
+                        tx,
+                        'employee',
+                        attribution,
+                      )
+                    : await this.freezeApprovedReference(
+                        tx,
+                        'sales-partner',
+                        attribution,
+                      )),
                   type: attributionType,
                 },
               }
@@ -2312,6 +2255,61 @@ export class ArchiveService {
     }
   }
 
+  private async registerPeopleReferences(
+    tx: Transaction<DB>,
+    entity: ArchiveEntity,
+    submissionId: string,
+    snapshot: ArchiveSnapshot,
+  ): Promise<void> {
+    const references: Array<[string, string]> = []
+    if (entity === 'fund-account')
+      references.push([
+        'operatingEntity',
+        String(record(snapshot.operatingEntity).objectId ?? ''),
+      ])
+    if (entity === 'vehicle' && record(snapshot.carrier).kind === 'INTERNAL')
+      references.push([
+        'carrier',
+        String(record(snapshot.carrier).operatingEntityId ?? ''),
+      ])
+    if (
+      entity === 'supplier' ||
+      entity === 'other-unit' ||
+      entity === 'sales-partner'
+    ) {
+      array(snapshot.operatingEntities).forEach((reference, index) =>
+        references.push([
+          `operatingEntities[${index}]`,
+          String(record(reference).objectId ?? ''),
+        ]),
+      )
+      if (entity === 'supplier' && snapshot.defaultPurchaser)
+        references.push([
+          'defaultPurchaser',
+          String(record(snapshot.defaultPurchaser).objectId ?? ''),
+        ])
+    }
+    if (entity === 'customer') {
+      if (snapshot.defaultOperatingEntity)
+        references.push([
+          'defaultOperatingEntity',
+          String(record(snapshot.defaultOperatingEntity).objectId ?? ''),
+        ])
+      array(snapshot.subunits).forEach((value, index) => {
+        const ref = record(record(value).primarySalesAttribution)
+        if (ref.type === 'INTERNAL_EMPLOYEE')
+          references.push([
+            `subunits[${index}].primarySalesAttribution`,
+            String(ref.objectId ?? ''),
+          ])
+      })
+    }
+    for (const [field, id] of references)
+      await sql`INSERT INTO aux_reference_facts(id,aux_object_id,source) VALUES (${ulid()},${id},${`dcl:${entity}:${submissionId}:${field}`})`.execute(
+        tx,
+      )
+  }
+
   private async writeSnapshot(
     tx: Executor,
     entity: ArchiveEntity,
@@ -2320,27 +2318,6 @@ export class ArchiveService {
   ): Promise<void> {
     const d = snapshot
     switch (entity) {
-      case 'operating-entity':
-        await tx
-          .insertInto('dcl_operating_entity_versions')
-          .values({
-            approval_entry_id: id,
-            legal_name: String(d.legalName ?? ''),
-            short_name: String(d.shortName ?? ''),
-            legal_identifier: nullable(d.legalIdentifier),
-            registered_address: String(d.registeredAddress ?? ''),
-            contact_name: String(d.contactName ?? ''),
-            contact_phone: String(d.contactPhone ?? ''),
-            invoice_title: String(d.invoiceTitle ?? ''),
-            invoice_address: String(d.invoiceAddress ?? ''),
-            invoice_phone: String(d.invoicePhone ?? ''),
-            invoice_bank: String(d.invoiceBank ?? ''),
-            invoice_account: String(d.invoiceAccount ?? ''),
-            remark: nullable(d.remark),
-            enabled: d.enabled === true,
-          })
-          .execute()
-        return
       case 'vehicle': {
         const c = record(d.carrier)
         await tx
@@ -2431,42 +2408,6 @@ export class ArchiveService {
             recyclable: d.recyclable === true,
             fixed_formula:
               d.fixedFormula === null ? null : json(record(d.fixedFormula)),
-            remark: nullable(d.remark),
-            enabled: d.enabled === true,
-          })
-          .execute()
-        return
-      case 'employee':
-        await tx
-          .insertInto('dcl_employee_versions')
-          .values({
-            approval_entry_id: id,
-            legal_name: nullable(d.legalName),
-            display_name: String(d.displayName ?? ''),
-            legal_identifier: nullable(d.legalIdentifier),
-            employee_category_id: nullable(record(d.employeeCategory).id),
-            department_id: nullable(record(d.department).id),
-            position_id: nullable(record(d.position).id),
-            hired_on: nullable(d.employmentDate)
-              ? new Date(String(d.employmentDate))
-              : null,
-            work_phone: nullable(d.workPhone),
-            work_email: nullable(d.workEmail),
-            operating_entity_id: nullable(record(d.operatingEntity).objectId),
-            operating_entity_approval_entry_id: nullable(
-              record(d.operatingEntity).approvalEntryId,
-            ),
-            operating_entity_code: nullable(record(d.operatingEntity).code),
-            operating_entity_name: nullable(record(d.operatingEntity).name),
-            source_snapshots: json({
-              identityKind: d.identityKind,
-              contactName: d.contactName,
-              phone: d.phone,
-              address: d.address,
-              employeeCategory: d.employeeCategory,
-              department: d.department,
-              position: d.position,
-            }),
             remark: nullable(d.remark),
             enabled: d.enabled === true,
           })
@@ -2580,28 +2521,16 @@ export class ArchiveService {
         .execute()
     for (const item of array(d.operatingEntities)) {
       const ref = record(item)
-      const values = {
-        approval_entry_id: id,
-        operating_entity_id: String(ref.objectId ?? ''),
-        operating_entity_approval_entry_id: String(ref.approvalEntryId ?? ''),
-        operating_entity_code: String(ref.code ?? ''),
-        operating_entity_name: String(ref.name ?? ''),
-      }
-      if (entity === 'supplier')
-        await tx
-          .insertInto('dcl_supplier_version_operating_entities')
-          .values(values)
-          .execute()
-      if (entity === 'other-unit')
-        await tx
-          .insertInto('dcl_other_unit_version_operating_entities')
-          .values(values)
-          .execute()
-      if (entity === 'sales-partner')
-        await tx
-          .insertInto('dcl_sales_partner_version_operating_entities')
-          .values(values)
-          .execute()
+      const table =
+        entity === 'supplier'
+          ? 'dcl_supplier_version_operating_entities'
+          : entity === 'other-unit'
+            ? 'dcl_other_unit_version_operating_entities'
+            : 'dcl_sales_partner_version_operating_entities'
+      await sql`INSERT INTO ${sql.table(table)} (approval_entry_id,operating_entity_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name)
+        VALUES (${id},${String(ref.objectId ?? '')},NULL,${String(ref.code ?? '')},${String(ref.name ?? '')})`.execute(
+        tx,
+      )
     }
   }
 
@@ -2912,28 +2841,6 @@ export class ArchiveService {
   ): Promise<ArchiveSnapshot> {
     // Each aggregate rehydrates its own version row. JSON fields retain exact submitted reference snapshots.
     switch (entity) {
-      case 'operating-entity': {
-        const r = await tx
-          .selectFrom('dcl_operating_entity_versions')
-          .selectAll()
-          .where('approval_entry_id', '=', id)
-          .executeTakeFirstOrThrow()
-        return {
-          legalName: r.legal_name,
-          shortName: r.short_name,
-          legalIdentifier: r.legal_identifier ?? '',
-          registeredAddress: r.registered_address,
-          contactName: r.contact_name,
-          contactPhone: r.contact_phone,
-          invoiceTitle: r.invoice_title,
-          invoiceAddress: r.invoice_address,
-          invoicePhone: r.invoice_phone,
-          invoiceBank: r.invoice_bank,
-          invoiceAccount: r.invoice_account,
-          remark: r.remark ?? '',
-          enabled: r.enabled,
-        }
-      }
       case 'vehicle': {
         const r = await tx
           .selectFrom('dcl_vehicle_versions')
@@ -2950,7 +2857,8 @@ export class ArchiveService {
               ? {
                   kind: 'INTERNAL',
                   operatingEntityId: String(carrier.operatingEntityId ?? ''),
-                  approvalEntryId: String(carrier.approvalEntryId ?? ''),
+                  code: String(carrier.code ?? ''),
+                  name: String(carrier.name ?? ''),
                 }
               : {
                   kind: 'EXTERNAL',
@@ -2983,7 +2891,6 @@ export class ArchiveService {
           accountNumber: r.account_number ?? '',
           operatingEntity: {
             objectId: r.operating_entity_id ?? '',
-            approvalEntryId: r.operating_entity_approval_entry_id ?? '',
             code: r.operating_entity_code ?? '',
             name: r.operating_entity_name ?? '',
           },
@@ -3013,37 +2920,6 @@ export class ArchiveService {
           recyclable: r.recyclable,
           fixedFormula:
             r.fixed_formula === null ? null : record(r.fixed_formula),
-          remark: r.remark ?? '',
-          enabled: r.enabled,
-        }
-      }
-      case 'employee': {
-        const r = await tx
-          .selectFrom('dcl_employee_versions')
-          .selectAll()
-          .where('approval_entry_id', '=', id)
-          .executeTakeFirstOrThrow()
-        const sources = record(r.source_snapshots)
-        return {
-          identityKind: sources.identityKind ?? 'PERSON',
-          legalName: r.legal_name ?? '',
-          displayName: r.display_name,
-          legalIdentifier: r.legal_identifier ?? '',
-          contactName: sources.contactName ?? '',
-          phone: sources.phone ?? '',
-          address: sources.address ?? '',
-          employeeCategory: record(sources.employeeCategory),
-          department: record(sources.department),
-          position: record(sources.position),
-          employmentDate: r.hired_on?.toISOString().slice(0, 10) ?? '',
-          workPhone: r.work_phone ?? '',
-          workEmail: r.work_email ?? '',
-          operatingEntity: {
-            objectId: r.operating_entity_id ?? '',
-            approvalEntryId: r.operating_entity_approval_entry_id ?? '',
-            code: r.operating_entity_code ?? '',
-            name: r.operating_entity_name ?? '',
-          },
           remark: r.remark ?? '',
           enabled: r.enabled,
         }
@@ -3128,7 +3004,6 @@ export class ArchiveService {
       address: item.address ?? '',
       operatingEntities: operatingEntities.rows.map((reference) => ({
         objectId: reference.operating_entity_id,
-        approvalEntryId: reference.operating_entity_approval_entry_id,
         code: reference.operating_entity_code,
         name: reference.operating_entity_name,
       })),
@@ -3143,7 +3018,6 @@ export class ArchiveService {
         defaultPurchaser: item.default_purchaser_employee_id
           ? {
               objectId: item.default_purchaser_employee_id,
-              approvalEntryId: item.default_purchaser_approval_entry_id ?? '',
               code: item.default_purchaser_code ?? '',
               name: item.default_purchaser_name ?? '',
             }
@@ -3191,7 +3065,6 @@ export class ArchiveService {
       defaultOperatingEntity: r.default_operating_entity_id
         ? {
             objectId: r.default_operating_entity_id,
-            approvalEntryId: r.default_operating_entity_approval_entry_id ?? '',
             code: r.default_operating_entity_code ?? '',
             name: r.default_operating_entity_name ?? '',
           }
@@ -3214,8 +3087,12 @@ export class ArchiveService {
           ? {
               type: s.primary_sales_attribution_type,
               objectId: s.primary_sales_attribution_object_id,
-              approvalEntryId:
-                s.primary_sales_attribution_approval_entry_id ?? '',
+              ...(s.primary_sales_attribution_type === 'INTERNAL_EMPLOYEE'
+                ? {}
+                : {
+                    approvalEntryId:
+                      s.primary_sales_attribution_approval_entry_id ?? '',
+                  }),
               code: s.primary_sales_attribution_code ?? '',
               name: s.primary_sales_attribution_name ?? '',
             }
@@ -3464,46 +3341,13 @@ export class ArchiveService {
   ): Promise<ArchiveBlocker[]> {
     const predicate = sql`e.domain = 'dcl' AND e.id <> ${entry.id} AND e.status IN ('PENDING', 'APPROVED', 'REJECTED')`
     const results =
-      entry.entity === 'operating-entity'
-        ? await Promise.all([
-            sql<ReferenceBlockerRow>`SELECT e.entity, e.subject_id, e.id, 'carrier' AS field FROM dcl_vehicle_versions v JOIN approval_entries e ON e.id = v.approval_entry_id WHERE ${predicate} AND v.carrier_operating_entity_approval_entry_id = ${entry.id}`.execute(
+      entry.entity === 'other-unit'
+        ? [
+            await sql<ReferenceBlockerRow>`SELECT e.entity, e.subject_id, e.id, 'carrier' AS field FROM dcl_vehicle_versions v JOIN approval_entries e ON e.id = v.approval_entry_id WHERE ${predicate} AND v.carrier_other_unit_approval_entry_id = ${entry.id}`.execute(
               tx,
             ),
-            sql<ReferenceBlockerRow>`SELECT e.entity, e.subject_id, e.id, 'operatingEntity' AS field FROM dcl_fund_account_versions v JOIN approval_entries e ON e.id = v.approval_entry_id WHERE ${predicate} AND v.operating_entity_approval_entry_id = ${entry.id}`.execute(
-              tx,
-            ),
-            sql<ReferenceBlockerRow>`SELECT e.entity, e.subject_id, e.id, 'operatingEntity' AS field FROM dcl_employee_versions v JOIN approval_entries e ON e.id = v.approval_entry_id WHERE ${predicate} AND v.operating_entity_approval_entry_id = ${entry.id}`.execute(
-              tx,
-            ),
-            sql<ReferenceBlockerRow>`SELECT e.entity, e.subject_id, e.id, 'operatingEntities' AS field FROM dcl_supplier_version_operating_entities v JOIN approval_entries e ON e.id = v.approval_entry_id WHERE ${predicate} AND v.operating_entity_approval_entry_id = ${entry.id}`.execute(
-              tx,
-            ),
-            sql<ReferenceBlockerRow>`SELECT e.entity, e.subject_id, e.id, 'operatingEntities' AS field FROM dcl_other_unit_version_operating_entities v JOIN approval_entries e ON e.id = v.approval_entry_id WHERE ${predicate} AND v.operating_entity_approval_entry_id = ${entry.id}`.execute(
-              tx,
-            ),
-            sql<ReferenceBlockerRow>`SELECT e.entity, e.subject_id, e.id, 'operatingEntities' AS field FROM dcl_sales_partner_version_operating_entities v JOIN approval_entries e ON e.id = v.approval_entry_id WHERE ${predicate} AND v.operating_entity_approval_entry_id = ${entry.id}`.execute(
-              tx,
-            ),
-            sql<ReferenceBlockerRow>`SELECT e.entity, e.subject_id, e.id, 'defaultOperatingEntity' AS field FROM dcl_customer_versions v JOIN approval_entries e ON e.id = v.approval_entry_id WHERE ${predicate} AND v.default_operating_entity_approval_entry_id = ${entry.id}`.execute(
-              tx,
-            ),
-          ])
-        : entry.entity === 'other-unit'
-          ? [
-              await sql<ReferenceBlockerRow>`SELECT e.entity, e.subject_id, e.id, 'carrier' AS field FROM dcl_vehicle_versions v JOIN approval_entries e ON e.id = v.approval_entry_id WHERE ${predicate} AND v.carrier_other_unit_approval_entry_id = ${entry.id}`.execute(
-                tx,
-              ),
-            ]
-          : entry.entity === 'employee'
-            ? await Promise.all([
-                sql<ReferenceBlockerRow>`SELECT e.entity, e.subject_id, e.id, 'defaultPurchaser' AS field FROM dcl_supplier_versions v JOIN approval_entries e ON e.id = v.approval_entry_id WHERE ${predicate} AND v.default_purchaser_approval_entry_id = ${entry.id}`.execute(
-                  tx,
-                ),
-                sql<ReferenceBlockerRow>`SELECT e.entity, e.subject_id, e.id, 'salesAttribution' AS field FROM dcl_customer_version_subunits v JOIN approval_entries e ON e.id = v.customer_approval_entry_id WHERE ${predicate} AND v.primary_sales_attribution_approval_entry_id = ${entry.id}`.execute(
-                  tx,
-                ),
-              ])
-            : []
+          ]
+        : []
     return results.flatMap((result) =>
       result.rows.map((row) => ({
         kind: 'DCL_APPROVAL_REFERENCE' as const,
@@ -3641,4 +3485,9 @@ export class ArchiveService {
         .execute()
     }
   }
+}
+
+function adoptedAuxFact(reference: unknown) {
+  const objectId = String(record(reference).objectId ?? '')
+  return { objectId, enabled: objectId.length > 0 }
 }

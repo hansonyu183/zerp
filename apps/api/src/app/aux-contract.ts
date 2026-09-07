@@ -60,6 +60,8 @@ export const auxEntities = [
   'measurement-unit',
   'income-expense-type',
   'asset-category',
+  'operating-entity',
+  'employee',
 ] as const
 
 export type AuxContractEntity = (typeof auxEntities)[number]
@@ -158,6 +160,37 @@ const auxWriteShapes = {
     defaultResidualRate: percentage,
     ...descriptionShape,
   },
+  'operating-entity': {
+    legalName: z.string().min(1).max(200),
+    shortName: z.string().max(100),
+    legalIdentifier: z.string().min(1).max(128),
+    registeredAddress: z.string().max(500),
+    contactName: z.string().max(100),
+    contactPhone: z.string().max(32),
+    invoiceTitle: z.string().max(200),
+    invoiceAddress: z.string().max(500),
+    invoicePhone: z.string().max(32),
+    invoiceBank: z.string().max(200),
+    invoiceAccount: z.string().max(128),
+    remark: z.string().max(1000),
+  },
+  employee: {
+    identityKind: z.enum(['PERSON', 'ORGANIZATION']),
+    legalName: z.string().min(1).max(200),
+    displayName: z.string().min(1).max(200),
+    legalIdentifier: z.string().min(1).max(128),
+    contactName: z.string().max(100),
+    phone: z.string().max(32),
+    address: z.string().max(500),
+    employeeCategoryId: identifierShape.id,
+    departmentId: identifierShape.id,
+    positionId: identifierShape.id,
+    employmentDate: z.string().date(),
+    workPhone: z.string().max(32),
+    workEmail: z.string().max(320),
+    operatingEntityId: identifierShape.id,
+    remark: z.string().max(1000),
+  },
 } as const
 
 const auxDetailOnlyShapes = {
@@ -176,6 +209,8 @@ const auxDetailOnlyShapes = {
   'measurement-unit': {},
   'income-expense-type': {},
   'asset-category': {},
+  'operating-entity': {},
+  employee: {},
 } as const
 
 const listItem = z
@@ -252,6 +287,66 @@ export function auxGetRoute<
         ...listItem.shape,
         ...auxWriteShapes[entity],
         ...auxDetailOnlyShapes[entity],
+        updatedAt: z.string().datetime(),
+        updatedBy: z.string(),
+      })
+      .strict(),
+  )
+}
+
+const currentSnapshot = z
+  .object({
+    id: identifierShape.id,
+    code: z.string().min(1).max(64),
+    name: z.string().min(1).max(200),
+  })
+  .strict()
+
+const {
+  employeeCategoryId: _employeeCategoryId,
+  departmentId: _departmentId,
+  positionId: _positionId,
+  operatingEntityId: _operatingEntityId,
+  ...employeeCurrentDataShape
+} = auxWriteShapes.employee
+
+/** Frozen current-data snapshots used by transaction consumers such as VOU. */
+export const auxPeopleDataSchemas = {
+  'operating-entity': z.object(auxWriteShapes['operating-entity']).strict(),
+  employee: z
+    .object({
+      ...employeeCurrentDataShape,
+      employeeCategory: currentSnapshot,
+      department: currentSnapshot,
+      position: currentSnapshot,
+      operatingEntity: currentSnapshot,
+    })
+    .strict(),
+} as const
+
+export function operatingEntityGetRoute<const Path extends string>(path: Path) {
+  return postRoute(
+    path,
+    z.object(identifierShape).strict(),
+    z
+      .object({
+        ...listItem.shape,
+        ...auxWriteShapes['operating-entity'],
+        updatedAt: z.string().datetime(),
+        updatedBy: z.string(),
+      })
+      .strict(),
+  )
+}
+
+export function employeeGetRoute<const Path extends string>(path: Path) {
+  return postRoute(
+    path,
+    z.object(identifierShape).strict(),
+    z
+      .object({
+        ...listItem.shape,
+        ...auxPeopleDataSchemas.employee.shape,
         updatedAt: z.string().datetime(),
         updatedBy: z.string(),
       })

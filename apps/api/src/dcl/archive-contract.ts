@@ -8,11 +8,9 @@ import type { TargetRouteEnvironment } from '../app/contract.ts'
 import { archiveEntityPresentation } from '@zerp/model'
 
 export const archiveEntities = [
-  'operating-entity',
   'vehicle',
   'fund-account',
   'product',
-  'employee',
   'supplier',
   'customer',
   'other-unit',
@@ -48,6 +46,14 @@ const exactReference = z
   })
   .strict()
 
+const stableReference = z
+  .object({
+    objectId: z.string().length(26),
+    code: z.string().min(1).max(64),
+    name: z.string().min(1).max(200),
+  })
+  .strict()
+
 const auxSnapshot = z
   .object({
     id: z.string().min(1).max(26),
@@ -62,24 +68,6 @@ const identityKind = z.enum([
   'OTHER',
 ])
 
-const operatingEntitySnapshot = z
-  .object({
-    legalName: z.string().min(1).max(200),
-    shortName: z.string().max(100),
-    legalIdentifier: z.string().max(128),
-    registeredAddress: z.string().max(500),
-    contactName: z.string().max(100),
-    contactPhone: z.string().max(32),
-    invoiceTitle: z.string().max(200),
-    invoiceAddress: z.string().max(500),
-    invoicePhone: z.string().max(32),
-    invoiceBank: z.string().max(200),
-    invoiceAccount: z.string().max(128),
-    remark: z.string().max(1000),
-    enabled: z.boolean(),
-  })
-  .strict()
-
 const vehicleSnapshot = z
   .object({
     name: z.string().min(1).max(200),
@@ -90,7 +78,8 @@ const vehicleSnapshot = z
         .object({
           kind: z.literal('INTERNAL'),
           operatingEntityId: z.string().length(26),
-          approvalEntryId: z.string().length(26),
+          code: z.string().optional(),
+          name: z.string().optional(),
         })
         .strict(),
       z
@@ -118,7 +107,7 @@ const fundAccountSnapshot = z
     bank: z.string().min(1).max(200),
     branch: z.string().max(200),
     accountNumber: z.string().min(1).max(128),
-    operatingEntity: exactReference,
+    operatingEntity: stableReference,
     remark: z.string().max(1000),
     enabled: z.boolean(),
   })
@@ -189,27 +178,6 @@ const productSnapshot = z
   })
   .strict()
 
-const employeeSnapshot = z
-  .object({
-    identityKind: z.enum(['PERSON', 'ORGANIZATION']),
-    legalName: z.string().min(1).max(200),
-    displayName: z.string().min(1).max(200),
-    legalIdentifier: z.string().max(128),
-    contactName: z.string().max(100),
-    phone: z.string().max(32),
-    address: z.string().max(500),
-    employeeCategory: auxSnapshot,
-    department: auxSnapshot,
-    position: auxSnapshot,
-    employmentDate: z.string().date(),
-    workPhone: z.string().max(32),
-    workEmail: z.string().max(320),
-    operatingEntity: exactReference,
-    remark: z.string().max(1000),
-    enabled: z.boolean(),
-  })
-  .strict()
-
 // Settlement methods are AUX facts. They intentionally do not carry an
 // Approval Entry: a DCL exact-version reference here would fabricate history.
 // ArchiveService replaces any client-supplied identity with these immutable
@@ -270,7 +238,7 @@ const archiveIdentityBase = {
   contactName: z.string().max(100),
   phone: z.string().max(32),
   address: z.string().max(500),
-  operatingEntities: z.array(exactReference),
+  operatingEntities: z.array(stableReference),
   defaultOperatingEntityId: z.string().length(26).nullable(),
   remark: z.string().max(1000),
   enabled: z.boolean(),
@@ -280,7 +248,7 @@ const supplierSnapshot = z
   .object({
     ...archiveIdentityBase,
     settlementMethod: settlementSnapshot.nullable(),
-    defaultPurchaser: exactReference.nullable(),
+    defaultPurchaser: stableReference.nullable(),
   })
   .strict()
 
@@ -338,15 +306,13 @@ const pricingPolicy = z
       .regex(/^(?:0|[1-9]\d*)\.\d{2}$/),
   })
   .strict()
-const customerSalesAttribution = exactReference
-  .extend({
-    type: z.enum([
-      'INTERNAL_EMPLOYEE',
-      'EXTERNAL_PART_TIME',
-      'CHANNEL_PARTNER',
-    ]),
-  })
-  .strict()
+const customerSalesAttribution = z.discriminatedUnion('type', [
+  stableReference.extend({ type: z.literal('INTERNAL_EMPLOYEE') }),
+  exactReference.extend({
+    type: z.enum(['EXTERNAL_PART_TIME', 'CHANNEL_PARTNER']),
+  }),
+])
+
 const customerSubunitBase = {
   id: z.string().length(26),
   name: z.string().min(1).max(200),
@@ -414,7 +380,7 @@ const customerSnapshot = z
         })
         .strict(),
     ),
-    defaultOperatingEntity: exactReference.nullable(),
+    defaultOperatingEntity: stableReference.nullable(),
     identityAttachments: z.array(attachmentMetadata),
     subunits: z.array(customerSubunit).min(1),
     enabled: z.boolean(),
@@ -573,11 +539,9 @@ const rptDefinitionSnapshot = z
   .strict()
 
 export const archiveSnapshotSchemas = {
-  'operating-entity': operatingEntitySnapshot,
   vehicle: vehicleSnapshot,
   'fund-account': fundAccountSnapshot,
   product: productSnapshot,
-  employee: employeeSnapshot,
   supplier: supplierSnapshot,
   customer: customerSnapshot,
   'other-unit': otherUnitSnapshot,
@@ -619,11 +583,9 @@ const archiveQueryInput = <Filters extends z.ZodType>(filters: Filters) =>
     .strict()
 
 export const archiveQuerySchemas = {
-  'operating-entity': archiveQueryInput(archiveQueryBaseFilters),
   vehicle: archiveQueryInput(archiveQueryBaseFilters),
   'fund-account': archiveQueryInput(archiveQueryBaseFilters),
   product: archiveQueryInput(archiveQueryProductFilters),
-  employee: archiveQueryInput(archiveQueryBaseFilters),
   supplier: archiveQueryInput(archiveQueryBaseFilters),
   customer: archiveQueryInput(archiveQueryBaseFilters),
   'other-unit': archiveQueryInput(archiveQueryBaseFilters),
@@ -674,6 +636,13 @@ const accMappingReferenceBlocker = z
   })
   .strict()
 export const archiveBlockerSchema = z.discriminatedUnion('kind', [
+  z
+    .object({
+      kind: z.literal('AUX_REFERENCE'),
+      entity: z.enum(['operating-entity', 'employee']),
+      objectId: z.string(),
+    })
+    .strict(),
   submissionReferenceBlocker,
   dclApprovalReferenceBlocker,
   accMappingReferenceBlocker,
@@ -877,17 +846,12 @@ function defineArchiveRoutes<const Entity extends ArchiveEntity>(
 }
 
 export const archiveRouteSets = {
-  'operating-entity': defineArchiveRoutes(
-    'operating-entity',
-    archiveSnapshotSchemas['operating-entity'],
-  ),
   vehicle: defineArchiveRoutes('vehicle', archiveSnapshotSchemas.vehicle),
   'fund-account': defineArchiveRoutes(
     'fund-account',
     archiveSnapshotSchemas['fund-account'],
   ),
   product: defineArchiveRoutes('product', archiveSnapshotSchemas.product),
-  employee: defineArchiveRoutes('employee', archiveSnapshotSchemas.employee),
   supplier: defineArchiveRoutes('supplier', archiveSnapshotSchemas.supplier),
   customer: defineArchiveRoutes('customer', archiveSnapshotSchemas.customer),
   'other-unit': defineArchiveRoutes(
@@ -1066,53 +1030,7 @@ export function registerArchiveRoutes(
   handler: ArchiveRouteHandler,
   attachments: ArchiveAttachmentHandlers,
 ) {
-  const operatingEntity = app.openapiRoutes([
-    {
-      route: archiveRouteSets['operating-entity'].query,
-      handler: archiveHandler(handler, 'operating-entity', 'query'),
-    },
-    {
-      route: archiveRouteSets['operating-entity'].get,
-      handler: archiveHandler(handler, 'operating-entity', 'get'),
-    },
-    {
-      route: archiveRouteSets['operating-entity'].versions,
-      handler: archiveHandler(handler, 'operating-entity', 'versions'),
-    },
-    {
-      route: archiveRouteSets['operating-entity']['audit-history'],
-      handler: archiveHandler(handler, 'operating-entity', 'audit-history'),
-    },
-    {
-      route: archiveRouteSets['operating-entity']['submit-new'],
-      handler: archiveHandler(handler, 'operating-entity', 'submit-new'),
-    },
-    {
-      route: archiveRouteSets['operating-entity']['submit-change'],
-      handler: archiveHandler(handler, 'operating-entity', 'submit-change'),
-    },
-    {
-      route: archiveRouteSets['operating-entity'].approve,
-      handler: archiveHandler(handler, 'operating-entity', 'approve'),
-    },
-    {
-      route: archiveRouteSets['operating-entity'].reject,
-      handler: archiveHandler(handler, 'operating-entity', 'reject'),
-    },
-    {
-      route: archiveRouteSets['operating-entity'].unreject,
-      handler: archiveHandler(handler, 'operating-entity', 'unreject'),
-    },
-    {
-      route: archiveRouteSets['operating-entity'].unapprove,
-      handler: archiveHandler(handler, 'operating-entity', 'unapprove'),
-    },
-    {
-      route: archiveRouteSets['operating-entity'].delete,
-      handler: archiveHandler(handler, 'operating-entity', 'delete'),
-    },
-  ] as const)
-  const vehicle = operatingEntity.openapiRoutes([
+  const vehicle = app.openapiRoutes([
     {
       route: archiveRouteSets['vehicle'].query,
       handler: archiveHandler(handler, 'vehicle', 'query'),
@@ -1250,53 +1168,7 @@ export function registerArchiveRoutes(
       handler: archiveHandler(handler, 'product', 'delete'),
     },
   ] as const)
-  const employee = product.openapiRoutes([
-    {
-      route: archiveRouteSets['employee'].query,
-      handler: archiveHandler(handler, 'employee', 'query'),
-    },
-    {
-      route: archiveRouteSets['employee'].get,
-      handler: archiveHandler(handler, 'employee', 'get'),
-    },
-    {
-      route: archiveRouteSets['employee'].versions,
-      handler: archiveHandler(handler, 'employee', 'versions'),
-    },
-    {
-      route: archiveRouteSets['employee']['audit-history'],
-      handler: archiveHandler(handler, 'employee', 'audit-history'),
-    },
-    {
-      route: archiveRouteSets['employee']['submit-new'],
-      handler: archiveHandler(handler, 'employee', 'submit-new'),
-    },
-    {
-      route: archiveRouteSets['employee']['submit-change'],
-      handler: archiveHandler(handler, 'employee', 'submit-change'),
-    },
-    {
-      route: archiveRouteSets['employee'].approve,
-      handler: archiveHandler(handler, 'employee', 'approve'),
-    },
-    {
-      route: archiveRouteSets['employee'].reject,
-      handler: archiveHandler(handler, 'employee', 'reject'),
-    },
-    {
-      route: archiveRouteSets['employee'].unreject,
-      handler: archiveHandler(handler, 'employee', 'unreject'),
-    },
-    {
-      route: archiveRouteSets['employee'].unapprove,
-      handler: archiveHandler(handler, 'employee', 'unapprove'),
-    },
-    {
-      route: archiveRouteSets['employee'].delete,
-      handler: archiveHandler(handler, 'employee', 'delete'),
-    },
-  ] as const)
-  const supplier = employee.openapiRoutes([
+  const supplier = product.openapiRoutes([
     {
       route: archiveRouteSets['supplier'].query,
       handler: archiveHandler(handler, 'supplier', 'query'),

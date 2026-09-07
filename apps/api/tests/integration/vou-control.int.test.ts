@@ -5,6 +5,7 @@ import { ulid } from 'ulid'
 import type { VouPayload } from '@zerp/model'
 
 import { AccService } from '../../src/acc/service.ts'
+import { AuxService } from '../../src/aux/service.ts'
 import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { VouApplicationError, VouService } from '../../src/vou/service.ts'
@@ -26,8 +27,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     productEntryId = ulid(),
     warehouseId = ulid(),
     warehouseEntryId = ulid()
-  const operatingEntityId = ulid(),
-    operatingEntityEntryId = ulid()
+  let operatingEntityId = ''
   const unit = {
     objectId: ulid(),
     code: 'CONTROL-UNIT',
@@ -74,7 +74,6 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
           customerEntryId,
           productEntryId,
           warehouseEntryId,
-          operatingEntityEntryId,
         ])
         .execute()
       await db
@@ -85,7 +84,6 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
           customerId,
           productId,
           warehouseId,
-          operatingEntityId,
         ])
         .execute()
       await db
@@ -103,6 +101,14 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
         .where('book_id', '=', bookId)
         .execute()
       await db.deleteFrom('acc_books').where('id', '=', bookId).execute()
+      await db
+        .deleteFrom('aux_objects')
+        .where('created_by', '=', actorId)
+        .execute()
+      await db
+        .deleteFrom('app_audit_events')
+        .where('actor_user_id', 'in', [actorId, reviewerId])
+        .execute()
       await db
         .deleteFrom('app_users')
         .where('id', 'in', [actorId, reviewerId])
@@ -151,13 +157,6 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
         id: warehouseId,
         entity: 'warehouse',
         code: `WHS-${code}`,
-        created_at: now,
-        created_by: actorId,
-      },
-      {
-        id: operatingEntityId,
-        entity: 'operating-entity',
-        code: `OPE-${code}`,
         created_at: now,
         created_by: actorId,
       },
@@ -215,21 +214,6 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
         domain: 'dcl',
         entity: 'warehouse',
         subject_id: warehouseId,
-        version_no: 1,
-        status: 'APPROVED',
-        revision: 1,
-        submitted_by: actorId,
-        submitted_at: now,
-        approved_by: reviewerId,
-        approved_at: now,
-        updated_by: reviewerId,
-        updated_at: now,
-      },
-      {
-        id: operatingEntityEntryId,
-        domain: 'dcl',
-        entity: 'operating-entity',
-        subject_id: operatingEntityId,
         version_no: 1,
         status: 'APPROVED',
         revision: 1,
@@ -341,25 +325,44 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
       enabled: true,
     })
     .execute()
-  await db
-    .insertInto('dcl_operating_entity_versions')
-    .values({
-      approval_entry_id: operatingEntityEntryId,
-      legal_name: '控制经营主体',
-      short_name: '控制经营主体',
-      legal_identifier: `OPE-${code}`,
-      registered_address: '',
-      contact_name: '',
-      contact_phone: '',
-      invoice_title: '',
-      invoice_address: '',
-      invoice_phone: '',
-      invoice_bank: '',
-      invoice_account: '',
-      remark: null,
-      enabled: true,
-    })
-    .execute()
+  const aux = new AuxService(db)
+  const operatingEntityCreated = await aux.create(
+    'operating-entity',
+    {
+      legalName: '控制经营主体',
+      shortName: '控制经营主体',
+      legalIdentifier: '91310000MA1K123456',
+      registeredAddress: '',
+      contactName: '',
+      contactPhone: '',
+      invoiceTitle: '',
+      invoiceAddress: '',
+      invoicePhone: '',
+      invoiceBank: '',
+      invoiceAccount: '',
+      remark: '',
+    },
+    {
+      id: actorId,
+      permissions: [
+        '/aux/operating-entity/create',
+        '/aux/operating-entity/get',
+      ],
+    },
+  )
+  const operatingEntity = await aux.get(
+    'operating-entity',
+    { id: operatingEntityCreated.id },
+    {
+      id: actorId,
+      permissions: [
+        '/aux/operating-entity/create',
+        '/aux/operating-entity/get',
+      ],
+    },
+  )
+  operatingEntityId = operatingEntity.id
+
   const book = await acc.createBook(
     {
       id: bookId,
@@ -559,8 +562,6 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     paymentMethod: null,
     operatingEntity: {
       objectId: operatingEntityId,
-      approvalEntryId: operatingEntityEntryId,
-      selectionOrigin: 'CURRENT' as const,
     },
     warehouse: {
       objectId: warehouseId,
@@ -676,8 +677,22 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     (approved.payload as { operatingEntity: unknown }).operatingEntity,
     {
       objectId: operatingEntityId,
-      approvalEntryId: operatingEntityEntryId,
-      selectionOrigin: 'CURRENT',
+      code: operatingEntity.code,
+      name: operatingEntity.legalName,
+      snapshot: {
+        legalName: operatingEntity.legalName,
+        shortName: operatingEntity.shortName,
+        legalIdentifier: operatingEntity.legalIdentifier,
+        registeredAddress: operatingEntity.registeredAddress,
+        contactName: operatingEntity.contactName,
+        contactPhone: operatingEntity.contactPhone,
+        invoiceTitle: operatingEntity.invoiceTitle,
+        invoiceAddress: operatingEntity.invoiceAddress,
+        invoicePhone: operatingEntity.invoicePhone,
+        invoiceBank: operatingEntity.invoiceBank,
+        invoiceAccount: operatingEntity.invoiceAccount,
+        remark: operatingEntity.remark,
+      },
     },
   )
   assert.deepEqual(
@@ -769,8 +784,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     productEntryId = ulid()
   const warehouseId = ulid(),
     warehouseEntryId = ulid()
-  const operatingEntityId = ulid(),
-    operatingEntityEntryId = ulid()
+  let operatingEntityId = ''
   const unit = {
     objectId: ulid(),
     code: 'BATCH-UNIT',
@@ -828,18 +842,19 @@ test('sale signoff and purchase inbound price the approved source line batch ins
           supplierEntryId,
           productEntryId,
           warehouseEntryId,
-          operatingEntityEntryId,
         ])
         .execute()
       await db
         .deleteFrom('dcl_subjects')
-        .where('id', 'in', [
-          customerId,
-          supplierId,
-          productId,
-          warehouseId,
-          operatingEntityId,
-        ])
+        .where('id', 'in', [customerId, supplierId, productId, warehouseId])
+        .execute()
+      await db
+        .deleteFrom('aux_objects')
+        .where('created_by', '=', actorId)
+        .execute()
+      await db
+        .deleteFrom('app_audit_events')
+        .where('actor_user_id', 'in', [actorId, reviewerId])
         .execute()
       await db
         .deleteFrom('app_users')
@@ -899,13 +914,6 @@ test('sale signoff and purchase inbound price the approved source line batch ins
         created_at: now,
         created_by: actorId,
       },
-      {
-        id: operatingEntityId,
-        entity: 'operating-entity',
-        code: `OPE-${suffix}`,
-        created_at: now,
-        created_by: actorId,
-      },
     ])
     .execute()
   await db
@@ -961,21 +969,6 @@ test('sale signoff and purchase inbound price the approved source line batch ins
         domain: 'dcl',
         entity: 'warehouse',
         subject_id: warehouseId,
-        version_no: 1,
-        status: 'APPROVED',
-        revision: 1,
-        submitted_by: actorId,
-        submitted_at: now,
-        approved_by: reviewerId,
-        approved_at: now,
-        updated_by: reviewerId,
-        updated_at: now,
-      },
-      {
-        id: operatingEntityEntryId,
-        domain: 'dcl',
-        entity: 'operating-entity',
-        subject_id: operatingEntityId,
         version_no: 1,
         status: 'APPROVED',
         revision: 1,
@@ -1085,25 +1078,33 @@ test('sale signoff and purchase inbound price the approved source line batch ins
       enabled: true,
     })
     .execute()
-  await db
-    .insertInto('dcl_operating_entity_versions')
-    .values({
-      approval_entry_id: operatingEntityEntryId,
-      legal_name: '批次经营主体',
-      short_name: '批次经营主体',
-      legal_identifier: `OPE-${suffix}`,
-      registered_address: '',
-      contact_name: '',
-      contact_phone: '',
-      invoice_title: '',
-      invoice_address: '',
-      invoice_phone: '',
-      invoice_bank: '',
-      invoice_account: '',
-      remark: null,
-      enabled: true,
-    })
-    .execute()
+  const aux = new AuxService(db)
+  const operatingEntityCreated = await aux.create(
+    'operating-entity',
+    {
+      legalName: '批次经营主体',
+      shortName: '批次经营主体',
+      legalIdentifier: '91310000MA1K123457',
+      registeredAddress: '',
+      contactName: '',
+      contactPhone: '',
+      invoiceTitle: '',
+      invoiceAddress: '',
+      invoicePhone: '',
+      invoiceBank: '',
+      invoiceAccount: '',
+      remark: '',
+    },
+    {
+      id: actorId,
+      permissions: [
+        '/aux/operating-entity/create',
+        '/aux/operating-entity/get',
+      ],
+    },
+  )
+  operatingEntityId = operatingEntityCreated.id
+
   const customerSubunit = {
     objectId: subunitId,
     approvalEntryId: customerEntryId,
@@ -1144,8 +1145,6 @@ test('sale signoff and purchase inbound price the approved source line batch ins
             paymentMethod: null,
             operatingEntity: {
               objectId: operatingEntityId,
-              approvalEntryId: operatingEntityEntryId,
-              selectionOrigin: 'CURRENT' as const,
             },
             warehouse,
             productLines: [productLine(lineId)],

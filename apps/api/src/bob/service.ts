@@ -7,20 +7,16 @@ export const bobEntities = [
   'customer',
   'supplier',
   'other-unit',
-  'employee',
   'sales-partner',
   'product',
   'warehouse',
   'vehicle',
   'fund-account',
-  'operating-entity',
 ] as const
 
 export type BobEntity = (typeof bobEntities)[number]
 export type BobReferenceEntity =
   | 'customer-subunit'
-  | 'operating-entity'
-  | 'employee'
   | 'other-unit'
   | 'supplier'
   | 'sales-partner'
@@ -160,24 +156,7 @@ function dclCurrent(entity: BobEntity) {
       JOIN dcl_other_unit_versions snapshot ON snapshot.approval_entry_id = entry.id
       WHERE subject.entity = 'other-unit'
 
-      UNION ALL
-      SELECT subject.id, subject.entity, subject.code, snapshot.enabled, entry.id,
-        entry.version_no, entry.updated_at,
-        jsonb_strip_nulls(jsonb_build_object(
-          'name', snapshot.display_name,
-          'employeeCategoryId', snapshot.employee_category_id,
-          'departmentId', snapshot.department_id, 'positionId', snapshot.position_id,
-          'operatingEntityId', snapshot.operating_entity_id
-        ))
-      FROM dcl_subjects subject
-      JOIN LATERAL (
-        SELECT * FROM approval_entries
-        WHERE domain = 'dcl' AND entity = 'employee' AND subject_id = subject.id
-          AND status = 'APPROVED'
-        ORDER BY version_no DESC LIMIT 1
-      ) entry ON true
-      JOIN dcl_employee_versions snapshot ON snapshot.approval_entry_id = entry.id
-      WHERE subject.entity = 'employee'
+
 
       UNION ALL
       SELECT subject.id, subject.entity, subject.code, snapshot.enabled, entry.id,
@@ -275,22 +254,7 @@ function dclCurrent(entity: BobEntity) {
       JOIN dcl_fund_account_versions snapshot ON snapshot.approval_entry_id = entry.id
       WHERE subject.entity = 'fund-account'
 
-      UNION ALL
-      SELECT subject.id, subject.entity, subject.code, snapshot.enabled, entry.id,
-        entry.version_no, entry.updated_at,
-        jsonb_strip_nulls(jsonb_build_object(
-          'name', snapshot.legal_name, 'legalName', snapshot.legal_name,
-          'legalIdentifier', snapshot.legal_identifier
-        ))
-      FROM dcl_subjects subject
-      JOIN LATERAL (
-        SELECT * FROM approval_entries
-        WHERE domain = 'dcl' AND entity = 'operating-entity' AND subject_id = subject.id
-          AND status = 'APPROVED'
-        ORDER BY version_no DESC LIMIT 1
-      ) entry ON true
-      JOIN dcl_operating_entity_versions snapshot ON snapshot.approval_entry_id = entry.id
-      WHERE subject.entity = 'operating-entity'
+
     ) typed_current
     WHERE typed_current.entity = ${entity}`
 }
@@ -313,8 +277,6 @@ function assertReferenceEntity(
   if (
     ![
       'customer-subunit',
-      'operating-entity',
-      'employee',
       'other-unit',
       'supplier',
       'sales-partner',

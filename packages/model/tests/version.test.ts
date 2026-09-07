@@ -300,7 +300,6 @@ function warehouseCommand(
       contactPhone: ' 13800000000 ',
       manager: {
         employeeId: 'employee-1',
-        approvalEntryId: 'employee-entry-1',
         code: 'CLIENT-CODE',
         displayName: '客户端负责人',
       },
@@ -315,10 +314,8 @@ function newWarehouseFacts(): WarehouseSubmitFacts {
     subject: { exists: false, history: [] },
     manager: {
       employeeId: 'employee-1',
-      latestApprovedEntryId: 'employee-entry-1',
       code: 'EMP-0001',
       displayName: ' 仓库负责人 ',
-      enabled: true,
     },
   }
 }
@@ -359,7 +356,6 @@ test('prepares a normalized Warehouse submit-new plan from explicit current fact
           contactPhone: '13800000000',
           manager: {
             employeeId: 'employee-1',
-            approvalEntryId: 'employee-entry-1',
             code: 'EMP-0001',
             displayName: '仓库负责人',
           },
@@ -371,7 +367,7 @@ test('prepares a normalized Warehouse submit-new plan from explicit current fact
   )
 })
 
-test('rejects mismatched Warehouse mode, history/open candidates, and stale manager references', () => {
+test('rejects mismatched Warehouse mode, history/open candidates, and unavailable managers', () => {
   assert.deepEqual(
     prepareWarehouseSubmit(
       warehouseCommand('submit-change'),
@@ -422,28 +418,9 @@ test('rejects mismatched Warehouse mode, history/open candidates, and stale mana
   assert.deepEqual(
     prepareWarehouseSubmit(warehouseCommand('submit-new'), {
       ...newWarehouseFacts(),
-      manager: {
-        employeeId: 'employee-1',
-        latestApprovedEntryId: 'employee-entry-2',
-        code: 'EMP-0001',
-        displayName: '仓库负责人',
-        enabled: true,
-      },
+      manager: undefined,
     }),
-    {
-      ok: false,
-      error: {
-        errorKey: 'warehouse_reference_stale',
-        blockers: [
-          {
-            field: 'manager',
-            objectId: 'employee-1',
-            expectedApprovalEntryId: 'employee-entry-1',
-            currentApprovalEntryId: 'employee-entry-2',
-          },
-        ],
-      },
-    },
+    { ok: false, error: { errorKey: 'warehouse_reference_unavailable' } },
   )
 })
 

@@ -11,6 +11,8 @@ import {
   type AccBookTemplate,
   type AccSettlementPurpose,
   type AccSubjectDimension,
+  type EmployeeCurrentData,
+  type OperatingEntityCurrentData,
   type VouPayload,
   type VouPayloadFor,
 } from '@zerp/model'
@@ -18,6 +20,10 @@ import { sql, type Kysely, type Transaction } from 'kysely'
 import { ulid } from 'ulid'
 
 import type { DB, JsonValue } from '../db/generated.ts'
+import {
+  AuxApplicationError,
+  resolveAuxPeopleReference,
+} from '../aux/service.ts'
 import type { AccApplicationPlan, PlanExecutor } from '../platform/transaction-coordinator.ts'
 import { readVouPersistence } from '../vou/service.ts'
 import { lockAccountingPeriod } from './period-lock.ts'
@@ -79,14 +85,27 @@ export interface AccOpeningAsset {
   accumulatedDepreciation: string
 }
 
-export interface AccOpeningArchiveReference {
-  entity: 'customer' | 'supplier' | 'other-unit' | 'employee' | 'sales-partner' | 'operating-entity'
+export interface AccOpeningVersionedCounterpartyReference {
+  entity: 'customer' | 'supplier' | 'other-unit' | 'sales-partner'
   objectId: string
   customerId?: string
   approvalEntryId: string
   code: string
   name: string
 }
+
+export interface AccOpeningAuxPeopleCounterpartyReference {
+  entity: 'employee' | 'operating-entity'
+  objectId: string
+  /** Filled from AUX current data before the opening snapshot is persisted. */
+  code?: string
+  name?: string
+  snapshot?: OperatingEntityCurrentData | EmployeeCurrentData
+}
+
+export type AccOpeningCounterpartyReference =
+  | AccOpeningVersionedCounterpartyReference
+  | AccOpeningAuxPeopleCounterpartyReference
 
 export interface AccOpeningBill {
   billId?: string
@@ -106,7 +125,7 @@ export interface AccOpeningBill {
   interestAmount?: string
   customerCostAmount?: string
   valueAmount: string
-  originatingCounterparty?: AccOpeningArchiveReference
+  originatingCounterparty?: AccOpeningCounterpartyReference
 }
 
 export interface AccOpeningContainer {
@@ -1215,7 +1234,7 @@ export class AccService
         if (prior.id === input.submissionId) return this.readOpening(tx, input.bookId, actor)
         throw new AccApplicationError('approval_open_version_exists')
       }
-      const opening = this.normalizeOpening(input)
+      const opening = await this.normalizeOpening(tx, input)
       await this.validateOpening(tx, opening)
       const now = new Date()
       await tx.insertInto('approval_entries').values({
@@ -1236,6 +1255,7 @@ export class AccService
         book_id: opening.bookId,
         payload: asJson(opening),
       }).execute()
+      await this.writeOpeningAuxReferenceFacts(tx, opening)
       await tx.insertInto('approval_events').values({
         id: ulid(), entry_id: opening.submissionId, domain: 'acc', entity: 'opening',
         subject_id: opening.bookId, version_no: null, action: 'SUBMITTED',
@@ -1693,16 +1713,108 @@ export class AccService
       throw new AccApplicationError('acc_book_access_denied')
   }
 
-  private normalizeOpening(input: AccOpeningInput): AccOpeningInput {
+  private async normalizeOpening(
+    transaction: Transaction<DB>,
+    input: AccOpeningInput,
+  ): Promise<AccOpeningInput> {
     return {
       ...input,
+      lines: await Promise.all(
+        input.lines.map(async (line) => {
+          const employeeId = line.dimensions.EMPLOYEE
+          if (employeeId) {
+            try {
+              // A balance dimension is a stable identity, so the submitted
+              // opening keeps its ID. Resolve it now only to adopt an enabled
+              // current AUX employee under the opening transaction lock.
+              await resolveAuxPeopleReference(transaction, 'employee', employeeId)
+            } catch (error) {
+              if (error instanceof AuxApplicationError)
+                throw new AccApplicationError('acc_opening_dimension_required')
+              throw error
+            }
+          }
+          return { ...line, dimensions: { ...line.dimensions } }
+        }),
+      ),
       assets: input.assets.map((asset) => ({ ...asset, assetId: asset.assetId ?? ulid() })),
-      bills: input.bills.map((bill) => ({ ...bill, billId: bill.billId ?? ulid() })),
+      bills: await Promise.all(
+        input.bills.map(async (bill) => ({
+          ...bill,
+          billId: bill.billId ?? ulid(),
+          ...(bill.originatingCounterparty
+            ? {
+                originatingCounterparty:
+                  await this.resolveOpeningCounterparty(
+                    transaction,
+                    bill.originatingCounterparty,
+                  ),
+              }
+            : {}),
+        })),
+      ),
       containers: input.containers.map((container) => ({
         ...container,
         subunit: { ...container.subunit },
       })),
     }
+  }
+
+  private async resolveOpeningCounterparty(
+    transaction: Transaction<DB>,
+    reference: AccOpeningCounterpartyReference,
+  ): Promise<AccOpeningCounterpartyReference> {
+    if (reference.entity !== 'employee' && reference.entity !== 'operating-entity')
+      return { ...reference }
+    try {
+      const current = await resolveAuxPeopleReference(
+        transaction,
+        reference.entity,
+        reference.objectId,
+      )
+      return {
+        entity: reference.entity,
+        objectId: current.objectId,
+        code: current.code,
+        name: current.name,
+        snapshot: current.data,
+      }
+    } catch (error) {
+      if (error instanceof AuxApplicationError)
+        throw new AccApplicationError('acc_opening_bill_counterparty_invalid')
+      throw error
+    }
+  }
+
+  private async writeOpeningAuxReferenceFacts(
+    transaction: Transaction<DB>,
+    opening: AccOpeningInput,
+  ): Promise<void> {
+    const references = [
+      ...opening.lines.flatMap((line, index) => {
+        const employeeId = line.dimensions.EMPLOYEE
+        return employeeId
+          ? [{
+              id: ulid(),
+              aux_object_id: employeeId,
+              source: `acc:opening:${opening.submissionId}:line:${index + 1}:dimension:EMPLOYEE`,
+            }]
+          : []
+      }),
+      ...opening.bills.flatMap((bill) => {
+        const reference = bill.originatingCounterparty
+        return reference &&
+          (reference.entity === 'employee' || reference.entity === 'operating-entity')
+          ? [{
+              id: ulid(),
+              aux_object_id: reference.objectId,
+              source: `acc:opening:${opening.submissionId}:bill:${bill.billId}:originating-counterparty`,
+            }]
+          : []
+      }),
+    ]
+    if (references.length > 0)
+      await transaction.insertInto('aux_reference_facts').values(references).execute()
   }
 
   private async insertOpeningRegisterEntry(
@@ -1829,15 +1941,22 @@ export class AccService
         if (!existing.rows[0]) throw new AccApplicationError('acc_opening_bill_invalid')
       }
       if (bill.originatingCounterparty) {
-        const reference = await sql<{ id: string; name: string; customer_id: string | null }>`
+        const reference = bill.originatingCounterparty
+        if (reference.entity === 'employee' || reference.entity === 'operating-entity') {
+          // This is a snapshot resolved when the opening was submitted. Approval
+          // must preserve that adopted fact rather than rereading AUX current data.
+          if (!reference.code || !reference.name)
+            throw new AccApplicationError('acc_opening_bill_counterparty_invalid')
+          continue
+        }
+        const historical = reference as AccOpeningVersionedCounterpartyReference
+        const result = await sql<{ id: string; name: string; customer_id: string | null }>`
           SELECT entry.id,
             CASE entry.entity
               WHEN 'customer' THEN customer.display_name
               WHEN 'supplier' THEN supplier.legal_name
               WHEN 'other-unit' THEN other_unit.legal_name
-              WHEN 'employee' THEN employee.display_name
               WHEN 'sales-partner' THEN sales_partner.legal_name
-              WHEN 'operating-entity' THEN operating_entity.legal_name
             END AS name,
             CASE WHEN entry.entity = 'customer' THEN entry.subject_id ELSE NULL END AS customer_id
           FROM approval_entries entry
@@ -1845,17 +1964,15 @@ export class AccService
           LEFT JOIN dcl_customer_versions customer ON customer.approval_entry_id = entry.id
           LEFT JOIN dcl_supplier_versions supplier ON supplier.approval_entry_id = entry.id
           LEFT JOIN dcl_other_unit_versions other_unit ON other_unit.approval_entry_id = entry.id
-          LEFT JOIN dcl_employee_versions employee ON employee.approval_entry_id = entry.id
           LEFT JOIN dcl_sales_partner_versions sales_partner ON sales_partner.approval_entry_id = entry.id
-          LEFT JOIN dcl_operating_entity_versions operating_entity ON operating_entity.approval_entry_id = entry.id
-          WHERE entry.id = ${bill.originatingCounterparty.approvalEntryId}
-            AND entry.domain = 'dcl' AND entry.entity = ${bill.originatingCounterparty.entity}
-            AND entry.subject_id = ${bill.originatingCounterparty.objectId}
-            AND entry.status = 'APPROVED' AND subject.code = ${bill.originatingCounterparty.code}
+          WHERE entry.id = ${historical.approvalEntryId}
+            AND entry.domain = 'dcl' AND entry.entity = ${historical.entity}
+            AND entry.subject_id = ${historical.objectId}
+            AND entry.status = 'APPROVED' AND subject.code = ${historical.code}
         `.execute(executor)
-        const row = reference.rows[0]
-        if (!row || row.name !== bill.originatingCounterparty.name
-          || (row.customer_id ?? undefined) !== bill.originatingCounterparty.customerId)
+        const row = result.rows[0]
+        if (!row || row.name !== historical.name
+          || (row.customer_id ?? undefined) !== historical.customerId)
           throw new AccApplicationError('acc_opening_bill_counterparty_invalid')
       }
     }
@@ -1924,6 +2041,10 @@ export class AccService
         from_revision: row.revision, to_revision: null, actor_id: actor.id, reason: null,
         request_id: requestId, created_at: new Date(),
       }).execute()
+      await tx
+        .deleteFrom('aux_reference_facts')
+        .where('source', 'like', `acc:opening:${row.id}:%`)
+        .execute()
       await tx.deleteFrom('approval_entries').where('id', '=', row.id).executeTakeFirstOrThrow()
       return { submissionId: row.id, deleted: true as const }
     })

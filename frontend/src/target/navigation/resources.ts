@@ -7,8 +7,8 @@ export const targetDomainCapabilities = {
   app: { approval: false, businessVersion: false, enabled: true },
   aux: { approval: false, businessVersion: false, enabled: true },
   acc: { approval: false, businessVersion: false, enabled: true },
-  rpt: { approval: false, businessVersion: false, enabled: true },
-  wfl: { approval: false, businessVersion: false, enabled: true },
+  rpt: { approval: false, businessVersion: false, enabled: false },
+  wfl: { approval: true, businessVersion: true, enabled: true },
 } as const
 
 export type TargetDomain = keyof typeof targetDomainCapabilities

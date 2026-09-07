@@ -61,6 +61,29 @@ test('measurement units use typed fields through menu on desktop and 390px', asy
       await dialog.getByRole('button', { name: '保存', exact: true }).click()
       await expect(dialog).toHaveCount(0)
     }
+    // The existing quantityScale fact is both an extension column and a
+    // server-side filter; zero is a submitted value, not an empty input.
+    await page
+      .getByLabel('编码、拼音或名称', { exact: true })
+      .fill(`千克${tag}`)
+    await page.getByLabel('数量精度', { exact: true }).fill('0')
+    await page.getByRole('button', { name: '查询', exact: true }).click()
+    await expect(
+      page.getByText(`共 ${width === 1440 ? 21 : 20} 项`, { exact: true }),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('columnheader', { name: '数量精度', exact: true }),
+    ).toBeVisible()
+    await page.getByLabel('数量精度', { exact: true }).fill('6')
+    // Input edits alone must not change the submitted result or its total.
+    await expect(
+      page.getByText(`共 ${width === 1440 ? 21 : 20} 项`, { exact: true }),
+    ).toBeVisible()
+    await page.getByRole('button', { name: '查询', exact: true }).click()
+    await expect(
+      page.getByText(`共 ${width === 1440 ? 0 : 2} 项`, { exact: true }),
+    ).toBeVisible()
+    await page.getByLabel('数量精度', { exact: true }).fill('')
     const name = `千克${tag}-1440-20`
     for (const keyword of [name, `qianke${tag}-1440-20`]) {
       await page.getByLabel('编码、拼音或名称', { exact: true }).fill(keyword)
@@ -84,5 +107,10 @@ test('measurement units use typed fields through menu on desktop and 390px', asy
     await expect(
       row.getByRole('button', { name: '停用', exact: true }),
     ).toBeVisible()
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true)
   }
 })

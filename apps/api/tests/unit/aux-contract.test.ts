@@ -19,6 +19,7 @@ const principal = {
     '/aux/employee-category/enable',
     '/aux/employee-category/disable',
     '/aux/employee-category/delete',
+    '/aux/measurement-unit/query',
   ],
   passwordChangeRequired: false,
   passwordMinLength: 12,
@@ -116,6 +117,68 @@ test('AUX management exposes native summary and typed employee-category detail',
   assert.equal(fetched.code, 0)
   assert.deepEqual(received[1], ['get', { id }])
   assert.deepEqual(fetched.data, detail)
+})
+
+test('measurement-unit query accepts only its quantity-scale filter', async () => {
+  let received: unknown
+  const app = appWith({
+    query: async (_entity: unknown, input: unknown) => {
+      received = input
+      return {
+        items: [
+          {
+            id,
+            code: 'UNT-0001',
+            py: 'qianke',
+            name: '千克',
+            symbol: 'kg',
+            quantityScale: 0,
+            enabled: true,
+            revision: '1',
+            availableActions: ['edit', 'disable'],
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+      }
+    },
+  } as unknown as AuxService)
+
+  const queried = await post(app, '/aux/measurement-unit/query', {
+    keyword: 'kg',
+    quantityScale: 0,
+    page: 1,
+    pageSize: 20,
+  })
+  assert.equal(queried.code, 0)
+  assert.deepEqual(received, {
+    keyword: 'kg',
+    quantityScale: 0,
+    page: 1,
+    pageSize: 20,
+  })
+  assert.deepEqual(queried.data.items[0], {
+    id,
+    code: 'UNT-0001',
+    py: 'qianke',
+    name: '千克',
+    symbol: 'kg',
+    quantityScale: 0,
+    enabled: true,
+    revision: '1',
+    availableActions: ['edit', 'disable'],
+  })
+
+  for (const quantityScale of [-1, 1.5, 7, '0']) {
+    const rejected = await post(app, '/aux/measurement-unit/query', {
+      keyword: 'kg',
+      quantityScale,
+      page: 1,
+      pageSize: 20,
+    })
+    assert.equal(rejected.errorKey, 'validation_failed')
+  }
 })
 
 test('AUX employee-category mutations use direct typed fields and string revisions', async () => {

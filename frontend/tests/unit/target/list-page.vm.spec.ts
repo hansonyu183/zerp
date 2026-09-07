@@ -1,12 +1,18 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  ListActionRefreshRequiredError,
   ListActionUnresolvedError,
   useListPageViewModel,
   type EnabledListItem,
 } from '@/target/components/list-page/vm.ts'
 
 type Item = EnabledListItem & { revision: string }
+type Filters = {
+  keyword: string
+  enabled: boolean
+  businessDate: { from: string; to: string }
+}
 
 const item = (id: string, name = id): Item => ({
   id,
@@ -34,7 +40,7 @@ describe('public ListPage view-model seam', () => {
       .mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 20 })
     const searchable = useListPageViewModel<Item>({ onSearch })
 
-    searchable.keyword.value = ' 未提交 '
+    searchable.filterInput.value.keyword = ' 未提交 '
     await searchable.initialize()
     expect(onSearch).toHaveBeenCalledTimes(1)
     expect(onSearch).toHaveBeenLastCalledWith({
@@ -81,7 +87,7 @@ describe('public ListPage view-model seam', () => {
     const vm = useListPageViewModel<Item>({ onSearch })
 
     const oldRequest = vm.initialize()
-    vm.keyword.value = 'new'
+    vm.filterInput.value.keyword = 'new'
     const newRequest = vm.submitSearch()
     second.resolve({
       items: [item('new')],
@@ -102,7 +108,7 @@ describe('public ListPage view-model seam', () => {
     expect(vm.appliedQuery.value.keyword).toBe('new')
   })
 
-  it('uses the submitted keyword for paging and exactly one post-change refresh', async () => {
+  it('uses a deep-copied submitted filter snapshot for paging and exactly one post-change refresh', async () => {
     const onSearch = vi.fn().mockResolvedValue({
       items: [item('u1')],
       total: 21,
@@ -110,21 +116,46 @@ describe('public ListPage view-model seam', () => {
       pageSize: 20,
     })
     const onEdit = vi.fn().mockResolvedValue('changed' as const)
-    const vm = useListPageViewModel<Item>({ onSearch, onEdit })
-    vm.keyword.value = 'buyer'
+    const vm = useListPageViewModel<Item, Filters>(
+      { onSearch, onEdit },
+      {
+        initialFilters: () => ({
+          keyword: '',
+          enabled: true,
+          businessDate: { from: '2026-09-01', to: '2026-09-30' },
+        }),
+        validateFilters: (input) => ({
+          ...input,
+          keyword: input.keyword.trim(),
+        }),
+      },
+    )
+    vm.filterInput.value.keyword = ' buyer '
     await vm.submitSearch()
-    vm.keyword.value = 'unsubmitted'
+    vm.filterInput.value.keyword = 'unsubmitted'
+    vm.filterInput.value.businessDate.from = '2026-10-01'
+    vm.filterInput.value.enabled = false
+    expect(vm.appliedQuery.value).toEqual({
+      keyword: 'buyer',
+      enabled: true,
+      businessDate: { from: '2026-09-01', to: '2026-09-30' },
+      page: 1,
+    })
 
     await vm.goToPage(2)
     await vm.edit(item('u1'))
 
     expect(onSearch).toHaveBeenNthCalledWith(2, {
       keyword: 'buyer',
+      enabled: true,
+      businessDate: { from: '2026-09-01', to: '2026-09-30' },
       page: 2,
       pageSize: 20,
     })
     expect(onSearch).toHaveBeenNthCalledWith(3, {
       keyword: 'buyer',
+      enabled: true,
+      businessDate: { from: '2026-09-01', to: '2026-09-30' },
       page: 2,
       pageSize: 20,
     })
@@ -174,7 +205,7 @@ describe('public ListPage view-model seam', () => {
     expect(vm.isRowBlocked('u1')).toBe(false)
   })
 
-  it('keeps an unresolved mutation locked until a later explicit query establishes fresh facts', async () => {
+  it('keeps an unresolved mutation locked after an ordinary query', async () => {
     const onSearch = vi.fn().mockResolvedValue({
       items: [item('u1')],
       total: 1,
@@ -197,7 +228,57 @@ describe('public ListPage view-model seam', () => {
     expect(vm.feedback.value).toContain('结果未知')
 
     await vm.submitSearch()
+    expect(vm.isRowBlocked('u1')).toBe(true)
+  })
+
+  it('allows a confirmed row conflict to be retried after a query refresh', async () => {
+    const onSearch = vi.fn().mockResolvedValue({
+      items: [item('u1')],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    })
+    const onDisable = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ListActionRefreshRequiredError('数据已变化，请刷新后重试。'),
+      )
+      .mockResolvedValueOnce('changed')
+    const vm = useListPageViewModel<Item>({ onSearch, onDisable })
+    await vm.initialize()
+
+    await vm.disable(item('u1'))
+    expect(vm.isRowBlocked('u1')).toBe(true)
+    expect(onDisable).toHaveBeenCalledTimes(1)
+
+    await vm.submitSearch()
     expect(vm.isRowBlocked('u1')).toBe(false)
+
+    await vm.disable(item('u1'))
+    expect(onDisable).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps an unresolved create locked after an ordinary query', async () => {
+    const onSearch = vi.fn().mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize: 20,
+    })
+    const onCreate = vi
+      .fn()
+      .mockRejectedValue(
+        new ListActionUnresolvedError('请求结果未知，请先刷新后再操作。'),
+      )
+    const vm = useListPageViewModel<Item>({ onSearch, onCreate })
+    await vm.initialize()
+
+    await vm.create()
+    await vm.submitSearch()
+    await vm.create()
+
+    expect(vm.actionBlocked.value).toBe(true)
+    expect(onCreate).toHaveBeenCalledTimes(1)
   })
 
   it('blocks another create after confirmed success when its list refresh fails', async () => {

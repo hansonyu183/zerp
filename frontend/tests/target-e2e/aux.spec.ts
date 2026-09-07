@@ -105,6 +105,12 @@ async function exerciseSimpleAuxPage(page: Page, config: SimpleAuxPage) {
   row = page.getByRole('row').filter({ hasText: exactName })
   await expect(row).toBeVisible()
 
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true)
+
   if (config.screenshot === 'list')
     await page.screenshot({
       animations: 'disabled',

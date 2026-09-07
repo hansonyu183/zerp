@@ -173,6 +173,7 @@ export type AuxSaveInput<Entity extends AuxEntity> = AuxRevisionInput &
 
 export interface AuxQueryInput {
   keyword?: string
+  quantityScale?: number
   page: number
   pageSize: 20
 }
@@ -688,13 +689,22 @@ export class AuxService {
   }> {
     assertEntity(entity)
     assertPermission(actor, `/aux/${entity}/query`)
-    const query = strictInput(input, ['keyword', 'page', 'pageSize'])
+    const query = strictInput(
+      input,
+      entity === 'measurement-unit'
+        ? ['keyword', 'quantityScale', 'page', 'pageSize']
+        : ['keyword', 'page', 'pageSize'],
+    )
     if (
       query.pageSize !== 20 ||
       (query.keyword !== undefined && typeof query.keyword !== 'string')
     )
       applicationError('validation_failed')
     const page = integer(query.page, 1, Number.MAX_SAFE_INTEGER)
+    const quantityScale =
+      entity === 'measurement-unit' && query.quantityScale !== undefined
+        ? integer(query.quantityScale, 0, 6)
+        : undefined
     const rows =
       await sql<StoredAuxObject>`SELECT id, entity, code, enabled, revision, data, updated_at, updated_by FROM aux_objects WHERE entity = ${entity} ORDER BY code, id`.execute(
         this.db,
@@ -702,19 +712,30 @@ export class AuxService {
     const keyword = String(query.keyword ?? '')
       .trim()
       .toLocaleLowerCase()
-    const matches = rows.rows
-      .map(parseRow)
-      .map((row) => listItem(row, actor))
-      .filter(
-        (item) =>
-          !keyword ||
+    const matches = rows.rows.map(parseRow).filter((row) => {
+      const item = listItem(row, actor)
+      return (
+        (!keyword ||
           item.code.toLocaleLowerCase().includes(keyword) ||
           item.py.includes(keyword) ||
-          item.name.toLocaleLowerCase().includes(keyword),
+          item.name.toLocaleLowerCase().includes(keyword)) &&
+        (quantityScale === undefined ||
+          (row.data as AuxDataByEntity['measurement-unit']).quantityScale ===
+            quantityScale)
       )
+    })
     const offset = (page - 1) * 20
     return {
-      items: matches.slice(offset, offset + 20),
+      items: matches.slice(offset, offset + 20).map((row) => {
+        const item = listItem(row, actor)
+        if (entity !== 'measurement-unit') return item
+        const data = row.data as AuxDataByEntity['measurement-unit']
+        return {
+          ...item,
+          symbol: data.symbol,
+          quantityScale: data.quantityScale,
+        }
+      }),
       total: matches.length,
       page,
       pageSize: 20,

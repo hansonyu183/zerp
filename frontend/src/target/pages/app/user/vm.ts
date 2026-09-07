@@ -10,11 +10,13 @@ import {
   TargetApiError,
 } from '../../../api.ts'
 import {
+  ListActionRefreshRequiredError,
   ListActionUnresolvedError,
   useListPageViewModel,
   type ListAction,
 } from '../../../components/list-page/vm.ts'
 import { useTargetSession } from '../../../session/vm.ts'
+import { roleTypeLabels } from '../role/presentation.ts'
 
 type UserPage = Awaited<ReturnType<typeof queryTargetUsers>>
 export type UserListItem = UserPage['items'][number]
@@ -25,12 +27,6 @@ type RoleCandidate = Pick<
   RoleItem,
   'id' | 'code' | 'name' | 'enabled' | 'type' | 'assignable'
 >
-
-const roleTypeLabels = {
-  NORMAL: '普通角色',
-  SYSTEM: '系统角色',
-  SUPERADMIN: '超级管理员',
-} as const satisfies Record<RoleCandidate['type'], string>
 
 export const userPaths = {
   query: '/app/user/query',
@@ -448,11 +444,11 @@ export function useUserManagementViewModel() {
     } catch (cause) {
       if (disposed || generation !== session.generation) throw cause
       if (isRevisionConflict(cause))
-        throw new ListActionUnresolvedError(
+        throw new ListActionRefreshRequiredError(
           messageOf(cause, '数据已变化，请刷新后重试。'),
         )
       if (cause instanceof TargetApiError && cause.errorKey === 'conflict')
-        throw new ListActionUnresolvedError(
+        throw new ListActionRefreshRequiredError(
           '用户状态已经变化或不允许此操作，请刷新列表后再试。',
         )
       if (

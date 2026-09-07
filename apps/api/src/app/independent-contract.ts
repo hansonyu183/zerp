@@ -10,6 +10,7 @@ import {
   auxEntities,
   auxGetRoute,
   auxQueryRoute,
+  measurementUnitQueryRoute,
   auxReferenceRoute,
   auxReferenceRouteBinding,
   auxRouteBinding,
@@ -684,7 +685,7 @@ export function registerIndependentRoutes(
       handler: handlers.aux(auxRouteBinding('dictionary-item', 'delete')),
     },
     {
-      route: auxQueryRoute('/aux/measurement-unit/query'),
+      route: measurementUnitQueryRoute('/aux/measurement-unit/query'),
       handler: handlers.aux(auxRouteBinding('measurement-unit', 'query')),
     },
     {

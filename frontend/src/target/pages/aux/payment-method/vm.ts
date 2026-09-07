@@ -8,6 +8,7 @@ import {
   TargetApiError,
 } from '../../../api.ts'
 import {
+  ListActionRefreshRequiredError,
   ListActionUnresolvedError,
   useListPageViewModel,
   type ListAction,
@@ -316,7 +317,7 @@ export function usePaymentMethodManagementViewModel() {
     } catch (cause) {
       if (disposed || generation !== session.generation) throw cause
       if (isRevisionConflict(cause))
-        throw new ListActionUnresolvedError(
+        throw new ListActionRefreshRequiredError(
           messageOf(cause, '数据已变化，请刷新列表后重试。'),
         )
       if (

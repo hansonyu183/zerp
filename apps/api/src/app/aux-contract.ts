@@ -199,12 +199,27 @@ const page = z
   })
   .strict()
 
+const measurementUnitListItem = listItem
+  .extend({
+    symbol: z.string().min(1).max(64),
+    quantityScale: z.number().int().min(0).max(6),
+  })
+  .strict()
+
+const measurementUnitPage = page
+  .extend({ items: z.array(measurementUnitListItem) })
+  .strict()
+
 const queryRequest = z
   .object({
     keyword: z.string().max(200).optional(),
     page: z.number().int().positive(),
     pageSize: z.literal(20),
   })
+  .strict()
+
+const measurementUnitQueryRequest = queryRequest
+  .extend({ quantityScale: z.number().int().min(0).max(6).optional() })
   .strict()
 
 const mutation = z
@@ -217,6 +232,12 @@ const mutation = z
 
 export function auxQueryRoute<const Path extends string>(path: Path) {
   return postRoute(path, queryRequest, page)
+}
+
+export function measurementUnitQueryRoute<const Path extends string>(
+  path: Path,
+) {
+  return postRoute(path, measurementUnitQueryRequest, measurementUnitPage)
 }
 
 export function auxGetRoute<

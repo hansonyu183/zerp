@@ -35,8 +35,8 @@ describe('business resource registry', () => {
       app: { approval: false, businessVersion: false, enabled: true },
       aux: { approval: false, businessVersion: false, enabled: true },
       acc: { approval: false, businessVersion: false, enabled: true },
-      rpt: { approval: false, businessVersion: false, enabled: true },
-      wfl: { approval: false, businessVersion: false, enabled: true },
+      rpt: { approval: false, businessVersion: false, enabled: false },
+      wfl: { approval: true, businessVersion: true, enabled: true },
     })
     expect(targetResourceRegistry.resolve('app', 'user')).toMatchObject({
       domain: 'app',
@@ -86,5 +86,34 @@ describe('business resource registry', () => {
       targetResourceRegistry.resolve('aux', 'asset-category'),
     ).toMatchObject({ domain: 'aux', entity: 'asset-category' })
     expect('dcl' in targetDomainCapabilities).toBe(false)
+    for (const [domain, entity] of [
+      ['app', 'user'],
+      ['app', 'role'],
+      ['aux', 'employee-category'],
+      ['aux', 'position'],
+      ['aux', 'measurement-unit'],
+      ['aux', 'payment-method'],
+      ['aux', 'asset-category'],
+    ]) {
+      const definition = targetResourceRegistry.resolve(
+        domain!,
+        entity!,
+      )!.definition!
+      expect(
+        definition.columns.slice(0, 3).map((field) => [field.key, field.type]),
+      ).toEqual([
+        ['code', 'text'],
+        ['name', 'text'],
+        ['enabled', 'boolean'],
+      ])
+      expect(definition.columns.at(-1)).toMatchObject({
+        key: '$actions',
+        type: 'actions',
+      })
+      expect(definition.filters[0]).toMatchObject({
+        key: 'keyword',
+        type: 'text',
+      })
+    }
   })
 })

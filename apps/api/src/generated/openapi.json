@@ -23384,6 +23384,11 @@
                     "enum": [
                       20
                     ]
+                  },
+                  "quantityScale": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 6
                   }
                 },
                 "required": [
@@ -23463,6 +23468,16 @@
                                         "disable"
                                       ]
                                     }
+                                  },
+                                  "symbol": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 64
+                                  },
+                                  "quantityScale": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 6
                                   }
                                 },
                                 "required": [
@@ -23472,7 +23487,9 @@
                                   "name",
                                   "enabled",
                                   "revision",
-                                  "availableActions"
+                                  "availableActions",
+                                  "symbol",
+                                  "quantityScale"
                                 ],
                                 "additionalProperties": false
                               }

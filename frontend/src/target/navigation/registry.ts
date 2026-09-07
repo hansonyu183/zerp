@@ -1,4 +1,22 @@
 import type { Component } from 'vue'
+import {
+  userListPage,
+  roleListPage,
+  employeeCategoryListPage,
+  positionListPage,
+  measurementUnitListPage,
+  paymentMethodListPage,
+  assetCategoryListPage,
+} from './list-pages.ts'
+
+export type RegisteredListPage =
+  | typeof userListPage
+  | typeof roleListPage
+  | typeof employeeCategoryListPage
+  | typeof positionListPage
+  | typeof measurementUnitListPage
+  | typeof paymentMethodListPage
+  | typeof assetCategoryListPage
 
 import UserManagement from '../pages/app/user/UserManagement.vue'
 import RoleManagement from '../pages/app/role/RoleManagement.vue'
@@ -16,6 +34,7 @@ export type ResourceRegistration = {
   domain: BusinessTargetDomain
   entity: string
   component: Component
+  definition?: RegisteredListPage
 }
 
 export type ResolvedResourceRegistration = ResourceRegistration & {
@@ -46,27 +65,46 @@ export function createResourceRegistry(
 }
 
 export const targetResourceRegistry = createResourceRegistry([
-  { domain: 'app', entity: 'user', component: UserManagement },
-  { domain: 'app', entity: 'role', component: RoleManagement },
+  {
+    domain: 'app',
+    entity: 'user',
+    definition: userListPage,
+    component: UserManagement,
+  },
+  {
+    domain: 'app',
+    entity: 'role',
+    definition: roleListPage,
+    component: RoleManagement,
+  },
   {
     domain: 'aux',
     entity: 'employee-category',
+    definition: employeeCategoryListPage,
     component: EmployeeCategoryManagement,
   },
-  { domain: 'aux', entity: 'position', component: PositionManagement },
+  {
+    domain: 'aux',
+    entity: 'position',
+    definition: positionListPage,
+    component: PositionManagement,
+  },
   {
     domain: 'aux',
     entity: 'measurement-unit',
+    definition: measurementUnitListPage,
     component: MeasurementUnitManagement,
   },
   {
     domain: 'aux',
     entity: 'payment-method',
+    definition: paymentMethodListPage,
     component: PaymentMethodManagement,
   },
   {
     domain: 'aux',
     entity: 'asset-category',
+    definition: assetCategoryListPage,
     component: AssetCategoryManagement,
   },
 ])

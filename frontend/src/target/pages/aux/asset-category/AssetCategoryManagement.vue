@@ -1,16 +1,13 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, reactive } from 'vue'
 
+import type { assetCategoryListPage } from '../../../navigation/list-pages.ts'
 import ListPageShell from '../../../components/list-page/ListPageShell.vue'
-import type { ListIdentity } from '../../../components/list-page/vm.ts'
 import AssetCategoryEditor from './AssetCategoryEditor.vue'
-import {
-  useAssetCategoryManagementViewModel,
-  type AssetCategoryListItem,
-} from './vm.ts'
+import { useAssetCategoryManagementViewModel } from './vm.ts'
 
+defineProps<{ definition: typeof assetCategoryListPage }>()
 const vm = reactive(useAssetCategoryManagementViewModel())
-const item = (value: ListIdentity) => value as AssetCategoryListItem
 
 onMounted(() => void vm.list.initialize())
 onBeforeUnmount(vm.dispose)
@@ -18,34 +15,9 @@ onBeforeUnmount(vm.dispose)
 
 <template>
   <ListPageShell
-    title="资产类别"
-    create-label="新增资产类别"
-    :items="vm.list.items"
-    :total="vm.list.total"
-    :page="vm.list.page"
-    :keyword="vm.list.keyword"
-    :loading="vm.list.loading"
-    :query-error="vm.list.queryError"
+    :definition="definition"
+    :vm="vm.list"
     :notice="vm.creationNotice"
-    :feedback="vm.list.feedback"
-    show-enabled
-    :can-search="vm.list.searchable"
-    :can-create="vm.list.canAction('create')"
-    :action-pending="vm.list.actionPending"
-    :action-blocked="vm.list.actionBlocked"
-    :can-edit="(value) => vm.list.canAction('edit', item(value))"
-    :can-enable="(value) => vm.list.canAction('enable', item(value))"
-    :can-disable="(value) => vm.list.canAction('disable', item(value))"
-    :is-row-pending="vm.list.isRowPending"
-    :is-row-blocked="vm.list.isRowBlocked"
-    @update:keyword="vm.list.keyword = $event"
-    @search="vm.list.submitSearch"
-    @create="vm.list.create"
-    @edit="vm.list.edit(item($event))"
-    @enable="vm.list.enable(item($event))"
-    @disable="vm.list.disable(item($event))"
-    @page="vm.list.goToPage"
-    @dismiss-feedback="vm.list.dismissFeedback"
   />
   <AssetCategoryEditor
     v-bind="{

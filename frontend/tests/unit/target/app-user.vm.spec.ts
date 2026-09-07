@@ -107,7 +107,7 @@ describe('APP user management public view-model seam', () => {
       '/app/role/query',
     )
     const vm = useUserManagementViewModel()
-    vm.list.keyword.value = ' cai '
+    vm.list.filterInput.value.keyword = ' cai '
 
     await vm.list.submitSearch()
 
@@ -420,6 +420,30 @@ describe('APP user management public view-model seam', () => {
     expect(vm.list.isRowBlocked('user-1')).toBe(true)
   })
 
+  it('releases confirmed user status conflicts after a list refresh', async () => {
+    authorize('/app/user/query', '/app/user/disable')
+    setEnabled
+      .mockRejectedValueOnce(
+        new targetApi.TargetApiError('user_changed', 'diagnostic', 'request-1'),
+      )
+      .mockRejectedValueOnce(
+        new targetApi.TargetApiError('conflict', 'diagnostic', 'request-2'),
+      )
+    const vm = useUserManagementViewModel()
+    await vm.list.initialize()
+
+    await vm.list.disable(vm.list.items.value[0]!)
+    expect(vm.list.isRowBlocked('user-1')).toBe(true)
+    await vm.list.submitSearch()
+    expect(vm.list.isRowBlocked('user-1')).toBe(false)
+
+    await vm.list.disable(vm.list.items.value[0]!)
+    expect(vm.list.isRowBlocked('user-1')).toBe(true)
+    await vm.list.submitSearch()
+    expect(vm.list.isRowBlocked('user-1')).toBe(false)
+    expect(setEnabled).toHaveBeenCalledTimes(2)
+  })
+
   it('does not verify an abandoned write with a replacement account session', async () => {
     const session = authorize('/app/user/disable', '/app/user/get')
     let rejectWrite!: (cause: unknown) => void
@@ -445,7 +469,7 @@ describe('APP user management public view-model seam', () => {
     authorize('/app/user/query', '/app/user/disable')
     const vm = useUserManagementViewModel()
     await vm.list.initialize()
-    vm.list.keyword.value = 'not submitted'
+    vm.list.filterInput.value.keyword = 'not submitted'
     setEnabled.mockRejectedValueOnce(new TypeError('network interrupted'))
     await vm.list.disable(vm.list.items.value[0]!)
 

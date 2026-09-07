@@ -2,7 +2,7 @@
 id: ADR-0049
 date: 2026-09-01
 status: accepted
-partially_superseded_by: ADR-0053, ADR-0054
+partially_superseded_by: ADR-0053, ADR-0054, ADR-0055
 supersedes: ADR-0030
 ---
 

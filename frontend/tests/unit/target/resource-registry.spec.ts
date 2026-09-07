@@ -92,6 +92,25 @@ describe('business resource registry', () => {
       domain: 'aux',
       entity: 'employee',
     })
+    for (const entity of ['supplier', 'other-unit', 'sales-partner'])
+      expect(targetResourceRegistry.resolve('bob', entity)).toMatchObject({
+        domain: 'bob',
+        entity,
+        capabilities: {
+          approval: true,
+          businessVersion: true,
+          enabled: true,
+        },
+      })
+    expect(targetResourceRegistry.resolve('bob', 'supplier')).toMatchObject({
+      useCaseKey: 'bob/supplier-management',
+    })
+    expect(targetResourceRegistry.resolve('bob', 'other-unit')).toMatchObject({
+      useCaseKey: 'bob/other-unit-management',
+    })
+    expect(
+      targetResourceRegistry.resolve('bob', 'sales-partner'),
+    ).toMatchObject({ useCaseKey: 'bob/sales-partner-management' })
     expect('dcl' in targetDomainCapabilities).toBe(false)
     for (const [domain, entity] of [
       ['app', 'user'],

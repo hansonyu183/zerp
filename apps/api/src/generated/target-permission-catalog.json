@@ -1296,6 +1296,46 @@
     "title": "查询客户"
   },
   {
+    "id": "01JC4DC555ED921CF1B195DB5E",
+    "path": "/bob/other-unit/approve",
+    "domain": "bob",
+    "entity": "other-unit",
+    "action": "approve",
+    "title": "approve other-unit"
+  },
+  {
+    "id": "01J08399FF631FC895665F672A",
+    "path": "/bob/other-unit/audit-history",
+    "domain": "bob",
+    "entity": "other-unit",
+    "action": "audit-history",
+    "title": "audit-history other-unit"
+  },
+  {
+    "id": "01J39A04551F2B87ABE78D9B16",
+    "path": "/bob/other-unit/delete",
+    "domain": "bob",
+    "entity": "other-unit",
+    "action": "delete",
+    "title": "delete other-unit"
+  },
+  {
+    "id": "01JABA58508A672D0312E060EF",
+    "path": "/bob/other-unit/disable",
+    "domain": "bob",
+    "entity": "other-unit",
+    "action": "disable",
+    "title": "查看其他单位"
+  },
+  {
+    "id": "01J12620476D07E9E1E722E7B7",
+    "path": "/bob/other-unit/enable",
+    "domain": "bob",
+    "entity": "other-unit",
+    "action": "enable",
+    "title": "查看其他单位"
+  },
+  {
     "id": "01J12069514CDA1F89CECEEF3D",
     "path": "/bob/other-unit/get",
     "domain": "bob",
@@ -1310,6 +1350,70 @@
     "entity": "other-unit",
     "action": "query",
     "title": "查询其他单位"
+  },
+  {
+    "id": "01J4EFD19C1AE27847055ABE63",
+    "path": "/bob/other-unit/reject",
+    "domain": "bob",
+    "entity": "other-unit",
+    "action": "reject",
+    "title": "reject other-unit"
+  },
+  {
+    "id": "01J27E458B2FCB9955E85D553F",
+    "path": "/bob/other-unit/submission-get",
+    "domain": "bob",
+    "entity": "other-unit",
+    "action": "submission-get",
+    "title": "get other-unit"
+  },
+  {
+    "id": "01JAB1C21E2578F2894FFA3060",
+    "path": "/bob/other-unit/submission-query",
+    "domain": "bob",
+    "entity": "other-unit",
+    "action": "submission-query",
+    "title": "其他单位"
+  },
+  {
+    "id": "01J3390AEB9707E333A95AEAE8",
+    "path": "/bob/other-unit/submit-change",
+    "domain": "bob",
+    "entity": "other-unit",
+    "action": "submit-change",
+    "title": "submit-change other-unit"
+  },
+  {
+    "id": "01J73C5CDF7D38E9D748436C48",
+    "path": "/bob/other-unit/submit-new",
+    "domain": "bob",
+    "entity": "other-unit",
+    "action": "submit-new",
+    "title": "submit-new other-unit"
+  },
+  {
+    "id": "01JB2867211799897669470326",
+    "path": "/bob/other-unit/unapprove",
+    "domain": "bob",
+    "entity": "other-unit",
+    "action": "unapprove",
+    "title": "unapprove other-unit"
+  },
+  {
+    "id": "01J591E6A83D650DC473A1EDB3",
+    "path": "/bob/other-unit/unreject",
+    "domain": "bob",
+    "entity": "other-unit",
+    "action": "unreject",
+    "title": "unreject other-unit"
+  },
+  {
+    "id": "01J4ADB29361F661E0CECE5722",
+    "path": "/bob/other-unit/versions",
+    "domain": "bob",
+    "entity": "other-unit",
+    "action": "versions",
+    "title": "versions other-unit"
   },
   {
     "id": "01J5DD205F4B0DAF0CBCAF67A1",
@@ -1336,6 +1440,46 @@
     "title": "查询 BOB 最小引用候选"
   },
   {
+    "id": "01J5A0607CCE21B636FFADCC11",
+    "path": "/bob/sales-partner/approve",
+    "domain": "bob",
+    "entity": "sales-partner",
+    "action": "approve",
+    "title": "approve sales-partner"
+  },
+  {
+    "id": "01J89CA2EE3154685D62AA8337",
+    "path": "/bob/sales-partner/audit-history",
+    "domain": "bob",
+    "entity": "sales-partner",
+    "action": "audit-history",
+    "title": "audit-history sales-partner"
+  },
+  {
+    "id": "01J1A320BF217AFAC2E1B28CE9",
+    "path": "/bob/sales-partner/delete",
+    "domain": "bob",
+    "entity": "sales-partner",
+    "action": "delete",
+    "title": "delete sales-partner"
+  },
+  {
+    "id": "01J81C0609275BF3CEF53E56DA",
+    "path": "/bob/sales-partner/disable",
+    "domain": "bob",
+    "entity": "sales-partner",
+    "action": "disable",
+    "title": "查看销售合作方"
+  },
+  {
+    "id": "01J1FC72C2BE58CF8F043AE5D9",
+    "path": "/bob/sales-partner/enable",
+    "domain": "bob",
+    "entity": "sales-partner",
+    "action": "enable",
+    "title": "查看销售合作方"
+  },
+  {
     "id": "01JC1AA985FAF3B603908AB1EE",
     "path": "/bob/sales-partner/get",
     "domain": "bob",
@@ -1352,6 +1496,110 @@
     "title": "查询销售合作方"
   },
   {
+    "id": "01J0DDB48217C6A1B5C776FB3F",
+    "path": "/bob/sales-partner/reject",
+    "domain": "bob",
+    "entity": "sales-partner",
+    "action": "reject",
+    "title": "reject sales-partner"
+  },
+  {
+    "id": "01J40A0C85D96F31DB5ED335B9",
+    "path": "/bob/sales-partner/submission-get",
+    "domain": "bob",
+    "entity": "sales-partner",
+    "action": "submission-get",
+    "title": "get sales-partner"
+  },
+  {
+    "id": "01J27F34AE83FEB7A15481A9FC",
+    "path": "/bob/sales-partner/submission-query",
+    "domain": "bob",
+    "entity": "sales-partner",
+    "action": "submission-query",
+    "title": "销售合作方"
+  },
+  {
+    "id": "01J8D892EC3AEB268BFB717AE2",
+    "path": "/bob/sales-partner/submit-change",
+    "domain": "bob",
+    "entity": "sales-partner",
+    "action": "submit-change",
+    "title": "submit-change sales-partner"
+  },
+  {
+    "id": "01JFB62A00EF15F7413ECB94E7",
+    "path": "/bob/sales-partner/submit-new",
+    "domain": "bob",
+    "entity": "sales-partner",
+    "action": "submit-new",
+    "title": "submit-new sales-partner"
+  },
+  {
+    "id": "01J3D3BBA1EB0394FBF9BBD16E",
+    "path": "/bob/sales-partner/unapprove",
+    "domain": "bob",
+    "entity": "sales-partner",
+    "action": "unapprove",
+    "title": "unapprove sales-partner"
+  },
+  {
+    "id": "01J97671C9E6848F56A5CD487C",
+    "path": "/bob/sales-partner/unreject",
+    "domain": "bob",
+    "entity": "sales-partner",
+    "action": "unreject",
+    "title": "unreject sales-partner"
+  },
+  {
+    "id": "01JAA3F5E8A43D1E4887BFA49F",
+    "path": "/bob/sales-partner/versions",
+    "domain": "bob",
+    "entity": "sales-partner",
+    "action": "versions",
+    "title": "versions sales-partner"
+  },
+  {
+    "id": "01J075FD2CE14405E4C570F592",
+    "path": "/bob/supplier/approve",
+    "domain": "bob",
+    "entity": "supplier",
+    "action": "approve",
+    "title": "approve supplier"
+  },
+  {
+    "id": "01J8BEA90595DEC60FB3A7670F",
+    "path": "/bob/supplier/audit-history",
+    "domain": "bob",
+    "entity": "supplier",
+    "action": "audit-history",
+    "title": "audit-history supplier"
+  },
+  {
+    "id": "01JED2FA54FFE20B681023EEBE",
+    "path": "/bob/supplier/delete",
+    "domain": "bob",
+    "entity": "supplier",
+    "action": "delete",
+    "title": "delete supplier"
+  },
+  {
+    "id": "01JA69488B3385616C20221A47",
+    "path": "/bob/supplier/disable",
+    "domain": "bob",
+    "entity": "supplier",
+    "action": "disable",
+    "title": "查看供应商"
+  },
+  {
+    "id": "01J8BB7E7E4D4E107C154F5DEF",
+    "path": "/bob/supplier/enable",
+    "domain": "bob",
+    "entity": "supplier",
+    "action": "enable",
+    "title": "查看供应商"
+  },
+  {
     "id": "01J3D47EE834BB2802276753C7",
     "path": "/bob/supplier/get",
     "domain": "bob",
@@ -1366,6 +1614,70 @@
     "entity": "supplier",
     "action": "query",
     "title": "查询供应商"
+  },
+  {
+    "id": "01J977DE8C69EAC99B2D343FD1",
+    "path": "/bob/supplier/reject",
+    "domain": "bob",
+    "entity": "supplier",
+    "action": "reject",
+    "title": "reject supplier"
+  },
+  {
+    "id": "01J36343CDB4837B24F260E279",
+    "path": "/bob/supplier/submission-get",
+    "domain": "bob",
+    "entity": "supplier",
+    "action": "submission-get",
+    "title": "get supplier"
+  },
+  {
+    "id": "01JF567C93CC9F618588F66125",
+    "path": "/bob/supplier/submission-query",
+    "domain": "bob",
+    "entity": "supplier",
+    "action": "submission-query",
+    "title": "供应商"
+  },
+  {
+    "id": "01J571E9780BFE139C71C76B94",
+    "path": "/bob/supplier/submit-change",
+    "domain": "bob",
+    "entity": "supplier",
+    "action": "submit-change",
+    "title": "submit-change supplier"
+  },
+  {
+    "id": "01JD589DAB714EF053902BEAD1",
+    "path": "/bob/supplier/submit-new",
+    "domain": "bob",
+    "entity": "supplier",
+    "action": "submit-new",
+    "title": "submit-new supplier"
+  },
+  {
+    "id": "01J19EEFE59B137118C6168F86",
+    "path": "/bob/supplier/unapprove",
+    "domain": "bob",
+    "entity": "supplier",
+    "action": "unapprove",
+    "title": "unapprove supplier"
+  },
+  {
+    "id": "01J59AAD9CFDF400809BB6959B",
+    "path": "/bob/supplier/unreject",
+    "domain": "bob",
+    "entity": "supplier",
+    "action": "unreject",
+    "title": "unreject supplier"
+  },
+  {
+    "id": "01JA2B997761BDD4714014E8F0",
+    "path": "/bob/supplier/versions",
+    "domain": "bob",
+    "entity": "supplier",
+    "action": "versions",
+    "title": "versions supplier"
   },
   {
     "id": "01JF2CCEE69ED97F84647B0CEE",
@@ -1568,94 +1880,6 @@
     "title": "versions customer"
   },
   {
-    "id": "01JC2E6C5A198CCF211B0D0A93",
-    "path": "/dcl/other-unit/approve",
-    "domain": "dcl",
-    "entity": "other-unit",
-    "action": "approve",
-    "title": "approve other-unit"
-  },
-  {
-    "id": "01JF4FB6C95E403FA58696890B",
-    "path": "/dcl/other-unit/audit-history",
-    "domain": "dcl",
-    "entity": "other-unit",
-    "action": "audit-history",
-    "title": "audit-history other-unit"
-  },
-  {
-    "id": "01JD255C37CCA6307FB2553127",
-    "path": "/dcl/other-unit/delete",
-    "domain": "dcl",
-    "entity": "other-unit",
-    "action": "delete",
-    "title": "delete other-unit"
-  },
-  {
-    "id": "01JC0AA98658CE42D365214789",
-    "path": "/dcl/other-unit/get",
-    "domain": "dcl",
-    "entity": "other-unit",
-    "action": "get",
-    "title": "get other-unit"
-  },
-  {
-    "id": "01JC9079764287422C4010F7F6",
-    "path": "/dcl/other-unit/query",
-    "domain": "dcl",
-    "entity": "other-unit",
-    "action": "query",
-    "title": "其他单位"
-  },
-  {
-    "id": "01J4CADB0F813A131A8519AB2C",
-    "path": "/dcl/other-unit/reject",
-    "domain": "dcl",
-    "entity": "other-unit",
-    "action": "reject",
-    "title": "reject other-unit"
-  },
-  {
-    "id": "01J8A5180B8872D9330F127667",
-    "path": "/dcl/other-unit/submit-change",
-    "domain": "dcl",
-    "entity": "other-unit",
-    "action": "submit-change",
-    "title": "submit-change other-unit"
-  },
-  {
-    "id": "01JD8DF7FFEC49FAC566EB17B0",
-    "path": "/dcl/other-unit/submit-new",
-    "domain": "dcl",
-    "entity": "other-unit",
-    "action": "submit-new",
-    "title": "submit-new other-unit"
-  },
-  {
-    "id": "01JEEA848ACF55E51F6CA25740",
-    "path": "/dcl/other-unit/unapprove",
-    "domain": "dcl",
-    "entity": "other-unit",
-    "action": "unapprove",
-    "title": "unapprove other-unit"
-  },
-  {
-    "id": "01J711CE20A706E76DD8E1EB6C",
-    "path": "/dcl/other-unit/unreject",
-    "domain": "dcl",
-    "entity": "other-unit",
-    "action": "unreject",
-    "title": "unreject other-unit"
-  },
-  {
-    "id": "01JA4E8206542A98D7658EA910",
-    "path": "/dcl/other-unit/versions",
-    "domain": "dcl",
-    "entity": "other-unit",
-    "action": "versions",
-    "title": "versions other-unit"
-  },
-  {
     "id": "01J79A1EBF2FFEA8AC2DA6FE05",
     "path": "/dcl/product/approve",
     "domain": "dcl",
@@ -1830,182 +2054,6 @@
     "entity": "rpt-definition",
     "action": "versions",
     "title": "versions rpt-definition"
-  },
-  {
-    "id": "01J3B4EE9177978B883A9E7286",
-    "path": "/dcl/sales-partner/approve",
-    "domain": "dcl",
-    "entity": "sales-partner",
-    "action": "approve",
-    "title": "approve sales-partner"
-  },
-  {
-    "id": "01J1791CD2A9F205C0C7FD8AA0",
-    "path": "/dcl/sales-partner/audit-history",
-    "domain": "dcl",
-    "entity": "sales-partner",
-    "action": "audit-history",
-    "title": "audit-history sales-partner"
-  },
-  {
-    "id": "01J7C6BCAEF9188BE2985D078A",
-    "path": "/dcl/sales-partner/delete",
-    "domain": "dcl",
-    "entity": "sales-partner",
-    "action": "delete",
-    "title": "delete sales-partner"
-  },
-  {
-    "id": "01J03D2E3CF1436132888CC1B3",
-    "path": "/dcl/sales-partner/get",
-    "domain": "dcl",
-    "entity": "sales-partner",
-    "action": "get",
-    "title": "get sales-partner"
-  },
-  {
-    "id": "01J4EE31D29F39E533E98BCDE7",
-    "path": "/dcl/sales-partner/query",
-    "domain": "dcl",
-    "entity": "sales-partner",
-    "action": "query",
-    "title": "销售合作方"
-  },
-  {
-    "id": "01J2D8D142E7EC75BAB1EED92D",
-    "path": "/dcl/sales-partner/reject",
-    "domain": "dcl",
-    "entity": "sales-partner",
-    "action": "reject",
-    "title": "reject sales-partner"
-  },
-  {
-    "id": "01J47E929116EBA15DB30C28D9",
-    "path": "/dcl/sales-partner/submit-change",
-    "domain": "dcl",
-    "entity": "sales-partner",
-    "action": "submit-change",
-    "title": "submit-change sales-partner"
-  },
-  {
-    "id": "01J6956550350FCF68D8F7678D",
-    "path": "/dcl/sales-partner/submit-new",
-    "domain": "dcl",
-    "entity": "sales-partner",
-    "action": "submit-new",
-    "title": "submit-new sales-partner"
-  },
-  {
-    "id": "01J0BF50DA72366527D89D1671",
-    "path": "/dcl/sales-partner/unapprove",
-    "domain": "dcl",
-    "entity": "sales-partner",
-    "action": "unapprove",
-    "title": "unapprove sales-partner"
-  },
-  {
-    "id": "01J3318C12DB5A14851FF2CDDE",
-    "path": "/dcl/sales-partner/unreject",
-    "domain": "dcl",
-    "entity": "sales-partner",
-    "action": "unreject",
-    "title": "unreject sales-partner"
-  },
-  {
-    "id": "01J29500F3C451F7C5B829C955",
-    "path": "/dcl/sales-partner/versions",
-    "domain": "dcl",
-    "entity": "sales-partner",
-    "action": "versions",
-    "title": "versions sales-partner"
-  },
-  {
-    "id": "01JC9A403C86581C1F9A67AD77",
-    "path": "/dcl/supplier/approve",
-    "domain": "dcl",
-    "entity": "supplier",
-    "action": "approve",
-    "title": "approve supplier"
-  },
-  {
-    "id": "01J846E55918DD39D175D8D9D5",
-    "path": "/dcl/supplier/audit-history",
-    "domain": "dcl",
-    "entity": "supplier",
-    "action": "audit-history",
-    "title": "audit-history supplier"
-  },
-  {
-    "id": "01J80A80D759407A0607A5FCA0",
-    "path": "/dcl/supplier/delete",
-    "domain": "dcl",
-    "entity": "supplier",
-    "action": "delete",
-    "title": "delete supplier"
-  },
-  {
-    "id": "01J4C7D63274B60963E9291A9D",
-    "path": "/dcl/supplier/get",
-    "domain": "dcl",
-    "entity": "supplier",
-    "action": "get",
-    "title": "get supplier"
-  },
-  {
-    "id": "01JA9193447C28ADD360C9C2D7",
-    "path": "/dcl/supplier/query",
-    "domain": "dcl",
-    "entity": "supplier",
-    "action": "query",
-    "title": "供应商"
-  },
-  {
-    "id": "01J4FA62A4086CDDC587F53EFC",
-    "path": "/dcl/supplier/reject",
-    "domain": "dcl",
-    "entity": "supplier",
-    "action": "reject",
-    "title": "reject supplier"
-  },
-  {
-    "id": "01J1438067E88C4A58CAA6CC31",
-    "path": "/dcl/supplier/submit-change",
-    "domain": "dcl",
-    "entity": "supplier",
-    "action": "submit-change",
-    "title": "submit-change supplier"
-  },
-  {
-    "id": "01J2EE21AD36DFE667AE49E391",
-    "path": "/dcl/supplier/submit-new",
-    "domain": "dcl",
-    "entity": "supplier",
-    "action": "submit-new",
-    "title": "submit-new supplier"
-  },
-  {
-    "id": "01J596380C7169933CF41AEC2C",
-    "path": "/dcl/supplier/unapprove",
-    "domain": "dcl",
-    "entity": "supplier",
-    "action": "unapprove",
-    "title": "unapprove supplier"
-  },
-  {
-    "id": "01JC0B9D81A4C8F1836FFBCCE6",
-    "path": "/dcl/supplier/unreject",
-    "domain": "dcl",
-    "entity": "supplier",
-    "action": "unreject",
-    "title": "unreject supplier"
-  },
-  {
-    "id": "01J5F29C9C93537EE31AA6E8E7",
-    "path": "/dcl/supplier/versions",
-    "domain": "dcl",
-    "entity": "supplier",
-    "action": "versions",
-    "title": "versions supplier"
   },
   {
     "id": "01J3EA01BD1E805635FB649C10",

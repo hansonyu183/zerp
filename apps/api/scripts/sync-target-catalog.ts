@@ -3,6 +3,7 @@ import { AccService } from '../src/acc/service.ts'
 import { createDatabase } from '../src/db/database.ts'
 import { requiresAuxAssetPermissionMigration } from '../src/aux/migration-assets.ts'
 import { requiresAuxPeoplePermissionMigration } from '../src/aux/migration.ts'
+import { requiresBobArchivePermissionMigration } from '../src/bob/migration-guard.ts'
 import { assertTargetDatabaseBoundary } from '../src/platform/config.ts'
 import { readTargetPermissionCatalog } from './target-artifacts.ts'
 
@@ -35,6 +36,15 @@ try {
   )
     throw new Error(
       'legacy DCL/BOB asset permissions require pnpm migrate:aux-assets before catalog sync',
+    )
+  if (
+    requiresBobArchivePermissionMigration(
+      existingPermissions.map((permission) => permission.path),
+      catalog.map((permission) => permission.path),
+    )
+  )
+    throw new Error(
+      'legacy DCL BOB archive permissions require pnpm migrate:bob-archives before catalog sync',
     )
   await new TargetBootstrapService(database).migratePermissionCatalog(catalog)
   await new AccService(database).syncVouEntityCatalog()

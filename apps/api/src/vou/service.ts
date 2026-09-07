@@ -1702,11 +1702,17 @@ export class VouService implements WflVouPort {
       JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'dcl' AND entry.entity = '${name}' AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
       JOIN ${table} version ON version.approval_entry_id = approval.id AND version.enabled
       WHERE subject.entity = '${name}'`
+    const bob = (name: string, table: string, label: string) => `
+      SELECT subject.id AS object_id, approval.id AS approval_entry_id, NULL::varchar AS customer_id, subject.code, ${label} AS name
+      FROM bob_subjects subject
+      JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'bob' AND entry.entity = '${name}' AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
+      JOIN ${table} version ON version.approval_entry_id = approval.id
+      WHERE subject.entity = '${name}' AND subject.enabled`
     switch (entity) {
       case 'customer':
         return dcl('customer', 'dcl_customer_versions', 'version.display_name')
       case 'supplier':
-        return dcl('supplier', 'dcl_supplier_versions', 'version.display_name')
+        return bob('supplier', 'bob_supplier_versions', 'version.display_name')
       case 'operating-entity':
         return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, code, COALESCE(NULLIF(data->>'shortName',''),data->>'legalName') AS name FROM aux_objects WHERE entity='operating-entity' AND enabled`
       case 'employee':
@@ -1714,9 +1720,9 @@ export class VouService implements WflVouPort {
       case 'warehouse':
         return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, code, data->>'name' AS name FROM aux_objects WHERE entity='warehouse' AND enabled`
       case 'other-unit':
-        return dcl(
+        return bob(
           'other-unit',
-          'dcl_other_unit_versions',
+          'bob_other_unit_versions',
           'version.display_name',
         )
       case 'vehicle':
@@ -1724,9 +1730,9 @@ export class VouService implements WflVouPort {
       case 'fund-account':
         return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, code, data->>'name' AS name FROM aux_objects WHERE entity='fund-account' AND enabled`
       case 'sales-partner':
-        return dcl(
+        return bob(
           'sales-partner',
-          'dcl_sales_partner_versions',
+          'bob_sales_partner_versions',
           'version.display_name',
         )
       case 'product':
@@ -2612,7 +2618,12 @@ export class VouService implements WflVouPort {
       `.execute(transaction)
       return row.rows.length === 1
     }
-    const domain = entity === 'service-contract' ? 'vou' : 'dcl'
+    const domain =
+      entity === 'service-contract'
+        ? 'vou'
+        : ['supplier', 'other-unit', 'sales-partner'].includes(entity)
+          ? 'bob'
+          : 'dcl'
     const row = await transaction
       .selectFrom('approval_entries')
       .select('id')
@@ -3359,9 +3370,8 @@ export class VouService implements WflVouPort {
       settlement_method_snapshot: { termCode?: string } | null
     }>`
       SELECT supplier.settlement_method_snapshot
-      FROM dcl_supplier_versions supplier
+      FROM bob_supplier_versions supplier
       WHERE supplier.approval_entry_id = ${order.supplier.approvalEntryId}
-        AND supplier.enabled
       FOR UPDATE
     `.execute(tx)
     const term = row.rows[0]?.settlement_method_snapshot?.termCode

@@ -1067,7 +1067,7 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
       const now = new Date()
       if (!subject) {
         const counter = await tx
-          .updateTable('dcl_code_counters')
+          .updateTable('archive_code_counters')
           .set((eb) => ({ next_value: eb('next_value', '+', 1) }))
           .where('entity', '=', 'wfl-process-definition')
           .returning('next_value')

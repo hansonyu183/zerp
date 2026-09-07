@@ -30,6 +30,11 @@ export interface SubmissionFacts {
   subject: VersionedSubjectFacts
 }
 
+export interface VersionedSubmissionScope {
+  domain: string
+  entity: string
+}
+
 export type SubmissionMechanicsErrorKey =
   | 'approval_invalid_actor'
   | 'approval_invalid_action'
@@ -92,7 +97,7 @@ function validHistory(history: readonly VersionFact[]): boolean {
  * latest-approved and revision facts. Entity validation never lives here.
  */
 export function prepareSubmissionMechanics(
-  entity: string,
+  scope: VersionedSubmissionScope,
   command: SubmissionCommand,
   facts: SubmissionFacts,
 ): SubmissionMechanicsDecision {
@@ -100,7 +105,9 @@ export function prepareSubmissionMechanics(
     return { ok: false, error: { errorKey: 'approval_invalid_actor' } }
   if (
     command.actor.trusted !== true &&
-    !command.actor.permissions.includes(`/dcl/${entity}/${command.action}`)
+    !command.actor.permissions.includes(
+      `/${scope.domain}/${scope.entity}/${command.action}`,
+    )
   )
     return { ok: false, error: { errorKey: 'approval_invalid_action' } }
   if (
@@ -108,8 +115,7 @@ export function prepareSubmissionMechanics(
     !hasText(command.occurredAt) ||
     !hasText(command.submissionId) ||
     !hasText(command.idempotencyKey) ||
-    !hasText(command.subjectId) ||
-    text(command.submissionId) !== text(command.idempotencyKey)
+    !hasText(command.subjectId)
   )
     return { ok: false, error: { errorKey: 'archive_invalid_command' } }
   if (!validHistory(facts.subject.history))

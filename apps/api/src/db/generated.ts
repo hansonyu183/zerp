@@ -364,6 +364,21 @@ export interface AppUsers {
   username: string;
 }
 
+export interface ArchiveCodeCounters {
+  entity: string;
+  next_value: number;
+}
+
+export interface ArchiveIdempotency {
+  created_at: Timestamp;
+  entity: string;
+  idempotency_key: string;
+  request_hash: string;
+  response: Json;
+  subject_id: string;
+  submission_id: string;
+}
+
 export interface AttachmentDeletionJobs {
   created_at: Timestamp;
   storage_key: string;
@@ -386,6 +401,95 @@ export interface AuxReferenceFacts {
   aux_object_id: string;
   id: string;
   source: string;
+}
+
+export interface BobLegacyEnablementEvidence {
+  approval_entry_id: string;
+  enabled: boolean;
+}
+
+export interface BobOtherUnitVersionOperatingEntities {
+  approval_entry_id: string;
+  operating_entity_approval_entry_id: string | null;
+  operating_entity_code: string;
+  operating_entity_id: string;
+  operating_entity_name: string;
+}
+
+export interface BobOtherUnitVersions {
+  address: string | null;
+  approval_entry_id: string;
+  contact_name: string | null;
+  contact_phone: string | null;
+  default_operating_entity_id: string | null;
+  default_operating_entity_reference: Json | null;
+  display_name: string;
+  kind: string;
+  legal_identifier: string | null;
+  legal_name: string;
+  remark: string | null;
+  settlement_method_snapshot: Json | null;
+}
+
+export interface BobSalesPartnerVersionOperatingEntities {
+  approval_entry_id: string;
+  operating_entity_approval_entry_id: string | null;
+  operating_entity_code: string;
+  operating_entity_id: string;
+  operating_entity_name: string;
+}
+
+export interface BobSalesPartnerVersions {
+  address: string | null;
+  approval_entry_id: string;
+  capabilities: Generated<Json>;
+  contact_name: string | null;
+  contact_phone: string | null;
+  default_operating_entity_id: string | null;
+  default_operating_entity_reference: Json | null;
+  display_name: string;
+  kind: string;
+  legal_identifier: string | null;
+  legal_name: string;
+  remark: string | null;
+}
+
+export interface BobSubjects {
+  code: string;
+  created_at: Timestamp;
+  created_by: string;
+  enabled: Generated<boolean>;
+  entity: string;
+  id: string;
+  revision: Generated<Int8>;
+}
+
+export interface BobSupplierVersionOperatingEntities {
+  approval_entry_id: string;
+  operating_entity_approval_entry_id: string | null;
+  operating_entity_code: string;
+  operating_entity_id: string;
+  operating_entity_name: string;
+}
+
+export interface BobSupplierVersions {
+  address: string | null;
+  approval_entry_id: string;
+  contact_name: string | null;
+  contact_phone: string | null;
+  default_operating_entity_id: string | null;
+  default_operating_entity_reference: Json | null;
+  default_purchaser_approval_entry_id: string | null;
+  default_purchaser_code: string | null;
+  default_purchaser_employee_id: string | null;
+  default_purchaser_name: string | null;
+  default_purchaser_snapshot: Json | null;
+  display_name: string;
+  kind: string;
+  legal_identifier: string | null;
+  legal_name: string;
+  remark: string | null;
+  settlement_method_snapshot: Json | null;
 }
 
 export interface DclAccBookFacts {
@@ -432,21 +536,6 @@ export interface DclAccVouEntityFacts {
   field_catalog: Generated<Json>;
   id: string;
   name: string;
-}
-
-export interface DclArchiveIdempotency {
-  created_at: Timestamp;
-  entity: string;
-  idempotency_key: string;
-  request_hash: string;
-  response: Json;
-  subject_id: string;
-  submission_id: string;
-}
-
-export interface DclCodeCounters {
-  entity: string;
-  next_value: number;
 }
 
 export interface DclCustomerAttachments {
@@ -583,30 +672,6 @@ export interface DclOperatingEntityVersions {
   short_name: string;
 }
 
-export interface DclOtherUnitVersionOperatingEntities {
-  approval_entry_id: string;
-  operating_entity_approval_entry_id: string | null;
-  operating_entity_code: string;
-  operating_entity_id: string;
-  operating_entity_name: string;
-}
-
-export interface DclOtherUnitVersions {
-  address: string | null;
-  approval_entry_id: string;
-  contact_name: string | null;
-  contact_phone: string | null;
-  default_operating_entity_id: string | null;
-  default_operating_entity_reference: Json | null;
-  display_name: string;
-  enabled: boolean;
-  kind: string;
-  legal_identifier: string | null;
-  legal_name: string;
-  remark: string | null;
-  settlement_method_snapshot: Json | null;
-}
-
 export interface DclProductVersions {
   approval_entry_id: string;
   barcode: string | null;
@@ -637,65 +702,12 @@ export interface DclRptDefinitionVersions {
   sql_text: string;
 }
 
-export interface DclSalesPartnerVersionOperatingEntities {
-  approval_entry_id: string;
-  operating_entity_approval_entry_id: string | null;
-  operating_entity_code: string;
-  operating_entity_id: string;
-  operating_entity_name: string;
-}
-
-export interface DclSalesPartnerVersions {
-  address: string | null;
-  approval_entry_id: string;
-  capabilities: Generated<Json>;
-  contact_name: string | null;
-  contact_phone: string | null;
-  default_operating_entity_id: string | null;
-  default_operating_entity_reference: Json | null;
-  display_name: string;
-  enabled: boolean;
-  kind: string;
-  legal_identifier: string | null;
-  legal_name: string;
-  remark: string | null;
-}
-
 export interface DclSubjects {
   code: string | null;
   created_at: Timestamp;
   created_by: string;
   entity: string;
   id: string;
-}
-
-export interface DclSupplierVersionOperatingEntities {
-  approval_entry_id: string;
-  operating_entity_approval_entry_id: string | null;
-  operating_entity_code: string;
-  operating_entity_id: string;
-  operating_entity_name: string;
-}
-
-export interface DclSupplierVersions {
-  address: string | null;
-  approval_entry_id: string;
-  contact_name: string | null;
-  contact_phone: string | null;
-  default_operating_entity_id: string | null;
-  default_operating_entity_reference: Json | null;
-  default_purchaser_approval_entry_id: string | null;
-  default_purchaser_code: string | null;
-  default_purchaser_employee_id: string | null;
-  default_purchaser_name: string | null;
-  default_purchaser_snapshot: Json | null;
-  display_name: string;
-  enabled: boolean;
-  kind: string;
-  legal_identifier: string | null;
-  legal_name: string;
-  remark: string | null;
-  settlement_method_snapshot: Json | null;
 }
 
 export interface DclVehicleVersions {
@@ -1656,17 +1668,25 @@ export interface DB {
   app_users: AppUsers;
   approval_entries: ApprovalEntries;
   approval_events: ApprovalEvents;
+  archive_code_counters: ArchiveCodeCounters;
+  archive_idempotency: ArchiveIdempotency;
   attachment_deletion_jobs: AttachmentDeletionJobs;
   aux_objects: AuxObjects;
   aux_reference_facts: AuxReferenceFacts;
+  bob_legacy_enablement_evidence: BobLegacyEnablementEvidence;
+  bob_other_unit_version_operating_entities: BobOtherUnitVersionOperatingEntities;
+  bob_other_unit_versions: BobOtherUnitVersions;
+  bob_sales_partner_version_operating_entities: BobSalesPartnerVersionOperatingEntities;
+  bob_sales_partner_versions: BobSalesPartnerVersions;
+  bob_subjects: BobSubjects;
+  bob_supplier_version_operating_entities: BobSupplierVersionOperatingEntities;
+  bob_supplier_versions: BobSupplierVersions;
   dcl_acc_book_facts: DclAccBookFacts;
   dcl_acc_mapping_reference_facts: DclAccMappingReferenceFacts;
   dcl_acc_mapping_subject_usages: DclAccMappingSubjectUsages;
   dcl_acc_mapping_versions: DclAccMappingVersions;
   dcl_acc_subject_facts: DclAccSubjectFacts;
   dcl_acc_vou_entity_facts: DclAccVouEntityFacts;
-  dcl_archive_idempotency: DclArchiveIdempotency;
-  dcl_code_counters: DclCodeCounters;
   dcl_customer_attachment_staging: DclCustomerAttachmentStaging;
   dcl_customer_attachments: DclCustomerAttachments;
   dcl_customer_subunit_roots: DclCustomerSubunitRoots;
@@ -1675,15 +1695,9 @@ export interface DB {
   dcl_employee_versions: DclEmployeeVersions;
   dcl_fund_account_versions: DclFundAccountVersions;
   dcl_operating_entity_versions: DclOperatingEntityVersions;
-  dcl_other_unit_version_operating_entities: DclOtherUnitVersionOperatingEntities;
-  dcl_other_unit_versions: DclOtherUnitVersions;
   dcl_product_versions: DclProductVersions;
   dcl_rpt_definition_versions: DclRptDefinitionVersions;
-  dcl_sales_partner_version_operating_entities: DclSalesPartnerVersionOperatingEntities;
-  dcl_sales_partner_versions: DclSalesPartnerVersions;
   dcl_subjects: DclSubjects;
-  dcl_supplier_version_operating_entities: DclSupplierVersionOperatingEntities;
-  dcl_supplier_versions: DclSupplierVersions;
   dcl_vehicle_versions: DclVehicleVersions;
   dcl_warehouse_idempotency: DclWarehouseIdempotency;
   dcl_warehouse_reference_facts: DclWarehouseReferenceFacts;

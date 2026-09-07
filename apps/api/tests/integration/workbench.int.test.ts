@@ -4,6 +4,7 @@ import test from 'node:test'
 
 import { serve } from '@hono/node-server'
 import { modelBuildId } from '@zerp/model'
+import { sql } from 'kysely'
 import { createTargetApiClient } from '../../../../packages/api-client/src/index.ts'
 import { ulid } from 'ulid'
 
@@ -41,7 +42,7 @@ async function signIn(
   }
 }
 
-test('real HTTP workbench returns only actionable DCL and VOU submissions', async (context) => {
+test('real HTTP workbench returns only actionable BOB, DCL and VOU submissions', async (context) => {
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
   const db = createDatabase(databaseUrl)
   const reviewerId = ulid()
@@ -73,10 +74,10 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
     '/dcl/product/query',
     '/dcl/product/get',
     '/dcl/product/approve',
-    '/dcl/other-unit/query',
-    '/dcl/supplier/query',
-    '/dcl/supplier/get',
-    '/dcl/supplier/approve',
+    '/bob/other-unit/submission-query',
+    '/bob/supplier/submission-query',
+    '/bob/supplier/submission-get',
+    '/bob/supplier/approve',
     '/dcl/wfl-process-definition/query',
     '/dcl/wfl-process-definition/get',
     '/dcl/wfl-process-definition/approve',
@@ -107,13 +108,11 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
         .execute()
       await db
         .deleteFrom('dcl_subjects')
-        .where('id', 'in', [
-          productId,
-          otherUnitId,
-          supplierId,
-          wflDefinitionId,
-        ])
+        .where('id', 'in', [productId, wflDefinitionId])
         .execute()
+      await sql`DELETE FROM bob_subjects WHERE id IN (${otherUnitId}, ${supplierId})`.execute(
+        db,
+      )
       await db
         .deleteFrom('app_sessions')
         .where('user_id', '=', reviewerId)
@@ -233,20 +232,6 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
         created_by: submitterId,
       },
       {
-        id: otherUnitId,
-        entity: 'other-unit',
-        code: otherUnitCode,
-        created_at: now,
-        created_by: submitterId,
-      },
-      {
-        id: supplierId,
-        entity: 'supplier',
-        code: supplierCode,
-        created_at: now,
-        created_by: submitterId,
-      },
-      {
         id: wflDefinitionId,
         entity: 'wfl-process-definition',
         code: wflDefinitionCode,
@@ -255,6 +240,12 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
       },
     ])
     .execute()
+  await sql`
+    INSERT INTO bob_subjects (id, entity, code, enabled, revision, created_at, created_by)
+    VALUES
+      (${otherUnitId}, 'other-unit', ${otherUnitCode}, true, 1, ${now}, ${submitterId}),
+      (${supplierId}, 'supplier', ${supplierCode}, true, 1, ${now}, ${submitterId})
+  `.execute(db)
   await db
     .insertInto('approval_entries')
     .values([
@@ -278,7 +269,7 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
       },
       {
         id: otherUnitSubmissionId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'other-unit',
         subject_id: otherUnitId,
         version_no: 1,
@@ -296,7 +287,7 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
       },
       {
         id: supplierSubmissionId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'supplier',
         subject_id: supplierId,
         version_no: 1,
@@ -380,23 +371,21 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
     })
     .execute()
   await db
-    .insertInto('dcl_other_unit_versions')
+    .insertInto('bob_other_unit_versions')
     .values({
       approval_entry_id: otherUnitSubmissionId,
       kind: 'ORGANIZATION',
       legal_name: '不应出现的其他单位',
       display_name: '不应出现的其他单位',
-      enabled: true,
     })
     .execute()
   await db
-    .insertInto('dcl_supplier_versions')
+    .insertInto('bob_supplier_versions')
     .values({
       approval_entry_id: supplierSubmissionId,
       kind: 'ORGANIZATION',
       legal_name: '工作台供应商',
       display_name: '工作台供应商',
-      enabled: true,
     })
     .execute()
   await db
@@ -460,9 +449,9 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
     {
       id: submitterId,
       permissions: [
-        '/dcl/supplier/query',
-        '/dcl/supplier/get',
-        '/dcl/supplier/delete',
+        '/bob/supplier/submission-query',
+        '/bob/supplier/submission-get',
+        '/bob/supplier/delete',
       ],
     },
   )
@@ -524,7 +513,7 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
   assert.equal(payload.data.total, 4)
   assert.deepEqual(payload.data.items, [
     {
-      domain: 'dcl',
+      domain: 'bob',
       entity: 'supplier',
       subjectOrDocumentId: supplierId,
       submissionId: supplierSubmissionId,

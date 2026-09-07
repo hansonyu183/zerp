@@ -39,8 +39,8 @@ _Avoid_: 领域自定义审批状态机
 _Authority_: [Approval 生命周期](docs/domains/approval.md#3-生命周期)
 
 **Approval Version（审批版本）**:
-中央 Approval 为 DCL stable subject 管理的版本化审批记录；DCL 是申报版本的唯一业务写入方。
-_Avoid_: 非 DCL Approval Version consumer、Domain 版本头、领域自有版本管理、分支或合并
+中央 Approval 为版本化 stable subject 管理的审批记录；版本组件拥有版本号、唯一开放 Submission、最高已批准选择和版本并发，BOB 与 WFL 可以各自在自己的领域事务中消费它。
+_Avoid_: Domain 版本头、领域自有版本管理、把版本组件硬编码为 BOB 专属、分支或合并
 _Authority_: [Approval Version](docs/domains/approval.md#6-approval-version)
 
 **Approval Metadata（审批元数据）**:
@@ -68,7 +68,7 @@ _Authority_: [Approval 授权](docs/domains/approval.md#4-授权与事务边界)
 **Continuous Effectiveness（连续生效）**:
 使用 Approval Version 的主数据在候选变更期间继续以最后有效版本供业务使用，候选审核后一次切换；AUX current data 则由保存直接生效，并由采用方 snapshot 隔离历史业务解释。两者都只有显式停用才立即阻止新引用。
 _Avoid_: 编辑即停用、候选待审期间无可用版本、AUX 修改后重解释历史、逐页面决定变更期是否可用
-_Authority_: [DCL current 投影边界](docs/domains/dcl.md#4-原子性与引用)、[AUX Stable-ID Direct CRUD](docs/domains/aux.md#2-stable-id-direct-crud-生命周期)
+_Authority_: [BOB 当前有效资料读取](docs/domains/bob.md#4-当前有效资料读取)、[AUX Stable-ID Direct CRUD](docs/domains/aux.md#2-stable-id-direct-crud-生命周期)
 
 **Business Identity Record（业务身份档案）**:
 客户、供应商、员工、其他单位或销售合作方各自拥有的身份档案；同一现实个人或组织具有多种业务身份时分别建档、分别审批，不跨类型共享或同步身份资料。
@@ -317,7 +317,7 @@ _Authority_: [ACC 账簿期初](docs/domains/acc.md#6-账簿期初)
 **Accounting Mapping（会计映射）**:
 以 `(bookId, vouEntity)` 为稳定主体的 Approval Version，由 DCL 拥有声明、候选、版本和审批生命周期；ACC 只读取最新 `APPROVED` entry 作为当前记账映射，候选不参与记账。
 _Avoid_: mapping version header、当前映射指针、候选参与记账、ACC 维护映射版本
-_Authority_: [DCL 会计映射申报](docs/domains/dcl.md#38-会计映射申报)、[ACC 当前记账映射](docs/domains/acc.md#7-当前记账映射)
+_Authority_: [DCL 会计映射申报](docs/domains/dcl.md#37-会计映射申报)、[ACC 当前记账映射](docs/domains/acc.md#7-当前记账映射)
 
 **Accounting Subject（会计科目）**:
 归 ACC 领域和单本会计账簿所有的分层会计分类。
@@ -329,7 +329,7 @@ _Authority_: [ACC 会计科目](docs/domains/acc.md#5-会计科目)
 **Report Definition（报表定义）**:
 由 DCL subject 保存 stable ID、code 与创建审计；每个不可变业务版本（包括 enabled）由一个 Approval Version entry 的 typed snapshot 承载，RPT 以该 entry 保存技术有效性与运行审计，最新 `APPROVED + enabled + VALID` entry 是唯一执行版本。
 _Avoid_: `currentVersionId`、历史版本回退、候选执行
-_Authority_: [DCL 报表定义申报](docs/domains/dcl.md#39-报表定义申报)、[RPT 当前执行规则](docs/domains/rpt.md#3-报表定义与-dcl)
+_Authority_: [DCL 报表定义申报](docs/domains/dcl.md#38-报表定义申报)、[RPT 当前执行规则](docs/domains/rpt.md#3-报表定义与-dcl)
 
 ## Workflow
 

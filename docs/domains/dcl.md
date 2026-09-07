@@ -2,19 +2,19 @@
 
 ## 1. 领域职责
 
-DCL（Declaration Control）拥有全部版本化业务对象的稳定 subject、business code 与强类型 Submission snapshot。当前实体是 `product`、`customer`、`supplier`、`other-unit`、`sales-partner`、`acc-mapping`、`rpt-definition` 与 `wfl-process-definition`：用户在本地 Draft 编辑，DCL 在 submit 时创建或删除开放 Submission，并读取版本历史和审计；中央 Approval 唯一拥有版本号、`PENDING | APPROVED | REJECTED`、revision、审批元数据和审批事件。BOB 只通过 highest APPROVED typed snapshot 提供当前有效业务资料的只读查询与交易引用解析。Party 与独立 `customer-subunit` subject 不存在；客户子单位是 Customer Version 内的强类型子项。会计映射、报表定义和流程定义的既有领域边界不变。
+DCL（Declaration Control）当前拥有 `product`、`customer`、`acc-mapping`、`rpt-definition` 与 `wfl-process-definition` 的稳定 subject、business code 与强类型 Submission snapshot：用户在本地 Draft 编辑，DCL 在 submit 时创建或删除开放 Submission，并读取版本历史和审计；中央 Approval 唯一拥有版本号、`PENDING | APPROVED | REJECTED`、revision、审批元数据和审批事件。Supplier、Other Unit 与 Sales Partner 已迁入 BOB，DCL 不再注册它们的 subject、版本、资料或 HTTP 入口。Party 与独立 `customer-subunit` subject 不存在；客户子单位是 Customer Version 内的强类型子项。会计映射、报表定义和流程定义的既有领域边界不变。
 
 ### 1.1 本地 Draft 与 Submission 生命周期
 
 当前 DCL 聚合采用同一生命周期：浏览器只在当前页面实例内保留临时输入、引用显示快照和未提交附件，不持久化草稿。确定提交失败保留当前输入；关闭、刷新、切换资源或账号后销毁，不恢复。克隆仅预填新临时表单，不请求业务写入，也不属于 Approval。WFL Process Definition 的领域特有规则见下文。
 
-只有 `POST /dcl/{entity}/submit-new` 与 `POST /dcl/{entity}/submit-change`（可执行 Hono/Zod 目标路由）会在服务器事务中创建 Submission、版本 payload 和必要 stable subject。请求必须带 `expectedLatestApprovedSubmissionId` 与 `expectedLatestApprovedRevision`；服务端锁内重新读取历史和当前事实、权限及引用后决定这是 V1 还是最高已批准版本之后的 Vn，并拒绝与事实不符的 submit mode、过期 expected 值、重复开放候选或重复标识。浏览器规范化和决定只作提示，不能替代服务端复核。
+只有 `POST /dcl/{entity}/submit-new` 与 `POST /dcl/{entity}/submit-change`（可执行 Hono/Zod 目标路由）会为 DCL 当前实体在服务器事务中创建 Submission、版本 payload 和必要 stable subject。请求必须带 `expectedLatestApprovedSubmissionId` 与 `expectedLatestApprovedRevision`；服务端锁内重新读取历史和当前事实、权限及引用后决定这是 V1 还是最高已批准版本之后的 Vn，并拒绝与事实不符的 submit mode、过期 expected 值、重复开放候选或重复标识。浏览器规范化和决定只作提示，不能替代服务端复核。
 
 Submission 一旦持久化即不可编辑，唯一状态是 `PENDING | APPROVED | REJECTED`。有效动作只有 `approve`、`reject`、`unreject`、`unapprove` 和开放 Submission `delete`；“撤回”只是页面对 `delete` 的编排，不产生 `WITHDRAWN`、`REVOKED` 或 `unsubmit`。`reject` 和 `unapprove` 要求非空 reason，`unreject` 将 `REJECTED` 恢复为 `PENDING`，`unapprove` 在领域补偿或 blocker 检查通过后将 `APPROVED` 恢复为 `PENDING`，删除只允许开放 `PENDING`/`REJECTED` Submission。每次动作携带 expected revision 并递增 revision；提交人不得自审。
 
 当前有效态永远由最高 `APPROVED` 版本推导，不保存 current pointer。开放候选与当前态并存：`PENDING` 或 `REJECTED` 不会取代当前态，批准后自然切换，反批准最高版本后自然回落到上一最高批准版本，无批准版本时为空。路由、响应和权限目录从 Hono route metadata 生成。
 
-`dcl_subjects` 是版本化业务对象唯一通用稳定身份，最小保存不可变 ID、entity、nullable code、createdAt 与 createdBy；非空 `(entity, upper(code))` 唯一。只有 ACC Mapping 是合法的无编码 subject。Product、Customer、Supplier、Other Unit 与 Sales Partner 必须分别匹配 `PRD/CUS/SUP/OTU/SLP-[0-9]{4}`；客户子单位不占用 DCL subject 或全局编码空间，其稳定 ID 由 Customer 聚合持有，编码只在所属客户内大小写不敏感唯一。RPT 与 WFL 编码规则不变。DCL 不复制 Approval 版本头，不保存 current pointer 或第二套 revision，也不提供 BOB 写入别名、双写、过渡视图或失败回退。
+`dcl_subjects` 是 DCL 当前版本化业务对象的通用稳定身份，最小保存不可变 ID、entity、nullable code、createdAt 与 createdBy；非空 `(entity, upper(code))` 唯一。只有 ACC Mapping 是合法的无编码 subject。Product 与 Customer 必须分别匹配 `PRD/CUS-[0-9]{4}`；客户子单位不占用 DCL subject 或全局编码空间，其稳定 ID 由 Customer 聚合持有，编码只在所属客户内大小写不敏感唯一。RPT 与 WFL 编码规则不变。DCL 不复制 Approval 版本头，不保存 current pointer 或第二套 revision，也不提供 BOB 写入别名、双写、过渡视图或失败回退。
 
 ## 2. 经营主体与员工的归属
 
@@ -55,9 +55,9 @@ Draft 规范化时解析当前启用且 entity 匹配的 AUX stable object，并
 
 ## 3.5 强类型业务身份
 
-Customer、Supplier、Other Unit 与 Sales Partner 各自在自己的完整 typed version 中保存身份、法定名称、显示名称、单一法定识别号和联系资料，不引用共享 Party。法定识别号按“业务档案类型 + 规范化值”在该类型的 latest approved 与唯一 open candidate 间共同占用；跨业务档案类型不比较、不复用、不同步，也不提供跨类型或同类型合并。误建且已有历史引用的档案只能通过下一候选停用，历史快照保持原值。
+Customer 在自己的完整 typed version 中保存身份、法定名称、显示名称、单一法定识别号和联系资料，不引用共享 Party。法定识别号按“业务档案类型 + 规范化值”在该类型的 latest approved 与唯一 open candidate 间共同占用；跨业务档案类型不比较、不复用、不同步，也不提供跨类型或同类型合并。Supplier、Other Unit 与 Sales Partner 的同一规则和资料归 [BOB](bob.md#3-聚合模型)。误建且已有历史引用的 Customer 只能通过下一候选停用，历史快照保持原值；三类 BOB 档案使用其独立即时启停规则。
 
-Party subject、版本、强标识数组、标识类型、重复税号字段、关系 root、影响预览、合并预检/确认、权限、页面和 API 全部不存在。每种业务档案都由本地 Draft 通过 `submit-new` 在同一事务建立自己的 DCL subject、V1 candidate 和 typed snapshot；失败时整体回滚。法定识别号变更与其他身份资料一起进入该档案正常的候选和审批流程。
+Party subject、版本、强标识数组、标识类型、重复税号字段、关系 root、影响预览、合并预检/确认、权限、页面和 API 全部不存在。Customer 由本地 Draft 通过 `submit-new` 在同一事务建立 DCL subject、V1 candidate 和 typed snapshot；失败时整体回滚。法定识别号变更与其他身份资料一起进入该档案正常的候选和审批流程。
 
 ## 3.6 员工
 
@@ -75,19 +75,7 @@ Customer 是唯一 Approval subject 和聚合根。客户 stable ID 与 `CUS-*` 
 
 Customer 附件先随本地 Draft 以 Blob 保留，submit 时经 `/dcl/customer/attachment-stage` 暂存并在同一事务随 Customer Version 最终入库；失败或过期暂存由 `/dcl/customer/attachment-cleanup` 清理，不产生第二事实源。开放 Submission 删除及暂存过期清理在业务事务中登记物理删除任务，提交后幂等删除 Blob；物理删除失败保留任务供后续清理重试，不回滚或伪造业务事实。
 
-## 3.7 供应商、其他单位与销售合作方申报
-
-Supplier、Other Unit 与 Sales Partner 各自是全局强类型业务档案和独立 Approval subject，不引用 Party 或 relationship root。它们都可以维护适用经营主体集合和一个集合内的默认经营主体；新业务单据只能选择适用集合中的经营主体，默认值只用于预填。
-
-`dcl_supplier_versions` 保存完整供应商身份、单一法定识别号、联系人、地址、备注、适用和默认经营主体、可选结算方式快照、默认采购员快照与 `enabled`。供应商不维护 category 或 type。默认采购员必须是当前可用 Employee snapshot，但其任职经营主体不限制选择。
-
-`/dcl/supplier/*` 是供应商唯一维护 HTTP 边界，`/bob/supplier` 只提供 current `query|get|reference`。采购订单、采购入库、采购退货、采购付款及 ACC 事实保存 Supplier stable ID、精确 Approval Entry 和必要快照；后续版本不改写历史。
-
-`dcl_other_unit_versions` 保存完整身份、单一法定识别号、联系人、地址、适用和默认经营主体、可选结算方式、备注与 `enabled`。`dcl_sales_partner_versions` 保存完整身份、单一法定识别号、适用和默认经营主体、`EXTERNAL_PART_TIME` 与 `CHANNEL_PARTNER` 能力集、联系人、地址、备注与 `enabled`。销售合作方草稿可暂缺能力，但 submit 与 approve 时至少有一种能力。Customer 与 Sales Partner 的法定识别号相同且身份可比较时禁止把该客户子单位归属给该 Sales Partner；`OTHER` 不推测现实身份。
-
-`/dcl/other-unit/*` 与 `/dcl/sales-partner/*` 是各自唯一维护 HTTP 边界；对应 BOB 路径只提供 current `query|get|reference`。正式事实保存 typed stable ID、精确 Approval Entry 和必要快照；后续版本不改写历史合同、归属、收益、会计或车辆事实。
-
-## 3.8 会计映射申报
+## 3.7 会计映射申报
 
 会计映射的 stable subject 是 `(bookId, vouEntity)`，其中 `vouEntity` 是 VOU domain stable ID；每个业务 payload 由一个中央 Approval Version entry 承载。`dcl_acc_mapping_versions` 以 `approvalEntryId` 为主键，保存完整的 `defaultResult`（`POST` 或 `UN_POST`）、声明式 `MappingDefinition`（条件规则、凭证模板和可选资产配置）；所有可变字段随候选版本冻结，不直接修改 ACC 当前记账解释。
 
@@ -97,7 +85,7 @@ Supplier、Other Unit 与 Sales Partner 各自是全局强类型业务档案和�
 
 映射只读取 ACC 发布的稳定字段目录，允许使用头字段和 `lines` 行集合迭代，不执行脚本或任意表达式。条件只允许 `EQ`、`NE`、`IN`、`NOT_IN`、`IS_EMPTY` 和 `IS_NOT_EMPTY`；Draft 规范化和 submit 时拒绝可能同时命中的规则，确保一张单据最多选择一个结果。每个映射必须明确设置未命中规则时的 `POST` 或 `UN_POST`。`POST` 结果引用凭证模板，模板逐行声明固定科目或字段取科目、借贷方向、金额字段、币种字段、辅助核算字段以及可选数量字段；`UN_POST` 不引用模板。固定科目必须是本账簿启用的末级科目。
 
-## 3.9 报表定义申报
+## 3.8 报表定义申报
 
 报表定义的 stable subject 是 DCL 的 `(definitionId, code)`；`submit-new` 时由服务端按 `rpt-NNNNNN` 分配 `code`，提交审计与 code 永久冻结在 `dcl_subjects`。`dcl_rpt_definition_versions` 以 `approvalEntryId` 为主键，保存完整的 `name`、`description`、`enabled`、`sql_text`、`parameters` 和 `columns`；所有可变字段随候选版本冻结。RPT 以 `rpt_definition_validities(approvalEntryId)` 保存 `VALID | INVALID` 及其技术失效审计，独立于 Approval 状态；`APPROVED + INVALID` 合法但不可执行。不存在 RPT root、root revision 或 current pointer。
 
@@ -105,7 +93,7 @@ Supplier、Other Unit 与 Sales Partner 各自是全局强类型业务档案和�
 
 `submit-new`/`submit-change` 时必须发送 `enabled`；已持久化 Submission 不可编辑，已经 `APPROVED` 的定义必须从本地 Draft 提交下一 Submission。批准或反批准在同一事务内原子注册或停用 RPT 的 `query`/`export` 使用权限：首次批准时 RPT 与 APP 在同一事务注册该 code 的精确权限；新版本批准后切换使用权限到新 entry；反批准后回落到上一正式版本或停用。已执行报表的 runtime audit 继续保存原 `approvalEntryId`，定义后续改版不重解释历史运行。execution 只使用当前最新 `APPROVED + enabled + VALID` 定义，不回退旧版本或候选。
 
-## 3.10 流程定义申报
+## 3.9 流程定义申报
 
 流程定义的 stable subject 是 `dcl_subjects(entity=wfl-process-definition)`，唯一持有 stable ID、code、createdAt 与 createdBy。`wfl_definition_runtime_states` 以 `subjectId` 持有 `enabled`、`updatedAt` 与 `updatedBy`；`dcl_wfl_process_definition_versions`、`wfl_definition_instances` 与 `wfl_create_child_requests` 都以该 subjectId 归属同一身份。`dcl_wfl_process_definition_versions` 以 `approvalEntryId` 为主键，保存完整的 Starlark 脚本、诊断、编译图和试算证据；这些版本化字段随候选版本冻结，不直接修改 WFL 当前执行面。`enabled` 是 runtime state 上的独立开关，不属于 Approval Version snapshot；启停必须携带 latest APPROVED 的 `approvalEntryId` 与 `approvalRevision`，DCL 不保存第二套 subject revision。
 
@@ -117,13 +105,13 @@ Supplier、Other Unit 与 Sales Partner 各自是全局强类型业务档案和�
 
 Starlark 脚本、编译图、试算零写入 adapter、类型化 `WorkflowActions`、实例树、动作幂等和运行审计仍由 WFL 领域拥有，不迁入通用 DCL 引擎。
 
-## 3.11 Domain ViewModel 动作与刷新
+## 3.10 Domain ViewModel 动作与刷新
 
-13 个 DCL 可变 subject 的根级 `Dcl*ListItem` 与根级 `Dcl*View` 必须返回必填 `availableApprovalActions`，其元素只取公共 `ApprovalLifecycleAction` 闭集。服务端按该 subject、版本、权限和当前事实计算可用生命周期动作；Domain ViewModel 将这一服务端生命周期动作投影与本领域业务动作组合，页面不得从本地状态、权限或版本元数据推导、补齐或猜测生命周期动作。版本 View、版本 Summary 和 Approval metadata 不携带该字段。
+5 个 DCL 可变 subject 的根级 `Dcl*ListItem` 与根级 `Dcl*View` 必须返回必填 `availableApprovalActions`，其元素只取公共 `ApprovalLifecycleAction` 闭集。服务端按该 subject、版本、权限和当前事实计算可用生命周期动作；Domain ViewModel 将这一服务端生命周期动作投影与本领域业务动作组合，页面不得从本地状态、权限或版本元数据推导、补齐或猜测生命周期动作。版本 View、版本 Summary 和 Approval metadata 不携带该字段。
 
 任何业务或生命周期动作成功后，调用方重新读取受影响查询和已打开对象，再显示成功结果；动作失败也以服务端 `errorKey` 和当前返回状态为准。revision 冲突只触发重新读取，不自动重放原请求；blocker 仍由动作执行时的服务端检查，调用方不以预检结果推断可以绕过或不再检查 blocker。
 
-## 3.12 Subject code 的 nullable 查询边界
+## 3.11 Subject code 的 nullable 查询边界
 
 `dcl_subjects.code` 在数据库和查询边界保持 nullable 事实。DCL、BOB、APP 和 RPT 查询直接读取该值；要求业务编码的 Go Domain consumer 必须在消费处拒绝缺失的 `Subject code`，返回应用数据不变量错误。消费方不得把 `NULL` 转为空字符串、占位编码或 `COALESCE` 结果，也不得静默过滤缺失 code 的 subject。ACC Mapping 是合法的无编码例外，支持该实体的消费方必须保留空值语义。
 
@@ -131,13 +119,13 @@ DCL 写入路径仍负责为要求编码的实体分配并校验业务编码，�
 
 ## 4. 原子性与引用
 
-DCL application service 创建 PostgreSQL transaction，并在同一事务内调用中央 Approval、写入 DCL 类型化快照并同步发布强类型事件。Employee、Customer、Supplier、Other Unit 与 Sales Partner 直接从自己的 DCL stable subject、highest APPROVED entry 和完整 snapshot 向 BOB 提供 current 只读资料；不存在 Party、relationship identity 或 BOB 副本。Customer Version 与全部客户子单位是一个原子 snapshot。任一 Approval subscriber 或领域内同步写入失败时，subject、entry、event 与 typed snapshot 必须全部回滚。
+DCL application service 创建 PostgreSQL transaction，并在同一事务内调用中央 Approval、写入 DCL 类型化快照并同步发布强类型事件。Customer 从自己的 DCL stable subject、highest APPROVED entry 和完整 snapshot 向 BOB 提供 current 只读资料；Supplier、Other Unit 与 Sales Partner 的对应事务由 BOB 拥有。不存在 Party 或 relationship identity。Customer Version 与全部客户子单位是一个原子 snapshot。任一 Approval subscriber 或领域内同步写入失败时，subject、entry、event 与 typed snapshot 必须全部回滚。
 
 BOB 对新业务解析 current/latest approved，并返回稳定 ID、来源 `approvalEntryId`、编码和类型化资料快照；已保存业务继续按精确 `approvalEntryId` 校验历史批准快照。旧批准版本不会因新版本批准而删除或改写。反批准前必须执行 BOB 领域的精确版本引用 blocker；只允许反批准 Approval 判断的 latest approved。
 
 ## 5. 权限
 
-DCL Customer 根资料按 `query`、`get`、`submit-new`、`submit-change` 和 lifecycle 路径精确授权；`submit-new`/`submit-change` 同时覆盖完整 Customer snapshot（含子单位）的提交。子单位维护权限覆盖子单位新增、编辑、启停、移除及业务附件上传/移除；`get` 可以查看子单位并下载附件。根资料维护者不能修改子单位，子单位维护者无需根资料编辑权限即可修改同一本地 Draft；Customer `approve` 权限自身允许审批人查询、查看并下载完整 candidate，无需额外授予 `query` 或 `get`。Customer Subunit 不注册独立实体权限、Navigation Resource、Approval、版本、工作台或待办。
+DCL Customer 根资料按 `query`、`get`、`submit-new`、`submit-change` 和 lifecycle 路径精确授权；`submit-new`/`submit-change` 同时覆盖完整 Customer snapshot（含子单位）的提交。子单位维护权限覆盖子单位新增、编辑、启停、移除及业务附件上传/移除；`get` 可以查看子单位并下载附件。根资料维护者不能修改子单位，子单位维护者无需根资料编辑权限即可修改同一本地 Draft；Customer `approve` 权限自身允许审批人查询、查看并下载完整 candidate，无需额外授予 `query` 或 `get`。Customer Subunit 不注册独立实体权限、Navigation Resource、Approval、版本、工作台或待办。Supplier、Other Unit 与 Sales Partner 的权限迁入 BOB，不保留 DCL 许可或入口。
 
 ## 6. 验收边界
 

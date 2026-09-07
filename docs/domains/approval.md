@@ -6,7 +6,7 @@ Approval 是跨领域的中央审批能力，唯一拥有持久化 Submission �
 
 本页的本地 Draft、Submission、Hono、Kysely 与 `PENDING | APPROVED | REJECTED` 描述当前权威业务语义。服务器不持久化 Draft。
 
-中央能力同时提供 Approval-only 与 Approval Version 两种条目形态。VOU 和 ACC Opening 使用 Approval-only；实际写入 Approval Version 的业务 Domain 只有 DCL，其实体包括资料申报、ACC Mapping、RPT Definition 与 WFL Definition。BOB 只查询 DCL 当前有效的已批准资料，AUX 使用 Stable-ID Direct CRUD，两者均不注册 Approval subject；ACC、RPT 与 WFL 也不得为这些 DCL 实体另建 Approval subject。
+中央能力同时提供 Approval-only 与 Approval Version 两种条目形态。VOU 和 ACC Opening 使用 Approval-only；Approval Version 的通用组件由 BOB 的 Supplier、Other Unit、Sales Partner 与 DCL 现存版本化资料消费。WFL 尚未迁移，但可在其自身领域事务中独立消费同一普通类型化版本接口。AUX 使用 Stable-ID Direct CRUD；ACC、RPT 不为当前配置建立 Approval subject。
 
 ## 2. 审批条目与主体边界
 
@@ -14,7 +14,7 @@ Draft 只表示当前页面实例的临时编辑输入，可保留未完成输�
 
 `approval_entries` 保存 Submission 的 `id`、`domain`、`entity`、`subject_id`、可空 `version_no`、`status`、`revision` 和统一元数据。Approval-only 条目的 `version_no` 必须为空，同一 `(domain, entity, subject_id)` 最多一条。Approval Version 条目的 `version_no` 必须为正数，`(domain, entity, subject_id, version_no)` 唯一；同一 stable subject 的 `PENDING` 与 `REJECTED` 合计最多一条开放 Submission。
 
-`subject_id` 是指向 Domain stable subject 的受控逻辑外键，不建立中央 `approval_subjects` 或 Domain Store Adapter。Domain application service 必须在同一 PostgreSQL transaction 内创建或删除 stable subject 和审批条目；任一步失败时整体回滚，不得留下 orphan。
+`subject_id` 是指向 Domain stable subject 的受控逻辑外键，不建立中央 `approval_subjects` 或 Domain Store Adapter。拥有该档案的 Domain application service 必须在同一 PostgreSQL transaction 内创建或删除 stable subject 和审批条目；任一步失败时整体回滚，不得留下 orphan。
 
 `approval_events` 追加保存条目引用快照、动作、前后状态和 revision、操作者、reason、request 与时间。动作只有 `SUBMITTED`、`REJECTED`、`UNREJECTED`、`APPROVED`、`UNAPPROVED` 和 `DELETED`。reason 只保存在 `REJECTED` 与 `UNAPPROVED` 审计事件及当次 typed event 中，不进入条目元数据。
 
@@ -67,7 +67,7 @@ Hono application operation 建立 Kysely transaction，并把同一个 transacti
 
 Approval model 返回的强类型 Plan 包含条目动作、前后状态和 revision、操作者、request、reason、提交/批准/拒绝元数据及需要追加的审计事实。Domain model 返回自己的强类型业务效果 Plan；两者不通过 `any`、raw JSON、`map[string]unknown`、callback、反射或通用 effect dispatcher 组合。
 
-application operation 在一个 PostgreSQL transaction 内按明确顺序持久化 Approval Plan 与 Domain Plan。任何一步失败都回滚 Submission、审批状态、审计和全部业务效果；事务内不得产生网络、文件、异步任务等不可回滚副作用。Versioned Plan 明确携带 `versionNo`、`previousApprovedSubmissionId` 与 `currentApprovedSubmissionId`，Domain 不另行推导版本号、正式版本身份或当前指针。
+application operation 在一个 PostgreSQL transaction 内按明确顺序持久化 Approval Plan、Version Plan 与 Domain Plan。Approval 与 Version 组件都不提前提交，也不反向调用 Domain；任何一步失败都回滚 Submission、审批状态、审计和全部业务效果。事务内不得产生网络、文件、异步任务等不可回滚副作用。Versioned Plan 明确携带 `versionNo`、`previousApprovedSubmissionId` 与 `currentApprovedSubmissionId`，Domain 不另行推导版本号、正式版本身份或当前指针。
 
 ## 6. Approval Version
 

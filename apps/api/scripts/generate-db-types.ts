@@ -1,3 +1,4 @@
+import { assertTargetDatabaseBoundary } from '../src/platform/config.ts'
 import { spawnSync } from 'node:child_process'
 import { resolve } from 'node:path'
 
@@ -7,12 +8,7 @@ if (!databaseUrl)
     'TARGET_DATABASE_URL is required to generate target database types',
   )
 
-const parsed = new URL(databaseUrl)
-if (!parsed.pathname.slice(1).endsWith('_test')) {
-  throw new Error(
-    'TARGET_DATABASE_URL must name a disposable *_test PostgreSQL database',
-  )
-}
+assertTargetDatabaseBoundary(databaseUrl, process.env.TARGET_DATABASE_SCOPE)
 
 const result = spawnSync(
   'pnpm',

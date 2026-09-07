@@ -146,7 +146,13 @@ function mechanics<T, E extends string>(
   command: ArchiveCommand<T>,
   facts: ArchiveFacts,
 ): ArchiveDecision<T, E> | SubmissionMechanicsPlan {
-  const result = prepareSubmissionMechanics(entity, command, facts)
+  const domain =
+    entity === 'supplier' ||
+    entity === 'other-unit' ||
+    entity === 'sales-partner'
+      ? 'bob'
+      : 'dcl'
+  const result = prepareSubmissionMechanics({ domain, entity }, command, facts)
   return result.ok ? result.plan : result
 }
 
@@ -502,7 +508,6 @@ export interface IdentityArchiveData {
   phone: Text
   address: Text
   remark: Text
-  enabled: boolean
 }
 function validUnifiedSocialCreditCode(value: string): boolean {
   const alphabet = '0123456789ABCDEFGHJKLMNPQRTUWXY'
@@ -552,9 +557,9 @@ function normalizedIdentifier(
     return undefined
   return normalized
 }
-function normalizeIdentity<T extends IdentityArchiveData>(
-  data: T,
-): T | undefined {
+function normalizeIdentity(
+  data: IdentityArchiveData,
+): IdentityArchiveData | undefined {
   const legalIdentifier = normalizedIdentifier(
     data.identityKind,
     data.legalIdentifier,
@@ -566,7 +571,7 @@ function normalizeIdentity<T extends IdentityArchiveData>(
   )
     return undefined
   return {
-    ...data,
+    identityKind: data.identityKind,
     legalName: trim(data.legalName),
     displayName: trim(data.displayName),
     legalIdentifier,
@@ -635,7 +640,10 @@ function prepareIdentitySet<
   entity: string,
   invalid: E,
 ):
-  | { common: SubmissionMechanicsPlan; data: T & OperatingEntitySetData }
+  | {
+      common: SubmissionMechanicsPlan
+      data: IdentityArchiveData & OperatingEntitySetData
+    }
   | ArchiveDecision<T, E> {
   const common = mechanics<T, E>(entity, command, facts)
   if ('ok' in common) return common

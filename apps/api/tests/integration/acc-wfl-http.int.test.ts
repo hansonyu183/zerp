@@ -979,7 +979,7 @@ test('WFL definition, current, trial, instance and six actions cross the authent
       }
       if (refs) {
         await db
-          .deleteFrom('dcl_archive_idempotency')
+          .deleteFrom('archive_idempotency')
           .where('subject_id', 'in', refs.archiveSubjectIds)
           .execute()
         await db

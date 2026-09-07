@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { archiveSnapshotSchemas } from '../../src/dcl/archive-contract.ts'
+import { bobArchiveSnapshotSchemas, bobArchiveRouteSets } from '../../src/bob/archive-contract.ts'
 import { auxReferenceCandidateSchema } from '../../src/app/aux-contract.ts'
 
 const id = (seed: string) => seed.padEnd(26, '0').slice(0, 26)
@@ -192,4 +193,13 @@ test('customer snapshot uses closed typed subunit business policies', () => {
     }).success,
     false,
   )
+})
+
+ test('BOB business submissions have dedicated routes and cannot carry enablement', () => {
+  for (const entity of ['supplier', 'other-unit', 'sales-partner'] as const) {
+    assert.equal(bobArchiveRouteSets[entity].query.path, `/bob/${entity}/submission-query`)
+    assert.equal(bobArchiveRouteSets[entity].get.path, `/bob/${entity}/submission-get`)
+    assert.equal(bobArchiveRouteSets[entity].approve.path, `/bob/${entity}/approve`)
+    assert.equal('enabled' in bobArchiveSnapshotSchemas[entity].shape, false)
+  }
 })

@@ -12,6 +12,7 @@ import {
   type PermissionCatalogMigrationReport,
   type PermissionPathMapping,
 } from '../app/bootstrap.ts'
+import { preserveLegacyBobArchivePermissionCatalog } from '../bob/migration-guard.ts'
 import type { DB } from '../db/generated.ts'
 
 export type AuxPeopleEntity = 'operating-entity' | 'employee'
@@ -80,7 +81,10 @@ export function preserveLegacyAuxAssetPermissionCatalog(
       title: entry.description ?? entry.path,
     }))
     .sort((left, right) => left.path.localeCompare(right.path))
-  return [...targetCatalog, ...retained]
+  return preserveLegacyBobArchivePermissionCatalog(
+    [...targetCatalog, ...retained],
+    existing,
+  )
 }
 
 export const auxPeoplePermissionMappings: readonly PermissionPathMapping[] = [

@@ -179,16 +179,86 @@ export type TargetVouReferenceQueryInput = PostJson<
 export type TargetBobReferenceQueryInput = PostJson<
   (typeof client)['bob']['reference']['query']['$post']
 >
+export type TargetSupplierQueryInput = PostJson<
+  (typeof client)['bob']['supplier']['query']['$post']
+>
+export type TargetSupplierEnabledInput = PostJson<
+  (typeof client)['bob']['supplier']['enable']['$post']
+>
+export type TargetSupplierSubmissionQueryInput = PostJson<
+  (typeof client)['bob']['supplier']['submission-query']['$post']
+>
+export type TargetSupplierSubmissionGetInput = PostJson<
+  (typeof client)['bob']['supplier']['submission-get']['$post']
+>
+export type TargetSupplierSubmitInput = PostJson<
+  (typeof client)['bob']['supplier']['submit-new']['$post']
+>
+export type TargetSupplierReviewInput = PostJson<
+  (typeof client)['bob']['supplier']['approve']['$post']
+>
+export type TargetSupplierRejectInput = PostJson<
+  (typeof client)['bob']['supplier']['reject']['$post']
+>
+export type TargetOtherUnitQueryInput = PostJson<
+  (typeof client)['bob']['other-unit']['query']['$post']
+>
+export type TargetOtherUnitEnabledInput = PostJson<
+  (typeof client)['bob']['other-unit']['enable']['$post']
+>
+export type TargetOtherUnitSubmissionQueryInput = PostJson<
+  (typeof client)['bob']['other-unit']['submission-query']['$post']
+>
+export type TargetOtherUnitSubmissionGetInput = PostJson<
+  (typeof client)['bob']['other-unit']['submission-get']['$post']
+>
+export type TargetOtherUnitSubmitInput = PostJson<
+  (typeof client)['bob']['other-unit']['submit-new']['$post']
+>
+export type TargetOtherUnitReviewInput = PostJson<
+  (typeof client)['bob']['other-unit']['approve']['$post']
+>
+export type TargetOtherUnitRejectInput = PostJson<
+  (typeof client)['bob']['other-unit']['reject']['$post']
+>
+export type TargetSalesPartnerQueryInput = PostJson<
+  (typeof client)['bob']['sales-partner']['query']['$post']
+>
+export type TargetSalesPartnerEnabledInput = PostJson<
+  (typeof client)['bob']['sales-partner']['enable']['$post']
+>
+export type TargetSalesPartnerSubmissionQueryInput = PostJson<
+  (typeof client)['bob']['sales-partner']['submission-query']['$post']
+>
+export type TargetSalesPartnerSubmissionGetInput = PostJson<
+  (typeof client)['bob']['sales-partner']['submission-get']['$post']
+>
+export type TargetSalesPartnerSubmitInput = PostJson<
+  (typeof client)['bob']['sales-partner']['submit-new']['$post']
+>
+export type TargetSalesPartnerReviewInput = PostJson<
+  (typeof client)['bob']['sales-partner']['approve']['$post']
+>
+export type TargetSalesPartnerRejectInput = PostJson<
+  (typeof client)['bob']['sales-partner']['reject']['$post']
+>
 
 export class TargetApiError extends Error {
   readonly errorKey: string
   readonly requestId: string
+  readonly data: unknown
 
-  constructor(errorKey: string, message: string, requestId: string) {
+  constructor(
+    errorKey: string,
+    message: string,
+    requestId: string,
+    data: unknown = null,
+  ) {
     super(message)
     this.name = 'TargetApiError'
     this.errorKey = errorKey
     this.requestId = requestId
+    this.data = data
   }
 }
 
@@ -201,6 +271,7 @@ export async function restoreTargetSession() {
       payload.errorKey,
       payload.message,
       payload.requestId,
+      payload.data,
     )
   return payload.data
 }
@@ -214,6 +285,7 @@ export async function signInTarget(code: string, password: string) {
       payload.errorKey,
       payload.message,
       payload.requestId,
+      payload.data,
     )
   return payload.data
 }
@@ -1159,6 +1231,591 @@ export async function queryTargetBobReferences(
   )
 }
 
+export async function queryTargetSuppliers(
+  csrfToken: string,
+  input: TargetSupplierQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob.supplier.query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function getTargetSupplier(csrfToken: string, objectId: string) {
+  return unwrapTarget(
+    await (
+      await client.bob.supplier.get.$post(
+        { json: { objectId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function setTargetSupplierEnabled(
+  csrfToken: string,
+  input: TargetSupplierEnabledInput,
+  enabled: boolean,
+) {
+  const endpoint = enabled
+    ? client.bob.supplier.enable
+    : client.bob.supplier.disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function queryTargetOtherUnits(
+  csrfToken: string,
+  input: TargetOtherUnitQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['other-unit'].query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function getTargetOtherUnit(csrfToken: string, objectId: string) {
+  return unwrapTarget(
+    await (
+      await client.bob['other-unit'].get.$post(
+        { json: { objectId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function setTargetOtherUnitEnabled(
+  csrfToken: string,
+  input: TargetOtherUnitEnabledInput,
+  enabled: boolean,
+) {
+  const endpoint = enabled
+    ? client.bob['other-unit'].enable
+    : client.bob['other-unit'].disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function queryTargetSalesPartners(
+  csrfToken: string,
+  input: TargetSalesPartnerQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['sales-partner'].query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function getTargetSalesPartner(
+  csrfToken: string,
+  objectId: string,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['sales-partner'].get.$post(
+        { json: { objectId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function setTargetSalesPartnerEnabled(
+  csrfToken: string,
+  input: TargetSalesPartnerEnabledInput,
+  enabled: boolean,
+) {
+  const endpoint = enabled
+    ? client.bob['sales-partner'].enable
+    : client.bob['sales-partner'].disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function queryTargetSupplierSubmissions(
+  csrfToken: string,
+  input: TargetSupplierSubmissionQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob.supplier['submission-query'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function getTargetSupplierSubmission(
+  csrfToken: string,
+  input: TargetSupplierSubmissionGetInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob.supplier['submission-get'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function queryTargetSupplierVersions(
+  csrfToken: string,
+  subjectId: string,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob.supplier.versions.$post(
+        { json: { subjectId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function queryTargetSupplierAuditHistory(
+  csrfToken: string,
+  subjectId: string,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob.supplier['audit-history'].$post(
+        { json: { subjectId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function submitNewTargetSupplier(
+  csrfToken: string,
+  input: TargetSupplierSubmitInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob.supplier['submit-new'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function submitChangeTargetSupplier(
+  csrfToken: string,
+  input: TargetSupplierSubmitInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob.supplier['submit-change'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function approveTargetSupplier(
+  csrfToken: string,
+  input: TargetSupplierReviewInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob.supplier.approve.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function rejectTargetSupplier(
+  csrfToken: string,
+  input: TargetSupplierRejectInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob.supplier.reject.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function unrejectTargetSupplier(
+  csrfToken: string,
+  input: TargetSupplierReviewInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob.supplier.unreject.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function unapproveTargetSupplier(
+  csrfToken: string,
+  input: TargetSupplierRejectInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob.supplier.unapprove.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function deleteTargetSupplier(
+  csrfToken: string,
+  input: TargetSupplierReviewInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob.supplier.delete.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function getTargetOtherUnitSubmission(
+  csrfToken: string,
+  input: TargetOtherUnitSubmissionGetInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['other-unit']['submission-get'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function queryTargetOtherUnitVersions(
+  csrfToken: string,
+  subjectId: string,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['other-unit'].versions.$post(
+        { json: { subjectId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function submitNewTargetOtherUnit(
+  csrfToken: string,
+  input: TargetOtherUnitSubmitInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['other-unit']['submit-new'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function submitChangeTargetOtherUnit(
+  csrfToken: string,
+  input: TargetOtherUnitSubmitInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['other-unit']['submit-change'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function queryTargetOtherUnitSubmissions(
+  csrfToken: string,
+  input: TargetOtherUnitSubmissionQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['other-unit']['submission-query'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function queryTargetOtherUnitAuditHistory(
+  csrfToken: string,
+  subjectId: string,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['other-unit']['audit-history'].$post(
+        { json: { subjectId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function approveTargetOtherUnit(
+  csrfToken: string,
+  input: TargetOtherUnitReviewInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['other-unit'].approve.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function rejectTargetOtherUnit(
+  csrfToken: string,
+  input: TargetOtherUnitRejectInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['other-unit'].reject.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function unrejectTargetOtherUnit(
+  csrfToken: string,
+  input: TargetOtherUnitReviewInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['other-unit'].unreject.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function unapproveTargetOtherUnit(
+  csrfToken: string,
+  input: TargetOtherUnitRejectInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['other-unit'].unapprove.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function deleteTargetOtherUnit(
+  csrfToken: string,
+  input: TargetOtherUnitReviewInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['other-unit'].delete.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function getTargetSalesPartnerSubmission(
+  csrfToken: string,
+  input: TargetSalesPartnerSubmissionGetInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['sales-partner']['submission-get'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function queryTargetSalesPartnerVersions(
+  csrfToken: string,
+  subjectId: string,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['sales-partner'].versions.$post(
+        { json: { subjectId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function submitNewTargetSalesPartner(
+  csrfToken: string,
+  input: TargetSalesPartnerSubmitInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['sales-partner']['submit-new'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function submitChangeTargetSalesPartner(
+  csrfToken: string,
+  input: TargetSalesPartnerSubmitInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['sales-partner']['submit-change'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function queryTargetSalesPartnerSubmissions(
+  csrfToken: string,
+  input: TargetSalesPartnerSubmissionQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['sales-partner']['submission-query'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function queryTargetSalesPartnerAuditHistory(
+  csrfToken: string,
+  subjectId: string,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['sales-partner']['audit-history'].$post(
+        { json: { subjectId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function approveTargetSalesPartner(
+  csrfToken: string,
+  input: TargetSalesPartnerReviewInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['sales-partner'].approve.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function rejectTargetSalesPartner(
+  csrfToken: string,
+  input: TargetSalesPartnerRejectInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['sales-partner'].reject.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function unrejectTargetSalesPartner(
+  csrfToken: string,
+  input: TargetSalesPartnerReviewInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['sales-partner'].unreject.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function unapproveTargetSalesPartner(
+  csrfToken: string,
+  input: TargetSalesPartnerRejectInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['sales-partner'].unapprove.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function deleteTargetSalesPartner(
+  csrfToken: string,
+  input: TargetSalesPartnerReviewInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['sales-partner'].delete.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
 type TargetSuccessData<T> = T extends { code: 0; data: infer Data }
   ? Data
   : never
@@ -1184,6 +1841,7 @@ async function unwrapTarget(payload: unknown): Promise<unknown> {
       failure?.errorKey ?? 'invalid_response',
       failure?.message ?? 'invalid target response',
       failure?.requestId ?? '',
+      failure?.data,
     )
   }
   return payload.data

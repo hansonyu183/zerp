@@ -1,3 +1,4 @@
+import { bobArchiveSnapshotSchemas } from '../bob/archive-contract.ts'
 import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
 import type { Handler } from 'hono'
 
@@ -349,6 +350,74 @@ const bobReferences = z.array(
   }),
 )
 
+const bobManagedEntities = ['supplier', 'other-unit', 'sales-partner'] as const
+function bobCurrentRoutes<
+  const Entity extends (typeof bobManagedEntities)[number],
+>(entity: Entity) {
+  const object = bobObject.extend({
+    entity: z.literal(entity),
+    revision: z.string(),
+    name: z.string(),
+    py: z.string(),
+    data: bobArchiveSnapshotSchemas[entity],
+  })
+  const filters = z
+    .object({
+      keyword: z.string().trim().max(200).optional(),
+      enabled: z.boolean().optional(),
+      operatingEntityId: z.string().length(26).optional(),
+      ...(entity === 'supplier'
+        ? { defaultPurchaserEmployeeId: z.string().length(26).optional() }
+        : {}),
+    })
+    .strict()
+  const queryInput = z
+    .object({
+      page: z.number().int().positive(),
+      pageSize: z.number().int().min(1).max(100),
+      filters: filters.optional(),
+      sort: z
+        .array(
+          z
+            .object({
+              field: z.enum(['updatedAt', 'code', 'name']),
+              order: z.enum(['asc', 'desc']),
+            })
+            .strict(),
+        )
+        .max(1)
+        .optional(),
+    })
+    .strict()
+  const revisionInput = z
+    .object({
+      objectId: z.string().length(26),
+      expectedRevision: z.string().regex(/^[1-9]\d*$/),
+    })
+    .strict()
+  const result = z.object({
+    id: z.string(),
+    enabled: z.boolean(),
+    revision: z.string(),
+  })
+  return {
+    query: postRoute(
+      `/bob/${entity}/query` as const,
+      queryInput,
+      bobPage.extend({ items: z.array(object) }),
+    ),
+    get: postRoute(`/bob/${entity}/get` as const, objectIdentifier, object),
+    enable: postRoute(`/bob/${entity}/enable` as const, revisionInput, result),
+    disable: postRoute(
+      `/bob/${entity}/disable` as const,
+      revisionInput,
+      result,
+    ),
+  }
+}
+const supplierCurrentRoutes = bobCurrentRoutes('supplier')
+const otherUnitCurrentRoutes = bobCurrentRoutes('other-unit')
+const salesPartnerCurrentRoutes = bobCurrentRoutes('sales-partner')
 function bobRoute<const Path extends string>(
   path: Path,
   action: 'query' | 'get',
@@ -366,7 +435,7 @@ export const bobEntities = [
   'product',
 ] as const
 
-type BobRouteAction = 'query' | 'get'
+type BobRouteAction = 'query' | 'get' | 'enable' | 'disable'
 
 export interface BobRouteBinding {
   entity: (typeof bobEntities)[number]
@@ -913,15 +982,71 @@ export function registerIndependentRoutes(
       handler: handlers.aux(auxRouteBinding('vehicle', 'delete')),
     },
   ] as const)
-  withAux.openapiRoutes([
-    ...bobEntities.flatMap((entity) =>
-      (['query', 'get'] as const).map((action) => ({
-        route: bobRoute(`/bob/${entity}/${action}`, action),
-        handler: handlers.bob(bobRouteBinding(entity, action)),
-      })),
-    ),
-  ] as const)
   return withAux.openapiRoutes([
+    {
+      route: supplierCurrentRoutes.query,
+      handler: handlers.bob(bobRouteBinding('supplier', 'query')),
+    },
+    {
+      route: supplierCurrentRoutes.get,
+      handler: handlers.bob(bobRouteBinding('supplier', 'get')),
+    },
+    {
+      route: supplierCurrentRoutes.enable,
+      handler: handlers.bob(bobRouteBinding('supplier', 'enable')),
+    },
+    {
+      route: supplierCurrentRoutes.disable,
+      handler: handlers.bob(bobRouteBinding('supplier', 'disable')),
+    },
+    {
+      route: otherUnitCurrentRoutes.query,
+      handler: handlers.bob(bobRouteBinding('other-unit', 'query')),
+    },
+    {
+      route: otherUnitCurrentRoutes.get,
+      handler: handlers.bob(bobRouteBinding('other-unit', 'get')),
+    },
+    {
+      route: otherUnitCurrentRoutes.enable,
+      handler: handlers.bob(bobRouteBinding('other-unit', 'enable')),
+    },
+    {
+      route: otherUnitCurrentRoutes.disable,
+      handler: handlers.bob(bobRouteBinding('other-unit', 'disable')),
+    },
+    {
+      route: salesPartnerCurrentRoutes.query,
+      handler: handlers.bob(bobRouteBinding('sales-partner', 'query')),
+    },
+    {
+      route: salesPartnerCurrentRoutes.get,
+      handler: handlers.bob(bobRouteBinding('sales-partner', 'get')),
+    },
+    {
+      route: salesPartnerCurrentRoutes.enable,
+      handler: handlers.bob(bobRouteBinding('sales-partner', 'enable')),
+    },
+    {
+      route: salesPartnerCurrentRoutes.disable,
+      handler: handlers.bob(bobRouteBinding('sales-partner', 'disable')),
+    },
+    {
+      route: bobRoute('/bob/customer/query', 'query'),
+      handler: handlers.bob(bobRouteBinding('customer', 'query')),
+    },
+    {
+      route: bobRoute('/bob/customer/get', 'get'),
+      handler: handlers.bob(bobRouteBinding('customer', 'get')),
+    },
+    {
+      route: bobRoute('/bob/product/query', 'query'),
+      handler: handlers.bob(bobRouteBinding('product', 'query')),
+    },
+    {
+      route: bobRoute('/bob/product/get', 'get'),
+      handler: handlers.bob(bobRouteBinding('product', 'get')),
+    },
     {
       route: auxReferenceRoute,
       handler: handlers.aux(auxReferenceRouteBinding),
@@ -1031,7 +1156,10 @@ export const independentRouteMetadata = [
     title: '查询 AUX 最小引用候选',
   },
   ...bobEntities.flatMap((entity) =>
-    ['query', 'get'].map((action) => ({
+    (bobManagedEntities.some((item) => item === entity)
+      ? ['query', 'get', 'enable', 'disable']
+      : ['query', 'get']
+    ).map((action) => ({
       method: 'post',
       path: `/bob/${entity}/${action}`,
       permission: `/bob/${entity}/${action}`,

@@ -6,6 +6,7 @@ import {
   generateAdrIndex,
   isUseCasePageFile,
   parseTargetEntryPage,
+  parseTargetRegisteredResourcePages,
   parseTargetRouterPages,
   validateAdrDocuments,
   validateAdrIndex,
@@ -62,6 +63,34 @@ test('requires every titled target route to declare a use-case key', () => {
 
   assert.deepEqual(parsed.pages, [])
   assert.match(parsed.failures.join('\n'), /\/signin 缺少 meta\.useCaseKey/)
+})
+
+test('includes explicitly documented Resource Host pages from the Registry', () => {
+  assert.deepEqual(
+    parseTargetRegisteredResourcePages(`
+      const resources = [
+        { domain: 'aux', entity: 'warehouse', component: Warehouse },
+        {
+          domain: 'bob',
+          entity: 'supplier',
+          component: SupplierManagement,
+          useCaseKey: 'bob/supplier-management',
+        },
+      ]
+    `),
+    {
+      failures: [],
+      pages: [
+        {
+          title: 'bob/supplier',
+          route: '/bob/supplier',
+          source:
+            '[资源登记](../../frontend/src/target/navigation/registry.ts)',
+          useCaseKey: 'bob/supplier-management',
+        },
+      ],
+    },
+  )
 })
 
 test('requires a document for every target route use-case key', () => {

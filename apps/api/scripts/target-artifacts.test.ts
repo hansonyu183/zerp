@@ -11,6 +11,10 @@ import {
   archiveRouteSets,
   archiveSnapshotSchemas,
 } from '../src/dcl/archive-contract.ts'
+import {
+  bobArchiveRouteSets,
+  archiveBlockerSchema as bobArchiveBlockerSchema,
+} from '../src/bob/archive-contract.ts'
 import { validateTargetRouteMetadata } from './target-artifacts.ts'
 import { vouEntities, userCreatableVouEntities } from '@zerp/model'
 
@@ -257,7 +261,7 @@ test('archive query contract uses the fixed page shell and entity-specific filte
     filters: { keyword: 'water', status: 'APPROVED', enabled: true },
   }
   const vehicle =
-    archiveRouteSets['sales-partner'].query.request.body.content[
+    bobArchiveRouteSets['sales-partner'].query.request.body.content[
       'application/json'
     ].schema
   assert.deepEqual(vehicle.parse(input), input)
@@ -310,7 +314,7 @@ test('archive query contract uses the fixed page shell and entity-specific filte
 
 test('archive failures expose typed current AUX and ACC blockers', () => {
   assert.deepEqual(
-    archiveBlockerSchema.parse({
+    bobArchiveBlockerSchema.parse({
       kind: 'AUX_CURRENT_REFERENCE',
       entity: 'vehicle',
       objectId: '01J00000000000000000000001',
@@ -464,20 +468,12 @@ test('target OpenAPI contains the complete issue 363 APP, AUX, and BOB inventory
   )
 })
 
-test('target OpenAPI contains every issue 364 DCL lifecycle route', async () => {
+test('target OpenAPI contains the separated DCL and BOB archive lifecycle routes', async () => {
   const document = JSON.parse(await readFile(generatedOpenApi, 'utf8')) as {
     paths: Record<string, unknown>
   }
   const paths = new Set(Object.keys(document.paths))
-  const entities = [
-    'product',
-    'supplier',
-    'customer',
-    'other-unit',
-    'sales-partner',
-    'acc-mapping',
-    'rpt-definition',
-  ]
+  const entities = ['product', 'customer', 'acc-mapping', 'rpt-definition']
   const actions = [
     'query',
     'get',
@@ -497,6 +493,25 @@ test('target OpenAPI contains every issue 364 DCL lifecycle route', async () => 
         paths.has(`/dcl/${entity}/${action}`),
         `missing issue #364 target path /dcl/${entity}/${action}`,
       )
+  for (const entity of ['supplier', 'other-unit', 'sales-partner']) {
+    for (const action of [
+      ...actions,
+      'submission-query',
+      'submission-get',
+      'enable',
+      'disable',
+    ])
+      assert.ok(
+        paths.has(`/bob/${entity}/${action}`),
+        `missing BOB archive path ${entity}/${action}`,
+      )
+    assert.ok(
+      ![...paths].some((path) => path.startsWith(`/dcl/${entity}/`)),
+      `retired DCL archive entry remains: ${entity}`,
+    )
+    for (const legacy of ['create', 'save', 'submit', 'unsubmit'])
+      assert.ok(!paths.has(`/bob/${entity}/${legacy}`))
+  }
   assert.ok(paths.has('/dcl/customer/attachment-stage'))
   assert.ok(paths.has('/dcl/customer/attachment-cleanup'))
   for (const legacy of ['create', 'save', 'submit', 'unsubmit'])

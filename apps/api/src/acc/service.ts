@@ -3208,15 +3208,23 @@ export class AccService
             END AS name,
             CASE WHEN entry.entity = 'customer' THEN entry.subject_id ELSE NULL END AS customer_id
           FROM approval_entries entry
-          JOIN dcl_subjects subject ON subject.id = entry.subject_id
+          LEFT JOIN dcl_subjects dcl_subject
+            ON dcl_subject.id = entry.subject_id AND entry.domain = 'dcl'
+          LEFT JOIN bob_subjects bob_subject
+            ON bob_subject.id = entry.subject_id AND entry.domain = 'bob'
           LEFT JOIN dcl_customer_versions customer ON customer.approval_entry_id = entry.id
-          LEFT JOIN dcl_supplier_versions supplier ON supplier.approval_entry_id = entry.id
-          LEFT JOIN dcl_other_unit_versions other_unit ON other_unit.approval_entry_id = entry.id
-          LEFT JOIN dcl_sales_partner_versions sales_partner ON sales_partner.approval_entry_id = entry.id
+          LEFT JOIN bob_supplier_versions supplier ON supplier.approval_entry_id = entry.id
+          LEFT JOIN bob_other_unit_versions other_unit ON other_unit.approval_entry_id = entry.id
+          LEFT JOIN bob_sales_partner_versions sales_partner ON sales_partner.approval_entry_id = entry.id
           WHERE entry.id = ${historical.approvalEntryId}
-            AND entry.domain = 'dcl' AND entry.entity = ${historical.entity}
+            AND (
+              (entry.domain = 'dcl' AND entry.entity = 'customer')
+              OR (entry.domain = 'bob' AND entry.entity IN ('supplier', 'other-unit', 'sales-partner'))
+            )
+            AND entry.entity = ${historical.entity}
             AND entry.subject_id = ${historical.objectId}
-            AND entry.status = 'APPROVED' AND subject.code = ${historical.code}
+            AND entry.status = 'APPROVED'
+            AND COALESCE(dcl_subject.code, bob_subject.code) = ${historical.code}
         `.execute(executor)
         const row = result.rows[0]
         if (

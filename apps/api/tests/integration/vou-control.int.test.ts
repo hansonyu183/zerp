@@ -824,8 +824,9 @@ test('sale signoff and purchase inbound price the approved source line batch ins
         .execute()
       await db
         .deleteFrom('dcl_subjects')
-        .where('id', 'in', [customerId, supplierId, productId, warehouseId])
+        .where('id', 'in', [customerId, productId, warehouseId])
         .execute()
+      await sql`DELETE FROM bob_subjects WHERE id = ${supplierId}`.execute(db)
       await db
         .deleteFrom('aux_objects')
         .where('created_by', '=', actorId)
@@ -872,13 +873,6 @@ test('sale signoff and purchase inbound price the approved source line batch ins
         created_by: actorId,
       },
       {
-        id: supplierId,
-        entity: 'supplier',
-        code: `SUP-${suffix}`,
-        created_at: now,
-        created_by: actorId,
-      },
-      {
         id: productId,
         entity: 'product',
         code: `PRD-${suffix}`,
@@ -887,6 +881,10 @@ test('sale signoff and purchase inbound price the approved source line batch ins
       },
     ])
     .execute()
+  await sql`
+    INSERT INTO bob_subjects (id, entity, code, enabled, revision, created_at, created_by)
+    VALUES (${supplierId}, 'supplier', ${`SUP-${suffix}`}, true, 1, ${now}, ${actorId})
+  `.execute(db)
   await db
     .insertInto('approval_entries')
     .values([
@@ -907,7 +905,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
       },
       {
         id: supplierEntryId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'supplier',
         subject_id: supplierId,
         version_no: 1,
@@ -982,7 +980,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     })
     .execute()
   await db
-    .insertInto('dcl_supplier_versions')
+    .insertInto('bob_supplier_versions')
     .values({
       approval_entry_id: supplierEntryId,
       kind: 'ORGANIZATION',
@@ -1001,7 +999,6 @@ test('sale signoff and purchase inbound price the approved source line batch ins
       default_operating_entity_reference: null,
       settlement_method_snapshot: prepaid,
       default_purchaser_snapshot: null,
-      enabled: true,
     })
     .execute()
   await db

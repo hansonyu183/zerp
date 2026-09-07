@@ -12,6 +12,7 @@ import {
   type PermissionCatalogMigrationReport,
   type PermissionPathMapping,
 } from '../app/bootstrap.ts'
+import { preserveLegacyBobArchivePermissionCatalog } from '../bob/migration-guard.ts'
 import type { DB } from '../db/generated.ts'
 
 export type AuxAssetEntity = 'warehouse' | 'vehicle' | 'fund-account'
@@ -656,7 +657,20 @@ export class AuxAssetMigrationService {
       const permissionCatalog =
         await this.bootstrap.migratePermissionCatalogInTransaction(
           transaction,
-          targetCatalog,
+          preserveLegacyBobArchivePermissionCatalog(
+            targetCatalog,
+            await transaction
+              .selectFrom('app_permissions')
+              .select([
+                'id',
+                'path',
+                'domain',
+                'entity',
+                'action',
+                'description',
+              ])
+              .execute(),
+          ),
           auxAssetPermissionMappings,
         )
       return {

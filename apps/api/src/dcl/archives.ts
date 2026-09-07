@@ -9,11 +9,8 @@ import {
   decideApproval,
   prepareAccMappingSubmit,
   prepareCustomerSubmit,
-  prepareOtherUnitSubmit,
   prepareProductSubmit,
   prepareRptDefinitionSubmit,
-  prepareSalesPartnerSubmit,
-  prepareSupplierSubmit,
   type ApprovalAction,
   type ApprovalActor,
   type ApprovalEntry,
@@ -25,7 +22,11 @@ import {
 import { sql, type Kysely, type Transaction } from 'kysely'
 import { ulid } from 'ulid'
 
-import type { ArchiveEntity } from './archive-contract.ts'
+import type { ArchiveEntity as DclArchiveEntity } from './archive-contract.ts'
+import { readBusinessIdentitySnapshot } from '../bob/archives.ts'
+
+type ArchiveEntity = DclArchiveEntity
+type ApprovedReferenceEntity = ArchiveEntity | 'sales-partner'
 import type { DB, JsonValue } from '../db/generated.ts'
 import {
   cancelAttachmentDeletion,
@@ -34,6 +35,15 @@ import {
   lockAttachmentStorageKey,
 } from '../platform/attachment-deletion.ts'
 import { AttachmentStore } from '../platform/attachment-store.ts'
+import {
+  ApprovalPersistence,
+  ApprovalPersistenceError,
+} from '../platform/approval.ts'
+import {
+  VersionedArchives,
+  VersionedArchiveError,
+  type VersionedArchiveScope,
+} from '../platform/versioned-archives.ts'
 import type {
   RptColumn,
   RptDefinition,
@@ -41,7 +51,8 @@ import type {
   RptParameter,
 } from '../rpt/service.ts'
 
-type Executor = Kysely<DB> | Transaction<DB>
+export type ArchiveExecutor = Kysely<DB> | Transaction<DB>
+type Executor = ArchiveExecutor
 export type ArchiveSnapshot = Record<string, unknown>
 
 type ApprovedArchiveFact = {
@@ -110,33 +121,6 @@ type PreparedArchiveResult =
       ok: false
       error: { errorKey: string; blockers?: ReferenceBlocker[] }
     }
-
-type IdentitySetRow = {
-  kind: string
-  legal_name: string
-  display_name: string
-  legal_identifier: string | null
-  contact_name: string | null
-  contact_phone: string | null
-  address: string | null
-  default_operating_entity_id: string | null
-  default_purchaser_employee_id: string | null
-  default_purchaser_approval_entry_id: string | null
-  default_purchaser_code: string | null
-  default_purchaser_name: string | null
-  remark: string | null
-  enabled: boolean
-  settlement_method_snapshot: JsonValue | null
-  default_purchaser_snapshot: JsonValue | null
-  capabilities: JsonValue | null
-}
-
-type OperatingEntityReferenceRow = {
-  operating_entity_id: string
-  operating_entity_approval_entry_id: string
-  operating_entity_code: string
-  operating_entity_name: string
-}
 
 export interface ArchiveSubmitInput {
   subjectId: string
@@ -209,18 +193,12 @@ type ArchiveQueryDetails = Omit<
   ArchiveQueryView,
   'latestApproved' | 'openCandidate'
 > & {
+  enabled?: boolean
   latestApproved: ArchiveSubmissionView | null
   openCandidate: ArchiveSubmissionView | null
 }
 
 export type ArchiveBlocker =
-  | {
-      kind: 'AUX_CURRENT_REFERENCE'
-      entity: 'vehicle'
-      objectId: string
-      field: 'carrier'
-      approvalEntryId: string
-    }
   | {
       kind: 'AUX_REFERENCE'
       entity: 'operating-entity' | 'employee'
@@ -356,35 +334,33 @@ function matchesArchiveSnapshot(
     Boolean(record(snapshot).enabled) !== filters.enabled
   )
     return false
-  if (filters.keyword) {
+  const keyword = filters.keyword
+  if (keyword) {
     const data = record(snapshot)
     const keywordMatches =
       entity === 'product'
-        ? includesKeyword(filters.keyword, [
+        ? includesKeyword(keyword, [
             code,
             nullable(data.name),
             nullable(data.barcode),
             nullable(data.specification),
             nullable(data.model),
           ])
-        : entity === 'supplier' ||
-            entity === 'customer' ||
-            entity === 'other-unit' ||
-            entity === 'sales-partner'
-          ? includesKeyword(filters.keyword, [
+        : entity === 'customer'
+          ? includesKeyword(keyword, [
               code,
               nullable(data.legalName),
               nullable(data.displayName),
               nullable(data.legalIdentifier),
             ])
           : entity === 'acc-mapping'
-            ? includesKeyword(filters.keyword, [
+            ? includesKeyword(keyword, [
                 nullable(record(data.book).code),
                 nullable(record(data.book).name),
                 nullable(record(data.vouEntity).code),
                 nullable(record(data.vouEntity).name),
               ])
-            : includesKeyword(filters.keyword, [
+            : includesKeyword(keyword, [
                 code,
                 nullable(data.name),
                 nullable(data.description),
@@ -419,12 +395,26 @@ function matchesArchiveSnapshot(
 
 const entityCodes: Record<ArchiveEntity, string> = {
   product: 'PRD',
-  supplier: 'SUP',
   customer: 'CUS',
-  'other-unit': 'OTU',
-  'sales-partner': 'SLP',
   'acc-mapping': '',
   'rpt-definition': 'rpt',
+}
+
+type ArchiveDomain = 'dcl'
+
+export function archiveDomain(_entity: ArchiveEntity): ArchiveDomain {
+  return 'dcl'
+}
+
+function archiveScope(
+  entity: ArchiveEntity,
+  subjectId: string,
+): VersionedArchiveScope<ArchiveDomain, ArchiveEntity> {
+  return { domain: 'dcl', entity, subjectId }
+}
+
+function archiveActionPath(entity: ArchiveEntity, action: string): string {
+  return `/dcl/${entity}/${action}`
 }
 
 function requirePermission(actor: ApprovalActor, path: string): void {
@@ -493,11 +483,13 @@ function requestHash(
     .digest('hex')
 }
 
-/** DCL archive persistence. Entity payloads are deliberately explicit below. */
+/** Versioned archive persistence. Entity payloads remain explicit below. */
 export class ArchiveService {
   private readonly db: Kysely<DB>
   private readonly rptValidator: RptDefinitionValidator
   private readonly attachmentStore: AttachmentStore
+  private readonly approval = new ApprovalPersistence()
+  private readonly versioning = new VersionedArchives()
 
   constructor(
     db: Kysely<DB>,
@@ -518,21 +510,27 @@ export class ArchiveService {
     input: ArchiveQueryInput,
     actor: ApprovalActor,
   ): Promise<{ items: ArchiveQueryView[]; total: number }> {
-    requirePermission(actor, `/dcl/${entity}/query`)
-    const rows = await this.db
-      .selectFrom('approval_entries as e')
-      .innerJoin('dcl_subjects as s', 's.id', 'e.subject_id')
-      .select(['e.id', 'e.subject_id', 'e.version_no', 'e.status', 's.code'])
-      .where('e.domain', '=', 'dcl')
-      .where('e.entity', '=', entity)
-      .orderBy('s.code', 'asc')
-      .orderBy('s.id', 'asc')
-      .orderBy('e.version_no', 'desc')
-      .execute()
+    requirePermission(actor, archiveActionPath(entity, 'query'))
+    const subjectTable = 'dcl_subjects'
+    const selected = await sql<{
+      id: string
+      subject_id: string
+      version_no: number
+      status: string
+      code: string | null
+      subject_enabled: boolean | null
+    }>`SELECT e.id, e.subject_id, e.version_no, e.status, s.code
+              , ${sql`NULL::boolean`} AS subject_enabled
+       FROM approval_entries e
+       JOIN ${sql.table(subjectTable)} s ON s.id = e.subject_id
+       WHERE e.domain = ${archiveDomain(entity)} AND e.entity = ${entity}
+       ORDER BY s.code ASC, s.id ASC, e.version_no DESC`.execute(this.db)
+    const rows = selected.rows
     const subjectEntries = new Map<
       string,
       {
         code: string | null
+        enabled?: boolean
         latestApprovedId: string | null
         openCandidateId: string | null
       }
@@ -540,6 +538,9 @@ export class ArchiveService {
     for (const row of rows) {
       const subject = subjectEntries.get(row.subject_id) ?? {
         code: row.code,
+        ...(row.subject_enabled === null
+          ? {}
+          : { enabled: row.subject_enabled }),
         latestApprovedId: null,
         openCandidateId: null,
       }
@@ -576,6 +577,9 @@ export class ArchiveService {
           entity,
           subjectId,
           code: subject.code,
+          ...(subject.enabled === undefined
+            ? {}
+            : { enabled: subject.enabled }),
           latestApproved,
           openCandidate,
         } satisfies ArchiveQueryDetails
@@ -607,19 +611,21 @@ export class ArchiveService {
     actor: ApprovalActor,
     approvalEntryId?: string,
   ): Promise<ArchiveSubmissionView> {
-    requirePermission(actor, `/dcl/${entity}/get`)
-    let query = this.db
-      .selectFrom('approval_entries')
-      .select('id')
-      .where('domain', '=', 'dcl')
-      .where('entity', '=', entity)
-      .where('subject_id', '=', subjectId)
-    if (entity === 'rpt-definition' && approvalEntryId)
-      query = query.where('id', '=', approvalEntryId)
-    else query = query.orderBy('version_no', 'desc')
-    const row = await query.executeTakeFirst()
-    if (!row) throw new ArchiveApplicationError('approval_not_found')
-    return this.readSubmission(this.db, entity, row.id, actor)
+    requirePermission(actor, archiveActionPath(entity, 'get'))
+    try {
+      return await this.db.transaction().execute(async (tx) => {
+        const scope = archiveScope(entity, subjectId)
+        const entry = approvalEntryId
+          ? await this.versioning.exact(tx, scope, approvalEntryId)
+          : (await this.versioning.history(tx, scope))[0]
+        if (!entry) throw new ArchiveApplicationError('approval_not_found')
+        return this.readSubmission(tx, entity, entry.id, actor)
+      })
+    } catch (error) {
+      if (error instanceof VersionedArchiveError)
+        throw new ArchiveApplicationError(error.errorKey)
+      throw error
+    }
   }
 
   async versions(
@@ -627,19 +633,24 @@ export class ArchiveService {
     subjectId: string,
     actor: ApprovalActor,
   ): Promise<ArchiveSubmissionView[]> {
-    requirePermission(actor, `/dcl/${entity}/versions`)
-    const rows = await this.db
-      .selectFrom('approval_entries')
-      .select('id')
-      .where('domain', '=', 'dcl')
-      .where('entity', '=', entity)
-      .where('subject_id', '=', subjectId)
-      .orderBy('version_no', 'desc')
-      .execute()
-    const items = await Promise.all(
-      rows.map((row) => this.readSubmission(this.db, entity, row.id, actor)),
-    )
-    return items
+    requirePermission(actor, archiveActionPath(entity, 'versions'))
+    try {
+      return await this.db.transaction().execute(async (tx) => {
+        const history = await this.versioning.history(
+          tx,
+          archiveScope(entity, subjectId),
+        )
+        return Promise.all(
+          history.map((entry) =>
+            this.readSubmission(tx, entity, entry.id, actor),
+          ),
+        )
+      })
+    } catch (error) {
+      if (error instanceof VersionedArchiveError)
+        throw new ArchiveApplicationError(error.errorKey)
+      throw error
+    }
   }
 
   async auditHistory(
@@ -647,29 +658,23 @@ export class ArchiveService {
     subjectId: string,
     actor: ApprovalActor,
   ): Promise<ArchiveAuditView[]> {
-    requirePermission(actor, `/dcl/${entity}/audit-history`)
-    const rows = await this.db
-      .selectFrom('approval_events')
-      .selectAll()
-      .where('domain', '=', 'dcl')
-      .where('entity', '=', entity)
-      .where('subject_id', '=', subjectId)
-      .orderBy('created_at', 'asc')
-      .orderBy('id', 'asc')
-      .execute()
-    return rows.map((row) => ({
-      id: row.id,
-      submissionId: row.entry_id,
-      versionNo: requiredVersionNo(row.version_no),
-      action: row.action as ArchiveAuditView['action'],
-      fromStatus: row.from_status as ApprovalStatus | null,
-      toStatus: row.to_status as ApprovalStatus | null,
-      fromRevision:
-        row.from_revision === null ? null : String(row.from_revision),
-      toRevision: row.to_revision === null ? null : String(row.to_revision),
-      actorId: row.actor_id,
-      reason: row.reason,
-      createdAt: row.created_at.toISOString(),
+    requirePermission(actor, archiveActionPath(entity, 'audit-history'))
+    const events = await this.approval.auditHistory(
+      this.db,
+      archiveScope(entity, subjectId),
+    )
+    return events.map((event) => ({
+      id: event.id,
+      submissionId: event.entryId,
+      versionNo: requiredVersionNo(event.versionNo),
+      action: event.action,
+      fromStatus: event.fromStatus,
+      toStatus: event.toStatus,
+      fromRevision: event.fromRevision,
+      toRevision: event.toRevision,
+      actorId: event.actorId,
+      reason: event.reason,
+      createdAt: event.createdAt,
     }))
   }
 
@@ -680,18 +685,20 @@ export class ArchiveService {
     actor: ApprovalActor,
     requestId: string,
   ): Promise<ArchiveSubmissionView> {
-    requirePermission(actor, `/dcl/${entity}/${action}`)
+    requirePermission(actor, archiveActionPath(entity, action))
+    const domain = archiveDomain(entity)
+    const subjectTable = 'dcl_subjects'
     const idempotencyKey = input.idempotencyKey.trim()
     const hash = requestHash(action, entity, input)
     let view: ArchiveSubmissionView
     const preparedPermanentKeys = new Set<string>()
     try {
       view = await this.db.transaction().execute(async (tx) => {
-        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:archive:${entity}:idempotency:${idempotencyKey}`}, 0))`.execute(
+        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${domain}:archive:${entity}:idempotency:${idempotencyKey}`}, 0))`.execute(
           tx,
         )
         const prior = await tx
-          .selectFrom('dcl_archive_idempotency')
+          .selectFrom('archive_idempotency')
           .select(['request_hash', 'response'])
           .where('entity', '=', entity)
           .where('idempotency_key', '=', idempotencyKey)
@@ -701,24 +708,22 @@ export class ArchiveService {
             throw new ArchiveApplicationError('archive_idempotency_conflict')
           return prior.response as unknown as ArchiveSubmissionView
         }
-        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:archive:${entity}:${input.subjectId}`}, 0))`.execute(
+        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${domain}:archive:${entity}:${input.subjectId}`}, 0))`.execute(
           tx,
         )
         const subject = await tx
-          .selectFrom('dcl_subjects')
+          .selectFrom(subjectTable)
           .select('id')
           .where('id', '=', input.subjectId)
           .where('entity', '=', entity)
           .executeTakeFirst()
-        const history = await tx
-          .selectFrom('approval_entries')
-          .select(['id', 'version_no', 'status', 'revision'])
-          .where('domain', '=', 'dcl')
-          .where('entity', '=', entity)
-          .where('subject_id', '=', input.subjectId)
-          .orderBy('version_no', 'asc')
-          .forUpdate()
-          .execute()
+        const history = (
+          await this.versioning.history(
+            tx,
+            archiveScope(entity, input.subjectId),
+            true,
+          )
+        ).toReversed()
         const occurredAt = new Date()
         const authoritativeInput = {
           ...input,
@@ -736,9 +741,11 @@ export class ArchiveService {
           requestId,
           occurredAt.toISOString(),
           subject !== undefined,
-          history.map((row) => ({
-            ...row,
-            version_no: requiredVersionNo(row.version_no),
+          history.map((entry) => ({
+            id: entry.id,
+            version_no: requiredVersionNo(entry.versionNo),
+            status: entry.status,
+            revision: entry.revision,
           })),
           tx,
         )
@@ -759,7 +766,7 @@ export class ArchiveService {
           if (entity === 'acc-mapping') code = null
           else {
             const counter = await tx
-              .updateTable('dcl_code_counters')
+              .updateTable('archive_code_counters')
               .set((eb) => ({ next_value: eb('next_value', '+', 1) }))
               .where('entity', '=', entity)
               .returning('next_value')
@@ -768,7 +775,7 @@ export class ArchiveService {
             code = `${entityCodes[entity]}-${String(counter.next_value - 1).padStart(digits, '0')}`
           }
           await tx
-            .insertInto('dcl_subjects')
+            .insertInto(subjectTable)
             .values({
               id: input.subjectId.trim(),
               entity,
@@ -779,7 +786,7 @@ export class ArchiveService {
             .execute()
         } else {
           const current = await tx
-            .selectFrom('dcl_subjects')
+            .selectFrom(subjectTable)
             .select('code')
             .where('id', '=', input.subjectId)
             .executeTakeFirstOrThrow()
@@ -805,27 +812,16 @@ export class ArchiveService {
           )
             requirePermission(actor, '/dcl/customer/save-subunits')
         }
-        await tx
-          .insertInto('approval_entries')
-          .values({
-            id: input.submissionId.trim(),
-            domain: 'dcl',
-            entity,
-            subject_id: input.subjectId.trim(),
-            version_no: plan.versionNo,
-            status: 'PENDING',
-            revision: '1',
-            submitted_by: actor.id,
-            submitted_at: occurredAt,
-            approved_by: null,
-            approved_at: null,
-            rejected_by: null,
-            rejected_at: null,
-            rejection_reason: null,
-            updated_by: actor.id,
-            updated_at: occurredAt,
-          })
-          .execute()
+        await this.approval.create(tx, {
+          entryId: input.submissionId.trim(),
+          domain,
+          entity,
+          subjectId: input.subjectId.trim(),
+          versionNo: plan.versionNo,
+          actorId: actor.id,
+          occurredAt,
+          requestId,
+        })
         await this.writeSnapshot(
           tx,
           entity,
@@ -846,26 +842,6 @@ export class ArchiveService {
             actor.id,
             preparedPermanentKeys,
           )
-        await tx
-          .insertInto('approval_events')
-          .values({
-            id: ulid(),
-            entry_id: input.submissionId.trim(),
-            domain: 'dcl',
-            entity,
-            subject_id: input.subjectId.trim(),
-            version_no: plan.versionNo,
-            action: 'SUBMITTED',
-            from_status: null,
-            to_status: 'PENDING',
-            from_revision: null,
-            to_revision: '1',
-            actor_id: actor.id,
-            reason: null,
-            request_id: requestId,
-            created_at: occurredAt,
-          })
-          .execute()
         const view = await this.readSubmission(
           tx,
           entity,
@@ -873,7 +849,7 @@ export class ArchiveService {
           actor,
         )
         await tx
-          .insertInto('dcl_archive_idempotency')
+          .insertInto('archive_idempotency')
           .values({
             entity,
             idempotency_key: idempotencyKey,
@@ -890,6 +866,8 @@ export class ArchiveService {
       if (entity === 'customer')
         await this.discardPreparedCustomerAttachments(preparedPermanentKeys)
       if (error instanceof ArchiveApplicationError) throw error
+      if (error instanceof VersionedArchiveError)
+        throw new ArchiveApplicationError(error.errorKey)
       if (pgCode(error) === '23505')
         throw new ArchiveApplicationError('archive_conflict')
       throw error
@@ -906,7 +884,7 @@ export class ArchiveService {
     actor: ApprovalActor,
     requestId: string,
   ): Promise<ArchiveSubmissionView> {
-    requirePermission(actor, `/dcl/${entity}/${action}`)
+    requirePermission(actor, archiveActionPath(entity, action))
     if (action === 'approve' && entity === 'rpt-definition') {
       const entry = await this.loadEntry(
         this.db,
@@ -927,107 +905,70 @@ export class ArchiveService {
         throw new ArchiveApplicationError(preflight.error.errorKey)
       await this.validateReport(this.db, input.submissionId, actor.id)
     }
-    return this.db.transaction().execute(async (tx) => {
-      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:archive:${entity}:${input.subjectId}`}, 0))`.execute(
-        tx,
-      )
-      if (
-        entity === 'product' &&
-        (action === 'approve' || action === 'unapprove')
-      )
-        await tx
-          .selectFrom('dcl_subjects')
-          .select('id')
-          .where('id', '=', input.subjectId)
-          .where('entity', '=', 'product')
-          .forUpdate()
-          .executeTakeFirst()
-      const entry = await this.loadEntry(
-        tx,
-        entity,
-        input.submissionId,
-        input.subjectId,
-        true,
-      )
-      if (action === 'unapprove')
-        await this.ensureUnapproveAllowed(tx, entity, entry)
-      if (action === 'approve')
-        await this.revalidateApprovalSnapshot(
+    try {
+      return await this.db.transaction().execute(async (tx) => {
+        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${archiveDomain(entity)}:archive:${entity}:${input.subjectId}`}, 0))`.execute(
+          tx,
+        )
+        if (
+          entity === 'product' &&
+          (action === 'approve' || action === 'unapprove')
+        )
+          await tx
+            .selectFrom('dcl_subjects')
+            .select('id')
+            .where('id', '=', input.subjectId)
+            .where('entity', '=', 'product')
+            .forUpdate()
+            .executeTakeFirst()
+        const entry = await this.loadEntry(
           tx,
           entity,
+          input.submissionId,
+          input.subjectId,
+          true,
+        )
+        if (action === 'unapprove')
+          await this.ensureUnapproveAllowed(tx, entity, entry)
+        if (action === 'approve')
+          await this.revalidateApprovalSnapshot(
+            tx,
+            entity,
+            entry,
+            actor,
+            requestId,
+          )
+        const occurredAt = new Date()
+        const updatedEntry = await this.approval.transition(tx, {
+          action,
           entry,
           actor,
+          expectedRevision: input.expectedRevision,
+          occurredAt,
           requestId,
-        )
-      const occurredAt = new Date()
-      const decision = decideApproval({
-        action,
-        entry,
-        actor,
-        expectedRevision: input.expectedRevision,
-        occurredAt: occurredAt.toISOString(),
-        requestId,
-        ...(input.reason === undefined ? {} : { reason: input.reason }),
-      })
-      if (!decision.ok)
-        throw new ArchiveApplicationError(decision.error.errorKey)
-      const plan = decision.plan
-      const updated = await tx
-        .updateTable('approval_entries')
-        .set({
-          status: plan.toStatus,
-          revision: plan.toRevision,
-          approved_by: plan.metadata.approved?.actorId ?? null,
-          approved_at: plan.metadata.approved
-            ? new Date(plan.metadata.approved.occurredAt)
-            : null,
-          rejected_by: plan.metadata.rejected?.actorId ?? null,
-          rejected_at: plan.metadata.rejected
-            ? new Date(plan.metadata.rejected.occurredAt)
-            : null,
-          rejection_reason: plan.metadata.rejected?.reason ?? null,
-          updated_by: actor.id,
-          updated_at: occurredAt,
+          ...(input.reason === undefined ? {} : { reason: input.reason }),
         })
-        .where('id', '=', entry.id)
-        .where('revision', '=', plan.fromRevision)
-        .executeTakeFirst()
-      if (Number(updated.numUpdatedRows) !== 1)
-        throw new ArchiveApplicationError('approval_stale_revision')
-      await tx
-        .insertInto('approval_events')
-        .values({
-          id: ulid(),
-          entry_id: entry.id,
-          domain: 'dcl',
-          entity,
-          subject_id: entry.subjectId,
-          version_no: entry.versionNo ?? 1,
-          action: plan.event.action,
-          from_status: plan.fromStatus,
-          to_status: plan.toStatus,
-          from_revision: plan.fromRevision,
-          to_revision: plan.toRevision,
-          actor_id: actor.id,
-          reason: plan.reason ?? null,
-          request_id: requestId,
-          created_at: occurredAt,
-        })
-        .execute()
-      if (entity === 'acc-mapping') {
-        if (plan.toStatus === 'APPROVED')
-          await this.syncAccMappingSubjectUsages(tx, entry.id)
-        else if (plan.fromStatus === 'APPROVED')
-          await sql`DELETE FROM dcl_acc_mapping_subject_usages
+        if (entity === 'acc-mapping') {
+          if (updatedEntry.status === 'APPROVED')
+            await this.syncAccMappingSubjectUsages(tx, entry.id)
+          else if (entry.status === 'APPROVED')
+            await sql`DELETE FROM dcl_acc_mapping_subject_usages
             WHERE approval_entry_id = ${entry.id}`.execute(tx)
-      }
-      if (
-        entity === 'rpt-definition' &&
-        (plan.toStatus === 'APPROVED' || plan.fromStatus === 'APPROVED')
-      )
-        await this.syncRptPermissions(tx, entry.subjectId, actor.id)
-      return this.readSubmission(tx, entity, entry.id, actor)
-    })
+        }
+        if (
+          entity === 'rpt-definition' &&
+          (updatedEntry.status === 'APPROVED' || entry.status === 'APPROVED')
+        )
+          await this.syncRptPermissions(tx, entry.subjectId, actor.id)
+        return this.readSubmission(tx, entity, entry.id, actor)
+      })
+    } catch (error) {
+      if (error instanceof ApprovalPersistenceError)
+        throw new ArchiveApplicationError(error.errorKey)
+      if (error instanceof VersionedArchiveError)
+        throw new ArchiveApplicationError(error.errorKey)
+      throw error
+    }
   }
 
   async delete(
@@ -1036,91 +977,83 @@ export class ArchiveService {
     actor: ApprovalActor,
     requestId: string,
   ): Promise<{ submissionId: string; deleted: true }> {
-    requirePermission(actor, `/dcl/${entity}/delete`)
-    const outcome = await this.db.transaction().execute(async (tx) => {
-      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:archive:${entity}:${input.subjectId}`}, 0))`.execute(
-        tx,
-      )
-      const entry = await this.loadEntry(
-        tx,
-        entity,
-        input.submissionId,
-        input.subjectId,
-        true,
-      )
-      if (entry.revision !== input.expectedRevision)
-        throw new ArchiveApplicationError('approval_stale_revision')
-      if (!['PENDING', 'REJECTED'].includes(entry.status))
-        throw new ArchiveApplicationError('approval_invalid_transition')
-      if (entry.metadata.submitted.actorId !== actor.id)
-        throw new ArchiveApplicationError('approval_invalid_actor')
-      const candidateStorageKeys =
-        entity === 'customer'
-          ? await tx
-              .selectFrom('dcl_customer_attachments')
-              .select('storage_key')
-              .where('approval_entry_id', '=', entry.id)
-              .execute()
-              .then((rows) => [...new Set(rows.map((row) => row.storage_key))])
-          : []
-      await tx
-        .insertInto('approval_events')
-        .values({
-          id: ulid(),
-          entry_id: entry.id,
-          domain: 'dcl',
-          entity,
-          subject_id: entry.subjectId,
-          version_no: entry.versionNo ?? 1,
-          action: 'DELETED',
-          from_status: entry.status,
-          to_status: null,
-          from_revision: entry.revision,
-          to_revision: null,
-          actor_id: actor.id,
-          reason: null,
-          request_id: requestId,
-          created_at: new Date(),
-        })
-        .execute()
-      await sql`DELETE FROM aux_reference_facts WHERE source LIKE ${`dcl:${entity}:${input.submissionId}:%`}`.execute(
-        tx,
-      )
-      const deleted = await tx
-        .deleteFrom('approval_entries')
-        .where('id', '=', entry.id)
-        .where('revision', '=', entry.revision)
-        .executeTakeFirst()
-      if (Number(deleted.numDeletedRows) !== 1)
-        throw new ArchiveApplicationError('approval_stale_revision')
-      const remaining = await tx
-        .selectFrom('approval_entries')
-        .select('id')
-        .where('subject_id', '=', entry.subjectId)
-        .executeTakeFirst()
-      if (!remaining)
-        await tx
-          .deleteFrom('dcl_subjects')
-          .where('id', '=', entry.subjectId)
-          .execute()
-      let unreferencedStorageKeys = candidateStorageKeys
-      if (candidateStorageKeys.length > 0) {
-        const referenced = await tx
-          .selectFrom('dcl_customer_attachments')
-          .select('storage_key')
-          .where('storage_key', 'in', candidateStorageKeys)
-          .execute()
-        const referencedKeys = new Set(referenced.map((row) => row.storage_key))
-        unreferencedStorageKeys = candidateStorageKeys.filter(
-          (storageKey) => !referencedKeys.has(storageKey),
+    requirePermission(actor, archiveActionPath(entity, 'delete'))
+    const domain = archiveDomain(entity)
+    const subjectTable = 'dcl_subjects'
+    let outcome: {
+      result: { submissionId: string; deleted: true }
+      storageKeys: string[]
+    }
+    try {
+      outcome = await this.db.transaction().execute(async (tx) => {
+        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${domain}:archive:${entity}:${input.subjectId}`}, 0))`.execute(
+          tx,
         )
-        await enqueueAttachmentDeletions(tx, unreferencedStorageKeys)
-      }
-      return {
-        result: { submissionId: entry.id, deleted: true as const },
-        storageKeys: unreferencedStorageKeys,
-      }
-    })
+        const entry = await this.loadEntry(
+          tx,
+          entity,
+          input.submissionId,
+          input.subjectId,
+          true,
+        )
+        const candidateStorageKeys =
+          entity === 'customer'
+            ? await tx
+                .selectFrom('dcl_customer_attachments')
+                .select('storage_key')
+                .where('approval_entry_id', '=', entry.id)
+                .execute()
+                .then((rows) => [
+                  ...new Set(rows.map((row) => row.storage_key)),
+                ])
+            : []
+        await sql`DELETE FROM aux_reference_facts WHERE source LIKE ${`${domain}:${entity}:${input.submissionId}:%`}`.execute(
+          tx,
+        )
+        await this.approval.delete(tx, {
+          entry,
+          actor,
+          expectedRevision: input.expectedRevision,
+          occurredAt: new Date(),
+          requestId,
+        })
+        const remaining = await tx
+          .selectFrom('approval_entries')
+          .select('id')
+          .where('domain', '=', domain)
+          .where('entity', '=', entity)
+          .where('subject_id', '=', entry.subjectId)
+          .executeTakeFirst()
+        if (!remaining)
+          await tx
+            .deleteFrom(subjectTable)
+            .where('id', '=', entry.subjectId)
+            .execute()
+        let unreferencedStorageKeys = candidateStorageKeys
+        if (candidateStorageKeys.length > 0) {
+          const referenced = await tx
+            .selectFrom('dcl_customer_attachments')
+            .select('storage_key')
+            .where('storage_key', 'in', candidateStorageKeys)
+            .execute()
+          const referencedKeys = new Set(
+            referenced.map((row) => row.storage_key),
+          )
+          unreferencedStorageKeys = candidateStorageKeys.filter(
+            (storageKey) => !referencedKeys.has(storageKey),
+          )
+          await enqueueAttachmentDeletions(tx, unreferencedStorageKeys)
+        }
+        return {
+          result: { submissionId: entry.id, deleted: true as const },
+          storageKeys: unreferencedStorageKeys,
+        }
+      })
+    } catch (error) {
+      if (error instanceof ApprovalPersistenceError)
+        throw new ArchiveApplicationError(error.errorKey)
+      throw error
+    }
     await drainAttachmentDeletions(
       this.db,
       this.attachmentStore,
@@ -1362,15 +1295,14 @@ export class ArchiveService {
     actor: ApprovalActor,
     requestId: string,
   ): Promise<void> {
-    const history = await tx
-      .selectFrom('approval_entries')
-      .select(['id', 'version_no', 'status', 'revision'])
-      .where('domain', '=', 'dcl')
-      .where('entity', '=', entity)
-      .where('subject_id', '=', entry.subjectId)
-      .where('id', '!=', entry.id)
-      .orderBy('version_no', 'asc')
-      .execute()
+    const history = (
+      await this.versioning.history(
+        tx as Transaction<DB>,
+        archiveScope(entity, entry.subjectId),
+      )
+    )
+      .filter((candidate) => candidate.id !== entry.id)
+      .toReversed()
     const latestApproved = [...history]
       .filter((row) => row.status === 'APPROVED')
       .at(-1)
@@ -1383,7 +1315,7 @@ export class ArchiveService {
         idempotencyKey: entry.id,
         expectedLatestApprovedSubmissionId: latestApproved?.id ?? null,
         expectedLatestApprovedRevision: latestApproved
-          ? String(latestApproved.revision)
+          ? latestApproved.revision
           : null,
         snapshot: await this.readSnapshot(tx, entity, entry.id),
       },
@@ -1394,9 +1326,11 @@ export class ArchiveService {
       requestId,
       new Date().toISOString(),
       entry.versionNo !== 1,
-      history.map((row) => ({
-        ...row,
-        version_no: requiredVersionNo(row.version_no),
+      history.map((candidate) => ({
+        id: candidate.id,
+        version_no: requiredVersionNo(candidate.versionNo),
+        status: candidate.status,
+        revision: candidate.revision,
       })),
       tx,
     )
@@ -1437,17 +1371,6 @@ export class ArchiveService {
                 record(record(component).material),
               ),
             ),
-          } as never,
-        )
-      case 'supplier':
-        return prepareSupplierSubmit(
-          base as never,
-          {
-            subject,
-            operatingEntities: array(data.operatingEntities).map(
-              adoptedAuxFact,
-            ),
-            defaultPurchaser: adoptedAuxFact(data.defaultPurchaser),
           } as never,
         )
       case 'customer':
@@ -1496,7 +1419,7 @@ export class ArchiveService {
                   }
                 let enabled = fact.enabled
                 if (entity === 'sales-partner') {
-                  const snapshot = await this.readSnapshot(
+                  const snapshot = await readBusinessIdentitySnapshot(
                     tx,
                     entity,
                     fact.latestApprovedEntryId,
@@ -1511,26 +1434,6 @@ export class ArchiveService {
                   type,
                 }
               }),
-            ),
-          } as never,
-        )
-      case 'other-unit':
-        return prepareOtherUnitSubmit(
-          base as never,
-          {
-            subject,
-            operatingEntities: array(data.operatingEntities).map(
-              adoptedAuxFact,
-            ),
-          } as never,
-        )
-      case 'sales-partner':
-        return prepareSalesPartnerSubmit(
-          base as never,
-          {
-            subject,
-            operatingEntities: array(data.operatingEntities).map(
-              adoptedAuxFact,
             ),
           } as never,
         )
@@ -1585,29 +1488,40 @@ export class ArchiveService {
 
   private async approvedFact(
     tx: Executor,
-    entity: ArchiveEntity,
+    entity: ApprovedReferenceEntity,
     objectId: string,
   ): Promise<ApprovedArchiveFact | undefined> {
     if (!objectId) return undefined
-    await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:archive:${entity}:${objectId}`}, 0))`.execute(
+    const domain = entity === 'sales-partner' ? 'bob' : 'dcl'
+    const subjectTable =
+      entity === 'sales-partner' ? 'bob_subjects' : 'dcl_subjects'
+    await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${domain}:archive:${entity}:${objectId}`}, 0))`.execute(
       tx,
     )
-    const row = await tx
-      .selectFrom('approval_entries as e')
-      .innerJoin('dcl_subjects as s', 's.id', 'e.subject_id')
-      .select(['e.id', 's.id as object_id', 's.code'])
-      .where('e.domain', '=', 'dcl')
-      .where('e.entity', '=', entity)
-      .where('e.subject_id', '=', objectId)
-      .where('e.status', '=', 'APPROVED')
-      .orderBy('e.version_no', 'desc')
-      .executeTakeFirst()
+    const selected = await sql<{
+      id: string
+      object_id: string
+      code: string | null
+      enabled: boolean | null
+    }>`SELECT e.id, s.id AS object_id, s.code, ${entity === 'sales-partner' ? sql.ref('s.enabled') : sql`NULL::boolean`} AS enabled
+       FROM approval_entries e
+       JOIN ${sql.table(subjectTable)} s ON s.id = e.subject_id
+       WHERE e.domain = ${domain} AND e.entity = ${entity}
+         AND e.subject_id = ${objectId} AND e.status = 'APPROVED'
+       ORDER BY e.version_no DESC LIMIT 1`.execute(tx)
+    const row = selected.rows[0]
     if (!row) return undefined
-    const snapshot = await this.readSnapshot(tx, entity, row.id)
+    const snapshot =
+      entity === 'sales-partner'
+        ? await readBusinessIdentitySnapshot(tx, entity, row.id)
+        : await this.readSnapshot(tx, entity, row.id)
     return {
       objectId: row.object_id,
       latestApprovedEntryId: row.id,
-      enabled: snapshot.enabled === true,
+      enabled:
+        entity === 'sales-partner'
+          ? row.enabled === true
+          : snapshot.enabled === true,
       code: row.code ?? '',
       name: this.displayName(entity, snapshot),
     }
@@ -1627,12 +1541,13 @@ export class ArchiveService {
     ) => {
       if (typeof value !== 'string' || !value.trim()) return
       const normalized = value.trim().toUpperCase()
-      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:archive:${entity}:business-key:${column}:${normalized}`}, 0))`.execute(
+      const domain = archiveDomain(entity)
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${domain}:archive:${entity}:business-key:${column}:${normalized}`}, 0))`.execute(
         tx,
       )
       const duplicate = await sql<{
         id: string
-      }>`SELECT e.id FROM ${sql.table(table)} AS v JOIN approval_entries e ON e.id = v.approval_entry_id WHERE e.domain = 'dcl' AND e.entity = ${entity} AND e.subject_id <> ${subjectId} AND e.status IN ('PENDING', 'APPROVED', 'REJECTED') AND ${sql.ref(`v.${column}`)} = ${value} LIMIT 1`.execute(
+      }>`SELECT e.id FROM ${sql.table(table)} AS v JOIN approval_entries e ON e.id = v.approval_entry_id WHERE e.domain = ${domain} AND e.entity = ${entity} AND e.subject_id <> ${subjectId} AND e.status IN ('PENDING', 'APPROVED', 'REJECTED') AND ${sql.ref(`v.${column}`)} = ${value} LIMIT 1`.execute(
         tx,
       )
       if (duplicate.rows[0]) throw new ArchiveApplicationError(errorKey)
@@ -1646,36 +1561,12 @@ export class ArchiveService {
           'product_duplicate_barcode',
         )
         return
-      case 'supplier':
-        await failIfDuplicate(
-          'dcl_supplier_versions',
-          'legal_identifier',
-          data.legalIdentifier,
-          'supplier_duplicate_legal_identifier',
-        )
-        return
       case 'customer':
         await failIfDuplicate(
           'dcl_customer_versions',
           'legal_identifier',
           data.legalIdentifier,
           'customer_duplicate_legal_identifier',
-        )
-        return
-      case 'other-unit':
-        await failIfDuplicate(
-          'dcl_other_unit_versions',
-          'legal_identifier',
-          data.legalIdentifier,
-          'other_unit_duplicate_legal_identifier',
-        )
-        return
-      case 'sales-partner':
-        await failIfDuplicate(
-          'dcl_sales_partner_versions',
-          'legal_identifier',
-          data.legalIdentifier,
-          'sales_partner_duplicate_legal_identifier',
         )
         return
       case 'acc-mapping': {
@@ -1780,7 +1671,7 @@ export class ArchiveService {
   }
 
   private displayName(
-    entity: ArchiveEntity,
+    entity: ApprovedReferenceEntity,
     snapshot: ArchiveSnapshot,
   ): string {
     const named =
@@ -1814,7 +1705,7 @@ export class ArchiveService {
 
   private async freezeApprovedReference(
     tx: Executor,
-    entity: ArchiveEntity,
+    entity: ApprovedReferenceEntity,
     reference: unknown,
   ): Promise<Record<string, unknown>> {
     const requested = record(reference)
@@ -2029,40 +1920,6 @@ export class ArchiveService {
                   ),
                 },
         }
-      case 'supplier':
-      case 'other-unit':
-      case 'sales-partner':
-        return {
-          ...snapshot,
-          ...((entity === 'supplier' || entity === 'other-unit') &&
-          snapshot.settlementMethod !== null
-            ? {
-                settlementMethod: await this.freezeAuxiliaryReference(
-                  tx,
-                  'settlementMethod',
-                  snapshot.settlementMethod,
-                  `${entity.replace('-', '_')}_invalid_data`,
-                ),
-              }
-            : {}),
-          operatingEntities: await Promise.all(
-            array(snapshot.operatingEntities).map((reference) =>
-              this.freezeCurrentReference(tx, 'operating-entity', reference),
-            ),
-          ),
-          ...(entity === 'supplier'
-            ? {
-                defaultPurchaser:
-                  snapshot.defaultPurchaser === null
-                    ? null
-                    : await this.freezeCurrentReference(
-                        tx,
-                        'employee',
-                        snapshot.defaultPurchaser,
-                      ),
-              }
-            : {}),
-        }
       case 'customer':
         return {
           ...snapshot,
@@ -2135,23 +1992,6 @@ export class ArchiveService {
     snapshot: ArchiveSnapshot,
   ): Promise<void> {
     const references: Array<[string, string]> = []
-    if (
-      entity === 'supplier' ||
-      entity === 'other-unit' ||
-      entity === 'sales-partner'
-    ) {
-      array(snapshot.operatingEntities).forEach((reference, index) =>
-        references.push([
-          `operatingEntities[${index}]`,
-          String(record(reference).objectId ?? ''),
-        ]),
-      )
-      if (entity === 'supplier' && snapshot.defaultPurchaser)
-        references.push([
-          'defaultPurchaser',
-          String(record(snapshot.defaultPurchaser).objectId ?? ''),
-        ])
-    }
     if (entity === 'customer') {
       if (snapshot.defaultOperatingEntity)
         references.push([
@@ -2168,7 +2008,7 @@ export class ArchiveService {
       })
     }
     for (const [field, id] of references)
-      await sql`INSERT INTO aux_reference_facts(id,aux_object_id,source) VALUES (${ulid()},${id},${`dcl:${entity}:${submissionId}:${field}`})`.execute(
+      await sql`INSERT INTO aux_reference_facts(id,aux_object_id,source) VALUES (${ulid()},${id},${`${archiveDomain(entity)}:${entity}:${submissionId}:${field}`})`.execute(
         tx,
       )
   }
@@ -2213,15 +2053,6 @@ export class ArchiveService {
           })
           .execute()
         return
-      case 'supplier':
-        await this.writeIdentitySet(tx, 'supplier', id, d)
-        return
-      case 'other-unit':
-        await this.writeIdentitySet(tx, 'other-unit', id, d)
-        return
-      case 'sales-partner':
-        await this.writeIdentitySet(tx, 'sales-partner', id, d)
-        return
       case 'customer':
         await this.writeCustomer(tx, id, d)
         return
@@ -2253,84 +2084,6 @@ export class ArchiveService {
           })
           .execute()
         return
-    }
-  }
-
-  private async writeIdentitySet(
-    tx: Executor,
-    entity: 'supplier' | 'other-unit' | 'sales-partner',
-    id: string,
-    d: ArchiveSnapshot,
-  ): Promise<void> {
-    const common = {
-      approval_entry_id: id,
-      kind: String(d.identityKind ?? ''),
-      legal_name: String(d.legalName ?? ''),
-      display_name: String(d.displayName ?? ''),
-      legal_identifier: nullable(d.legalIdentifier),
-      contact_name: nullable(d.contactName),
-      contact_phone: nullable(d.phone),
-      address: nullable(d.address),
-      default_operating_entity_id: nullable(d.defaultOperatingEntityId),
-      default_operating_entity_reference: json(
-        array(d.operatingEntities).find(
-          (v) => record(v).objectId === d.defaultOperatingEntityId,
-        ) ?? null,
-      ),
-      remark: nullable(d.remark),
-      enabled: d.enabled === true,
-    }
-    if (entity === 'supplier')
-      await tx
-        .insertInto('dcl_supplier_versions')
-        .values({
-          ...common,
-          settlement_method_snapshot:
-            d.settlementMethod === null
-              ? null
-              : json(record(d.settlementMethod)),
-          default_purchaser_employee_id: nullable(
-            record(d.defaultPurchaser).objectId,
-          ),
-          default_purchaser_approval_entry_id: nullable(
-            record(d.defaultPurchaser).approvalEntryId,
-          ),
-          default_purchaser_code: nullable(record(d.defaultPurchaser).code),
-          default_purchaser_name: nullable(record(d.defaultPurchaser).name),
-          default_purchaser_snapshot:
-            d.defaultPurchaser === null
-              ? null
-              : json(record(d.defaultPurchaser)),
-        })
-        .execute()
-    if (entity === 'other-unit')
-      await tx
-        .insertInto('dcl_other_unit_versions')
-        .values({
-          ...common,
-          settlement_method_snapshot:
-            d.settlementMethod === null
-              ? null
-              : json(record(d.settlementMethod)),
-        })
-        .execute()
-    if (entity === 'sales-partner')
-      await tx
-        .insertInto('dcl_sales_partner_versions')
-        .values({ ...common, capabilities: json(array(d.capabilities)) })
-        .execute()
-    for (const item of array(d.operatingEntities)) {
-      const ref = record(item)
-      const table =
-        entity === 'supplier'
-          ? 'dcl_supplier_version_operating_entities'
-          : entity === 'other-unit'
-            ? 'dcl_other_unit_version_operating_entities'
-            : 'dcl_sales_partner_version_operating_entities'
-      await sql`INSERT INTO ${sql.table(table)} (approval_entry_id,operating_entity_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name)
-        VALUES (${id},${String(ref.objectId ?? '')},NULL,${String(ref.code ?? '')},${String(ref.name ?? '')})`.execute(
-        tx,
-      )
     }
   }
 
@@ -2667,12 +2420,6 @@ export class ArchiveService {
           enabled: r.enabled,
         }
       }
-      case 'supplier':
-        return this.readIdentitySet(tx, 'supplier', id)
-      case 'other-unit':
-        return this.readIdentitySet(tx, 'other-unit', id)
-      case 'sales-partner':
-        return this.readIdentitySet(tx, 'sales-partner', id)
       case 'customer':
         return this.readCustomer(tx, id)
       case 'acc-mapping': {
@@ -2704,71 +2451,6 @@ export class ArchiveService {
         }
       }
     }
-  }
-
-  private async readIdentitySet(
-    tx: Executor,
-    entity: 'supplier' | 'other-unit' | 'sales-partner',
-    id: string,
-  ): Promise<ArchiveSnapshot> {
-    const row =
-      entity === 'supplier'
-        ? await sql<IdentitySetRow>`SELECT kind, legal_name, display_name, legal_identifier, contact_name, contact_phone, address, default_operating_entity_id, default_purchaser_employee_id, default_purchaser_approval_entry_id, default_purchaser_code, default_purchaser_name, remark, enabled, settlement_method_snapshot, default_purchaser_snapshot, NULL::jsonb AS capabilities FROM dcl_supplier_versions WHERE approval_entry_id = ${id}`.execute(
-            tx,
-          )
-        : entity === 'other-unit'
-          ? await sql<IdentitySetRow>`SELECT kind, legal_name, display_name, legal_identifier, contact_name, contact_phone, address, default_operating_entity_id, NULL::varchar AS default_purchaser_employee_id, NULL::varchar AS default_purchaser_approval_entry_id, NULL::varchar AS default_purchaser_code, NULL::varchar AS default_purchaser_name, remark, enabled, settlement_method_snapshot, NULL::jsonb AS default_purchaser_snapshot, NULL::jsonb AS capabilities FROM dcl_other_unit_versions WHERE approval_entry_id = ${id}`.execute(
-              tx,
-            )
-          : await sql<IdentitySetRow>`SELECT kind, legal_name, display_name, legal_identifier, contact_name, contact_phone, address, default_operating_entity_id, NULL::varchar AS default_purchaser_employee_id, NULL::varchar AS default_purchaser_approval_entry_id, NULL::varchar AS default_purchaser_code, NULL::varchar AS default_purchaser_name, remark, enabled, NULL::jsonb AS settlement_method_snapshot, NULL::jsonb AS default_purchaser_snapshot, capabilities FROM dcl_sales_partner_versions WHERE approval_entry_id = ${id}`.execute(
-              tx,
-            )
-    const item = row.rows[0]
-    if (!item) throw new ArchiveApplicationError('approval_not_found')
-    const operatingEntities =
-      entity === 'supplier'
-        ? await sql<OperatingEntityReferenceRow>`SELECT operating_entity_id, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name FROM dcl_supplier_version_operating_entities WHERE approval_entry_id = ${id}`.execute(
-            tx,
-          )
-        : entity === 'other-unit'
-          ? await sql<OperatingEntityReferenceRow>`SELECT operating_entity_id, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name FROM dcl_other_unit_version_operating_entities WHERE approval_entry_id = ${id}`.execute(
-              tx,
-            )
-          : await sql<OperatingEntityReferenceRow>`SELECT operating_entity_id, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name FROM dcl_sales_partner_version_operating_entities WHERE approval_entry_id = ${id}`.execute(
-              tx,
-            )
-    const base: ArchiveSnapshot = {
-      identityKind: item.kind,
-      legalName: item.legal_name,
-      displayName: item.display_name,
-      legalIdentifier: item.legal_identifier ?? '',
-      contactName: item.contact_name ?? '',
-      phone: item.contact_phone ?? '',
-      address: item.address ?? '',
-      operatingEntities: operatingEntities.rows.map((reference) => ({
-        objectId: reference.operating_entity_id,
-        code: reference.operating_entity_code,
-        name: reference.operating_entity_name,
-      })),
-      defaultOperatingEntityId: item.default_operating_entity_id,
-      remark: item.remark ?? '',
-      enabled: item.enabled,
-    }
-    if (entity === 'supplier')
-      return {
-        ...base,
-        settlementMethod: item.settlement_method_snapshot,
-        defaultPurchaser: item.default_purchaser_employee_id
-          ? {
-              objectId: item.default_purchaser_employee_id,
-              code: item.default_purchaser_code ?? '',
-              name: item.default_purchaser_name ?? '',
-            }
-          : null,
-      }
-    if (entity === 'other-unit')
-      return { ...base, settlementMethod: item.settlement_method_snapshot }
-    return { ...base, capabilities: array(item.capabilities) }
   }
 
   private async readCustomer(
@@ -2856,46 +2538,24 @@ export class ArchiveService {
     subjectId: string,
     lock: boolean,
   ): Promise<ApprovalEntry> {
-    let query = tx
-      .selectFrom('approval_entries')
-      .selectAll()
-      .where('id', '=', submissionId)
-      .where('subject_id', '=', subjectId)
-      .where('entity', '=', entity)
-    if (lock) query = query.forUpdate()
-    const row = await query.executeTakeFirst()
-    if (!row) throw new ArchiveApplicationError('approval_not_found')
-    return {
-      id: row.id,
-      domain: row.domain,
-      entity: row.entity,
-      subjectId: row.subject_id,
-      versionNo: requiredVersionNo(row.version_no),
-      status: row.status as ApprovalStatus,
-      revision: String(row.revision),
-      metadata: {
-        submitted: {
-          actorId: row.submitted_by,
-          occurredAt: row.submitted_at.toISOString(),
+    try {
+      const entry = await this.approval.load(
+        tx,
+        {
+          entryId: submissionId,
+          domain: archiveDomain(entity),
+          entity,
+          subjectId,
         },
-        ...(row.approved_by && row.approved_at
-          ? {
-              approved: {
-                actorId: row.approved_by,
-                occurredAt: row.approved_at.toISOString(),
-              },
-            }
-          : {}),
-        ...(row.rejected_by && row.rejected_at && row.rejection_reason
-          ? {
-              rejected: {
-                actorId: row.rejected_by,
-                occurredAt: row.rejected_at.toISOString(),
-                reason: row.rejection_reason,
-              },
-            }
-          : {}),
-      },
+        lock,
+      )
+      if (entry.versionNo === null)
+        throw new ArchiveApplicationError('approval_not_versioned')
+      return entry
+    } catch (error) {
+      if (error instanceof ApprovalPersistenceError)
+        throw new ArchiveApplicationError(error.errorKey)
+      throw error
     }
   }
 
@@ -2905,27 +2565,29 @@ export class ArchiveService {
     submissionId: string,
     actor: ApprovalActor,
   ): Promise<ArchiveSubmissionView> {
-    const row = await tx
-      .selectFrom('approval_entries as e')
-      .innerJoin('dcl_subjects as s', 's.id', 'e.subject_id')
-      .select([
-        'e.id',
-        'e.subject_id',
-        'e.version_no',
-        'e.status',
-        'e.revision',
-        'e.submitted_by',
-        'e.submitted_at',
-        'e.approved_by',
-        'e.approved_at',
-        'e.rejected_by',
-        'e.rejected_at',
-        'e.rejection_reason',
-        's.code',
-      ])
-      .where('e.id', '=', submissionId)
-      .where('e.entity', '=', entity)
-      .executeTakeFirst()
+    const subjectTable = 'dcl_subjects'
+    const selected = await sql<{
+      id: string
+      subject_id: string
+      version_no: number
+      status: string
+      revision: string | number | bigint
+      submitted_by: string
+      submitted_at: Date
+      approved_by: string | null
+      approved_at: Date | null
+      rejected_by: string | null
+      rejected_at: Date | null
+      rejection_reason: string | null
+      code: string | null
+    }>`SELECT e.id, e.subject_id, e.version_no, e.status, e.revision,
+              e.submitted_by, e.submitted_at, e.approved_by, e.approved_at,
+              e.rejected_by, e.rejected_at, e.rejection_reason, s.code
+       FROM approval_entries e
+       JOIN ${sql.table(subjectTable)} s ON s.id = e.subject_id
+       WHERE e.id = ${submissionId} AND e.domain = ${archiveDomain(entity)}
+         AND e.entity = ${entity}`.execute(tx)
+    const row = selected.rows[0]
     if (!row) throw new ArchiveApplicationError('approval_not_found')
     const entry = await this.loadEntry(
       tx,
@@ -2963,7 +2625,7 @@ export class ArchiveService {
         (entry.status === 'PENDING' || entry.status === 'REJECTED') &&
         entry.metadata.submitted.actorId === actor.id &&
         (actor.trusted === true ||
-          actor.permissions.includes(`/dcl/${entity}/delete`)),
+          actor.permissions.includes(archiveActionPath(entity, 'delete'))),
       ...(entity === 'rpt-definition'
         ? {
             validity: validity
@@ -2984,32 +2646,19 @@ export class ArchiveService {
     entity: ArchiveEntity,
     entry: ApprovalEntry,
   ): Promise<void> {
-    const latest = await tx
-      .selectFrom('approval_entries')
-      .select('id')
-      .where('domain', '=', 'dcl')
-      .where('entity', '=', entity)
-      .where('subject_id', '=', entry.subjectId)
-      .where('status', '=', 'APPROVED')
-      .orderBy('version_no', 'desc')
-      .executeTakeFirst()
+    const scope = archiveScope(entity, entry.subjectId)
+    const latest = await this.versioning.latestApproved(
+      tx as Transaction<DB>,
+      scope,
+    )
     if (latest?.id !== entry.id)
       throw new ArchiveApplicationError('approval_not_latest_approved')
-    const open = await tx
-      .selectFrom('approval_entries')
-      .select('id')
-      .where('domain', '=', 'dcl')
-      .where('entity', '=', entity)
-      .where('subject_id', '=', entry.subjectId)
-      .where('status', 'in', ['PENDING', 'REJECTED'])
-      .executeTakeFirst()
+    const open = await this.versioning.open(tx as Transaction<DB>, scope)
     if (open) throw new ArchiveApplicationError('approval_open_version_exists')
-    const blockers = [
-      ...(await this.exactReferenceBlockers(tx, entry)),
-      ...(entry.entity === 'acc-mapping'
+    const blockers =
+      entry.entity === 'acc-mapping'
         ? await this.accMappingReferenceBlockers(tx, entry.id)
-        : []),
-    ]
+        : []
     if (blockers.length)
       throw new ArchiveApplicationError(
         'approval_strong_reference_exists',
@@ -3075,25 +2724,6 @@ export class ArchiveService {
       mappingApprovalEntryId: approvalEntryId,
       documentType: reference.document_type,
       documentId: reference.document_id,
-    }))
-  }
-
-  private async exactReferenceBlockers(
-    tx: Executor,
-    entry: ApprovalEntry,
-  ): Promise<ArchiveBlocker[]> {
-    if (entry.entity !== 'other-unit') return []
-    const result = await sql<{
-      id: string
-    }>`SELECT id FROM aux_objects WHERE entity = 'vehicle' AND data->'carrier'->>'approvalEntryId' = ${entry.id}`.execute(
-      tx,
-    )
-    return result.rows.map((row) => ({
-      kind: 'AUX_CURRENT_REFERENCE' as const,
-      entity: 'vehicle' as const,
-      objectId: row.id,
-      field: 'carrier' as const,
-      approvalEntryId: entry.id,
     }))
   }
 

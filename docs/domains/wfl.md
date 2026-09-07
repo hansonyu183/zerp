@@ -2,7 +2,7 @@
 
 ## 1. 领域边界
 
-WFL 是以 VOU 单据为节点的用户可管理流程引擎。VOU 独立负责单据正文、生命周期、附件、领域校验和审计；ACC 独立负责资金、库存和往来事实。WFL 拥有 Starlark 脚本与编译图领域能力、试算零写入 adapter、类型化 `WorkflowActions`、实际实例树、动作结果和运行审计；流程定义的本地 Draft、Submission、审批、删除、版本历史和审计读取由 [DCL 流程定义申报](dcl.md#310-流程定义申报) 统一拥有。WFL 不复制 VOU 正文或代理 VOU 正文权限。
+WFL 是以 VOU 单据为节点的用户可管理流程引擎。VOU 独立负责单据正文、生命周期、附件、领域校验和审计；ACC 独立负责资金、库存和往来事实。WFL 拥有 Starlark 脚本与编译图领域能力、试算零写入 adapter、类型化 `WorkflowActions`、实际实例树、动作结果和运行审计；流程定义的本地 Draft、Submission、审批、删除、版本历史和审计读取由 [DCL 流程定义申报](dcl.md#39-流程定义申报) 统一拥有。WFL 不复制 VOU 正文或代理 VOU 正文权限。
 
 本页的本地 Draft、Submission、shared TypeScript model 与 Hono route 描述当前权威业务语义。
 

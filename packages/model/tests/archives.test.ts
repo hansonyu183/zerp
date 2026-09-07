@@ -19,7 +19,7 @@ const actor: ApprovalActor = {
     '/dcl/product/submit-new',
     '/dcl/product/submit-change',
     '/dcl/customer/submit-new',
-    '/dcl/sales-partner/submit-new',
+    '/bob/sales-partner/submit-new',
     '/dcl/acc-mapping/submit-new',
     '/dcl/rpt-definition/submit-new',
   ],
@@ -459,7 +459,7 @@ test('prepares typed archive submissions with canonical payloads and exact permi
   if (product.ok) assert.equal(product.plan.data.barcode, 'AB-12')
 })
 
-test('rechecks exact submit permission, one open version, latest approval revision, and submission idempotency', () => {
+test('rechecks exact submit permission, one open version, latest approval revision, and independent idempotency key', () => {
   const productCommand: ProductSubmitCommand = {
     ...command('submit-change'),
     expectedLatestApprovedSubmissionId: 'approved-2',
@@ -544,13 +544,13 @@ test('rechecks exact submit permission, one open version, latest approval revisi
     ),
     { ok: false, error: { errorKey: 'approval_invalid_action' } },
   )
-  assert.deepEqual(
-    prepareProductSubmit(
-      { ...productCommand, idempotencyKey: 'another' },
-      productFacts,
-    ),
-    { ok: false, error: { errorKey: 'archive_invalid_command' } },
+  const independentKey = prepareProductSubmit(
+    { ...productCommand, idempotencyKey: 'another' },
+    productFacts,
   )
+  assert.equal(independentKey.ok, true)
+  if (independentKey.ok)
+    assert.equal(independentKey.plan.idempotencyKey, 'another')
   assert.deepEqual(
     prepareProductSubmit(productCommand, {
       ...productFacts,
@@ -605,13 +605,33 @@ test('enforces sales partner capabilities, customer subunits, and legal identifi
           defaultOperatingEntityId: null,
           capabilities: [],
           remark: '',
-          enabled: true,
         },
       },
       { ...newFacts, operatingEntities: [] },
     ),
     { ok: false, error: { errorKey: 'sales_partner_invalid_data' } },
   )
+  const partner = prepareSalesPartnerSubmit(
+    {
+      ...command(),
+      data: {
+        identityKind: 'ORGANIZATION',
+        legalName: '销售方',
+        displayName: '销售方',
+        legalIdentifier: '91350211M000100Y46',
+        contactName: '',
+        phone: '',
+        address: '',
+        operatingEntities: [],
+        defaultOperatingEntityId: null,
+        capabilities: ['CHANNEL_PARTNER'],
+        remark: '',
+      },
+    },
+    { ...newFacts, operatingEntities: [] },
+  )
+  assert.equal(partner.ok, true)
+  if (partner.ok) assert.equal('enabled' in partner.plan.data, false)
   const customer = prepareCustomerSubmit(
     {
       ...command(),

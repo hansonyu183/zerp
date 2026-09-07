@@ -713,6 +713,17 @@ export class RptService {
       ) approval ON TRUE
       JOIN ${table} version ON version.approval_entry_id = approval.id AND version.enabled
       WHERE subject.entity = '${entity}'`
+    const currentBob = (entity: string, table: string, name: string) => `
+      SELECT subject.id, subject.code, ${name} AS name
+      FROM bob_subjects subject
+      JOIN LATERAL (
+        SELECT id FROM approval_entries entry
+        WHERE entry.domain = 'bob' AND entry.entity = '${entity}'
+          AND entry.subject_id = subject.id AND entry.status = 'APPROVED'
+        ORDER BY entry.version_no DESC LIMIT 1
+      ) approval ON TRUE
+      JOIN ${table} version ON version.approval_entry_id = approval.id
+      WHERE subject.entity = '${entity}' AND subject.enabled`
     switch (referenceType) {
       case 'ACCOUNTING_BOOK':
         return `SELECT id, code, name FROM acc_books`
@@ -734,24 +745,24 @@ export class RptService {
         JOIN dcl_customer_subunit_roots root ON root.subunit_id = subunit.subunit_id
         WHERE subject.entity = 'customer'`
       case 'SUPPLIER':
-        return currentDcl(
+        return currentBob(
           'supplier',
-          'dcl_supplier_versions',
+          'bob_supplier_versions',
           'version.display_name',
         )
       case 'OTHER_UNIT':
-        return currentDcl(
+        return currentBob(
           'other-unit',
-          'dcl_other_unit_versions',
+          'bob_other_unit_versions',
           'version.display_name',
         )
       case 'EMPLOYEE':
         return `SELECT id, code, data->>'displayName' AS name
           FROM aux_objects WHERE entity = 'employee' AND enabled`
       case 'SALES_PARTNER':
-        return currentDcl(
+        return currentBob(
           'sales-partner',
-          'dcl_sales_partner_versions',
+          'bob_sales_partner_versions',
           'version.display_name',
         )
       case 'DEPARTMENT':
@@ -787,14 +798,16 @@ export class RptService {
         WHERE subject.entity = 'customer'
         UNION ALL
         SELECT subject.id, subject.code, version.display_name AS name, subject.entity, subject.id AS object_id, approval.id AS approval_entry_id
-        FROM dcl_subjects subject
-        JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'dcl' AND entry.entity = subject.entity AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
-        JOIN dcl_supplier_versions version ON subject.entity = 'supplier' AND version.approval_entry_id = approval.id AND version.enabled
+        FROM bob_subjects subject
+        JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'bob' AND entry.entity = subject.entity AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
+        JOIN bob_supplier_versions version ON subject.entity = 'supplier' AND version.approval_entry_id = approval.id
+        WHERE subject.enabled
         UNION ALL
         SELECT subject.id, subject.code, version.display_name AS name, subject.entity, subject.id AS object_id, approval.id AS approval_entry_id
-        FROM dcl_subjects subject
-        JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'dcl' AND entry.entity = subject.entity AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
-        JOIN dcl_other_unit_versions version ON subject.entity = 'other-unit' AND version.approval_entry_id = approval.id AND version.enabled
+        FROM bob_subjects subject
+        JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'bob' AND entry.entity = subject.entity AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
+        JOIN bob_other_unit_versions version ON subject.entity = 'other-unit' AND version.approval_entry_id = approval.id
+        WHERE subject.enabled
         UNION ALL
         SELECT employee.id, employee.code, employee.data->>'displayName' AS name,
           'employee'::varchar AS entity, employee.id AS object_id,
@@ -803,9 +816,10 @@ export class RptService {
         WHERE employee.entity = 'employee' AND employee.enabled
         UNION ALL
         SELECT subject.id, subject.code, version.display_name AS name, subject.entity, subject.id AS object_id, approval.id AS approval_entry_id
-        FROM dcl_subjects subject
-        JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'dcl' AND entry.entity = subject.entity AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
-        JOIN dcl_sales_partner_versions version ON subject.entity = 'sales-partner' AND version.approval_entry_id = approval.id AND version.enabled`
+        FROM bob_subjects subject
+        JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'bob' AND entry.entity = subject.entity AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
+        JOIN bob_sales_partner_versions version ON subject.entity = 'sales-partner' AND version.approval_entry_id = approval.id
+        WHERE subject.enabled`
     }
   }
 

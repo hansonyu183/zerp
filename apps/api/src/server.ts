@@ -12,6 +12,7 @@ import { AttachmentStore } from './platform/attachment-store.ts'
 import { jsonLogger } from './platform/logging.ts'
 import { closeRuntime } from './platform/shutdown.ts'
 import { ArchiveService } from './dcl/archives.ts'
+import { BobArchiveService } from './bob/archives.ts'
 import { AccMappingCatalogService } from './acc/mapping-catalog.ts'
 import { VouService } from './vou/service.ts'
 import { AccService } from './acc/service.ts'
@@ -58,6 +59,7 @@ const app = createApp({
   aux: new AuxService(database),
   bob: new BobService(database),
   archives: new ArchiveService(database, rptValidator, { attachmentStore }),
+  bobArchives: new BobArchiveService(database),
   accMappingCatalog: new AccMappingCatalogService(database),
   vou,
   acc,

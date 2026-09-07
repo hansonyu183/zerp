@@ -42,7 +42,7 @@ RPT 拥有以 `approvalEntryId` 键控的技术有效性（VALID/INVALID）、�
 
 ## 3. 报表定义与 DCL
 
-报表定义的生命周期完全由 [DCL 报表定义申报](dcl.md#39-报表定义申报) 拥有。`/dcl/rpt-definition` 是唯一维护入口，覆盖本地 Draft、submit、开放 Submission 删除、驳回、恢复审核、批准、反批准、版本和审计。RPT 不保存 `currentVersionId`、effective pointer、next pointer 或 domain version header。
+报表定义的生命周期完全由 [DCL 报表定义申报](dcl.md#38-报表定义申报) 拥有。`/dcl/rpt-definition` 是唯一维护入口，覆盖本地 Draft、submit、开放 Submission 删除、驳回、恢复审核、批准、反批准、版本和审计。RPT 不保存 `currentVersionId`、effective pointer、next pointer 或 domain version header。
 
 最新 `APPROVED + enabled + VALID` entry 是唯一执行版本。不存在这类 entry 时定义不能执行；开放 Submission 和非最新批准 entry 不能执行，也不能替代正式版本。`enabled` 是 DCL typed snapshot 的版本事实，只能在本地 Draft 编辑；当前 approved 定义需先创建下一 Draft 并 submit。前端只渲染 shared TypeScript model 的 View State，不在 RPT 另建状态映射。
 

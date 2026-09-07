@@ -156,11 +156,11 @@ CREATE TABLE aux_reference_facts (
 );
 CREATE INDEX aux_reference_facts_object_idx ON aux_reference_facts(aux_object_id);
 
-CREATE TABLE dcl_code_counters (
+CREATE TABLE archive_code_counters (
     entity varchar(64) PRIMARY KEY,
     next_value integer NOT NULL CHECK (next_value BETWEEN 1 AND 9999)
 );
-INSERT INTO dcl_code_counters(entity, next_value) VALUES
+INSERT INTO archive_code_counters(entity, next_value) VALUES
     ('customer', 1),
     ('supplier', 1),
     ('other-unit', 1),
@@ -202,6 +202,17 @@ CREATE TABLE dcl_subjects (
 CREATE UNIQUE INDEX dcl_subjects_entity_code_unique
     ON dcl_subjects(entity, upper(code));
 
+CREATE TABLE bob_subjects (
+    id varchar(26) PRIMARY KEY,
+    entity varchar(64) NOT NULL CHECK (entity IN ('supplier', 'other-unit', 'sales-partner')),
+    code varchar(64) NOT NULL,
+    enabled boolean NOT NULL DEFAULT true,
+    revision bigint NOT NULL DEFAULT 1 CHECK (revision > 0),
+    created_at timestamptz NOT NULL,
+    created_by varchar(26) NOT NULL REFERENCES app_users(id),
+    UNIQUE (entity, code)
+);
+
 CREATE TABLE approval_entries (
     id varchar(26) PRIMARY KEY,
     domain varchar(32) NOT NULL,
@@ -234,6 +245,12 @@ CREATE INDEX approval_entries_latest_approved_idx
 
 -- BOB reads these owner tables directly.  The DCL typed snapshot is the only
 -- current-data source: subject + highest APPROVED entry + matching snapshot.
+-- Immutable evidence of enablement carried by pre-BOB submissions. Never read by runtime selection.
+CREATE TABLE bob_legacy_enablement_evidence (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    enabled boolean NOT NULL
+);
+
 CREATE TABLE dcl_customer_versions (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     kind varchar(32) NOT NULL,
@@ -292,7 +309,7 @@ CREATE TABLE dcl_customer_version_subunits (
     PRIMARY KEY (customer_approval_entry_id, subunit_id)
 );
 
-CREATE TABLE dcl_supplier_versions (
+CREATE TABLE bob_supplier_versions (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     kind varchar(32) NOT NULL,
     legal_name varchar(200) NOT NULL,
@@ -309,11 +326,10 @@ CREATE TABLE dcl_supplier_versions (
     remark varchar(1000),
     default_operating_entity_reference jsonb,
     settlement_method_snapshot jsonb,
-    default_purchaser_snapshot jsonb,
-    enabled boolean NOT NULL
+    default_purchaser_snapshot jsonb
 );
-CREATE TABLE dcl_supplier_version_operating_entities (
-    approval_entry_id varchar(26) NOT NULL REFERENCES dcl_supplier_versions(approval_entry_id) ON DELETE CASCADE,
+CREATE TABLE bob_supplier_version_operating_entities (
+    approval_entry_id varchar(26) NOT NULL REFERENCES bob_supplier_versions(approval_entry_id) ON DELETE CASCADE,
     operating_entity_id varchar(26) NOT NULL,
     operating_entity_approval_entry_id varchar(26),
     operating_entity_code varchar(64) NOT NULL,
@@ -321,7 +337,7 @@ CREATE TABLE dcl_supplier_version_operating_entities (
     PRIMARY KEY (approval_entry_id, operating_entity_id)
 );
 
-CREATE TABLE dcl_other_unit_versions (
+CREATE TABLE bob_other_unit_versions (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     kind varchar(32) NOT NULL,
     legal_name varchar(200) NOT NULL,
@@ -333,11 +349,10 @@ CREATE TABLE dcl_other_unit_versions (
     address varchar(500),
     remark varchar(1000),
     default_operating_entity_reference jsonb,
-    settlement_method_snapshot jsonb,
-    enabled boolean NOT NULL
+    settlement_method_snapshot jsonb
 );
-CREATE TABLE dcl_other_unit_version_operating_entities (
-    approval_entry_id varchar(26) NOT NULL REFERENCES dcl_other_unit_versions(approval_entry_id) ON DELETE CASCADE,
+CREATE TABLE bob_other_unit_version_operating_entities (
+    approval_entry_id varchar(26) NOT NULL REFERENCES bob_other_unit_versions(approval_entry_id) ON DELETE CASCADE,
     operating_entity_id varchar(26) NOT NULL,
     operating_entity_approval_entry_id varchar(26),
     operating_entity_code varchar(64) NOT NULL,
@@ -365,7 +380,7 @@ CREATE TABLE dcl_employee_versions (
     enabled boolean NOT NULL
 );
 
-CREATE TABLE dcl_sales_partner_versions (
+CREATE TABLE bob_sales_partner_versions (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     kind varchar(32) NOT NULL,
     legal_name varchar(200) NOT NULL,
@@ -377,11 +392,10 @@ CREATE TABLE dcl_sales_partner_versions (
     contact_phone varchar(32),
     address varchar(500),
     remark varchar(1000),
-    default_operating_entity_reference jsonb,
-    enabled boolean NOT NULL
+    default_operating_entity_reference jsonb
 );
-CREATE TABLE dcl_sales_partner_version_operating_entities (
-    approval_entry_id varchar(26) NOT NULL REFERENCES dcl_sales_partner_versions(approval_entry_id) ON DELETE CASCADE,
+CREATE TABLE bob_sales_partner_version_operating_entities (
+    approval_entry_id varchar(26) NOT NULL REFERENCES bob_sales_partner_versions(approval_entry_id) ON DELETE CASCADE,
     operating_entity_id varchar(26) NOT NULL,
     operating_entity_approval_entry_id varchar(26),
     operating_entity_code varchar(64) NOT NULL,
@@ -597,7 +611,7 @@ CREATE TABLE dcl_warehouse_idempotency (
     created_at timestamptz NOT NULL
 );
 
-CREATE TABLE dcl_archive_idempotency (
+CREATE TABLE archive_idempotency (
     entity varchar(64) NOT NULL,
     idempotency_key varchar(128) NOT NULL,
     request_hash varchar(64) NOT NULL,

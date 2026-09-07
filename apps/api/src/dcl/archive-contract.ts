@@ -9,10 +9,7 @@ import { archiveEntityPresentation } from '@zerp/model'
 
 export const archiveEntities = [
   'product',
-  'supplier',
   'customer',
-  'other-unit',
-  'sales-partner',
   'acc-mapping',
   'rpt-definition',
 ] as const
@@ -183,42 +180,6 @@ const paymentMethodSnapshot = auxSnapshot
     defaultSalesSurcharge: z.string().regex(/^(?:0|[1-9]\d*)\.\d{2}$/),
   })
   .strict()
-const archiveIdentityBase = {
-  identityKind: z.enum(['PERSON', 'ORGANIZATION']),
-  legalName: z.string().min(1).max(200),
-  displayName: z.string().min(1).max(200),
-  legalIdentifier: z.string().max(128),
-  contactName: z.string().max(100),
-  phone: z.string().max(32),
-  address: z.string().max(500),
-  operatingEntities: z.array(stableReference),
-  defaultOperatingEntityId: z.string().length(26).nullable(),
-  remark: z.string().max(1000),
-  enabled: z.boolean(),
-} as const
-
-const supplierSnapshot = z
-  .object({
-    ...archiveIdentityBase,
-    settlementMethod: settlementSnapshot.nullable(),
-    defaultPurchaser: stableReference.nullable(),
-  })
-  .strict()
-
-const otherUnitSnapshot = z
-  .object({
-    ...archiveIdentityBase,
-    settlementMethod: settlementSnapshot.nullable(),
-  })
-  .strict()
-
-const salesPartnerSnapshot = z
-  .object({
-    ...archiveIdentityBase,
-    capabilities: z.array(z.enum(['EXTERNAL_PART_TIME', 'CHANNEL_PARTNER'])),
-  })
-  .strict()
-
 const attachmentMetadata = z
   .object({
     id: z.string().length(26),
@@ -493,10 +454,7 @@ const rptDefinitionSnapshot = z
 
 export const archiveSnapshotSchemas = {
   product: productSnapshot,
-  supplier: supplierSnapshot,
   customer: customerSnapshot,
-  'other-unit': otherUnitSnapshot,
-  'sales-partner': salesPartnerSnapshot,
   'acc-mapping': accMappingSnapshot,
   'rpt-definition': rptDefinitionSnapshot,
 } as const satisfies Record<ArchiveEntity, z.ZodType>
@@ -535,10 +493,7 @@ const archiveQueryInput = <Filters extends z.ZodType>(filters: Filters) =>
 
 export const archiveQuerySchemas = {
   product: archiveQueryInput(archiveQueryProductFilters),
-  supplier: archiveQueryInput(archiveQueryBaseFilters),
   customer: archiveQueryInput(archiveQueryBaseFilters),
-  'other-unit': archiveQueryInput(archiveQueryBaseFilters),
-  'sales-partner': archiveQueryInput(archiveQueryBaseFilters),
   'acc-mapping': archiveQueryInput(archiveQueryAccMappingFilters),
   'rpt-definition': archiveQueryInput(archiveQueryBaseFilters),
 } as const satisfies Record<ArchiveEntity, z.ZodType>
@@ -587,15 +542,6 @@ const accMappingReferenceBlocker = z
 export const archiveBlockerSchema = z.discriminatedUnion('kind', [
   z
     .object({
-      kind: z.literal('AUX_CURRENT_REFERENCE'),
-      entity: z.literal('vehicle'),
-      objectId: z.string().length(26),
-      field: z.literal('carrier'),
-      approvalEntryId: z.string().length(26),
-    })
-    .strict(),
-  z
-    .object({
       kind: z.literal('AUX_REFERENCE'),
       entity: z.enum(['operating-entity', 'employee']),
       objectId: z.string(),
@@ -623,7 +569,15 @@ const failureEnvelope = z.object({
   requestId: z.string(),
 })
 
-function defineArchiveRoutes<const Entity extends ArchiveEntity>(
+function defineArchiveRoutes<
+  const Entity extends ArchiveEntity,
+  const Domain extends 'bob' | 'dcl',
+  const Query extends 'query' | 'submission-query',
+  const Get extends 'get' | 'submission-get',
+>(
+  domain: Domain,
+  queryAction: Query,
+  getAction: Get,
   entity: Entity,
   snapshot: (typeof archiveSnapshotSchemas)[Entity],
 ) {
@@ -751,7 +705,7 @@ function defineArchiveRoutes<const Entity extends ArchiveEntity>(
   const get =
     entity === 'rpt-definition'
       ? identity.extend({ approvalEntryId: z.string().length(26).optional() })
-      : identity
+      : identity.extend({ submissionId: z.string().length(26).optional() })
   const deletedEnvelope = z.union([
     z.object({
       code: z.literal(0),
@@ -763,7 +717,7 @@ function defineArchiveRoutes<const Entity extends ArchiveEntity>(
     failureEnvelope,
   ])
   const route = <
-    const Action extends ArchiveAction,
+    const Action extends ArchiveAction | Query | Get,
     const Request extends z.ZodType,
     const Response extends z.ZodType,
   >(
@@ -773,7 +727,7 @@ function defineArchiveRoutes<const Entity extends ArchiveEntity>(
   ) =>
     createRoute({
       method: 'post',
-      path: `/dcl/${entity}/${action}` as const,
+      path: `/${domain}/${entity}/${action}` as const,
       request: {
         body: { content: { 'application/json': { schema: request } } },
       },
@@ -785,8 +739,8 @@ function defineArchiveRoutes<const Entity extends ArchiveEntity>(
       },
     })
   return {
-    query: route('query', archiveQuerySchemas[entity], queryPageEnvelope),
-    get: route('get', get, envelope),
+    query: route(queryAction, archiveQuerySchemas[entity], queryPageEnvelope),
+    get: route(getAction, get, envelope),
     versions: route('versions', identity, submissionPageEnvelope),
     'audit-history': route('audit-history', identity, auditEnvelope),
     'submit-new': route('submit-new', submit, envelope),
@@ -804,22 +758,31 @@ function defineArchiveRoutes<const Entity extends ArchiveEntity>(
 }
 
 export const archiveRouteSets = {
-  product: defineArchiveRoutes('product', archiveSnapshotSchemas.product),
-  supplier: defineArchiveRoutes('supplier', archiveSnapshotSchemas.supplier),
-  customer: defineArchiveRoutes('customer', archiveSnapshotSchemas.customer),
-  'other-unit': defineArchiveRoutes(
-    'other-unit',
-    archiveSnapshotSchemas['other-unit'],
+  product: defineArchiveRoutes(
+    'dcl',
+    'query',
+    'get',
+    'product',
+    archiveSnapshotSchemas.product,
   ),
-  'sales-partner': defineArchiveRoutes(
-    'sales-partner',
-    archiveSnapshotSchemas['sales-partner'],
+  customer: defineArchiveRoutes(
+    'dcl',
+    'query',
+    'get',
+    'customer',
+    archiveSnapshotSchemas.customer,
   ),
   'acc-mapping': defineArchiveRoutes(
+    'dcl',
+    'query',
+    'get',
     'acc-mapping',
     archiveSnapshotSchemas['acc-mapping'],
   ),
   'rpt-definition': defineArchiveRoutes(
+    'dcl',
+    'query',
+    'get',
     'rpt-definition',
     archiveSnapshotSchemas['rpt-definition'],
   ),
@@ -834,7 +797,7 @@ export const archiveRouteMetadata: Array<{
   archiveActions.map((action) => ({
     method: archiveRouteSets[entity][action].method,
     path: archiveRouteSets[entity][action].path,
-    permission: `/dcl/${entity}/${action}`,
+    permission: archiveRouteSets[entity][action].path,
     title:
       action === 'query'
         ? archiveEntityPresentation[entity].label
@@ -983,17 +946,17 @@ export function registerArchiveRoutes(
   handler: ArchiveRouteHandler,
   attachments: ArchiveAttachmentHandlers,
 ) {
-  const product = app.openapiRoutes([
+  const archives = app.openapiRoutes([
     {
-      route: archiveRouteSets['product'].query,
+      route: archiveRouteSets['product']['query'],
       handler: archiveHandler(handler, 'product', 'query'),
     },
     {
-      route: archiveRouteSets['product'].get,
+      route: archiveRouteSets['product']['get'],
       handler: archiveHandler(handler, 'product', 'get'),
     },
     {
-      route: archiveRouteSets['product'].versions,
+      route: archiveRouteSets['product']['versions'],
       handler: archiveHandler(handler, 'product', 'versions'),
     },
     {
@@ -1009,83 +972,35 @@ export function registerArchiveRoutes(
       handler: archiveHandler(handler, 'product', 'submit-change'),
     },
     {
-      route: archiveRouteSets['product'].approve,
+      route: archiveRouteSets['product']['approve'],
       handler: archiveHandler(handler, 'product', 'approve'),
     },
     {
-      route: archiveRouteSets['product'].reject,
+      route: archiveRouteSets['product']['reject'],
       handler: archiveHandler(handler, 'product', 'reject'),
     },
     {
-      route: archiveRouteSets['product'].unreject,
+      route: archiveRouteSets['product']['unreject'],
       handler: archiveHandler(handler, 'product', 'unreject'),
     },
     {
-      route: archiveRouteSets['product'].unapprove,
+      route: archiveRouteSets['product']['unapprove'],
       handler: archiveHandler(handler, 'product', 'unapprove'),
     },
     {
-      route: archiveRouteSets['product'].delete,
+      route: archiveRouteSets['product']['delete'],
       handler: archiveHandler(handler, 'product', 'delete'),
     },
-  ] as const)
-  const supplier = product.openapiRoutes([
     {
-      route: archiveRouteSets['supplier'].query,
-      handler: archiveHandler(handler, 'supplier', 'query'),
-    },
-    {
-      route: archiveRouteSets['supplier'].get,
-      handler: archiveHandler(handler, 'supplier', 'get'),
-    },
-    {
-      route: archiveRouteSets['supplier'].versions,
-      handler: archiveHandler(handler, 'supplier', 'versions'),
-    },
-    {
-      route: archiveRouteSets['supplier']['audit-history'],
-      handler: archiveHandler(handler, 'supplier', 'audit-history'),
-    },
-    {
-      route: archiveRouteSets['supplier']['submit-new'],
-      handler: archiveHandler(handler, 'supplier', 'submit-new'),
-    },
-    {
-      route: archiveRouteSets['supplier']['submit-change'],
-      handler: archiveHandler(handler, 'supplier', 'submit-change'),
-    },
-    {
-      route: archiveRouteSets['supplier'].approve,
-      handler: archiveHandler(handler, 'supplier', 'approve'),
-    },
-    {
-      route: archiveRouteSets['supplier'].reject,
-      handler: archiveHandler(handler, 'supplier', 'reject'),
-    },
-    {
-      route: archiveRouteSets['supplier'].unreject,
-      handler: archiveHandler(handler, 'supplier', 'unreject'),
-    },
-    {
-      route: archiveRouteSets['supplier'].unapprove,
-      handler: archiveHandler(handler, 'supplier', 'unapprove'),
-    },
-    {
-      route: archiveRouteSets['supplier'].delete,
-      handler: archiveHandler(handler, 'supplier', 'delete'),
-    },
-  ] as const)
-  const customer = supplier.openapiRoutes([
-    {
-      route: archiveRouteSets['customer'].query,
+      route: archiveRouteSets['customer']['query'],
       handler: archiveHandler(handler, 'customer', 'query'),
     },
     {
-      route: archiveRouteSets['customer'].get,
+      route: archiveRouteSets['customer']['get'],
       handler: archiveHandler(handler, 'customer', 'get'),
     },
     {
-      route: archiveRouteSets['customer'].versions,
+      route: archiveRouteSets['customer']['versions'],
       handler: archiveHandler(handler, 'customer', 'versions'),
     },
     {
@@ -1101,129 +1016,35 @@ export function registerArchiveRoutes(
       handler: archiveHandler(handler, 'customer', 'submit-change'),
     },
     {
-      route: archiveRouteSets['customer'].approve,
+      route: archiveRouteSets['customer']['approve'],
       handler: archiveHandler(handler, 'customer', 'approve'),
     },
     {
-      route: archiveRouteSets['customer'].reject,
+      route: archiveRouteSets['customer']['reject'],
       handler: archiveHandler(handler, 'customer', 'reject'),
     },
     {
-      route: archiveRouteSets['customer'].unreject,
+      route: archiveRouteSets['customer']['unreject'],
       handler: archiveHandler(handler, 'customer', 'unreject'),
     },
     {
-      route: archiveRouteSets['customer'].unapprove,
+      route: archiveRouteSets['customer']['unapprove'],
       handler: archiveHandler(handler, 'customer', 'unapprove'),
     },
     {
-      route: archiveRouteSets['customer'].delete,
+      route: archiveRouteSets['customer']['delete'],
       handler: archiveHandler(handler, 'customer', 'delete'),
     },
-  ] as const)
-  const otherUnit = customer.openapiRoutes([
     {
-      route: archiveRouteSets['other-unit'].query,
-      handler: archiveHandler(handler, 'other-unit', 'query'),
-    },
-    {
-      route: archiveRouteSets['other-unit'].get,
-      handler: archiveHandler(handler, 'other-unit', 'get'),
-    },
-    {
-      route: archiveRouteSets['other-unit'].versions,
-      handler: archiveHandler(handler, 'other-unit', 'versions'),
-    },
-    {
-      route: archiveRouteSets['other-unit']['audit-history'],
-      handler: archiveHandler(handler, 'other-unit', 'audit-history'),
-    },
-    {
-      route: archiveRouteSets['other-unit']['submit-new'],
-      handler: archiveHandler(handler, 'other-unit', 'submit-new'),
-    },
-    {
-      route: archiveRouteSets['other-unit']['submit-change'],
-      handler: archiveHandler(handler, 'other-unit', 'submit-change'),
-    },
-    {
-      route: archiveRouteSets['other-unit'].approve,
-      handler: archiveHandler(handler, 'other-unit', 'approve'),
-    },
-    {
-      route: archiveRouteSets['other-unit'].reject,
-      handler: archiveHandler(handler, 'other-unit', 'reject'),
-    },
-    {
-      route: archiveRouteSets['other-unit'].unreject,
-      handler: archiveHandler(handler, 'other-unit', 'unreject'),
-    },
-    {
-      route: archiveRouteSets['other-unit'].unapprove,
-      handler: archiveHandler(handler, 'other-unit', 'unapprove'),
-    },
-    {
-      route: archiveRouteSets['other-unit'].delete,
-      handler: archiveHandler(handler, 'other-unit', 'delete'),
-    },
-  ] as const)
-  const salesPartner = otherUnit.openapiRoutes([
-    {
-      route: archiveRouteSets['sales-partner'].query,
-      handler: archiveHandler(handler, 'sales-partner', 'query'),
-    },
-    {
-      route: archiveRouteSets['sales-partner'].get,
-      handler: archiveHandler(handler, 'sales-partner', 'get'),
-    },
-    {
-      route: archiveRouteSets['sales-partner'].versions,
-      handler: archiveHandler(handler, 'sales-partner', 'versions'),
-    },
-    {
-      route: archiveRouteSets['sales-partner']['audit-history'],
-      handler: archiveHandler(handler, 'sales-partner', 'audit-history'),
-    },
-    {
-      route: archiveRouteSets['sales-partner']['submit-new'],
-      handler: archiveHandler(handler, 'sales-partner', 'submit-new'),
-    },
-    {
-      route: archiveRouteSets['sales-partner']['submit-change'],
-      handler: archiveHandler(handler, 'sales-partner', 'submit-change'),
-    },
-    {
-      route: archiveRouteSets['sales-partner'].approve,
-      handler: archiveHandler(handler, 'sales-partner', 'approve'),
-    },
-    {
-      route: archiveRouteSets['sales-partner'].reject,
-      handler: archiveHandler(handler, 'sales-partner', 'reject'),
-    },
-    {
-      route: archiveRouteSets['sales-partner'].unreject,
-      handler: archiveHandler(handler, 'sales-partner', 'unreject'),
-    },
-    {
-      route: archiveRouteSets['sales-partner'].unapprove,
-      handler: archiveHandler(handler, 'sales-partner', 'unapprove'),
-    },
-    {
-      route: archiveRouteSets['sales-partner'].delete,
-      handler: archiveHandler(handler, 'sales-partner', 'delete'),
-    },
-  ] as const)
-  const accMapping = salesPartner.openapiRoutes([
-    {
-      route: archiveRouteSets['acc-mapping'].query,
+      route: archiveRouteSets['acc-mapping']['query'],
       handler: archiveHandler(handler, 'acc-mapping', 'query'),
     },
     {
-      route: archiveRouteSets['acc-mapping'].get,
+      route: archiveRouteSets['acc-mapping']['get'],
       handler: archiveHandler(handler, 'acc-mapping', 'get'),
     },
     {
-      route: archiveRouteSets['acc-mapping'].versions,
+      route: archiveRouteSets['acc-mapping']['versions'],
       handler: archiveHandler(handler, 'acc-mapping', 'versions'),
     },
     {
@@ -1239,37 +1060,35 @@ export function registerArchiveRoutes(
       handler: archiveHandler(handler, 'acc-mapping', 'submit-change'),
     },
     {
-      route: archiveRouteSets['acc-mapping'].approve,
+      route: archiveRouteSets['acc-mapping']['approve'],
       handler: archiveHandler(handler, 'acc-mapping', 'approve'),
     },
     {
-      route: archiveRouteSets['acc-mapping'].reject,
+      route: archiveRouteSets['acc-mapping']['reject'],
       handler: archiveHandler(handler, 'acc-mapping', 'reject'),
     },
     {
-      route: archiveRouteSets['acc-mapping'].unreject,
+      route: archiveRouteSets['acc-mapping']['unreject'],
       handler: archiveHandler(handler, 'acc-mapping', 'unreject'),
     },
     {
-      route: archiveRouteSets['acc-mapping'].unapprove,
+      route: archiveRouteSets['acc-mapping']['unapprove'],
       handler: archiveHandler(handler, 'acc-mapping', 'unapprove'),
     },
     {
-      route: archiveRouteSets['acc-mapping'].delete,
+      route: archiveRouteSets['acc-mapping']['delete'],
       handler: archiveHandler(handler, 'acc-mapping', 'delete'),
     },
-  ] as const)
-  const rptDefinition = accMapping.openapiRoutes([
     {
-      route: archiveRouteSets['rpt-definition'].query,
+      route: archiveRouteSets['rpt-definition']['query'],
       handler: archiveHandler(handler, 'rpt-definition', 'query'),
     },
     {
-      route: archiveRouteSets['rpt-definition'].get,
+      route: archiveRouteSets['rpt-definition']['get'],
       handler: archiveHandler(handler, 'rpt-definition', 'get'),
     },
     {
-      route: archiveRouteSets['rpt-definition'].versions,
+      route: archiveRouteSets['rpt-definition']['versions'],
       handler: archiveHandler(handler, 'rpt-definition', 'versions'),
     },
     {
@@ -1285,27 +1104,27 @@ export function registerArchiveRoutes(
       handler: archiveHandler(handler, 'rpt-definition', 'submit-change'),
     },
     {
-      route: archiveRouteSets['rpt-definition'].approve,
+      route: archiveRouteSets['rpt-definition']['approve'],
       handler: archiveHandler(handler, 'rpt-definition', 'approve'),
     },
     {
-      route: archiveRouteSets['rpt-definition'].reject,
+      route: archiveRouteSets['rpt-definition']['reject'],
       handler: archiveHandler(handler, 'rpt-definition', 'reject'),
     },
     {
-      route: archiveRouteSets['rpt-definition'].unreject,
+      route: archiveRouteSets['rpt-definition']['unreject'],
       handler: archiveHandler(handler, 'rpt-definition', 'unreject'),
     },
     {
-      route: archiveRouteSets['rpt-definition'].unapprove,
+      route: archiveRouteSets['rpt-definition']['unapprove'],
       handler: archiveHandler(handler, 'rpt-definition', 'unapprove'),
     },
     {
-      route: archiveRouteSets['rpt-definition'].delete,
+      route: archiveRouteSets['rpt-definition']['delete'],
       handler: archiveHandler(handler, 'rpt-definition', 'delete'),
     },
   ] as const)
-  return rptDefinition.openapiRoutes([
+  return archives.openapiRoutes([
     { route: customerAttachmentStageRoute, handler: attachments.stage },
     { route: customerAttachmentCleanupRoute, handler: attachments.cleanup },
   ] as const)

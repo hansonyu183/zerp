@@ -9,6 +9,7 @@ import { sql } from 'kysely'
 import pg from 'pg'
 import { ulid } from 'ulid'
 
+import { BobArchiveService } from '../../src/bob/archives.ts'
 import { AuxApplicationError, AuxService } from '../../src/aux/service.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { searchPinyin } from '../../src/platform/pinyin.ts'
@@ -36,6 +37,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     new PgRptDefinitionValidator(validationPool, db),
     { attachmentStore },
   )
+  const bobArchives = new BobArchiveService(db)
   const submitterId = ulid()
   const reviewerId = ulid()
   const submitter = {
@@ -59,7 +61,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     try {
       if (subjectIds.length) {
         await db
-          .deleteFrom('dcl_archive_idempotency')
+          .deleteFrom('archive_idempotency')
           .where('subject_id', 'in', subjectIds)
           .execute()
         await db
@@ -73,6 +75,10 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       }
       await db
         .deleteFrom('dcl_subjects')
+        .where('created_by', '=', submitterId)
+        .execute()
+      await db
+        .deleteFrom('bob_subjects')
         .where('created_by', '=', submitterId)
         .execute()
       if (currentPeopleIds.length)
@@ -194,40 +200,49 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     db,
   )
 
+  function isBob(
+    entity: string,
+  ): entity is 'supplier' | 'other-unit' | 'sales-partner' {
+    return (
+      entity === 'supplier' ||
+      entity === 'other-unit' ||
+      entity === 'sales-partner'
+    )
+  }
   async function submitAndApprove(
-    entity: Parameters<ArchiveService['submit']>[0],
+    entity:
+      | Parameters<ArchiveService['submit']>[0]
+      | Parameters<BobArchiveService['submit']>[0],
     snapshot: Record<string, unknown>,
   ) {
     const subjectId = ulid()
     const submissionId = ulid()
     subjectIds.push(subjectId)
-    const pending = await service.submit(
-      entity,
-      'submit-new',
-      {
-        subjectId,
-        submissionId,
-        idempotencyKey: submissionId,
-        expectedLatestApprovedSubmissionId: null,
-        expectedLatestApprovedRevision: null,
-        snapshot,
-      },
-      submitter,
-      ulid(),
-    )
-    const approved = await service.review(
-      entity,
-      'approve',
-      { subjectId, submissionId, expectedRevision: pending.revision },
-      reviewer,
-      ulid(),
-    )
+    const input = {
+      subjectId,
+      submissionId,
+      idempotencyKey: submissionId,
+      expectedLatestApprovedSubmissionId: null,
+      expectedLatestApprovedRevision: null,
+      snapshot,
+    }
+    const pending = isBob(entity)
+      ? await bobArchives.submit(entity, 'submit-new', input, submitter, ulid())
+      : await service.submit(entity, 'submit-new', input, submitter, ulid())
+    const review = {
+      subjectId,
+      submissionId,
+      expectedRevision: pending.revision,
+    }
+    const approved = isBob(entity)
+      ? await bobArchives.review(entity, 'approve', review, reviewer, ulid())
+      : await service.review(entity, 'approve', review, reviewer, ulid())
     assert.equal(approved.status, 'APPROVED')
     assert.deepEqual(approved.snapshot, pending.snapshot)
-    assert.equal(
-      (await service.auditHistory(entity, subjectId, reviewer)).length,
-      2,
-    )
+    const history = isBob(entity)
+      ? await bobArchives.auditHistory(entity, subjectId, reviewer)
+      : await service.auditHistory(entity, subjectId, reviewer)
+    assert.equal(history.length, 2)
     return approved
   }
 
@@ -565,24 +580,67 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     operatingEntities: [operatingEntityReference],
     defaultOperatingEntityId: operatingEntity.id,
     remark: '',
-    enabled: true,
   }
-  await submitAndApprove('supplier', {
+  const supplier = await submitAndApprove('supplier', {
     ...identityBase,
     legalIdentifier: 'SUPPLIER-001',
     settlementMethod: null,
     defaultPurchaser: employeeReference,
   })
-  await submitAndApprove('other-unit', {
+  const otherUnit = await submitAndApprove('other-unit', {
     ...identityBase,
     legalIdentifier: 'OTHER-UNIT-001',
     settlementMethod: null,
   })
-  await submitAndApprove('sales-partner', {
+  const salesPartner = await submitAndApprove('sales-partner', {
     ...identityBase,
     legalIdentifier: 'SALES-PARTNER-001',
     capabilities: ['CHANNEL_PARTNER'],
   })
+  for (const archive of [supplier, otherUnit, salesPartner]) {
+    assert.equal('enabled' in archive.snapshot, false)
+    const persisted = await db
+      .selectFrom('approval_entries')
+      .select('domain')
+      .where('id', '=', archive.submissionId)
+      .executeTakeFirstOrThrow()
+    assert.equal(persisted.domain, 'bob')
+    const subject = await db
+      .selectFrom('bob_subjects')
+      .select(['enabled', 'revision'])
+      .where('id', '=', archive.subjectId)
+      .executeTakeFirstOrThrow()
+    assert.equal(subject.enabled, true)
+    assert.equal(String(subject.revision), '1')
+    assert.equal(
+      await db
+        .selectFrom('dcl_subjects')
+        .select('id')
+        .where('id', '=', archive.subjectId)
+        .executeTakeFirst(),
+      undefined,
+    )
+  }
+  assert.equal(
+    (
+      await bobArchives.query(
+        'supplier',
+        { page: 1, pageSize: 20, filters: { enabled: true } },
+        reviewer,
+      )
+    ).items.some((item) => item.subjectId === supplier.subjectId),
+    true,
+  )
+  assert.equal(
+    (
+      await bobArchives.query(
+        'supplier',
+        { page: 1, pageSize: 20, filters: { enabled: false } },
+        reviewer,
+      )
+    ).items.some((item) => item.subjectId === supplier.subjectId),
+    false,
+  )
 
   const attachment = Buffer.from('%PDF-1.7 customer identity attachment')
   const attachmentId = ulid()
@@ -1364,11 +1422,17 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     'acc-mapping',
     'rpt-definition',
   ] as const) {
-    const items = await service.query(
-      entity,
-      { page: 1, pageSize: 20, filters: {} },
-      reviewer,
-    )
+    const items = isBob(entity)
+      ? await bobArchives.query(
+          entity,
+          { page: 1, pageSize: 20, filters: {} },
+          reviewer,
+        )
+      : await service.query(
+          entity,
+          { page: 1, pageSize: 20, filters: {} },
+          reviewer,
+        )
     const item = items.items.find((candidate) =>
       subjectIds.includes(candidate.subjectId),
     )

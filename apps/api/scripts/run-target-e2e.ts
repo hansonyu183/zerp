@@ -18,6 +18,7 @@ import { TargetBootstrapService } from '../src/app/bootstrap.ts'
 import { AccService } from '../src/acc/service.ts'
 import { AuxService } from '../src/aux/service.ts'
 import { createDatabase } from '../src/db/database.ts'
+import { BobArchiveService } from '../src/bob/archives.ts'
 import { ArchiveService, type ArchiveSnapshot } from '../src/dcl/archives.ts'
 import { PgRptDefinitionValidator } from '../src/rpt/service.ts'
 import { VouService } from '../src/vou/service.ts'
@@ -56,6 +57,7 @@ const bootstrap = new TargetBootstrapService(database)
 const rptValidationPool = new pg.Pool({ connectionString: databaseUrl })
 const rptValidator = new PgRptDefinitionValidator(rptValidationPool, database)
 const archives = new ArchiveService(database, rptValidator)
+const bobArchives = new BobArchiveService(database)
 const acc = new AccService(database)
 const aux = new AuxService(database)
 const vou = new VouService(database, {
@@ -543,31 +545,51 @@ async function seedArchiveReference(
   },
   snapshot: ArchiveSnapshot,
 ) {
-  const pending = await archives.submit(
-    entity,
-    'submit-new',
-    {
-      subjectId: reference.objectId,
-      submissionId: reference.approvalEntryId,
-      idempotencyKey: reference.approvalEntryId,
-      expectedLatestApprovedSubmissionId: null,
-      expectedLatestApprovedRevision: null,
-      snapshot,
-    },
-    serviceActor(submitter.userId),
-    `e2e-${entity}-submit`,
-  )
-  const approved = await archives.review(
-    entity,
-    'approve',
-    {
-      subjectId: reference.objectId,
-      submissionId: reference.approvalEntryId,
-      expectedRevision: pending.revision,
-    },
-    serviceActor(reviewer.userId),
-    `e2e-${entity}-approve`,
-  )
+  const input = {
+    subjectId: reference.objectId,
+    submissionId: reference.approvalEntryId,
+    idempotencyKey: reference.approvalEntryId,
+    expectedLatestApprovedSubmissionId: null,
+    expectedLatestApprovedRevision: null,
+    snapshot,
+  }
+  const pending =
+    entity === 'supplier' || entity === 'other-unit'
+      ? await bobArchives.submit(
+          entity,
+          'submit-new',
+          input,
+          serviceActor(submitter.userId),
+          `e2e-${entity}-submit`,
+        )
+      : await archives.submit(
+          entity,
+          'submit-new',
+          input,
+          serviceActor(submitter.userId),
+          `e2e-${entity}-submit`,
+        )
+  const review = {
+    subjectId: reference.objectId,
+    submissionId: reference.approvalEntryId,
+    expectedRevision: pending.revision,
+  }
+  const approved =
+    entity === 'supplier' || entity === 'other-unit'
+      ? await bobArchives.review(
+          entity,
+          'approve',
+          review,
+          serviceActor(reviewer.userId),
+          `e2e-${entity}-approve`,
+        )
+      : await archives.review(
+          entity,
+          'approve',
+          review,
+          serviceActor(reviewer.userId),
+          `e2e-${entity}-approve`,
+        )
   reference.code = approved.code ?? reference.code
 }
 
@@ -768,7 +790,6 @@ async function seedVouReferences(archives: ArchiveService, aux: AuxService) {
     settlementMethod: auxReference('settlement-method'),
     defaultPurchaser: null,
     remark: '',
-    enabled: true,
   })
   await seedArchiveReference(archives, 'other-unit', reference('otherUnit'), {
     identityKind: 'ORGANIZATION',
@@ -782,7 +803,6 @@ async function seedVouReferences(archives: ArchiveService, aux: AuxService) {
     defaultOperatingEntityId: null,
     settlementMethod: null,
     remark: '',
-    enabled: true,
   })
   const account = await aux.create(
     'fund-account',

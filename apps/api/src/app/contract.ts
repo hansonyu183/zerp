@@ -19,6 +19,7 @@ import {
   type ArchiveAttachmentHandlers,
   type ArchiveRouteHandler,
 } from '../dcl/archive-contract.ts'
+import { bobArchiveRouteMetadata, registerBobArchiveRoutes, type BobArchiveRouteHandler } from '../bob/archive-contract.ts'
 import { registerVouRoutes, type VouRouteHandler } from '../vou/contract.ts'
 import { registerAccRoutes, type AccRouteHandler } from '../acc/contract.ts'
 import { registerWflRoutes, type WflRouteHandler } from '../wfl/contract.ts'
@@ -139,7 +140,7 @@ const workbenchPageEnvelope = z.union([
         items: z.array(
           z
             .object({
-              domain: z.enum(['dcl', 'vou']),
+              domain: z.enum(['dcl', 'bob', 'vou']),
               entity: z.string(),
               subjectOrDocumentId: z.string(),
               submissionId: z.string(),
@@ -455,11 +456,13 @@ export const targetRouteMetadata = [
   })),
   ...independentRouteMetadata,
   ...archiveRouteMetadata,
+  ...bobArchiveRouteMetadata,
 ] as const
 
 export interface TargetRouteHandlers {
   independent: IndependentRouteHandlers
   archive: ArchiveRouteHandler
+  bobArchive: BobArchiveRouteHandler
   archiveAttachments: ArchiveAttachmentHandlers
   signin: RouteHandler<typeof signinRoute, TargetRouteEnvironment>
   restore: RouteHandler<typeof restoreRoute, TargetRouteEnvironment>
@@ -504,7 +507,11 @@ export function registerTargetRoutes<
     handlers.archive,
     handlers.archiveAttachments,
   )
-  return base.route('/', independent).route('/', archives)
+  const bobArchives = registerBobArchiveRoutes(
+    new OpenAPIHono<TargetRouteEnvironment>(),
+    handlers.bobArchive,
+  )
+  return base.route('/', independent).route('/', archives).route('/', bobArchives)
 }
 
 function targetAppType() {

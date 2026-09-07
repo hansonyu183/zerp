@@ -40,6 +40,9 @@ import OperatingEntityManagement from '../pages/aux/operating-entity/OperatingEn
 import WarehouseManagement from '../pages/aux/warehouse/WarehouseManagement.vue'
 import FundAccountManagement from '../pages/aux/fund-account/FundAccountManagement.vue'
 import VehicleManagement from '../pages/aux/vehicle/VehicleManagement.vue'
+import OtherUnitManagement from '../pages/bob/other-unit/OtherUnitManagement.vue'
+import SalesPartnerManagement from '../pages/bob/sales-partner/SalesPartnerManagement.vue'
+import SupplierManagement from '../pages/bob/supplier/SupplierManagement.vue'
 import {
   targetDomainCapabilities,
   type BusinessTargetDomain,
@@ -50,6 +53,7 @@ export type ResourceRegistration = {
   entity: string
   component: Component
   definition?: RegisteredListPage
+  useCaseKey?: string
 }
 
 export type ResolvedResourceRegistration = ResourceRegistration & {
@@ -151,5 +155,23 @@ export const targetResourceRegistry = createResourceRegistry([
     entity: 'vehicle',
     definition: vehicleListPage,
     component: VehicleManagement,
+  },
+  {
+    domain: 'bob',
+    entity: 'supplier',
+    component: SupplierManagement,
+    useCaseKey: 'bob/supplier-management',
+  },
+  {
+    domain: 'bob',
+    entity: 'other-unit',
+    component: OtherUnitManagement,
+    useCaseKey: 'bob/other-unit-management',
+  },
+  {
+    domain: 'bob',
+    entity: 'sales-partner',
+    component: SalesPartnerManagement,
+    useCaseKey: 'bob/sales-partner-management',
   },
 ])

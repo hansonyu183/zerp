@@ -1194,18 +1194,18 @@ async function resolveExternalCarrier(
       SELECT subject.code,
         COALESCE(NULLIF(version.display_name, ''), version.legal_name) AS name
       FROM approval_entries entry
-      JOIN dcl_subjects subject ON subject.id = entry.subject_id
+      JOIN bob_subjects subject ON subject.id = entry.subject_id
         AND subject.entity = 'other-unit'
-      JOIN dcl_other_unit_versions version ON version.approval_entry_id = entry.id
+      JOIN bob_other_unit_versions version ON version.approval_entry_id = entry.id
       WHERE entry.id = ${approvalEntryId}
         AND entry.subject_id = ${otherUnitId}
-        AND entry.domain = 'dcl'
+        AND entry.domain = 'bob'
         AND entry.entity = 'other-unit'
         AND entry.status = 'APPROVED'
-        AND version.enabled = true
+        AND subject.enabled = true
         AND NOT EXISTS (
           SELECT 1 FROM approval_entries newer
-          WHERE newer.domain = 'dcl' AND newer.entity = 'other-unit'
+          WHERE newer.domain = 'bob' AND newer.entity = 'other-unit'
             AND newer.subject_id = entry.subject_id
             AND newer.status = 'APPROVED'
             AND newer.version_no > entry.version_no
@@ -2427,12 +2427,12 @@ export class AuxService {
     const result = await sql<{ code: string }>`
       SELECT subject.code
       FROM approval_entries entry
-      JOIN dcl_subjects subject ON subject.id = entry.subject_id
+      JOIN bob_subjects subject ON subject.id = entry.subject_id
         AND subject.entity = 'other-unit'
-      JOIN dcl_other_unit_versions version ON version.approval_entry_id = entry.id
+      JOIN bob_other_unit_versions version ON version.approval_entry_id = entry.id
       WHERE entry.id = ${approvalEntryId}
         AND entry.subject_id = ${otherUnitId}
-        AND entry.domain = 'dcl'
+        AND entry.domain = 'bob'
         AND entry.entity = 'other-unit'
       FOR SHARE OF entry, subject, version
     `.execute(transaction)

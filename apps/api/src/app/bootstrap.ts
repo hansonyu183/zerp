@@ -699,7 +699,14 @@ export class TargetBootstrapService {
         .select('id')
         .where('created_by', '=', createdByUserId)
         .execute()
-      const subjectIds = subjects.map((subject) => subject.id)
+      const bobSubjects = await transaction
+        .selectFrom('bob_subjects')
+        .select('id')
+        .where('created_by', '=', createdByUserId)
+        .execute()
+      const subjectIds = [...subjects, ...bobSubjects].map(
+        (subject) => subject.id,
+      )
       if (subjectIds.length === 0) return
       await transaction
         .deleteFrom('dcl_warehouse_reference_facts')
@@ -714,7 +721,7 @@ export class TargetBootstrapService {
         .where('subject_id', 'in', subjectIds)
         .execute()
       await transaction
-        .deleteFrom('dcl_archive_idempotency')
+        .deleteFrom('archive_idempotency')
         .where('subject_id', 'in', subjectIds)
         .execute()
       await transaction
@@ -727,6 +734,10 @@ export class TargetBootstrapService {
         .execute()
       await transaction
         .deleteFrom('dcl_subjects')
+        .where('id', 'in', subjectIds)
+        .execute()
+      await transaction
+        .deleteFrom('bob_subjects')
         .where('id', 'in', subjectIds)
         .execute()
     })

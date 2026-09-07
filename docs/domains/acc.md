@@ -73,7 +73,7 @@ ACC 的动作、路径和数据结构由 `apps/api/` 的可执行 Hono/Zod 路�
 
 ## 7. 当前记账映射
 
-会计映射的 stable subject `(bookId, vouEntity)` 由 [DCL 会计映射申报](dcl.md#38-会计映射申报) 唯一拥有创建、候选编辑、提交、撤回、驳回、批准、反批准、草稿删除、版本历史和审计。ACC 只读取每个 `(bookId, vouEntity)` 的最新 `APPROVED` entry 作为当前记账映射，不提供版本写入、生命周期或候选查询。
+会计映射的 stable subject `(bookId, vouEntity)` 由 [DCL 会计映射申报](dcl.md#37-会计映射申报) 唯一拥有创建、候选编辑、提交、撤回、驳回、批准、反批准、草稿删除、版本历史和审计。ACC 只读取每个 `(bookId, vouEntity)` 的最新 `APPROVED` entry 作为当前记账映射，不提供版本写入、生命周期或候选查询。
 
 `/acc/mapping/query` 与 `/acc/mapping/get` 分别返回账簿内当前最新批准映射的分页列表和详情，不暴露版本历史或开放候选。`/acc/mapping/catalog` 返回稳定 VOU 映射字段目录，供 DCL 编辑和 ACC 记账共同使用。ACC 的科目引用登记在映射批准或反批准时由 DCL 事务同步触发：批准登记新版本的末级科目引用，反批准回落到上一正式版本的引用集合。
 

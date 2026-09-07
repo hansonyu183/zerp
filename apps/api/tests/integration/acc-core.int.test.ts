@@ -604,8 +604,9 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
         .execute()
       await db
         .deleteFrom('dcl_subjects')
-        .where('id', 'in', [mappingId, supplierId, customerId])
+        .where('id', 'in', [mappingId, customerId])
         .execute()
+      await sql`DELETE FROM bob_subjects WHERE id = ${supplierId}`.execute(db)
       await db
         .deleteFrom('acc_subjects')
         .where('book_id', '=', bookId)
@@ -704,13 +705,6 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
         created_by: actorId,
       },
       {
-        id: supplierId,
-        entity: 'supplier',
-        code: 'SUP-0001',
-        created_at: now,
-        created_by: actorId,
-      },
-      {
         id: customerId,
         entity: 'customer',
         code: 'CUS-0001',
@@ -719,6 +713,10 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
       },
     ])
     .execute()
+  await sql`
+    INSERT INTO bob_subjects (id, entity, code, enabled, revision, created_at, created_by)
+    VALUES (${supplierId}, 'supplier', 'SUP-0001', true, 1, ${now}, ${actorId})
+  `.execute(db)
   await db
     .insertInto('approval_entries')
     .values([
@@ -739,7 +737,7 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
       },
       {
         id: supplierEntryId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'supplier',
         subject_id: supplierId,
         version_no: 1,
@@ -770,7 +768,7 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
     ])
     .execute()
   await db
-    .insertInto('dcl_supplier_versions')
+    .insertInto('bob_supplier_versions')
     .values({
       approval_entry_id: supplierEntryId,
       kind: 'ORGANIZATION',
@@ -789,7 +787,6 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
       default_operating_entity_reference: null,
       settlement_method_snapshot: null,
       default_purchaser_snapshot: null,
-      enabled: true,
     })
     .execute()
   await db

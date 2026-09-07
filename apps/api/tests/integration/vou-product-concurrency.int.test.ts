@@ -140,7 +140,7 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
         .where('submission_id', '=', vouSubmissionId)
         .execute()
       await db
-        .deleteFrom('dcl_archive_idempotency')
+        .deleteFrom('archive_idempotency')
         .where('subject_id', 'in', productIds)
         .execute()
       await db

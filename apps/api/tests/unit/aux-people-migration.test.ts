@@ -183,9 +183,9 @@ test('target schema keeps one AUX current root and allows new stable-reference s
     /CREATE TABLE aux_(?:operating_entities|employees)/,
   )
   for (const table of [
-    'dcl_supplier_version_operating_entities',
-    'dcl_other_unit_version_operating_entities',
-    'dcl_sales_partner_version_operating_entities',
+    'bob_supplier_version_operating_entities',
+    'bob_other_unit_version_operating_entities',
+    'bob_sales_partner_version_operating_entities',
   ]) {
     const definition = schema.slice(
       schema.indexOf(`CREATE TABLE ${table}`),

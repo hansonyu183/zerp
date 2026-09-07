@@ -897,7 +897,7 @@
                                 "properties": {
                                   "domain": {
                                     "type": "string",
-                                    "enum": ["dcl", "bob", "vou"]
+                                    "enum": ["wfl", "bob", "vou"]
                                   },
                                   "entity": {
                                     "type": "string"
@@ -261665,7 +261665,7 @@
         }
       }
     },
-    "/dcl/wfl-process-definition/submit-new": {
+    "/wfl/process-definition/submit-new": {
       "post": {
         "requestBody": {
           "content": {
@@ -261774,7 +261774,7 @@
         },
         "responses": {
           "200": {
-            "description": "/dcl/wfl-process-definition/submit-new",
+            "description": "/wfl/process-definition/submit-new",
             "content": {
               "application/json": {
                 "schema": {
@@ -262010,7 +262010,7 @@
         }
       }
     },
-    "/dcl/wfl-process-definition/submit-change": {
+    "/wfl/process-definition/submit-change": {
       "post": {
         "requestBody": {
           "content": {
@@ -262119,7 +262119,7 @@
         },
         "responses": {
           "200": {
-            "description": "/dcl/wfl-process-definition/submit-change",
+            "description": "/wfl/process-definition/submit-change",
             "content": {
               "application/json": {
                 "schema": {
@@ -262355,7 +262355,7 @@
         }
       }
     },
-    "/dcl/wfl-process-definition/approve": {
+    "/wfl/process-definition/approve": {
       "post": {
         "requestBody": {
           "content": {
@@ -262386,7 +262386,7 @@
         },
         "responses": {
           "200": {
-            "description": "/dcl/wfl-process-definition/approve",
+            "description": "/wfl/process-definition/approve",
             "content": {
               "application/json": {
                 "schema": {
@@ -262622,7 +262622,7 @@
         }
       }
     },
-    "/dcl/wfl-process-definition/reject": {
+    "/wfl/process-definition/reject": {
       "post": {
         "requestBody": {
           "content": {
@@ -262663,7 +262663,7 @@
         },
         "responses": {
           "200": {
-            "description": "/dcl/wfl-process-definition/reject",
+            "description": "/wfl/process-definition/reject",
             "content": {
               "application/json": {
                 "schema": {
@@ -262899,7 +262899,7 @@
         }
       }
     },
-    "/dcl/wfl-process-definition/unreject": {
+    "/wfl/process-definition/unreject": {
       "post": {
         "requestBody": {
           "content": {
@@ -262930,7 +262930,7 @@
         },
         "responses": {
           "200": {
-            "description": "/dcl/wfl-process-definition/unreject",
+            "description": "/wfl/process-definition/unreject",
             "content": {
               "application/json": {
                 "schema": {
@@ -263166,7 +263166,7 @@
         }
       }
     },
-    "/dcl/wfl-process-definition/unapprove": {
+    "/wfl/process-definition/unapprove": {
       "post": {
         "requestBody": {
           "content": {
@@ -263207,7 +263207,7 @@
         },
         "responses": {
           "200": {
-            "description": "/dcl/wfl-process-definition/unapprove",
+            "description": "/wfl/process-definition/unapprove",
             "content": {
               "application/json": {
                 "schema": {
@@ -263443,7 +263443,7 @@
         }
       }
     },
-    "/dcl/wfl-process-definition/query": {
+    "/wfl/process-definition/submission-query": {
       "post": {
         "requestBody": {
           "content": {
@@ -263479,7 +263479,7 @@
         },
         "responses": {
           "200": {
-            "description": "/dcl/wfl-process-definition/query",
+            "description": "/wfl/process-definition/submission-query",
             "content": {
               "application/json": {
                 "schema": {
@@ -263926,7 +263926,7 @@
         }
       }
     },
-    "/dcl/wfl-process-definition/get": {
+    "/wfl/process-definition/submission-get": {
       "post": {
         "requestBody": {
           "content": {
@@ -263953,7 +263953,7 @@
         },
         "responses": {
           "200": {
-            "description": "/dcl/wfl-process-definition/get",
+            "description": "/wfl/process-definition/submission-get",
             "content": {
               "application/json": {
                 "schema": {
@@ -264189,7 +264189,7 @@
         }
       }
     },
-    "/dcl/wfl-process-definition/versions": {
+    "/wfl/process-definition/versions": {
       "post": {
         "requestBody": {
           "content": {
@@ -264211,7 +264211,7 @@
         },
         "responses": {
           "200": {
-            "description": "/dcl/wfl-process-definition/versions",
+            "description": "/wfl/process-definition/versions",
             "content": {
               "application/json": {
                 "schema": {
@@ -264450,7 +264450,7 @@
         }
       }
     },
-    "/dcl/wfl-process-definition/audit-history": {
+    "/wfl/process-definition/audit-history": {
       "post": {
         "requestBody": {
           "content": {
@@ -264472,7 +264472,7 @@
         },
         "responses": {
           "200": {
-            "description": "/dcl/wfl-process-definition/audit-history",
+            "description": "/wfl/process-definition/audit-history",
             "content": {
               "application/json": {
                 "schema": {
@@ -264650,7 +264650,7 @@
         }
       }
     },
-    "/dcl/wfl-process-definition/delete": {
+    "/wfl/process-definition/delete": {
       "post": {
         "requestBody": {
           "content": {
@@ -264681,7 +264681,7 @@
         },
         "responses": {
           "200": {
-            "description": "/dcl/wfl-process-definition/delete",
+            "description": "/wfl/process-definition/delete",
             "content": {
               "application/json": {
                 "schema": {
@@ -264784,7 +264784,7 @@
         }
       }
     },
-    "/dcl/wfl-process-definition/enable": {
+    "/wfl/process-definition/enable": {
       "post": {
         "requestBody": {
           "content": {
@@ -264825,7 +264825,7 @@
         },
         "responses": {
           "200": {
-            "description": "/dcl/wfl-process-definition/enable",
+            "description": "/wfl/process-definition/enable",
             "content": {
               "application/json": {
                 "schema": {
@@ -264864,13 +264864,21 @@
                             "revision": {
                               "type": "string",
                               "pattern": "^[1-9]\\d*$"
+                            },
+                            "availableRuntimeActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": ["enable", "disable"]
+                              }
                             }
                           },
                           "required": [
                             "subjectId",
                             "approvalEntryId",
                             "enabled",
-                            "revision"
+                            "revision",
+                            "availableRuntimeActions"
                           ],
                           "additionalProperties": false
                         },
@@ -264941,7 +264949,7 @@
         }
       }
     },
-    "/dcl/wfl-process-definition/disable": {
+    "/wfl/process-definition/disable": {
       "post": {
         "requestBody": {
           "content": {
@@ -264982,7 +264990,7 @@
         },
         "responses": {
           "200": {
-            "description": "/dcl/wfl-process-definition/disable",
+            "description": "/wfl/process-definition/disable",
             "content": {
               "application/json": {
                 "schema": {
@@ -265021,13 +265029,21 @@
                             "revision": {
                               "type": "string",
                               "pattern": "^[1-9]\\d*$"
+                            },
+                            "availableRuntimeActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": ["enable", "disable"]
+                              }
                             }
                           },
                           "required": [
                             "subjectId",
                             "approvalEntryId",
                             "enabled",
-                            "revision"
+                            "revision",
+                            "availableRuntimeActions"
                           ],
                           "additionalProperties": false
                         },

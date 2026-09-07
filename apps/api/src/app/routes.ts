@@ -1,3 +1,5 @@
+import { ApprovalPersistenceError } from '../platform/approval.ts'
+import { VersionedArchiveError } from '../platform/versioned-archives.ts'
 import type { OpenAPIHono } from '@hono/zod-openapi'
 import { getCookie, setCookie } from 'hono/cookie'
 import type { VouEntity } from '@zerp/model'
@@ -243,6 +245,8 @@ export function registerAppRoutes(
       if (
         error instanceof AccApplicationError ||
         error instanceof WflApplicationError ||
+        error instanceof ApprovalPersistenceError ||
+        error instanceof VersionedArchiveError ||
         error instanceof RptApplicationError
       )
         return {
@@ -282,6 +286,8 @@ export function registerAppRoutes(
       if (
         error instanceof AccApplicationError ||
         error instanceof WflApplicationError ||
+        error instanceof ApprovalPersistenceError ||
+        error instanceof VersionedArchiveError ||
         error instanceof RptApplicationError
       )
         return {
@@ -716,7 +722,12 @@ export function registerAppRoutes(
         if (action === 'delete')
           return wfl.delete(input, actor, currentRequestId(context))
         if (action === 'enable' || action === 'disable')
-          return wfl.setEnabled(input, action === 'enable', actor)
+          return wfl.setEnabled(
+            input,
+            action === 'enable',
+            actor,
+            currentRequestId(context),
+          )
         if (action === 'currentQuery')
           return wfl.queryCurrentDefinitions(input, actor)
         if (action === 'current') return wfl.current(input.code, actor)

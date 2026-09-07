@@ -6,7 +6,7 @@ Approval 是跨领域的中央审批能力，唯一拥有持久化 Submission �
 
 本页的本地 Draft、Submission、Hono、Kysely 与 `PENDING | APPROVED | REJECTED` 描述当前权威业务语义。服务器不持久化 Draft。
 
-中央能力同时提供 Approval-only 与 Approval Version 两种条目形态。VOU 和 ACC Opening 使用 Approval-only；Approval Version 的通用组件由 BOB 的 Supplier、Other Unit、Sales Partner 与 DCL 现存版本化资料消费。WFL 尚未迁移，但可在其自身领域事务中独立消费同一普通类型化版本接口。AUX 使用 Stable-ID Direct CRUD；ACC、RPT 不为当前配置建立 Approval subject。
+中央能力同时提供 Approval-only 与 Approval Version 两种条目形态。VOU 和 ACC Opening 使用 Approval-only；Approval Version 的通用组件由 BOB 的五类档案与 WFL 流程定义独立消费，各自参加所属领域的同一外层事务。AUX 使用 Stable-ID Direct CRUD；ACC、RPT 不为当前配置建立 Approval subject。
 
 ## 2. 审批条目与主体边界
 

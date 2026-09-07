@@ -82,3 +82,5 @@ MIT，见 [LICENSE](LICENSE)。
 会计映射的受控转换使用 `pnpm --filter @zerp/api migrate:acc-mapping`，见[会计映射迁入 ACC](docs/operations/acc-mapping-migration.md)。
 
 报表定义的受控转换使用 `pnpm --filter @zerp/api migrate:rpt`，见 [RPT 当前定义一次性转换](docs/operations/rpt-definition-migration.md)。
+
+流程定义的一次性转换使用 `pnpm --filter @zerp/api migrate:wfl`，见[流程定义迁回 WFL](docs/operations/wfl-definition-migration.md)。

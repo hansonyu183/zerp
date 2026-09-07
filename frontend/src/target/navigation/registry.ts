@@ -1,3 +1,4 @@
+import DefinitionManagement from '../pages/wfl/definition/DefinitionManagement.vue'
 import ReportPage from '../pages/rpt/ReportPage.vue'
 import MappingManagement from '../pages/acc/mapping/MappingManagement.vue'
 import CustomerManagement from '../pages/bob/customer/CustomerManagement.vue'
@@ -97,6 +98,18 @@ export function createResourceRegistry(
 
 export const targetResourceRegistry = createResourceRegistry(
   [
+    {
+      domain: 'wfl',
+      entity: 'process-instance',
+      component: DefinitionManagement,
+      useCaseKey: 'wfl/process-instance',
+    },
+    {
+      domain: 'wfl',
+      entity: 'process-definition',
+      component: DefinitionManagement,
+      useCaseKey: 'wfl/process-definition',
+    },
     {
       domain: 'acc',
       entity: 'mapping',

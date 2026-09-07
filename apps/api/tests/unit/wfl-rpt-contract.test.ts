@@ -133,7 +133,7 @@ test('WFL DCL definition response requires server-authoritative runtime actions'
 test('WFL definition deletion requires deletable state, exact permission and submitter identity', () => {
   const owner = {
     id: 'owner',
-    permissions: ['/dcl/wfl-process-definition/delete'],
+    permissions: ['/wfl/process-definition/delete'],
   }
   assert.equal(
     canDeleteWflDefinition({ status: 'PENDING', submittedBy: 'owner' }, owner),
@@ -157,7 +157,7 @@ test('WFL definition deletion requires deletable state, exact permission and sub
   assert.equal(
     canDeleteWflDefinition(
       { status: 'PENDING', submittedBy: 'owner' },
-      { id: 'owner', permissions: ['/dcl/wfl-process-definition/delete-all'] },
+      { id: 'owner', permissions: ['/wfl/process-definition/delete-all'] },
     ),
     false,
   )
@@ -174,14 +174,14 @@ test('WFL runtime actions require latest approved state and exact permission', (
   assert.deepEqual(
     availableWflDefinitionRuntimeActions(
       { status: 'APPROVED', enabled: false, latestApproved: true },
-      { id: 'actor', permissions: ['/dcl/wfl-process-definition/enable'] },
+      { id: 'actor', permissions: ['/wfl/process-definition/enable'] },
     ),
     ['enable'],
   )
   assert.deepEqual(
     availableWflDefinitionRuntimeActions(
       { status: 'APPROVED', enabled: true, latestApproved: true },
-      { id: 'actor', permissions: ['/dcl/wfl-process-definition/disable'] },
+      { id: 'actor', permissions: ['/wfl/process-definition/disable'] },
     ),
     ['disable'],
   )
@@ -191,8 +191,8 @@ test('WFL runtime actions require latest approved state and exact permission', (
       {
         id: 'actor',
         permissions: [
-          '/dcl/wfl-process-definition/enable',
-          '/dcl/wfl-process-definition/disable',
+          '/wfl/process-definition/enable',
+          '/wfl/process-definition/disable',
         ],
       },
     ),
@@ -201,7 +201,7 @@ test('WFL runtime actions require latest approved state and exact permission', (
   assert.deepEqual(
     availableWflDefinitionRuntimeActions(
       { status: 'APPROVED', enabled: false, latestApproved: false },
-      { id: 'actor', permissions: ['/dcl/wfl-process-definition/enable'] },
+      { id: 'actor', permissions: ['/wfl/process-definition/enable'] },
     ),
     [],
   )

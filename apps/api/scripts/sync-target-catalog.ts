@@ -54,6 +54,14 @@ try {
     throw new Error(
       'legacy RPT permissions require pnpm migrate:rpt before catalog sync',
     )
+  if (
+    existingPermissions.some((permission) =>
+      permission.path.startsWith('/dcl/wfl-process-definition/'),
+    )
+  )
+    throw new Error(
+      'legacy WFL permissions require pnpm migrate:wfl before catalog sync',
+    )
   await new TargetBootstrapService(database).migratePermissionCatalog(catalog)
   await new AccService(database).syncVouEntityCatalog()
 } finally {

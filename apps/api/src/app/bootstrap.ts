@@ -330,9 +330,23 @@ export class TargetBootstrapService {
           .where('domain', '=', 'dcl')
           .where('entity', '=', 'rpt-definition')
           .execute()
+    const pendingWflPermissions = pathMappings.some((mapping) =>
+      mapping.from.startsWith('/dcl/wfl-process-definition/'),
+    )
+      ? []
+      : await transaction
+          .selectFrom('app_permissions')
+          .selectAll()
+          .where('domain', '=', 'dcl')
+          .where('entity', '=', 'wfl-process-definition')
+          .execute()
     catalog = [
       ...catalog,
-      ...[...reportPermissions, ...pendingRptPermissions]
+      ...[
+        ...reportPermissions,
+        ...pendingRptPermissions,
+        ...pendingWflPermissions,
+      ]
         .filter((row) => !catalog.some((entry) => entry.path === row.path))
         .map((row) => ({
           id: row.id,

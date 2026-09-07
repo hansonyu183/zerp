@@ -2461,3 +2461,322 @@ export async function saveTargetReportDefinition(
     ).json(),
   )
 }
+
+export type WflQueryInput = PostJson<
+  (typeof client.wfl)['process-definition']['query']['$post']
+>
+export async function wflQuery(csrfToken: string, input: WflQueryInput) {
+  return unwrapTarget(
+    await (
+      await client.wfl['process-definition']['query'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export type WflCurrentInput = PostJson<
+  (typeof client.wfl)['process-definition']['get']['$post']
+>
+export async function wflCurrent(csrfToken: string, input: WflCurrentInput) {
+  return unwrapTarget(
+    await (
+      await client.wfl['process-definition']['get'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export type WflSubmissionsInput = PostJson<
+  (typeof client.wfl)['process-definition']['submission-query']['$post']
+>
+export async function wflSubmissions(
+  csrfToken: string,
+  input: WflSubmissionsInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.wfl['process-definition']['submission-query'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export type WflSubmissionInput = PostJson<
+  (typeof client.wfl)['process-definition']['submission-get']['$post']
+>
+export async function wflSubmission(
+  csrfToken: string,
+  input: WflSubmissionInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.wfl['process-definition']['submission-get'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export type WflVersionsInput = PostJson<
+  (typeof client.wfl)['process-definition']['versions']['$post']
+>
+export async function wflVersions(csrfToken: string, input: WflVersionsInput) {
+  return unwrapTarget(
+    await (
+      await client.wfl['process-definition']['versions'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export type WflAuditInput = PostJson<
+  (typeof client.wfl)['process-definition']['audit-history']['$post']
+>
+export async function wflAudit(csrfToken: string, input: WflAuditInput) {
+  return unwrapTarget(
+    await (
+      await client.wfl['process-definition']['audit-history'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export type WflSubmitNewInput = PostJson<
+  (typeof client.wfl)['process-definition']['submit-new']['$post']
+>
+export async function wflSubmitNew(
+  csrfToken: string,
+  input: WflSubmitNewInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.wfl['process-definition']['submit-new'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export type WflSubmitChangeInput = PostJson<
+  (typeof client.wfl)['process-definition']['submit-change']['$post']
+>
+export async function wflSubmitChange(
+  csrfToken: string,
+  input: WflSubmitChangeInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.wfl['process-definition']['submit-change'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export type WflApproveInput = PostJson<
+  (typeof client.wfl)['process-definition']['approve']['$post']
+>
+export async function wflApprove(csrfToken: string, input: WflApproveInput) {
+  return unwrapTarget(
+    await (
+      await client.wfl['process-definition']['approve'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export type WflRejectInput = PostJson<
+  (typeof client.wfl)['process-definition']['reject']['$post']
+>
+export async function wflReject(csrfToken: string, input: WflRejectInput) {
+  return unwrapTarget(
+    await (
+      await client.wfl['process-definition']['reject'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export type WflUnrejectInput = PostJson<
+  (typeof client.wfl)['process-definition']['unreject']['$post']
+>
+export async function wflUnreject(csrfToken: string, input: WflUnrejectInput) {
+  return unwrapTarget(
+    await (
+      await client.wfl['process-definition']['unreject'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export type WflUnapproveInput = PostJson<
+  (typeof client.wfl)['process-definition']['unapprove']['$post']
+>
+export async function wflUnapprove(
+  csrfToken: string,
+  input: WflUnapproveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.wfl['process-definition']['unapprove'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export type WflDeleteInput = PostJson<
+  (typeof client.wfl)['process-definition']['delete']['$post']
+>
+export async function wflDelete(csrfToken: string, input: WflDeleteInput) {
+  return unwrapTarget(
+    await (
+      await client.wfl['process-definition']['delete'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export type WflEnableInput = PostJson<
+  (typeof client.wfl)['process-definition']['enable']['$post']
+>
+export async function wflEnable(csrfToken: string, input: WflEnableInput) {
+  return unwrapTarget(
+    await (
+      await client.wfl['process-definition']['enable'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export type WflDisableInput = PostJson<
+  (typeof client.wfl)['process-definition']['disable']['$post']
+>
+export async function wflDisable(csrfToken: string, input: WflDisableInput) {
+  return unwrapTarget(
+    await (
+      await client.wfl['process-definition']['disable'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export type WflTrialInput = PostJson<
+  (typeof client.wfl)['process-definition']['trial']['$post']
+>
+export async function wflTrial(csrfToken: string, input: WflTrialInput) {
+  return unwrapTarget(
+    await (
+      await client.wfl['process-definition']['trial'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export type WflInstancesInput = PostJson<
+  (typeof client.wfl)['process-instance']['query']['$post']
+>
+export async function wflInstances(
+  csrfToken: string,
+  input: WflInstancesInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.wfl['process-instance']['query'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export type WflInstanceInput = PostJson<
+  (typeof client.wfl)['process-instance']['get']['$post']
+>
+export async function wflInstance(csrfToken: string, input: WflInstanceInput) {
+  return unwrapTarget(
+    await (
+      await client.wfl['process-instance']['get'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export type WflInstanceActionInput = PostJson<
+  (typeof client.wfl)['process-instance']['action']['$post']
+>
+export async function wflInstanceAction(
+  csrfToken: string,
+  input: WflInstanceActionInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.wfl['process-instance']['action'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export type WflInstanceAuditInput = PostJson<
+  (typeof client.wfl)['process-instance']['audit-history']['$post']
+>
+export async function wflInstanceAudit(
+  csrfToken: string,
+  input: WflInstanceAuditInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.wfl['process-instance']['audit-history'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function wflNodeDocument(
+  csrfToken: string,
+  entity: import('@zerp/model').VouEntity,
+  documentId: string,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou[':entity'].get.$post(
+        { param: { entity }, json: { documentId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}

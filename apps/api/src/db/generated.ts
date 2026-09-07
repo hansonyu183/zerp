@@ -1632,6 +1632,14 @@ export interface WflDefinitionRuntimeStates {
   updated_by: string
 }
 
+export interface WflDefinitions {
+  code: string
+  created_at: Timestamp
+  created_by: string
+  entity: string
+  id: string
+}
+
 export interface WflDefinitionVersions {
   approval_entry_id: string
   compiled_graph: Json
@@ -1810,6 +1818,7 @@ export interface DB {
   wfl_action_results: WflActionResults
   wfl_definition_runtime_states: WflDefinitionRuntimeStates
   wfl_definition_versions: WflDefinitionVersions
+  wfl_definitions: WflDefinitions
   wfl_instance_nodes: WflInstanceNodes
   wfl_instances: WflInstances
   wfl_runtime_audits: WflRuntimeAudits

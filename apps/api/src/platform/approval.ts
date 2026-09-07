@@ -320,7 +320,7 @@ export class ApprovalPersistence {
       throw new ApprovalPersistenceError('approval_stale_revision')
     if (entry.status !== 'PENDING' && entry.status !== 'REJECTED')
       throw new ApprovalPersistenceError('approval_invalid_transition')
-    if (entry.metadata.submitted.actorId !== actor.id)
+    if (actor.trusted !== true && entry.metadata.submitted.actorId !== actor.id)
       throw new ApprovalPersistenceError('approval_invalid_actor')
     if (
       actor.trusted !== true &&

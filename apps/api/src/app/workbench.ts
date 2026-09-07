@@ -9,7 +9,7 @@ import { sql, type Kysely } from 'kysely'
 import type { DB } from '../db/generated.ts'
 import { vouEntities } from '@zerp/model'
 
-const dclApprovalEntities = ['wfl-process-definition'] as const
+const wflApprovalEntities = ['process-definition'] as const
 const bobApprovalEntities = [
   'customer',
   'product',
@@ -30,7 +30,7 @@ export type WorkbenchQueryInput = {
 }
 
 export type WorkbenchItem = {
-  domain: 'bob' | 'dcl' | 'vou'
+  domain: 'bob' | 'wfl' | 'vou'
   entity: string
   subjectOrDocumentId: string
   submissionId: string
@@ -46,7 +46,7 @@ export type WorkbenchItem = {
 
 type WorkbenchRow = {
   id: string
-  domain: 'bob' | 'dcl' | 'vou'
+  domain: 'bob' | 'wfl' | 'vou'
   entity: string
   subject_id: string
   status: ApprovalStatus
@@ -63,13 +63,13 @@ type WorkbenchRow = {
 
 function visibleEntities(
   actor: ApprovalActor,
-  domain: 'bob' | 'dcl' | 'vou',
+  domain: 'bob' | 'wfl' | 'vou',
   candidates: readonly string[],
 ) {
   const queryable = new Set(
     actor.permissions.flatMap((permission) => {
-      const action = domain === 'bob' ? 'submission-query' : 'query'
-      const match = permission.match(/^\/(bob|dcl|vou)\/([^/]+)\/([^/]+)$/)
+      const action = domain !== 'vou' ? 'submission-query' : 'query'
+      const match = permission.match(/^\/(bob|wfl|vou)\/([^/]+)\/([^/]+)$/)
       return match?.[1] === domain && match[3] === action ? [match[2]!] : []
     }),
   )
@@ -115,11 +115,11 @@ export class WorkbenchService {
   }
 
   async query(input: WorkbenchQueryInput, actor: ApprovalActor) {
-    const dclEntities = visibleEntities(actor, 'dcl', dclApprovalEntities)
+    const wflEntities = visibleEntities(actor, 'wfl', wflApprovalEntities)
     const bobEntities = visibleEntities(actor, 'bob', bobApprovalEntities)
     const vouVisibleEntities = visibleEntities(actor, 'vou', vouEntities)
     const rows = await Promise.all([
-      this.queryDcl(dclEntities),
+      this.queryWfl(wflEntities),
       this.queryBob(bobEntities),
       this.queryVou(vouVisibleEntities),
     ])
@@ -147,7 +147,7 @@ export class WorkbenchService {
         )
           return []
         const resourceActions: Array<'view' | 'delete'> = []
-        const getAction = row.domain === 'bob' ? 'submission-get' : 'get'
+        const getAction = row.domain !== 'vou' ? 'submission-get' : 'get'
         if (
           actor.permissions.includes(
             `/${row.domain}/${row.entity}/${getAction}`,
@@ -187,7 +187,7 @@ export class WorkbenchService {
     }
   }
 
-  private async queryDcl(entities: readonly string[]): Promise<WorkbenchRow[]> {
+  private async queryWfl(entities: readonly string[]): Promise<WorkbenchRow[]> {
     if (entities.length === 0) return []
     const result = await sql<WorkbenchRow>`
       SELECT
@@ -199,9 +199,9 @@ export class WorkbenchService {
           wfl_definition.compiled_graph->>'name', s.code, e.subject_id
         ) AS name
       FROM approval_entries e
-      INNER JOIN dcl_subjects s ON s.id = e.subject_id
+      INNER JOIN wfl_definitions s ON s.id = e.subject_id
       LEFT JOIN wfl_definition_versions wfl_definition ON wfl_definition.approval_entry_id = e.id
-      WHERE e.domain = 'dcl'
+      WHERE e.domain = 'wfl'
         AND e.status IN ('PENDING', 'REJECTED')
         AND e.entity IN (${sql.join(entities)})
     `.execute(this.db)

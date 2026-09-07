@@ -140,7 +140,7 @@ const workbenchPageEnvelope = z.union([
         items: z.array(
           z
             .object({
-              domain: z.enum(['dcl', 'bob', 'vou']),
+              domain: z.enum(['wfl', 'bob', 'vou']),
               entity: z.string(),
               subjectOrDocumentId: z.string(),
               submissionId: z.string(),

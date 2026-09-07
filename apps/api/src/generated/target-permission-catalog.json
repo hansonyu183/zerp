@@ -1920,110 +1920,6 @@
     "title": "versions supplier"
   },
   {
-    "id": "01J3EA01BD1E805635FB649C10",
-    "path": "/dcl/wfl-process-definition/approve",
-    "domain": "dcl",
-    "entity": "wfl-process-definition",
-    "action": "approve",
-    "title": "/dcl/wfl-process-definition/approve"
-  },
-  {
-    "id": "01J10D8905494B2897D44686AE",
-    "path": "/dcl/wfl-process-definition/audit-history",
-    "domain": "dcl",
-    "entity": "wfl-process-definition",
-    "action": "audit-history",
-    "title": "/dcl/wfl-process-definition/audit-history"
-  },
-  {
-    "id": "01JE3D03A17EFBF58631ED34A3",
-    "path": "/dcl/wfl-process-definition/delete",
-    "domain": "dcl",
-    "entity": "wfl-process-definition",
-    "action": "delete",
-    "title": "/dcl/wfl-process-definition/delete"
-  },
-  {
-    "id": "01JCA09296E52B719F80503E7F",
-    "path": "/dcl/wfl-process-definition/disable",
-    "domain": "dcl",
-    "entity": "wfl-process-definition",
-    "action": "disable",
-    "title": "/dcl/wfl-process-definition/disable"
-  },
-  {
-    "id": "01J214D3126FC0478C9B6D6AB7",
-    "path": "/dcl/wfl-process-definition/enable",
-    "domain": "dcl",
-    "entity": "wfl-process-definition",
-    "action": "enable",
-    "title": "/dcl/wfl-process-definition/enable"
-  },
-  {
-    "id": "01JE333DED93B5CD77781C47E4",
-    "path": "/dcl/wfl-process-definition/get",
-    "domain": "dcl",
-    "entity": "wfl-process-definition",
-    "action": "get",
-    "title": "/dcl/wfl-process-definition/get"
-  },
-  {
-    "id": "01J475AC66827AF7FF27A1EAFC",
-    "path": "/dcl/wfl-process-definition/query",
-    "domain": "dcl",
-    "entity": "wfl-process-definition",
-    "action": "query",
-    "title": "/dcl/wfl-process-definition/query"
-  },
-  {
-    "id": "01J23A44C1D4E577EBB0B468D6",
-    "path": "/dcl/wfl-process-definition/reject",
-    "domain": "dcl",
-    "entity": "wfl-process-definition",
-    "action": "reject",
-    "title": "/dcl/wfl-process-definition/reject"
-  },
-  {
-    "id": "01J8F5F997654608106FFC6761",
-    "path": "/dcl/wfl-process-definition/submit-change",
-    "domain": "dcl",
-    "entity": "wfl-process-definition",
-    "action": "submit-change",
-    "title": "/dcl/wfl-process-definition/submit-change"
-  },
-  {
-    "id": "01J3302AB5ED673E7BE7DCD06C",
-    "path": "/dcl/wfl-process-definition/submit-new",
-    "domain": "dcl",
-    "entity": "wfl-process-definition",
-    "action": "submit-new",
-    "title": "/dcl/wfl-process-definition/submit-new"
-  },
-  {
-    "id": "01J70024D948F1817CCEDB021E",
-    "path": "/dcl/wfl-process-definition/unapprove",
-    "domain": "dcl",
-    "entity": "wfl-process-definition",
-    "action": "unapprove",
-    "title": "/dcl/wfl-process-definition/unapprove"
-  },
-  {
-    "id": "01JC23DB62E996293852EB6784",
-    "path": "/dcl/wfl-process-definition/unreject",
-    "domain": "dcl",
-    "entity": "wfl-process-definition",
-    "action": "unreject",
-    "title": "/dcl/wfl-process-definition/unreject"
-  },
-  {
-    "id": "01JD19FA76A2D23D10A80E06FA",
-    "path": "/dcl/wfl-process-definition/versions",
-    "domain": "dcl",
-    "entity": "wfl-process-definition",
-    "action": "versions",
-    "title": "/dcl/wfl-process-definition/versions"
-  },
-  {
     "id": "01J80618E229A52BF9652132DC",
     "path": "/rpt/definition/get",
     "domain": "rpt",
@@ -5744,6 +5640,46 @@
     "title": "VOU source-line query"
   },
   {
+    "id": "01JBB0D859982FC5F91AB7F754",
+    "path": "/wfl/process-definition/approve",
+    "domain": "wfl",
+    "entity": "process-definition",
+    "action": "approve",
+    "title": "/wfl/process-definition/approve"
+  },
+  {
+    "id": "01JF1817DDEDD5CBBEFA8DFF65",
+    "path": "/wfl/process-definition/audit-history",
+    "domain": "wfl",
+    "entity": "process-definition",
+    "action": "audit-history",
+    "title": "/wfl/process-definition/audit-history"
+  },
+  {
+    "id": "01J5FF13E320499F49E9516D83",
+    "path": "/wfl/process-definition/delete",
+    "domain": "wfl",
+    "entity": "process-definition",
+    "action": "delete",
+    "title": "/wfl/process-definition/delete"
+  },
+  {
+    "id": "01JFF226D563E52E7A5D19F9A3",
+    "path": "/wfl/process-definition/disable",
+    "domain": "wfl",
+    "entity": "process-definition",
+    "action": "disable",
+    "title": "/wfl/process-definition/disable"
+  },
+  {
+    "id": "01J7F21444E6478D18BA71F113",
+    "path": "/wfl/process-definition/enable",
+    "domain": "wfl",
+    "entity": "process-definition",
+    "action": "enable",
+    "title": "/wfl/process-definition/enable"
+  },
+  {
     "id": "01JF5C9A7EBB2C0ED704C65BB1",
     "path": "/wfl/process-definition/get",
     "domain": "wfl",
@@ -5760,12 +5696,76 @@
     "title": "/wfl/process-definition/query"
   },
   {
+    "id": "01JD4DB15450C6EEBB9D8BD503",
+    "path": "/wfl/process-definition/reject",
+    "domain": "wfl",
+    "entity": "process-definition",
+    "action": "reject",
+    "title": "/wfl/process-definition/reject"
+  },
+  {
+    "id": "01J4B497A87A818EEFA943BEB9",
+    "path": "/wfl/process-definition/submission-get",
+    "domain": "wfl",
+    "entity": "process-definition",
+    "action": "submission-get",
+    "title": "/wfl/process-definition/submission-get"
+  },
+  {
+    "id": "01J6C798B4590CC609B514B610",
+    "path": "/wfl/process-definition/submission-query",
+    "domain": "wfl",
+    "entity": "process-definition",
+    "action": "submission-query",
+    "title": "/wfl/process-definition/submission-query"
+  },
+  {
+    "id": "01J1ADEA52BB2710DC36301424",
+    "path": "/wfl/process-definition/submit-change",
+    "domain": "wfl",
+    "entity": "process-definition",
+    "action": "submit-change",
+    "title": "/wfl/process-definition/submit-change"
+  },
+  {
+    "id": "01J4547D73B0B64AB3CEFC4F4C",
+    "path": "/wfl/process-definition/submit-new",
+    "domain": "wfl",
+    "entity": "process-definition",
+    "action": "submit-new",
+    "title": "/wfl/process-definition/submit-new"
+  },
+  {
     "id": "01J4BA4442C812AA919B9F4F0E",
     "path": "/wfl/process-definition/trial",
     "domain": "wfl",
     "entity": "process-definition",
     "action": "trial",
     "title": "/wfl/process-definition/trial"
+  },
+  {
+    "id": "01J41EAB0AD519998D0CFF16DD",
+    "path": "/wfl/process-definition/unapprove",
+    "domain": "wfl",
+    "entity": "process-definition",
+    "action": "unapprove",
+    "title": "/wfl/process-definition/unapprove"
+  },
+  {
+    "id": "01JB503D2854BD90A0D5EC33BF",
+    "path": "/wfl/process-definition/unreject",
+    "domain": "wfl",
+    "entity": "process-definition",
+    "action": "unreject",
+    "title": "/wfl/process-definition/unreject"
+  },
+  {
+    "id": "01JFF54E547F386011D2A6285A",
+    "path": "/wfl/process-definition/versions",
+    "domain": "wfl",
+    "entity": "process-definition",
+    "action": "versions",
+    "title": "/wfl/process-definition/versions"
   },
   {
     "id": "01JD4817EA0BF31160BDA04B33",

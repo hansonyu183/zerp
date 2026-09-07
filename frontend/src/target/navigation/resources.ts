@@ -90,9 +90,7 @@ function archiveName(entity: string): string | undefined {
       ].label
     : entity === 'warehouse'
       ? '仓库'
-      : entity === 'wfl-process-definition'
-        ? '流程定义'
-        : undefined
+      : undefined
 }
 
 export function resourceDisplayName(domain: string, entity: string): string {

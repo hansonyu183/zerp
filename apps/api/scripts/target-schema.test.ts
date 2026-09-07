@@ -83,6 +83,7 @@ test('isolated target schema contains every target typed aggregate', async () =>
       'acc_bill_book_values',
       'acc_register_entries',
       'acc_opening_container_balances',
+      'wfl_definitions',
       'wfl_definition_versions',
       'wfl_definition_runtime_states',
       'wfl_trials',

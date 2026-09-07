@@ -1793,6 +1793,14 @@ CREATE TABLE acc_opening_container_balances (
     PRIMARY KEY (opening_approval_entry_id, customer_subunit_id, container_type)
 );
 
+CREATE TABLE wfl_definitions (
+    id varchar(26) PRIMARY KEY,
+    entity varchar(32) NOT NULL CHECK (entity = 'process-definition'),
+    code varchar(64) NOT NULL UNIQUE,
+    created_at timestamptz NOT NULL,
+    created_by varchar(26) NOT NULL REFERENCES app_users(id)
+);
+
 CREATE TABLE wfl_definition_versions (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     script text NOT NULL CHECK (btrim(script) <> ''),
@@ -1800,7 +1808,7 @@ CREATE TABLE wfl_definition_versions (
 );
 
 CREATE TABLE wfl_definition_runtime_states (
-    subject_id varchar(26) PRIMARY KEY REFERENCES dcl_subjects(id) ON DELETE CASCADE,
+    subject_id varchar(26) PRIMARY KEY REFERENCES wfl_definitions(id) ON DELETE CASCADE,
     enabled boolean NOT NULL,
     revision bigint NOT NULL DEFAULT 1 CHECK (revision > 0),
     updated_at timestamptz NOT NULL,
@@ -1819,7 +1827,7 @@ CREATE TABLE wfl_trials (
 
 CREATE TABLE wfl_instances (
     id varchar(26) PRIMARY KEY,
-    definition_subject_id varchar(26) NOT NULL REFERENCES dcl_subjects(id) ON DELETE RESTRICT,
+    definition_subject_id varchar(26) NOT NULL REFERENCES wfl_definitions(id) ON DELETE RESTRICT,
     approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE RESTRICT,
     definition_code varchar(64) NOT NULL,
     definition_name varchar(200) NOT NULL,

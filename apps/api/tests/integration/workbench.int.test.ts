@@ -42,7 +42,7 @@ async function signIn(
   }
 }
 
-test('real HTTP workbench returns only actionable BOB, DCL and VOU submissions', async (context) => {
+test('real HTTP workbench returns only actionable BOB, WFL and VOU submissions', async (context) => {
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
   const db = createDatabase(databaseUrl)
   const reviewerId = ulid()
@@ -78,9 +78,9 @@ test('real HTTP workbench returns only actionable BOB, DCL and VOU submissions',
     '/bob/supplier/submission-query',
     '/bob/supplier/submission-get',
     '/bob/supplier/approve',
-    '/dcl/wfl-process-definition/query',
-    '/dcl/wfl-process-definition/get',
-    '/dcl/wfl-process-definition/approve',
+    '/wfl/process-definition/submission-query',
+    '/wfl/process-definition/submission-get',
+    '/wfl/process-definition/approve',
     '/vou/sale-pricing/query',
     '/vou/sale-pricing/get',
     '/vou/sale-pricing/submit-change',
@@ -107,7 +107,7 @@ test('real HTTP workbench returns only actionable BOB, DCL and VOU submissions',
         .where('id', 'in', [documentId, approvedDocumentId])
         .execute()
       await db
-        .deleteFrom('dcl_subjects')
+        .deleteFrom('wfl_definitions')
         .where('id', 'in', [productId, wflDefinitionId])
         .execute()
       await db
@@ -226,11 +226,11 @@ test('real HTTP workbench returns only actionable BOB, DCL and VOU submissions',
     .values({ user_id: reviewerId, role_id: roleId, created_by: reviewerId })
     .execute()
   await db
-    .insertInto('dcl_subjects')
+    .insertInto('wfl_definitions')
     .values([
       {
         id: wflDefinitionId,
-        entity: 'wfl-process-definition',
+        entity: 'process-definition',
         code: wflDefinitionCode,
         created_at: now,
         created_by: submitterId,
@@ -314,8 +314,8 @@ test('real HTTP workbench returns only actionable BOB, DCL and VOU submissions',
       },
       {
         id: wflDefinitionSubmissionId,
-        domain: 'dcl',
-        entity: 'wfl-process-definition',
+        domain: 'wfl',
+        entity: 'process-definition',
         subject_id: wflDefinitionId,
         version_no: 1,
         status: 'PENDING',
@@ -533,8 +533,8 @@ test('real HTTP workbench returns only actionable BOB, DCL and VOU submissions',
       updatedAt: '2026-09-05T05:00:00.000Z',
     },
     {
-      domain: 'dcl',
-      entity: 'wfl-process-definition',
+      domain: 'wfl',
+      entity: 'process-definition',
       subjectOrDocumentId: wflDefinitionId,
       submissionId: wflDefinitionSubmissionId,
       code: wflDefinitionCode,

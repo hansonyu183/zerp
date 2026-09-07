@@ -36,7 +36,6 @@ describe('apiPath navigation resources', () => {
       'dcl/customer': '客户申报',
       'rpt/definition': '报表定义维护',
       'rpt/rpt-000001': '报表 000001',
-      'dcl/wfl-process-definition': '流程定义申报',
       'acc/book': '会计账簿',
       'acc/subject': '会计科目',
       'acc/mapping': '会计映射',

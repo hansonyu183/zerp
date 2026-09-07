@@ -609,14 +609,14 @@ test('target OpenAPI exposes executable ACC, WFL and RPT transaction cores', asy
     '/acc/period/query',
     '/acc/period/lock',
     '/acc/period/unlock',
-    '/dcl/wfl-process-definition/submit-new',
-    '/dcl/wfl-process-definition/submit-change',
-    '/dcl/wfl-process-definition/approve',
-    '/dcl/wfl-process-definition/reject',
-    '/dcl/wfl-process-definition/unreject',
-    '/dcl/wfl-process-definition/unapprove',
-    '/dcl/wfl-process-definition/enable',
-    '/dcl/wfl-process-definition/disable',
+    '/wfl/process-definition/submit-new',
+    '/wfl/process-definition/submit-change',
+    '/wfl/process-definition/approve',
+    '/wfl/process-definition/reject',
+    '/wfl/process-definition/unreject',
+    '/wfl/process-definition/unapprove',
+    '/wfl/process-definition/enable',
+    '/wfl/process-definition/disable',
     '/wfl/process-definition/get',
     '/wfl/process-definition/trial',
     '/rpt/directory/query',
@@ -627,7 +627,7 @@ test('target OpenAPI exposes executable ACC, WFL and RPT transaction cores', asy
   for (const legacy of [
     '/acc/opening/save',
     '/acc/opening/unsubmit',
-    '/dcl/wfl-process-definition/save',
+    '/wfl/process-definition/save',
   ])
     assert.equal(openapi.paths[legacy], undefined, legacy)
 })

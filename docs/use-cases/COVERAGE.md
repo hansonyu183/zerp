@@ -6,9 +6,9 @@
 
 统计口径：每个带 `meta.title` 的正式 target 路由必须声明 `meta.useCaseKey`；动态 Resource Host 的已实现资源以 Registry 显式 `useCaseKey` 计入。layout 与重定向不单独计数。
 
-- 页面入口：12
-- 已覆盖入口：12
-- 已登记用例：12
+- 页面入口：14
+- 已覆盖入口：14
+- 已登记用例：14
 - 缺少用例：0
 - 孤儿用例：0
 
@@ -21,6 +21,13 @@
 | 无权访问   | `/forbidden`       | [目标路由](../../frontend/src/target/router/index.ts) | [已文档化](app/forbidden.md)       |
 | 业务功能   | `/:domain/:entity` | [目标路由](../../frontend/src/target/router/index.ts) | [已文档化](app/navigation.md)      |
 | 页面不存在 | `/:pathMatch(.*)*` | [目标路由](../../frontend/src/target/router/index.ts) | [已文档化](app/not-found.md)       |
+
+## WFL
+
+| 页面                   | 路由                      | 来源                                                         | 状态                                  |
+| ---------------------- | ------------------------- | ------------------------------------------------------------ | ------------------------------------- |
+| wfl/process-instance   | `/wfl/process-instance`   | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](wfl/process-instance.md)   |
+| wfl/process-definition | `/wfl/process-definition` | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](wfl/process-definition.md) |
 
 ## ACC
 

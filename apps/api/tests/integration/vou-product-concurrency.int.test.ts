@@ -424,36 +424,28 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
         created_at: now,
         created_by: actorId,
       },
-      {
-        id: directSubjectIds.warehouse,
-        entity: 'warehouse',
-        code: code('WHS', 1),
-        created_at: now,
-        created_by: actorId,
-      },
     ])
     .execute()
   await db
     .insertInto('approval_entries')
     .values(
-      [
-        [directApprovalIds.customer, 'customer', directSubjectIds.customer],
-        [directApprovalIds.warehouse, 'warehouse', directSubjectIds.warehouse],
-      ].map(([id, entity, subjectId]) => ({
-        id: id!,
-        domain: 'dcl',
-        entity: entity!,
-        subject_id: subjectId!,
-        version_no: 1,
-        status: 'APPROVED' as const,
-        revision: 1,
-        submitted_by: actorId,
-        submitted_at: now,
-        approved_by: reviewerId,
-        approved_at: now,
-        updated_by: reviewerId,
-        updated_at: now,
-      })),
+      [[directApprovalIds.customer, 'customer', directSubjectIds.customer]].map(
+        ([id, entity, subjectId]) => ({
+          id: id!,
+          domain: 'dcl',
+          entity: entity!,
+          subject_id: subjectId!,
+          version_no: 1,
+          status: 'APPROVED' as const,
+          revision: 1,
+          submitted_by: actorId,
+          submitted_at: now,
+          approved_by: reviewerId,
+          approved_at: now,
+          updated_by: reviewerId,
+          updated_at: now,
+        }),
+      ),
     )
     .execute()
   await db
@@ -489,15 +481,20 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
       enabled: true,
     })
     .execute()
-  await db
-    .insertInto('dcl_warehouse_versions')
-    .values({
-      approval_entry_id: directApprovalIds.warehouse,
-      name: '并发仓库',
-      enabled: true,
-    })
-    .execute()
+  const currentWarehouse = await new AuxService(db).create(
+    'warehouse',
+    {
+      name: '测试仓库',
+      address: '',
+      contactName: '',
+      contactPhone: '',
+      managerEmployeeId: null,
+      remark: '',
+    },
+    { id: actorId, permissions: ['/aux/warehouse/create'] },
+  )
 
+  auxObjectIds.push(currentWarehouse.id)
   const payload: VouPayloadFor<'sale-order'> = {
     businessDate: '2026-09-07',
     currency: 'CNY',
@@ -509,11 +506,7 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
     },
     paymentMethod: null,
     operatingEntity: { objectId: operatingEntity.id },
-    warehouse: {
-      objectId: directSubjectIds.warehouse,
-      approvalEntryId: directApprovalIds.warehouse,
-      selectionOrigin: 'CURRENT',
-    },
+    warehouse: { objectId: currentWarehouse.id },
     productLines: [
       [materialId, materialUnit],
       [finishedId, oldFinishedUnit],

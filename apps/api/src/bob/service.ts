@@ -9,18 +9,11 @@ export const bobEntities = [
   'other-unit',
   'sales-partner',
   'product',
-  'warehouse',
-  'vehicle',
-  'fund-account',
 ] as const
 
 export type BobEntity = (typeof bobEntities)[number]
 export type BobReferenceEntity =
-  | 'customer-subunit'
-  | 'other-unit'
-  | 'supplier'
-  | 'sales-partner'
-  | 'product'
+  'customer-subunit' | 'other-unit' | 'supplier' | 'sales-partner' | 'product'
 export type BobActor = { id: string; permissions: readonly string[] }
 export type BobData = Record<string, unknown>
 
@@ -196,65 +189,6 @@ function dclCurrent(entity: BobEntity) {
       JOIN dcl_product_versions snapshot ON snapshot.approval_entry_id = entry.id
       WHERE subject.entity = 'product'
 
-      UNION ALL
-      SELECT subject.id, subject.entity, subject.code, snapshot.enabled, entry.id,
-        entry.version_no, entry.updated_at,
-        jsonb_strip_nulls(jsonb_build_object(
-          'name', snapshot.name, 'address', snapshot.address,
-          'contactName', snapshot.contact_name, 'contactPhone', snapshot.contact_phone,
-          'managerEmployeeId', snapshot.manager_employee_id, 'remark', snapshot.remark
-        ))
-      FROM dcl_subjects subject
-      JOIN LATERAL (
-        SELECT * FROM approval_entries
-        WHERE domain = 'dcl' AND entity = 'warehouse' AND subject_id = subject.id
-          AND status = 'APPROVED'
-        ORDER BY version_no DESC LIMIT 1
-      ) entry ON true
-      JOIN dcl_warehouse_versions snapshot ON snapshot.approval_entry_id = entry.id
-      WHERE subject.entity = 'warehouse'
-
-      UNION ALL
-      SELECT subject.id, subject.entity, subject.code, snapshot.enabled, entry.id,
-        entry.version_no, entry.updated_at,
-        jsonb_strip_nulls(jsonb_build_object(
-          'name', snapshot.name, 'plateNumber', snapshot.plate_number,
-          'vehicleTypeObjectId', snapshot.vehicle_type_object_id,
-          'carrierAffiliationType', snapshot.carrier_affiliation_type,
-          'carrierOperatingEntityId', snapshot.carrier_operating_entity_id,
-          'carrierOtherUnitObjectId', snapshot.carrier_other_unit_object_id,
-          'bulkLiquidCapable', snapshot.bulk_liquid_capable
-        ))
-      FROM dcl_subjects subject
-      JOIN LATERAL (
-        SELECT * FROM approval_entries
-        WHERE domain = 'dcl' AND entity = 'vehicle' AND subject_id = subject.id
-          AND status = 'APPROVED'
-        ORDER BY version_no DESC LIMIT 1
-      ) entry ON true
-      JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id = entry.id
-      WHERE subject.entity = 'vehicle'
-
-      UNION ALL
-      SELECT subject.id, subject.entity, subject.code, snapshot.enabled, entry.id,
-        entry.version_no, entry.updated_at,
-        jsonb_strip_nulls(jsonb_build_object(
-          'name', snapshot.name, 'currency', snapshot.currency,
-          'accountName', snapshot.account_name, 'accountNumber', snapshot.account_number,
-          'bankName', snapshot.bank_name,
-          'operatingEntityId', snapshot.operating_entity_id
-        ))
-      FROM dcl_subjects subject
-      JOIN LATERAL (
-        SELECT * FROM approval_entries
-        WHERE domain = 'dcl' AND entity = 'fund-account' AND subject_id = subject.id
-          AND status = 'APPROVED'
-        ORDER BY version_no DESC LIMIT 1
-      ) entry ON true
-      JOIN dcl_fund_account_versions snapshot ON snapshot.approval_entry_id = entry.id
-      WHERE subject.entity = 'fund-account'
-
-
     ) typed_current
     WHERE typed_current.entity = ${entity}`
 }
@@ -324,14 +258,12 @@ function validId(value: string): boolean {
 
 function parseCurrent(
   row: StoredBobObject,
-  includeFundAccountNumber = true,
+  _includeFundAccountNumber = true,
 ): BobObjectView {
   assertEntity(row.entity)
   if (!Number.isInteger(row.source_version_no) || row.source_version_no < 1)
     fail('internal_error')
   const data = asData(row.data)
-  if (row.entity === 'fund-account' && !includeFundAccountNumber)
-    delete data.accountNumber
   return {
     objectId: row.object_id,
     entity: row.entity,
@@ -388,8 +320,6 @@ export class BobService {
     ]) {
       if (value !== undefined && !validId(value)) fail('validation_failed')
     }
-    if (entity === 'fund-account' && filter.keyword?.trim())
-      fail('validation_failed')
     const where = [sql`TRUE`]
     if (filter.keyword?.trim()) {
       const keyword = `%${filter.keyword.trim()}%`

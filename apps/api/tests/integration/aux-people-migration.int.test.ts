@@ -55,6 +55,7 @@ test('AUX people migration imports current facts and preserves DCL, VOU, and ACC
   const actorId = ulid()
   const roleId = ulid()
   const legacyPermissionId = ulid()
+  const legacyAssetPermissionId = ulid()
   const operatingEntityId = ulid()
   const operatingEntityEntryId = ulid()
   const employeeId = ulid()
@@ -407,15 +408,26 @@ test('AUX people migration imports current facts and preserves DCL, VOU, and ACC
     .execute()
   await db
     .insertInto('app_permissions')
-    .values({
-      id: legacyPermissionId,
-      path: '/dcl/employee/submit-change',
-      domain: 'dcl',
-      entity: 'employee',
-      action: 'submit-change',
-      description: '旧员工变更',
-      status: 'ENABLED',
-    })
+    .values([
+      {
+        id: legacyPermissionId,
+        path: '/dcl/employee/submit-change',
+        domain: 'dcl',
+        entity: 'employee',
+        action: 'submit-change',
+        description: '旧员工变更',
+        status: 'ENABLED',
+      },
+      {
+        id: legacyAssetPermissionId,
+        path: '/dcl/vehicle/submit-change',
+        domain: 'dcl',
+        entity: 'vehicle',
+        action: 'submit-change',
+        description: '待迁移车辆变更',
+        status: 'ENABLED',
+      },
+    ])
     .execute()
   await db
     .insertInto('app_roles')
@@ -428,7 +440,10 @@ test('AUX people migration imports current facts and preserves DCL, VOU, and ACC
     .execute()
   await db
     .insertInto('app_role_permissions')
-    .values({ role_id: roleId, permission_id: legacyPermissionId })
+    .values([
+      { role_id: roleId, permission_id: legacyPermissionId },
+      { role_id: roleId, permission_id: legacyAssetPermissionId },
+    ])
     .execute()
 
   const historicalBefore = await db
@@ -537,7 +552,12 @@ test('AUX people migration imports current facts and preserves DCL, VOU, and ACC
     .execute()
   assert.deepEqual(
     migratedPaths.map((permission) => permission.path),
-    ['/aux/employee/disable', '/aux/employee/enable', '/aux/employee/save'],
+    [
+      '/aux/employee/disable',
+      '/aux/employee/enable',
+      '/aux/employee/save',
+      '/dcl/vehicle/submit-change',
+    ],
   )
 })
 

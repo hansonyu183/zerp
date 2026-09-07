@@ -469,6 +469,7 @@ export function useRoleManagementViewModel() {
 
   function canListAction(item: RoleListItem | null, action: ListAction) {
     if (action === 'create') return can(rolePaths.create)
+    if (action === 'delete') return false
     if (!item) return false
     if (action === 'edit')
       return (

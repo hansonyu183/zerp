@@ -414,6 +414,7 @@ export function useUserManagementViewModel() {
 
   function canListAction(item: UserListItem | null, action: ListAction) {
     if (action === 'create') return can(userPaths.create)
+    if (action === 'delete') return false
     if (!item) return false
     if (action === 'edit')
       return (

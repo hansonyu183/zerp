@@ -19,7 +19,6 @@ import { AccService } from '../src/acc/service.ts'
 import { AuxService } from '../src/aux/service.ts'
 import { createDatabase } from '../src/db/database.ts'
 import { ArchiveService, type ArchiveSnapshot } from '../src/dcl/archives.ts'
-import { WarehouseService } from '../src/dcl/warehouse.ts'
 import { PgRptDefinitionValidator } from '../src/rpt/service.ts'
 import { VouService } from '../src/vou/service.ts'
 
@@ -57,7 +56,6 @@ const bootstrap = new TargetBootstrapService(database)
 const rptValidationPool = new pg.Pool({ connectionString: databaseUrl })
 const rptValidator = new PgRptDefinitionValidator(rptValidationPool, database)
 const archives = new ArchiveService(database, rptValidator)
-const warehouse = new WarehouseService(database)
 const acc = new AccService(database)
 const aux = new AuxService(database)
 const vou = new VouService(database, {
@@ -531,7 +529,11 @@ async function seedArchiveReference(
   archives: ArchiveService,
   entity: Exclude<
     (typeof vouReferenceFacts.references)[number]['entity'],
-    'warehouse' | 'customer-subunit' | 'operating-entity' | 'employee'
+    | 'warehouse'
+    | 'fund-account'
+    | 'customer-subunit'
+    | 'operating-entity'
+    | 'employee'
   >,
   reference: {
     objectId: string
@@ -569,11 +571,7 @@ async function seedArchiveReference(
   reference.code = approved.code ?? reference.code
 }
 
-async function seedVouReferences(
-  archives: ArchiveService,
-  warehouse: WarehouseService,
-  aux: AuxService,
-) {
+async function seedVouReferences(archives: ArchiveService, aux: AuxService) {
   const reference = (key: string) => {
     const found = vouReferenceFacts.references.find((item) => item.key === key)
     if (!found) throw new Error(`missing ${key} E2E VOU reference`)
@@ -586,6 +584,10 @@ async function seedVouReferences(
       '/aux/operating-entity/get',
       '/aux/employee/create',
       '/aux/employee/get',
+      '/aux/warehouse/create',
+      '/aux/warehouse/get',
+      '/aux/fund-account/create',
+      '/aux/fund-account/get',
     ],
   }
   const operatingEntity = reference('operatingEntity')
@@ -615,11 +617,6 @@ async function seedVouReferences(
   operatingEntity.objectId = storedOperatingEntity.id
   operatingEntity.code = storedOperatingEntity.code
   operatingEntity.name = storedOperatingEntity.name
-  const operatingEntityReference = {
-    objectId: storedOperatingEntity.id,
-    code: storedOperatingEntity.code,
-    name: storedOperatingEntity.name,
-  }
 
   const manager = {
     key: 'manager',
@@ -677,40 +674,25 @@ async function seedVouReferences(
   employee.name = storedEmployee.name
 
   const warehouseReference = reference('warehouse')
-  const warehousePending = await warehouse.submit(
-    'submit-new',
+  const warehouseCurrent = await aux.create(
+    'warehouse',
     {
-      subjectId: warehouseReference.objectId,
-      submissionId: warehouseReference.approvalEntryId,
-      idempotencyKey: warehouseReference.approvalEntryId,
-      expectedLatestApprovedSubmissionId: null,
-      expectedLatestApprovedRevision: null,
-      snapshot: {
-        name: warehouseReference.name,
-        address: '上海市',
-        contactName: '目标仓管员',
-        contactPhone: '13800000000',
-        managerEmployeeId: manager.objectId,
-        managerEmployeeCode: manager.code,
-        managerEmployeeName: manager.name,
-        remark: '',
-        enabled: true,
-      },
+      name: warehouseReference.name,
+      address: '上海市',
+      contactName: '目标仓管员',
+      contactPhone: '',
+      managerEmployeeId: manager.objectId,
+      remark: '',
     },
-    serviceActor(submitter.userId),
-    'e2e-warehouse-submit',
+    peopleActor,
   )
-  const warehouseApproved = await warehouse.review(
-    'approve',
-    {
-      subjectId: warehouseReference.objectId,
-      submissionId: warehouseReference.approvalEntryId,
-      expectedRevision: warehousePending.revision,
-    },
-    serviceActor(reviewer.userId),
-    'e2e-warehouse-approve',
+  const warehouseDetail = await aux.get(
+    'warehouse',
+    { id: warehouseCurrent.id },
+    peopleActor,
   )
-  warehouseReference.code = warehouseApproved.code
+  warehouseReference.objectId = warehouseCurrent.id
+  warehouseReference.code = warehouseDetail.code
 
   const customerSubunit = reference('customerSubunit')
   await seedArchiveReference(archives, 'customer', reference('customer'), {
@@ -802,10 +784,8 @@ async function seedVouReferences(
     remark: '',
     enabled: true,
   })
-  await seedArchiveReference(
-    archives,
+  const account = await aux.create(
     'fund-account',
-    reference('fundAccount'),
     {
       name: '目标资金账户',
       currency: 'CNY',
@@ -813,11 +793,20 @@ async function seedVouReferences(
       bank: '目标银行',
       branch: '',
       accountNumber: `FAC${suffix}`,
-      operatingEntity: operatingEntityReference,
+      operatingEntityId: operatingEntity.objectId,
       remark: '',
-      enabled: true,
     },
+    peopleActor,
   )
+  const accountDetail = await aux.get(
+    'fund-account',
+    { id: account.id },
+    peopleActor,
+  )
+  Object.assign(reference('fundAccount'), {
+    objectId: account.id,
+    code: accountDetail.code,
+  })
   await seedArchiveReference(archives, 'product', reference('product'), {
     name: '目标产品',
     barcode: `PRD-${suffix}`,
@@ -1089,8 +1078,6 @@ async function seedApprovedSourceOrders() {
   }
   const warehouseSnapshot = {
     objectId: warehouseReference.objectId,
-    approvalEntryId: warehouseReference.approvalEntryId,
-    selectionOrigin: 'HISTORICAL' as const,
   }
   const productLine = (lineId: string) => ({
     lineId,
@@ -1194,6 +1181,9 @@ async function verifyTrustedSystemVouLifecycle() {
       selectionOrigin: 'CURRENT' as const,
     }
   }
+  const currentReference = (key: string) => ({
+    objectId: reference(key).objectId,
+  })
   const sourceLines = [
     {
       sourceLineId: vouSourceFacts.saleOrder.lineId,
@@ -1247,9 +1237,9 @@ async function verifyTrustedSystemVouLifecycle() {
         businessDate: '2026-09-04',
         currency: 'CNY',
         attachments: [],
-        employee: reference('employee'),
-        fundAccount: reference('fundAccount'),
-        handler: reference('employee'),
+        employee: currentReference('employee'),
+        fundAccount: currentReference('fundAccount'),
+        handler: currentReference('employee'),
         amount: '0.00',
       } satisfies VouPayloadFor<'expense-payment'>,
     },
@@ -1370,7 +1360,7 @@ async function verifyTrustedSystemVouLifecycle() {
         currency: 'CNY',
         attachments: [],
         supplier: reference('supplier'),
-        warehouse: reference('warehouse'),
+        warehouse: currentReference('warehouse'),
         parentEntity: 'purchase-order',
         parentDocumentId: vouSourceFacts.purchaseOrder.documentId,
         sourceLines: [
@@ -1544,7 +1534,7 @@ try {
   await bootstrap.createE2EPrincipal(createOnly, false, ['/app/user/create'])
   await seedAuxFacts(aux)
   await seedAccFacts(acc)
-  await seedVouReferences(archives, warehouse, aux)
+  await seedVouReferences(archives, aux)
   await seedVouAccObjects()
   await seedApprovedOpeningAndMappings()
   await seedApprovedSourceOrders()

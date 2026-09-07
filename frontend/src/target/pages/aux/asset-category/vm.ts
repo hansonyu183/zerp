@@ -300,6 +300,7 @@ export function useAssetCategoryManagementViewModel() {
     action: ListAction,
   ): boolean {
     if (action === 'create') return can(assetCategoryPaths.create)
+    if (action === 'delete') return false
     if (!item) return false
     if (action === 'edit')
       return (

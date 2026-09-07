@@ -672,6 +672,62 @@
     "title": "保存员工"
   },
   {
+    "id": "01JA5405044C8B6F7056B149D0",
+    "path": "/aux/fund-account/create",
+    "domain": "aux",
+    "entity": "fund-account",
+    "action": "create",
+    "title": "创建资金账户"
+  },
+  {
+    "id": "01J63EB3D17723D375BAA7DC23",
+    "path": "/aux/fund-account/delete",
+    "domain": "aux",
+    "entity": "fund-account",
+    "action": "delete",
+    "title": "删除资金账户"
+  },
+  {
+    "id": "01J891D1D21D7D1B9E30F80B98",
+    "path": "/aux/fund-account/disable",
+    "domain": "aux",
+    "entity": "fund-account",
+    "action": "disable",
+    "title": "停用资金账户"
+  },
+  {
+    "id": "01JC2A1AA15FF96B6169EC6A72",
+    "path": "/aux/fund-account/enable",
+    "domain": "aux",
+    "entity": "fund-account",
+    "action": "enable",
+    "title": "启用资金账户"
+  },
+  {
+    "id": "01JA8A3F0FD9D36DDD93BF2E5F",
+    "path": "/aux/fund-account/get",
+    "domain": "aux",
+    "entity": "fund-account",
+    "action": "get",
+    "title": "查看资金账户"
+  },
+  {
+    "id": "01J9EAC9DB67B8B1A56188338B",
+    "path": "/aux/fund-account/query",
+    "domain": "aux",
+    "entity": "fund-account",
+    "action": "query",
+    "title": "查询资金账户"
+  },
+  {
+    "id": "01JCDD9DA64CCA3F43869C833C",
+    "path": "/aux/fund-account/save",
+    "domain": "aux",
+    "entity": "fund-account",
+    "action": "save",
+    "title": "保存资金账户"
+  },
+  {
     "id": "01J2D6071B62D3BB994D1F7D6D",
     "path": "/aux/income-expense-type/create",
     "domain": "aux",
@@ -1112,6 +1168,118 @@
     "title": "保存结算方式"
   },
   {
+    "id": "01J66832D000441436FE5EBF0D",
+    "path": "/aux/vehicle/create",
+    "domain": "aux",
+    "entity": "vehicle",
+    "action": "create",
+    "title": "创建车辆"
+  },
+  {
+    "id": "01J81361B7484E4D2C5069C670",
+    "path": "/aux/vehicle/delete",
+    "domain": "aux",
+    "entity": "vehicle",
+    "action": "delete",
+    "title": "删除车辆"
+  },
+  {
+    "id": "01J8BE16C6A392CCF3FD2B6B8F",
+    "path": "/aux/vehicle/disable",
+    "domain": "aux",
+    "entity": "vehicle",
+    "action": "disable",
+    "title": "停用车辆"
+  },
+  {
+    "id": "01J9A63B1DAD3F4512E642994B",
+    "path": "/aux/vehicle/enable",
+    "domain": "aux",
+    "entity": "vehicle",
+    "action": "enable",
+    "title": "启用车辆"
+  },
+  {
+    "id": "01J64EB0AE34C749DA1F8D9099",
+    "path": "/aux/vehicle/get",
+    "domain": "aux",
+    "entity": "vehicle",
+    "action": "get",
+    "title": "查看车辆"
+  },
+  {
+    "id": "01JF42D450C0C58A4689C9FB59",
+    "path": "/aux/vehicle/query",
+    "domain": "aux",
+    "entity": "vehicle",
+    "action": "query",
+    "title": "查询车辆"
+  },
+  {
+    "id": "01JAF269BECC0BF5B5868BA376",
+    "path": "/aux/vehicle/save",
+    "domain": "aux",
+    "entity": "vehicle",
+    "action": "save",
+    "title": "保存车辆"
+  },
+  {
+    "id": "01JE02E2532839179CF02184E1",
+    "path": "/aux/warehouse/create",
+    "domain": "aux",
+    "entity": "warehouse",
+    "action": "create",
+    "title": "创建仓库"
+  },
+  {
+    "id": "01J9A15AF05227FD6C00F4A11B",
+    "path": "/aux/warehouse/delete",
+    "domain": "aux",
+    "entity": "warehouse",
+    "action": "delete",
+    "title": "删除仓库"
+  },
+  {
+    "id": "01JCB9C37476E505AC50761E8D",
+    "path": "/aux/warehouse/disable",
+    "domain": "aux",
+    "entity": "warehouse",
+    "action": "disable",
+    "title": "停用仓库"
+  },
+  {
+    "id": "01J7F9AF37C7482B697A14D9A4",
+    "path": "/aux/warehouse/enable",
+    "domain": "aux",
+    "entity": "warehouse",
+    "action": "enable",
+    "title": "启用仓库"
+  },
+  {
+    "id": "01JA43D576BE1E838A38B64AFE",
+    "path": "/aux/warehouse/get",
+    "domain": "aux",
+    "entity": "warehouse",
+    "action": "get",
+    "title": "查看仓库"
+  },
+  {
+    "id": "01J0758DE17F7891E1A1E03360",
+    "path": "/aux/warehouse/query",
+    "domain": "aux",
+    "entity": "warehouse",
+    "action": "query",
+    "title": "查询仓库"
+  },
+  {
+    "id": "01J0DB8A4E7C3803095C375BF7",
+    "path": "/aux/warehouse/save",
+    "domain": "aux",
+    "entity": "warehouse",
+    "action": "save",
+    "title": "保存仓库"
+  },
+  {
     "id": "01JCC2D59FDC2B4A1DE81D0149",
     "path": "/bob/customer/get",
     "domain": "bob",
@@ -1126,22 +1294,6 @@
     "entity": "customer",
     "action": "query",
     "title": "查询客户"
-  },
-  {
-    "id": "01J308DA5017E09C1370E6F3DE",
-    "path": "/bob/fund-account/get",
-    "domain": "bob",
-    "entity": "fund-account",
-    "action": "get",
-    "title": "查看资金账户"
-  },
-  {
-    "id": "01J942CCCDFD065C821D881A5F",
-    "path": "/bob/fund-account/query",
-    "domain": "bob",
-    "entity": "fund-account",
-    "action": "query",
-    "title": "查询资金账户"
   },
   {
     "id": "01J12069514CDA1F89CECEEF3D",
@@ -1214,46 +1366,6 @@
     "entity": "supplier",
     "action": "query",
     "title": "查询供应商"
-  },
-  {
-    "id": "01JEF7A0AF6498BEE4FBFF8455",
-    "path": "/bob/vehicle/get",
-    "domain": "bob",
-    "entity": "vehicle",
-    "action": "get",
-    "title": "查看车辆"
-  },
-  {
-    "id": "01J048D754EB3763584C7E8F7E",
-    "path": "/bob/vehicle/query",
-    "domain": "bob",
-    "entity": "vehicle",
-    "action": "query",
-    "title": "查询车辆"
-  },
-  {
-    "id": "01J1EB6E395D1EF55846BC599B",
-    "path": "/bob/warehouse/get",
-    "domain": "bob",
-    "entity": "warehouse",
-    "action": "get",
-    "title": "查看仓库"
-  },
-  {
-    "id": "01J7FEC2898B72E645974FFCAC",
-    "path": "/bob/warehouse/query",
-    "domain": "bob",
-    "entity": "warehouse",
-    "action": "query",
-    "title": "查询仓库"
-  },
-  {
-    "id": "01J38C8D37781AE22E1F88B245",
-    "path": "/bob/warehouse/reference",
-    "domain": "bob",
-    "entity": "warehouse",
-    "action": "reference",
-    "title": "引用仓库"
   },
   {
     "id": "01JF2CCEE69ED97F84647B0CEE",
@@ -1454,94 +1566,6 @@
     "entity": "customer",
     "action": "versions",
     "title": "versions customer"
-  },
-  {
-    "id": "01J7187645FD151606B25CFF99",
-    "path": "/dcl/fund-account/approve",
-    "domain": "dcl",
-    "entity": "fund-account",
-    "action": "approve",
-    "title": "approve fund-account"
-  },
-  {
-    "id": "01JA13E9B37F3A61A4C40D4847",
-    "path": "/dcl/fund-account/audit-history",
-    "domain": "dcl",
-    "entity": "fund-account",
-    "action": "audit-history",
-    "title": "audit-history fund-account"
-  },
-  {
-    "id": "01J9B9833C05EB8619D27013A0",
-    "path": "/dcl/fund-account/delete",
-    "domain": "dcl",
-    "entity": "fund-account",
-    "action": "delete",
-    "title": "delete fund-account"
-  },
-  {
-    "id": "01JEE491718790AAD7D0843090",
-    "path": "/dcl/fund-account/get",
-    "domain": "dcl",
-    "entity": "fund-account",
-    "action": "get",
-    "title": "get fund-account"
-  },
-  {
-    "id": "01J3DCF0C8BA9409980790ABE2",
-    "path": "/dcl/fund-account/query",
-    "domain": "dcl",
-    "entity": "fund-account",
-    "action": "query",
-    "title": "资金账户"
-  },
-  {
-    "id": "01J96C4278F0B193C7DE3752F1",
-    "path": "/dcl/fund-account/reject",
-    "domain": "dcl",
-    "entity": "fund-account",
-    "action": "reject",
-    "title": "reject fund-account"
-  },
-  {
-    "id": "01J96F78BDF3A24C065C822CD6",
-    "path": "/dcl/fund-account/submit-change",
-    "domain": "dcl",
-    "entity": "fund-account",
-    "action": "submit-change",
-    "title": "submit-change fund-account"
-  },
-  {
-    "id": "01J82871F4E2785D87A1DC7937",
-    "path": "/dcl/fund-account/submit-new",
-    "domain": "dcl",
-    "entity": "fund-account",
-    "action": "submit-new",
-    "title": "submit-new fund-account"
-  },
-  {
-    "id": "01J22937EFAC5B8F88A83D5CB0",
-    "path": "/dcl/fund-account/unapprove",
-    "domain": "dcl",
-    "entity": "fund-account",
-    "action": "unapprove",
-    "title": "unapprove fund-account"
-  },
-  {
-    "id": "01J2C0CE9874BCDED5DC549AEA",
-    "path": "/dcl/fund-account/unreject",
-    "domain": "dcl",
-    "entity": "fund-account",
-    "action": "unreject",
-    "title": "unreject fund-account"
-  },
-  {
-    "id": "01J24D043F889FC7857ECF2CD7",
-    "path": "/dcl/fund-account/versions",
-    "domain": "dcl",
-    "entity": "fund-account",
-    "action": "versions",
-    "title": "versions fund-account"
   },
   {
     "id": "01JC2E6C5A198CCF211B0D0A93",
@@ -1982,182 +2006,6 @@
     "entity": "supplier",
     "action": "versions",
     "title": "versions supplier"
-  },
-  {
-    "id": "01JA9C2C530CABB79FEA477A47",
-    "path": "/dcl/vehicle/approve",
-    "domain": "dcl",
-    "entity": "vehicle",
-    "action": "approve",
-    "title": "approve vehicle"
-  },
-  {
-    "id": "01J496ACE13246A3CA2C4AFFE0",
-    "path": "/dcl/vehicle/audit-history",
-    "domain": "dcl",
-    "entity": "vehicle",
-    "action": "audit-history",
-    "title": "audit-history vehicle"
-  },
-  {
-    "id": "01JC6E7294F5248F65BBCB2F89",
-    "path": "/dcl/vehicle/delete",
-    "domain": "dcl",
-    "entity": "vehicle",
-    "action": "delete",
-    "title": "delete vehicle"
-  },
-  {
-    "id": "01J286AEE7F45C1007DED897CF",
-    "path": "/dcl/vehicle/get",
-    "domain": "dcl",
-    "entity": "vehicle",
-    "action": "get",
-    "title": "get vehicle"
-  },
-  {
-    "id": "01J558F9F3E95B5D6B76902BF7",
-    "path": "/dcl/vehicle/query",
-    "domain": "dcl",
-    "entity": "vehicle",
-    "action": "query",
-    "title": "车辆"
-  },
-  {
-    "id": "01J0AEC8049792510CCB6D8E28",
-    "path": "/dcl/vehicle/reject",
-    "domain": "dcl",
-    "entity": "vehicle",
-    "action": "reject",
-    "title": "reject vehicle"
-  },
-  {
-    "id": "01JECFEDAE93B7D9F29C415ED5",
-    "path": "/dcl/vehicle/submit-change",
-    "domain": "dcl",
-    "entity": "vehicle",
-    "action": "submit-change",
-    "title": "submit-change vehicle"
-  },
-  {
-    "id": "01JD3F48028BE47F52554A3055",
-    "path": "/dcl/vehicle/submit-new",
-    "domain": "dcl",
-    "entity": "vehicle",
-    "action": "submit-new",
-    "title": "submit-new vehicle"
-  },
-  {
-    "id": "01J629A4783A5AA05A608E64A9",
-    "path": "/dcl/vehicle/unapprove",
-    "domain": "dcl",
-    "entity": "vehicle",
-    "action": "unapprove",
-    "title": "unapprove vehicle"
-  },
-  {
-    "id": "01JE37EAF2DAFA9048266336BF",
-    "path": "/dcl/vehicle/unreject",
-    "domain": "dcl",
-    "entity": "vehicle",
-    "action": "unreject",
-    "title": "unreject vehicle"
-  },
-  {
-    "id": "01JF6AA5088B216D8C8339A16D",
-    "path": "/dcl/vehicle/versions",
-    "domain": "dcl",
-    "entity": "vehicle",
-    "action": "versions",
-    "title": "versions vehicle"
-  },
-  {
-    "id": "01J9F8A0A4F06EBCAB84681A2E",
-    "path": "/dcl/warehouse/approve",
-    "domain": "dcl",
-    "entity": "warehouse",
-    "action": "approve",
-    "title": "批准仓库申报"
-  },
-  {
-    "id": "01J5E1B24F032DFA700EE7F8B5",
-    "path": "/dcl/warehouse/audit-history",
-    "domain": "dcl",
-    "entity": "warehouse",
-    "action": "audit-history",
-    "title": "查看仓库申报审核记录"
-  },
-  {
-    "id": "01J60DE6453B8725346CFA16FF",
-    "path": "/dcl/warehouse/delete",
-    "domain": "dcl",
-    "entity": "warehouse",
-    "action": "delete",
-    "title": "撤回仓库提交件"
-  },
-  {
-    "id": "01J969D804C4960001BBB05A3E",
-    "path": "/dcl/warehouse/get",
-    "domain": "dcl",
-    "entity": "warehouse",
-    "action": "get",
-    "title": "查看仓库申报"
-  },
-  {
-    "id": "01J2B7697CEF792AAD13AE4227",
-    "path": "/dcl/warehouse/query",
-    "domain": "dcl",
-    "entity": "warehouse",
-    "action": "query",
-    "title": "查询仓库申报"
-  },
-  {
-    "id": "01JD9F8F6C8C8CFDCEEA04DC4D",
-    "path": "/dcl/warehouse/reject",
-    "domain": "dcl",
-    "entity": "warehouse",
-    "action": "reject",
-    "title": "驳回仓库申报"
-  },
-  {
-    "id": "01J49DCA1D8921FAF0E708CE65",
-    "path": "/dcl/warehouse/submit-change",
-    "domain": "dcl",
-    "entity": "warehouse",
-    "action": "submit-change",
-    "title": "提交仓库变更"
-  },
-  {
-    "id": "01J7273602C171B718497223C6",
-    "path": "/dcl/warehouse/submit-new",
-    "domain": "dcl",
-    "entity": "warehouse",
-    "action": "submit-new",
-    "title": "提交新仓库申报"
-  },
-  {
-    "id": "01J287EB0577A80AFC34118385",
-    "path": "/dcl/warehouse/unapprove",
-    "domain": "dcl",
-    "entity": "warehouse",
-    "action": "unapprove",
-    "title": "反批准仓库申报"
-  },
-  {
-    "id": "01J769A878FF4678140C31103F",
-    "path": "/dcl/warehouse/unreject",
-    "domain": "dcl",
-    "entity": "warehouse",
-    "action": "unreject",
-    "title": "恢复仓库申报审核"
-  },
-  {
-    "id": "01J2C2B4D0B1FD049B2968A0CD",
-    "path": "/dcl/warehouse/versions",
-    "domain": "dcl",
-    "entity": "warehouse",
-    "action": "versions",
-    "title": "查看仓库申报版本"
   },
   {
     "id": "01J3EA01BD1E805635FB649C10",

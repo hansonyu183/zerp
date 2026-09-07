@@ -4,7 +4,7 @@
 
 - 唯一业务资源路由为 `/:domain/:entity`，由 `app/navigation` 登记并由动态 Resource Host 承载。
 - Navigation Resource 和 Navigation Entry 的来源、权限边界及未实现语义以 [APP 导航资源](../../domains/app.md#39-导航资源) 和 [ADR-0052](../../adr/0052-session-dynamic-navigation-and-page-migration.md) 为准。
-- Registry 登记 `app/user`、`app/role`、`aux/employee-category`、`aux/position`、`aux/measurement-unit`、`aux/payment-method` 、`aux/asset-category`、`aux/operating-entity` 与 `aux/employee` 的公共列表与编辑流程；其他未登记资源显示尚未实现。资源既有 API 及领域规则继续由各自领域文档拥有。
+- Registry 登记 `app/user`、`app/role`、`aux/employee-category`、`aux/position`、`aux/measurement-unit`、`aux/payment-method` 、`aux/asset-category`、`aux/operating-entity` 、`aux/employee`、`aux/warehouse`、`aux/fund-account` 与 `aux/vehicle` 的公共列表与编辑流程；其他未登记资源显示尚未实现。资源既有 API 及领域规则继续由各自领域文档拥有。
 
 ## `APP-NAVIGATION-01` 从会话装配入口
 
@@ -125,3 +125,13 @@
 3. 编辑及启停携带详情 revision；冲突后要求重新读取，不自动重放。新建、编辑、启用、停用按各自精确权限显示，页面不提供物理删除。
 4. 输入只属于本次页面实例。关闭、刷新、切换资源或退出账号销毁输入；取消不刷新，确定写失败保留输入。
 5. 验收覆盖动态字段列表、专有编辑器、启停与冲突；其他档案和单据新采用 AUX current，已保存历史名称、税号及联系资料不随后续编辑改变。旧 DCL 和 BOB 两实体入口不再注册。
+
+## `AUX-ASSETS-01` 仓库、资金账户和车辆直接维护
+
+领域规则引用 [AUX](../../domains/aux.md#310-仓库资金账户与车辆)，协议引用 [AUX 可执行契约](../../../apps/api/src/app/aux-contract.ts)。
+
+1. 从导航进入对应 AUX 资源，Host 装配公共 ListPage 及专有编辑器。精确 query 权限决定是否读取；只有维护权限仍可进入，但不发无权查询。
+2. 创建或编辑只在当前实例保留输入。引用候选分别使用员工、经营主体、车型和其他单位的真实读取入口；缺少读取权限时明确说明，不伪造候选。
+3. 保存立即生效；启停和删除使用同一行操作和 revision。删除须有精确权限及服务端动作，确认后执行，持久化引用返回 blocker。确定失败保留输入，未知结果不自动重放，确认成功只刷新一次。
+4. 验收仓库负责人、账户经营主体和车辆自有/外部承运两条链路；库存、进行中单据、引用、重复账号或车牌及失效承运方返回业务反馈，失败不产生部分修改。
+5. 保存后重新打开显示新 current；已有 VOU 或 ACC 历史事实保持原采用快照。关闭、刷新和换账号不恢复未提交输入；390px 下操作可达。

@@ -146,7 +146,7 @@ _Authority_: [BOB 领域边界](docs/domains/bob.md#2-领域职责与边界)
 **Vehicle Carrier Affiliation（车辆承运归属）**:
 车辆唯一归属的承运责任方；自有车辆归属一个经营主体，外部车辆直接归属一个其他单位档案。
 _Avoid_: 物流平台、为自有车辆虚构其他单位、每张送货单临时改变车辆归属
-_Authority_: [BOB 车辆承运归属](docs/domains/bob.md#24-车辆承运归属)
+_Authority_: [AUX 仓库、资金账户与车辆](docs/domains/aux.md#310-仓库资金账户与车辆)
 
 **Customer Type（客户类型）**:
 客户子单位的可配置业务分类。

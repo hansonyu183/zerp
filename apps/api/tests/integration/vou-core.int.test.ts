@@ -205,13 +205,6 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
         created_at: now,
         created_by: actorId,
       },
-      {
-        id: subjectIds.warehouse,
-        entity: 'warehouse',
-        code: `WHS-${codeSuffix}`,
-        created_at: now,
-        created_by: actorId,
-      },
     ])
     .execute()
   await db
@@ -221,7 +214,6 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
         [approvalIds.customer, 'customer', subjectIds.customer, 1],
         [approvalIds.productV1, 'product', subjectIds.product, 1],
         [approvalIds.material, 'product', subjectIds.material, 1],
-        [approvalIds.warehouse, 'warehouse', subjectIds.warehouse, 1],
       ].map(([id, entity, subjectId, versionNo]) => ({
         id: id as string,
         domain: 'dcl',
@@ -297,14 +289,18 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
       },
     ])
     .execute()
-  await db
-    .insertInto('dcl_warehouse_versions')
-    .values({
-      approval_entry_id: approvalIds.warehouse,
-      name: '单位快照仓库',
-      enabled: true,
-    })
-    .execute()
+  const currentWarehouse = await new AuxService(db).create(
+    'warehouse',
+    {
+      name: '测试仓库',
+      address: '',
+      contactName: '',
+      contactPhone: '',
+      managerEmployeeId: null,
+      remark: '',
+    },
+    { id: actorId, permissions: ['/aux/warehouse/create'] },
+  )
   const header = {
     businessDate: '2026-09-07',
     currency: 'CNY',
@@ -318,11 +314,7 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
     operatingEntity: {
       objectId: operatingEntity.id,
     },
-    warehouse: {
-      objectId: subjectIds.warehouse,
-      approvalEntryId: approvalIds.warehouse,
-      selectionOrigin: 'CURRENT' as const,
-    },
+    warehouse: { objectId: currentWarehouse.id },
   }
   const productLine = (
     enteredUnit: typeof unitV1,
@@ -376,6 +368,137 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
   }
 
   const first = await submit(productLine(unitV1, '1.200000'))
+  // Real delivery adoption checks the vehicle against its source order owner.
+  const vehicleActor = {
+    ...auxActor,
+    permissions: [
+      ...auxActor.permissions,
+      ...['dictionary-type', 'dictionary-item', 'vehicle'].map(
+        (entity) => `/aux/${entity}/create`,
+      ),
+    ],
+  }
+  const dtype = await aux.create(
+    'dictionary-type',
+    { name: '配送车型' },
+    vehicleActor,
+  )
+  const vtype = await aux.create(
+    'dictionary-item',
+    { name: '货车', dictionaryTypeId: dtype.id, sortOrder: 0 },
+    vehicleActor,
+  )
+  const otherOwner = await aux.create(
+    'operating-entity',
+    {
+      legalName: '其他车辆主体',
+      shortName: '其他',
+      legalIdentifier: `B${actorId.slice(-17)}`,
+      registeredAddress: '',
+      contactName: '',
+      contactPhone: '',
+      invoiceTitle: '',
+      invoiceAddress: '',
+      invoicePhone: '',
+      invoiceBank: '',
+      invoiceAccount: '',
+      remark: '',
+    },
+    auxActor,
+  )
+  const vehicleData = {
+    name: '配送车',
+    plateNumber: `京${actorId.slice(-6)}`,
+    vehicleTypeId: vtype.id,
+    carrier: { kind: 'INTERNAL' as const, operatingEntityId: otherOwner.id },
+    vin: '',
+    engineNumber: '',
+    ratedLoadKg: 1000,
+    bulkWaterCarrier: false,
+    remark: '',
+  }
+  const wrongVehicle = await aux.create('vehicle', vehicleData, vehicleActor)
+  await db
+    .updateTable('approval_entries')
+    .set({ status: 'APPROVED' })
+    .where('id', '=', first.submissionId)
+    .execute()
+  const outboundId = ulid(),
+    outboundSubmissionId = ulid()
+  documentIds.push(outboundId)
+  const outbound = await vou.submit(
+    'sale-outbound',
+    'submit-new',
+    {
+      documentId: outboundId,
+      submissionId: outboundSubmissionId,
+      idempotencyKey: outboundSubmissionId,
+      expectedRevision: null,
+      payload: {
+        businessDate: '2026-09-07',
+        currency: 'CNY',
+        attachments: [],
+        parentEntity: 'sale-order',
+        parentDocumentId: first.documentId,
+        sourceLines: [
+          {
+            sourceLineId: (first.payload as VouPayloadFor<'sale-order'>)
+              .productLines[0]!.lineId,
+            baseQuantity: '1.000000',
+          },
+        ],
+      },
+    },
+    actor,
+    'carrier-outbound',
+  )
+  await db
+    .updateTable('approval_entries')
+    .set({ status: 'APPROVED' })
+    .where('id', '=', outbound.submissionId)
+    .execute()
+  const deliveryId = ulid(),
+    deliverySubmissionId = ulid()
+  await assert.rejects(
+    vou.submit(
+      'sale-delivery',
+      'submit-new',
+      {
+        documentId: deliveryId,
+        submissionId: deliverySubmissionId,
+        idempotencyKey: deliverySubmissionId,
+        expectedRevision: null,
+        payload: {
+          businessDate: '2026-09-07',
+          currency: 'CNY',
+          attachments: [],
+          parentEntity: 'sale-outbound',
+          parentDocumentId: outboundId,
+          sourceLines: [
+            {
+              sourceLineId: (first.payload as VouPayloadFor<'sale-order'>)
+                .productLines[0]!.lineId,
+              baseQuantity: '1.000000',
+            },
+          ],
+          vehicle: { objectId: wrongVehicle.id },
+        },
+      },
+      actor,
+      'wrong-carrier',
+    ),
+    (error) =>
+      error instanceof VouApplicationError &&
+      error.errorKey === 'vou_reference_unavailable',
+  )
+  assert.equal(
+    await db
+      .selectFrom('vou_documents')
+      .select('id')
+      .where('id', '=', deliveryId)
+      .executeTakeFirst(),
+    undefined,
+  )
   const firstPayload = first.payload as VouPayloadFor<'sale-order'>
   assert.deepEqual(firstPayload.productLines[0]?.enteredUnit, unitV1)
   assert.deepEqual(
@@ -2276,8 +2399,6 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
     subunitId = ulid(),
     customerOldApprovalId = ulid(),
     customerCurrentApprovalId = ulid()
-  const fundAccountId = ulid(),
-    fundAccountApprovalId = ulid()
   const code = (prefix: string) =>
     `${prefix}-${Math.floor(Math.random() * 10_000)
       .toString()
@@ -2289,13 +2410,6 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
         id: customerId,
         entity: 'customer',
         code: code('CUS'),
-        created_at: now,
-        created_by: ownerId,
-      },
-      {
-        id: fundAccountId,
-        entity: 'fund-account',
-        code: code('FAC'),
         created_at: now,
         created_by: ownerId,
       },
@@ -2325,21 +2439,6 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
         entity: 'customer',
         subject_id: customerId,
         version_no: 2,
-        status: 'APPROVED',
-        revision: 1,
-        submitted_by: ownerId,
-        submitted_at: now,
-        approved_by: ownerId,
-        approved_at: now,
-        updated_by: ownerId,
-        updated_at: now,
-      },
-      {
-        id: fundAccountApprovalId,
-        domain: 'dcl',
-        entity: 'fund-account',
-        subject_id: fundAccountId,
-        version_no: 1,
         status: 'APPROVED',
         revision: 1,
         submitted_by: ownerId,
@@ -2403,14 +2502,20 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
       },
     ])
     .execute()
-  await db
-    .insertInto('dcl_fund_account_versions')
-    .values({
-      approval_entry_id: fundAccountApprovalId,
+  const currentFundAccount = await aux.create(
+    'fund-account',
+    {
       name: '收款账户',
-      enabled: true,
-    })
-    .execute()
+      currency: 'CNY',
+      accountName: '附件主体',
+      bank: '测试银行',
+      branch: '',
+      accountNumber: `F${ownerId}`,
+      operatingEntityId: operatingEntity.id,
+      remark: '',
+    },
+    { id: ownerId, permissions: ['/aux/fund-account/create'] },
+  )
   const receiptPayload = (
     approvalEntryId: string,
     selectionOrigin: 'CURRENT' | 'HISTORICAL',
@@ -2422,9 +2527,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
     counterpartyType: 'customer-subunit' as const,
     counterparty: { objectId: subunitId, approvalEntryId, selectionOrigin },
     fundAccount: {
-      objectId: fundAccountId,
-      approvalEntryId: fundAccountApprovalId,
-      selectionOrigin: 'CURRENT' as const,
+      objectId: currentFundAccount.id,
     },
     handler: {
       objectId: employee.id,

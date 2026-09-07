@@ -136,7 +136,7 @@ CREATE TABLE aux_objects (
         'product-category', 'product-type', 'employee-category', 'department',
         'position', 'settlement-method', 'payment-method', 'dictionary-type',
         'dictionary-item', 'measurement-unit', 'income-expense-type', 'asset-category',
-        'operating-entity', 'employee'
+        'operating-entity', 'employee', 'warehouse', 'vehicle', 'fund-account'
     )),
     code varchar(64) NOT NULL CHECK (code ~ '^[A-Z]{3}-[0-9]{4}$'),
     data jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(data) = 'object'),

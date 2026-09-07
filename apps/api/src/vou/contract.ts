@@ -1,4 +1,4 @@
-import { auxPeopleDataSchemas } from '../app/aux-contract.ts'
+import { auxCurrentDataSchemas } from '../app/aux-contract.ts'
 import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
 import type { Schema } from 'hono'
 import {
@@ -87,14 +87,35 @@ const operatingEntityReference = objectReference
   .extend({
     code: z.string().optional(),
     name: z.string().optional(),
-    snapshot: auxPeopleDataSchemas['operating-entity'].optional(),
+    snapshot: auxCurrentDataSchemas['operating-entity'].optional(),
   })
   .strict()
 const employeeReference = objectReference
   .extend({
     code: z.string().optional(),
     name: z.string().optional(),
-    snapshot: auxPeopleDataSchemas.employee.optional(),
+    snapshot: auxCurrentDataSchemas.employee.optional(),
+  })
+  .strict()
+const warehouseReference = objectReference
+  .extend({
+    code: z.string().optional(),
+    name: z.string().optional(),
+    snapshot: auxCurrentDataSchemas.warehouse.optional(),
+  })
+  .strict()
+const fundAccountReference = objectReference
+  .extend({
+    code: z.string().optional(),
+    name: z.string().optional(),
+    snapshot: auxCurrentDataSchemas['fund-account'].optional(),
+  })
+  .strict()
+const vehicleReference = objectReference
+  .extend({
+    code: z.string().optional(),
+    name: z.string().optional(),
+    snapshot: auxCurrentDataSchemas.vehicle.optional(),
   })
   .strict()
 const assetCategoryReference = objectReference
@@ -304,7 +325,7 @@ const billLine = z.union([
 const billCashLine = z
   .object({
     billLineId: z.string().optional(),
-    fundAccount: versionedReference,
+    fundAccount: fundAccountReference,
     direction: z.enum(['IN', 'OUT']),
     amountType: z.enum(['PRINCIPAL', 'INTEREST', 'FEE', 'MARGIN', 'OTHER']),
     amount: money,
@@ -313,7 +334,7 @@ const billCashLine = z
   .strict()
 const amountFacts = {
   amount: money,
-  fundAccount: versionedReference,
+  fundAccount: fundAccountReference,
   handler: employeeReference,
 }
 const intermediaryEmployeeReference = employeeReference
@@ -479,7 +500,7 @@ export const vouPayloadSchemaByEntity = {
     customerSubunit: versionedReference,
     operatingEntity: operatingEntityReference,
     salesperson: employeeReference.optional(),
-    warehouse: versionedReference,
+    warehouse: warehouseReference,
     paymentMethod: paymentMethodSelection.nullable(),
     productLines: z.array(productLine).min(1).max(200),
     creditOverrideReason: z.string().trim().min(1).max(1000).optional(),
@@ -490,7 +511,7 @@ export const vouPayloadSchemaByEntity = {
   'sale-delivery': payload({
     sourceLines: z.array(sourceLine).min(1).max(200),
     carrier: versionedReference.optional(),
-    vehicle: versionedReference.optional(),
+    vehicle: vehicleReference.optional(),
   }),
   'sale-signoff': payload({
     customerSubunit: versionedReference,
@@ -502,7 +523,7 @@ export const vouPayloadSchemaByEntity = {
     signoffLines: z.array(signoffLine).min(1).max(200),
   }),
   'sale-return': payload({
-    warehouse: versionedReference,
+    warehouse: warehouseReference,
     returnReason: z.string().min(1).max(1000),
     returnLines: z.array(returnLine).min(1).max(200),
   }),
@@ -513,32 +534,32 @@ export const vouPayloadSchemaByEntity = {
   'purchase-order': payload({
     supplier: versionedReference,
     purchaser: employeeReference.optional(),
-    warehouse: versionedReference,
+    warehouse: warehouseReference,
     productLines: z.array(productLine).min(1).max(200),
   }),
   'purchase-inbound': payload({
     supplier: versionedReference,
-    warehouse: versionedReference,
+    warehouse: warehouseReference,
     sourceLines: z.array(sourceLine).min(1).max(200),
   }),
   'purchase-return': payload({
     supplier: versionedReference,
-    warehouse: versionedReference,
+    warehouse: warehouseReference,
     returnReason: z.string().min(1).max(1000),
     returnLines: z.array(returnLine).min(1).max(200),
   }),
   'order-production': payload({
-    materialWarehouse: versionedReference,
-    finishedWarehouse: versionedReference,
+    materialWarehouse: warehouseReference,
+    finishedWarehouse: warehouseReference,
     productionLines: z.array(productionLine).min(1).max(200),
   }),
   'self-production': payload({
-    materialWarehouse: versionedReference,
-    finishedWarehouse: versionedReference,
+    materialWarehouse: warehouseReference,
+    finishedWarehouse: warehouseReference,
     productionLines: z.array(productionLine).min(1).max(200),
   }),
   'inventory-count': payload({
-    warehouse: versionedReference,
+    warehouse: warehouseReference,
     inventoryCountLines: z.array(inventoryLine).min(1).max(200),
   }),
   'sales-receipt': payload({

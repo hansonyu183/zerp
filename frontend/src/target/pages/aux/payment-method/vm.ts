@@ -283,6 +283,7 @@ export function usePaymentMethodManagementViewModel() {
     action: ListAction,
   ): boolean {
     if (action === 'create') return can(paymentMethodPaths.create)
+    if (action === 'delete') return false
     if (!item) return false
     if (action === 'edit')
       return (

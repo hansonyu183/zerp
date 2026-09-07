@@ -62,6 +62,9 @@ export const auxEntities = [
   'asset-category',
   'operating-entity',
   'employee',
+  'warehouse',
+  'fund-account',
+  'vehicle',
 ] as const
 
 export type AuxContractEntity = (typeof auxEntities)[number]
@@ -191,6 +194,49 @@ const auxWriteShapes = {
     operatingEntityId: identifierShape.id,
     remark: z.string().max(1000),
   },
+  warehouse: {
+    ...nameShape,
+    address: z.string().max(500),
+    contactName: z.string().max(100),
+    contactPhone: z.string().max(32),
+    managerEmployeeId: identifierShape.id.nullable(),
+    remark: z.string().max(1000),
+  },
+  'fund-account': {
+    ...nameShape,
+    currency: z.string().regex(/^[A-Z]{3}$/),
+    accountName: z.string().min(1).max(200),
+    bank: z.string().min(1).max(200),
+    branch: z.string().max(200),
+    accountNumber: z.string().min(1).max(128),
+    operatingEntityId: identifierShape.id,
+    remark: z.string().max(1000),
+  },
+  vehicle: {
+    ...nameShape,
+    plateNumber: z.string().min(1).max(64),
+    vehicleTypeId: identifierShape.id,
+    carrier: z.discriminatedUnion('kind', [
+      z
+        .object({
+          kind: z.literal('INTERNAL'),
+          operatingEntityId: identifierShape.id,
+        })
+        .strict(),
+      z
+        .object({
+          kind: z.literal('EXTERNAL'),
+          otherUnitId: identifierShape.id,
+          approvalEntryId: identifierShape.id,
+        })
+        .strict(),
+    ]),
+    vin: z.string().max(64),
+    engineNumber: z.string().max(64),
+    ratedLoadKg: z.number().nonnegative(),
+    bulkWaterCarrier: z.boolean(),
+    remark: z.string().max(1000),
+  },
 } as const
 
 const auxDetailOnlyShapes = {
@@ -211,6 +257,9 @@ const auxDetailOnlyShapes = {
   'asset-category': {},
   'operating-entity': {},
   employee: {},
+  warehouse: {},
+  'fund-account': {},
+  vehicle: {},
 } as const
 
 const listItem = z
@@ -221,7 +270,7 @@ const listItem = z
     ...nameShape,
     enabled: z.boolean(),
     ...revisionShape,
-    availableActions: z.array(z.enum(['edit', 'enable', 'disable'])),
+    availableActions: z.array(z.enum(['edit', 'enable', 'disable', 'delete'])),
   })
   .strict()
 
@@ -311,7 +360,63 @@ const {
 } = auxWriteShapes.employee
 
 /** Frozen current-data snapshots used by transaction consumers such as VOU. */
-export const auxPeopleDataSchemas = {
+const warehouseCurrentData = z
+  .object({
+    name: auxWriteShapes.warehouse.name,
+    address: auxWriteShapes.warehouse.address,
+    contactName: auxWriteShapes.warehouse.contactName,
+    contactPhone: auxWriteShapes.warehouse.contactPhone,
+    manager: currentSnapshot.nullable(),
+    remark: auxWriteShapes.warehouse.remark,
+  })
+  .strict()
+
+const fundAccountCurrentData = z
+  .object({
+    name: auxWriteShapes['fund-account'].name,
+    currency: auxWriteShapes['fund-account'].currency,
+    accountName: auxWriteShapes['fund-account'].accountName,
+    bank: auxWriteShapes['fund-account'].bank,
+    branch: auxWriteShapes['fund-account'].branch,
+    accountNumber: auxWriteShapes['fund-account'].accountNumber,
+    operatingEntity: currentSnapshot,
+    remark: auxWriteShapes['fund-account'].remark,
+  })
+  .strict()
+
+const vehicleCurrentData = z
+  .object({
+    name: auxWriteShapes.vehicle.name,
+    plateNumber: auxWriteShapes.vehicle.plateNumber,
+    vehicleType: currentSnapshot,
+    carrier: z.discriminatedUnion('kind', [
+      z
+        .object({
+          kind: z.literal('INTERNAL'),
+          operatingEntityId: identifierShape.id,
+          code: z.string().min(1).max(64),
+          name: z.string().min(1).max(200),
+        })
+        .strict(),
+      z
+        .object({
+          kind: z.literal('EXTERNAL'),
+          otherUnitId: identifierShape.id,
+          approvalEntryId: identifierShape.id,
+          code: z.string().min(1).max(64),
+          name: z.string().min(1).max(200),
+        })
+        .strict(),
+    ]),
+    vin: auxWriteShapes.vehicle.vin,
+    engineNumber: auxWriteShapes.vehicle.engineNumber,
+    ratedLoadKg: auxWriteShapes.vehicle.ratedLoadKg,
+    bulkWaterCarrier: auxWriteShapes.vehicle.bulkWaterCarrier,
+    remark: auxWriteShapes.vehicle.remark,
+  })
+  .strict()
+
+export const auxCurrentDataSchemas = {
   'operating-entity': z.object(auxWriteShapes['operating-entity']).strict(),
   employee: z
     .object({
@@ -322,6 +427,9 @@ export const auxPeopleDataSchemas = {
       operatingEntity: currentSnapshot,
     })
     .strict(),
+  warehouse: warehouseCurrentData,
+  'fund-account': fundAccountCurrentData,
+  vehicle: vehicleCurrentData,
 } as const
 
 export function operatingEntityGetRoute<const Path extends string>(path: Path) {
@@ -346,7 +454,52 @@ export function employeeGetRoute<const Path extends string>(path: Path) {
     z
       .object({
         ...listItem.shape,
-        ...auxPeopleDataSchemas.employee.shape,
+        ...auxCurrentDataSchemas.employee.shape,
+        updatedAt: z.string().datetime(),
+        updatedBy: z.string(),
+      })
+      .strict(),
+  )
+}
+
+export function warehouseGetRoute<const Path extends string>(path: Path) {
+  return postRoute(
+    path,
+    z.object(identifierShape).strict(),
+    z
+      .object({
+        ...listItem.shape,
+        ...auxCurrentDataSchemas.warehouse.shape,
+        updatedAt: z.string().datetime(),
+        updatedBy: z.string(),
+      })
+      .strict(),
+  )
+}
+
+export function fundAccountGetRoute<const Path extends string>(path: Path) {
+  return postRoute(
+    path,
+    z.object(identifierShape).strict(),
+    z
+      .object({
+        ...listItem.shape,
+        ...auxCurrentDataSchemas['fund-account'].shape,
+        updatedAt: z.string().datetime(),
+        updatedBy: z.string(),
+      })
+      .strict(),
+  )
+}
+
+export function vehicleGetRoute<const Path extends string>(path: Path) {
+  return postRoute(
+    path,
+    z.object(identifierShape).strict(),
+    z
+      .object({
+        ...listItem.shape,
+        ...auxCurrentDataSchemas.vehicle.shape,
         updatedAt: z.string().datetime(),
         updatedBy: z.string(),
       })

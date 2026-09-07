@@ -10,6 +10,7 @@ import {
   auxEntities,
   auxGetRoute,
   employeeGetRoute,
+  fundAccountGetRoute,
   auxQueryRoute,
   measurementUnitQueryRoute,
   auxReferenceRoute,
@@ -17,6 +18,8 @@ import {
   auxRouteBinding,
   auxSaveRoute,
   operatingEntityGetRoute,
+  vehicleGetRoute,
+  warehouseGetRoute,
   type AuxRouteBinding,
 } from './aux-contract.ts'
 import { userRevisionSchema, userSummarySchema } from './user-contract.ts'
@@ -361,9 +364,6 @@ export const bobEntities = [
   'other-unit',
   'sales-partner',
   'product',
-  'warehouse',
-  'vehicle',
-  'fund-account',
 ] as const
 
 type BobRouteAction = 'query' | 'get'
@@ -828,6 +828,90 @@ export function registerIndependentRoutes(
       route: auxDeleteRoute('/aux/asset-category/delete'),
       handler: handlers.aux(auxRouteBinding('asset-category', 'delete')),
     },
+    {
+      route: auxQueryRoute('/aux/warehouse/query'),
+      handler: handlers.aux(auxRouteBinding('warehouse', 'query')),
+    },
+    {
+      route: warehouseGetRoute('/aux/warehouse/get'),
+      handler: handlers.aux(auxRouteBinding('warehouse', 'get')),
+    },
+    {
+      route: auxCreateRoute('/aux/warehouse/create', 'warehouse'),
+      handler: handlers.aux(auxRouteBinding('warehouse', 'create')),
+    },
+    {
+      route: auxSaveRoute('/aux/warehouse/save', 'warehouse'),
+      handler: handlers.aux(auxRouteBinding('warehouse', 'save')),
+    },
+    {
+      route: auxEnableRoute('/aux/warehouse/enable'),
+      handler: handlers.aux(auxRouteBinding('warehouse', 'enable')),
+    },
+    {
+      route: auxDisableRoute('/aux/warehouse/disable'),
+      handler: handlers.aux(auxRouteBinding('warehouse', 'disable')),
+    },
+    {
+      route: auxDeleteRoute('/aux/warehouse/delete'),
+      handler: handlers.aux(auxRouteBinding('warehouse', 'delete')),
+    },
+    {
+      route: auxQueryRoute('/aux/fund-account/query'),
+      handler: handlers.aux(auxRouteBinding('fund-account', 'query')),
+    },
+    {
+      route: fundAccountGetRoute('/aux/fund-account/get'),
+      handler: handlers.aux(auxRouteBinding('fund-account', 'get')),
+    },
+    {
+      route: auxCreateRoute('/aux/fund-account/create', 'fund-account'),
+      handler: handlers.aux(auxRouteBinding('fund-account', 'create')),
+    },
+    {
+      route: auxSaveRoute('/aux/fund-account/save', 'fund-account'),
+      handler: handlers.aux(auxRouteBinding('fund-account', 'save')),
+    },
+    {
+      route: auxEnableRoute('/aux/fund-account/enable'),
+      handler: handlers.aux(auxRouteBinding('fund-account', 'enable')),
+    },
+    {
+      route: auxDisableRoute('/aux/fund-account/disable'),
+      handler: handlers.aux(auxRouteBinding('fund-account', 'disable')),
+    },
+    {
+      route: auxDeleteRoute('/aux/fund-account/delete'),
+      handler: handlers.aux(auxRouteBinding('fund-account', 'delete')),
+    },
+    {
+      route: auxQueryRoute('/aux/vehicle/query'),
+      handler: handlers.aux(auxRouteBinding('vehicle', 'query')),
+    },
+    {
+      route: vehicleGetRoute('/aux/vehicle/get'),
+      handler: handlers.aux(auxRouteBinding('vehicle', 'get')),
+    },
+    {
+      route: auxCreateRoute('/aux/vehicle/create', 'vehicle'),
+      handler: handlers.aux(auxRouteBinding('vehicle', 'create')),
+    },
+    {
+      route: auxSaveRoute('/aux/vehicle/save', 'vehicle'),
+      handler: handlers.aux(auxRouteBinding('vehicle', 'save')),
+    },
+    {
+      route: auxEnableRoute('/aux/vehicle/enable'),
+      handler: handlers.aux(auxRouteBinding('vehicle', 'enable')),
+    },
+    {
+      route: auxDisableRoute('/aux/vehicle/disable'),
+      handler: handlers.aux(auxRouteBinding('vehicle', 'disable')),
+    },
+    {
+      route: auxDeleteRoute('/aux/vehicle/delete'),
+      handler: handlers.aux(auxRouteBinding('vehicle', 'delete')),
+    },
   ] as const)
   withAux.openapiRoutes([
     ...bobEntities.flatMap((entity) =>
@@ -884,6 +968,9 @@ const auxNames: Record<(typeof auxEntities)[number], string> = {
   'asset-category': '资产类别',
   'operating-entity': '经营主体',
   employee: '员工',
+  warehouse: '仓库',
+  'fund-account': '资金账户',
+  vehicle: '车辆',
 }
 
 const bobNames: Record<(typeof bobEntities)[number], string> = {
@@ -892,9 +979,6 @@ const bobNames: Record<(typeof bobEntities)[number], string> = {
   'other-unit': '其他单位',
   'sales-partner': '销售合作方',
   product: '产品',
-  warehouse: '仓库',
-  vehicle: '车辆',
-  'fund-account': '资金账户',
 }
 
 export const independentRouteMetadata = [

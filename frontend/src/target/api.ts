@@ -125,6 +125,60 @@ export type TargetEmployeeSaveInput = PostJson<
 export type TargetEmployeeEnabledInput = PostJson<
   (typeof client)['aux']['employee']['enable']['$post']
 >
+export type TargetWarehouseQueryInput = PostJson<
+  (typeof client)['aux']['warehouse']['query']['$post']
+>
+export type TargetWarehouseCreateInput = PostJson<
+  (typeof client)['aux']['warehouse']['create']['$post']
+>
+export type TargetWarehouseSaveInput = PostJson<
+  (typeof client)['aux']['warehouse']['save']['$post']
+>
+export type TargetWarehouseEnabledInput = PostJson<
+  (typeof client)['aux']['warehouse']['enable']['$post']
+>
+export type TargetWarehouseDeleteInput = PostJson<
+  (typeof client)['aux']['warehouse']['delete']['$post']
+>
+export type TargetFundAccountQueryInput = PostJson<
+  (typeof client)['aux']['fund-account']['query']['$post']
+>
+export type TargetFundAccountCreateInput = PostJson<
+  (typeof client)['aux']['fund-account']['create']['$post']
+>
+export type TargetFundAccountSaveInput = PostJson<
+  (typeof client)['aux']['fund-account']['save']['$post']
+>
+export type TargetFundAccountEnabledInput = PostJson<
+  (typeof client)['aux']['fund-account']['enable']['$post']
+>
+export type TargetFundAccountDeleteInput = PostJson<
+  (typeof client)['aux']['fund-account']['delete']['$post']
+>
+export type TargetVehicleQueryInput = PostJson<
+  (typeof client)['aux']['vehicle']['query']['$post']
+>
+export type TargetVehicleCreateInput = PostJson<
+  (typeof client)['aux']['vehicle']['create']['$post']
+>
+export type TargetVehicleSaveInput = PostJson<
+  (typeof client)['aux']['vehicle']['save']['$post']
+>
+export type TargetVehicleEnabledInput = PostJson<
+  (typeof client)['aux']['vehicle']['enable']['$post']
+>
+export type TargetVehicleDeleteInput = PostJson<
+  (typeof client)['aux']['vehicle']['delete']['$post']
+>
+export type TargetAuxReferenceQueryInput = PostJson<
+  (typeof client)['aux']['reference']['query']['$post']
+>
+export type TargetVouReferenceQueryInput = PostJson<
+  (typeof client)['vou']['reference']['query']['$post']
+>
+export type TargetBobReferenceQueryInput = PostJson<
+  (typeof client)['bob']['reference']['query']['$post']
+>
 
 export class TargetApiError extends Error {
   readonly errorKey: string
@@ -827,6 +881,280 @@ export async function setTargetEmployeeEnabled(
   return unwrapTarget(
     await (
       await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function queryTargetWarehouses(
+  csrfToken: string,
+  input: TargetWarehouseQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux.warehouse.query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function getTargetWarehouse(csrfToken: string, id: string) {
+  return unwrapTarget(
+    await (
+      await client.aux.warehouse.get.$post(
+        { json: { id } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function createTargetWarehouse(
+  csrfToken: string,
+  input: TargetWarehouseCreateInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux.warehouse.create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function saveTargetWarehouse(
+  csrfToken: string,
+  input: TargetWarehouseSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux.warehouse.save.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function setTargetWarehouseEnabled(
+  csrfToken: string,
+  input: TargetWarehouseEnabledInput,
+  enabled: boolean,
+) {
+  const endpoint = enabled
+    ? client.aux.warehouse.enable
+    : client.aux.warehouse.disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function deleteTargetWarehouse(
+  csrfToken: string,
+  input: TargetWarehouseDeleteInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux.warehouse.delete.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function queryTargetFundAccounts(
+  csrfToken: string,
+  input: TargetFundAccountQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['fund-account'].query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function getTargetFundAccount(csrfToken: string, id: string) {
+  return unwrapTarget(
+    await (
+      await client.aux['fund-account'].get.$post(
+        { json: { id } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function createTargetFundAccount(
+  csrfToken: string,
+  input: TargetFundAccountCreateInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['fund-account'].create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function saveTargetFundAccount(
+  csrfToken: string,
+  input: TargetFundAccountSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['fund-account'].save.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function setTargetFundAccountEnabled(
+  csrfToken: string,
+  input: TargetFundAccountEnabledInput,
+  enabled: boolean,
+) {
+  const endpoint = enabled
+    ? client.aux['fund-account'].enable
+    : client.aux['fund-account'].disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function deleteTargetFundAccount(
+  csrfToken: string,
+  input: TargetFundAccountDeleteInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['fund-account'].delete.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function queryTargetVehicles(
+  csrfToken: string,
+  input: TargetVehicleQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux.vehicle.query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function getTargetVehicle(csrfToken: string, id: string) {
+  return unwrapTarget(
+    await (
+      await client.aux.vehicle.get.$post(
+        { json: { id } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function createTargetVehicle(
+  csrfToken: string,
+  input: TargetVehicleCreateInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux.vehicle.create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function saveTargetVehicle(
+  csrfToken: string,
+  input: TargetVehicleSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux.vehicle.save.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function setTargetVehicleEnabled(
+  csrfToken: string,
+  input: TargetVehicleEnabledInput,
+  enabled: boolean,
+) {
+  const endpoint = enabled
+    ? client.aux.vehicle.enable
+    : client.aux.vehicle.disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function deleteTargetVehicle(
+  csrfToken: string,
+  input: TargetVehicleDeleteInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux.vehicle.delete.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function queryTargetAuxReferences(
+  csrfToken: string,
+  input: TargetAuxReferenceQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux.reference.query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function queryTargetVouReferences(
+  csrfToken: string,
+  input: TargetVouReferenceQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou.reference.query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function queryTargetBobReferences(
+  csrfToken: string,
+  input: TargetBobReferenceQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob.reference.query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
     ).json(),
   )
 }

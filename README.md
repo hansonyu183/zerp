@@ -68,3 +68,9 @@ API 启动前先同步生成的权限目录，再从 `APP_TEST_ADMIN_PASSWORD_FI
 ## License
 
 MIT，见 [LICENSE](LICENSE)。
+
+## AUX current 一次性转换
+
+从仍有 DCL 人员/资产资料的基线升级时，使用受控环境提供数据库连接，依次执行 `pnpm --filter @zerp/api migrate:aux-people`、`pnpm --filter @zerp/api migrate:aux-assets`，最后同步权限目录。人员转换保留尚未迁移的资产权限；资产转换只按已确认动作映射授权，不扩权。未决内容冲突或历史引用不完整返回 blocker，事务回滚，由正常业务流程解除后再执行。已经有 AUX current 资产的库不重复运行一次性资产转换。
+
+转换保留 ID、编码计数、历史快照、精确来源和审计；旧版本不再参与运行时读取。此步骤不包含生产发布，不使用会重建数据库的聚合命令。规则见 [AUX](docs/domains/aux.md#310-仓库资金账户与车辆) 和 [ADR-0054](docs/adr/0054-aux-current-assets.md)。

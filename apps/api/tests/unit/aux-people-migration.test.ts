@@ -7,6 +7,7 @@ import {
   auxPeoplePermissionMappings,
   convertAuxPeopleHistoricalData,
   planAuxPeopleSources,
+  preserveLegacyAuxAssetPermissionCatalog,
   requiresAuxPeoplePermissionMigration,
   type AuxPeopleSourceEntry,
 } from '../../src/aux/migration.ts'
@@ -226,6 +227,50 @@ test('ordinary catalog sync cannot erase legacy people grants before mapped migr
       ['/aux/employee/save', '/aux/employee/enable', '/aux/employee/disable'],
     ),
     false,
+  )
+})
+
+test('people migration keeps legacy asset permissions for the following atomic conversion', () => {
+  const target = [
+    {
+      id: 'target',
+      path: '/aux/warehouse/query',
+      domain: 'aux',
+      entity: 'warehouse',
+      action: 'query',
+      title: '查询仓库',
+    },
+  ]
+  assert.deepEqual(
+    preserveLegacyAuxAssetPermissionCatalog(target, [
+      {
+        id: 'legacy-asset',
+        path: '/dcl/warehouse/submit-change',
+        domain: 'dcl',
+        entity: 'warehouse',
+        action: 'submit-change',
+        description: '旧仓库变更',
+      },
+      {
+        id: 'unrelated',
+        path: '/dcl/product/submit-change',
+        domain: 'dcl',
+        entity: 'product',
+        action: 'submit-change',
+        description: '产品变更',
+      },
+    ]),
+    [
+      target[0],
+      {
+        id: 'legacy-asset',
+        path: '/dcl/warehouse/submit-change',
+        domain: 'dcl',
+        entity: 'warehouse',
+        action: 'submit-change',
+        title: '旧仓库变更',
+      },
+    ],
   )
 })
 

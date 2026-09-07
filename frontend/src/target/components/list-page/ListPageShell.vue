@@ -8,6 +8,7 @@ import {
   onBeforeUnmount,
   onMounted,
   reactive,
+  ref,
   type UnwrapRef,
 } from 'vue'
 import AppSnackbar from '../AppSnackbar.vue'
@@ -47,6 +48,7 @@ const contractError = computed(() => {
   }
 })
 const rows = computed(() => (contractError.value ? [] : props.vm.items))
+const pendingDelete = ref<Row | null>(null)
 
 function rowActions(item: Row) {
   const pending = props.vm.isRowPending(item.id)
@@ -56,6 +58,7 @@ function rowActions(item: Row) {
       { key: 'edit', caption: '编辑' },
       { key: 'enable', caption: '启用', color: 'success' },
       { key: 'disable', caption: '停用', color: 'warning' },
+      { key: 'delete', caption: '删除', color: 'error' },
     ] as const
   )
     .filter((action) => props.vm.canAction(action.key, item))
@@ -65,6 +68,17 @@ function runAction(key: string, item: Row) {
   if (key === 'edit') void props.vm.edit(item)
   else if (key === 'enable') void props.vm.enable(item)
   else if (key === 'disable') void props.vm.disable(item)
+  else if (key === 'delete') pendingDelete.value = item
+}
+
+function cancelDelete() {
+  pendingDelete.value = null
+}
+
+function confirmDelete() {
+  const item = pendingDelete.value
+  pendingDelete.value = null
+  if (item) void props.vm.delete(item)
 }
 </script>
 
@@ -136,5 +150,22 @@ function runAction(key: string, item: Row) {
       />
     </template>
   </ManagementPageFrame>
+  <v-dialog
+    :model-value="Boolean(pendingDelete)"
+    max-width="480"
+    persistent
+    @update:model-value="$event || cancelDelete()"
+  >
+    <v-card title="确认删除">
+      <v-card-text>
+        确认删除“{{ pendingDelete?.name }}”吗？此操作不可撤销。
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn @click="cancelDelete">取消</v-btn>
+        <v-btn color="error" @click="confirmDelete">删除</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
   <AppSnackbar :message="vm.feedback" @dismiss="vm.dismissFeedback" />
 </template>

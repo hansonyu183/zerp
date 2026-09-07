@@ -51,7 +51,7 @@ ACC 的动作、路径和数据结构由 `apps/api/` 的可执行 Hono/Zod 路�
 
 辅助核算维度限定为客户子单位、Supplier、Other Unit、Employee、Sales Partner、部门、产品、仓库、资金账户、资产和票据。对应 wire value 固定为 `CUSTOMER_SUBUNIT`、`SUPPLIER`、`OTHER_UNIT`、`EMPLOYEE`、`SALES_PARTNER`、`DEPARTMENT`、`PRODUCT`、`WAREHOUSE`、`FUND_ACCOUNT`、`ASSET`、`BILL`。应收、预收必须要求客户子单位，应付、预付必须要求 Supplier；其他往来必须使用一种明确强类型业务档案。Party 不是核算维度且不存在。
 
-会计分录继续用维度 stable ID 作为余额聚合键，同时保存业务档案维度的精确引用快照。Customer Subunit 快照包含 `customerId`、`subunitId`、`customerApprovalEntryId`、编码和名称；Supplier、Other Unit、Employee 与 Sales Partner 快照包含明确 `entity`、stable ID、精确 `approvalEntryId`、编码和名称。后续档案改名、停用或从 Customer 新版本有效子单位集合移除不改写既有分录；新期初和自动记账只接受当前有效引用。部门、产品、仓库、资金账户、资产和票据沿用各自已有的 stable ID 或专属历史快照规则，不伪装为业务档案引用。
+会计分录继续用维度 stable ID 作为余额聚合键，同时保存业务档案维度的精确引用快照。Customer Subunit 快照包含 `customerId`、`subunitId`、`customerApprovalEntryId`、编码和名称；Supplier、Other Unit 与 Sales Partner 快照包含明确 `entity`、stable ID、精确 `approvalEntryId`、编码和名称。后续档案改名、停用或从 Customer 新版本有效子单位集合移除不改写既有分录；新期初和自动记账只接受当前有效引用。Employee、经营主体、仓库和资金账户采用 AUX current stable ID；VOU 采用时保存服务端当前快照，期初维度在同一事务验证启用状态并登记精确引用事实，资金账户币种必须匹配明细币种。部门、产品、资产和票据沿用各自已有的 stable ID 或专属历史快照规则，不伪装为业务档案引用。
 
 只有末级且启用的科目可以被期初、会计映射或会计事实引用。ACC 以统一的科目引用登记标记已引用科目；一旦引用，编码、名称、父级、余额方向、辅助维度、库存属性和结算用途冻结，只允许从启用变为停用。未引用且没有子科目的科目可以删除；有子科目或已有引用的科目不能删除。
 
@@ -95,7 +95,7 @@ VOU 批准事件携带完整的强类型单据副本。ACC 以系统身份在同
 
 数量来源错误只能通过 VOU 反批准原单并重做；ACC 随原批准 revision 删除和重新生成对应流水。ACC 不提供按新换算比例重算历史、直接改写流水或用另一笔库存调整替代原错误事实的纠错入口。
 
-业务控制账簿是实时库存许可的唯一来源。ACC 对账簿、库存科目、仓库和产品维度取得事务锁，并校验新增事实后所有业务日的累计数量均不为负；失败会使来源 VOU 批准和所有账簿写入整体回滚。仓库停用通过内部服务在同一事务锁定仓库库存维度，并且只有该仓库全部产品的当前累计数量均为零时返回通过；BOB 不缓存第二套仓库余额。非控制账簿允许月内暂时负库存，不影响业务许可，留待该账簿锁月时处理。未命中库存科目或 `UN_POST` 的映射不改变数量账。
+业务控制账簿是实时库存许可的唯一来源。ACC 对账簿、库存科目、仓库和产品维度取得事务锁，并校验新增事实后所有业务日的累计数量均不为负；失败会使来源 VOU 批准和所有账簿写入整体回滚。仓库停用通过内部服务在同一事务锁定仓库库存维度，并且只有该仓库全部产品的当前累计数量均为零时返回通过；AUX 不缓存第二套仓库余额。非控制账簿允许月内暂时负库存，不影响业务许可，留待该账簿锁月时处理。未命中库存科目或 `UN_POST` 的映射不改变数量账。
 
 ## 10. 会计期间
 

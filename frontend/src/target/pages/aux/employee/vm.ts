@@ -453,6 +453,7 @@ export function useEmployeeManagementViewModel() {
     action: ListAction,
   ): boolean {
     if (action === 'create') return can(employeePaths.create)
+    if (action === 'delete') return false
     if (!item) return false
     if (action === 'edit')
       return (

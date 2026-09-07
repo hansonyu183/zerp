@@ -272,69 +272,6 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   }
   assert.equal(operatingEntity.shortName, '全聚合主体')
 
-  const wrongTypeSubjectId = ulid()
-  const wrongTypeSubmissionId = ulid()
-  subjectIds.push(wrongTypeSubjectId)
-  await assert.rejects(
-    service.submit(
-      'vehicle',
-      'submit-new',
-      {
-        subjectId: wrongTypeSubjectId,
-        submissionId: wrongTypeSubmissionId,
-        idempotencyKey: wrongTypeSubmissionId,
-        expectedLatestApprovedSubmissionId: null,
-        expectedLatestApprovedRevision: null,
-        snapshot: {
-          name: '错误类型车辆',
-          plateNumber: '闽D54321',
-          vehicleType: { id: auxIds[1], code: 'FORGED', name: '伪造车型' },
-          carrier: {
-            kind: 'INTERNAL',
-            operatingEntityId: operatingEntity.id,
-          },
-          vin: 'VIN00000000000002',
-          engineNumber: 'ENGINE-02',
-          ratedLoadKg: 1,
-          bulkWaterCarrier: false,
-          remark: '',
-          enabled: true,
-        },
-      },
-      submitter,
-      ulid(),
-    ),
-    (error: unknown) =>
-      error instanceof ArchiveApplicationError &&
-      error.errorKey === 'vehicle_reference_unavailable',
-  )
-
-  await submitAndApprove('vehicle', {
-    name: '测试车辆',
-    plateNumber: '闽D12345',
-    vehicleType: { id: auxIds[0], code: 'TST-0001', name: '货车' },
-    carrier: {
-      kind: 'INTERNAL',
-      operatingEntityId: operatingEntity.id,
-    },
-    vin: 'VIN00000000000001',
-    engineNumber: 'ENGINE-01',
-    ratedLoadKg: 1200.5,
-    bulkWaterCarrier: false,
-    remark: '',
-    enabled: true,
-  })
-  await submitAndApprove('fund-account', {
-    name: '基本户',
-    currency: 'cny',
-    accountName: '全聚合经营主体',
-    bank: '目标银行',
-    branch: '厦门分行',
-    accountNumber: '6222-0000-01',
-    remark: '',
-    enabled: true,
-    operatingEntity: operatingEntityReference,
-  })
   const product = await submitAndApprove('product', {
     name: '测试产品',
     barcode: 'barcode-001',
@@ -1419,8 +1356,6 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       error.errorKey === 'approval_not_found',
   )
   for (const entity of [
-    'vehicle',
-    'fund-account',
     'product',
     'supplier',
     'customer',

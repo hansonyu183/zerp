@@ -14,7 +14,7 @@ import {
   vouPaymentMethodSelectionOriginOptions,
   vouPaymentMethodSelectionOriginPresentation,
   vouPaymentMethodSelectionOrigins,
-  vouAuxPeopleReferences,
+  vouAuxCurrentReferences,
   vouPayloadReferences,
   vouSourceLineSourceEntities,
   vouSourceLineTargetEntities,
@@ -64,7 +64,7 @@ const base = {
     customerSubunit: reference,
     operatingEntity: auxPeopleReference,
     salesperson: auxPeopleReference,
-    warehouse: reference,
+    warehouse: auxPeopleReference,
     paymentMethod: null,
     productLines: [
       {
@@ -483,7 +483,6 @@ test('recursive VOU reference facts preserve nested paths and strict reference s
     ]),
     [['counterparty', 'other-unit']],
   )
-
 })
 
 test('traverses only stable AUX people in intermediary snapshots', () => {
@@ -511,7 +510,7 @@ test('traverses only stable AUX people in intermediary snapshots', () => {
   } as unknown as import('../src/index.ts').VouPayload
 
   assert.deepEqual(
-    vouAuxPeopleReferences(payload).map((fact) => [
+    vouAuxCurrentReferences(payload).map((fact) => [
       fact.field,
       fact.candidateEntity,
       fact.reference.objectId,
@@ -605,7 +604,7 @@ test('sale and purchase return lines require the exact source document and line 
     currency: 'CNY',
     parentEntity: 'sale-order',
     parentDocumentId: '01J00000000000000000000003',
-    warehouse: reference,
+    warehouse: auxPeopleReference,
     returnReason: '精确来源回归',
     returnLines: [returnLine],
     attachments: [],

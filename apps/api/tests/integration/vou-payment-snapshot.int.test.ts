@@ -5,7 +5,7 @@ import { ulid } from 'ulid'
 import type { VouPayloadFor } from '@zerp/model'
 import { createDatabase } from '../../src/db/database.ts'
 import { AuxApplicationError, AuxService } from '../../src/aux/service.ts'
-import { auxPeopleDataSchemas } from '../../src/app/aux-contract.ts'
+import { auxCurrentDataSchemas } from '../../src/app/aux-contract.ts'
 import { VouApplicationError, VouService } from '../../src/vou/service.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
@@ -46,12 +46,10 @@ test('sales orders adopt explicit customer or current payment snapshots without 
   const subjects = {
     customer: ulid(),
     product: ulid(),
-    warehouse: ulid(),
   }
   const entries = {
     customer: ulid(),
     product: ulid(),
-    warehouse: ulid(),
   }
   const subunitId = ulid()
   const emptySubunitId = ulid()
@@ -160,7 +158,6 @@ test('sales orders adopt explicit customer or current payment snapshots without 
   const prefix = {
     customer: 'CUS',
     product: 'PRD',
-    warehouse: 'WHS',
   }
   const codeSuffix = Math.floor(Math.random() * 10000)
     .toString()
@@ -264,14 +261,18 @@ test('sales orders adopt explicit customer or current payment snapshots without 
       enabled: true,
     })
     .execute()
-  await db
-    .insertInto('dcl_warehouse_versions')
-    .values({
-      approval_entry_id: entries.warehouse,
-      name: '收款测试仓库',
-      enabled: true,
-    })
-    .execute()
+  const currentWarehouse = await new AuxService(db).create(
+    'warehouse',
+    {
+      name: '测试仓库',
+      address: '',
+      contactName: '',
+      contactPhone: '',
+      managerEmployeeId: null,
+      remark: '',
+    },
+    { id: actorId, permissions: ['/aux/warehouse/create'] },
+  )
   const operatingEntityCreated = await aux.create(
     'operating-entity',
     {
@@ -309,7 +310,7 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     attachments: [],
     customerSubunit: { ...reference('customer'), objectId: selectedSubunit },
     operatingEntity: { objectId: operatingEntity.id },
-    warehouse: reference('warehouse'),
+    warehouse: { objectId: currentWarehouse.id },
     paymentMethod,
     productLines: [
       {
@@ -557,12 +558,11 @@ test('sales orders adopt explicit customer or current payment snapshots without 
   )
   const adoptedOperatingEntity = (first.payload as VouPayloadFor<'sale-order'>)
     .operatingEntity
-  const originalOperatingData = auxPeopleDataSchemas['operating-entity'].parse(
+  const originalOperatingData = auxCurrentDataSchemas['operating-entity'].parse(
     Object.fromEntries(
-      Object.keys(auxPeopleDataSchemas['operating-entity'].shape).map((key) => [
-        key,
-        operatingEntity[key as keyof typeof operatingEntity],
-      ]),
+      Object.keys(auxCurrentDataSchemas['operating-entity'].shape).map(
+        (key) => [key, operatingEntity[key as keyof typeof operatingEntity]],
+      ),
     ),
   )
   assert.deepEqual(adoptedOperatingEntity.snapshot, originalOperatingData)

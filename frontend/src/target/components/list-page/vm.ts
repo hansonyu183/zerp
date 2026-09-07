@@ -33,7 +33,7 @@ export type ListPageResult<Item extends ListIdentity> = {
   pageSize: number
 }
 
-export type ListAction = 'create' | 'edit' | 'enable' | 'disable'
+export type ListAction = 'create' | 'edit' | 'enable' | 'disable' | 'delete'
 export type ListActionResult = 'changed' | void
 
 export class ListActionUnresolvedError extends Error {
@@ -59,6 +59,7 @@ export type ListPageCallbacks<
   onEdit?: (item: Item) => Promise<ListActionResult>
   onEnable?: (item: Item) => Promise<ListActionResult>
   onDisable?: (item: Item) => Promise<ListActionResult>
+  onDelete?: (item: Item) => Promise<ListActionResult>
   onCanAction?: (item: Item | null, action: ListAction) => boolean
 }
 
@@ -92,6 +93,7 @@ export type ListPageViewModel<
   edit: (item: Item) => Promise<void>
   enable: (item: Item) => Promise<void>
   disable: (item: Item) => Promise<void>
+  delete: (item: Item) => Promise<void>
   isRowPending: (id: string) => boolean
   isRowBlocked: (id: string) => boolean
   dismissFeedback: () => void
@@ -158,7 +160,9 @@ export function useListPageViewModel<
           ? callbacks.onEdit
           : action === 'enable'
             ? callbacks.onEnable
-            : callbacks.onDisable
+            : action === 'disable'
+              ? callbacks.onDisable
+              : callbacks.onDelete
     if (action === 'create' && actionBlocked.value) return false
     if (item && rowBlocked.value.has(item.id)) return false
     return Boolean(callback && (callbacks.onCanAction?.(item, action) ?? true))
@@ -311,6 +315,10 @@ export function useListPageViewModel<
     return runRowAction('disable', item, callbacks.onDisable)
   }
 
+  function deleteItem(item: Item): Promise<void> {
+    return runRowAction('delete', item, callbacks.onDelete)
+  }
+
   function isRowPending(id: string): boolean {
     return rowPending.value.has(id)
   }
@@ -354,6 +362,7 @@ export function useListPageViewModel<
     edit,
     enable,
     disable,
+    delete: deleteItem,
     isRowPending,
     isRowBlocked,
     dismissFeedback,

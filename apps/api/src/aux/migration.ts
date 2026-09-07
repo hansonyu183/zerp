@@ -6,7 +6,7 @@ import { sql, type Kysely, type Transaction } from 'kysely'
 import { ulid } from 'ulid'
 
 import type { TargetPermissionCatalogEntry } from '../../scripts/target-artifacts.ts'
-import { auxPeopleDataSchemas } from '../app/aux-contract.ts'
+import { auxCurrentDataSchemas } from '../app/aux-contract.ts'
 import {
   TargetBootstrapService,
   type PermissionCatalogMigrationReport,
@@ -49,6 +49,39 @@ export interface AuxPeopleMigrationBlocker {
 export type AuxPeopleSourcePlan =
   | { ok: true; sources: AuxPeopleSelectedSource[] }
   | { ok: false; blockers: AuxPeopleMigrationBlocker[] }
+
+interface StoredPermissionCatalogEntry {
+  id: string
+  path: string
+  domain: string
+  entity: string
+  action: string
+  description: string | null
+}
+
+export function preserveLegacyAuxAssetPermissionCatalog(
+  targetCatalog: readonly TargetPermissionCatalogEntry[],
+  existing: readonly StoredPermissionCatalogEntry[],
+): TargetPermissionCatalogEntry[] {
+  const targetPaths = new Set(targetCatalog.map((entry) => entry.path))
+  const retained = existing
+    .filter(
+      (entry) =>
+        (entry.domain === 'dcl' || entry.domain === 'bob') &&
+        ['warehouse', 'vehicle', 'fund-account'].includes(entry.entity) &&
+        !targetPaths.has(entry.path),
+    )
+    .map((entry) => ({
+      id: entry.id,
+      path: entry.path,
+      domain: entry.domain,
+      entity: entry.entity,
+      action: entry.action,
+      title: entry.description ?? entry.path,
+    }))
+    .sort((left, right) => left.path.localeCompare(right.path))
+  return [...targetCatalog, ...retained]
+}
 
 export const auxPeoplePermissionMappings: readonly PermissionPathMapping[] = [
   {
@@ -252,7 +285,7 @@ export function convertAuxPeopleHistoricalData(
 ): AuxPeopleCurrentData {
   if (source.entity === 'operating-entity') {
     const version = source.row
-    return auxPeopleDataSchemas['operating-entity'].parse({
+    return auxCurrentDataSchemas['operating-entity'].parse({
       legalName: version.legal_name,
       shortName: version.short_name,
       legalIdentifier: version.legal_identifier ?? '',
@@ -285,7 +318,7 @@ export function convertAuxPeopleHistoricalData(
     version.hired_on instanceof Date
       ? version.hired_on.toISOString().slice(0, 10)
       : (version.hired_on ?? '')
-  return auxPeopleDataSchemas.employee.parse({
+  return auxCurrentDataSchemas.employee.parse({
     identityKind: sources.identityKind,
     legalName: version.legal_name ?? '',
     displayName: version.display_name,
@@ -544,7 +577,20 @@ export class AuxPeopleMigrationService {
       const permissionCatalog =
         await this.bootstrap.migratePermissionCatalogInTransaction(
           transaction,
-          targetCatalog,
+          preserveLegacyAuxAssetPermissionCatalog(
+            targetCatalog,
+            await transaction
+              .selectFrom('app_permissions')
+              .select([
+                'id',
+                'path',
+                'domain',
+                'entity',
+                'action',
+                'description',
+              ])
+              .execute(),
+          ),
           auxPeoplePermissionMappings,
         )
       return {
@@ -573,7 +619,8 @@ export class AuxPeopleMigrationService {
           'product-category', 'product-type', 'employee-category', 'department',
           'position', 'settlement-method', 'payment-method', 'dictionary-type',
           'dictionary-item', 'measurement-unit', 'income-expense-type',
-          'asset-category', 'operating-entity', 'employee'
+          'asset-category', 'operating-entity', 'employee',
+          'warehouse', 'vehicle', 'fund-account'
         ))
     `.execute(transaction)
     for (const table of [

@@ -28,8 +28,8 @@ const noWideIndependentPath: string extends keyof SchemaOf<
 const auxReferencePath: '/aux/reference/query' = auxReferenceRoute.path
 const bobReferencePath: '/bob/reference/query' = bobReferenceRoute.path
 const vouReferencePath: '/vou/reference/query' = vouRouteSet.reference.path
-const vehicleDeletePath: '/dcl/vehicle/delete' =
-  archiveRouteSets.vehicle.delete.path
+const supplierDeletePath: '/dcl/supplier/delete' =
+  archiveRouteSets.supplier.delete.path
 
 const client = hc<TargetAppType>('http://target.invalid')
 const archiveClient = hc<ReturnType<typeof registerArchiveRoutes>>(
@@ -48,14 +48,14 @@ void client.vou[':entity'].get.$post({
   param: { entity: 'sales-receipt' },
   json: { documentId: '01J00000000000000000000000' },
 })
-void client.dcl.vehicle.delete.$post({
+void client.dcl.supplier.delete.$post({
   json: {
     subjectId: '01J00000000000000000000000',
     submissionId: '01J00000000000000000000001',
     expectedRevision: '1',
   },
 })
-void archiveClient.dcl.vehicle.delete.$post({
+void archiveClient.dcl.supplier.delete.$post({
   json: {
     subjectId: '01J00000000000000000000000',
     submissionId: '01J00000000000000000000001',
@@ -68,4 +68,4 @@ void noWideIndependentPath
 void auxReferencePath
 void bobReferencePath
 void vouReferencePath
-void vehicleDeletePath
+void supplierDeletePath

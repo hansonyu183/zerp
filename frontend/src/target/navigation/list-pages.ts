@@ -11,6 +11,9 @@ import type { PaymentMethodListItem } from '../pages/aux/payment-method/vm.ts'
 import type { AssetCategoryListItem } from '../pages/aux/asset-category/vm.ts'
 import type { EmployeeListItem } from '../pages/aux/employee/vm.ts'
 import type { OperatingEntityListItem } from '../pages/aux/operating-entity/vm.ts'
+import type { WarehouseListItem } from '../pages/aux/warehouse/vm.ts'
+import type { FundAccountListItem } from '../pages/aux/fund-account/vm.ts'
+import type { VehicleListItem } from '../pages/aux/vehicle/vm.ts'
 
 const identityColumns = [
   { key: 'code', type: 'text', caption: '编码' },
@@ -112,6 +115,24 @@ export const operatingEntityListPage = defineListPage<OperatingEntityListItem>({
 export const employeeListPage = defineListPage<EmployeeListItem>({
   title: '员工',
   createLabel: '新增员工',
+  columns: baseColumns,
+  filters: baseFilters,
+})
+export const warehouseListPage = defineListPage<WarehouseListItem>({
+  title: '仓库',
+  createLabel: '新增仓库',
+  columns: baseColumns,
+  filters: baseFilters,
+})
+export const fundAccountListPage = defineListPage<FundAccountListItem>({
+  title: '资金账户',
+  createLabel: '新增资金账户',
+  columns: baseColumns,
+  filters: baseFilters,
+})
+export const vehicleListPage = defineListPage<VehicleListItem>({
+  title: '车辆',
+  createLabel: '新增车辆',
   columns: baseColumns,
   filters: baseFilters,
 })

@@ -88,24 +88,24 @@ test('workbench route is session-scoped and emits no independent permission', ()
 test('target artifact gate emits action permissions without presentation state', () => {
   assert.deepEqual(
     validateTargetRouteMetadata(
-      ['POST /dcl/warehouse/approve'],
+      ['POST /dcl/product/approve'],
       [
         {
           method: 'post',
-          path: '/dcl/warehouse/approve',
-          permission: '/dcl/warehouse/approve',
-          title: '批准仓库申报',
+          path: '/dcl/product/approve',
+          permission: '/dcl/product/approve',
+          title: '批准产品申报',
         },
       ],
     ),
     [
       {
-        id: '01J9F8A0A4F06EBCAB84681A2E',
-        path: '/dcl/warehouse/approve',
+        id: '01J79A1EBF2FFEA8AC2DA6FE05',
+        path: '/dcl/product/approve',
         domain: 'dcl',
-        entity: 'warehouse',
+        entity: 'product',
         action: 'approve',
-        title: '批准仓库申报',
+        title: '批准产品申报',
       },
     ],
   )
@@ -257,8 +257,9 @@ test('archive query contract uses the fixed page shell and entity-specific filte
     filters: { keyword: 'water', status: 'APPROVED', enabled: true },
   }
   const vehicle =
-    archiveRouteSets.vehicle.query.request.body.content['application/json']
-      .schema
+    archiveRouteSets['sales-partner'].query.request.body.content[
+      'application/json'
+    ].schema
   assert.deepEqual(vehicle.parse(input), input)
   assert.throws(() =>
     vehicle.parse({
@@ -307,21 +308,19 @@ test('archive query contract uses the fixed page shell and entity-specific filte
   )
 })
 
-test('archive failures expose only typed DCL and ACC blockers', () => {
+test('archive failures expose typed current AUX and ACC blockers', () => {
   assert.deepEqual(
     archiveBlockerSchema.parse({
-      kind: 'DCL_APPROVAL_REFERENCE',
+      kind: 'AUX_CURRENT_REFERENCE',
       entity: 'vehicle',
-      subjectId: '01J00000000000000000000001',
-      submissionId: '01J00000000000000000000002',
+      objectId: '01J00000000000000000000001',
       field: 'carrier',
       approvalEntryId: '01J00000000000000000000003',
     }),
     {
-      kind: 'DCL_APPROVAL_REFERENCE',
+      kind: 'AUX_CURRENT_REFERENCE',
       entity: 'vehicle',
-      subjectId: '01J00000000000000000000001',
-      submissionId: '01J00000000000000000000002',
+      objectId: '01J00000000000000000000001',
       field: 'carrier',
       approvalEntryId: '01J00000000000000000000003',
     },
@@ -417,6 +416,9 @@ test('target OpenAPI contains the complete issue 363 APP, AUX, and BOB inventory
     'asset-category',
     'operating-entity',
     'employee',
+    'warehouse',
+    'vehicle',
+    'fund-account',
   ]
   const auxPaths = auxEntities.flatMap((entity) =>
     ['query', 'get', 'save', 'enable', 'disable', 'create', 'delete']
@@ -434,9 +436,6 @@ test('target OpenAPI contains the complete issue 363 APP, AUX, and BOB inventory
     'other-unit',
     'sales-partner',
     'product',
-    'warehouse',
-    'vehicle',
-    'fund-account',
   ].flatMap((entity) => [`/bob/${entity}/query`, `/bob/${entity}/get`])
   bobPaths.push('/bob/reference/query')
   const removedMenuPaths = [
@@ -471,8 +470,6 @@ test('target OpenAPI contains every issue 364 DCL lifecycle route', async () => 
   }
   const paths = new Set(Object.keys(document.paths))
   const entities = [
-    'vehicle',
-    'fund-account',
     'product',
     'supplier',
     'customer',
@@ -525,7 +522,7 @@ test('archive query exposes summaries only and RPT get admits one owned version'
     >
   }
   const querySchema =
-    document.paths['/dcl/vehicle/query']!.post.responses[200].content[
+    document.paths['/dcl/product/query']!.post.responses[200].content[
       'application/json'
     ].schema
   assert.doesNotMatch(JSON.stringify(querySchema), /"snapshot"/)

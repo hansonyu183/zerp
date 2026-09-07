@@ -1,8 +1,8 @@
 import {
   AuxApplicationError,
-  resolveAuxPeopleReference,
+  resolveAuxCurrentReference,
 } from '../aux/service.ts'
-import { auxPeopleDataSchemas } from '../app/aux-contract.ts'
+import { auxCurrentDataSchemas } from '../app/aux-contract.ts'
 import { createHash, randomBytes } from 'node:crypto'
 
 import {
@@ -25,8 +25,8 @@ import {
   type VouSourceLineTargetEntity,
   vouDocumentPrefixes,
   vouPayloadReferences,
-  vouAuxPeopleReferences,
-  type VouAuxPeopleReferenceInput,
+  vouAuxCurrentReferences,
+  type VouAuxCurrentReferenceInput,
 } from '@zerp/model'
 import { sql, type Kysely, type Transaction } from 'kysely'
 import { ulid } from 'ulid'
@@ -820,17 +820,38 @@ export class VouService implements WflVouPort {
     if (!preflight.ok) throw new VouApplicationError(preflight.errorKey)
     // Client display values are never authoritative for a new AUX adoption.
     input = { ...input, payload: structuredClone(input.payload) }
-    for (const { candidateEntity, reference } of vouAuxPeopleReferences(
+    for (const { candidateEntity, reference } of vouAuxCurrentReferences(
       input.payload,
     )) {
       if ('approvalEntryId' in reference || 'selectionOrigin' in reference)
         throw new VouApplicationError('vou_invalid_payload')
       try {
-        const adopted = await resolveAuxPeopleReference(
+        const adopted = await resolveAuxCurrentReference(
           tx,
           candidateEntity,
           reference.objectId,
         )
+        if (candidateEntity === 'fund-account') {
+          const account = auxCurrentDataSchemas['fund-account'].parse(
+            adopted.data,
+          )
+          const operatingEntity =
+            'operatingEntity' in input.payload
+              ? input.payload.operatingEntity
+              : undefined
+          if (
+            account.currency !== input.payload.currency ||
+            (operatingEntity &&
+              account.operatingEntity.id !== operatingEntity.objectId)
+          )
+            throw new VouApplicationError('vou_reference_unavailable', [
+              {
+                kind: 'AUX_REFERENCE',
+                entity: candidateEntity,
+                objectId: reference.objectId,
+              },
+            ])
+        }
         Object.assign(reference, {
           code: adopted.code,
           name: adopted.name,
@@ -846,6 +867,39 @@ export class VouService implements WflVouPort {
             },
           ])
         throw error
+      }
+    }
+    if (
+      entity === 'sale-delivery' &&
+      'vehicle' in input.payload &&
+      input.payload.vehicle
+    ) {
+      const vehicle = auxCurrentDataSchemas.vehicle.parse(
+        input.payload.vehicle.snapshot,
+      )
+      if (vehicle.carrier.kind === 'EXTERNAL') {
+        const carrier =
+          'carrier' in input.payload ? input.payload.carrier : undefined
+        if (
+          !carrier ||
+          carrier.objectId !== vehicle.carrier.otherUnitId ||
+          carrier.approvalEntryId !== vehicle.carrier.approvalEntryId
+        )
+          throw new VouApplicationError('vou_reference_unavailable')
+      } else {
+        if (!input.payload.parentEntity || !input.payload.parentDocumentId)
+          throw new VouApplicationError('vou_reference_unavailable')
+        const source = await this.orderSource(
+          tx,
+          input.payload.parentEntity,
+          input.payload.parentDocumentId,
+        )
+        if (
+          !('operatingEntity' in source.payload) ||
+          source.payload.operatingEntity.objectId !==
+            vehicle.carrier.operatingEntityId
+        )
+          throw new VouApplicationError('vou_reference_unavailable')
       }
     }
     const referenceValidation = await this.validateReferences(tx, input.payload)
@@ -1658,7 +1712,7 @@ export class VouService implements WflVouPort {
       case 'employee':
         return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, code, data->>'displayName' AS name FROM aux_objects WHERE entity='employee' AND enabled`
       case 'warehouse':
-        return dcl('warehouse', 'dcl_warehouse_versions', 'version.name')
+        return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, code, data->>'name' AS name FROM aux_objects WHERE entity='warehouse' AND enabled`
       case 'other-unit':
         return dcl(
           'other-unit',
@@ -1666,9 +1720,9 @@ export class VouService implements WflVouPort {
           'version.display_name',
         )
       case 'vehicle':
-        return dcl('vehicle', 'dcl_vehicle_versions', 'version.name')
+        return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, code, data->>'name' AS name FROM aux_objects WHERE entity='vehicle' AND enabled`
       case 'fund-account':
-        return dcl('fund-account', 'dcl_fund_account_versions', 'version.name')
+        return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, code, data->>'name' AS name FROM aux_objects WHERE entity='fund-account' AND enabled`
       case 'sales-partner':
         return dcl(
           'sales-partner',
@@ -2827,7 +2881,7 @@ export class VouService implements WflVouPort {
             'custodian',
             lineNo,
             0,
-            line.custodian,
+            { ...line.custodian, entity: 'employee' },
           )
       }
     if ('assetSaleLines' in payload)
@@ -2880,7 +2934,7 @@ export class VouService implements WflVouPort {
           'fundAccount',
           lineNo,
           0,
-          line.fundAccount,
+          { ...line.fundAccount, entity: 'fund-account' },
         )
       }
     if ('intermediaryCalculation' in payload)
@@ -2945,7 +2999,7 @@ export class VouService implements WflVouPort {
           ? { ...reference, entity: candidateEntity }
           : reference,
       )
-    for (const { field, candidateEntity, reference } of vouAuxPeopleReferences(
+    for (const { field, candidateEntity, reference } of vouAuxCurrentReferences(
       payload,
     ))
       await this.writeReferenceSnapshot(
@@ -2971,7 +3025,7 @@ export class VouService implements WflVouPort {
       entity?: string
       code?: string
       name?: string
-      snapshot?: VouAuxPeopleReferenceInput['snapshot']
+      snapshot?: VouAuxCurrentReferenceInput['snapshot']
     },
   ) {
     await sql`
@@ -4612,7 +4666,7 @@ export class VouService implements WflVouPort {
         entity?: string
         code?: string
         name?: string
-        snapshot?: VouAuxPeopleReferenceInput['snapshot']
+        snapshot?: VouAuxCurrentReferenceInput['snapshot']
       }
     >()
     for (const row of result.rows)
@@ -4626,13 +4680,10 @@ export class VouService implements WflVouPort {
               ...(row.field.startsWith('intermediary.')
                 ? { entity: 'employee' as const }
                 : {}),
-              snapshot:
-                row.reference_entity === 'operating-entity' ||
-                row.field === 'operatingEntity'
-                  ? auxPeopleDataSchemas['operating-entity'].parse(
-                      row.aux_snapshot,
-                    )
-                  : auxPeopleDataSchemas.employee.parse(row.aux_snapshot),
+              snapshot: this.parseCurrentSnapshot(
+                row.reference_entity,
+                row.aux_snapshot,
+              ),
             }
           : row.approval_reference_id
             ? {
@@ -4655,6 +4706,14 @@ export class VouService implements WflVouPort {
               },
       )
     return refs
+  }
+
+  private parseCurrentSnapshot(entity: string | null, snapshot: unknown) {
+    if (!entity || !(entity in auxCurrentDataSchemas))
+      throw new VouApplicationError('vou_invalid_payload')
+    return auxCurrentDataSchemas[
+      entity as keyof typeof auxCurrentDataSchemas
+    ].parse(snapshot)
   }
 
   private async readAttachments(executor: Executor, approvalEntryId: string) {

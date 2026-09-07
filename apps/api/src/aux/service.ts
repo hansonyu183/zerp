@@ -6,9 +6,17 @@ import type {
   AuxCurrentSnapshot,
   EmployeeCurrentData,
   EmployeeCurrentInput,
+  FundAccountCurrentData,
+  FundAccountCurrentInput,
   OperatingEntityCurrentData,
   OperatingEntityCurrentInput,
+  VehicleCarrierCurrentData,
+  VehicleCurrentData,
+  VehicleCurrentInput,
+  WarehouseCurrentData,
+  WarehouseCurrentInput,
 } from '@zerp/model'
+import { auxCurrentEntities } from '@zerp/model'
 
 import type { DB } from '../db/generated.ts'
 import { changeEnablement } from '../enablement/service.ts'
@@ -31,6 +39,9 @@ export const auxEntities = [
   'asset-category',
   'operating-entity',
   'employee',
+  'warehouse',
+  'fund-account',
+  'vehicle',
 ] as const
 
 export type AuxEntity = (typeof auxEntities)[number]
@@ -105,6 +116,9 @@ export interface AuxDataByEntity {
   }
   'operating-entity': OperatingEntityCurrentData
   employee: EmployeeCurrentData
+  warehouse: WarehouseCurrentData
+  'fund-account': FundAccountCurrentData
+  vehicle: VehicleCurrentData
 }
 
 export interface AuxWriteDataByEntity {
@@ -145,12 +159,15 @@ export interface AuxWriteDataByEntity {
   }
   'operating-entity': OperatingEntityCurrentInput
   employee: EmployeeCurrentInput
+  warehouse: WarehouseCurrentInput
+  'fund-account': FundAccountCurrentInput
+  vehicle: VehicleCurrentInput
 }
 
 export type AuxWriteData<Entity extends AuxEntity> =
   AuxWriteDataByEntity[Entity]
 
-export type AuxAvailableAction = 'edit' | 'enable' | 'disable'
+export type AuxAvailableAction = 'edit' | 'enable' | 'disable' | 'delete'
 
 export interface AuxListItem {
   id: string
@@ -179,7 +196,12 @@ export interface AuxCurrentImportRow {
   entity: AuxCurrentEntity
   id: string
   code: string
-  data: OperatingEntityCurrentInput | EmployeeCurrentData
+  data:
+    | OperatingEntityCurrentInput
+    | EmployeeCurrentData
+    | WarehouseCurrentData
+    | FundAccountCurrentData
+    | VehicleCurrentData
   enabled: boolean
   createdAt: Date | string
   createdBy: string
@@ -216,7 +238,7 @@ interface ParsedAuxRow<Entity extends AuxEntity = AuxEntity> {
   updatedBy: string
 }
 
-export interface AuxPeopleReference<Entity extends AuxCurrentEntity> {
+export interface AuxCurrentReference<Entity extends AuxCurrentEntity> {
   objectId: string
   code: string
   name: string
@@ -273,6 +295,10 @@ export class AuxApplicationError extends Error {
     | 'internal_error'
     | 'operating_entity_duplicate_legal_identifier'
     | 'employee_duplicate_legal_identifier'
+    | 'fund_account_duplicate_account_number'
+    | 'vehicle_duplicate_plate_number'
+    | 'vehicle_duplicate_vin'
+    | 'warehouse_disable_blocked'
   readonly data: unknown
 
   constructor(errorKey: AuxApplicationError['errorKey'], data: unknown = null) {
@@ -309,6 +335,9 @@ const codePrefixes: Record<AuxEntity, string> = {
   'asset-category': 'ACT',
   'operating-entity': 'OPE',
   employee: 'EMP',
+  warehouse: 'WHS',
+  'fund-account': 'FAC',
+  vehicle: 'VEH',
 }
 
 function applicationError(
@@ -445,7 +474,7 @@ function employmentDate(value: unknown): string {
 }
 
 function currentEntity(value: AuxEntity): value is AuxCurrentEntity {
-  return value === 'operating-entity' || value === 'employee'
+  return (auxCurrentEntities as readonly string[]).includes(value)
 }
 
 function snapshot(value: unknown): AuxCurrentSnapshot {
@@ -458,8 +487,16 @@ function snapshot(value: unknown): AuxCurrentSnapshot {
   }
 }
 
-function employeeReferenceSource(employeeId: string): string {
-  return `aux_employee:${employeeId}`
+function currentReferenceSource(entity: AuxCurrentEntity, id: string): string {
+  return `aux_current:${entity}:${id}`
+}
+
+function upperCompact(value: unknown, maxLength: number): string {
+  if (typeof value !== 'string') applicationError('validation_failed')
+  const normalized = value.replace(/[\s-]/g, '').toUpperCase()
+  if (!normalized || [...normalized].length > maxLength)
+    applicationError('validation_failed')
+  return normalized
 }
 
 function integer(value: unknown, minimum: number, maximum: number): number {
@@ -612,6 +649,100 @@ function normaliseData(entity: AuxEntity, source: unknown): AuxData {
       workPhone: optionalString(data.workPhone, 32),
       workEmail: optionalString(data.workEmail, 320),
       operatingEntityId: requiredId(data.operatingEntityId),
+      remark: optionalString(data.remark),
+    }
+  }
+  if (entity === 'warehouse') {
+    only(data, [
+      'name',
+      'address',
+      'contactName',
+      'contactPhone',
+      'managerEmployeeId',
+      'remark',
+    ])
+    return {
+      name: requiredText(data.name, 200),
+      address: optionalString(data.address, 500),
+      contactName: optionalString(data.contactName, 100),
+      contactPhone: optionalString(data.contactPhone, 32),
+      managerEmployeeId: optionalId(data.managerEmployeeId),
+      remark: optionalString(data.remark),
+    }
+  }
+  if (entity === 'fund-account') {
+    only(data, [
+      'name',
+      'currency',
+      'accountName',
+      'bank',
+      'branch',
+      'accountNumber',
+      'operatingEntityId',
+      'remark',
+    ])
+    const currency = requiredText(data.currency, 16).toUpperCase()
+    if (!/^[A-Z]{3}$/.test(currency)) applicationError('validation_failed')
+    return {
+      name: requiredText(data.name, 200),
+      currency,
+      accountName: requiredText(data.accountName, 200),
+      bank: requiredText(data.bank, 200),
+      branch: optionalString(data.branch, 200),
+      accountNumber: upperCompact(data.accountNumber, 128),
+      operatingEntityId: requiredId(data.operatingEntityId),
+      remark: optionalString(data.remark),
+    }
+  }
+  if (entity === 'vehicle') {
+    only(data, [
+      'name',
+      'plateNumber',
+      'vehicleTypeId',
+      'carrier',
+      'vin',
+      'engineNumber',
+      'ratedLoadKg',
+      'bulkWaterCarrier',
+      'remark',
+    ])
+    const carrier = asRecord(data.carrier)
+    if (carrier.kind === 'INTERNAL') {
+      only(carrier, ['kind', 'operatingEntityId'])
+    } else if (carrier.kind === 'EXTERNAL') {
+      only(carrier, ['kind', 'otherUnitId', 'approvalEntryId'])
+    } else applicationError('validation_failed')
+    if (
+      typeof data.ratedLoadKg !== 'number' ||
+      !Number.isFinite(data.ratedLoadKg) ||
+      data.ratedLoadKg < 0 ||
+      typeof data.bulkWaterCarrier !== 'boolean'
+    )
+      applicationError('validation_failed')
+    return {
+      name: requiredText(data.name, 200),
+      plateNumber: requiredText(data.plateNumber, 64)
+        .replace(/\s/g, '')
+        .toUpperCase(),
+      vehicleTypeId: requiredId(data.vehicleTypeId),
+      carrier:
+        carrier.kind === 'INTERNAL'
+          ? {
+              kind: 'INTERNAL',
+              operatingEntityId: requiredId(carrier.operatingEntityId),
+            }
+          : {
+              kind: 'EXTERNAL',
+              otherUnitId: requiredId(carrier.otherUnitId),
+              approvalEntryId: requiredId(carrier.approvalEntryId),
+            },
+      vin:
+        typeof data.vin === 'string' && data.vin.trim()
+          ? requiredText(data.vin, 64).toUpperCase()
+          : '',
+      engineNumber: optionalString(data.engineNumber, 64),
+      ratedLoadKg: data.ratedLoadKg,
+      bulkWaterCarrier: data.bulkWaterCarrier,
       remark: optionalString(data.remark),
     }
   }
@@ -816,6 +947,117 @@ function parseData(
       operatingEntity: snapshot(data.operatingEntity),
     } as EmployeeCurrentData
   }
+  if (entity === 'warehouse') {
+    only(stored, [
+      'name',
+      'address',
+      'contactName',
+      'contactPhone',
+      'manager',
+      'remark',
+    ])
+    const manager = stored.manager === null ? null : snapshot(stored.manager)
+    const normalized = normaliseData('warehouse', {
+      name: stored.name,
+      address: stored.address,
+      contactName: stored.contactName,
+      contactPhone: stored.contactPhone,
+      managerEmployeeId: manager?.id ?? null,
+      remark: stored.remark,
+    })
+    const { managerEmployeeId: _managerEmployeeId, ...fields } = normalized
+    return { ...fields, manager } as WarehouseCurrentData
+  }
+  if (entity === 'fund-account') {
+    only(stored, [
+      'name',
+      'currency',
+      'accountName',
+      'bank',
+      'branch',
+      'accountNumber',
+      'operatingEntity',
+      'remark',
+    ])
+    const operatingEntity = snapshot(stored.operatingEntity)
+    const normalized = normaliseData('fund-account', {
+      name: stored.name,
+      currency: stored.currency,
+      accountName: stored.accountName,
+      bank: stored.bank,
+      branch: stored.branch,
+      accountNumber: stored.accountNumber,
+      operatingEntityId: operatingEntity.id,
+      remark: stored.remark,
+    })
+    const { operatingEntityId: _operatingEntityId, ...fields } = normalized
+    return { ...fields, operatingEntity } as FundAccountCurrentData
+  }
+  if (entity === 'vehicle') {
+    only(stored, [
+      'name',
+      'plateNumber',
+      'vehicleType',
+      'carrier',
+      'vin',
+      'engineNumber',
+      'ratedLoadKg',
+      'bulkWaterCarrier',
+      'remark',
+    ])
+    const vehicleType = snapshot(stored.vehicleType)
+    const carrier = asRecord(stored.carrier)
+    let parsedCarrier: VehicleCarrierCurrentData
+    let inputCarrier: VehicleCurrentInput['carrier']
+    if (carrier.kind === 'INTERNAL') {
+      only(carrier, ['kind', 'operatingEntityId', 'code', 'name'])
+      parsedCarrier = {
+        kind: 'INTERNAL',
+        operatingEntityId: requiredId(carrier.operatingEntityId),
+        code: requiredText(carrier.code, 64),
+        name: requiredText(carrier.name, 200),
+      }
+      inputCarrier = {
+        kind: 'INTERNAL',
+        operatingEntityId: parsedCarrier.operatingEntityId,
+      }
+    } else if (carrier.kind === 'EXTERNAL') {
+      only(carrier, ['kind', 'otherUnitId', 'approvalEntryId', 'code', 'name'])
+      parsedCarrier = {
+        kind: 'EXTERNAL',
+        otherUnitId: requiredId(carrier.otherUnitId),
+        approvalEntryId: requiredId(carrier.approvalEntryId),
+        code: requiredText(carrier.code, 64),
+        name: requiredText(carrier.name, 200),
+      }
+      inputCarrier = {
+        kind: 'EXTERNAL',
+        otherUnitId: parsedCarrier.otherUnitId,
+        approvalEntryId: parsedCarrier.approvalEntryId,
+      }
+    } else applicationError('internal_error')
+    const normalized = normaliseData('vehicle', {
+      name: stored.name,
+      plateNumber: stored.plateNumber,
+      vehicleTypeId: vehicleType.id,
+      carrier: inputCarrier,
+      vin: stored.vin,
+      engineNumber: stored.engineNumber,
+      ratedLoadKg: stored.ratedLoadKg,
+      bulkWaterCarrier: stored.bulkWaterCarrier,
+      remark: stored.remark,
+    })
+    const {
+      vehicleTypeId: _vehicleTypeId,
+      carrier: _carrier,
+      ...fields
+    } = normalized
+    return {
+      ...fields,
+      vehicleType,
+      carrier: parsedCarrier,
+    } as VehicleCurrentData
+  }
   const normalized = normaliseReferenceData(entity, stored)
   if (entity !== 'dictionary-item')
     return normalized as AuxDataByEntity[AuxEntity]
@@ -853,6 +1095,13 @@ function availableActions(
     )
   )
     actions.push(enabled ? 'disable' : 'enable')
+  if (
+    (entity === 'warehouse' ||
+      entity === 'fund-account' ||
+      entity === 'vehicle') &&
+    actor.permissions.includes(`/aux/${entity}/delete`)
+  )
+    actions.push('delete')
   return actions
 }
 
@@ -889,17 +1138,17 @@ function detail<Entity extends AuxEntity>(
 }
 
 /**
- * Resolves an enabled AUX person/archive reference inside the caller's
+ * Resolves an enabled AUX current reference inside the caller's
  * transaction. Consumers persist the returned typed snapshot with their own
  * business fact; later current edits never reinterpret that adoption.
  */
-export async function resolveAuxPeopleReference<
+export async function resolveAuxCurrentReference<
   Entity extends AuxCurrentEntity,
 >(
   transaction: Transaction<DB>,
   entity: Entity,
   id: string,
-): Promise<AuxPeopleReference<Entity>> {
+): Promise<AuxCurrentReference<Entity>> {
   if (!/^[0-9A-HJKMNP-TV-Z]{26}$/.test(id))
     applicationError('validation_failed')
   const result =
@@ -913,11 +1162,74 @@ export async function resolveAuxPeopleReference<
       blockers: [{ field: 'reference', objectId: id, entity }],
     })
   const parsed = parseRow(row) as ParsedAuxRow<Entity>
+  if (entity === 'vehicle') {
+    const vehicle = parsed.data as VehicleCurrentData
+    if (vehicle.carrier.kind === 'INTERNAL')
+      await resolveAuxCurrentReference(
+        transaction,
+        'operating-entity',
+        vehicle.carrier.operatingEntityId,
+      )
+    else
+      await resolveExternalCarrier(
+        transaction,
+        vehicle.carrier.otherUnitId,
+        vehicle.carrier.approvalEntryId,
+      )
+  }
   return {
     objectId: parsed.id,
     code: parsed.code,
     name: currentName(parsed),
     data: parsed.data as AuxDataByEntity[Entity],
+  }
+}
+
+async function resolveExternalCarrier(
+  transaction: Transaction<DB>,
+  otherUnitId: string,
+  approvalEntryId: string,
+): Promise<Extract<VehicleCarrierCurrentData, { kind: 'EXTERNAL' }>> {
+  const result = await sql<{ code: string; name: string }>`
+      SELECT subject.code,
+        COALESCE(NULLIF(version.display_name, ''), version.legal_name) AS name
+      FROM approval_entries entry
+      JOIN dcl_subjects subject ON subject.id = entry.subject_id
+        AND subject.entity = 'other-unit'
+      JOIN dcl_other_unit_versions version ON version.approval_entry_id = entry.id
+      WHERE entry.id = ${approvalEntryId}
+        AND entry.subject_id = ${otherUnitId}
+        AND entry.domain = 'dcl'
+        AND entry.entity = 'other-unit'
+        AND entry.status = 'APPROVED'
+        AND version.enabled = true
+        AND NOT EXISTS (
+          SELECT 1 FROM approval_entries newer
+          WHERE newer.domain = 'dcl' AND newer.entity = 'other-unit'
+            AND newer.subject_id = entry.subject_id
+            AND newer.status = 'APPROVED'
+            AND newer.version_no > entry.version_no
+        )
+      FOR SHARE OF entry, subject, version
+    `.execute(transaction)
+  const row = result.rows[0]
+  if (!row)
+    applicationError('conflict', {
+      blockers: [
+        {
+          field: 'carrier',
+          objectId: otherUnitId,
+          approvalEntryId,
+          entity: 'other-unit',
+        },
+      ],
+    })
+  return {
+    kind: 'EXTERNAL',
+    otherUnitId,
+    approvalEntryId,
+    code: requiredText(row.code, 64),
+    name: requiredText(row.name, 200),
   }
 }
 
@@ -952,24 +1264,58 @@ export class AuxService {
     )
       applicationError('validation_failed')
     await this.lock(transaction)
-    const data: OperatingEntityCurrentData | EmployeeCurrentData =
-      row.entity === 'operating-entity'
-        ? (normaliseData(
-            'operating-entity',
-            row.data,
-          ) as unknown as OperatingEntityCurrentData)
-        : (parseData('employee', row.data) as EmployeeCurrentData)
-    await this.assertUniqueLegalIdentifier(
-      transaction,
-      row.entity,
-      row.id,
-      String(data.legalIdentifier),
-    )
-    if (row.entity === 'employee')
-      await this.validateImportedEmployeeReferences(
+    let data: AuxCurrentImportRow['data']
+    if (row.entity === 'operating-entity')
+      data = normaliseData(
+        'operating-entity',
+        row.data,
+      ) as unknown as OperatingEntityCurrentData
+    else if (row.entity === 'employee')
+      data = parseData('employee', row.data) as EmployeeCurrentData
+    else if (row.entity === 'warehouse')
+      data = parseData('warehouse', row.data) as WarehouseCurrentData
+    else if (row.entity === 'fund-account')
+      data = parseData('fund-account', row.data) as FundAccountCurrentData
+    else data = parseData('vehicle', row.data) as VehicleCurrentData
+    if (row.entity === 'operating-entity' || row.entity === 'employee')
+      await this.assertUniqueLegalIdentifier(
         transaction,
-        data as EmployeeCurrentData,
+        row.entity,
+        row.id,
+        String(
+          (data as OperatingEntityCurrentData | EmployeeCurrentData)
+            .legalIdentifier,
+        ),
       )
+    if (row.entity === 'fund-account')
+      await this.assertUniqueCurrentField(
+        transaction,
+        'fund-account',
+        row.id,
+        'accountNumber',
+        (data as FundAccountCurrentData).accountNumber,
+        'fund_account_duplicate_account_number',
+      )
+    if (row.entity === 'vehicle') {
+      await this.assertUniqueCurrentField(
+        transaction,
+        'vehicle',
+        row.id,
+        'plateNumber',
+        (data as VehicleCurrentData).plateNumber,
+        'vehicle_duplicate_plate_number',
+      )
+      if ((data as VehicleCurrentData).vin)
+        await this.assertUniqueCurrentField(
+          transaction,
+          'vehicle',
+          row.id,
+          'vin',
+          (data as VehicleCurrentData).vin,
+          'vehicle_duplicate_vin',
+        )
+    }
+    await this.validateImportedCurrentReferences(transaction, row.entity, data)
     await sql`INSERT INTO aux_objects(id, entity, code, enabled, revision, data, created_at, updated_at, created_by, updated_by)
       VALUES (${row.id}, ${row.entity}, ${code}, ${row.enabled}, 1, ${JSON.stringify(data)}::jsonb, ${row.createdAt}, ${row.updatedAt}, ${row.createdBy}, ${row.updatedBy})`.execute(
       transaction,
@@ -981,12 +1327,12 @@ export class AuxService {
         SET last_value = GREATEST(object_number_counters.last_value, EXCLUDED.last_value)`.execute(
       transaction,
     )
-    if (row.entity === 'employee')
-      await this.replaceEmployeeReferenceFacts(
-        transaction,
-        row.id,
-        data as EmployeeCurrentData,
-      )
+    await this.replaceCurrentReferenceFacts(
+      transaction,
+      row.entity,
+      row.id,
+      data,
+    )
   }
 
   async query<Entity extends AuxEntity>(
@@ -1100,11 +1446,12 @@ export class AuxService {
       await sql`INSERT INTO aux_objects(id, entity, code, enabled, revision, data, created_by, updated_by) VALUES (${id}, ${entity}, ${`${codePrefixes[entity]}-${String(number).padStart(4, '0')}`}, true, 1, ${JSON.stringify(normalised)}::jsonb, ${actor.id}, ${actor.id})`.execute(
         transaction,
       )
-      if (entity === 'employee')
-        await this.replaceEmployeeReferenceFacts(
+      if (currentEntity(entity))
+        await this.replaceCurrentReferenceFacts(
           transaction,
+          entity,
           id,
-          normalised as unknown as EmployeeCurrentData,
+          normalised as unknown as AuxDataByEntity[typeof entity],
         )
       if (currentEntity(entity))
         await this.recordCurrentAudit(
@@ -1214,11 +1561,12 @@ export class AuxService {
           revision: revisionString(current.revision),
         })
       const nextRevision = revisionString(revision(current.revision) + 1n)
-      if (entity === 'employee')
-        await this.replaceEmployeeReferenceFacts(
+      if (currentEntity(entity))
+        await this.replaceCurrentReferenceFacts(
           transaction,
+          entity,
           id,
-          normalised as unknown as EmployeeCurrentData,
+          normalised as unknown as AuxDataByEntity[typeof entity],
         )
       if (currentEntity(entity))
         await this.recordCurrentAudit(
@@ -1332,10 +1680,10 @@ export class AuxService {
             count: Number(row.count),
           })),
         })
-      if (entity === 'employee')
+      if (currentEntity(entity))
         await transaction
           .deleteFrom('aux_reference_facts')
-          .where('source', '=', employeeReferenceSource(id))
+          .where('source', '=', currentReferenceSource(entity, id))
           .execute()
       await sql`DELETE FROM aux_objects WHERE id = ${id} AND entity = ${entity}`.execute(
         transaction,
@@ -1525,6 +1873,44 @@ export class AuxService {
                   positionId: position.id,
                   operatingEntityId: operatingEntity.id,
                 }
+              } else if (entity === 'warehouse') {
+                const { manager, ...fields } = parseData(
+                  'warehouse',
+                  current.data,
+                ) as WarehouseCurrentData
+                currentData = {
+                  ...fields,
+                  managerEmployeeId: manager?.id ?? null,
+                }
+              } else if (entity === 'fund-account') {
+                const { operatingEntity, ...fields } = parseData(
+                  'fund-account',
+                  current.data,
+                ) as FundAccountCurrentData
+                currentData = {
+                  ...fields,
+                  operatingEntityId: operatingEntity.id,
+                }
+              } else if (entity === 'vehicle') {
+                const { vehicleType, carrier, ...fields } = parseData(
+                  'vehicle',
+                  current.data,
+                ) as VehicleCurrentData
+                currentData = {
+                  ...fields,
+                  vehicleTypeId: vehicleType.id,
+                  carrier:
+                    carrier.kind === 'INTERNAL'
+                      ? {
+                          kind: 'INTERNAL',
+                          operatingEntityId: carrier.operatingEntityId,
+                        }
+                      : {
+                          kind: 'EXTERNAL',
+                          otherUnitId: carrier.otherUnitId,
+                          approvalEntryId: carrier.approvalEntryId,
+                        },
+                }
               } else currentData = normaliseReferenceData(entity, current.data)
               await this.validateData(
                 transaction,
@@ -1533,6 +1919,23 @@ export class AuxService {
                 currentData,
                 currentData,
               )
+            } else if (entity === 'warehouse')
+              await this.assertWarehouseCanDisable(transaction, current.id)
+            else if (entity === 'operating-entity') {
+              const carriers = await transaction
+                .selectFrom('aux_reference_facts')
+                .select('source')
+                .where('aux_object_id', '=', current.id)
+                .where('source', 'like', 'aux_current:vehicle:%')
+                .execute()
+              if (carriers.length)
+                applicationError('conflict', {
+                  blockers: carriers.map((row) => ({
+                    source: row.source,
+                    field: 'carrier',
+                    objectId: current.id,
+                  })),
+                })
             }
           },
           afterWrite: async () => undefined,
@@ -1543,6 +1946,127 @@ export class AuxService {
         revision: revisionString(revision(expectedRevision) + 1n),
         enabled,
       }
+    })
+  }
+
+  private async assertWarehouseCanDisable(
+    transaction: Transaction<DB>,
+    warehouseId: string,
+  ): Promise<void> {
+    const [inventory, documents] = await Promise.all([
+      sql<{
+        book_id: string
+        product_id: string
+        quantity: string
+      }>`
+        SELECT book_id, product_id, SUM(quantity)::text AS quantity
+        FROM acc_inventory_entries
+        WHERE warehouse_id = ${warehouseId} AND reversed_at IS NULL
+        GROUP BY book_id, product_id
+        HAVING SUM(quantity) <> 0
+        ORDER BY product_id
+      `.execute(transaction),
+      sql<{
+        entity: string
+        document_id: string
+        document_no: string
+      }>`
+        SELECT DISTINCT document.entity, document.id AS document_id,
+          document.document_no
+        FROM vou_reference_snapshots reference
+        JOIN approval_entries entry ON entry.id = reference.approval_entry_id
+        JOIN vou_documents document ON document.id = entry.subject_id
+        WHERE reference.object_id = ${warehouseId}
+          AND reference.reference_entity = 'warehouse'
+          AND entry.domain = 'vou'
+          AND entry.status IN ('PENDING', 'REJECTED')
+        ORDER BY document.entity, document.document_no, document.id
+      `.execute(transaction),
+    ])
+    const legacy = await transaction
+      .selectFrom('dcl_warehouse_usage_facts')
+      .selectAll()
+      .where('warehouse_id', '=', warehouseId)
+      .execute()
+    const retained = {
+      inventory: [],
+      documents: [],
+      sources: [],
+      references: [],
+    } as Record<
+      'inventory' | 'documents' | 'sources' | 'references',
+      Array<Record<string, unknown>>
+    >
+    for (const row of legacy) {
+      if (row.kind === 'INVENTORY' && BigInt(row.quantity_micros ?? 0) === 0n)
+        continue
+      const key =
+        row.kind === 'INVENTORY'
+          ? 'inventory'
+          : row.kind === 'DOCUMENT'
+            ? 'documents'
+            : row.kind === 'SOURCE'
+              ? 'sources'
+              : 'references'
+      retained[key].push({
+        entity: row.entity,
+        businessId: row.business_id,
+        businessCode: row.business_code,
+        ...(row.quantity_micros === null
+          ? {}
+          : { quantityMicros: String(row.quantity_micros) }),
+      })
+    }
+    const currentReferences = await sql<{ source: string }>`
+      SELECT fact.source FROM aux_reference_facts fact
+      WHERE fact.aux_object_id = ${warehouseId}
+        AND (fact.source LIKE 'aux_current:%'
+          OR EXISTS (SELECT 1 FROM approval_entries entry
+            WHERE entry.id = split_part(fact.source, ':', 2)
+              AND entry.domain = 'vou' AND entry.status = 'APPROVED'
+              AND entry.entity IN ('sale-order', 'purchase-order')
+              AND EXISTS (SELECT 1 FROM vou_product_line_snapshots line
+                WHERE line.approval_entry_id = entry.id
+                  AND line.base_quantity_micros > COALESCE((
+                    SELECT SUM(usage.base_quantity_micros)
+                    FROM vou_source_line_snapshots usage
+                    JOIN approval_entries consumed ON consumed.id = usage.approval_entry_id
+                    WHERE usage.source_line_id = line.line_id AND consumed.status = 'APPROVED'
+                      AND consumed.entity = CASE entry.entity WHEN 'sale-order' THEN 'sale-outbound' ELSE 'purchase-inbound' END
+                  ), 0)))
+          OR EXISTS (SELECT 1 FROM approval_entries entry
+            WHERE entry.id = split_part(fact.source, ':', 3)
+              AND entry.domain = 'acc' AND entry.status IN ('PENDING', 'REJECTED')))
+    `.execute(transaction)
+    retained.references.push(
+      ...currentReferences.rows.map((row) => ({ source: row.source })),
+    )
+    if (
+      inventory.rows.length === 0 &&
+      documents.rows.length === 0 &&
+      Object.values(retained).every((rows) => rows.length === 0)
+    )
+      return
+    applicationError('warehouse_disable_blocked', {
+      inventory: [
+        ...retained.inventory,
+        ...inventory.rows.map((row) => ({
+          entity: 'product',
+          bookId: row.book_id,
+          businessId: row.product_id,
+          quantity: row.quantity,
+        })),
+      ],
+      documents: [
+        ...retained.documents,
+        ...documents.rows.map((row) => ({
+          entity: row.entity,
+          businessId: row.document_id,
+          businessCode: row.document_no,
+        })),
+      ],
+      sources: retained.sources,
+      references: retained.references,
     })
   }
 
@@ -1594,6 +2118,95 @@ export class AuxService {
         transaction,
         data,
       )) as unknown as AuxData
+    }
+    if (entity === 'warehouse') {
+      const input = data as unknown as WarehouseCurrentInput
+      return {
+        name: input.name,
+        address: input.address,
+        contactName: input.contactName,
+        contactPhone: input.contactPhone,
+        manager: input.managerEmployeeId
+          ? await this.currentSnapshot(
+              transaction,
+              'employee',
+              input.managerEmployeeId,
+            )
+          : null,
+        remark: input.remark,
+      } satisfies WarehouseCurrentData
+    }
+    if (entity === 'fund-account') {
+      const input = data as unknown as FundAccountCurrentInput
+      await this.assertUniqueCurrentField(
+        transaction,
+        entity,
+        objectId,
+        'accountNumber',
+        input.accountNumber,
+        'fund_account_duplicate_account_number',
+      )
+      return {
+        name: input.name,
+        currency: input.currency,
+        accountName: input.accountName,
+        bank: input.bank,
+        branch: input.branch,
+        accountNumber: input.accountNumber,
+        operatingEntity: await this.currentSnapshot(
+          transaction,
+          'operating-entity',
+          input.operatingEntityId,
+        ),
+        remark: input.remark,
+      } satisfies FundAccountCurrentData
+    }
+    if (entity === 'vehicle') {
+      const input = data as unknown as VehicleCurrentInput
+      await this.assertUniqueCurrentField(
+        transaction,
+        entity,
+        objectId,
+        'plateNumber',
+        input.plateNumber,
+        'vehicle_duplicate_plate_number',
+      )
+      if (input.vin)
+        await this.assertUniqueCurrentField(
+          transaction,
+          entity,
+          objectId,
+          'vin',
+          input.vin,
+          'vehicle_duplicate_vin',
+        )
+      const vehicleType = await this.currentSnapshot(
+        transaction,
+        'dictionary-item',
+        input.vehicleTypeId,
+      )
+      const carrier: VehicleCarrierCurrentData =
+        input.carrier.kind === 'INTERNAL'
+          ? await this.resolveInternalCarrier(
+              transaction,
+              input.carrier.operatingEntityId,
+            )
+          : await resolveExternalCarrier(
+              transaction,
+              input.carrier.otherUnitId,
+              input.carrier.approvalEntryId,
+            )
+      return {
+        name: input.name,
+        plateNumber: input.plateNumber,
+        vehicleType,
+        carrier,
+        vin: input.vin,
+        engineNumber: input.engineNumber,
+        ratedLoadKg: input.ratedLoadKg,
+        bulkWaterCarrier: input.bulkWaterCarrier,
+        remark: input.remark,
+      } satisfies VehicleCurrentData
     }
     if (
       entity === 'product-category' ||
@@ -1672,6 +2285,25 @@ export class AuxService {
       )
   }
 
+  private async assertUniqueCurrentField(
+    transaction: Transaction<DB>,
+    entity: 'fund-account' | 'vehicle',
+    objectId: string | null,
+    field: 'accountNumber' | 'plateNumber' | 'vin',
+    value: string,
+    errorKey:
+      | 'fund_account_duplicate_account_number'
+      | 'vehicle_duplicate_plate_number'
+      | 'vehicle_duplicate_vin',
+  ): Promise<void> {
+    const duplicate = await sql<{ id: string }>`SELECT id FROM aux_objects
+      WHERE entity = ${entity}
+        AND data->>${field} = ${value}
+        AND (${objectId}::varchar IS NULL OR id <> ${objectId})
+      FOR SHARE`.execute(transaction)
+    if (duplicate.rows[0]) applicationError(errorKey)
+  }
+
   private async resolveEmployeeReferences(
     transaction: Transaction<DB>,
     source: AuxData,
@@ -1711,30 +2343,112 @@ export class AuxService {
     }
   }
 
-  private async validateImportedEmployeeReferences(
+  private async resolveInternalCarrier(
     transaction: Transaction<DB>,
-    data: EmployeeCurrentData,
+    operatingEntityId: string,
+  ): Promise<Extract<VehicleCarrierCurrentData, { kind: 'INTERNAL' }>> {
+    const owner = await this.currentSnapshot(
+      transaction,
+      'operating-entity',
+      operatingEntityId,
+    )
+    return {
+      kind: 'INTERNAL',
+      operatingEntityId: owner.id,
+      code: owner.code,
+      name: owner.name,
+    }
+  }
+
+  private async validateImportedCurrentReferences(
+    transaction: Transaction<DB>,
+    entity: AuxCurrentEntity,
+    data: AuxDataByEntity[AuxCurrentEntity],
   ): Promise<void> {
-    await Promise.all([
-      this.assertImportedSnapshot(
-        transaction,
-        'employee-category',
-        data.employeeCategory,
-      ),
-      this.assertImportedSnapshot(transaction, 'department', data.department),
-      this.assertImportedSnapshot(transaction, 'position', data.position),
-      this.assertImportedSnapshot(
+    if (entity === 'employee') {
+      const employee = data as EmployeeCurrentData
+      await Promise.all([
+        this.assertImportedSnapshot(
+          transaction,
+          'employee-category',
+          employee.employeeCategory,
+        ),
+        this.assertImportedSnapshot(
+          transaction,
+          'department',
+          employee.department,
+        ),
+        this.assertImportedSnapshot(transaction, 'position', employee.position),
+        this.assertImportedSnapshot(
+          transaction,
+          'operating-entity',
+          employee.operatingEntity,
+        ),
+      ])
+    } else if (entity === 'warehouse') {
+      const manager = (data as WarehouseCurrentData).manager
+      if (manager)
+        await this.assertImportedSnapshot(transaction, 'employee', manager)
+    } else if (entity === 'fund-account') {
+      await this.assertImportedSnapshot(
         transaction,
         'operating-entity',
-        data.operatingEntity,
-      ),
-    ])
+        (data as FundAccountCurrentData).operatingEntity,
+      )
+    } else if (entity === 'vehicle') {
+      const vehicle = data as VehicleCurrentData
+      await this.assertImportedSnapshot(
+        transaction,
+        'dictionary-item',
+        vehicle.vehicleType,
+      )
+      if (vehicle.carrier.kind === 'INTERNAL')
+        await this.assertImportedSnapshot(transaction, 'operating-entity', {
+          id: vehicle.carrier.operatingEntityId,
+          code: vehicle.carrier.code,
+          name: vehicle.carrier.name,
+        })
+      else
+        await this.assertExternalCarrierExists(
+          transaction,
+          vehicle.carrier.otherUnitId,
+          vehicle.carrier.approvalEntryId,
+          vehicle.carrier.code,
+        )
+    }
+  }
+
+  private async assertExternalCarrierExists(
+    transaction: Transaction<DB>,
+    otherUnitId: string,
+    approvalEntryId: string,
+    expectedCode: string,
+  ): Promise<void> {
+    const result = await sql<{ code: string }>`
+      SELECT subject.code
+      FROM approval_entries entry
+      JOIN dcl_subjects subject ON subject.id = entry.subject_id
+        AND subject.entity = 'other-unit'
+      JOIN dcl_other_unit_versions version ON version.approval_entry_id = entry.id
+      WHERE entry.id = ${approvalEntryId}
+        AND entry.subject_id = ${otherUnitId}
+        AND entry.domain = 'dcl'
+        AND entry.entity = 'other-unit'
+      FOR SHARE OF entry, subject, version
+    `.execute(transaction)
+    if (result.rows[0]?.code !== expectedCode)
+      applicationError('validation_failed')
   }
 
   private async assertImportedSnapshot(
     transaction: Transaction<DB>,
     entity:
-      'employee-category' | 'department' | 'position' | 'operating-entity',
+      | 'employee-category'
+      | 'department'
+      | 'position'
+      | 'operating-entity'
+      | 'employee'
+      | 'dictionary-item',
     expected: AuxCurrentSnapshot,
   ): Promise<void> {
     const result = await sql<{
@@ -1752,7 +2466,12 @@ export class AuxService {
   private async currentSnapshot(
     transaction: Transaction<DB>,
     entity:
-      'employee-category' | 'department' | 'position' | 'operating-entity',
+      | 'employee-category'
+      | 'department'
+      | 'position'
+      | 'operating-entity'
+      | 'employee'
+      | 'dictionary-item',
     id: string,
   ): Promise<AuxCurrentSnapshot> {
     const result =
@@ -1766,25 +2485,46 @@ export class AuxService {
     return { id: parsed.id, code: parsed.code, name: currentName(parsed) }
   }
 
-  private async replaceEmployeeReferenceFacts(
+  private async replaceCurrentReferenceFacts(
     transaction: Transaction<DB>,
-    employeeId: string,
-    data: EmployeeCurrentData,
+    entity: AuxCurrentEntity,
+    objectId: string,
+    data: AuxDataByEntity[AuxCurrentEntity],
   ): Promise<void> {
-    const source = employeeReferenceSource(employeeId)
+    const source = currentReferenceSource(entity, objectId)
     await transaction
       .deleteFrom('aux_reference_facts')
       .where('source', '=', source)
       .execute()
+    const references: AuxCurrentSnapshot[] = []
+    if (entity === 'employee') {
+      const employee = data as EmployeeCurrentData
+      references.push(
+        employee.employeeCategory,
+        employee.department,
+        employee.position,
+        employee.operatingEntity,
+      )
+    } else if (entity === 'warehouse') {
+      const manager = (data as WarehouseCurrentData).manager
+      if (manager) references.push(manager)
+    } else if (entity === 'fund-account') {
+      references.push((data as FundAccountCurrentData).operatingEntity)
+    } else if (entity === 'vehicle') {
+      const vehicle = data as VehicleCurrentData
+      references.push(vehicle.vehicleType)
+      if (vehicle.carrier.kind === 'INTERNAL')
+        references.push({
+          id: vehicle.carrier.operatingEntityId,
+          code: vehicle.carrier.code,
+          name: vehicle.carrier.name,
+        })
+    }
+    if (references.length === 0) return
     await transaction
       .insertInto('aux_reference_facts')
       .values(
-        [
-          data.employeeCategory,
-          data.department,
-          data.position,
-          data.operatingEntity,
-        ].map((reference) => ({
+        references.map((reference) => ({
           id: ulid(),
           aux_object_id: reference.id,
           source,

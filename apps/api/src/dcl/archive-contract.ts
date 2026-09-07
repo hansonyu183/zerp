@@ -8,8 +8,6 @@ import type { TargetRouteEnvironment } from '../app/contract.ts'
 import { archiveEntityPresentation } from '@zerp/model'
 
 export const archiveEntities = [
-  'vehicle',
-  'fund-account',
   'product',
   'supplier',
   'customer',
@@ -67,51 +65,6 @@ const identityKind = z.enum([
   'MAINLAND_INDIVIDUAL',
   'OTHER',
 ])
-
-const vehicleSnapshot = z
-  .object({
-    name: z.string().min(1).max(200),
-    plateNumber: z.string().max(64),
-    vehicleType: auxSnapshot,
-    carrier: z.discriminatedUnion('kind', [
-      z
-        .object({
-          kind: z.literal('INTERNAL'),
-          operatingEntityId: z.string().length(26),
-          code: z.string().optional(),
-          name: z.string().optional(),
-        })
-        .strict(),
-      z
-        .object({
-          kind: z.literal('EXTERNAL'),
-          otherUnitId: z.string().length(26),
-          approvalEntryId: z.string().length(26),
-        })
-        .strict(),
-    ]),
-    vin: z.string().max(64),
-    engineNumber: z.string().max(64),
-    ratedLoadKg: z.number().nonnegative(),
-    bulkWaterCarrier: z.boolean(),
-    remark: z.string().max(1000),
-    enabled: z.boolean(),
-  })
-  .strict()
-
-const fundAccountSnapshot = z
-  .object({
-    name: z.string().min(1).max(200),
-    currency: z.string().min(1).max(16),
-    accountName: z.string().min(1).max(200),
-    bank: z.string().min(1).max(200),
-    branch: z.string().max(200),
-    accountNumber: z.string().min(1).max(128),
-    operatingEntity: stableReference,
-    remark: z.string().max(1000),
-    enabled: z.boolean(),
-  })
-  .strict()
 
 const quantityUnit = auxSnapshot
   .extend({
@@ -539,8 +492,6 @@ const rptDefinitionSnapshot = z
   .strict()
 
 export const archiveSnapshotSchemas = {
-  vehicle: vehicleSnapshot,
-  'fund-account': fundAccountSnapshot,
   product: productSnapshot,
   supplier: supplierSnapshot,
   customer: customerSnapshot,
@@ -583,8 +534,6 @@ const archiveQueryInput = <Filters extends z.ZodType>(filters: Filters) =>
     .strict()
 
 export const archiveQuerySchemas = {
-  vehicle: archiveQueryInput(archiveQueryBaseFilters),
-  'fund-account': archiveQueryInput(archiveQueryBaseFilters),
   product: archiveQueryInput(archiveQueryProductFilters),
   supplier: archiveQueryInput(archiveQueryBaseFilters),
   customer: archiveQueryInput(archiveQueryBaseFilters),
@@ -636,6 +585,15 @@ const accMappingReferenceBlocker = z
   })
   .strict()
 export const archiveBlockerSchema = z.discriminatedUnion('kind', [
+  z
+    .object({
+      kind: z.literal('AUX_CURRENT_REFERENCE'),
+      entity: z.literal('vehicle'),
+      objectId: z.string().length(26),
+      field: z.literal('carrier'),
+      approvalEntryId: z.string().length(26),
+    })
+    .strict(),
   z
     .object({
       kind: z.literal('AUX_REFERENCE'),
@@ -846,11 +804,6 @@ function defineArchiveRoutes<const Entity extends ArchiveEntity>(
 }
 
 export const archiveRouteSets = {
-  vehicle: defineArchiveRoutes('vehicle', archiveSnapshotSchemas.vehicle),
-  'fund-account': defineArchiveRoutes(
-    'fund-account',
-    archiveSnapshotSchemas['fund-account'],
-  ),
   product: defineArchiveRoutes('product', archiveSnapshotSchemas.product),
   supplier: defineArchiveRoutes('supplier', archiveSnapshotSchemas.supplier),
   customer: defineArchiveRoutes('customer', archiveSnapshotSchemas.customer),
@@ -1030,99 +983,7 @@ export function registerArchiveRoutes(
   handler: ArchiveRouteHandler,
   attachments: ArchiveAttachmentHandlers,
 ) {
-  const vehicle = app.openapiRoutes([
-    {
-      route: archiveRouteSets['vehicle'].query,
-      handler: archiveHandler(handler, 'vehicle', 'query'),
-    },
-    {
-      route: archiveRouteSets['vehicle'].get,
-      handler: archiveHandler(handler, 'vehicle', 'get'),
-    },
-    {
-      route: archiveRouteSets['vehicle'].versions,
-      handler: archiveHandler(handler, 'vehicle', 'versions'),
-    },
-    {
-      route: archiveRouteSets['vehicle']['audit-history'],
-      handler: archiveHandler(handler, 'vehicle', 'audit-history'),
-    },
-    {
-      route: archiveRouteSets['vehicle']['submit-new'],
-      handler: archiveHandler(handler, 'vehicle', 'submit-new'),
-    },
-    {
-      route: archiveRouteSets['vehicle']['submit-change'],
-      handler: archiveHandler(handler, 'vehicle', 'submit-change'),
-    },
-    {
-      route: archiveRouteSets['vehicle'].approve,
-      handler: archiveHandler(handler, 'vehicle', 'approve'),
-    },
-    {
-      route: archiveRouteSets['vehicle'].reject,
-      handler: archiveHandler(handler, 'vehicle', 'reject'),
-    },
-    {
-      route: archiveRouteSets['vehicle'].unreject,
-      handler: archiveHandler(handler, 'vehicle', 'unreject'),
-    },
-    {
-      route: archiveRouteSets['vehicle'].unapprove,
-      handler: archiveHandler(handler, 'vehicle', 'unapprove'),
-    },
-    {
-      route: archiveRouteSets['vehicle'].delete,
-      handler: archiveHandler(handler, 'vehicle', 'delete'),
-    },
-  ] as const)
-  const fundAccount = vehicle.openapiRoutes([
-    {
-      route: archiveRouteSets['fund-account'].query,
-      handler: archiveHandler(handler, 'fund-account', 'query'),
-    },
-    {
-      route: archiveRouteSets['fund-account'].get,
-      handler: archiveHandler(handler, 'fund-account', 'get'),
-    },
-    {
-      route: archiveRouteSets['fund-account'].versions,
-      handler: archiveHandler(handler, 'fund-account', 'versions'),
-    },
-    {
-      route: archiveRouteSets['fund-account']['audit-history'],
-      handler: archiveHandler(handler, 'fund-account', 'audit-history'),
-    },
-    {
-      route: archiveRouteSets['fund-account']['submit-new'],
-      handler: archiveHandler(handler, 'fund-account', 'submit-new'),
-    },
-    {
-      route: archiveRouteSets['fund-account']['submit-change'],
-      handler: archiveHandler(handler, 'fund-account', 'submit-change'),
-    },
-    {
-      route: archiveRouteSets['fund-account'].approve,
-      handler: archiveHandler(handler, 'fund-account', 'approve'),
-    },
-    {
-      route: archiveRouteSets['fund-account'].reject,
-      handler: archiveHandler(handler, 'fund-account', 'reject'),
-    },
-    {
-      route: archiveRouteSets['fund-account'].unreject,
-      handler: archiveHandler(handler, 'fund-account', 'unreject'),
-    },
-    {
-      route: archiveRouteSets['fund-account'].unapprove,
-      handler: archiveHandler(handler, 'fund-account', 'unapprove'),
-    },
-    {
-      route: archiveRouteSets['fund-account'].delete,
-      handler: archiveHandler(handler, 'fund-account', 'delete'),
-    },
-  ] as const)
-  const product = fundAccount.openapiRoutes([
+  const product = app.openapiRoutes([
     {
       route: archiveRouteSets['product'].query,
       handler: archiveHandler(handler, 'product', 'query'),

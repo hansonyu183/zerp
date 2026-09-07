@@ -25,7 +25,7 @@ import { useTargetSession } from '../../../session/vm.ts'
 
 export type SimpleAuxListItem = EnabledListItem & {
   revision: string
-  availableActions: readonly ('edit' | 'enable' | 'disable')[]
+  availableActions: readonly ('edit' | 'enable' | 'disable' | 'delete')[]
 }
 
 type SimpleAuxDetail = SimpleAuxListItem & {
@@ -329,6 +329,7 @@ function createSimpleAuxManagementViewModel<
 
   function canListAction(item: Item | null, action: ListAction): boolean {
     if (action === 'create') return can(operations.paths.create)
+    if (action === 'delete') return false
     if (!item) return false
     if (action === 'edit')
       return (

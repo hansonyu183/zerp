@@ -1,6 +1,6 @@
 import {
   AuxApplicationError,
-  resolveAuxPeopleReference,
+  resolveAuxCurrentReference,
 } from '../aux/service.ts'
 import { createHash } from 'node:crypto'
 
@@ -9,13 +9,11 @@ import {
   decideApproval,
   prepareAccMappingSubmit,
   prepareCustomerSubmit,
-  prepareFundAccountSubmit,
   prepareOtherUnitSubmit,
   prepareProductSubmit,
   prepareRptDefinitionSubmit,
   prepareSalesPartnerSubmit,
   prepareSupplierSubmit,
-  prepareVehicleSubmit,
   type ApprovalAction,
   type ApprovalActor,
   type ApprovalEntry,
@@ -56,7 +54,6 @@ type ApprovedArchiveFact = {
 
 type AuxiliaryField =
   | ProductReferenceFact['field']
-  | 'vehicleType'
   | 'settlementMethod'
   | 'paymentMethod'
   | 'customerType'
@@ -71,7 +68,6 @@ type AuxiliaryFact = {
 }
 
 const auxiliaryEntities: Record<AuxiliaryField, string> = {
-  vehicleType: 'dictionary-item',
   productType: 'product-type',
   productCategory: 'product-category',
   pricingUnit: 'measurement-unit',
@@ -93,13 +89,6 @@ function fixedAuxMoney(value: unknown, errorKey: string): string {
     throw new ArchiveApplicationError(errorKey)
   const [whole, fraction = ''] = value.trim().split('.')
   return `${whole}.${fraction.padEnd(2, '0')}`
-}
-
-type ReferenceBlockerRow = {
-  entity: ArchiveEntity
-  subject_id: string
-  id: string
-  field: string
 }
 
 type ArchiveSubjectFacts = {
@@ -225,6 +214,13 @@ type ArchiveQueryDetails = Omit<
 }
 
 export type ArchiveBlocker =
+  | {
+      kind: 'AUX_CURRENT_REFERENCE'
+      entity: 'vehicle'
+      objectId: string
+      field: 'carrier'
+      approvalEntryId: string
+    }
   | {
       kind: 'AUX_REFERENCE'
       entity: 'operating-entity' | 'employee'
@@ -363,50 +359,36 @@ function matchesArchiveSnapshot(
   if (filters.keyword) {
     const data = record(snapshot)
     const keywordMatches =
-      entity === 'vehicle'
+      entity === 'product'
         ? includesKeyword(filters.keyword, [
             code,
             nullable(data.name),
-            nullable(data.plateNumber),
-            nullable(data.vin),
+            nullable(data.barcode),
+            nullable(data.specification),
+            nullable(data.model),
           ])
-        : entity === 'fund-account'
+        : entity === 'supplier' ||
+            entity === 'customer' ||
+            entity === 'other-unit' ||
+            entity === 'sales-partner'
           ? includesKeyword(filters.keyword, [
               code,
-              nullable(data.name),
-              nullable(data.accountName),
-              nullable(data.accountNumber),
+              nullable(data.legalName),
+              nullable(data.displayName),
+              nullable(data.legalIdentifier),
             ])
-          : entity === 'product'
+          : entity === 'acc-mapping'
             ? includesKeyword(filters.keyword, [
+                nullable(record(data.book).code),
+                nullable(record(data.book).name),
+                nullable(record(data.vouEntity).code),
+                nullable(record(data.vouEntity).name),
+              ])
+            : includesKeyword(filters.keyword, [
                 code,
                 nullable(data.name),
-                nullable(data.barcode),
-                nullable(data.specification),
-                nullable(data.model),
+                nullable(data.description),
               ])
-            : entity === 'supplier' ||
-                entity === 'customer' ||
-                entity === 'other-unit' ||
-                entity === 'sales-partner'
-              ? includesKeyword(filters.keyword, [
-                  code,
-                  nullable(data.legalName),
-                  nullable(data.displayName),
-                  nullable(data.legalIdentifier),
-                ])
-              : entity === 'acc-mapping'
-                ? includesKeyword(filters.keyword, [
-                    nullable(record(data.book).code),
-                    nullable(record(data.book).name),
-                    nullable(record(data.vouEntity).code),
-                    nullable(record(data.vouEntity).name),
-                  ])
-                : includesKeyword(filters.keyword, [
-                    code,
-                    nullable(data.name),
-                    nullable(data.description),
-                  ])
     if (!keywordMatches) return false
   }
   if (entity === 'product') {
@@ -436,8 +418,6 @@ function matchesArchiveSnapshot(
 }
 
 const entityCodes: Record<ArchiveEntity, string> = {
-  vehicle: 'VEH',
-  'fund-account': 'FAC',
   product: 'PRD',
   supplier: 'SUP',
   customer: 'CUS',
@@ -1440,45 +1420,6 @@ export class ArchiveService {
     const base = { ...command, data }
     // The switches make each aggregate's accepted facts visible; no generic reference graph exists here.
     switch (entity) {
-      case 'vehicle': {
-        const vehicleType = (
-          await this.auxFacts(tx, [
-            ['vehicleType', record(data.vehicleType).id],
-          ])
-        )[0]
-        if (!vehicleType?.available)
-          return {
-            ok: false,
-            error: { errorKey: 'vehicle_reference_unavailable' },
-          }
-        return prepareVehicleSubmit(
-          base as never,
-          {
-            subject,
-            ...(data.carrier && record(data.carrier).kind === 'INTERNAL'
-              ? {
-                  operatingEntity: adoptedAuxFact({
-                    objectId: record(data.carrier).operatingEntityId,
-                  }),
-                }
-              : {
-                  otherUnit: await this.approvedFact(
-                    tx,
-                    'other-unit',
-                    String(record(data.carrier).otherUnitId ?? ''),
-                  ),
-                }),
-          } as never,
-        )
-      }
-      case 'fund-account':
-        return prepareFundAccountSubmit(
-          base as never,
-          {
-            subject,
-            operatingEntity: adoptedAuxFact(data.operatingEntity),
-          } as never,
-        )
       case 'product':
         return prepareProductSubmit(
           base as never,
@@ -1697,28 +1638,6 @@ export class ArchiveService {
       if (duplicate.rows[0]) throw new ArchiveApplicationError(errorKey)
     }
     switch (entity) {
-      case 'vehicle':
-        await failIfDuplicate(
-          'dcl_vehicle_versions',
-          'plate_number',
-          data.plateNumber,
-          'vehicle_duplicate_plate_number',
-        )
-        await failIfDuplicate(
-          'dcl_vehicle_versions',
-          'vin',
-          data.vin,
-          'vehicle_duplicate_vin',
-        )
-        return
-      case 'fund-account':
-        await failIfDuplicate(
-          'dcl_fund_account_versions',
-          'account_number',
-          data.accountNumber,
-          'fund_account_duplicate_account_number',
-        )
-        return
       case 'product':
         await failIfDuplicate(
           'dcl_product_versions',
@@ -1878,7 +1797,7 @@ export class ArchiveService {
   ): Promise<Record<string, unknown>> {
     const objectId = String(record(reference).objectId ?? '')
     try {
-      const current = await resolveAuxPeopleReference(tx, entity, objectId)
+      const current = await resolveAuxCurrentReference(tx, entity, objectId)
       return {
         objectId: current.objectId,
         code: current.code,
@@ -2039,52 +1958,6 @@ export class ArchiveService {
     snapshot: ArchiveSnapshot,
   ): Promise<ArchiveSnapshot> {
     switch (entity) {
-      case 'vehicle': {
-        const carrier = record(snapshot.carrier)
-        const reference = await (
-          carrier.kind === 'INTERNAL'
-            ? this.freezeCurrentReference.bind(this)
-            : this.freezeApprovedReference.bind(this)
-        )(
-          tx,
-          (carrier.kind === 'INTERNAL'
-            ? 'operating-entity'
-            : 'other-unit') as never,
-          {
-            objectId:
-              carrier.kind === 'INTERNAL'
-                ? carrier.operatingEntityId
-                : carrier.otherUnitId,
-            approvalEntryId: carrier.approvalEntryId,
-          },
-        )
-        return {
-          ...snapshot,
-          vehicleType: await this.freezeAuxiliaryReference(
-            tx,
-            'vehicleType',
-            snapshot.vehicleType,
-            'vehicle_reference_unavailable',
-          ),
-          carrier: {
-            ...carrier,
-            ...(carrier.kind === 'EXTERNAL'
-              ? { approvalEntryId: reference.approvalEntryId }
-              : {}),
-            code: reference.code,
-            name: reference.name,
-          },
-        }
-      }
-      case 'fund-account':
-        return {
-          ...snapshot,
-          operatingEntity: await this.freezeCurrentReference(
-            tx,
-            'operating-entity',
-            snapshot.operatingEntity,
-          ),
-        }
       case 'product':
         return {
           ...snapshot,
@@ -2262,16 +2135,6 @@ export class ArchiveService {
     snapshot: ArchiveSnapshot,
   ): Promise<void> {
     const references: Array<[string, string]> = []
-    if (entity === 'fund-account')
-      references.push([
-        'operatingEntity',
-        String(record(snapshot.operatingEntity).objectId ?? ''),
-      ])
-    if (entity === 'vehicle' && record(snapshot.carrier).kind === 'INTERNAL')
-      references.push([
-        'carrier',
-        String(record(snapshot.carrier).operatingEntityId ?? ''),
-      ])
     if (
       entity === 'supplier' ||
       entity === 'other-unit' ||
@@ -2318,69 +2181,6 @@ export class ArchiveService {
   ): Promise<void> {
     const d = snapshot
     switch (entity) {
-      case 'vehicle': {
-        const c = record(d.carrier)
-        await tx
-          .insertInto('dcl_vehicle_versions')
-          .values({
-            approval_entry_id: id,
-            name: String(d.name ?? ''),
-            plate_number: nullable(d.plateNumber),
-            vehicle_type_object_id: nullable(record(d.vehicleType).id),
-            vehicle_type_snapshot: json(record(d.vehicleType)),
-            carrier_affiliation_type: nullable(c.kind),
-            carrier_operating_entity_id:
-              c.kind === 'INTERNAL' ? nullable(c.operatingEntityId) : null,
-            carrier_operating_entity_approval_entry_id:
-              c.kind === 'INTERNAL' ? nullable(c.approvalEntryId) : null,
-            carrier_operating_entity_code:
-              c.kind === 'INTERNAL' ? nullable(c.code) : null,
-            carrier_operating_entity_name:
-              c.kind === 'INTERNAL' ? nullable(c.name) : null,
-            carrier_other_unit_object_id:
-              c.kind === 'EXTERNAL' ? nullable(c.otherUnitId) : null,
-            carrier_other_unit_approval_entry_id:
-              c.kind === 'EXTERNAL' ? nullable(c.approvalEntryId) : null,
-            carrier_other_unit_code:
-              c.kind === 'EXTERNAL' ? nullable(c.code) : null,
-            carrier_other_unit_name:
-              c.kind === 'EXTERNAL' ? nullable(c.name) : null,
-            carrier_snapshot: json(c),
-            vin: nullable(d.vin),
-            engine_number: nullable(d.engineNumber),
-            rated_load_micros: BigInt(
-              Math.round(Number(d.ratedLoadKg ?? 0) * 1_000_000),
-            ),
-            bulk_liquid_capable: d.bulkWaterCarrier === true,
-            remark: nullable(d.remark),
-            enabled: d.enabled === true,
-          })
-          .execute()
-        return
-      }
-      case 'fund-account':
-        await tx
-          .insertInto('dcl_fund_account_versions')
-          .values({
-            approval_entry_id: id,
-            name: String(d.name ?? ''),
-            currency: nullable(d.currency),
-            account_name: nullable(d.accountName),
-            account_number: nullable(d.accountNumber),
-            bank_name: nullable(d.bank),
-            branch_name: nullable(d.branch),
-            operating_entity_id: nullable(record(d.operatingEntity).objectId),
-            operating_entity_approval_entry_id: nullable(
-              record(d.operatingEntity).approvalEntryId,
-            ),
-            operating_entity_code: nullable(record(d.operatingEntity).code),
-            operating_entity_name: nullable(record(d.operatingEntity).name),
-            operating_entity_snapshot: json(record(d.operatingEntity)),
-            remark: nullable(d.remark),
-            enabled: d.enabled === true,
-          })
-          .execute()
-        return
       case 'product':
         await tx
           .insertInto('dcl_product_versions')
@@ -2841,63 +2641,6 @@ export class ArchiveService {
   ): Promise<ArchiveSnapshot> {
     // Each aggregate rehydrates its own version row. JSON fields retain exact submitted reference snapshots.
     switch (entity) {
-      case 'vehicle': {
-        const r = await tx
-          .selectFrom('dcl_vehicle_versions')
-          .selectAll()
-          .where('approval_entry_id', '=', id)
-          .executeTakeFirstOrThrow()
-        const carrier = record(r.carrier_snapshot)
-        return {
-          name: r.name,
-          plateNumber: r.plate_number ?? '',
-          vehicleType: record(r.vehicle_type_snapshot),
-          carrier:
-            carrier.kind === 'INTERNAL'
-              ? {
-                  kind: 'INTERNAL',
-                  operatingEntityId: String(carrier.operatingEntityId ?? ''),
-                  code: String(carrier.code ?? ''),
-                  name: String(carrier.name ?? ''),
-                }
-              : {
-                  kind: 'EXTERNAL',
-                  otherUnitId: String(carrier.otherUnitId ?? ''),
-                  approvalEntryId: String(carrier.approvalEntryId ?? ''),
-                },
-          vin: r.vin ?? '',
-          engineNumber: r.engine_number ?? '',
-          ratedLoadKg:
-            r.rated_load_micros === null
-              ? 0
-              : Number(r.rated_load_micros) / 1_000_000,
-          bulkWaterCarrier: r.bulk_liquid_capable,
-          remark: r.remark ?? '',
-          enabled: r.enabled,
-        }
-      }
-      case 'fund-account': {
-        const r = await tx
-          .selectFrom('dcl_fund_account_versions')
-          .selectAll()
-          .where('approval_entry_id', '=', id)
-          .executeTakeFirstOrThrow()
-        return {
-          name: r.name,
-          currency: r.currency ?? '',
-          accountName: r.account_name ?? '',
-          bank: r.bank_name ?? '',
-          branch: r.branch_name ?? '',
-          accountNumber: r.account_number ?? '',
-          operatingEntity: {
-            objectId: r.operating_entity_id ?? '',
-            code: r.operating_entity_code ?? '',
-            name: r.operating_entity_name ?? '',
-          },
-          remark: r.remark ?? '',
-          enabled: r.enabled,
-        }
-      }
       case 'product': {
         const r = await tx
           .selectFrom('dcl_product_versions')
@@ -3339,25 +3082,19 @@ export class ArchiveService {
     tx: Executor,
     entry: ApprovalEntry,
   ): Promise<ArchiveBlocker[]> {
-    const predicate = sql`e.domain = 'dcl' AND e.id <> ${entry.id} AND e.status IN ('PENDING', 'APPROVED', 'REJECTED')`
-    const results =
-      entry.entity === 'other-unit'
-        ? [
-            await sql<ReferenceBlockerRow>`SELECT e.entity, e.subject_id, e.id, 'carrier' AS field FROM dcl_vehicle_versions v JOIN approval_entries e ON e.id = v.approval_entry_id WHERE ${predicate} AND v.carrier_other_unit_approval_entry_id = ${entry.id}`.execute(
-              tx,
-            ),
-          ]
-        : []
-    return results.flatMap((result) =>
-      result.rows.map((row) => ({
-        kind: 'DCL_APPROVAL_REFERENCE' as const,
-        entity: row.entity,
-        subjectId: row.subject_id,
-        submissionId: row.id,
-        field: row.field,
-        approvalEntryId: entry.id,
-      })),
+    if (entry.entity !== 'other-unit') return []
+    const result = await sql<{
+      id: string
+    }>`SELECT id FROM aux_objects WHERE entity = 'vehicle' AND data->'carrier'->>'approvalEntryId' = ${entry.id}`.execute(
+      tx,
     )
+    return result.rows.map((row) => ({
+      kind: 'AUX_CURRENT_REFERENCE' as const,
+      entity: 'vehicle' as const,
+      objectId: row.id,
+      field: 'carrier' as const,
+      approvalEntryId: entry.id,
+    }))
   }
 
   private async validateReport(

@@ -4,11 +4,9 @@ import test from 'node:test'
 import {
   prepareAccMappingSubmit,
   prepareCustomerSubmit,
-  prepareFundAccountSubmit,
   prepareProductSubmit,
   prepareRptDefinitionSubmit,
   prepareSalesPartnerSubmit,
-  prepareVehicleSubmit,
   projectRptDefinitionExecutionState,
   type ApprovalActor,
   type ProductSubmitCommand,
@@ -18,8 +16,6 @@ import {
 const actor: ApprovalActor = {
   id: 'user-1',
   permissions: [
-    '/dcl/vehicle/submit-new',
-    '/dcl/fund-account/submit-new',
     '/dcl/product/submit-new',
     '/dcl/product/submit-change',
     '/dcl/customer/submit-new',
@@ -358,70 +354,6 @@ test('keeps the complete typed customer aggregate and rejects malformed pricing 
 })
 
 test('prepares typed archive submissions with canonical payloads and exact permissions', () => {
-  const vehicle = prepareVehicleSubmit(
-    {
-      ...command(),
-      data: {
-        name: ' 配送车 ',
-        plateNumber: ' 沪 A-12345 ',
-        vehicleType: { id: 'vehicle-type-1', code: 'VAN', name: ' 厢货 ' },
-        carrier: {
-          kind: 'INTERNAL',
-          operatingEntityId: 'oe-1',
-        },
-        vin: ' lsv123 ',
-        engineNumber: ' eng-1 ',
-        ratedLoadKg: 1000,
-        bulkWaterCarrier: false,
-        remark: ' 备注 ',
-        enabled: true,
-      },
-    },
-    {
-      ...newFacts,
-      operatingEntity: {
-        objectId: 'oe-1',
-        enabled: true,
-      },
-    },
-  )
-  assert.equal(vehicle.ok, true)
-  if (vehicle.ok) {
-    assert.equal(vehicle.plan.data.plateNumber, '沪A-12345')
-    assert.equal(vehicle.plan.data.vin, 'LSV123')
-  }
-
-  const fundAccount = prepareFundAccountSubmit(
-    {
-      ...command(),
-      data: {
-        name: ' 基本户 ',
-        currency: ' cny ',
-        accountName: ' ZERP ',
-        bank: ' 银行 ',
-        branch: ' 支行 ',
-        accountNumber: ' cn-12 34 ',
-        remark: ' 备注 ',
-        enabled: true,
-        operatingEntity: {
-          objectId: 'oe-1',
-          code: 'OE-1',
-          name: '主体',
-        },
-      },
-    },
-    {
-      ...newFacts,
-      operatingEntity: {
-        objectId: 'oe-1',
-        enabled: true,
-      },
-    },
-  )
-  assert.equal(fundAccount.ok, true)
-  if (fundAccount.ok)
-    assert.equal(fundAccount.plan.data.accountNumber, 'CN1234')
-
   const product = prepareProductSubmit(
     {
       ...command(),
@@ -525,54 +457,6 @@ test('prepares typed archive submissions with canonical payloads and exact permi
   )
   assert.equal(product.ok, true)
   if (product.ok) assert.equal(product.plan.data.barcode, 'AB-12')
-})
-
-test('returns exact stale or unavailable reference blockers', () => {
-  assert.deepEqual(
-    prepareVehicleSubmit(
-      {
-        ...command(),
-        data: {
-          name: '车',
-          plateNumber: '沪A1',
-          vehicleType: { id: 'type', code: 'T', name: '类型' },
-          carrier: {
-            kind: 'EXTERNAL',
-            otherUnitId: 'other-1',
-            approvalEntryId: 'other-old',
-          },
-          vin: '',
-          engineNumber: '',
-          ratedLoadKg: 0,
-          bulkWaterCarrier: false,
-          remark: '',
-          enabled: true,
-        },
-      },
-      {
-        ...newFacts,
-        otherUnit: {
-          objectId: 'other-1',
-          latestApprovedEntryId: 'other-now',
-          enabled: true,
-        },
-      },
-    ),
-    {
-      ok: false,
-      error: {
-        errorKey: 'vehicle_reference_stale',
-        blockers: [
-          {
-            field: 'carrier',
-            objectId: 'other-1',
-            expectedApprovalEntryId: 'other-old',
-            currentApprovalEntryId: 'other-now',
-          },
-        ],
-      },
-    },
-  )
 })
 
 test('rechecks exact submit permission, one open version, latest approval revision, and submission idempotency', () => {

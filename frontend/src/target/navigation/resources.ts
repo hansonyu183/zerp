@@ -65,6 +65,9 @@ const auxPresentation: Readonly<Record<string, string>> = {
   'asset-category': '资产类别',
   'operating-entity': '经营主体',
   employee: '员工',
+  warehouse: '仓库',
+  'fund-account': '资金账户',
+  vehicle: '车辆',
 }
 
 const accPresentation: Readonly<Record<string, string>> = {

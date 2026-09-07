@@ -46,6 +46,14 @@ const stubs = {
     template:
       '<button @click="$emit(\'update:modelValue\', 2)">下一页</button>',
   },
+  VDialog: {
+    props: ['modelValue'],
+    template: '<section v-if="modelValue" role="dialog"><slot /></section>',
+  },
+  VCard: { template: '<section><slot /></section>' },
+  VCardText: { template: '<div><slot /></div>' },
+  VCardActions: { template: '<div><slot /></div>' },
+  VSpacer: { template: '<span />' },
   DynamicCols: {
     props: ['items'],
     template:
@@ -127,5 +135,36 @@ describe('registered list Shell', () => {
       wrapper.findAll('button').some((button) => button.text() === '编辑'),
     ).toBe(false)
     wrapper.unmount()
+  })
+
+  it('requires confirmation before running a physical delete', async () => {
+    const remove = vi.fn(async () => 'changed' as const)
+    const vm = reactive(
+      useListPageViewModel({
+        onSearch: vi.fn(async () => ({
+          items: [row],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+        })),
+        onDelete: remove,
+      }),
+    )
+    await vm.initialize()
+    const wrapper = mount(ListPageShell, {
+      props: { definition, vm },
+      global: { stubs },
+    })
+    const button = (scope: typeof wrapper, caption: string) =>
+      scope.findAll('button').find((item) => item.text() === caption)!
+    await button(wrapper, '删除').trigger('click')
+    expect(remove).not.toHaveBeenCalled()
+    const dialog = wrapper.get('[role="dialog"]')
+    expect(dialog.text()).toContain('确认删除')
+    await button(dialog as typeof wrapper, '删除').trigger('click')
+    await flushPromises()
+    expect(remove).toHaveBeenCalledWith(row)
+    wrapper.unmount()
+    vm.dispose()
   })
 })

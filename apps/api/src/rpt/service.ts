@@ -759,13 +759,9 @@ export class RptService {
       case 'PRODUCT':
         return currentDcl('product', 'dcl_product_versions', 'version.name')
       case 'WAREHOUSE':
-        return currentDcl('warehouse', 'dcl_warehouse_versions', 'version.name')
+        return `SELECT id, code, data->>'name' AS name FROM aux_objects WHERE entity='warehouse' AND enabled`
       case 'FUND_ACCOUNT':
-        return currentDcl(
-          'fund-account',
-          'dcl_fund_account_versions',
-          'version.name',
-        )
+        return `SELECT id, code, data->>'name' AS name FROM aux_objects WHERE entity='fund-account' AND enabled`
       case 'ASSET':
         return `
         SELECT object_id AS id, payload->>'assetNo' AS code, payload->>'name' AS name

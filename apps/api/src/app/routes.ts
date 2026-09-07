@@ -7,10 +7,6 @@ import { currentRequestId } from '../platform/request-id.ts'
 import type { AuxService } from '../aux/service.ts'
 import type { BobService } from '../bob/service.ts'
 import {
-  WarehouseApplicationError,
-  type WarehouseService,
-} from '../dcl/warehouse.ts'
-import {
   ArchiveApplicationError,
   type ArchiveReviewInput,
   type ArchiveService,
@@ -102,17 +98,6 @@ function sessionFailure(error: unknown, requestId: string) {
   return applicationFailure(requestId, error, null)
 }
 
-function warehouseFailure(requestId: string, error: WarehouseApplicationError) {
-  const code: 1002 | 3001 = error.errorKey === 'forbidden' ? 1002 : 3001
-  return {
-    code,
-    errorKey: error.errorKey,
-    message: error.errorKey,
-    data: error.data,
-    requestId,
-  }
-}
-
 function archiveFailure(requestId: string, error: ArchiveApplicationError) {
   const code: 1002 | 3001 = error.errorKey === 'forbidden' ? 1002 : 3001
   return {
@@ -128,7 +113,6 @@ export function registerAppRoutes(
   app: OpenAPIHono<TargetRouteEnvironment>,
   service: SessionService,
   config: TargetConfig,
-  warehouse?: WarehouseService,
   archives?: ArchiveService,
   accMappingCatalog?: AccMappingCatalogService,
   management?: ManagementService,
@@ -140,39 +124,6 @@ export function registerAppRoutes(
   rpt?: RptService,
   workbench?: WorkbenchService,
 ) {
-  async function executeWarehouse<T>(
-    context: {
-      req: { header(name: string): string | undefined; path: string }
-    },
-    token: string | undefined,
-    requestId: string,
-    operation: (actor: { id: string; permissions: string[] }) => Promise<T>,
-  ) {
-    try {
-      if (!warehouse) throw new Error('Warehouse service is unavailable')
-      const current = await service.authenticate(
-        token,
-        context.req.header('X-CSRF-Token'),
-        true,
-        context.req.path,
-      )
-      return {
-        code: 0 as const,
-        errorKey: '' as const,
-        message: 'ok' as const,
-        data: await operation({
-          id: current.user.id,
-          permissions: current.apiPaths,
-        }),
-        requestId,
-      }
-    } catch (error) {
-      if (error instanceof SessionError) return sessionFailure(error, requestId)
-      if (error instanceof WarehouseApplicationError)
-        return warehouseFailure(requestId, error)
-      throw error
-    }
-  }
   async function executeArchive<T>(
     context: {
       req: { header(name: string): string | undefined; path: string }
@@ -567,192 +518,6 @@ export function registerAppRoutes(
         )
       }
     },
-    warehouseQuery: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
-          currentRequestId(context),
-          async (actor) => {
-            return warehouse!.query(context.req.valid('json'), actor)
-          },
-        ),
-        200,
-      ),
-    warehouseGet: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
-          currentRequestId(context),
-          (actor) => warehouse!.get(context.req.valid('json').subjectId, actor),
-        ),
-        200,
-      ),
-    warehouseVersions: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
-          currentRequestId(context),
-          async (actor) => {
-            const items = await warehouse!.versions(
-              context.req.valid('json').subjectId,
-              actor,
-            )
-            return { items, total: items.length }
-          },
-        ),
-        200,
-      ),
-    warehouseAudit: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
-          currentRequestId(context),
-          (actor) =>
-            warehouse!.auditHistory(context.req.valid('json').subjectId, actor),
-        ),
-        200,
-      ),
-    warehouseManagerReference: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
-          currentRequestId(context),
-          (actor) =>
-            warehouse!.managerReference(
-              context.req.valid('json').employeeId,
-              context.req.valid('json').action,
-              actor,
-            ),
-        ),
-        200,
-      ),
-    warehouseSubmitNew: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
-          currentRequestId(context),
-          (actor) =>
-            warehouse!.submit(
-              'submit-new',
-              context.req.valid('json'),
-              actor,
-              currentRequestId(context),
-            ),
-        ),
-        200,
-      ),
-    warehouseSubmitChange: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
-          currentRequestId(context),
-          (actor) =>
-            warehouse!.submit(
-              'submit-change',
-              context.req.valid('json'),
-              actor,
-              currentRequestId(context),
-            ),
-        ),
-        200,
-      ),
-    warehouseApprove: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
-          currentRequestId(context),
-          (actor) =>
-            warehouse!.review(
-              'approve',
-              context.req.valid('json'),
-              actor,
-              currentRequestId(context),
-            ),
-        ),
-        200,
-      ),
-    warehouseReject: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
-          currentRequestId(context),
-          (actor) =>
-            warehouse!.review(
-              'reject',
-              context.req.valid('json'),
-              actor,
-              currentRequestId(context),
-            ),
-        ),
-        200,
-      ),
-    warehouseUnreject: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
-          currentRequestId(context),
-          (actor) =>
-            warehouse!.review(
-              'unreject',
-              context.req.valid('json'),
-              actor,
-              currentRequestId(context),
-            ),
-        ),
-        200,
-      ),
-    warehouseUnapprove: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
-          currentRequestId(context),
-          (actor) =>
-            warehouse!.review(
-              'unapprove',
-              context.req.valid('json'),
-              actor,
-              currentRequestId(context),
-            ),
-        ),
-        200,
-      ),
-    warehouseDelete: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
-          currentRequestId(context),
-          (actor) =>
-            warehouse!.delete(
-              context.req.valid('json'),
-              actor,
-              currentRequestId(context),
-            ),
-        ),
-        200,
-      ),
-    warehouseReference: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
-          currentRequestId(context),
-          (actor) =>
-            warehouse!.reference(context.req.valid('json').search, actor),
-        ),
-        200,
-      ),
   })
   const withVou = registerVouRoutes(
     target,

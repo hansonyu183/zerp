@@ -154,13 +154,6 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
         created_by: actorId,
       },
       {
-        id: warehouseId,
-        entity: 'warehouse',
-        code: `WHS-${code}`,
-        created_at: now,
-        created_by: actorId,
-      },
-      {
         id: mappingId,
         entity: 'acc-mapping',
         code: null,
@@ -199,21 +192,6 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
         domain: 'dcl',
         entity: 'product',
         subject_id: productId,
-        version_no: 1,
-        status: 'APPROVED',
-        revision: 1,
-        submitted_by: actorId,
-        submitted_at: now,
-        approved_by: reviewerId,
-        approved_at: now,
-        updated_by: reviewerId,
-        updated_at: now,
-      },
-      {
-        id: warehouseEntryId,
-        domain: 'dcl',
-        entity: 'warehouse',
-        subject_id: warehouseId,
         version_no: 1,
         status: 'APPROVED',
         revision: 1,
@@ -317,14 +295,18 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
       enabled: true,
     })
     .execute()
-  await db
-    .insertInto('dcl_warehouse_versions')
-    .values({
-      approval_entry_id: warehouseEntryId,
-      name: '控制仓库',
-      enabled: true,
-    })
-    .execute()
+  const currentWarehouse = await new AuxService(db).create(
+    'warehouse',
+    {
+      name: '测试仓库',
+      address: '',
+      contactName: '',
+      contactPhone: '',
+      managerEmployeeId: null,
+      remark: '',
+    },
+    { id: actorId, permissions: ['/aux/warehouse/create'] },
+  )
   const aux = new AuxService(db)
   const operatingEntityCreated = await aux.create(
     'operating-entity',
@@ -563,11 +545,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     operatingEntity: {
       objectId: operatingEntityId,
     },
-    warehouse: {
-      objectId: warehouseId,
-      approvalEntryId: warehouseEntryId,
-      selectionOrigin: 'CURRENT' as const,
-    },
+    warehouse: { objectId: currentWarehouse.id },
     productLines: [
       {
         lineId: ulid(),
@@ -907,13 +885,6 @@ test('sale signoff and purchase inbound price the approved source line batch ins
         created_at: now,
         created_by: actorId,
       },
-      {
-        id: warehouseId,
-        entity: 'warehouse',
-        code: `WHS-${suffix}`,
-        created_at: now,
-        created_by: actorId,
-      },
     ])
     .execute()
   await db
@@ -954,21 +925,6 @@ test('sale signoff and purchase inbound price the approved source line batch ins
         domain: 'dcl',
         entity: 'product',
         subject_id: productId,
-        version_no: 1,
-        status: 'APPROVED',
-        revision: 1,
-        submitted_by: actorId,
-        submitted_at: now,
-        approved_by: reviewerId,
-        approved_at: now,
-        updated_by: reviewerId,
-        updated_at: now,
-      },
-      {
-        id: warehouseEntryId,
-        domain: 'dcl',
-        entity: 'warehouse',
-        subject_id: warehouseId,
         version_no: 1,
         status: 'APPROVED',
         revision: 1,
@@ -1070,14 +1026,18 @@ test('sale signoff and purchase inbound price the approved source line batch ins
       enabled: true,
     })
     .execute()
-  await db
-    .insertInto('dcl_warehouse_versions')
-    .values({
-      approval_entry_id: warehouseEntryId,
-      name: '批次仓库',
-      enabled: true,
-    })
-    .execute()
+  const currentWarehouse = await new AuxService(db).create(
+    'warehouse',
+    {
+      name: '测试仓库',
+      address: '',
+      contactName: '',
+      contactPhone: '',
+      managerEmployeeId: null,
+      remark: '',
+    },
+    { id: actorId, permissions: ['/aux/warehouse/create'] },
+  )
   const aux = new AuxService(db)
   const operatingEntityCreated = await aux.create(
     'operating-entity',
@@ -1115,11 +1075,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     approvalEntryId: supplierEntryId,
     selectionOrigin: 'CURRENT' as const,
   }
-  const warehouse = {
-    objectId: warehouseId,
-    approvalEntryId: warehouseEntryId,
-    selectionOrigin: 'CURRENT' as const,
-  }
+  const warehouse = { objectId: currentWarehouse.id }
   const productLine = (lineId: string) => ({
     lineId,
     product: { objectId: productId },

@@ -9,6 +9,9 @@ import {
   assetCategoryListPage,
   employeeListPage,
   operatingEntityListPage,
+  warehouseListPage,
+  fundAccountListPage,
+  vehicleListPage,
 } from './list-pages.ts'
 
 export type RegisteredListPage =
@@ -21,6 +24,9 @@ export type RegisteredListPage =
   | typeof assetCategoryListPage
   | typeof employeeListPage
   | typeof operatingEntityListPage
+  | typeof warehouseListPage
+  | typeof fundAccountListPage
+  | typeof vehicleListPage
 
 import UserManagement from '../pages/app/user/UserManagement.vue'
 import RoleManagement from '../pages/app/role/RoleManagement.vue'
@@ -31,6 +37,9 @@ import PaymentMethodManagement from '../pages/aux/payment-method/PaymentMethodMa
 import AssetCategoryManagement from '../pages/aux/asset-category/AssetCategoryManagement.vue'
 import EmployeeManagement from '../pages/aux/employee/EmployeeManagement.vue'
 import OperatingEntityManagement from '../pages/aux/operating-entity/OperatingEntityManagement.vue'
+import WarehouseManagement from '../pages/aux/warehouse/WarehouseManagement.vue'
+import FundAccountManagement from '../pages/aux/fund-account/FundAccountManagement.vue'
+import VehicleManagement from '../pages/aux/vehicle/VehicleManagement.vue'
 import {
   targetDomainCapabilities,
   type BusinessTargetDomain,
@@ -124,5 +133,23 @@ export const targetResourceRegistry = createResourceRegistry([
     entity: 'employee',
     definition: employeeListPage,
     component: EmployeeManagement,
+  },
+  {
+    domain: 'aux',
+    entity: 'warehouse',
+    definition: warehouseListPage,
+    component: WarehouseManagement,
+  },
+  {
+    domain: 'aux',
+    entity: 'fund-account',
+    definition: fundAccountListPage,
+    component: FundAccountManagement,
+  },
+  {
+    domain: 'aux',
+    entity: 'vehicle',
+    definition: vehicleListPage,
+    component: VehicleManagement,
   },
 ])

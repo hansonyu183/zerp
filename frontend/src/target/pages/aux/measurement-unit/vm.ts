@@ -294,6 +294,7 @@ export function useMeasurementUnitManagementViewModel() {
     action: ListAction,
   ): boolean {
     if (action === 'create') return can(measurementUnitPaths.create)
+    if (action === 'delete') return false
     if (!item) return false
     if (action === 'edit')
       return (

@@ -21,7 +21,6 @@ import {
 } from '../../src/aux/service.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { ArchiveService } from '../../src/dcl/archives.ts'
-import { WarehouseService } from '../../src/dcl/warehouse.ts'
 import { loadConfig } from '../../src/platform/config.ts'
 import { VouService } from '../../src/vou/service.ts'
 import { WflService, type WflVouPort } from '../../src/wfl/service.ts'
@@ -168,7 +167,6 @@ function post(
 
 async function seedSaleOrderReferences(
   archives: ArchiveService,
-  warehouse: WarehouseService,
   aux: AuxService,
   actorId: string,
   reviewerId: string,
@@ -195,6 +193,8 @@ async function seedSaleOrderReferences(
       '/aux/operating-entity/get',
       '/aux/employee/create',
       '/aux/employee/get',
+      '/aux/warehouse/create',
+      '/aux/warehouse/get',
       '/aux/dictionary-type/create',
       '/aux/dictionary-type/get',
       '/aux/dictionary-item/create',
@@ -468,41 +468,15 @@ async function seedSaleOrderReferences(
     remark: '',
     enabled: true,
   })
-  const warehouseSubjectId = ulid(),
-    warehouseEntryId = ulid()
-  const warehousePending = await warehouse.submit(
-    'submit-new',
-    {
-      subjectId: warehouseSubjectId,
-      submissionId: warehouseEntryId,
-      idempotencyKey: warehouseEntryId,
-      expectedLatestApprovedSubmissionId: null,
-      expectedLatestApprovedRevision: null,
-      snapshot: {
-        name: 'HTTP 仓库',
-        address: '',
-        contactName: '',
-        contactPhone: '',
-        managerEmployeeId: null,
-        managerEmployeeCode: null,
-        managerEmployeeName: null,
-        remark: '',
-        enabled: true,
-      },
-    },
-    actor,
-    'wfl-http-warehouse-submit',
-  )
-  const warehouseApproved = await warehouse.review(
-    'approve',
-    {
-      subjectId: warehouseSubjectId,
-      submissionId: warehouseEntryId,
-      expectedRevision: warehousePending.revision,
-    },
-    { ...actor, id: reviewerId },
-    'wfl-http-warehouse-approve',
-  )
+  const warehouseCurrent = await auxiliary('warehouse', {
+    name: 'HTTP 仓库',
+    address: '',
+    contactName: '',
+    contactPhone: '',
+    managerEmployeeId: null,
+    remark: '',
+  })
+  const warehouseSubjectId = warehouseCurrent.id
   const facts = [
     {
       entity: 'customer-subunit',
@@ -524,7 +498,6 @@ async function seedSaleOrderReferences(
       entity: 'warehouse',
       field: 'warehouse',
       objectId: warehouseSubjectId,
-      approvalEntryId: warehouseEntryId,
     },
     {
       entity: 'product',
@@ -553,6 +526,7 @@ async function seedSaleOrderReferences(
       customerType.id,
       operatingEntity.id,
       employee.id,
+      warehouseSubjectId,
     ],
     archiveSubjectIds: [customer.objectId, product.objectId],
     archiveApprovalEntryIds: [
@@ -560,15 +534,14 @@ async function seedSaleOrderReferences(
       product.approvalEntryId,
     ],
     warehouseSubjectId,
-    warehouseEntryId,
-    warehouseCode: warehouseApproved.code,
+    warehouseCode: warehouseCurrent.code,
   }
 }
 
 function saleOrderPayload(
   references: Awaited<ReturnType<typeof seedSaleOrderReferences>>,
 ): VouPayload {
-  const versionedReference = (field: 'customer-subunit' | 'warehouse') => {
+  const versionedReference = (field: 'customer-subunit') => {
     const fact = references.facts.find((item) => item.field === field)
     if (!fact || !('approvalEntryId' in fact))
       throw new Error(`missing versioned ${field} fixture`)
@@ -578,7 +551,9 @@ function saleOrderPayload(
       selectionOrigin: 'CURRENT' as const,
     }
   }
-  const currentReference = (field: 'operating-entity' | 'salesperson') => {
+  const currentReference = (
+    field: 'operating-entity' | 'salesperson' | 'warehouse',
+  ) => {
     const fact = references.facts.find((item) => item.field === field)!
     return { objectId: fact.objectId }
   }
@@ -591,7 +566,7 @@ function saleOrderPayload(
     paymentMethod: null,
     operatingEntity: currentReference('operating-entity'),
     salesperson: currentReference('salesperson'),
-    warehouse: versionedReference('warehouse'),
+    warehouse: currentReference('warehouse'),
     productLines: [
       {
         lineId: sourceOrderLineId,
@@ -876,7 +851,6 @@ test('WFL definition, current, trial, instance and six actions cross the authent
   const acc = new AccService(db)
   const aux = new AuxService(db)
   const archives = new ArchiveService(db, { async validate() {} })
-  const warehouse = new WarehouseService(db)
   let vou!: VouService
   const port: WflVouPort = {
     createChild: (...args) => vou.createChild(...args),
@@ -898,7 +872,6 @@ test('WFL definition, current, trial, instance and six actions cross the authent
     wfl,
     archives,
     aux,
-    warehouse,
     logger: {
       info() {},
       error(entry) {
@@ -1015,17 +988,11 @@ test('WFL definition, current, trial, instance and six actions cross the authent
           .execute()
         await db
           .deleteFrom('approval_events')
-          .where('entry_id', 'in', [
-            ...refs.archiveApprovalEntryIds,
-            refs.warehouseEntryId,
-          ])
+          .where('entry_id', 'in', [...refs.archiveApprovalEntryIds])
           .execute()
         await db
           .deleteFrom('approval_entries')
-          .where('id', 'in', [
-            ...refs.archiveApprovalEntryIds,
-            refs.warehouseEntryId,
-          ])
+          .where('id', 'in', [...refs.archiveApprovalEntryIds])
           .execute()
         await db
           .deleteFrom('dcl_subjects')
@@ -1128,7 +1095,6 @@ test('WFL definition, current, trial, instance and six actions cross the authent
   const reviewerActor: Actor = { id: reviewer.id, permissions: allPermissions }
   refs = await seedSaleOrderReferences(
     archives,
-    warehouse,
     aux,
     submitter.id,
     reviewer.id,

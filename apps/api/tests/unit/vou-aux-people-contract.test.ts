@@ -15,7 +15,7 @@ const amountFacts = {
   currency: 'CNY',
   attachments: [],
   handler: employee,
-  fundAccount: versioned,
+  fundAccount: employee,
   amount: '12.00',
 }
 
@@ -23,25 +23,44 @@ test('employee loan selects AUX people by stable ID and rejects fabricated appro
   const schema = vouPayloadSchemaByEntity['employee-loan']
   const payload = { ...amountFacts, employee }
   assert.equal(schema.safeParse(payload).success, true)
-  assert.equal(schema.safeParse({ ...payload, employee: versioned }).success, false)
+  assert.equal(
+    schema.safeParse({ ...payload, employee: versioned }).success,
+    false,
+  )
 })
 
 test('mixed counterparties pair employee with AUX stable references only', () => {
   const schema = vouPayloadSchemaByEntity['other-receipt']
   assert.equal(
-    schema.safeParse({ ...amountFacts, counterparty: employee, counterpartyType: 'employee' }).success,
+    schema.safeParse({
+      ...amountFacts,
+      counterparty: employee,
+      counterpartyType: 'employee',
+    }).success,
     true,
   )
   assert.equal(
-    schema.safeParse({ ...amountFacts, counterparty: versioned, counterpartyType: 'employee' }).success,
+    schema.safeParse({
+      ...amountFacts,
+      counterparty: versioned,
+      counterpartyType: 'employee',
+    }).success,
     false,
   )
   assert.equal(
-    schema.safeParse({ ...amountFacts, counterparty: employee, counterpartyType: 'supplier' }).success,
+    schema.safeParse({
+      ...amountFacts,
+      counterparty: employee,
+      counterpartyType: 'supplier',
+    }).success,
     false,
   )
   assert.equal(
-    schema.safeParse({ ...amountFacts, counterparty: versioned, counterpartyType: 'supplier' }).success,
+    schema.safeParse({
+      ...amountFacts,
+      counterparty: versioned,
+      counterpartyType: 'supplier',
+    }).success,
     true,
   )
 })

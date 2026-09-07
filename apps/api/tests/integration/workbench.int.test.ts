@@ -49,10 +49,10 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
   const roleId = ulid()
   const productId = ulid()
   const productSubmissionId = ulid()
-  const vehicleId = ulid()
-  const vehicleSubmissionId = ulid()
-  const warehouseId = ulid()
-  const warehouseSubmissionId = ulid()
+  const otherUnitId = ulid()
+  const otherUnitSubmissionId = ulid()
+  const supplierId = ulid()
+  const supplierSubmissionId = ulid()
   const wflDefinitionId = ulid()
   const wflDefinitionSubmissionId = ulid()
   const documentId = ulid()
@@ -66,17 +66,17 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
     '0',
   )
   const productCode = `PRD-${codeSuffix}`
-  const vehicleCode = `VEH-${codeSuffix}`
-  const warehouseCode = `WHS-${codeSuffix}`
+  const otherUnitCode = `OTU-${codeSuffix}`
+  const supplierCode = `SUP-${codeSuffix}`
   const wflDefinitionCode = `wfl-00${codeSuffix}`
   const permissionPaths = [
     '/dcl/product/query',
     '/dcl/product/get',
     '/dcl/product/approve',
-    '/dcl/vehicle/query',
-    '/dcl/warehouse/query',
-    '/dcl/warehouse/get',
-    '/dcl/warehouse/approve',
+    '/dcl/other-unit/query',
+    '/dcl/supplier/query',
+    '/dcl/supplier/get',
+    '/dcl/supplier/approve',
     '/dcl/wfl-process-definition/query',
     '/dcl/wfl-process-definition/get',
     '/dcl/wfl-process-definition/approve',
@@ -94,8 +94,8 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
         .deleteFrom('approval_entries')
         .where('id', 'in', [
           productSubmissionId,
-          vehicleSubmissionId,
-          warehouseSubmissionId,
+          otherUnitSubmissionId,
+          supplierSubmissionId,
           wflDefinitionSubmissionId,
           vouSubmissionId,
           approvedSubmissionId,
@@ -107,7 +107,12 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
         .execute()
       await db
         .deleteFrom('dcl_subjects')
-        .where('id', 'in', [productId, vehicleId, warehouseId, wflDefinitionId])
+        .where('id', 'in', [
+          productId,
+          otherUnitId,
+          supplierId,
+          wflDefinitionId,
+        ])
         .execute()
       await db
         .deleteFrom('app_sessions')
@@ -228,16 +233,16 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
         created_by: submitterId,
       },
       {
-        id: vehicleId,
-        entity: 'vehicle',
-        code: vehicleCode,
+        id: otherUnitId,
+        entity: 'other-unit',
+        code: otherUnitCode,
         created_at: now,
         created_by: submitterId,
       },
       {
-        id: warehouseId,
-        entity: 'warehouse',
-        code: warehouseCode,
+        id: supplierId,
+        entity: 'supplier',
+        code: supplierCode,
         created_at: now,
         created_by: submitterId,
       },
@@ -272,10 +277,10 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
         updated_at: new Date('2026-09-05T02:00:00.000Z'),
       },
       {
-        id: vehicleSubmissionId,
+        id: otherUnitSubmissionId,
         domain: 'dcl',
-        entity: 'vehicle',
-        subject_id: vehicleId,
+        entity: 'other-unit',
+        subject_id: otherUnitId,
         version_no: 1,
         status: 'PENDING',
         revision: 1,
@@ -290,10 +295,10 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
         updated_at: new Date('2026-09-05T03:00:00.000Z'),
       },
       {
-        id: warehouseSubmissionId,
+        id: supplierSubmissionId,
         domain: 'dcl',
-        entity: 'warehouse',
-        subject_id: warehouseId,
+        entity: 'supplier',
+        subject_id: supplierId,
         version_no: 1,
         status: 'PENDING',
         revision: 1,
@@ -375,19 +380,22 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
     })
     .execute()
   await db
-    .insertInto('dcl_vehicle_versions')
+    .insertInto('dcl_other_unit_versions')
     .values({
-      approval_entry_id: vehicleSubmissionId,
-      name: '不应出现的车辆',
-      bulk_liquid_capable: false,
+      approval_entry_id: otherUnitSubmissionId,
+      kind: 'ORGANIZATION',
+      legal_name: '不应出现的其他单位',
+      display_name: '不应出现的其他单位',
       enabled: true,
     })
     .execute()
   await db
-    .insertInto('dcl_warehouse_versions')
+    .insertInto('dcl_supplier_versions')
     .values({
-      approval_entry_id: warehouseSubmissionId,
-      name: '工作台仓库',
+      approval_entry_id: supplierSubmissionId,
+      kind: 'ORGANIZATION',
+      legal_name: '工作台供应商',
+      display_name: '工作台供应商',
       enabled: true,
     })
     .execute()
@@ -447,14 +455,14 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
     {
       page: 1,
       pageSize: 20,
-      filters: { kind: 'ARCHIVE', entity: 'warehouse' },
+      filters: { kind: 'ARCHIVE', entity: 'supplier' },
     },
     {
       id: submitterId,
       permissions: [
-        '/dcl/warehouse/query',
-        '/dcl/warehouse/get',
-        '/dcl/warehouse/delete',
+        '/dcl/supplier/query',
+        '/dcl/supplier/get',
+        '/dcl/supplier/delete',
       ],
     },
   )
@@ -463,6 +471,7 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
 
   const config = loadConfig({
     DATABASE_URL: databaseUrl,
+    TARGET_DATABASE_SCOPE: process.env.TARGET_DATABASE_SCOPE,
     APP_SESSION_COOKIE_SECURE: 'false',
   })
   const app = createApp({
@@ -516,11 +525,11 @@ test('real HTTP workbench returns only actionable DCL and VOU submissions', asyn
   assert.deepEqual(payload.data.items, [
     {
       domain: 'dcl',
-      entity: 'warehouse',
-      subjectOrDocumentId: warehouseId,
-      submissionId: warehouseSubmissionId,
-      code: warehouseCode,
-      name: '工作台仓库',
+      entity: 'supplier',
+      subjectOrDocumentId: supplierId,
+      submissionId: supplierSubmissionId,
+      code: supplierCode,
+      name: '工作台供应商',
       status: 'PENDING',
       revision: '1',
       availableActions: ['view', 'approve'],

@@ -5,12 +5,9 @@ import {
   decideApproval,
   modelBuildId,
   projectApprovalViewState,
-  prepareWarehouseSubmit,
   runTargetModelCorpus,
   type ApprovalEntry,
   type ApprovalActor,
-  type WarehouseSubmitCommand,
-  type WarehouseSubmitFacts,
 } from '../src/index.ts'
 
 test('exports a non-empty deterministic shared-model build identifier', () => {
@@ -25,9 +22,6 @@ test('runs the canonical target corpus in the server runtime', () => {
     ok: false,
     error: { errorKey: 'approval_stale_revision' },
   })
-  assert.equal(result.fundAccountSubmit.ok, true)
-  if (result.fundAccountSubmit.ok)
-    assert.equal(result.fundAccountSubmit.plan.data.accountNumber, 'CN1234')
 })
 
 const submitter: ApprovalActor = {
@@ -38,10 +32,10 @@ const submitter: ApprovalActor = {
 const reviewer: ApprovalActor = {
   id: 'user-reviewer',
   permissions: [
-    '/dcl/warehouse/reject',
-    '/dcl/warehouse/approve',
-    '/dcl/warehouse/unreject',
-    '/dcl/warehouse/unapprove',
+    '/dcl/product/reject',
+    '/dcl/product/approve',
+    '/dcl/product/unreject',
+    '/dcl/product/unapprove',
   ],
 }
 
@@ -49,7 +43,7 @@ function entry(status: ApprovalEntry['status']): ApprovalEntry {
   return {
     id: 'submission-1',
     domain: 'dcl',
-    entity: 'warehouse',
+    entity: 'product',
     subjectId: 'warehouse-1',
     versionNo: 1,
     status,
@@ -231,7 +225,7 @@ test('covers the closed Approval action, actor, permission, and reason matrix', 
       entry: entry(status),
       actor: {
         id: submitter.id,
-        permissions: [`/dcl/warehouse/${action}`],
+        permissions: [`/dcl/product/${action}`],
       },
       expectedRevision: '7',
       occurredAt: '2026-09-03T02:00:00Z',
@@ -275,206 +269,4 @@ test('covers the closed Approval action, actor, permission, and reason matrix', 
     }),
     { ok: false, error: { errorKey: 'approval_self_review_forbidden' } },
   )
-})
-
-function warehouseCommand(
-  action: 'submit-new' | 'submit-change',
-): WarehouseSubmitCommand {
-  return {
-    action,
-    actor: {
-      id: 'user-submitter',
-      permissions: [`/dcl/warehouse/${action}`],
-    },
-    requestId: 'request-submit',
-    occurredAt: '2026-09-03T03:00:00Z',
-    submissionId: 'submission-warehouse-1',
-    idempotencyKey: 'submission-warehouse-1',
-    subjectId: 'warehouse-1',
-    expectedLatestApprovedSubmissionId: null,
-    expectedLatestApprovedRevision: null,
-    data: {
-      name: ' 主仓 ',
-      address: ' 上海 ',
-      contactName: ' 张三 ',
-      contactPhone: ' 13800000000 ',
-      manager: {
-        employeeId: 'employee-1',
-        code: 'CLIENT-CODE',
-        displayName: '客户端负责人',
-      },
-      remark: ' 备注 ',
-      enabled: true,
-    },
-  }
-}
-
-function newWarehouseFacts(): WarehouseSubmitFacts {
-  return {
-    subject: { exists: false, history: [] },
-    manager: {
-      employeeId: 'employee-1',
-      code: 'EMP-0001',
-      displayName: ' 仓库负责人 ',
-    },
-  }
-}
-
-test('prepares a normalized Warehouse submit-new plan from explicit current facts', () => {
-  assert.deepEqual(
-    prepareWarehouseSubmit(warehouseCommand('submit-new'), newWarehouseFacts()),
-    {
-      ok: true,
-      plan: {
-        kind: 'warehouse-submit',
-        mode: 'new',
-        createSubject: true,
-        allocateCode: true,
-        subjectId: 'warehouse-1',
-        submissionId: 'submission-warehouse-1',
-        idempotencyKey: 'submission-warehouse-1',
-        versionNo: 1,
-        approval: {
-          status: 'PENDING',
-          revision: '1',
-          submitted: {
-            actorId: 'user-submitter',
-            occurredAt: '2026-09-03T03:00:00Z',
-          },
-          event: {
-            action: 'SUBMITTED',
-            actorId: 'user-submitter',
-            requestId: 'request-submit',
-            toStatus: 'PENDING',
-            toRevision: '1',
-          },
-        },
-        data: {
-          name: '主仓',
-          address: '上海',
-          contactName: '张三',
-          contactPhone: '13800000000',
-          manager: {
-            employeeId: 'employee-1',
-            code: 'EMP-0001',
-            displayName: '仓库负责人',
-          },
-          remark: '备注',
-          enabled: true,
-        },
-      },
-    },
-  )
-})
-
-test('rejects mismatched Warehouse mode, history/open candidates, and unavailable managers', () => {
-  assert.deepEqual(
-    prepareWarehouseSubmit(
-      warehouseCommand('submit-change'),
-      newWarehouseFacts(),
-    ),
-    { ok: false, error: { errorKey: 'warehouse_submit_mode_mismatch' } },
-  )
-  assert.deepEqual(
-    prepareWarehouseSubmit(warehouseCommand('submit-new'), {
-      ...newWarehouseFacts(),
-      subject: {
-        exists: true,
-        history: [
-          {
-            entryId: 'approved-1',
-            versionNo: 1,
-            revision: '1',
-            status: 'APPROVED',
-          },
-        ],
-      },
-    }),
-    { ok: false, error: { errorKey: 'warehouse_submit_mode_mismatch' } },
-  )
-  assert.deepEqual(
-    prepareWarehouseSubmit(warehouseCommand('submit-change'), {
-      ...newWarehouseFacts(),
-      subject: {
-        exists: true,
-        history: [
-          {
-            entryId: 'approved-1',
-            versionNo: 1,
-            revision: '1',
-            status: 'APPROVED',
-          },
-          {
-            entryId: 'open-2',
-            versionNo: 2,
-            revision: '1',
-            status: 'PENDING',
-          },
-        ],
-      },
-    }),
-    { ok: false, error: { errorKey: 'approval_open_version_exists' } },
-  )
-  assert.deepEqual(
-    prepareWarehouseSubmit(warehouseCommand('submit-new'), {
-      ...newWarehouseFacts(),
-      manager: undefined,
-    }),
-    { ok: false, error: { errorKey: 'warehouse_reference_unavailable' } },
-  )
-})
-
-test('rejects Warehouse submits whose expected latest approved snapshot is stale', () => {
-  const command = warehouseCommand('submit-change')
-  command.expectedLatestApprovedSubmissionId = 'approved-1'
-  command.expectedLatestApprovedRevision = '4'
-  const facts: WarehouseSubmitFacts = {
-    ...newWarehouseFacts(),
-    subject: {
-      exists: true,
-      history: [
-        {
-          entryId: 'approved-1',
-          versionNo: 1,
-          revision: '5',
-          status: 'APPROVED',
-        },
-      ],
-    },
-  }
-  assert.deepEqual(prepareWarehouseSubmit(command, facts), {
-    ok: false,
-    error: { errorKey: 'warehouse_stale_facts' },
-  })
-  const newCommand = warehouseCommand('submit-new')
-  newCommand.expectedLatestApprovedSubmissionId = 'approved-1'
-  newCommand.expectedLatestApprovedRevision = '1'
-  assert.deepEqual(prepareWarehouseSubmit(newCommand, newWarehouseFacts()), {
-    ok: false,
-    error: { errorKey: 'warehouse_stale_facts' },
-  })
-})
-
-test('rejects Warehouse data that exceeds canonical field limits', () => {
-  const mismatchedIdempotency = warehouseCommand('submit-new')
-  mismatchedIdempotency.idempotencyKey = 'different-submission'
-  assert.deepEqual(
-    prepareWarehouseSubmit(mismatchedIdempotency, newWarehouseFacts()),
-    { ok: false, error: { errorKey: 'warehouse_invalid_data' } },
-  )
-  const oversizedFields = [
-    ['name', '仓'.repeat(201)],
-    ['address', '地'.repeat(501)],
-    ['contactName', '联'.repeat(101)],
-    ['contactPhone', '1'.repeat(33)],
-    ['remark', '备'.repeat(1001)],
-  ] as const
-  for (const [field, value] of oversizedFields) {
-    const command = warehouseCommand('submit-new')
-    command.data = { ...command.data, [field]: value }
-    assert.deepEqual(prepareWarehouseSubmit(command, newWarehouseFacts()), {
-      ok: false,
-      error: { errorKey: 'warehouse_invalid_data' },
-    })
-  }
 })

@@ -4,6 +4,10 @@ import type { VouPayloadFor } from '@zerp/model'
 import { sql } from 'kysely'
 import { ulid } from 'ulid'
 
+import {
+  BobArchiveService,
+  BobArchiveApplicationError,
+} from '../../src/bob/archives.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { AccApplicationError, AccService } from '../../src/acc/service.ts'
 import { AuxApplicationError, AuxService } from '../../src/aux/service.ts'
@@ -566,6 +570,23 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
   const actor = { id: actorId, permissions: [] as string[], trusted: true }
   context.after(async () => {
     try {
+      const opening = await db
+        .selectFrom('approval_entries')
+        .select(['status', 'revision'])
+        .where('id', '=', openingId)
+        .executeTakeFirst()
+      if (opening?.status === 'APPROVED')
+        await service.reviewOpening(
+          'unapprove',
+          {
+            bookId,
+            submissionId: openingId,
+            expectedRevision: String(opening.revision),
+            reason: '清理当前测试创建的期初事实',
+          },
+          { ...actor, id: reviewerId },
+          ulid(),
+        )
       await sql`DELETE FROM acc_opening_container_balances WHERE opening_approval_entry_id = ${openingId}`.execute(
         db,
       )
@@ -606,7 +627,9 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
         .deleteFrom('dcl_subjects')
         .where('id', 'in', [mappingId, customerId])
         .execute()
-      await sql`DELETE FROM bob_subjects WHERE id = ${supplierId}`.execute(db)
+      await sql`DELETE FROM bob_subjects WHERE id IN (${supplierId}, ${customerId})`.execute(
+        db,
+      )
       await db
         .deleteFrom('acc_subjects')
         .where('book_id', '=', bookId)
@@ -704,10 +727,24 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
         created_at: now,
         created_by: actorId,
       },
+    ])
+    .execute()
+  await db
+    .insertInto('bob_subjects')
+    .values([
       {
         id: customerId,
         entity: 'customer',
-        code: 'CUS-0001',
+        code: `CUS-${String(
+          (
+            await db
+              .updateTable('archive_code_counters')
+              .set((eb) => ({ next_value: eb('next_value', '+', 1) }))
+              .where('entity', '=', 'customer')
+              .returning('next_value')
+              .executeTakeFirstOrThrow()
+          ).next_value - 1,
+        ).padStart(4, '0')}`,
         created_at: now,
         created_by: actorId,
       },
@@ -752,7 +789,7 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
       },
       {
         id: customerEntryId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'customer',
         subject_id: customerId,
         version_no: 1,
@@ -790,7 +827,7 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
     })
     .execute()
   await db
-    .insertInto('dcl_customer_versions')
+    .insertInto('bob_customer_versions')
     .values({
       approval_entry_id: customerEntryId,
       kind: 'OTHER',
@@ -811,11 +848,10 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
       invoice_account: null,
       remittance_profiles: JSON.stringify([]),
       tax_attachments: JSON.stringify([]),
-      enabled: true,
     })
     .execute()
   await db
-    .insertInto('dcl_customer_subunit_roots')
+    .insertInto('bob_customer_subunit_roots')
     .values({
       subunit_id: subunitId,
       customer_id: customerId,
@@ -823,7 +859,7 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
     })
     .execute()
   await db
-    .insertInto('dcl_customer_version_subunits')
+    .insertInto('bob_customer_version_subunits')
     .values({
       customer_approval_entry_id: customerEntryId,
       subunit_id: subunitId,
@@ -1005,6 +1041,27 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
       )
     ).rows[0]!.count,
     '1',
+  )
+  await assert.rejects(
+    new BobArchiveService(db).review(
+      'customer',
+      'unapprove',
+      {
+        subjectId: customerId,
+        submissionId: customerEntryId,
+        expectedRevision: '1',
+        reason: '会计期初引用检查',
+      },
+      actor,
+      ulid(),
+    ),
+    (error) =>
+      error instanceof BobArchiveApplicationError &&
+      error.errorKey === 'approval_strong_reference_exists' &&
+      error.data?.blockers.some(
+        (blocker) =>
+          blocker.kind === 'CUSTOMER_REFERENCE' && blocker.domain === 'acc',
+      ) === true,
   )
   await service.reviewOpening(
     'unapprove',
@@ -1731,6 +1788,10 @@ test('ACC automatic inventory posting rejects missing product or warehouse dimen
         .deleteFrom('acc_subjects')
         .where('book_id', '=', bookId)
         .execute()
+      await db
+        .deleteFrom('bob_subjects')
+        .where('created_by', '=', actorId)
+        .execute()
       await db.deleteFrom('acc_books').where('id', '=', bookId).execute()
       await db.deleteFrom('app_users').where('id', '=', actorId).execute()
     } finally {
@@ -2021,6 +2082,10 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
       await db
         .deleteFrom('acc_subjects')
         .where('book_id', '=', bookId)
+        .execute()
+      await db
+        .deleteFrom('bob_subjects')
+        .where('created_by', '=', actorId)
         .execute()
       await db.deleteFrom('acc_books').where('id', '=', bookId).execute()
       await db.deleteFrom('app_users').where('id', '=', actorId).execute()
@@ -2677,6 +2742,10 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
         .deleteFrom('dcl_subjects')
         .where('id', 'in', [mappingSubjectId, customerId])
         .execute()
+      await db
+        .deleteFrom('bob_subjects')
+        .where('created_by', '=', actorId)
+        .execute()
       await db.deleteFrom('acc_books').where('id', '=', bookId).execute()
       await db.deleteFrom('app_users').where('id', '=', actorId).execute()
     } finally {
@@ -2737,10 +2806,24 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
         created_at: now,
         created_by: actorId,
       },
+    ])
+    .execute()
+  await db
+    .insertInto('bob_subjects')
+    .values([
       {
         id: customerId,
         entity: 'customer',
-        code: 'CUS-0001',
+        code: `CUS-${String(
+          (
+            await db
+              .updateTable('archive_code_counters')
+              .set((eb) => ({ next_value: eb('next_value', '+', 1) }))
+              .where('entity', '=', 'customer')
+              .returning('next_value')
+              .executeTakeFirstOrThrow()
+          ).next_value - 1,
+        ).padStart(4, '0')}`,
         created_at: now,
         created_by: actorId,
       },
@@ -2766,7 +2849,7 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
       },
       {
         id: customerApprovalEntryId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'customer',
         subject_id: customerId,
         version_no: 1,
@@ -2782,7 +2865,7 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
     ])
     .execute()
   await db
-    .insertInto('dcl_customer_subunit_roots')
+    .insertInto('bob_customer_subunit_roots')
     .values({
       subunit_id: customerSubunitId,
       customer_id: customerId,
@@ -2790,7 +2873,7 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
     })
     .execute()
   await db
-    .insertInto('dcl_customer_version_subunits')
+    .insertInto('bob_customer_version_subunits')
     .values({
       customer_approval_entry_id: customerApprovalEntryId,
       subunit_id: customerSubunitId,

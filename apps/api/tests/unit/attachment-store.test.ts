@@ -21,20 +21,32 @@ test('AttachmentStore stages an owner file, prepares a permanent key, finalizes 
     stagingKey,
     'staging/01JOWNER000000000000000000/01JSTAGE000000000000000000',
   )
-  assert.deepEqual(await store.read(stagingKey), Buffer.from('attachment fixture'))
+  assert.deepEqual(
+    await store.read(stagingKey),
+    Buffer.from('attachment fixture'),
+  )
 
   const permanent = await store.promote({
     stagingKey,
-    permanentKey: 'permanent/dcl/customer/01JSUBMISSION00000000000000/01JFILE000000000000000000',
+    permanentKey:
+      'permanent/bob/customer/01JSUBMISSION00000000000000/01JFILE000000000000000000',
   })
   assert.deepEqual(permanent, {
-    key:
-    'permanent/dcl/customer/01JSUBMISSION00000000000000/01JFILE000000000000000000',
+    key: 'permanent/bob/customer/01JSUBMISSION00000000000000/01JFILE000000000000000000',
     created: true,
   })
-  assert.deepEqual(await store.read(permanent.key), Buffer.from('attachment fixture'))
-  assert.deepEqual(await store.read(stagingKey), Buffer.from('attachment fixture'))
-  assert.equal(await store.cleanupOrphans('dcl', new Set(), { writersFrozen: true }), 1)
+  assert.deepEqual(
+    await store.read(permanent.key),
+    Buffer.from('attachment fixture'),
+  )
+  assert.deepEqual(
+    await store.read(stagingKey),
+    Buffer.from('attachment fixture'),
+  )
+  assert.equal(
+    await store.cleanupOrphans('bob', new Set(), { writersFrozen: true }),
+    1,
+  )
   await assert.rejects(store.read(permanent.key), /attachment_not_found/)
   await store.finalize(stagingKey)
   await assert.rejects(store.read(stagingKey), /attachment_not_found/)
@@ -46,9 +58,13 @@ test('AttachmentStore does not sweep an uncommitted fresh file before its databa
   context.after(() => rm(root, { recursive: true, force: true }))
   const store = new AttachmentStore(root)
   const key = await store.stage({
-    ownerId: '01JOWNER000000000000000000', stagingId: '01JFRESH000000000000000000',
+    ownerId: '01JOWNER000000000000000000',
+    stagingId: '01JFRESH000000000000000000',
     content: Buffer.from('fresh attachment'),
   })
-  assert.equal(await store.cleanupStagingOrphans(new Set(), { writersFrozen: true }), 0)
+  assert.equal(
+    await store.cleanupStagingOrphans(new Set(), { writersFrozen: true }),
+    0,
+  )
   assert.deepEqual(await store.read(key), Buffer.from('fresh attachment'))
 })

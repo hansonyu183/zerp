@@ -150,13 +150,6 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     .insertInto('dcl_subjects')
     .values([
       {
-        id: customerId,
-        entity: 'customer',
-        code: `CUS-${code}`,
-        created_at: now,
-        created_by: actorId,
-      },
-      {
         id: mappingId,
         entity: 'acc-mapping',
         code: null,
@@ -167,6 +160,18 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
         id: fundMappingId,
         entity: 'acc-mapping',
         code: null,
+        created_at: now,
+        created_by: actorId,
+      },
+    ])
+    .execute()
+  await db
+    .insertInto('bob_subjects')
+    .values([
+      {
+        id: customerId,
+        entity: 'customer',
+        code: `CUS-${code}`,
         created_at: now,
         created_by: actorId,
       },
@@ -189,7 +194,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     .values([
       {
         id: customerEntryId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'customer',
         subject_id: customerId,
         version_no: 1,
@@ -250,22 +255,21 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     ])
     .execute()
   await db
-    .insertInto('dcl_customer_versions')
+    .insertInto('bob_customer_versions')
     .values({
       approval_entry_id: customerEntryId,
       kind: 'OTHER',
       display_name: '控制客户',
       remittance_profiles: JSON.stringify([]),
       tax_attachments: JSON.stringify([]),
-      enabled: true,
     })
     .execute()
   await db
-    .insertInto('dcl_customer_subunit_roots')
+    .insertInto('bob_customer_subunit_roots')
     .values({ subunit_id: subunitId, customer_id: customerId, code: 'CONTROL' })
     .execute()
   await db
-    .insertInto('dcl_customer_version_subunits')
+    .insertInto('bob_customer_version_subunits')
     .values({
       customer_approval_entry_id: customerEntryId,
       subunit_id: subunitId,
@@ -622,7 +626,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     0,
   )
   await db
-    .updateTable('dcl_customer_version_subunits')
+    .updateTable('bob_customer_version_subunits')
     .set({
       settlement_snapshot: JSON.stringify({
         termCode: 'CASH_ON_DELIVERY',
@@ -881,7 +885,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     )
     .execute()
   await db
-    .insertInto('dcl_subjects')
+    .insertInto('bob_subjects')
     .values([
       {
         id: customerId,
@@ -913,7 +917,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     .values([
       {
         id: customerEntryId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'customer',
         subject_id: customerId,
         version_no: 1,
@@ -966,18 +970,17 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     dayOffset: 0,
   })
   await db
-    .insertInto('dcl_customer_versions')
+    .insertInto('bob_customer_versions')
     .values({
       approval_entry_id: customerEntryId,
       kind: 'OTHER',
       display_name: '批次客户',
       remittance_profiles: JSON.stringify([]),
       tax_attachments: JSON.stringify([]),
-      enabled: true,
     })
     .execute()
   await db
-    .insertInto('dcl_customer_subunit_roots')
+    .insertInto('bob_customer_subunit_roots')
     .values({
       subunit_id: subunitId,
       customer_id: customerId,
@@ -985,7 +988,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     })
     .execute()
   await db
-    .insertInto('dcl_customer_version_subunits')
+    .insertInto('bob_customer_version_subunits')
     .values({
       customer_approval_entry_id: customerEntryId,
       subunit_id: subunitId,

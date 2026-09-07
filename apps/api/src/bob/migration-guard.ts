@@ -1,3 +1,4 @@
+import { customerPermissionMappings } from './customer-permissions.ts'
 import {
   preserveLegacyMappedPermissions,
   productPermissionMappings,
@@ -15,7 +16,11 @@ export function requiresBobArchivePermissionMigration(
 ): boolean {
   const existing = new Set(existingPaths)
   const target = new Set(targetPaths)
-  return [...bobArchivePermissionMappings, ...productPermissionMappings].some(
+  return [
+    ...bobArchivePermissionMappings,
+    ...productPermissionMappings,
+    ...customerPermissionMappings,
+  ].some(
     (mapping) =>
       existing.has(mapping.from) &&
       !target.has(mapping.from) &&
@@ -38,5 +43,6 @@ export function preserveLegacyBobArchivePermissionCatalog(
   return preserveLegacyMappedPermissions(targetCatalog, existing, [
     ...bobArchivePermissionMappings,
     ...productPermissionMappings,
+    ...customerPermissionMappings,
   ])
 }

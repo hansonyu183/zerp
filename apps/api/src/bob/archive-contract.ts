@@ -8,6 +8,7 @@ import type { TargetRouteEnvironment } from '../app/contract.ts'
 import { archiveEntityPresentation } from '@zerp/model'
 
 export const bobArchiveEntities = [
+  'customer',
   'product',
   'supplier',
   'other-unit',
@@ -148,6 +149,167 @@ const settlementSnapshot = auxSnapshot.extend({
   dayOfMonth: z.number().int().min(0).max(31).optional(),
   dayOffset: z.number().int().min(0).max(30).optional(),
 })
+const identityKind = z.enum([
+  'MAINLAND_ENTERPRISE',
+  'MAINLAND_INDIVIDUAL',
+  'OTHER',
+])
+
+// Settlement methods are AUX facts. They intentionally do not carry an
+// Approval Entry: a DCL exact-version reference here would fabricate history.
+// ArchiveService replaces any client-supplied identity with these immutable
+// term facts from the currently enabled AUX object before persistence.
+const customerSettlementSnapshot = settlementSnapshot
+  .extend({
+    termCode: z.enum([
+      'PREPAID',
+      'CASH_ON_DELIVERY',
+      'ARRIVAL_3',
+      'ARRIVAL_5',
+      'ARRIVAL_7',
+      'ARRIVAL_15',
+      'ARRIVAL_30',
+      'MONTHLY_CURRENT',
+      'MONTHLY_30',
+      'MONTHLY_60',
+      'MONTHLY_90',
+    ]),
+    ruleType: z.enum(['RELATIVE_DAYS', 'MONTH_END']),
+    monthOffset: z.number().int().min(0).max(3),
+    dayOfMonth: z.number().int().min(0).max(31),
+    dayOffset: z.number().int().min(0).max(30),
+    defaultSalesSurcharge: z.string().regex(/^(?:0|[1-9]\d*)\.\d{2}$/),
+  })
+  .strict()
+const paymentMethodSnapshot = auxSnapshot
+  .extend({
+    defaultSalesSurcharge: z.string().regex(/^(?:0|[1-9]\d*)\.\d{2}$/),
+  })
+  .strict()
+const attachmentMetadata = z
+  .object({
+    id: z.string().length(26),
+    fileName: z.string().min(1).max(255),
+    contentType: z.string().min(1).max(128),
+    sizeBytes: z.number().int().positive().max(10_485_760),
+    sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    stagingId: z.string().length(26).optional(),
+  })
+  .strict()
+
+const pricingCostItem = z.discriminatedUnion('calculationBasis', [
+  z
+    .object({
+      name: z.string().trim().min(1).max(200),
+      calculationBasis: z.literal('UNIT_PRICE'),
+      unitPrice: z
+        .string()
+        .regex(/^(?:[1-9]\d*\.\d{2}|0\.(?:[1-9]\d|0[1-9]))$/),
+    })
+    .strict(),
+  z
+    .object({
+      name: z.string().trim().min(1).max(200),
+      calculationBasis: z.literal('ORDER_AMOUNT'),
+      orderAmount: z
+        .string()
+        .regex(/^(?:[1-9]\d*\.\d{2}|0\.(?:[1-9]\d|0[1-9]))$/),
+    })
+    .strict(),
+])
+const pricingPolicy = z
+  .object({
+    defaultPremiumUnitPrice: z.string().regex(/^(?:0|[1-9]\d*)\.\d{2}$/),
+    defaultDiscountUnitPrice: z.string().regex(/^(?:0|[1-9]\d*)\.\d{2}$/),
+    costItems: z.array(pricingCostItem),
+    thirdPartyIntermediaryFixedUnitCost: z
+      .string()
+      .regex(/^(?:0|[1-9]\d*)\.\d{2}$/),
+    thirdPartyIntermediaryVariableUnitCost: z
+      .string()
+      .regex(/^(?:0|[1-9]\d*)\.\d{2}$/),
+  })
+  .strict()
+const customerSalesAttribution = z.discriminatedUnion('type', [
+  stableReference.extend({ type: z.literal('INTERNAL_EMPLOYEE') }),
+  exactReference.extend({
+    type: z.enum(['EXTERNAL_PART_TIME', 'CHANNEL_PARTNER']),
+  }),
+])
+
+const customerSubunitBase = {
+  id: z.string().length(26),
+  name: z.string().min(1).max(200),
+  contactName: z.string().max(100),
+  address: z.string().max(500),
+  customerType: auxSnapshot,
+  settlementMethod: customerSettlementSnapshot.nullable(),
+  paymentMethod: paymentMethodSnapshot.nullable(),
+  transportPolicy: z
+    .object({
+      methodCode: z.string().min(1).max(64),
+      methodName: z.string().min(1).max(200),
+      surcharge: z.string().regex(/^(?:0|[1-9]\d*)\.\d{2}$/),
+    })
+    .strict(),
+  pricingPolicy,
+  creditLimits: z.array(
+    z
+      .object({ currency: z.string().min(1).max(16), amount: z.string() })
+      .strict(),
+  ),
+  primarySalesAttribution: customerSalesAttribution,
+  internalReminder: z.string().max(1000),
+  defaultSalesOrderRemark: z.string().max(1000),
+  attachments: z.array(attachmentMetadata),
+  enabled: z.boolean(),
+} as const
+const customerSubunit = z.discriminatedUnion('intent', [
+  z
+    .object({
+      ...customerSubunitBase,
+      intent: z.literal('NEW'),
+      code: z.null(),
+    })
+    .strict(),
+  z
+    .object({
+      ...customerSubunitBase,
+      intent: z.literal('EXISTING'),
+      code: z.string().regex(/^SUB-\d{4}$/),
+    })
+    .strict(),
+])
+
+const customerSnapshot = z
+  .object({
+    identityKind,
+    legalName: z.string().min(1).max(200),
+    displayName: z.string().min(1).max(200),
+    legalIdentifier: z.string().max(128),
+    phone: z.string().max(32),
+    email: z.string().max(320),
+    address: z.string().max(500),
+    invoiceTitle: z.string().max(200),
+    invoiceAddress: z.string().max(500),
+    invoicePhone: z.string().max(32),
+    invoiceBank: z.string().max(200),
+    invoiceAccount: z.string().max(128),
+    remittanceProfiles: z.array(
+      z
+        .object({
+          payerName: z.string().min(1).max(200),
+          bank: z.string().max(200),
+          accountNumber: z.string().max(128),
+        })
+        .strict(),
+    ),
+    defaultOperatingEntity: stableReference.nullable(),
+    identityAttachments: z.array(attachmentMetadata),
+    subunits: z.array(customerSubunit).min(1),
+  })
+  .strict()
+
 const archiveIdentityBase = {
   identityKind: z.enum(['PERSON', 'ORGANIZATION']),
   legalName: z.string().min(1).max(200),
@@ -184,6 +346,7 @@ const salesPartnerSnapshot = z
   .strict()
 
 export const bobArchiveSnapshotSchemas = {
+  customer: customerSnapshot,
   product: productSnapshot,
   supplier: supplierSnapshot,
   'other-unit': otherUnitSnapshot,
@@ -212,6 +375,7 @@ const archiveQueryInput = <Filters extends z.ZodType>(filters: Filters) =>
     .strict()
 
 export const archiveQuerySchemas = {
+  customer: archiveQueryInput(archiveQueryBaseFilters),
   product: archiveQueryInput(
     archiveQueryBaseFilters
       .extend({
@@ -268,8 +432,8 @@ export const archiveBlockerSchema = z.discriminatedUnion('kind', [
   submissionReferenceBlocker,
   z
     .object({
-      kind: z.literal('PRODUCT_REFERENCE'),
-      domain: z.enum(['bob', 'vou']),
+      kind: z.enum(['PRODUCT_REFERENCE', 'CUSTOMER_REFERENCE']),
+      domain: z.enum(['bob', 'vou', 'acc']),
       entity: z.string(),
       objectId: z.string().length(26),
       approvalEntryId: z.string().length(26),
@@ -471,6 +635,13 @@ function defineArchiveRoutes<
 }
 
 export const bobArchiveRouteSets = {
+  customer: defineArchiveRoutes(
+    'bob',
+    'submission-query',
+    'submission-get',
+    'customer',
+    archiveSnapshotSchemas.customer,
+  ),
   product: defineArchiveRoutes(
     'bob',
     'submission-query',
@@ -520,6 +691,107 @@ export const bobArchiveRouteMetadata: Array<{
   })),
 )
 
+/**
+ * Capabilities authorize a bounded part of a real route, not a synthetic HTTP
+ * endpoint. Keep them out of executable-route completeness checks while still
+ * emitting them into the target permission catalog.
+ */
+export const archiveCapabilityPermissionMetadata = [
+  {
+    permission: '/bob/customer/save-subunits',
+    title: '维护客户子单位',
+  },
+] as const
+
+const attachmentStageRequest = z
+  .object({
+    stagingId: z.string().length(26),
+    fileId: z.string().length(26),
+    fileName: z.string().min(1).max(255),
+    mimeType: z.enum(['application/pdf', 'image/jpeg', 'image/png']),
+    size: z.number().int().positive().max(10_485_760),
+    digest: z.string().regex(/^[0-9a-f]{64}$/),
+    contentBase64: z.string().min(1),
+  })
+  .strict()
+const attachmentStageData = z.object({
+  stagingId: z.string(),
+  fileId: z.string(),
+  fileName: z.string(),
+  mimeType: z.string(),
+  size: z.number().int().positive(),
+  digest: z.string(),
+  expiresAt: z.string().datetime(),
+})
+const attachmentStageEnvelope = z.union([
+  z.object({
+    code: z.literal(0),
+    errorKey: z.literal(''),
+    message: z.literal('ok'),
+    data: attachmentStageData,
+    requestId: z.string(),
+  }),
+  failureEnvelope,
+])
+const attachmentCleanupEnvelope = z.union([
+  z.object({
+    code: z.literal(0),
+    errorKey: z.literal(''),
+    message: z.literal('ok'),
+    data: z.object({ deleted: z.number().int().nonnegative() }),
+    requestId: z.string(),
+  }),
+  failureEnvelope,
+])
+
+export const customerAttachmentStageRoute = createRoute({
+  method: 'post',
+  path: '/bob/customer/attachment-stage',
+  request: {
+    body: {
+      content: { 'application/json': { schema: attachmentStageRequest } },
+    },
+  },
+  responses: {
+    200: {
+      description: 'Stage one customer temporary attachment',
+      content: { 'application/json': { schema: attachmentStageEnvelope } },
+    },
+  },
+})
+export const customerAttachmentCleanupRoute = createRoute({
+  method: 'post',
+  path: '/bob/customer/attachment-cleanup',
+  request: {
+    body: {
+      content: {
+        'application/json': { schema: z.object({}).strict() },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: 'Clean expired customer attachment staging',
+      content: { 'application/json': { schema: attachmentCleanupEnvelope } },
+    },
+  },
+})
+
+bobArchiveRouteMetadata.push(
+  {
+    method: customerAttachmentStageRoute.method,
+    path: customerAttachmentStageRoute.path,
+    permission: customerAttachmentStageRoute.path,
+    title: '暂存客户附件',
+  },
+  {
+    method: customerAttachmentCleanupRoute.method,
+    path: customerAttachmentCleanupRoute.path,
+    permission: customerAttachmentCleanupRoute.path,
+    title: '清理客户附件暂存',
+  },
+)
+
 export type BobArchiveRouteHandler = (
   entity: BobArchiveEntity,
   action: ArchiveAction,
@@ -536,6 +808,17 @@ export type BobArchiveRouteHandler = (
   >
 >
 
+export interface ArchiveAttachmentHandlers {
+  stage: RouteHandler<
+    typeof customerAttachmentStageRoute,
+    TargetRouteEnvironment
+  >
+  cleanup: RouteHandler<
+    typeof customerAttachmentCleanupRoute,
+    TargetRouteEnvironment
+  >
+}
+
 function archiveHandler(
   handler: BobArchiveRouteHandler,
   entity: BobArchiveEntity,
@@ -547,8 +830,56 @@ function archiveHandler(
 export function registerBobArchiveRoutes(
   app: OpenAPIHono<TargetRouteEnvironment>,
   handler: BobArchiveRouteHandler,
+  attachments: ArchiveAttachmentHandlers,
 ) {
   return app.openapiRoutes([
+    {
+      route: archiveRouteSets['customer']['query'],
+      handler: archiveHandler(handler, 'customer', 'query'),
+    },
+    {
+      route: archiveRouteSets['customer']['get'],
+      handler: archiveHandler(handler, 'customer', 'get'),
+    },
+    {
+      route: archiveRouteSets['customer']['versions'],
+      handler: archiveHandler(handler, 'customer', 'versions'),
+    },
+    {
+      route: archiveRouteSets['customer']['audit-history'],
+      handler: archiveHandler(handler, 'customer', 'audit-history'),
+    },
+    {
+      route: archiveRouteSets['customer']['submit-new'],
+      handler: archiveHandler(handler, 'customer', 'submit-new'),
+    },
+    {
+      route: archiveRouteSets['customer']['submit-change'],
+      handler: archiveHandler(handler, 'customer', 'submit-change'),
+    },
+    {
+      route: archiveRouteSets['customer']['approve'],
+      handler: archiveHandler(handler, 'customer', 'approve'),
+    },
+    {
+      route: archiveRouteSets['customer']['reject'],
+      handler: archiveHandler(handler, 'customer', 'reject'),
+    },
+    {
+      route: archiveRouteSets['customer']['unreject'],
+      handler: archiveHandler(handler, 'customer', 'unreject'),
+    },
+    {
+      route: archiveRouteSets['customer']['unapprove'],
+      handler: archiveHandler(handler, 'customer', 'unapprove'),
+    },
+    {
+      route: archiveRouteSets['customer']['delete'],
+      handler: archiveHandler(handler, 'customer', 'delete'),
+    },
+
+    { route: customerAttachmentStageRoute, handler: attachments.stage },
+    { route: customerAttachmentCleanupRoute, handler: attachments.cleanup },
     {
       route: archiveRouteSets['product']['query'],
       handler: archiveHandler(handler, 'product', 'query'),

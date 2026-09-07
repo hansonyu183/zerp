@@ -1,3 +1,4 @@
+import CustomerManagement from '../pages/bob/customer/CustomerManagement.vue'
 import ProductManagement from '../pages/bob/product/ProductManagement.vue'
 import type { Component } from 'vue'
 import {
@@ -156,6 +157,12 @@ export const targetResourceRegistry = createResourceRegistry([
     entity: 'vehicle',
     definition: vehicleListPage,
     component: VehicleManagement,
+  },
+  {
+    domain: 'bob',
+    entity: 'customer',
+    component: CustomerManagement,
+    useCaseKey: 'bob/customer-management',
   },
   {
     domain: 'bob',

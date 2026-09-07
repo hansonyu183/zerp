@@ -18,7 +18,7 @@ const actor: ApprovalActor = {
   permissions: [
     '/bob/product/submit-new',
     '/bob/product/submit-change',
-    '/dcl/customer/submit-new',
+    '/bob/customer/submit-new',
     '/bob/sales-partner/submit-new',
     '/dcl/acc-mapping/submit-new',
     '/dcl/rpt-definition/submit-new',
@@ -310,6 +310,38 @@ test('keeps the complete typed customer aggregate and rejects malformed pricing 
         orderAmount: '20.00',
       },
     ])
+  }
+
+  for (const amount of ['0.01', '0.99', '1.00']) {
+    const positive = prepareCustomerSubmit(
+      {
+        ...command(),
+        data: {
+          ...data,
+          subunits: [
+            {
+              ...data.subunits[0]!,
+              pricingPolicy: {
+                ...data.subunits[0]!.pricingPolicy,
+                costItems: [
+                  {
+                    name: '成本',
+                    calculationBasis: 'UNIT_PRICE',
+                    unitPrice: amount,
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+      facts,
+    )
+    assert.equal(
+      positive.ok,
+      true,
+      `positive two-decimal cost ${amount} is valid`,
+    )
   }
 
   const malformed = prepareCustomerSubmit(
@@ -697,7 +729,6 @@ test('enforces sales partner capabilities, customer subunits, and legal identifi
             enabled: true,
           },
         ],
-        enabled: true,
       },
     },
     {

@@ -125,14 +125,13 @@ async function seedSaleOrderReferences(
   for (const fact of facts) {
     if (fact.entity === 'customer')
       await db
-        .insertInto('dcl_customer_versions')
+        .insertInto('bob_customer_versions')
         .values({
           approval_entry_id: fact.approvalEntryId,
           kind: 'ENTERPRISE',
           display_name: fact.name,
           remittance_profiles: JSON.stringify([]),
           tax_attachments: JSON.stringify([]),
-          enabled: true,
         })
         .execute()
     if (fact.entity === 'warehouse')
@@ -170,7 +169,7 @@ async function seedSaleOrderReferences(
   const customer = facts.find((fact) => fact.field === 'customer')!
   const customerSubunitId = ulid()
   await db
-    .insertInto('dcl_customer_subunit_roots')
+    .insertInto('bob_customer_subunit_roots')
     .values({
       subunit_id: customerSubunitId,
       customer_id: customer.objectId,
@@ -178,7 +177,7 @@ async function seedSaleOrderReferences(
     })
     .execute()
   await db
-    .insertInto('dcl_customer_version_subunits')
+    .insertInto('bob_customer_version_subunits')
     .values({
       customer_approval_entry_id: customer.approvalEntryId,
       subunit_id: customerSubunitId,

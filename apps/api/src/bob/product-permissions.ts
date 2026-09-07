@@ -1,3 +1,4 @@
+import { customerPermissionMappings } from './customer-permissions.ts'
 import type { PermissionPathMapping } from '../app/bootstrap.ts'
 import type { TargetPermissionCatalogEntry } from '../../scripts/target-artifacts.ts'
 
@@ -53,9 +54,8 @@ export function preserveLegacyProductPermissions(
   catalog: readonly TargetPermissionCatalogEntry[],
   existing: Parameters<typeof preserveLegacyMappedPermissions>[1],
 ): TargetPermissionCatalogEntry[] {
-  return preserveLegacyMappedPermissions(
-    catalog,
-    existing,
-    productPermissionMappings,
-  )
+  return preserveLegacyMappedPermissions(catalog, existing, [
+    ...productPermissionMappings,
+    ...customerPermissionMappings,
+  ])
 }

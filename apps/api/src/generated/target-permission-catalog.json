@@ -1280,6 +1280,62 @@
     "title": "保存仓库"
   },
   {
+    "id": "01J39C4236368A04F6D20EF126",
+    "path": "/bob/customer/approve",
+    "domain": "bob",
+    "entity": "customer",
+    "action": "approve",
+    "title": "approve customer"
+  },
+  {
+    "id": "01JD7EF48C7872D005A049CA59",
+    "path": "/bob/customer/attachment-cleanup",
+    "domain": "bob",
+    "entity": "customer",
+    "action": "attachment-cleanup",
+    "title": "清理客户附件暂存"
+  },
+  {
+    "id": "01J60E1D41D3B0B9AFFDA60193",
+    "path": "/bob/customer/attachment-stage",
+    "domain": "bob",
+    "entity": "customer",
+    "action": "attachment-stage",
+    "title": "暂存客户附件"
+  },
+  {
+    "id": "01J8C751956E775B7FA2A30172",
+    "path": "/bob/customer/audit-history",
+    "domain": "bob",
+    "entity": "customer",
+    "action": "audit-history",
+    "title": "audit-history customer"
+  },
+  {
+    "id": "01J147ACA4A7FCC9ECB2DFA93B",
+    "path": "/bob/customer/delete",
+    "domain": "bob",
+    "entity": "customer",
+    "action": "delete",
+    "title": "delete customer"
+  },
+  {
+    "id": "01JCCF66464569C68853601E56",
+    "path": "/bob/customer/disable",
+    "domain": "bob",
+    "entity": "customer",
+    "action": "disable",
+    "title": "查看客户"
+  },
+  {
+    "id": "01J141336D14088FEBE7A1E415",
+    "path": "/bob/customer/enable",
+    "domain": "bob",
+    "entity": "customer",
+    "action": "enable",
+    "title": "查看客户"
+  },
+  {
     "id": "01JCC2D59FDC2B4A1DE81D0149",
     "path": "/bob/customer/get",
     "domain": "bob",
@@ -1294,6 +1350,78 @@
     "entity": "customer",
     "action": "query",
     "title": "查询客户"
+  },
+  {
+    "id": "01J1C6B591010699798F38DFCD",
+    "path": "/bob/customer/reject",
+    "domain": "bob",
+    "entity": "customer",
+    "action": "reject",
+    "title": "reject customer"
+  },
+  {
+    "id": "01J6FA7F9EB0855D790644104D",
+    "path": "/bob/customer/save-subunits",
+    "domain": "bob",
+    "entity": "customer",
+    "action": "save-subunits",
+    "title": "维护客户子单位"
+  },
+  {
+    "id": "01JBEE0ED8475767A5C4E750F3",
+    "path": "/bob/customer/submission-get",
+    "domain": "bob",
+    "entity": "customer",
+    "action": "submission-get",
+    "title": "get customer"
+  },
+  {
+    "id": "01J00774D952C0A1612FBABB97",
+    "path": "/bob/customer/submission-query",
+    "domain": "bob",
+    "entity": "customer",
+    "action": "submission-query",
+    "title": "客户"
+  },
+  {
+    "id": "01J253C7B54FE65B6AE6E3C7D7",
+    "path": "/bob/customer/submit-change",
+    "domain": "bob",
+    "entity": "customer",
+    "action": "submit-change",
+    "title": "submit-change customer"
+  },
+  {
+    "id": "01J8590383F18F157F22B8B3C9",
+    "path": "/bob/customer/submit-new",
+    "domain": "bob",
+    "entity": "customer",
+    "action": "submit-new",
+    "title": "submit-new customer"
+  },
+  {
+    "id": "01J23A18AA6ED6D54B464ABF5A",
+    "path": "/bob/customer/unapprove",
+    "domain": "bob",
+    "entity": "customer",
+    "action": "unapprove",
+    "title": "unapprove customer"
+  },
+  {
+    "id": "01J182C73D41D22AA13E19C38A",
+    "path": "/bob/customer/unreject",
+    "domain": "bob",
+    "entity": "customer",
+    "action": "unreject",
+    "title": "unreject customer"
+  },
+  {
+    "id": "01J5EEBF8AEDD718E54F49B443",
+    "path": "/bob/customer/versions",
+    "domain": "bob",
+    "entity": "customer",
+    "action": "versions",
+    "title": "versions customer"
   },
   {
     "id": "01JC4DC555ED921CF1B195DB5E",
@@ -1870,118 +1998,6 @@
     "entity": "acc-mapping",
     "action": "versions",
     "title": "versions acc-mapping"
-  },
-  {
-    "id": "01J0EC601B3034645FEF9BCCA3",
-    "path": "/dcl/customer/approve",
-    "domain": "dcl",
-    "entity": "customer",
-    "action": "approve",
-    "title": "approve customer"
-  },
-  {
-    "id": "01JF0B35CFCAC1A4D20BD24C97",
-    "path": "/dcl/customer/attachment-cleanup",
-    "domain": "dcl",
-    "entity": "customer",
-    "action": "attachment-cleanup",
-    "title": "清理客户附件暂存"
-  },
-  {
-    "id": "01J4BD54272B2719A7458A07A0",
-    "path": "/dcl/customer/attachment-stage",
-    "domain": "dcl",
-    "entity": "customer",
-    "action": "attachment-stage",
-    "title": "暂存客户附件"
-  },
-  {
-    "id": "01JB5FB097CBF695A23D5DAF2A",
-    "path": "/dcl/customer/audit-history",
-    "domain": "dcl",
-    "entity": "customer",
-    "action": "audit-history",
-    "title": "audit-history customer"
-  },
-  {
-    "id": "01JE442457379AAB2FB87119C5",
-    "path": "/dcl/customer/delete",
-    "domain": "dcl",
-    "entity": "customer",
-    "action": "delete",
-    "title": "delete customer"
-  },
-  {
-    "id": "01J0ED3975D4A8AF0EA02EB1E0",
-    "path": "/dcl/customer/get",
-    "domain": "dcl",
-    "entity": "customer",
-    "action": "get",
-    "title": "get customer"
-  },
-  {
-    "id": "01J0D8BCA1D9FB9F384CEF3AFF",
-    "path": "/dcl/customer/query",
-    "domain": "dcl",
-    "entity": "customer",
-    "action": "query",
-    "title": "客户"
-  },
-  {
-    "id": "01J1B742D54C93F4C24DEA59CF",
-    "path": "/dcl/customer/reject",
-    "domain": "dcl",
-    "entity": "customer",
-    "action": "reject",
-    "title": "reject customer"
-  },
-  {
-    "id": "01J220B7E678FCFD501145D93C",
-    "path": "/dcl/customer/save-subunits",
-    "domain": "dcl",
-    "entity": "customer",
-    "action": "save-subunits",
-    "title": "维护客户子单位"
-  },
-  {
-    "id": "01J3319B0B8E637B5C73618244",
-    "path": "/dcl/customer/submit-change",
-    "domain": "dcl",
-    "entity": "customer",
-    "action": "submit-change",
-    "title": "submit-change customer"
-  },
-  {
-    "id": "01J06F51F4C0D14AA74BA612E2",
-    "path": "/dcl/customer/submit-new",
-    "domain": "dcl",
-    "entity": "customer",
-    "action": "submit-new",
-    "title": "submit-new customer"
-  },
-  {
-    "id": "01J32C8DD16296D8A7393E5BFF",
-    "path": "/dcl/customer/unapprove",
-    "domain": "dcl",
-    "entity": "customer",
-    "action": "unapprove",
-    "title": "unapprove customer"
-  },
-  {
-    "id": "01J6432BD8DE4A51DF6F437BA2",
-    "path": "/dcl/customer/unreject",
-    "domain": "dcl",
-    "entity": "customer",
-    "action": "unreject",
-    "title": "unreject customer"
-  },
-  {
-    "id": "01J313CD3A588EAF6552AC1C80",
-    "path": "/dcl/customer/versions",
-    "domain": "dcl",
-    "entity": "customer",
-    "action": "versions",
-    "title": "versions customer"
   },
   {
     "id": "01J8D09C7DFF10FEFB025388D9",

@@ -167,7 +167,7 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     .padStart(4, '0')
   for (const [entity, id] of Object.entries(subjects)) {
     await db
-      .insertInto(entity === 'product' ? 'bob_subjects' : 'dcl_subjects')
+      .insertInto('bob_subjects')
       .values({
         id,
         entity,
@@ -182,7 +182,9 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     .values(
       Object.entries(entries).map(([entity, id]) => ({
         id,
-        domain: entity === 'product' ? 'bob' : 'dcl',
+        domain: ['customer', 'product'].includes(String(entity))
+          ? 'bob'
+          : 'dcl',
         entity,
         subject_id: subjects[entity as keyof typeof subjects],
         version_no: 1,
@@ -198,16 +200,15 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     )
     .execute()
   await db
-    .insertInto('dcl_customer_versions')
+    .insertInto('bob_customer_versions')
     .values({
       approval_entry_id: entries.customer,
       kind: 'ENTERPRISE',
       display_name: '收款客户',
-      enabled: true,
     })
     .execute()
   await db
-    .insertInto('dcl_customer_subunit_roots')
+    .insertInto('bob_customer_subunit_roots')
     .values(
       [subunitId, emptySubunitId].map((id) => ({
         subunit_id: id,
@@ -217,7 +218,7 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     )
     .execute()
   await db
-    .insertInto('dcl_customer_version_subunits')
+    .insertInto('bob_customer_version_subunits')
     .values(
       [subunitId, emptySubunitId].map((id) => ({
         customer_approval_entry_id: entries.customer,
@@ -509,7 +510,7 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     ),
   )
   for (const [method, source] of [
-    [disabledFirst, 'dcl_customer_version_subunits'],
+    [disabledFirst, 'bob_customer_version_subunits'],
     [disabledAlternate, 'vou_sale_order_details'],
   ] as const) {
     await assert.rejects(

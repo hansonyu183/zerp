@@ -21,6 +21,11 @@ function blockersOf(cause: unknown): readonly Blocker[] {
 }
 
 export function describeBobEnablementFailure(cause: unknown): string | null {
+  if (
+    cause instanceof TargetApiError &&
+    cause.errorKey === 'customer_enabled_subunit_required'
+  )
+    return '客户至少需要一个启用子单位；请先提交并批准子单位变更。'
   const blockers = blockersOf(cause)
   if (!blockers.length) return null
   const descriptions = blockers.map((blocker) => {
@@ -34,7 +39,19 @@ export function describeBobEnablementFailure(cause: unknown): string | null {
   return `无法变更启停状态，仍有${descriptions.join('、')}正在使用该档案。`
 }
 
-const productErrorLabels = {
+const archiveErrorLabels = {
+  customer_enabled_subunit_required:
+    '启用客户至少需要一个启用子单位，当前不能回落到该版本。',
+  customer_invalid_data:
+    '客户资料或子单位资料不符合规则；启用客户至少需要一个启用子单位。',
+  customer_reference_unavailable:
+    '客户类型、经营主体或业务归属当前不可用，请检查选择。',
+  customer_reference_stale: '销售合作方已有新版本，请重新选择。',
+  customer_duplicate_legal_identifier: '法定识别号已被其他客户占用。',
+  customer_subunit_conflict: '子单位身份或编码冲突，请重新打开客户资料。',
+  customer_attachment_invalid_content: '附件内容与文件类型不一致。',
+  customer_attachment_staging_conflict: '附件暂存请求冲突，请重新添加附件。',
+  customer_attachment_staging_invalid: '附件暂存已失效，请重新添加附件。',
   product_invalid_data: '产品资料不完整或数量、配方不符合规则。',
   product_reference_unavailable: '所选产品资料或原料当前不可用，请检查选择。',
   product_reference_stale: '原料已有新版本，请重新打开表单确认原料。',
@@ -43,12 +60,13 @@ const productErrorLabels = {
 
 export function describeBobArchiveFailure(cause: unknown): string | null {
   if (!(cause instanceof TargetApiError)) return null
-  if (cause.errorKey in productErrorLabels)
-    return productErrorLabels[cause.errorKey as keyof typeof productErrorLabels]
+  if (cause.errorKey in archiveErrorLabels)
+    return archiveErrorLabels[cause.errorKey as keyof typeof archiveErrorLabels]
   const products = blockersOf(cause).filter(
-    (item) => item.kind === 'PRODUCT_REFERENCE',
+    (item) =>
+      item.kind === 'PRODUCT_REFERENCE' || item.kind === 'CUSTOMER_REFERENCE',
   )
   if (products.length)
-    return `无法反批准，仍被${products.map((item) => `${item.domain === 'bob' ? '产品配方' : '正式单据'}（${item.objectId}）`).join('、')}引用。`
+    return `无法反批准，仍被${products.map((item) => `${item.domain === 'bob' ? '产品配方' : item.domain === 'acc' ? '会计期初' : '正式单据'}（${item.objectId}）`).join('、')}引用。`
   return null
 }

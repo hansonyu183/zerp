@@ -443,14 +443,17 @@ export function registerAppRoutes(
       stage: async (context) =>
         context.json(
           (await executeArchive(context, currentRequestId(context), (actor) =>
-            archives!.stageCustomerAttachment(context.req.valid('json'), actor),
+            bobArchives!.stageCustomerAttachment(
+              context.req.valid('json'),
+              actor,
+            ),
           )) as never,
           200,
         ),
       cleanup: async (context) =>
         context.json(
           (await executeArchive(context, currentRequestId(context), (actor) =>
-            archives!.cleanupCustomerAttachments(actor),
+            bobArchives!.cleanupCustomerAttachments(actor),
           )) as never,
           200,
         ),

@@ -614,7 +614,7 @@ export class TargetBootstrapService {
         )
         .execute()
       await transaction
-        .deleteFrom('dcl_customer_attachment_staging')
+        .deleteFrom('bob_customer_attachment_staging')
         .where('owner_user_id', '=', createdByUserId)
         .execute()
       await transaction

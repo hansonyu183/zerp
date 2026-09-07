@@ -2084,3 +2084,236 @@ export async function deleteTargetProduct(
     ).json(),
   )
 }
+
+export type TargetCustomerQueryInput = PostJson<
+  (typeof client)['bob']['customer']['query']['$post']
+>
+export type TargetCustomerEnabledInput = PostJson<
+  (typeof client)['bob']['customer']['enable']['$post']
+>
+export type TargetCustomerSubmissionQueryInput = PostJson<
+  (typeof client)['bob']['customer']['submission-query']['$post']
+>
+export type TargetCustomerSubmissionGetInput = PostJson<
+  (typeof client)['bob']['customer']['submission-get']['$post']
+>
+export type TargetCustomerSubmitInput = PostJson<
+  (typeof client)['bob']['customer']['submit-new']['$post']
+>
+export type TargetCustomerReviewInput = PostJson<
+  (typeof client)['bob']['customer']['approve']['$post']
+>
+export type TargetCustomerRejectInput = PostJson<
+  (typeof client)['bob']['customer']['reject']['$post']
+>
+
+export async function queryTargetCustomers(
+  csrfToken: string,
+  input: TargetCustomerQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['customer'].query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function getTargetCustomer(csrfToken: string, objectId: string) {
+  return unwrapTarget(
+    await (
+      await client.bob['customer'].get.$post(
+        { json: { objectId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function setTargetCustomerEnabled(
+  csrfToken: string,
+  input: TargetCustomerEnabledInput,
+  enabled: boolean,
+) {
+  const endpoint = enabled
+    ? client.bob['customer'].enable
+    : client.bob['customer'].disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function getTargetCustomerSubmission(
+  csrfToken: string,
+  input: TargetCustomerSubmissionGetInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['customer']['submission-get'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function queryTargetCustomerVersions(
+  csrfToken: string,
+  subjectId: string,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['customer'].versions.$post(
+        { json: { subjectId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function submitNewTargetCustomer(
+  csrfToken: string,
+  input: TargetCustomerSubmitInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['customer']['submit-new'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function submitChangeTargetCustomer(
+  csrfToken: string,
+  input: TargetCustomerSubmitInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['customer']['submit-change'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function queryTargetCustomerSubmissions(
+  csrfToken: string,
+  input: TargetCustomerSubmissionQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['customer']['submission-query'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function queryTargetCustomerAuditHistory(
+  csrfToken: string,
+  subjectId: string,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['customer']['audit-history'].$post(
+        { json: { subjectId } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function approveTargetCustomer(
+  csrfToken: string,
+  input: TargetCustomerReviewInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['customer'].approve.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function rejectTargetCustomer(
+  csrfToken: string,
+  input: TargetCustomerRejectInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['customer'].reject.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function unrejectTargetCustomer(
+  csrfToken: string,
+  input: TargetCustomerReviewInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['customer'].unreject.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function unapproveTargetCustomer(
+  csrfToken: string,
+  input: TargetCustomerRejectInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['customer'].unapprove.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function deleteTargetCustomer(
+  csrfToken: string,
+  input: TargetCustomerReviewInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob['customer'].delete.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export type TargetCustomerAttachmentStageInput = PostJson<
+  (typeof client)['bob']['customer']['attachment-stage']['$post']
+>
+export async function stageTargetCustomerAttachment(
+  csrfToken: string,
+  input: TargetCustomerAttachmentStageInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob.customer['attachment-stage'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}

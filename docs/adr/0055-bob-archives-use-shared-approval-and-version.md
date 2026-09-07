@@ -19,10 +19,14 @@ Approval 继续拥有持久化状态、Submission revision、元数据、职责�
 
 三类档案仍分别保留法定识别号和类型内唯一性。Supplier 保留采购订单、仓库收货、默认采购员、结算方式和适用经营主体规则；Other Unit 保留服务合同、履约验收和外部车辆承运归属规则；Sales Partner 保留 `EXTERNAL_PART_TIME` 与 `CHANNEL_PARTNER` 能力、客户业务归属和反自归属规则。它们不重新引入 Party、关系层、跨档案同步或合并。
 
-本 ADR 部分替代 ADR-0046/0047 中 DCL 独占这三类档案版本写入与 stable subject 的条款，部分替代 ADR-0049 中三类档案由 DCL 承载的条款，部分替代 ADR-0051 的 DCL-only Version consumer 条款，并兑现 ADR-0052 对实际迁移切片的要求。上述 ADR 关于 Hono 契约、临时编辑输入、不可变 Submission、精确授权、历史快照、无兼容层、Customer、AUX 和未迁移 WFL 的条款继续有效。一次迁移保留 stable identity、业务编码、历史 Approval Entry、快照、精确引用和按实际路径转换后的授权；冲突返回 blocker，不自动批准、丢弃或重解释历史。
+本 ADR 部分替代 ADR-0046/0047 中 DCL 独占这三类档案版本写入与 stable subject 的条款，部分替代 ADR-0049 中三类档案由 DCL 承载的条款，部分替代 ADR-0051 的 DCL-only Version consumer 条款，并兑现 ADR-0052 对实际迁移切片的要求。上述 ADR 关于 Hono 契约、临时编辑输入、不可变 Submission、精确授权、历史快照、无兼容层、AUX 和未迁移 WFL 的条款继续有效。一次迁移保留 stable identity、业务编码、历史 Approval Entry、快照、精确引用和按实际路径转换后的授权；冲突返回 blocker，不自动批准、丢弃或重解释历史。
 
 对应 GitHub [#396](https://github.com/hansonyu183/zerp/issues/396) 与父规格 [#392](https://github.com/hansonyu183/zerp/issues/392)。
 
 ## 产品消费者（#397）
 
 同一所有权扩展到 Product：BOB 拥有产品 typed snapshot 与独立即时启停，复用公共版本与审批事务。产品完整字段、类型行为、定点数量、单位录入工具与配方精确引用规则保持。本文对上述 ADR 的部分替代范围同时包含产品的 DCL 归属条款；历史交易数量与精确快照不变。
+
+## 客户聚合消费者（#398）
+
+Customer 及全部 Customer Subunit 同片迁入 BOB，整体复用上述稳定身份、Approval、Version、独立即时启停和精确授权规则，扩展本文对 ADR-0047/0049 的部分替代范围至客户 DCL 归属条款（ADR-0042 已由 ADR-0047 替代）。客户整体 enabled 从版本内容移到 stable subject；子单位 enabled、客户内编码及全部业务字段仍属于 Customer 版本，不建立子单位独立审批、版本或启停接口。新建同时要求 submit-new 与 save-subunits；变更完整提交且子单位内容变化时要求 save-subunits。客户、子单位 ID、历史 Approval Entry、销售及多子单位收款的采用快照保持连续。附件暂存、提交及清理归同一 BOB Customer 资源，原存储键只是历史附件事实，不作为旧生命周期入口。

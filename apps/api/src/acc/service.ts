@@ -1150,8 +1150,8 @@ export class AccService
       const payload = plan.payload as VouPayloadFor<'sale-signoff'>
       const customer = await sql<{ customer_id: string }>`
         SELECT root.customer_id
-        FROM dcl_customer_subunit_roots root
-        JOIN dcl_customer_version_subunits subunit
+        FROM bob_customer_subunit_roots root
+        JOIN bob_customer_version_subunits subunit
           ON subunit.subunit_id = root.subunit_id
           AND subunit.customer_approval_entry_id = ${payload.customerSubunit.approvalEntryId}
         WHERE root.subunit_id = ${payload.customerSubunit.objectId}
@@ -3208,23 +3208,18 @@ export class AccService
             END AS name,
             CASE WHEN entry.entity = 'customer' THEN entry.subject_id ELSE NULL END AS customer_id
           FROM approval_entries entry
-          LEFT JOIN dcl_subjects dcl_subject
-            ON dcl_subject.id = entry.subject_id AND entry.domain = 'dcl'
           LEFT JOIN bob_subjects bob_subject
             ON bob_subject.id = entry.subject_id AND entry.domain = 'bob'
-          LEFT JOIN dcl_customer_versions customer ON customer.approval_entry_id = entry.id
+          LEFT JOIN bob_customer_versions customer ON customer.approval_entry_id = entry.id
           LEFT JOIN bob_supplier_versions supplier ON supplier.approval_entry_id = entry.id
           LEFT JOIN bob_other_unit_versions other_unit ON other_unit.approval_entry_id = entry.id
           LEFT JOIN bob_sales_partner_versions sales_partner ON sales_partner.approval_entry_id = entry.id
           WHERE entry.id = ${historical.approvalEntryId}
-            AND (
-              (entry.domain = 'dcl' AND entry.entity = 'customer')
-              OR (entry.domain = 'bob' AND entry.entity IN ('supplier', 'other-unit', 'sales-partner'))
-            )
+            AND entry.domain = 'bob' AND entry.entity IN ('customer', 'supplier', 'other-unit', 'sales-partner')
             AND entry.entity = ${historical.entity}
             AND entry.subject_id = ${historical.objectId}
             AND entry.status = 'APPROVED'
-            AND COALESCE(dcl_subject.code, bob_subject.code) = ${historical.code}
+            AND bob_subject.code = ${historical.code}
         `.execute(executor)
         const row = result.rows[0]
         if (
@@ -3242,18 +3237,18 @@ export class AccService
         name: string
       }>`
         SELECT root.customer_id, root.code, subunit.name
-        FROM dcl_customer_subunit_roots root
-        JOIN dcl_customer_version_subunits subunit
+        FROM bob_customer_subunit_roots root
+        JOIN bob_customer_version_subunits subunit
           ON subunit.subunit_id = root.subunit_id
           AND subunit.customer_approval_entry_id = ${container.subunit.approvalEntryId}
         JOIN approval_entries entry ON entry.id = subunit.customer_approval_entry_id
-        JOIN dcl_customer_versions customer ON customer.approval_entry_id = entry.id
+        JOIN bob_subjects customer ON customer.id = root.customer_id
         WHERE root.subunit_id = ${container.subunit.objectId}
-          AND entry.domain = 'dcl' AND entry.entity = 'customer' AND entry.status = 'APPROVED'
+          AND entry.domain = 'bob' AND entry.entity = 'customer' AND entry.status = 'APPROVED'
           AND subunit.enabled = true AND customer.enabled = true
           AND NOT EXISTS (
             SELECT 1 FROM approval_entries later
-            WHERE later.domain = 'dcl' AND later.entity = 'customer'
+            WHERE later.domain = 'bob' AND later.entity = 'customer'
               AND later.subject_id = root.customer_id AND later.status = 'APPROVED'
               AND later.version_no > entry.version_no
           )

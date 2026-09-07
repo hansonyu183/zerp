@@ -1696,12 +1696,6 @@ export class VouService implements WflVouPort {
   private referenceCandidateSource(
     entity: VouReferenceCandidateEntity,
   ): string {
-    const dcl = (name: string, table: string, label: string) => `
-      SELECT subject.id AS object_id, approval.id AS approval_entry_id, NULL::varchar AS customer_id, subject.code, ${label} AS name
-      FROM dcl_subjects subject
-      JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'dcl' AND entry.entity = '${name}' AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
-      JOIN ${table} version ON version.approval_entry_id = approval.id AND version.enabled
-      WHERE subject.entity = '${name}'`
     const bob = (name: string, table: string, label: string) => `
       SELECT subject.id AS object_id, approval.id AS approval_entry_id, NULL::varchar AS customer_id, subject.code, ${label} AS name
       FROM bob_subjects subject
@@ -1710,7 +1704,7 @@ export class VouService implements WflVouPort {
       WHERE subject.entity = '${name}' AND subject.enabled`
     switch (entity) {
       case 'customer':
-        return dcl('customer', 'dcl_customer_versions', 'version.display_name')
+        return bob('customer', 'bob_customer_versions', 'version.display_name')
       case 'supplier':
         return bob('supplier', 'bob_supplier_versions', 'version.display_name')
       case 'operating-entity':
@@ -1740,10 +1734,10 @@ export class VouService implements WflVouPort {
       case 'customer-subunit':
         return `
         SELECT root.subunit_id AS object_id, approval.id AS approval_entry_id, root.customer_id, root.code, subunit.name, subunit.payment_snapshot
-        FROM dcl_customer_subunit_roots root
-        JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'dcl' AND entry.entity = 'customer' AND entry.subject_id = root.customer_id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
-        JOIN dcl_customer_versions customer ON customer.approval_entry_id = approval.id AND customer.enabled
-        JOIN dcl_customer_version_subunits subunit ON subunit.customer_approval_entry_id = approval.id AND subunit.subunit_id = root.subunit_id AND subunit.enabled`
+        FROM bob_customer_subunit_roots root
+        JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'bob' AND entry.entity = 'customer' AND entry.subject_id = root.customer_id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
+        JOIN bob_subjects customer ON customer.id = root.customer_id AND customer.enabled
+        JOIN bob_customer_version_subunits subunit ON subunit.customer_approval_entry_id = approval.id AND subunit.subunit_id = root.subunit_id AND subunit.enabled`
       case 'settlement-method':
       case 'measurement-unit':
       case 'department':
@@ -2263,7 +2257,7 @@ export class VouService implements WflVouPort {
   ): Promise<VouReferenceBlocker[]> {
     const selected = payload.paymentMethod
     const customer = await transaction
-      .selectFrom('dcl_customer_version_subunits')
+      .selectFrom('bob_customer_version_subunits')
       .select('payment_snapshot')
       .where(
         'customer_approval_entry_id',
@@ -2621,14 +2615,14 @@ export class VouService implements WflVouPort {
     if (entity === 'customer-subunit') {
       const row = await sql`
         SELECT 1
-        FROM dcl_customer_subunit_roots root
+        FROM bob_customer_subunit_roots root
         JOIN approval_entries approval
           ON approval.id = ${approvalEntryId}
-          AND approval.domain = 'dcl'
+          AND approval.domain = 'bob'
           AND approval.entity = 'customer'
           AND approval.subject_id = root.customer_id
           AND approval.status = 'APPROVED'
-        JOIN dcl_customer_version_subunits subunit
+        JOIN bob_customer_version_subunits subunit
           ON subunit.customer_approval_entry_id = approval.id
           AND subunit.subunit_id = root.subunit_id
         WHERE root.subunit_id = ${objectId}
@@ -2639,9 +2633,13 @@ export class VouService implements WflVouPort {
     const domain =
       entity === 'service-contract'
         ? 'vou'
-        : ['supplier', 'other-unit', 'sales-partner', 'product'].includes(
-              entity,
-            )
+        : [
+              'customer',
+              'supplier',
+              'other-unit',
+              'sales-partner',
+              'product',
+            ].includes(entity)
           ? 'bob'
           : 'dcl'
     const row = await transaction
@@ -3377,7 +3375,7 @@ export class VouService implements WflVouPort {
         settlement_snapshot: { termCode?: string } | null
       }>`
         SELECT subunit.settlement_snapshot
-        FROM dcl_customer_version_subunits subunit
+        FROM bob_customer_version_subunits subunit
         WHERE subunit.customer_approval_entry_id = ${order.customerSubunit.approvalEntryId}
           AND subunit.subunit_id = ${order.customerSubunit.objectId}
         FOR UPDATE
@@ -3447,7 +3445,7 @@ export class VouService implements WflVouPort {
       if (entity === 'sale-order') {
         const limit = await sql<{ credit_limit: string | null }>`
           SELECT item->>'amount' AS credit_limit
-          FROM dcl_customer_version_subunits subunit, jsonb_array_elements(subunit.credit_limits) item
+          FROM bob_customer_version_subunits subunit, jsonb_array_elements(subunit.credit_limits) item
           WHERE subunit.customer_approval_entry_id = ${order.customerSubunit.approvalEntryId}
             AND subunit.subunit_id = ${order.customerSubunit.objectId}
             AND item->>'currency' = ${source.payload.currency}

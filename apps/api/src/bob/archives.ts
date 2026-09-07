@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { isDeepStrictEqual } from 'node:util'
 
 import {
   availableApprovalActions,
@@ -6,6 +7,7 @@ import {
   prepareSalesPartnerSubmit,
   prepareSupplierSubmit,
   prepareProductSubmit,
+  prepareCustomerSubmit,
   type ProductMaterialFact,
   type ApprovalAction,
   type ApprovalActor,
@@ -19,6 +21,13 @@ import { ulid } from 'ulid'
 import type { BobArchiveEntity } from './archive-contract.ts'
 import type { DB, JsonValue } from '../db/generated.ts'
 
+import { AttachmentStore } from '../platform/attachment-store.ts'
+import {
+  cancelAttachmentDeletion,
+  drainAttachmentDeletions,
+  enqueueAttachmentDeletions,
+  lockAttachmentStorageKey,
+} from '../platform/attachment-deletion.ts'
 type ArchiveEntity = BobArchiveEntity
 import {
   AuxApplicationError,
@@ -39,6 +48,8 @@ type Executor = ArchiveExecutor
 export type ArchiveSnapshot = Record<string, unknown>
 
 type AuxiliaryField =
+  | 'paymentMethod'
+  | 'customerType'
   | 'settlementMethod'
   | 'productType'
   | 'productCategory'
@@ -55,6 +66,8 @@ type AuxiliaryFact = {
 }
 
 const auxiliaryEntities: Record<AuxiliaryField, string> = {
+  customerType: 'dictionary-item',
+  paymentMethod: 'payment-method',
   settlementMethod: 'settlement-method',
   productType: 'product-type',
   productCategory: 'product-category',
@@ -195,8 +208,8 @@ type ArchiveQueryDetails = Omit<
 
 export type ArchiveBlocker =
   | {
-      kind: 'PRODUCT_REFERENCE'
-      domain: 'bob' | 'vou'
+      kind: 'PRODUCT_REFERENCE' | 'CUSTOMER_REFERENCE'
+      domain: 'bob' | 'vou' | 'acc'
       entity: string
       objectId: string
       approvalEntryId: string
@@ -240,6 +253,26 @@ export interface ArchiveAuditView {
   actorId: string
   reason: string | null
   createdAt: string
+}
+
+export interface CustomerAttachmentStageInput {
+  stagingId: string
+  fileId: string
+  fileName: string
+  mimeType: 'application/pdf' | 'image/jpeg' | 'image/png'
+  size: number
+  digest: string
+  contentBase64: string
+}
+
+export interface CustomerAttachmentStageView {
+  stagingId: string
+  fileId: string
+  fileName: string
+  mimeType: string
+  size: number
+  digest: string
+  expiresAt: string
 }
 
 export class BobArchiveApplicationError extends Error {
@@ -410,6 +443,7 @@ function matchesArchiveSnapshot(
 }
 
 const entityCodes: Record<ArchiveEntity, string> = {
+  customer: 'CUS',
   product: 'PRD',
   supplier: 'SUP',
   'other-unit': 'OTU',
@@ -456,6 +490,26 @@ function array(value: unknown): unknown[] {
   return Array.isArray(value) ? value : []
 }
 
+function customerAttachmentContentMatches(
+  mimeType: string,
+  content: Buffer,
+): boolean {
+  if (mimeType === 'application/pdf')
+    return content.subarray(0, 5).toString() === '%PDF-'
+  if (mimeType === 'image/png')
+    return content
+      .subarray(0, 8)
+      .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+  if (mimeType === 'image/jpeg')
+    return (
+      content[0] === 0xff &&
+      content[1] === 0xd8 &&
+      content[content.length - 2] === 0xff &&
+      content[content.length - 1] === 0xd9
+    )
+  return false
+}
+
 function nullable(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
@@ -487,11 +541,20 @@ function requestHash(
 
 /** Versioned archive persistence. Entity payloads remain explicit below. */
 export class BobArchiveService {
+  private readonly attachmentStore: AttachmentStore
   private readonly db: Kysely<DB>
   private readonly approval = new ApprovalPersistence()
   private readonly versioning = new VersionedArchives()
 
-  constructor(db: Kysely<DB>) {
+  constructor(
+    db: Kysely<DB>,
+    options: { attachmentStore?: AttachmentStore } = {},
+  ) {
+    this.attachmentStore =
+      options.attachmentStore ??
+      new AttachmentStore(
+        process.env.ATTACHMENT_STORAGE_ROOT ?? '/var/lib/zerp/attachments',
+      )
     this.db = db
   }
 
@@ -676,6 +739,7 @@ export class BobArchiveService {
     const subjectTable = 'bob_subjects'
     const idempotencyKey = input.idempotencyKey.trim()
     const hash = requestHash(action, entity, input)
+    const preparedPermanentKeys = new Set<string>()
     let view: ArchiveSubmissionView
     try {
       view = await this.db.transaction().execute(async (tx) => {
@@ -718,7 +782,7 @@ export class BobArchiveService {
             tx,
             entity,
             input.snapshot,
-            entity === 'product' &&
+            (entity === 'product' || entity === 'customer') &&
               action === 'submit-change' &&
               history.some(
                 (entry) =>
@@ -790,6 +854,27 @@ export class BobArchiveService {
             .executeTakeFirstOrThrow()
           code = current.code
         }
+        if (entity === 'customer')
+          plan.data = await this.assignCustomerSubunitCodes(
+            tx,
+            input.subjectId.trim(),
+            plan.data,
+          )
+        if (entity === 'customer' && action === 'submit-new')
+          requirePermission(actor, '/bob/customer/save-subunits')
+        if (entity === 'customer' && action === 'submit-change') {
+          const latest = [...history]
+            .filter((item) => item.status === 'APPROVED')
+            .at(-1)
+          if (
+            latest &&
+            !isDeepStrictEqual(
+              array((await this.readSnapshot(tx, entity, latest.id)).subunits),
+              array(plan.data.subunits),
+            )
+          )
+            requirePermission(actor, '/bob/customer/save-subunits')
+        }
         await this.approval.create(tx, {
           entryId: input.submissionId.trim(),
           domain,
@@ -812,6 +897,14 @@ export class BobArchiveService {
           input.submissionId.trim(),
           plan.data,
         )
+        if (entity === 'customer')
+          await this.promoteCustomerAttachments(
+            tx,
+            input.submissionId.trim(),
+            input.snapshot,
+            actor.id,
+            preparedPermanentKeys,
+          )
         const view = await this.readSubmission(
           tx,
           entity,
@@ -833,6 +926,8 @@ export class BobArchiveService {
         return view
       })
     } catch (error) {
+      if (entity === 'customer')
+        await this.discardPreparedCustomerAttachments(preparedPermanentKeys)
       if (error instanceof BobArchiveApplicationError) throw error
       if (error instanceof VersionedArchiveError)
         throw new BobArchiveApplicationError(error.errorKey)
@@ -840,6 +935,8 @@ export class BobArchiveService {
         throw new BobArchiveApplicationError('archive_conflict')
       throw error
     }
+    if (entity === 'customer')
+      await this.finalizeCustomerAttachments(input.snapshot, actor.id)
     return view
   }
 
@@ -915,9 +1012,14 @@ export class BobArchiveService {
     requestId: string,
   ): Promise<{ submissionId: string; deleted: true }> {
     requirePermission(actor, archiveActionPath(entity, 'delete'))
+    const domain = archiveDomain(entity)
+    let outcome: {
+      result: { submissionId: string; deleted: true }
+      storageKeys: string[]
+    }
     try {
-      return await this.db.transaction().execute(async (tx) => {
-        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`bob:archive:${entity}:${input.subjectId}`}, 0))`.execute(
+      outcome = await this.db.transaction().execute(async (tx) => {
+        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${domain}:archive:${entity}:${input.subjectId}`}, 0))`.execute(
           tx,
         )
         const entry = await this.loadEntry(
@@ -927,7 +1029,18 @@ export class BobArchiveService {
           input.subjectId,
           true,
         )
-        await sql`DELETE FROM aux_reference_facts WHERE source LIKE ${`bob:${entity}:${input.submissionId}:%`}`.execute(
+        const candidateStorageKeys =
+          entity === 'customer'
+            ? await tx
+                .selectFrom('bob_customer_attachments')
+                .select('storage_key')
+                .where('approval_entry_id', '=', entry.id)
+                .execute()
+                .then((rows) => [
+                  ...new Set(rows.map((row) => row.storage_key)),
+                ])
+            : []
+        await sql`DELETE FROM aux_reference_facts WHERE source LIKE ${`${domain}:${entity}:${input.submissionId}:%`}`.execute(
           tx,
         )
         await this.approval.delete(tx, {
@@ -937,25 +1050,194 @@ export class BobArchiveService {
           occurredAt: new Date(),
           requestId,
         })
-        const remaining = await tx
-          .selectFrom('approval_entries')
-          .select('id')
-          .where('domain', '=', 'bob')
-          .where('entity', '=', entity)
-          .where('subject_id', '=', entry.subjectId)
-          .executeTakeFirst()
-        if (!remaining)
-          await tx
-            .deleteFrom('bob_subjects')
-            .where('id', '=', entry.subjectId)
+        let unreferencedStorageKeys = candidateStorageKeys
+        if (candidateStorageKeys.length > 0) {
+          const referenced = await tx
+            .selectFrom('bob_customer_attachments')
+            .select('storage_key')
+            .where('storage_key', 'in', candidateStorageKeys)
             .execute()
-        return { submissionId: entry.id, deleted: true as const }
+          const referencedKeys = new Set(
+            referenced.map((row) => row.storage_key),
+          )
+          unreferencedStorageKeys = candidateStorageKeys.filter(
+            (storageKey) => !referencedKeys.has(storageKey),
+          )
+          await enqueueAttachmentDeletions(tx, unreferencedStorageKeys)
+        }
+        return {
+          result: { submissionId: entry.id, deleted: true as const },
+          storageKeys: unreferencedStorageKeys,
+        }
       })
     } catch (error) {
       if (error instanceof ApprovalPersistenceError)
         throw new BobArchiveApplicationError(error.errorKey)
       throw error
     }
+    await drainAttachmentDeletions(
+      this.db,
+      this.attachmentStore,
+      outcome.storageKeys,
+    )
+    return outcome.result
+  }
+
+  async stageCustomerAttachment(
+    input: CustomerAttachmentStageInput,
+    actor: ApprovalActor,
+  ): Promise<CustomerAttachmentStageView> {
+    requirePermission(actor, '/bob/customer/attachment-stage')
+    const content = Buffer.from(input.contentBase64, 'base64')
+    const digest = createHash('sha256').update(content).digest('hex')
+    if (
+      content.length !== input.size ||
+      digest !== input.digest ||
+      !/^[0-9a-f]{64}$/.test(input.digest) ||
+      input.size < 1 ||
+      input.size > 10_485_760 ||
+      !customerAttachmentContentMatches(input.mimeType, content)
+    )
+      throw new BobArchiveApplicationError(
+        'customer_attachment_invalid_content',
+      )
+    const now = new Date(),
+      expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+    const storageKey = `staging/${actor.id}/${input.stagingId}`
+    try {
+      return await this.db.transaction().execute(async (tx) => {
+        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`bob:customer:attachment:${input.stagingId}`}, 0))`.execute(
+          tx,
+        )
+        await lockAttachmentStorageKey(tx, storageKey)
+        const existing = await tx
+          .selectFrom('bob_customer_attachment_staging')
+          .selectAll()
+          .where('id', '=', input.stagingId)
+          .executeTakeFirst()
+        if (existing) {
+          if (
+            existing.owner_user_id !== actor.id ||
+            existing.file_id !== input.fileId ||
+            existing.file_name !== input.fileName ||
+            existing.mime_type !== input.mimeType ||
+            existing.digest !== input.digest ||
+            existing.size_bytes !== input.size
+          )
+            throw new BobArchiveApplicationError(
+              'customer_attachment_staging_conflict',
+            )
+          await this.attachmentStore.stage({
+            ownerId: actor.id,
+            stagingId: input.stagingId,
+            content,
+          })
+          if (existing.expires_at <= now)
+            await tx
+              .updateTable('bob_customer_attachment_staging')
+              .set({
+                storage_key: storageKey,
+                created_at: now,
+                expires_at: expiresAt,
+              })
+              .where('id', '=', existing.id)
+              .executeTakeFirstOrThrow()
+          await cancelAttachmentDeletion(tx, storageKey)
+          return {
+            stagingId: existing.id,
+            fileId: existing.file_id,
+            fileName: existing.file_name,
+            mimeType: existing.mime_type,
+            size: existing.size_bytes,
+            digest: existing.digest,
+            expiresAt: (existing.expires_at <= now
+              ? expiresAt
+              : existing.expires_at
+            ).toISOString(),
+          }
+        }
+        await this.attachmentStore.stage({
+          ownerId: actor.id,
+          stagingId: input.stagingId,
+          content,
+        })
+        await tx
+          .insertInto('bob_customer_attachment_staging')
+          .values({
+            id: input.stagingId,
+            file_id: input.fileId,
+            owner_user_id: actor.id,
+            file_name: input.fileName,
+            mime_type: input.mimeType,
+            size_bytes: input.size,
+            digest: input.digest,
+            storage_key: storageKey,
+            created_at: now,
+            expires_at: expiresAt,
+          })
+          .execute()
+        await cancelAttachmentDeletion(tx, storageKey)
+        return {
+          stagingId: input.stagingId,
+          fileId: input.fileId,
+          fileName: input.fileName,
+          mimeType: input.mimeType,
+          size: input.size,
+          digest: input.digest,
+          expiresAt: expiresAt.toISOString(),
+        }
+      })
+    } catch (error) {
+      await this.db.transaction().execute(async (tx) => {
+        await enqueueAttachmentDeletions(tx, [storageKey])
+      })
+      await drainAttachmentDeletions(this.db, this.attachmentStore)
+      throw error
+    }
+  }
+
+  async cleanupCustomerAttachments(
+    actor: ApprovalActor,
+  ): Promise<{ deleted: number }> {
+    requirePermission(actor, '/bob/customer/attachment-cleanup')
+    await drainAttachmentDeletions(this.db, this.attachmentStore)
+    const expired = await this.db
+      .selectFrom('bob_customer_attachment_staging')
+      .select('id')
+      .where('expires_at', '<=', new Date())
+      .execute()
+    let deleted = 0
+    for (const attachment of expired) {
+      const storageKey = await this.db.transaction().execute(async (tx) => {
+        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`bob:customer:attachment:${attachment.id}`}, 0))`.execute(
+          tx,
+        )
+        const staged = await tx
+          .selectFrom('bob_customer_attachment_staging')
+          .select(['id', 'storage_key', 'expires_at'])
+          .where('id', '=', attachment.id)
+          .forUpdate()
+          .executeTakeFirst()
+        if (!staged || staged.expires_at > new Date()) return null
+        const result = await tx
+          .deleteFrom('bob_customer_attachment_staging')
+          .where('id', '=', staged.id)
+          .executeTakeFirst()
+        if (Number(result.numDeletedRows) !== 1)
+          throw new BobArchiveApplicationError(
+            'customer_attachment_staging_invalid',
+          )
+        await enqueueAttachmentDeletions(tx, [staged.storage_key])
+        return staged.storage_key
+      })
+      if (storageKey) {
+        deleted += 1
+        await drainAttachmentDeletions(this.db, this.attachmentStore, [
+          storageKey,
+        ])
+      }
+    }
+    return { deleted }
   }
 
   private async prepare(
@@ -1006,6 +1288,21 @@ export class BobArchiveService {
         status: row.status as ApprovalStatus,
         revision: String(row.revision),
       })),
+    }
+    if (
+      entity === 'customer' &&
+      !array(input.snapshot.subunits).some(
+        (item) => record(item).enabled === true,
+      )
+    ) {
+      const current = await tx
+        .selectFrom('bob_subjects')
+        .select('enabled')
+        .where('id', '=', input.subjectId)
+        .where('entity', '=', 'customer')
+        .executeTakeFirst()
+      if (!current || current.enabled)
+        return { ok: false, errorKey: 'customer_invalid_data', blockers: [] }
     }
     const result = (await this.prepareByEntity(
       entity,
@@ -1094,6 +1391,81 @@ export class BobArchiveService {
     const data = record(command.data)
     const base = { ...command, data }
     switch (entity) {
+      case 'customer':
+        return prepareCustomerSubmit(
+          base as never,
+          {
+            subject,
+            defaultOperatingEntity: adoptedAuxFact(data.defaultOperatingEntity),
+            customerTypes: (
+              await this.auxFacts(
+                tx,
+                array(data.subunits).map((value) => [
+                  'customerType',
+                  record(record(value).customerType).id,
+                ]),
+              )
+            ).map((fact) => ({
+              objectId: fact.objectId,
+              available: fact.available,
+            })),
+            salesAttributions: await Promise.all(
+              array(data.subunits).map(async (value) => {
+                const attribution = record(
+                  record(value).primarySalesAttribution,
+                )
+                const type = String(attribution.type ?? '') as
+                  'INTERNAL_EMPLOYEE' | 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER'
+                if (type === 'INTERNAL_EMPLOYEE')
+                  return {
+                    ...adoptedAuxFact(attribution),
+                    latestApprovedEntryId: '',
+                    type,
+                  }
+                const entity = 'sales-partner'
+                const fact = await this.approvedFact(
+                  tx,
+                  entity,
+                  String(attribution.objectId ?? ''),
+                )
+                if (!fact)
+                  return {
+                    objectId: String(attribution.objectId ?? ''),
+                    latestApprovedEntryId: '',
+                    enabled: false,
+                    type,
+                  }
+                let enabled = fact.enabled
+                if (entity === 'sales-partner') {
+                  const snapshot = await readBusinessIdentitySnapshot(
+                    tx,
+                    entity,
+                    fact.latestApprovedEntryId,
+                  )
+                  enabled =
+                    enabled &&
+                    array(snapshot.capabilities).includes(type) &&
+                    !(
+                      data.identityKind !== 'OTHER' &&
+                      String(data.legalIdentifier ?? '').trim() &&
+                      String(data.legalIdentifier)
+                        .replace(/\s/g, '')
+                        .toUpperCase() ===
+                        String(snapshot.legalIdentifier ?? '')
+                          .replace(/\s/g, '')
+                          .toUpperCase()
+                    )
+                }
+                return {
+                  objectId: fact.objectId,
+                  latestApprovedEntryId: fact.latestApprovedEntryId,
+                  enabled,
+                  type,
+                }
+              }),
+            ),
+          } as never,
+        )
       case 'product':
         return prepareProductSubmit(
           base as never,
@@ -1158,6 +1530,57 @@ export class BobArchiveService {
     }
   }
 
+  private async approvedFact(
+    tx: Executor,
+    entity: 'sales-partner',
+    objectId: string,
+  ) {
+    if (!objectId) return undefined
+    await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`bob:archive:${entity}:${objectId}`},0))`.execute(
+      tx,
+    )
+    const result = await sql<{
+      id: string
+      code: string
+      enabled: boolean
+      name: string
+    }>`SELECT e.id,s.code,s.enabled,v.display_name AS name FROM bob_subjects s JOIN LATERAL(SELECT id FROM approval_entries WHERE domain='bob' AND entity=${entity} AND subject_id=s.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true JOIN bob_sales_partner_versions v ON v.approval_entry_id=e.id WHERE s.id=${objectId} AND s.entity=${entity}`.execute(
+      tx,
+    )
+    const row = result.rows[0]
+    return row
+      ? {
+          objectId,
+          latestApprovedEntryId: row.id,
+          enabled: row.enabled,
+          code: row.code,
+          name: row.name,
+        }
+      : undefined
+  }
+
+  private async freezeApprovedReference(
+    tx: Executor,
+    entity: 'sales-partner',
+    reference: unknown,
+  ): Promise<Record<string, unknown>> {
+    const requested = record(reference)
+    const fact = await this.approvedFact(
+      tx,
+      entity,
+      String(requested.objectId ?? ''),
+    )
+    if (!fact || fact.latestApprovedEntryId !== requested.approvalEntryId)
+      return requested
+    return {
+      ...requested,
+      objectId: fact.objectId,
+      approvalEntryId: fact.latestApprovedEntryId,
+      code: fact.code,
+      name: fact.name,
+    }
+  }
+
   private async ensureNoDuplicateBusinessKey(
     tx: Executor,
     entity: ArchiveEntity,
@@ -1179,11 +1602,13 @@ export class BobArchiveService {
       return
     }
     const table =
-      entity === 'supplier'
-        ? 'bob_supplier_versions'
-        : entity === 'other-unit'
-          ? 'bob_other_unit_versions'
-          : 'bob_sales_partner_versions'
+      entity === 'customer'
+        ? 'bob_customer_versions'
+        : entity === 'supplier'
+          ? 'bob_supplier_versions'
+          : entity === 'other-unit'
+            ? 'bob_other_unit_versions'
+            : 'bob_sales_partner_versions'
     const errorKey = `${entity.replace('-', '_')}_duplicate_legal_identifier`
     const value = data.legalIdentifier
     if (typeof value !== 'string' || !value.trim()) return
@@ -1193,7 +1618,7 @@ export class BobArchiveService {
     )
     const duplicate = await sql<{
       id: string
-    }>`SELECT e.id FROM ${sql.table(table)} AS v JOIN approval_entries e ON e.id = v.approval_entry_id WHERE e.domain = 'bob' AND e.entity = ${entity} AND e.subject_id <> ${subjectId} AND e.status IN ('PENDING', 'APPROVED', 'REJECTED') AND v.legal_identifier = ${value} LIMIT 1`.execute(
+    }>`SELECT e.id FROM ${sql.table(table)} AS v JOIN approval_entries e ON e.id = v.approval_entry_id WHERE e.domain = 'bob' AND e.entity = ${entity} AND e.subject_id <> ${subjectId} AND (e.status IN ('PENDING','REJECTED') OR (e.status='APPROVED' AND (${entity} <> 'customer' OR NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain=e.domain AND newer.entity=e.entity AND newer.subject_id=e.subject_id AND newer.status='APPROVED' AND newer.version_no>e.version_no)))) AND v.legal_identifier = ${value} LIMIT 1`.execute(
       tx,
     )
     if (duplicate.rows[0]) throw new BobArchiveApplicationError(errorKey)
@@ -1495,12 +1920,84 @@ export class BobArchiveService {
     }
   }
 
+  private async freezeCustomerType(
+    tx: Executor,
+    reference: unknown,
+  ): Promise<Record<string, unknown>> {
+    const fact = (
+      await this.auxFacts(tx, [
+        ['customerType', String(record(reference).id ?? '')],
+      ])
+    )[0]
+    if (!fact?.available)
+      throw new BobArchiveApplicationError('customer_invalid_data')
+    return { id: fact.objectId, code: fact.code, name: fact.name }
+  }
+
   private async freezeAuthoritativeReferences(
     tx: Transaction<DB>,
     entity: ArchiveEntity,
     snapshot: ArchiveSnapshot,
     previous?: ArchiveSnapshot,
   ): Promise<ArchiveSnapshot> {
+    if (entity === 'customer')
+      return {
+        ...snapshot,
+        defaultOperatingEntity:
+          previous &&
+          isDeepStrictEqual(
+            previous.defaultOperatingEntity,
+            snapshot.defaultOperatingEntity,
+          )
+            ? previous.defaultOperatingEntity
+            : snapshot.defaultOperatingEntity === null
+              ? null
+              : await this.freezeCurrentReference(
+                  tx,
+                  'operating-entity',
+                  snapshot.defaultOperatingEntity,
+                ),
+        subunits: await Promise.all(
+          array(snapshot.subunits).map(async (item) => {
+            const subunit = record(item)
+            const old = array(previous?.subunits)
+              .map(record)
+              .find((value) => value.id === subunit.id)
+            const attribution = record(subunit.primarySalesAttribution)
+            const attributionType = String(attribution.type ?? '')
+            return {
+              ...subunit,
+              customerType:
+                old && isDeepStrictEqual(old.customerType, subunit.customerType)
+                  ? old.customerType
+                  : await this.freezeCustomerType(tx, subunit.customerType),
+              settlementMethod: subunit.settlementMethod,
+              paymentMethod: subunit.paymentMethod,
+              primarySalesAttribution:
+                old &&
+                isDeepStrictEqual(
+                  old.primarySalesAttribution,
+                  subunit.primarySalesAttribution,
+                )
+                  ? old.primarySalesAttribution
+                  : {
+                      ...(attributionType === 'INTERNAL_EMPLOYEE'
+                        ? await this.freezeCurrentReference(
+                            tx,
+                            'employee',
+                            attribution,
+                          )
+                        : await this.freezeApprovedReference(
+                            tx,
+                            'sales-partner',
+                            attribution,
+                          )),
+                      type: attributionType,
+                    },
+            }
+          }),
+        ),
+      }
     if (entity === 'product')
       return {
         ...snapshot,
@@ -1634,10 +2131,328 @@ export class BobArchiveService {
           String(record(snapshot.defaultPurchaser).objectId ?? ''),
         ])
     }
+    if (entity === 'customer') {
+      if (snapshot.defaultOperatingEntity)
+        references.push([
+          'defaultOperatingEntity',
+          String(record(snapshot.defaultOperatingEntity).objectId ?? ''),
+        ])
+      array(snapshot.subunits).forEach((value, index) => {
+        const ref = record(record(value).primarySalesAttribution)
+        if (ref.type === 'INTERNAL_EMPLOYEE')
+          references.push([
+            `subunits[${index}].primarySalesAttribution`,
+            String(ref.objectId ?? ''),
+          ])
+      })
+    }
     for (const [field, id] of references)
       await sql`INSERT INTO aux_reference_facts(id,aux_object_id,source) VALUES (${ulid()},${id},${`${archiveDomain(entity)}:${entity}:${submissionId}:${field}`})`.execute(
         tx,
       )
+  }
+
+  private async writeCustomer(
+    tx: Executor,
+    id: string,
+    d: ArchiveSnapshot,
+  ): Promise<void> {
+    const oe = record(d.defaultOperatingEntity)
+    await tx
+      .insertInto('bob_customer_versions')
+      .values({
+        approval_entry_id: id,
+        kind: String(d.identityKind ?? ''),
+        legal_name: nullable(d.legalName),
+        display_name: String(d.displayName ?? ''),
+        legal_identifier: nullable(d.legalIdentifier),
+        phone: nullable(d.phone),
+        email: nullable(d.email),
+        address: nullable(d.address),
+        invoice_title: nullable(d.invoiceTitle),
+        invoice_address: nullable(d.invoiceAddress),
+        invoice_phone: nullable(d.invoicePhone),
+        invoice_bank: nullable(d.invoiceBank),
+        invoice_account: nullable(d.invoiceAccount),
+        remittance_profiles: json(array(d.remittanceProfiles)),
+        default_operating_entity_id: nullable(oe.objectId),
+        default_operating_entity_approval_entry_id: nullable(
+          oe.approvalEntryId,
+        ),
+        default_operating_entity_code: nullable(oe.code),
+        default_operating_entity_name: nullable(oe.name),
+        tax_attachments: json(array(d.identityAttachments)),
+      })
+      .execute()
+    const owner = await tx
+      .selectFrom('approval_entries')
+      .select('subject_id')
+      .where('id', '=', id)
+      .executeTakeFirstOrThrow()
+    for (const item of array(d.subunits)) {
+      const s = record(item)
+      const root = await tx
+        .selectFrom('bob_customer_subunit_roots')
+        .select(['customer_id', 'code'])
+        .where('subunit_id', '=', String(s.id ?? ''))
+        .executeTakeFirst()
+      if (root) {
+        if (
+          root.customer_id !== owner.subject_id ||
+          root.code !== String(s.code ?? '')
+        )
+          throw new BobArchiveApplicationError('customer_subunit_conflict')
+      } else {
+        await tx
+          .insertInto('bob_customer_subunit_roots')
+          .values({
+            subunit_id: String(s.id ?? ''),
+            customer_id: owner.subject_id,
+            code: String(s.code ?? ''),
+          })
+          .execute()
+      }
+      await tx
+        .insertInto('bob_customer_version_subunits')
+        .values({
+          customer_approval_entry_id: id,
+          subunit_id: String(s.id ?? ''),
+          name: String(s.name ?? ''),
+          contact_name: nullable(s.contactName),
+          contact_phone: null,
+          business_address: nullable(s.address),
+          customer_type_id: String(record(s.customerType).id),
+          customer_type_snapshot: json(record(s.customerType)),
+          settlement_method_id: nullable(record(s.settlementMethod).id),
+          settlement_snapshot:
+            s.settlementMethod === null
+              ? null
+              : json(record(s.settlementMethod)),
+          payment_snapshot:
+            s.paymentMethod === null ? null : json(record(s.paymentMethod)),
+          transport_snapshot: json(record(s.transportPolicy)),
+          pricing_snapshot: json(record(s.pricingPolicy)),
+          credit_limits: json(array(s.creditLimits)),
+          primary_sales_attribution_type: nullable(
+            record(s.primarySalesAttribution).type,
+          ),
+          primary_sales_attribution_object_id: nullable(
+            record(s.primarySalesAttribution).objectId,
+          ),
+          primary_sales_attribution_approval_entry_id: nullable(
+            record(s.primarySalesAttribution).approvalEntryId,
+          ),
+          primary_sales_attribution_code: nullable(
+            record(s.primarySalesAttribution).code,
+          ),
+          primary_sales_attribution_name: nullable(
+            record(s.primarySalesAttribution).name,
+          ),
+          sales_attribution_snapshot: json(record(s.primarySalesAttribution)),
+          internal_reminder: nullable(s.internalReminder),
+          default_order_remark: nullable(s.defaultSalesOrderRemark),
+          business_attachments: json(array(s.attachments)),
+          enabled: s.enabled === true,
+        })
+        .execute()
+    }
+  }
+
+  private async assignCustomerSubunitCodes(
+    tx: Executor,
+    customerId: string,
+    snapshot: ArchiveSnapshot,
+  ): Promise<ArchiveSnapshot> {
+    const roots = await tx
+      .selectFrom('bob_customer_subunit_roots')
+      .select('code')
+      .where('customer_id', '=', customerId)
+      .execute()
+    let next = roots.reduce((highest, root) => {
+      const match = /^SUB-(\d+)$/.exec(root.code)
+      return match ? Math.max(highest, Number(match[1])) : highest
+    }, 0)
+    const knownCodes = new Set(roots.map((root) => root.code))
+    const subunits = []
+    for (const item of array(snapshot.subunits)) {
+      const subunit = record(item)
+      if (subunit.intent === 'NEW') {
+        next += 1
+        const code = `SUB-${String(next).padStart(4, '0')}`
+        knownCodes.add(code)
+        subunits.push({ ...subunit, code })
+        continue
+      }
+      const code = String(subunit.code ?? '')
+      if (!knownCodes.has(code))
+        throw new BobArchiveApplicationError('customer_subunit_conflict')
+      subunits.push(subunit)
+    }
+    return { ...snapshot, subunits }
+  }
+
+  private async promoteCustomerAttachments(
+    tx: Executor,
+    approvalEntryId: string,
+    snapshot: ArchiveSnapshot,
+    actorId: string,
+    preparedPermanentKeys: Set<string>,
+  ): Promise<void> {
+    const owner = await tx
+      .selectFrom('approval_entries')
+      .select('subject_id')
+      .where('id', '=', approvalEntryId)
+      .executeTakeFirstOrThrow()
+    const attachments = [
+      ...array(snapshot.identityAttachments),
+      ...array(snapshot.subunits).flatMap((item) =>
+        array(record(item).attachments),
+      ),
+    ].map(record)
+    for (const attachment of attachments) {
+      const stagingId =
+        typeof attachment.stagingId === 'string' ? attachment.stagingId : null
+      if (!stagingId) {
+        const prior = await tx
+          .selectFrom('bob_customer_attachments as a')
+          .innerJoin('approval_entries as e', 'e.id', 'a.approval_entry_id')
+          .select([
+            'a.file_id',
+            'a.file_name',
+            'a.mime_type',
+            'a.size_bytes',
+            'a.digest',
+            'a.storage_key',
+          ])
+          .where('e.subject_id', '=', owner.subject_id)
+          .where('a.file_id', '=', String(attachment.id ?? ''))
+          .where('a.file_name', '=', String(attachment.fileName ?? ''))
+          .where('a.mime_type', '=', String(attachment.contentType ?? ''))
+          .where('a.size_bytes', '=', Number(attachment.sizeBytes ?? 0))
+          .where('a.digest', '=', String(attachment.sha256 ?? ''))
+          .orderBy('e.version_no', 'desc')
+          .executeTakeFirst()
+        if (!prior)
+          throw new BobArchiveApplicationError(
+            'customer_attachment_staging_invalid',
+          )
+        await tx
+          .insertInto('bob_customer_attachments')
+          .values({
+            file_id: prior.file_id,
+            approval_entry_id: approvalEntryId,
+            file_name: prior.file_name,
+            mime_type: prior.mime_type,
+            size_bytes: prior.size_bytes,
+            digest: prior.digest,
+            storage_key: prior.storage_key,
+            created_at: new Date(),
+          })
+          .execute()
+        continue
+      }
+      const staged = await tx
+        .selectFrom('bob_customer_attachment_staging')
+        .selectAll()
+        .where('id', '=', stagingId)
+        .where('owner_user_id', '=', actorId)
+        .forUpdate()
+        .executeTakeFirst()
+      if (
+        !staged ||
+        staged.expires_at <= new Date() ||
+        staged.file_id !== attachment.id ||
+        staged.file_name !== attachment.fileName ||
+        staged.mime_type !== attachment.contentType ||
+        staged.size_bytes !== attachment.sizeBytes ||
+        staged.digest !== attachment.sha256
+      )
+        throw new BobArchiveApplicationError(
+          'customer_attachment_staging_invalid',
+        )
+      const content = await this.attachmentStore.read(staged.storage_key)
+      if (
+        content.length !== staged.size_bytes ||
+        !customerAttachmentContentMatches(staged.mime_type, content) ||
+        createHash('sha256').update(content).digest('hex') !== staged.digest
+      )
+        throw new BobArchiveApplicationError(
+          'customer_attachment_staging_invalid',
+        )
+      const prepared = await this.attachmentStore.promote({
+        stagingKey: staged.storage_key,
+        permanentKey: `permanent/bob/customer/${approvalEntryId}/${staged.file_id}`,
+      })
+      if (prepared.created) preparedPermanentKeys.add(prepared.key)
+      await tx
+        .insertInto('bob_customer_attachments')
+        .values({
+          file_id: staged.file_id,
+          approval_entry_id: approvalEntryId,
+          file_name: staged.file_name,
+          mime_type: staged.mime_type,
+          size_bytes: staged.size_bytes,
+          digest: staged.digest,
+          storage_key: prepared.key,
+          created_at: new Date(),
+        })
+        .execute()
+      await tx
+        .deleteFrom('bob_customer_attachment_staging')
+        .where('id', '=', staged.id)
+        .execute()
+    }
+  }
+
+  private customerStagingAttachments(snapshot: ArchiveSnapshot) {
+    return [
+      ...array(snapshot.identityAttachments),
+      ...array(snapshot.subunits).flatMap((item) =>
+        array(record(item).attachments),
+      ),
+    ]
+      .map(record)
+      .filter(
+        (
+          attachment,
+        ): attachment is Record<string, unknown> & {
+          stagingId: string
+          id: string
+        } =>
+          typeof attachment.stagingId === 'string' &&
+          typeof attachment.id === 'string',
+      )
+  }
+
+  private async finalizeCustomerAttachments(
+    snapshot: ArchiveSnapshot,
+    ownerId: string,
+  ): Promise<void> {
+    await Promise.all(
+      this.customerStagingAttachments(snapshot).map(async (attachment) => {
+        try {
+          await this.attachmentStore.finalize(
+            `staging/${ownerId}/${attachment.stagingId}`,
+          )
+        } catch {
+          // DB is already committed. A later orphan pass can retry removal.
+        }
+      }),
+    )
+  }
+
+  private async discardPreparedCustomerAttachments(
+    keys: ReadonlySet<string>,
+  ): Promise<void> {
+    await Promise.all(
+      [...keys].map(async (key) => {
+        try {
+          await this.attachmentStore.remove(key)
+        } catch {
+          // The original submission error remains authoritative.
+        }
+      }),
+    )
   }
 
   private async writeSnapshot(
@@ -1647,6 +2462,7 @@ export class BobArchiveService {
     snapshot: ArchiveSnapshot,
   ): Promise<void> {
     const d = snapshot
+    if (entity === 'customer') return this.writeCustomer(tx, id, snapshot)
     if (entity === 'product') {
       await tx
         .insertInto('bob_product_versions')
@@ -1759,11 +2575,89 @@ export class BobArchiveService {
     }
   }
 
+  private async readCustomer(
+    tx: Executor,
+    id: string,
+  ): Promise<ArchiveSnapshot> {
+    const r = await tx
+      .selectFrom('bob_customer_versions')
+      .selectAll()
+      .where('approval_entry_id', '=', id)
+      .executeTakeFirstOrThrow()
+    const subs = await tx
+      .selectFrom('bob_customer_version_subunits as v')
+      .innerJoin(
+        'bob_customer_subunit_roots as r',
+        'r.subunit_id',
+        'v.subunit_id',
+      )
+      .selectAll('v')
+      .select('r.code as root_code')
+      .where('v.customer_approval_entry_id', '=', id)
+      .execute()
+    return {
+      identityKind: r.kind,
+      legalName: r.legal_name ?? '',
+      displayName: r.display_name,
+      legalIdentifier: r.legal_identifier ?? '',
+      phone: r.phone ?? '',
+      email: r.email ?? '',
+      address: r.address ?? '',
+      invoiceTitle: r.invoice_title ?? '',
+      invoiceAddress: r.invoice_address ?? '',
+      invoicePhone: r.invoice_phone ?? '',
+      invoiceBank: r.invoice_bank ?? '',
+      invoiceAccount: r.invoice_account ?? '',
+      remittanceProfiles: array(r.remittance_profiles),
+      defaultOperatingEntity: r.default_operating_entity_id
+        ? {
+            objectId: r.default_operating_entity_id,
+            code: r.default_operating_entity_code ?? '',
+            name: r.default_operating_entity_name ?? '',
+          }
+        : null,
+      identityAttachments: array(r.tax_attachments),
+      subunits: subs.map((s) => ({
+        intent: 'EXISTING',
+        id: s.subunit_id,
+        code: s.root_code,
+        name: s.name,
+        contactName: s.contact_name ?? '',
+        address: s.business_address ?? '',
+        customerType: record(s.customer_type_snapshot),
+        settlementMethod: s.settlement_snapshot,
+        paymentMethod: s.payment_snapshot,
+        transportPolicy: record(s.transport_snapshot),
+        pricingPolicy: record(s.pricing_snapshot),
+        creditLimits: array(s.credit_limits),
+        primarySalesAttribution: s.primary_sales_attribution_object_id
+          ? {
+              type: s.primary_sales_attribution_type,
+              objectId: s.primary_sales_attribution_object_id,
+              ...(s.primary_sales_attribution_type === 'INTERNAL_EMPLOYEE'
+                ? {}
+                : {
+                    approvalEntryId:
+                      s.primary_sales_attribution_approval_entry_id ?? '',
+                  }),
+              code: s.primary_sales_attribution_code ?? '',
+              name: s.primary_sales_attribution_name ?? '',
+            }
+          : {},
+        internalReminder: s.internal_reminder ?? '',
+        defaultSalesOrderRemark: s.default_order_remark ?? '',
+        attachments: array(s.business_attachments),
+        enabled: s.enabled,
+      })),
+    }
+  }
+
   private async readSnapshot(
     tx: Executor,
     entity: ArchiveEntity,
     id: string,
   ): Promise<ArchiveSnapshot> {
+    if (entity === 'customer') return this.readCustomer(tx, id)
     if (entity === 'product') {
       const r = await tx
         .selectFrom('bob_product_versions')
@@ -1904,13 +2798,30 @@ export class BobArchiveService {
     const open = await this.versioning.open(tx as Transaction<DB>, scope)
     if (open)
       throw new BobArchiveApplicationError('approval_open_version_exists')
-    if (entity === 'product') {
+    if (entity === 'product' || entity === 'customer') {
       const previous = (
         await this.versioning.history(tx as Transaction<DB>, scope)
       ).find(
         (candidate) =>
           candidate.id !== entry.id && candidate.status === 'APPROVED',
       )
+      if (previous && entity === 'customer') {
+        const root = await tx
+          .selectFrom('bob_subjects')
+          .select('enabled')
+          .where('id', '=', entry.subjectId)
+          .executeTakeFirstOrThrow()
+        const snapshot = await this.readSnapshot(tx, entity, previous.id)
+        if (
+          root.enabled &&
+          !array(snapshot.subunits).some(
+            (subunit) => record(subunit).enabled === true,
+          )
+        )
+          throw new BobArchiveApplicationError(
+            'customer_enabled_subunit_required',
+          )
+      }
       if (previous)
         await this.ensureNoDuplicateBusinessKey(
           tx,
@@ -1931,6 +2842,31 @@ export class BobArchiveService {
     tx: Executor,
     entry: ApprovalEntry,
   ): Promise<ArchiveBlocker[]> {
+    if (entry.entity === 'customer') {
+      const references = await sql<{
+        domain: 'vou' | 'acc'
+        entity: string
+        subject_id: string
+        id: string
+        field: string
+      }>`
+        SELECT e.domain,e.entity,e.subject_id,e.id,r.field FROM vou_reference_snapshots r JOIN approval_entries e ON e.id=r.approval_entry_id WHERE r.approval_reference_id=${entry.id} AND e.status='APPROVED'
+        UNION
+        SELECT e.domain,e.entity,e.subject_id,e.id,'containers.subunit' FROM acc_opening_container_balances r JOIN approval_entries e ON e.id=r.opening_approval_entry_id WHERE r.customer_approval_entry_id=${entry.id} AND e.status='APPROVED'
+        UNION
+        SELECT e.domain,e.entity,e.subject_id,e.id,'customerSubunit' FROM acc_container_entries r JOIN approval_entries e ON e.id=r.vou_approval_entry_id WHERE r.customer_approval_entry_id=${entry.id} AND e.status='APPROVED'
+        UNION
+        SELECT e.domain,e.entity,e.subject_id,e.id,'bills.originatingCounterparty' FROM acc_opening_snapshots s JOIN approval_entries e ON e.id=s.approval_entry_id CROSS JOIN LATERAL jsonb_array_elements(COALESCE(s.payload->'bills','[]'::jsonb)) bill WHERE bill->'originatingCounterparty'->>'approvalEntryId'=${entry.id} AND e.status='APPROVED'
+        ORDER BY domain,entity,subject_id,id,field`.execute(tx)
+      return references.rows.map((row) => ({
+        kind: 'CUSTOMER_REFERENCE' as const,
+        domain: row.domain,
+        entity: row.entity,
+        objectId: row.subject_id,
+        approvalEntryId: row.id,
+        field: row.field,
+      }))
+    }
     if (entry.entity === 'product') {
       const references = await sql<{
         domain: 'bob' | 'vou'

@@ -165,7 +165,7 @@ test('VOU product adoption serializes with BOB approval without cross-subject ad
         .execute()
       await db
         .deleteFrom('bob_subjects')
-        .where('id', 'in', productIds)
+        .where('id', 'in', [...productIds, ...Object.values(directSubjectIds)])
         .execute()
       await db
         .deleteFrom('aux_objects')
@@ -415,7 +415,7 @@ test('VOU product adoption serializes with BOB approval without cross-subject ad
   const code = (prefix: string, offset: number) =>
     `${prefix}-${String((codeSeed + offset) % 10_000).padStart(4, '0')}`
   await db
-    .insertInto('dcl_subjects')
+    .insertInto('bob_subjects')
     .values([
       {
         id: directSubjectIds.customer,
@@ -432,7 +432,7 @@ test('VOU product adoption serializes with BOB approval without cross-subject ad
       [[directApprovalIds.customer, 'customer', directSubjectIds.customer]].map(
         ([id, entity, subjectId]) => ({
           id: id!,
-          domain: 'dcl',
+          domain: 'bob',
           entity: entity!,
           subject_id: subjectId!,
           version_no: 1,
@@ -449,16 +449,15 @@ test('VOU product adoption serializes with BOB approval without cross-subject ad
     )
     .execute()
   await db
-    .insertInto('dcl_customer_versions')
+    .insertInto('bob_customer_versions')
     .values({
       approval_entry_id: directApprovalIds.customer,
       kind: 'ENTERPRISE',
       display_name: '并发客户',
-      enabled: true,
     })
     .execute()
   await db
-    .insertInto('dcl_customer_subunit_roots')
+    .insertInto('bob_customer_subunit_roots')
     .values({
       subunit_id: customerSubunitId,
       customer_id: directSubjectIds.customer,
@@ -466,7 +465,7 @@ test('VOU product adoption serializes with BOB approval without cross-subject ad
     })
     .execute()
   await db
-    .insertInto('dcl_customer_version_subunits')
+    .insertInto('bob_customer_version_subunits')
     .values({
       customer_approval_entry_id: directApprovalIds.customer,
       subunit_id: customerSubunitId,

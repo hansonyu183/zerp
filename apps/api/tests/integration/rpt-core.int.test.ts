@@ -295,6 +295,7 @@ test('RPT executes only latest approved enabled valid definition and enforces co
   await service.assertAllEnabled()
   const config = loadConfig({
     DATABASE_URL: databaseUrl,
+    TARGET_DATABASE_SCOPE: process.env.TARGET_DATABASE_SCOPE,
     APP_SESSION_COOKIE_SECURE: 'false',
   })
   const app = createApp({

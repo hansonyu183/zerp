@@ -1,5 +1,6 @@
 <script setup lang="ts" generic="Submission extends ArchiveSubmission">
-import type { ProductData } from '@zerp/model'
+import type { ProductData, CustomerData } from '@zerp/model'
+import CustomerSnapshotView from '../customer/CustomerSnapshot.vue'
 import ProductSnapshotView from '../product/ProductSnapshot.vue'
 import { approvalStatusPresentation } from '@zerp/model'
 import { computed, onUnmounted, ref, toRaw, type UnwrapRef } from 'vue'
@@ -35,6 +36,14 @@ const snapshot = computed(
     props.lifecycle.selected?.snapshot as
       IdentityArchiveSnapshotData | undefined,
 )
+const previousCustomerSnapshot = computed(() => {
+  const selected = props.lifecycle.selected
+  if (selected?.entity !== 'customer') return undefined
+  return [...props.lifecycle.versions]
+    .filter((item) => item.versionNo < selected.versionNo)
+    .sort((a, b) => b.versionNo - a.versionNo)[0]?.snapshot as
+    CustomerData | undefined
+})
 const auditLabel = (action: string) =>
   action in archiveAuditActionPresentation
     ? archiveAuditActionPresentation[
@@ -235,8 +244,13 @@ onUnmounted(() => props.lifecycle.dispose())
                 删除候选
               </v-btn>
             </div>
+            <CustomerSnapshotView
+              v-if="lifecycle.selected.entity === 'customer'"
+              :snapshot="lifecycle.selected.snapshot as CustomerData"
+              :previous="previousCustomerSnapshot"
+            />
             <ProductSnapshotView
-              v-if="lifecycle.selected.entity === 'product'"
+              v-else-if="lifecycle.selected.entity === 'product'"
               :snapshot="lifecycle.selected.snapshot as ProductData"
             />
             <IdentityArchiveSnapshotView

@@ -20,7 +20,7 @@ export const archiveAuditActionPresentation = {
 } as const
 
 export type ArchiveSubmission = {
-  entity: 'supplier' | 'other-unit' | 'sales-partner' | 'product'
+  entity: 'supplier' | 'other-unit' | 'sales-partner' | 'product' | 'customer'
   subjectId: string
   submissionId: string
   versionNo: number

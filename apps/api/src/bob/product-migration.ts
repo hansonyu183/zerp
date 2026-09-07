@@ -1,3 +1,5 @@
+import { customerPermissionMappings } from './customer-permissions.ts'
+import { preserveLegacyMappedPermissions } from './product-permissions.ts'
 import { sql, type Kysely, type Transaction } from 'kysely'
 import type { DB } from '../db/generated.ts'
 import { TargetBootstrapService } from '../app/bootstrap.ts'
@@ -143,7 +145,14 @@ export class ProductMigrationService {
       this.db,
     ).migratePermissionCatalogInTransaction(
       tx,
-      catalog,
+      preserveLegacyMappedPermissions(
+        catalog,
+        await tx
+          .selectFrom('app_permissions')
+          .select(['id', 'path', 'domain', 'entity', 'action', 'description'])
+          .execute(),
+        customerPermissionMappings,
+      ),
       productPermissionMappings,
     )
     const count = await sql<{

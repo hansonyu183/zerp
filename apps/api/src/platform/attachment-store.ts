@@ -13,7 +13,11 @@ import {
 import { dirname, relative, resolve } from 'node:path'
 
 export class AttachmentStoreError extends Error {
-  readonly code: 'attachment_key_invalid' | 'attachment_not_found' | 'attachment_conflict' | 'attachment_cleanup_requires_freeze'
+  readonly code:
+    | 'attachment_key_invalid'
+    | 'attachment_not_found'
+    | 'attachment_conflict'
+    | 'attachment_cleanup_requires_freeze'
 
   constructor(code: AttachmentStoreError['code']) {
     super(code)
@@ -61,7 +65,10 @@ export class AttachmentStore {
       await this.touch(key)
       return key
     } catch (error) {
-      if (!(error instanceof AttachmentStoreError) || error.code !== 'attachment_not_found')
+      if (
+        !(error instanceof AttachmentStoreError) ||
+        error.code !== 'attachment_not_found'
+      )
         throw error
     }
     const temporary = `${path}.${randomUUID()}.tmp`
@@ -93,7 +100,10 @@ export class AttachmentStore {
       await this.touch(input.permanentKey)
       return { key: input.permanentKey, created: false }
     } catch (error) {
-      if (!(error instanceof AttachmentStoreError) || error.code !== 'attachment_not_found')
+      if (
+        !(error instanceof AttachmentStoreError) ||
+        error.code !== 'attachment_not_found'
+      )
         throw error
     }
     // Promotion is deliberately a copy: callers prepare it inside their DB
@@ -121,7 +131,7 @@ export class AttachmentStore {
   }
 
   async cleanupOrphans(
-    domain: 'dcl' | 'vou',
+    domain: 'dcl' | 'bob' | 'vou',
     referencedKeys: ReadonlySet<string>,
     proof: { writersFrozen: true },
   ): Promise<number> {

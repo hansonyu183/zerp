@@ -1,14 +1,9 @@
-import {
-  AuxApplicationError,
-  resolveAuxCurrentReference,
-} from '../aux/service.ts'
 import { createHash } from 'node:crypto'
 
 import {
   availableApprovalActions,
   decideApproval,
   prepareAccMappingSubmit,
-  prepareCustomerSubmit,
   prepareRptDefinitionSubmit,
   type ApprovalAction,
   type ApprovalActor,
@@ -17,21 +12,11 @@ import {
   type ReferenceBlocker,
 } from '@zerp/model'
 import { sql, type Kysely, type Transaction } from 'kysely'
-import { ulid } from 'ulid'
 
 import type { ArchiveEntity as DclArchiveEntity } from './archive-contract.ts'
-import { readBusinessIdentitySnapshot } from '../bob/archives.ts'
 
 type ArchiveEntity = DclArchiveEntity
-type ApprovedReferenceEntity = ArchiveEntity | 'sales-partner'
 import type { DB, JsonValue } from '../db/generated.ts'
-import {
-  cancelAttachmentDeletion,
-  drainAttachmentDeletions,
-  enqueueAttachmentDeletions,
-  lockAttachmentStorageKey,
-} from '../platform/attachment-deletion.ts'
-import { AttachmentStore } from '../platform/attachment-store.ts'
 import {
   ApprovalPersistence,
   ApprovalPersistenceError,
@@ -51,40 +36,6 @@ import type {
 export type ArchiveExecutor = Kysely<DB> | Transaction<DB>
 type Executor = ArchiveExecutor
 export type ArchiveSnapshot = Record<string, unknown>
-
-type ApprovedArchiveFact = {
-  objectId: string
-  latestApprovedEntryId: string
-  enabled: boolean
-  code: string
-  name: string
-}
-
-type AuxiliaryField = 'settlementMethod' | 'paymentMethod' | 'customerType'
-type AuxiliaryFact = {
-  field: AuxiliaryField
-  objectId: string
-  available: boolean
-  code: string
-  name: string
-  data: Record<string, unknown>
-}
-
-const auxiliaryEntities: Record<AuxiliaryField, string> = {
-  settlementMethod: 'settlement-method',
-  paymentMethod: 'payment-method',
-  customerType: 'dictionary-item',
-}
-
-function fixedAuxMoney(value: unknown, errorKey: string): string {
-  if (
-    typeof value !== 'string' ||
-    !/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(value.trim())
-  )
-    throw new ArchiveApplicationError(errorKey)
-  const [whole, fraction = ''] = value.trim().split('.')
-  return `${whole}.${fraction.padEnd(2, '0')}`
-}
 
 type ArchiveSubjectFacts = {
   exists: boolean
@@ -228,26 +179,6 @@ export interface ArchiveAuditView {
   createdAt: string
 }
 
-export interface CustomerAttachmentStageInput {
-  stagingId: string
-  fileId: string
-  fileName: string
-  mimeType: 'application/pdf' | 'image/jpeg' | 'image/png'
-  size: number
-  digest: string
-  contentBase64: string
-}
-
-export interface CustomerAttachmentStageView {
-  stagingId: string
-  fileId: string
-  fileName: string
-  mimeType: string
-  size: number
-  digest: string
-  expiresAt: string
-}
-
 export class ArchiveApplicationError extends Error {
   readonly errorKey: string
   readonly data: { blockers: ArchiveBlocker[] } | null
@@ -320,25 +251,18 @@ function matchesArchiveSnapshot(
   if (keyword) {
     const data = record(snapshot)
     const keywordMatches =
-      entity === 'customer'
+      entity === 'acc-mapping'
         ? includesKeyword(keyword, [
-            code,
-            nullable(data.legalName),
-            nullable(data.displayName),
-            nullable(data.legalIdentifier),
+            nullable(record(data.book).code),
+            nullable(record(data.book).name),
+            nullable(record(data.vouEntity).code),
+            nullable(record(data.vouEntity).name),
           ])
-        : entity === 'acc-mapping'
-          ? includesKeyword(keyword, [
-              nullable(record(data.book).code),
-              nullable(record(data.book).name),
-              nullable(record(data.vouEntity).code),
-              nullable(record(data.vouEntity).name),
-            ])
-          : includesKeyword(keyword, [
-              code,
-              nullable(data.name),
-              nullable(data.description),
-            ])
+        : includesKeyword(keyword, [
+            code,
+            nullable(data.name),
+            nullable(data.description),
+          ])
     if (!keywordMatches) return false
   }
   if (entity === 'acc-mapping') {
@@ -355,7 +279,6 @@ function matchesArchiveSnapshot(
 }
 
 const entityCodes: Record<ArchiveEntity, string> = {
-  customer: 'CUS',
   'acc-mapping': '',
   'rpt-definition': 'rpt',
 }
@@ -394,26 +317,6 @@ function array(value: unknown): unknown[] {
   return Array.isArray(value) ? value : []
 }
 
-function customerAttachmentContentMatches(
-  mimeType: string,
-  content: Buffer,
-): boolean {
-  if (mimeType === 'application/pdf')
-    return content.subarray(0, 5).toString() === '%PDF-'
-  if (mimeType === 'image/png')
-    return content
-      .subarray(0, 8)
-      .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-  if (mimeType === 'image/jpeg')
-    return (
-      content[0] === 0xff &&
-      content[1] === 0xd8 &&
-      content[content.length - 2] === 0xff &&
-      content[content.length - 1] === 0xd9
-    )
-  return false
-}
-
 function nullable(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
@@ -447,22 +350,12 @@ function requestHash(
 export class ArchiveService {
   private readonly db: Kysely<DB>
   private readonly rptValidator: RptDefinitionValidator
-  private readonly attachmentStore: AttachmentStore
   private readonly approval = new ApprovalPersistence()
   private readonly versioning = new VersionedArchives()
 
-  constructor(
-    db: Kysely<DB>,
-    rptValidator: RptDefinitionValidator,
-    options: { attachmentStore?: AttachmentStore } = {},
-  ) {
+  constructor(db: Kysely<DB>, rptValidator: RptDefinitionValidator) {
     this.db = db
     this.rptValidator = rptValidator
-    this.attachmentStore =
-      options.attachmentStore ??
-      new AttachmentStore(
-        process.env.ATTACHMENT_STORAGE_ROOT ?? '/var/lib/zerp/attachments',
-      )
   }
 
   async query(
@@ -651,7 +544,6 @@ export class ArchiveService {
     const idempotencyKey = input.idempotencyKey.trim()
     const hash = requestHash(action, entity, input)
     let view: ArchiveSubmissionView
-    const preparedPermanentKeys = new Set<string>()
     try {
       view = await this.db.transaction().execute(async (tx) => {
         await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${domain}:archive:${entity}:idempotency:${idempotencyKey}`}, 0))`.execute(
@@ -687,11 +579,7 @@ export class ArchiveService {
         const occurredAt = new Date()
         const authoritativeInput = {
           ...input,
-          snapshot: await this.freezeAuthoritativeReferences(
-            tx,
-            entity,
-            input.snapshot,
-          ),
+          snapshot: input.snapshot,
         }
         const prepared = await this.prepare(
           entity,
@@ -752,26 +640,6 @@ export class ArchiveService {
             .executeTakeFirstOrThrow()
           code = current.code
         }
-        if (entity === 'customer')
-          plan.data = await this.assignCustomerSubunitCodes(
-            tx,
-            input.subjectId.trim(),
-            plan.data,
-          )
-        if (entity === 'customer' && action === 'submit-new')
-          requirePermission(actor, '/dcl/customer/save-subunits')
-        if (entity === 'customer' && action === 'submit-change') {
-          const latest = [...history]
-            .filter((item) => item.status === 'APPROVED')
-            .at(-1)
-          if (
-            latest &&
-            JSON.stringify(
-              array((await this.readSnapshot(tx, entity, latest.id)).subunits),
-            ) !== JSON.stringify(array(plan.data.subunits))
-          )
-            requirePermission(actor, '/dcl/customer/save-subunits')
-        }
         await this.approval.create(tx, {
           entryId: input.submissionId.trim(),
           domain,
@@ -788,20 +656,6 @@ export class ArchiveService {
           input.submissionId.trim(),
           plan.data,
         )
-        await this.registerPeopleReferences(
-          tx,
-          entity,
-          input.submissionId.trim(),
-          plan.data,
-        )
-        if (entity === 'customer')
-          await this.promoteCustomerAttachments(
-            tx,
-            input.submissionId.trim(),
-            input.snapshot,
-            actor.id,
-            preparedPermanentKeys,
-          )
         const view = await this.readSubmission(
           tx,
           entity,
@@ -823,8 +677,6 @@ export class ArchiveService {
         return view
       })
     } catch (error) {
-      if (entity === 'customer')
-        await this.discardPreparedCustomerAttachments(preparedPermanentKeys)
       if (error instanceof ArchiveApplicationError) throw error
       if (error instanceof VersionedArchiveError)
         throw new ArchiveApplicationError(error.errorKey)
@@ -832,8 +684,6 @@ export class ArchiveService {
         throw new ArchiveApplicationError('archive_conflict')
       throw error
     }
-    if (entity === 'customer')
-      await this.finalizeCustomerAttachments(input.snapshot, actor.id)
     return view
   }
 
@@ -927,15 +777,9 @@ export class ArchiveService {
     requestId: string,
   ): Promise<{ submissionId: string; deleted: true }> {
     requirePermission(actor, archiveActionPath(entity, 'delete'))
-    const domain = archiveDomain(entity)
-    const subjectTable = 'dcl_subjects'
-    let outcome: {
-      result: { submissionId: string; deleted: true }
-      storageKeys: string[]
-    }
     try {
-      outcome = await this.db.transaction().execute(async (tx) => {
-        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${domain}:archive:${entity}:${input.subjectId}`}, 0))`.execute(
+      return await this.db.transaction().execute(async (tx) => {
+        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`bob:archive:${entity}:${input.subjectId}`}, 0))`.execute(
           tx,
         )
         const entry = await this.loadEntry(
@@ -945,18 +789,7 @@ export class ArchiveService {
           input.subjectId,
           true,
         )
-        const candidateStorageKeys =
-          entity === 'customer'
-            ? await tx
-                .selectFrom('dcl_customer_attachments')
-                .select('storage_key')
-                .where('approval_entry_id', '=', entry.id)
-                .execute()
-                .then((rows) => [
-                  ...new Set(rows.map((row) => row.storage_key)),
-                ])
-            : []
-        await sql`DELETE FROM aux_reference_facts WHERE source LIKE ${`${domain}:${entity}:${input.submissionId}:%`}`.execute(
+        await sql`DELETE FROM aux_reference_facts WHERE source LIKE ${`bob:${entity}:${input.submissionId}:%`}`.execute(
           tx,
         )
         await this.approval.delete(tx, {
@@ -969,201 +802,22 @@ export class ArchiveService {
         const remaining = await tx
           .selectFrom('approval_entries')
           .select('id')
-          .where('domain', '=', domain)
+          .where('domain', '=', 'bob')
           .where('entity', '=', entity)
           .where('subject_id', '=', entry.subjectId)
           .executeTakeFirst()
         if (!remaining)
           await tx
-            .deleteFrom(subjectTable)
+            .deleteFrom('dcl_subjects')
             .where('id', '=', entry.subjectId)
             .execute()
-        let unreferencedStorageKeys = candidateStorageKeys
-        if (candidateStorageKeys.length > 0) {
-          const referenced = await tx
-            .selectFrom('dcl_customer_attachments')
-            .select('storage_key')
-            .where('storage_key', 'in', candidateStorageKeys)
-            .execute()
-          const referencedKeys = new Set(
-            referenced.map((row) => row.storage_key),
-          )
-          unreferencedStorageKeys = candidateStorageKeys.filter(
-            (storageKey) => !referencedKeys.has(storageKey),
-          )
-          await enqueueAttachmentDeletions(tx, unreferencedStorageKeys)
-        }
-        return {
-          result: { submissionId: entry.id, deleted: true as const },
-          storageKeys: unreferencedStorageKeys,
-        }
+        return { submissionId: entry.id, deleted: true as const }
       })
     } catch (error) {
       if (error instanceof ApprovalPersistenceError)
         throw new ArchiveApplicationError(error.errorKey)
       throw error
     }
-    await drainAttachmentDeletions(
-      this.db,
-      this.attachmentStore,
-      outcome.storageKeys,
-    )
-    return outcome.result
-  }
-
-  async stageCustomerAttachment(
-    input: CustomerAttachmentStageInput,
-    actor: ApprovalActor,
-  ): Promise<CustomerAttachmentStageView> {
-    requirePermission(actor, '/dcl/customer/attachment-stage')
-    const content = Buffer.from(input.contentBase64, 'base64')
-    const digest = createHash('sha256').update(content).digest('hex')
-    if (
-      content.length !== input.size ||
-      digest !== input.digest ||
-      !/^[0-9a-f]{64}$/.test(input.digest) ||
-      input.size < 1 ||
-      input.size > 10_485_760 ||
-      !customerAttachmentContentMatches(input.mimeType, content)
-    )
-      throw new ArchiveApplicationError('customer_attachment_invalid_content')
-    const now = new Date(),
-      expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000)
-    const storageKey = `staging/${actor.id}/${input.stagingId}`
-    try {
-      return await this.db.transaction().execute(async (tx) => {
-        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:customer:attachment:${input.stagingId}`}, 0))`.execute(
-          tx,
-        )
-        await lockAttachmentStorageKey(tx, storageKey)
-        const existing = await tx
-          .selectFrom('dcl_customer_attachment_staging')
-          .selectAll()
-          .where('id', '=', input.stagingId)
-          .executeTakeFirst()
-        if (existing) {
-          if (
-            existing.owner_user_id !== actor.id ||
-            existing.file_id !== input.fileId ||
-            existing.file_name !== input.fileName ||
-            existing.mime_type !== input.mimeType ||
-            existing.digest !== input.digest ||
-            existing.size_bytes !== input.size
-          )
-            throw new ArchiveApplicationError(
-              'customer_attachment_staging_conflict',
-            )
-          await this.attachmentStore.stage({
-            ownerId: actor.id,
-            stagingId: input.stagingId,
-            content,
-          })
-          if (existing.expires_at <= now)
-            await tx
-              .updateTable('dcl_customer_attachment_staging')
-              .set({
-                storage_key: storageKey,
-                created_at: now,
-                expires_at: expiresAt,
-              })
-              .where('id', '=', existing.id)
-              .executeTakeFirstOrThrow()
-          await cancelAttachmentDeletion(tx, storageKey)
-          return {
-            stagingId: existing.id,
-            fileId: existing.file_id,
-            fileName: existing.file_name,
-            mimeType: existing.mime_type,
-            size: existing.size_bytes,
-            digest: existing.digest,
-            expiresAt: (existing.expires_at <= now
-              ? expiresAt
-              : existing.expires_at
-            ).toISOString(),
-          }
-        }
-        await this.attachmentStore.stage({
-          ownerId: actor.id,
-          stagingId: input.stagingId,
-          content,
-        })
-        await tx
-          .insertInto('dcl_customer_attachment_staging')
-          .values({
-            id: input.stagingId,
-            file_id: input.fileId,
-            owner_user_id: actor.id,
-            file_name: input.fileName,
-            mime_type: input.mimeType,
-            size_bytes: input.size,
-            digest: input.digest,
-            storage_key: storageKey,
-            created_at: now,
-            expires_at: expiresAt,
-          })
-          .execute()
-        await cancelAttachmentDeletion(tx, storageKey)
-        return {
-          stagingId: input.stagingId,
-          fileId: input.fileId,
-          fileName: input.fileName,
-          mimeType: input.mimeType,
-          size: input.size,
-          digest: input.digest,
-          expiresAt: expiresAt.toISOString(),
-        }
-      })
-    } catch (error) {
-      await this.db.transaction().execute(async (tx) => {
-        await enqueueAttachmentDeletions(tx, [storageKey])
-      })
-      await drainAttachmentDeletions(this.db, this.attachmentStore)
-      throw error
-    }
-  }
-
-  async cleanupCustomerAttachments(
-    actor: ApprovalActor,
-  ): Promise<{ deleted: number }> {
-    requirePermission(actor, '/dcl/customer/attachment-cleanup')
-    await drainAttachmentDeletions(this.db, this.attachmentStore)
-    const expired = await this.db
-      .selectFrom('dcl_customer_attachment_staging')
-      .select('id')
-      .where('expires_at', '<=', new Date())
-      .execute()
-    let deleted = 0
-    for (const attachment of expired) {
-      const storageKey = await this.db.transaction().execute(async (tx) => {
-        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:customer:attachment:${attachment.id}`}, 0))`.execute(
-          tx,
-        )
-        const staged = await tx
-          .selectFrom('dcl_customer_attachment_staging')
-          .select(['id', 'storage_key', 'expires_at'])
-          .where('id', '=', attachment.id)
-          .forUpdate()
-          .executeTakeFirst()
-        if (!staged || staged.expires_at > new Date()) return null
-        const result = await tx
-          .deleteFrom('dcl_customer_attachment_staging')
-          .where('id', '=', staged.id)
-          .executeTakeFirst()
-        if (Number(result.numDeletedRows) !== 1)
-          throw new ArchiveApplicationError(
-            'customer_attachment_staging_invalid',
-          )
-        await enqueueAttachmentDeletions(tx, [staged.storage_key])
-        return staged.storage_key
-      })
-      if (storageKey) {
-        deleted += 1
-        await drainAttachmentDeletions(this.db, this.attachmentStore, [
-          storageKey,
-        ])
-      }
-    }
-    return { deleted }
   }
 
   private async prepare(
@@ -1303,70 +957,6 @@ export class ArchiveService {
     const base = { ...command, data }
     // The switches make each aggregate's accepted facts visible; no generic reference graph exists here.
     switch (entity) {
-      case 'customer':
-        return prepareCustomerSubmit(
-          base as never,
-          {
-            subject,
-            defaultOperatingEntity: adoptedAuxFact(data.defaultOperatingEntity),
-            customerTypes: (
-              await this.auxFacts(
-                tx,
-                array(data.subunits).map((value) => [
-                  'customerType',
-                  record(record(value).customerType).id,
-                ]),
-              )
-            ).map((fact) => ({
-              objectId: fact.objectId,
-              available: fact.available,
-            })),
-            salesAttributions: await Promise.all(
-              array(data.subunits).map(async (value) => {
-                const attribution = record(
-                  record(value).primarySalesAttribution,
-                )
-                const type = String(attribution.type ?? '') as
-                  'INTERNAL_EMPLOYEE' | 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER'
-                if (type === 'INTERNAL_EMPLOYEE')
-                  return {
-                    ...adoptedAuxFact(attribution),
-                    latestApprovedEntryId: '',
-                    type,
-                  }
-                const entity = 'sales-partner'
-                const fact = await this.approvedFact(
-                  tx,
-                  entity,
-                  String(attribution.objectId ?? ''),
-                )
-                if (!fact)
-                  return {
-                    objectId: String(attribution.objectId ?? ''),
-                    latestApprovedEntryId: '',
-                    enabled: false,
-                    type,
-                  }
-                let enabled = fact.enabled
-                if (entity === 'sales-partner') {
-                  const snapshot = await readBusinessIdentitySnapshot(
-                    tx,
-                    entity,
-                    fact.latestApprovedEntryId,
-                  )
-                  enabled =
-                    enabled && array(snapshot.capabilities).includes(type)
-                }
-                return {
-                  objectId: fact.objectId,
-                  latestApprovedEntryId: fact.latestApprovedEntryId,
-                  enabled,
-                  type,
-                }
-              }),
-            ),
-          } as never,
-        )
       case 'acc-mapping': {
         const vouEntity = await sql<{
           id: string
@@ -1416,81 +1006,13 @@ export class ArchiveService {
     }
   }
 
-  private async approvedFact(
-    tx: Executor,
-    entity: ApprovedReferenceEntity,
-    objectId: string,
-  ): Promise<ApprovedArchiveFact | undefined> {
-    if (!objectId) return undefined
-    const domain = entity === 'sales-partner' ? 'bob' : 'dcl'
-    const subjectTable =
-      entity === 'sales-partner' ? 'bob_subjects' : 'dcl_subjects'
-    await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${domain}:archive:${entity}:${objectId}`}, 0))`.execute(
-      tx,
-    )
-    const selected = await sql<{
-      id: string
-      object_id: string
-      code: string | null
-      enabled: boolean | null
-    }>`SELECT e.id, s.id AS object_id, s.code, ${entity === 'sales-partner' ? sql.ref('s.enabled') : sql`NULL::boolean`} AS enabled
-       FROM approval_entries e
-       JOIN ${sql.table(subjectTable)} s ON s.id = e.subject_id
-       WHERE e.domain = ${domain} AND e.entity = ${entity}
-         AND e.subject_id = ${objectId} AND e.status = 'APPROVED'
-       ORDER BY e.version_no DESC LIMIT 1`.execute(tx)
-    const row = selected.rows[0]
-    if (!row) return undefined
-    const snapshot =
-      entity === 'sales-partner'
-        ? await readBusinessIdentitySnapshot(tx, entity, row.id)
-        : await this.readSnapshot(tx, entity, row.id)
-    return {
-      objectId: row.object_id,
-      latestApprovedEntryId: row.id,
-      enabled:
-        entity === 'sales-partner'
-          ? row.enabled === true
-          : snapshot.enabled === true,
-      code: row.code ?? '',
-      name: this.displayName(entity, snapshot),
-    }
-  }
-
   private async ensureNoDuplicateBusinessKey(
     tx: Executor,
     entity: ArchiveEntity,
     subjectId: string,
     data: ArchiveSnapshot,
   ): Promise<void> {
-    const failIfDuplicate = async (
-      table: string,
-      column: string,
-      value: unknown,
-      errorKey: string,
-    ) => {
-      if (typeof value !== 'string' || !value.trim()) return
-      const normalized = value.trim().toUpperCase()
-      const domain = archiveDomain(entity)
-      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${domain}:archive:${entity}:business-key:${column}:${normalized}`}, 0))`.execute(
-        tx,
-      )
-      const duplicate = await sql<{
-        id: string
-      }>`SELECT e.id FROM ${sql.table(table)} AS v JOIN approval_entries e ON e.id = v.approval_entry_id WHERE e.domain = ${domain} AND e.entity = ${entity} AND e.subject_id <> ${subjectId} AND e.status IN ('PENDING', 'APPROVED', 'REJECTED') AND ${sql.ref(`v.${column}`)} = ${value} LIMIT 1`.execute(
-        tx,
-      )
-      if (duplicate.rows[0]) throw new ArchiveApplicationError(errorKey)
-    }
     switch (entity) {
-      case 'customer':
-        await failIfDuplicate(
-          'dcl_customer_versions',
-          'legal_identifier',
-          data.legalIdentifier,
-          'customer_duplicate_legal_identifier',
-        )
-        return
       case 'acc-mapping': {
         const bookId = String(record(data.book).id ?? '')
         const vouEntityId = String(record(data.vouEntity).id ?? '')
@@ -1519,258 +1041,6 @@ export class ArchiveService {
     }
   }
 
-  private async auxFacts(
-    tx: Executor,
-    references: Array<[AuxiliaryFact['field'], unknown]>,
-  ): Promise<AuxiliaryFact[]> {
-    const ids = references.map(([, id]) => (typeof id === 'string' ? id : ''))
-    const rows =
-      ids.length === 0
-        ? []
-        : await tx
-            .selectFrom('aux_objects')
-            .select(['id', 'entity', 'enabled', 'code', 'data'])
-            .where('id', 'in', ids)
-            .orderBy('id')
-            .forShare()
-            .execute()
-    return references.map(([field, id]) => {
-      const row = rows.find((item) => item.id === id)
-      const data = record(row?.data)
-      return {
-        field,
-        objectId: typeof id === 'string' ? id : '',
-        available:
-          row?.enabled === true && row.entity === auxiliaryEntities[field],
-        code: row?.code ?? '',
-        name: typeof data.name === 'string' ? data.name : '',
-        data,
-      }
-    })
-  }
-
-  private displayName(
-    entity: ApprovedReferenceEntity,
-    snapshot: ArchiveSnapshot,
-  ): string {
-    const named =
-      nullable(snapshot.displayName) ??
-      nullable(snapshot.legalName) ??
-      nullable(snapshot.name)
-    return named ?? entity
-  }
-
-  private async freezeCurrentReference(
-    tx: Transaction<DB>,
-    entity: 'operating-entity' | 'employee',
-    reference: unknown,
-  ): Promise<Record<string, unknown>> {
-    const objectId = String(record(reference).objectId ?? '')
-    try {
-      const current = await resolveAuxCurrentReference(tx, entity, objectId)
-      return {
-        objectId: current.objectId,
-        code: current.code,
-        name: current.name,
-      }
-    } catch (error) {
-      if (error instanceof AuxApplicationError)
-        throw new ArchiveApplicationError('archive_reference_unavailable', [
-          { kind: 'AUX_REFERENCE', entity, objectId },
-        ])
-      throw error
-    }
-  }
-
-  private async freezeApprovedReference(
-    tx: Executor,
-    entity: ApprovedReferenceEntity,
-    reference: unknown,
-  ): Promise<Record<string, unknown>> {
-    const requested = record(reference)
-    const fact = await this.approvedFact(
-      tx,
-      entity,
-      String(requested.objectId ?? ''),
-    )
-    if (!fact || fact.latestApprovedEntryId !== requested.approvalEntryId)
-      return requested
-    return {
-      ...requested,
-      objectId: fact.objectId,
-      approvalEntryId: fact.latestApprovedEntryId,
-      code: fact.code,
-      name: fact.name,
-    }
-  }
-
-  private async freezeAuxiliaryReference(
-    tx: Executor,
-    field: AuxiliaryField,
-    reference: unknown,
-    errorKey: string,
-  ): Promise<Record<string, unknown>> {
-    const requested = record(reference)
-    const fact = (
-      await this.auxFacts(tx, [[field, String(requested.id ?? '')]])
-    )[0]
-    if (!fact || !fact.available) throw new ArchiveApplicationError(errorKey)
-    if (field === 'settlementMethod') {
-      const termCode =
-        typeof fact.data.termCode === 'string' ? fact.data.termCode : ''
-      const ruleType =
-        typeof fact.data.ruleType === 'string' ? fact.data.ruleType : ''
-      const monthOffset = fact.data.monthOffset
-      const dayOfMonth = fact.data.dayOfMonth
-      const dayOffset = fact.data.dayOffset
-      const defaultSalesSurcharge = fixedAuxMoney(
-        fact.data.defaultSalesSurcharge,
-        errorKey,
-      )
-      if (
-        ![
-          'PREPAID',
-          'CASH_ON_DELIVERY',
-          'ARRIVAL_3',
-          'ARRIVAL_5',
-          'ARRIVAL_7',
-          'ARRIVAL_15',
-          'ARRIVAL_30',
-          'MONTHLY_CURRENT',
-          'MONTHLY_30',
-          'MONTHLY_60',
-          'MONTHLY_90',
-        ].includes(termCode) ||
-        !['RELATIVE_DAYS', 'MONTH_END'].includes(ruleType) ||
-        !Number.isInteger(monthOffset) ||
-        !Number.isInteger(dayOfMonth) ||
-        !Number.isInteger(dayOffset)
-      )
-        throw new ArchiveApplicationError(errorKey)
-      return {
-        id: fact.objectId,
-        code: fact.code,
-        name: fact.name,
-        termCode,
-        ruleType,
-        monthOffset,
-        dayOfMonth,
-        dayOffset,
-        defaultSalesSurcharge,
-      }
-    }
-    if (field === 'paymentMethod')
-      return {
-        id: fact.objectId,
-        code: fact.code,
-        name: fact.name,
-        defaultSalesSurcharge: fixedAuxMoney(
-          fact.data.defaultSalesSurcharge,
-          errorKey,
-        ),
-      }
-    return { id: fact.objectId, code: fact.code, name: fact.name }
-  }
-
-  private async freezeAuthoritativeReferences(
-    tx: Transaction<DB>,
-    entity: ArchiveEntity,
-    snapshot: ArchiveSnapshot,
-  ): Promise<ArchiveSnapshot> {
-    switch (entity) {
-      case 'customer':
-        return {
-          ...snapshot,
-          defaultOperatingEntity:
-            snapshot.defaultOperatingEntity === null
-              ? null
-              : await this.freezeCurrentReference(
-                  tx,
-                  'operating-entity',
-                  snapshot.defaultOperatingEntity,
-                ),
-          subunits: await Promise.all(
-            array(snapshot.subunits).map(async (item) => {
-              const subunit = record(item)
-              const attribution = record(subunit.primarySalesAttribution)
-              const attributionType = String(attribution.type ?? '')
-              return {
-                ...subunit,
-                customerType: await this.freezeAuxiliaryReference(
-                  tx,
-                  'customerType',
-                  subunit.customerType,
-                  'customer_invalid_data',
-                ),
-                settlementMethod:
-                  subunit.settlementMethod === null
-                    ? null
-                    : await this.freezeAuxiliaryReference(
-                        tx,
-                        'settlementMethod',
-                        subunit.settlementMethod,
-                        'customer_invalid_data',
-                      ),
-                paymentMethod:
-                  subunit.paymentMethod === null
-                    ? null
-                    : await this.freezeAuxiliaryReference(
-                        tx,
-                        'paymentMethod',
-                        subunit.paymentMethod,
-                        'customer_invalid_data',
-                      ),
-                primarySalesAttribution: {
-                  ...(attributionType === 'INTERNAL_EMPLOYEE'
-                    ? await this.freezeCurrentReference(
-                        tx,
-                        'employee',
-                        attribution,
-                      )
-                    : await this.freezeApprovedReference(
-                        tx,
-                        'sales-partner',
-                        attribution,
-                      )),
-                  type: attributionType,
-                },
-              }
-            }),
-          ),
-        }
-      default:
-        return snapshot
-    }
-  }
-
-  private async registerPeopleReferences(
-    tx: Transaction<DB>,
-    entity: ArchiveEntity,
-    submissionId: string,
-    snapshot: ArchiveSnapshot,
-  ): Promise<void> {
-    const references: Array<[string, string]> = []
-    if (entity === 'customer') {
-      if (snapshot.defaultOperatingEntity)
-        references.push([
-          'defaultOperatingEntity',
-          String(record(snapshot.defaultOperatingEntity).objectId ?? ''),
-        ])
-      array(snapshot.subunits).forEach((value, index) => {
-        const ref = record(record(value).primarySalesAttribution)
-        if (ref.type === 'INTERNAL_EMPLOYEE')
-          references.push([
-            `subunits[${index}].primarySalesAttribution`,
-            String(ref.objectId ?? ''),
-          ])
-      })
-    }
-    for (const [field, id] of references)
-      await sql`INSERT INTO aux_reference_facts(id,aux_object_id,source) VALUES (${ulid()},${id},${`${archiveDomain(entity)}:${entity}:${submissionId}:${field}`})`.execute(
-        tx,
-      )
-  }
-
   private async writeSnapshot(
     tx: Executor,
     entity: ArchiveEntity,
@@ -1779,9 +1049,6 @@ export class ArchiveService {
   ): Promise<void> {
     const d = snapshot
     switch (entity) {
-      case 'customer':
-        await this.writeCustomer(tx, id, d)
-        return
       case 'acc-mapping':
         await tx
           .insertInto('dcl_acc_mapping_versions')
@@ -1813,306 +1080,6 @@ export class ArchiveService {
     }
   }
 
-  private async writeCustomer(
-    tx: Executor,
-    id: string,
-    d: ArchiveSnapshot,
-  ): Promise<void> {
-    const oe = record(d.defaultOperatingEntity)
-    await tx
-      .insertInto('dcl_customer_versions')
-      .values({
-        approval_entry_id: id,
-        kind: String(d.identityKind ?? ''),
-        legal_name: nullable(d.legalName),
-        display_name: String(d.displayName ?? ''),
-        legal_identifier: nullable(d.legalIdentifier),
-        phone: nullable(d.phone),
-        email: nullable(d.email),
-        address: nullable(d.address),
-        invoice_title: nullable(d.invoiceTitle),
-        invoice_address: nullable(d.invoiceAddress),
-        invoice_phone: nullable(d.invoicePhone),
-        invoice_bank: nullable(d.invoiceBank),
-        invoice_account: nullable(d.invoiceAccount),
-        remittance_profiles: json(array(d.remittanceProfiles)),
-        default_operating_entity_id: nullable(oe.objectId),
-        default_operating_entity_approval_entry_id: nullable(
-          oe.approvalEntryId,
-        ),
-        default_operating_entity_code: nullable(oe.code),
-        default_operating_entity_name: nullable(oe.name),
-        tax_attachments: json(array(d.identityAttachments)),
-        enabled: d.enabled === true,
-      })
-      .execute()
-    const owner = await tx
-      .selectFrom('approval_entries')
-      .select('subject_id')
-      .where('id', '=', id)
-      .executeTakeFirstOrThrow()
-    for (const item of array(d.subunits)) {
-      const s = record(item)
-      const root = await tx
-        .selectFrom('dcl_customer_subunit_roots')
-        .select(['customer_id', 'code'])
-        .where('subunit_id', '=', String(s.id ?? ''))
-        .executeTakeFirst()
-      if (root) {
-        if (
-          root.customer_id !== owner.subject_id ||
-          root.code !== String(s.code ?? '')
-        )
-          throw new ArchiveApplicationError('customer_subunit_conflict')
-      } else {
-        await tx
-          .insertInto('dcl_customer_subunit_roots')
-          .values({
-            subunit_id: String(s.id ?? ''),
-            customer_id: owner.subject_id,
-            code: String(s.code ?? ''),
-          })
-          .execute()
-      }
-      await tx
-        .insertInto('dcl_customer_version_subunits')
-        .values({
-          customer_approval_entry_id: id,
-          subunit_id: String(s.id ?? ''),
-          name: String(s.name ?? ''),
-          contact_name: nullable(s.contactName),
-          contact_phone: null,
-          business_address: nullable(s.address),
-          customer_type_id: String(record(s.customerType).id),
-          customer_type_snapshot: json(record(s.customerType)),
-          settlement_method_id: nullable(record(s.settlementMethod).id),
-          settlement_snapshot:
-            s.settlementMethod === null
-              ? null
-              : json(record(s.settlementMethod)),
-          payment_snapshot:
-            s.paymentMethod === null ? null : json(record(s.paymentMethod)),
-          transport_snapshot: json(record(s.transportPolicy)),
-          pricing_snapshot: json(record(s.pricingPolicy)),
-          credit_limits: json(array(s.creditLimits)),
-          primary_sales_attribution_type: nullable(
-            record(s.primarySalesAttribution).type,
-          ),
-          primary_sales_attribution_object_id: nullable(
-            record(s.primarySalesAttribution).objectId,
-          ),
-          primary_sales_attribution_approval_entry_id: nullable(
-            record(s.primarySalesAttribution).approvalEntryId,
-          ),
-          primary_sales_attribution_code: nullable(
-            record(s.primarySalesAttribution).code,
-          ),
-          primary_sales_attribution_name: nullable(
-            record(s.primarySalesAttribution).name,
-          ),
-          sales_attribution_snapshot: json(record(s.primarySalesAttribution)),
-          internal_reminder: nullable(s.internalReminder),
-          default_order_remark: nullable(s.defaultSalesOrderRemark),
-          business_attachments: json(array(s.attachments)),
-          enabled: s.enabled === true,
-        })
-        .execute()
-    }
-  }
-
-  private async assignCustomerSubunitCodes(
-    tx: Executor,
-    customerId: string,
-    snapshot: ArchiveSnapshot,
-  ): Promise<ArchiveSnapshot> {
-    const roots = await tx
-      .selectFrom('dcl_customer_subunit_roots')
-      .select('code')
-      .where('customer_id', '=', customerId)
-      .execute()
-    let next = roots.reduce((highest, root) => {
-      const match = /^SUB-(\d+)$/.exec(root.code)
-      return match ? Math.max(highest, Number(match[1])) : highest
-    }, 0)
-    const knownCodes = new Set(roots.map((root) => root.code))
-    const subunits = []
-    for (const item of array(snapshot.subunits)) {
-      const subunit = record(item)
-      if (subunit.intent === 'NEW') {
-        next += 1
-        const code = `SUB-${String(next).padStart(4, '0')}`
-        knownCodes.add(code)
-        subunits.push({ ...subunit, code })
-        continue
-      }
-      const code = String(subunit.code ?? '')
-      if (!knownCodes.has(code))
-        throw new ArchiveApplicationError('customer_subunit_conflict')
-      subunits.push(subunit)
-    }
-    return { ...snapshot, subunits }
-  }
-
-  private async promoteCustomerAttachments(
-    tx: Executor,
-    approvalEntryId: string,
-    snapshot: ArchiveSnapshot,
-    actorId: string,
-    preparedPermanentKeys: Set<string>,
-  ): Promise<void> {
-    const owner = await tx
-      .selectFrom('approval_entries')
-      .select('subject_id')
-      .where('id', '=', approvalEntryId)
-      .executeTakeFirstOrThrow()
-    const attachments = [
-      ...array(snapshot.identityAttachments),
-      ...array(snapshot.subunits).flatMap((item) =>
-        array(record(item).attachments),
-      ),
-    ].map(record)
-    for (const attachment of attachments) {
-      const stagingId =
-        typeof attachment.stagingId === 'string' ? attachment.stagingId : null
-      if (!stagingId) {
-        const prior = await tx
-          .selectFrom('dcl_customer_attachments as a')
-          .innerJoin('approval_entries as e', 'e.id', 'a.approval_entry_id')
-          .select([
-            'a.file_id',
-            'a.file_name',
-            'a.mime_type',
-            'a.size_bytes',
-            'a.digest',
-            'a.storage_key',
-          ])
-          .where('e.subject_id', '=', owner.subject_id)
-          .where('a.file_id', '=', String(attachment.id ?? ''))
-          .where('a.file_name', '=', String(attachment.fileName ?? ''))
-          .where('a.mime_type', '=', String(attachment.contentType ?? ''))
-          .where('a.size_bytes', '=', Number(attachment.sizeBytes ?? 0))
-          .where('a.digest', '=', String(attachment.sha256 ?? ''))
-          .orderBy('e.version_no', 'desc')
-          .executeTakeFirst()
-        if (!prior)
-          throw new ArchiveApplicationError(
-            'customer_attachment_staging_invalid',
-          )
-        await tx
-          .insertInto('dcl_customer_attachments')
-          .values({
-            file_id: prior.file_id,
-            approval_entry_id: approvalEntryId,
-            file_name: prior.file_name,
-            mime_type: prior.mime_type,
-            size_bytes: prior.size_bytes,
-            digest: prior.digest,
-            storage_key: prior.storage_key,
-            created_at: new Date(),
-          })
-          .execute()
-        continue
-      }
-      const staged = await tx
-        .selectFrom('dcl_customer_attachment_staging')
-        .selectAll()
-        .where('id', '=', stagingId)
-        .where('owner_user_id', '=', actorId)
-        .forUpdate()
-        .executeTakeFirst()
-      if (
-        !staged ||
-        staged.expires_at <= new Date() ||
-        staged.file_id !== attachment.id ||
-        staged.file_name !== attachment.fileName ||
-        staged.mime_type !== attachment.contentType ||
-        staged.size_bytes !== attachment.sizeBytes ||
-        staged.digest !== attachment.sha256
-      )
-        throw new ArchiveApplicationError('customer_attachment_staging_invalid')
-      const content = await this.attachmentStore.read(staged.storage_key)
-      if (
-        content.length !== staged.size_bytes ||
-        !customerAttachmentContentMatches(staged.mime_type, content) ||
-        createHash('sha256').update(content).digest('hex') !== staged.digest
-      )
-        throw new ArchiveApplicationError('customer_attachment_staging_invalid')
-      const prepared = await this.attachmentStore.promote({
-        stagingKey: staged.storage_key,
-        permanentKey: `permanent/dcl/customer/${approvalEntryId}/${staged.file_id}`,
-      })
-      if (prepared.created) preparedPermanentKeys.add(prepared.key)
-      await tx
-        .insertInto('dcl_customer_attachments')
-        .values({
-          file_id: staged.file_id,
-          approval_entry_id: approvalEntryId,
-          file_name: staged.file_name,
-          mime_type: staged.mime_type,
-          size_bytes: staged.size_bytes,
-          digest: staged.digest,
-          storage_key: prepared.key,
-          created_at: new Date(),
-        })
-        .execute()
-      await tx
-        .deleteFrom('dcl_customer_attachment_staging')
-        .where('id', '=', staged.id)
-        .execute()
-    }
-  }
-
-  private customerStagingAttachments(snapshot: ArchiveSnapshot) {
-    return [
-      ...array(snapshot.identityAttachments),
-      ...array(snapshot.subunits).flatMap((item) =>
-        array(record(item).attachments),
-      ),
-    ]
-      .map(record)
-      .filter(
-        (
-          attachment,
-        ): attachment is Record<string, unknown> & {
-          stagingId: string
-          id: string
-        } =>
-          typeof attachment.stagingId === 'string' &&
-          typeof attachment.id === 'string',
-      )
-  }
-
-  private async finalizeCustomerAttachments(
-    snapshot: ArchiveSnapshot,
-    ownerId: string,
-  ): Promise<void> {
-    await Promise.all(
-      this.customerStagingAttachments(snapshot).map(async (attachment) => {
-        try {
-          await this.attachmentStore.finalize(
-            `staging/${ownerId}/${attachment.stagingId}`,
-          )
-        } catch {
-          // DB is already committed. A later orphan pass can retry removal.
-        }
-      }),
-    )
-  }
-
-  private async discardPreparedCustomerAttachments(
-    keys: ReadonlySet<string>,
-  ): Promise<void> {
-    await Promise.all(
-      [...keys].map(async (key) => {
-        try {
-          await this.attachmentStore.remove(key)
-        } catch {
-          // The original submission error remains authoritative.
-        }
-      }),
-    )
-  }
-
   private async readSnapshot(
     tx: Executor,
     entity: ArchiveEntity,
@@ -2120,8 +1087,6 @@ export class ArchiveService {
   ): Promise<ArchiveSnapshot> {
     // Each aggregate rehydrates its own version row. JSON fields retain exact submitted reference snapshots.
     switch (entity) {
-      case 'customer':
-        return this.readCustomer(tx, id)
       case 'acc-mapping': {
         const r = await tx
           .selectFrom('dcl_acc_mapping_versions')
@@ -2150,84 +1115,6 @@ export class ArchiveService {
           columns: array(r.columns),
         }
       }
-    }
-  }
-
-  private async readCustomer(
-    tx: Executor,
-    id: string,
-  ): Promise<ArchiveSnapshot> {
-    const r = await tx
-      .selectFrom('dcl_customer_versions')
-      .selectAll()
-      .where('approval_entry_id', '=', id)
-      .executeTakeFirstOrThrow()
-    const subs = await tx
-      .selectFrom('dcl_customer_version_subunits as v')
-      .innerJoin(
-        'dcl_customer_subunit_roots as r',
-        'r.subunit_id',
-        'v.subunit_id',
-      )
-      .selectAll('v')
-      .select('r.code as root_code')
-      .where('v.customer_approval_entry_id', '=', id)
-      .execute()
-    return {
-      identityKind: r.kind,
-      legalName: r.legal_name ?? '',
-      displayName: r.display_name,
-      legalIdentifier: r.legal_identifier ?? '',
-      phone: r.phone ?? '',
-      email: r.email ?? '',
-      address: r.address ?? '',
-      invoiceTitle: r.invoice_title ?? '',
-      invoiceAddress: r.invoice_address ?? '',
-      invoicePhone: r.invoice_phone ?? '',
-      invoiceBank: r.invoice_bank ?? '',
-      invoiceAccount: r.invoice_account ?? '',
-      remittanceProfiles: array(r.remittance_profiles),
-      defaultOperatingEntity: r.default_operating_entity_id
-        ? {
-            objectId: r.default_operating_entity_id,
-            code: r.default_operating_entity_code ?? '',
-            name: r.default_operating_entity_name ?? '',
-          }
-        : null,
-      identityAttachments: array(r.tax_attachments),
-      subunits: subs.map((s) => ({
-        intent: 'EXISTING',
-        id: s.subunit_id,
-        code: s.root_code,
-        name: s.name,
-        contactName: s.contact_name ?? '',
-        address: s.business_address ?? '',
-        customerType: record(s.customer_type_snapshot),
-        settlementMethod: s.settlement_snapshot,
-        paymentMethod: s.payment_snapshot,
-        transportPolicy: record(s.transport_snapshot),
-        pricingPolicy: record(s.pricing_snapshot),
-        creditLimits: array(s.credit_limits),
-        primarySalesAttribution: s.primary_sales_attribution_object_id
-          ? {
-              type: s.primary_sales_attribution_type,
-              objectId: s.primary_sales_attribution_object_id,
-              ...(s.primary_sales_attribution_type === 'INTERNAL_EMPLOYEE'
-                ? {}
-                : {
-                    approvalEntryId:
-                      s.primary_sales_attribution_approval_entry_id ?? '',
-                  }),
-              code: s.primary_sales_attribution_code ?? '',
-              name: s.primary_sales_attribution_name ?? '',
-            }
-          : {},
-        internalReminder: s.internal_reminder ?? '',
-        defaultSalesOrderRemark: s.default_order_remark ?? '',
-        attachments: array(s.business_attachments),
-        enabled: s.enabled,
-      })),
-      enabled: r.enabled,
     }
   }
 
@@ -2552,9 +1439,4 @@ export class ArchiveService {
         .execute()
     }
   }
-}
-
-function adoptedAuxFact(reference: unknown) {
-  const objectId = String(record(reference).objectId ?? '')
-  return { objectId, enabled: objectId.length > 0 }
 }

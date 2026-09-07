@@ -16,10 +16,14 @@ import {
 import {
   archiveRouteMetadata,
   registerArchiveRoutes,
-  type ArchiveAttachmentHandlers,
   type ArchiveRouteHandler,
 } from '../dcl/archive-contract.ts'
-import { bobArchiveRouteMetadata, registerBobArchiveRoutes, type BobArchiveRouteHandler } from '../bob/archive-contract.ts'
+import {
+  bobArchiveRouteMetadata,
+  registerBobArchiveRoutes,
+  type BobArchiveRouteHandler,
+  type ArchiveAttachmentHandlers,
+} from '../bob/archive-contract.ts'
 import { registerVouRoutes, type VouRouteHandler } from '../vou/contract.ts'
 import { registerAccRoutes, type AccRouteHandler } from '../acc/contract.ts'
 import { registerWflRoutes, type WflRouteHandler } from '../wfl/contract.ts'
@@ -505,13 +509,16 @@ export function registerTargetRoutes<
   const archives = registerArchiveRoutes(
     new OpenAPIHono<TargetRouteEnvironment>(),
     handlers.archive,
-    handlers.archiveAttachments,
   )
   const bobArchives = registerBobArchiveRoutes(
     new OpenAPIHono<TargetRouteEnvironment>(),
     handlers.bobArchive,
+    handlers.archiveAttachments,
   )
-  return base.route('/', independent).route('/', archives).route('/', bobArchives)
+  return base
+    .route('/', independent)
+    .route('/', archives)
+    .route('/', bobArchives)
 }
 
 function targetAppType() {

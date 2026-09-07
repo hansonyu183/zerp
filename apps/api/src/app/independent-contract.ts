@@ -300,8 +300,8 @@ const systemParameterReset = postRoute(
   z.object({ key: z.string(), revision: z.number().int().positive() }).strict(),
   systemParameter,
 )
-const bobQueryRequest = pageRequest
 const bobObject = z.object({
+  implicitSubunitId: z.string().length(26).nullable().optional(),
   objectId: z.string(),
   entity: z.string(),
   code: z.string(),
@@ -351,6 +351,7 @@ const bobReferences = z.array(
 )
 
 const bobManagedEntities = [
+  'customer',
   'product',
   'supplier',
   'other-unit',
@@ -426,6 +427,10 @@ function bobCurrentRoutes<
     ),
   }
 }
+const customerCurrentRoutes = bobCurrentRoutes(
+  'customer',
+  bobArchiveSnapshotSchemas.customer,
+)
 const productCurrentRoutes = bobCurrentRoutes(
   'product',
   bobArchiveSnapshotSchemas['product'],
@@ -442,15 +447,6 @@ const salesPartnerCurrentRoutes = bobCurrentRoutes(
   'sales-partner',
   bobArchiveSnapshotSchemas['sales-partner'],
 )
-function bobRoute<const Path extends string>(
-  path: Path,
-  action: 'query' | 'get',
-) {
-  return action === 'query'
-    ? postRoute(path, bobQueryRequest, bobPage)
-    : postRoute(path, objectIdentifier, bobObject)
-}
-
 export const bobEntities = [
   'customer',
   'supplier',
@@ -1056,12 +1052,20 @@ export function registerIndependentRoutes(
       handler: handlers.bob(bobRouteBinding('sales-partner', 'disable')),
     },
     {
-      route: bobRoute('/bob/customer/query', 'query'),
+      route: customerCurrentRoutes.query,
       handler: handlers.bob(bobRouteBinding('customer', 'query')),
     },
     {
-      route: bobRoute('/bob/customer/get', 'get'),
+      route: customerCurrentRoutes.get,
       handler: handlers.bob(bobRouteBinding('customer', 'get')),
+    },
+    {
+      route: customerCurrentRoutes.enable,
+      handler: handlers.bob(bobRouteBinding('customer', 'enable')),
+    },
+    {
+      route: customerCurrentRoutes.disable,
+      handler: handlers.bob(bobRouteBinding('customer', 'disable')),
     },
     {
       route: productCurrentRoutes.enable,

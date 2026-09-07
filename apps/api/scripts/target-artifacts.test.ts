@@ -1,3 +1,7 @@
+import {
+  archiveCapabilityPermissionMetadata,
+  bobArchiveSnapshotSchemas,
+} from '../src/bob/archive-contract.ts'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
@@ -5,11 +9,9 @@ import test from 'node:test'
 import { auxRouteBinding } from '../src/app/aux-contract.ts'
 import { targetRouteMetadata as appTargetRouteMetadata } from '../src/app/contract.ts'
 import {
-  archiveCapabilityPermissionMetadata,
   archiveBlockerSchema,
   archiveReviewSchemas,
   archiveRouteSets,
-  archiveSnapshotSchemas,
 } from '../src/dcl/archive-contract.ts'
 import {
   bobArchiveRouteSets,
@@ -117,29 +119,29 @@ test('target artifact gate emits action permissions without presentation state',
 
 test('target catalog emits a customer-subunit capability without inventing HTTP routes', () => {
   const catalog = validateTargetRouteMetadata(
-    ['POST /dcl/customer/submit-new'],
+    ['POST /bob/customer/submit-new'],
     [
       {
         method: 'post',
-        path: '/dcl/customer/submit-new',
-        permission: '/dcl/customer/submit-new',
+        path: '/bob/customer/submit-new',
+        permission: '/bob/customer/submit-new',
         title: '提交客户申报',
       },
     ],
     archiveCapabilityPermissionMetadata,
   )
   assert.ok(
-    catalog.some((entry) => entry.path === '/dcl/customer/save-subunits'),
+    catalog.some((entry) => entry.path === '/bob/customer/save-subunits'),
   )
   assert.throws(
     () =>
       validateTargetRouteMetadata(
-        ['POST /dcl/customer/submit-new'],
+        ['POST /bob/customer/submit-new'],
         [
           {
             method: 'post',
-            path: '/dcl/customer/submit-new',
-            permission: '/dcl/customer/save-subunits',
+            path: '/bob/customer/submit-new',
+            permission: '/bob/customer/save-subunits',
             title: '错误的路由权限',
           },
         ],
@@ -164,7 +166,7 @@ test('archive wire contract closes review reason and reference semantics', () =>
     archiveReviewSchemas.withReason.parse({ ...review, reason: '  reason  ' }),
     { ...review, reason: 'reason' },
   )
-  const customer = archiveSnapshotSchemas.customer
+  const customer = bobArchiveSnapshotSchemas.customer
   assert.throws(() =>
     customer.parse({
       identityKind: 'OTHER',
@@ -474,7 +476,7 @@ test('target OpenAPI contains the separated DCL and BOB archive lifecycle routes
     paths: Record<string, unknown>
   }
   const paths = new Set(Object.keys(document.paths))
-  const entities = ['customer', 'acc-mapping', 'rpt-definition']
+  const entities = ['acc-mapping', 'rpt-definition']
   const actions = [
     'query',
     'get',
@@ -494,7 +496,13 @@ test('target OpenAPI contains the separated DCL and BOB archive lifecycle routes
         paths.has(`/dcl/${entity}/${action}`),
         `missing issue #364 target path /dcl/${entity}/${action}`,
       )
-  for (const entity of ['supplier', 'other-unit', 'sales-partner', 'product']) {
+  for (const entity of [
+    'customer',
+    'supplier',
+    'other-unit',
+    'sales-partner',
+    'product',
+  ]) {
     for (const action of [
       ...actions,
       'submission-query',
@@ -513,8 +521,8 @@ test('target OpenAPI contains the separated DCL and BOB archive lifecycle routes
     for (const legacy of ['create', 'save', 'submit', 'unsubmit'])
       assert.ok(!paths.has(`/bob/${entity}/${legacy}`))
   }
-  assert.ok(paths.has('/dcl/customer/attachment-stage'))
-  assert.ok(paths.has('/dcl/customer/attachment-cleanup'))
+  assert.ok(paths.has('/bob/customer/attachment-stage'))
+  assert.ok(paths.has('/bob/customer/attachment-cleanup'))
   for (const legacy of ['create', 'save', 'submit', 'unsubmit'])
     for (const entity of entities)
       assert.ok(

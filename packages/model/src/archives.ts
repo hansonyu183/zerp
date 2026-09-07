@@ -147,6 +147,7 @@ function mechanics<T, E extends string>(
   facts: ArchiveFacts,
 ): ArchiveDecision<T, E> | SubmissionMechanicsPlan {
   const domain =
+    entity === 'customer' ||
     entity === 'product' ||
     entity === 'supplier' ||
     entity === 'other-unit' ||
@@ -934,7 +935,6 @@ export interface CustomerData {
   defaultOperatingEntity: StableArchiveReference | null
   identityAttachments: readonly AttachmentMetadata[]
   subunits: readonly CustomerSubunit[]
-  enabled: boolean
 }
 export interface CustomerSubmitCommand extends ArchiveCommand<CustomerData> {}
 export interface CustomerSubmitFacts extends ArchiveFacts {
@@ -973,7 +973,7 @@ function normalizeAttachment(
     : undefined
 }
 const money = /^(?:0|[1-9]\d*)\.\d{2}$/
-const positiveMoney = /^(?:0*[1-9]\d*)\.\d{2}$/
+const positiveMoney = /^(?:[1-9]\d*\.\d{2}|0\.(?:[1-9]\d|0[1-9]))$/
 function normalizeAuxSnapshot(value: AuxSnapshot): AuxSnapshot | undefined {
   const normalized = {
     id: trim(value.id),
@@ -1098,7 +1098,9 @@ function normalizeSalesAttribution(
         approvalEntryId: trim(reference.approvalEntryId),
       }
 }
-function normalizeCustomer(data: CustomerData): CustomerData | undefined {
+export function normalizeCustomerData(
+  data: CustomerData,
+): CustomerData | undefined {
   const legalIdentifier = normalizedIdentifier(
     data.identityKind,
     data.legalIdentifier,
@@ -1197,11 +1199,7 @@ function normalizeCustomer(data: CustomerData): CustomerData | undefined {
       currencies.add(limit.currency)
     }
   }
-  if (
-    subunits.length === 0 ||
-    (data.enabled && !subunits.some((subunit) => subunit.enabled))
-  )
-    return undefined
+  if (subunits.length === 0) return undefined
   const identityAttachments = data.identityAttachments.map(normalizeAttachment)
   if (identityAttachments.some((attachment) => !attachment)) return undefined
   const defaultOperatingEntity =
@@ -1249,7 +1247,7 @@ export function prepareCustomerSubmit(
     facts,
   )
   if ('ok' in common) return common
-  const data = normalizeCustomer(command.data)
+  const data = normalizeCustomerData(command.data)
   if (!data) return { ok: false, error: { errorKey: 'customer_invalid_data' } }
   if (data.defaultOperatingEntity) {
     const checked = stableReference(

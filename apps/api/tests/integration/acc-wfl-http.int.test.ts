@@ -253,14 +253,14 @@ async function seedSaleOrderReferences(
     sortOrder: 1,
   })
   const submit = async (
-    entity: Parameters<ArchiveService['submit']>[0] | 'product',
+    entity: Parameters<ArchiveService['submit']>[0] | 'product' | 'customer',
     snapshot: Record<string, unknown>,
   ) => {
     if (entity === 'product') {
       const { enabled: _enabled, ...content } = snapshot
       snapshot = content
     }
-    const domain = entity === 'product' ? 'bob' : 'dcl'
+    const domain = entity === 'product' || entity === 'customer' ? 'bob' : 'dcl'
     const objectId = ulid(),
       approvalEntryId = ulid()
     const input = {
@@ -290,7 +290,7 @@ async function seedSaleOrderReferences(
       )
     const pending = pendingResponse
       ? pendingResponse.data
-      : entity === 'product'
+      : entity === 'product' || entity === 'customer'
         ? await bobArchives.submit(
             entity,
             'submit-new',
@@ -326,7 +326,7 @@ async function seedSaleOrderReferences(
       )
     const approved = approvedResponse
       ? approvedResponse.data
-      : entity === 'product'
+      : entity === 'product' || entity === 'customer'
         ? await bobArchives.review(
             entity,
             'approve',
@@ -345,7 +345,7 @@ async function seedSaleOrderReferences(
       const readback = await post(
         origin,
         reviewerSession,
-        `/${domain}/${entity}/${entity === 'product' ? 'submission-get' : 'get'}`,
+        `/${domain}/${entity}/${domain === 'bob' ? 'submission-get' : 'get'}`,
         { subjectId: objectId },
       )
       assert.equal(readback.code, 0)
@@ -376,7 +376,7 @@ async function seedSaleOrderReferences(
     identityKind: 'PERSON',
     legalName: 'HTTP 销售员',
     displayName: 'HTTP 销售员',
-    legalIdentifier: 'HTTP-EMP',
+    legalIdentifier: `HTTP-EMP-${actorId}`,
     contactName: '',
     phone: '',
     address: '',
@@ -394,7 +394,7 @@ async function seedSaleOrderReferences(
     identityKind: 'OTHER',
     legalName: 'HTTP 客户',
     displayName: 'HTTP 客户',
-    legalIdentifier: 'HTTP-CUS',
+    legalIdentifier: `HTTP-CUS-${actorId}`,
     phone: '',
     email: '',
     address: '',
@@ -446,7 +446,6 @@ async function seedSaleOrderReferences(
         enabled: true,
       },
     ],
-    enabled: true,
   })
   const product = await submit('product', {
     name: 'HTTP 产品',
@@ -924,10 +923,10 @@ test('WFL definition, current, trial, instance and six actions cross the authent
     '/bob/product/submit-new',
     '/bob/product/approve',
     '/bob/product/submission-get',
-    '/dcl/customer/submit-new',
-    '/dcl/customer/save-subunits',
-    '/dcl/customer/approve',
-    '/dcl/customer/get',
+    '/bob/customer/submit-new',
+    '/bob/customer/save-subunits',
+    '/bob/customer/approve',
+    '/bob/customer/get',
     '/dcl/wfl-process-definition/submit-new',
     '/dcl/wfl-process-definition/query',
     '/dcl/wfl-process-definition/get',

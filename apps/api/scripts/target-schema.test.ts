@@ -34,9 +34,9 @@ test('isolated target schema contains every target typed aggregate', async () =>
       'bob_subjects',
       'approval_entries',
       'bob_legacy_enablement_evidence',
-      'dcl_customer_versions',
-      'dcl_customer_subunit_roots',
-      'dcl_customer_version_subunits',
+      'bob_customer_versions',
+      'bob_customer_subunit_roots',
+      'bob_customer_version_subunits',
       'bob_supplier_versions',
       'bob_supplier_version_operating_entities',
       'bob_other_unit_versions',
@@ -61,8 +61,8 @@ test('isolated target schema contains every target typed aggregate', async () =>
       'attachment_deletion_jobs',
       'dcl_warehouse_idempotency',
       'archive_idempotency',
-      'dcl_customer_attachment_staging',
-      'dcl_customer_attachments',
+      'bob_customer_attachment_staging',
+      'bob_customer_attachments',
       'dcl_warehouse_reference_facts',
       'dcl_warehouse_usage_facts',
       'acc_books',
@@ -151,10 +151,13 @@ test('isolated target schema contains every target typed aggregate', async () =>
     'vou_document_reference_facts',
   ])
     assert.ok(!tables.includes(legacy), legacy)
+  assert.match(
+    schema,
+    /bob_subjects_customer_code_ck CHECK \(entity <> 'customer' OR code ~ '\^CUS-/,
+  )
   assert.doesNotMatch(schema, /\bbob_current_objects\b/)
   assert.doesNotMatch(schema, /\bbob_customer_subunits\b/)
   for (const [entity, prefix] of [
-    ['customer', 'CUS'],
     ['supplier', 'SUP'],
     ['other-unit', 'OTU'],
     ['employee', 'EMP'],

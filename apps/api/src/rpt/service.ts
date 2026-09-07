@@ -722,16 +722,16 @@ export class RptService {
         return `
         SELECT root.subunit_id AS id, root.code, subunit.name,
           subject.code AS customer_code, customer.display_name AS customer_name
-        FROM dcl_subjects subject
+        FROM bob_subjects subject
         JOIN LATERAL (
           SELECT id FROM approval_entries entry
-          WHERE entry.domain = 'dcl' AND entry.entity = 'customer'
+          WHERE entry.domain = 'bob' AND entry.entity = 'customer'
             AND entry.subject_id = subject.id AND entry.status = 'APPROVED'
           ORDER BY entry.version_no DESC LIMIT 1
         ) approval ON TRUE
-        JOIN dcl_customer_versions customer ON customer.approval_entry_id = approval.id AND customer.enabled
-        JOIN dcl_customer_version_subunits subunit ON subunit.customer_approval_entry_id = approval.id AND subunit.enabled
-        JOIN dcl_customer_subunit_roots root ON root.subunit_id = subunit.subunit_id
+        JOIN bob_customer_versions customer ON customer.approval_entry_id = approval.id AND subject.enabled
+        JOIN bob_customer_version_subunits subunit ON subunit.customer_approval_entry_id = approval.id AND subunit.enabled
+        JOIN bob_customer_subunit_roots root ON root.subunit_id = subunit.subunit_id
         WHERE subject.entity = 'customer'`
       case 'SUPPLIER':
         return currentBob(
@@ -779,11 +779,11 @@ export class RptService {
         return `
         SELECT root.subunit_id AS id, root.code, subunit.name,
           'customer-subunit'::varchar AS entity, root.subunit_id AS object_id, approval.id AS approval_entry_id
-        FROM dcl_subjects subject
-        JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'dcl' AND entry.entity = 'customer' AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
-        JOIN dcl_customer_versions customer ON customer.approval_entry_id = approval.id AND customer.enabled
-        JOIN dcl_customer_version_subunits subunit ON subunit.customer_approval_entry_id = approval.id AND subunit.enabled
-        JOIN dcl_customer_subunit_roots root ON root.subunit_id = subunit.subunit_id
+        FROM bob_subjects subject
+        JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'bob' AND entry.entity = 'customer' AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
+        JOIN bob_customer_versions customer ON customer.approval_entry_id = approval.id AND subject.enabled
+        JOIN bob_customer_version_subunits subunit ON subunit.customer_approval_entry_id = approval.id AND subunit.enabled
+        JOIN bob_customer_subunit_roots root ON root.subunit_id = subunit.subunit_id
         WHERE subject.entity = 'customer'
         UNION ALL
         SELECT subject.id, subject.code, version.display_name AS name, subject.entity, subject.id AS object_id, approval.id AS approval_entry_id

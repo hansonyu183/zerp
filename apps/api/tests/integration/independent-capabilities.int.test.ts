@@ -57,7 +57,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     .execute()
   const approvedAt = new Date()
   await db
-    .insertInto('dcl_subjects')
+    .insertInto('bob_subjects')
     .values([
       {
         id: customerId,
@@ -73,7 +73,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     .values([
       {
         id: customerEntryId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'customer',
         subject_id: customerId,
         version_no: 2,
@@ -89,16 +89,15 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     ])
     .execute()
   await db
-    .insertInto('dcl_customer_versions')
+    .insertInto('bob_customer_versions')
     .values({
       approval_entry_id: customerEntryId,
       kind: 'MAINLAND_ENTERPRISE',
       display_name: `Target Customer ${suffix}`,
-      enabled: true,
     })
     .execute()
   await db
-    .insertInto('dcl_customer_subunit_roots')
+    .insertInto('bob_customer_subunit_roots')
     .values({
       subunit_id: subunitId,
       customer_id: customerId,
@@ -106,7 +105,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     })
     .execute()
   await db
-    .insertInto('dcl_customer_version_subunits')
+    .insertInto('bob_customer_version_subunits')
     .values({
       customer_approval_entry_id: customerEntryId,
       subunit_id: subunitId,
@@ -190,11 +189,11 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
         .where('id', 'in', createdAuxIds)
         .execute()
       await db
-        .deleteFrom('dcl_customer_version_subunits')
+        .deleteFrom('bob_customer_version_subunits')
         .where('subunit_id', '=', subunitId)
         .execute()
       await db
-        .deleteFrom('dcl_customer_subunit_roots')
+        .deleteFrom('bob_customer_subunit_roots')
         .where('subunit_id', '=', subunitId)
         .execute()
       await db
@@ -202,7 +201,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
         .where('id', 'in', [customerEntryId])
         .execute()
       await db
-        .deleteFrom('dcl_subjects')
+        .deleteFrom('bob_subjects')
         .where('id', 'in', [customerId])
         .execute()
       await db
@@ -238,7 +237,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   await assert.rejects(
     () =>
       db
-        .insertInto('dcl_subjects')
+        .insertInto('bob_subjects')
         .values({
           id: `X${suffix}`.padEnd(26, '0'),
           entity: 'customer',
@@ -247,7 +246,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
           created_by: principal.userId,
         })
         .execute(),
-    /dcl_subjects_entity_code_ck/,
+    /bob_subjects_customer_code_ck/,
   )
 
   async function postResponse(

@@ -185,7 +185,7 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
     .toString()
     .padStart(4, '0')
   await db
-    .insertInto('dcl_subjects')
+    .insertInto('bob_subjects')
     .values([
       {
         id: subjectIds.customer,
@@ -224,7 +224,9 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
         [approvalIds.material, 'product', subjectIds.material, 1],
       ].map(([id, entity, subjectId, versionNo]) => ({
         id: id as string,
-        domain: entity === 'product' ? 'bob' : 'dcl',
+        domain: ['customer', 'product'].includes(String(entity))
+          ? 'bob'
+          : 'dcl',
         entity: entity as string,
         subject_id: subjectId as string,
         version_no: versionNo as number,
@@ -240,16 +242,15 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
     )
     .execute()
   await db
-    .insertInto('dcl_customer_versions')
+    .insertInto('bob_customer_versions')
     .values({
       approval_entry_id: approvalIds.customer,
       kind: 'ENTERPRISE',
       display_name: '单位快照客户',
-      enabled: true,
     })
     .execute()
   await db
-    .insertInto('dcl_customer_subunit_roots')
+    .insertInto('bob_customer_subunit_roots')
     .values({
       subunit_id: customerSubunitId,
       customer_id: subjectIds.customer,
@@ -257,7 +258,7 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
     })
     .execute()
   await db
-    .insertInto('dcl_customer_version_subunits')
+    .insertInto('bob_customer_version_subunits')
     .values({
       customer_approval_entry_id: approvalIds.customer,
       subunit_id: customerSubunitId,
@@ -940,7 +941,7 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     })
     .execute()
   await db
-    .insertInto('dcl_subjects')
+    .insertInto('bob_subjects')
     .values([
       {
         id: customerId,
@@ -956,7 +957,7 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     .values([
       {
         id: customerApprovalId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'customer',
         subject_id: customerId,
         version_no: 1,
@@ -972,16 +973,15 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     ])
     .execute()
   await db
-    .insertInto('dcl_customer_versions')
+    .insertInto('bob_customer_versions')
     .values({
       approval_entry_id: customerApprovalId,
       kind: 'ENTERPRISE',
       display_name: '历史客户',
-      enabled: true,
     })
     .execute()
   await db
-    .insertInto('dcl_customer_subunit_roots')
+    .insertInto('bob_customer_subunit_roots')
     .values({
       subunit_id: customerSubunitId,
       customer_id: customerId,
@@ -989,7 +989,7 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     })
     .execute()
   await db
-    .insertInto('dcl_customer_version_subunits')
+    .insertInto('bob_customer_version_subunits')
     .values({
       customer_approval_entry_id: customerApprovalId,
       subunit_id: customerSubunitId,
@@ -2416,7 +2416,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
       .toString()
       .padStart(4, '0')}`
   await db
-    .insertInto('dcl_subjects')
+    .insertInto('bob_subjects')
     .values([
       {
         id: customerId,
@@ -2432,7 +2432,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
     .values([
       {
         id: customerOldApprovalId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'customer',
         subject_id: customerId,
         version_no: 1,
@@ -2447,7 +2447,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
       },
       {
         id: customerCurrentApprovalId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'customer',
         subject_id: customerId,
         version_no: 2,
@@ -2463,28 +2463,26 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
     ])
     .execute()
   await db
-    .insertInto('dcl_customer_versions')
+    .insertInto('bob_customer_versions')
     .values([
       {
         approval_entry_id: customerOldApprovalId,
         kind: 'ENTERPRISE',
         display_name: '历史客户',
-        enabled: true,
       },
       {
         approval_entry_id: customerCurrentApprovalId,
         kind: 'ENTERPRISE',
         display_name: '当前客户',
-        enabled: true,
       },
     ])
     .execute()
   await db
-    .insertInto('dcl_customer_subunit_roots')
+    .insertInto('bob_customer_subunit_roots')
     .values({ subunit_id: subunitId, customer_id: customerId, code: 'S-1' })
     .execute()
   await db
-    .insertInto('dcl_customer_version_subunits')
+    .insertInto('bob_customer_version_subunits')
     .values([
       {
         customer_approval_entry_id: customerOldApprovalId,
@@ -3132,20 +3130,22 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
   subjectIds.push(customerId)
   allApprovalIds.push(customerApprovalId)
   await db
-    .insertInto('dcl_subjects')
-    .values({
-      id: customerId,
-      entity: 'customer',
-      code: customerCode,
-      created_at: now,
-      created_by: actorId,
-    })
+    .insertInto('bob_subjects')
+    .values([
+      {
+        id: customerId,
+        entity: 'customer',
+        code: customerCode,
+        created_at: now,
+        created_by: actorId,
+      },
+    ])
     .execute()
   await db
     .insertInto('approval_entries')
     .values({
       id: customerApprovalId,
-      domain: 'dcl',
+      domain: 'bob',
       entity: 'customer',
       subject_id: customerId,
       version_no: 1,
@@ -3160,16 +3160,15 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
     })
     .execute()
   await db
-    .insertInto('dcl_customer_versions')
+    .insertInto('bob_customer_versions')
     .values({
       approval_entry_id: customerApprovalId,
       kind: 'MAINLAND_ENTERPRISE',
       display_name: customerKeyword,
-      enabled: true,
     })
     .execute()
   await db
-    .insertInto('dcl_customer_subunit_roots')
+    .insertInto('bob_customer_subunit_roots')
     .values({
       subunit_id: customerSubunitId,
       customer_id: customerId,
@@ -3177,7 +3176,7 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
     })
     .execute()
   await db
-    .insertInto('dcl_customer_version_subunits')
+    .insertInto('bob_customer_version_subunits')
     .values({
       customer_approval_entry_id: customerApprovalId,
       subunit_id: customerSubunitId,

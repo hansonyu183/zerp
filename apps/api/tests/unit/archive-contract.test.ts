@@ -177,14 +177,13 @@ test('customer snapshot uses closed typed subunit business policies', () => {
         enabled: true,
       },
     ],
-    enabled: true,
   }
   assert.equal(
-    archiveSnapshotSchemas.customer.safeParse(snapshot).success,
+    bobArchiveSnapshotSchemas.customer.safeParse(snapshot).success,
     true,
   )
   assert.equal(
-    archiveSnapshotSchemas.customer.safeParse({
+    bobArchiveSnapshotSchemas.customer.safeParse({
       ...snapshot,
       subunits: [
         {

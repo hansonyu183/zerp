@@ -1660,8 +1660,8 @@ export class AuxService {
       }
       if (entity === 'payment-method')
         references.push(sql`
-          SELECT 'dcl_customer_version_subunits' AS source
-          FROM dcl_customer_version_subunits
+          SELECT 'bob_customer_version_subunits' AS source
+          FROM bob_customer_version_subunits
           WHERE payment_snapshot->>'id' = ${id}
           UNION ALL
           SELECT 'vou_sale_order_details' AS source

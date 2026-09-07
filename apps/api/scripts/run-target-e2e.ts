@@ -1,3 +1,4 @@
+import { ulid } from 'ulid'
 import { spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { resolve } from 'node:path'
@@ -554,7 +555,10 @@ async function seedArchiveReference(
     snapshot,
   }
   const pending =
-    entity === 'supplier' || entity === 'other-unit' || entity === 'product'
+    entity === 'customer' ||
+    entity === 'supplier' ||
+    entity === 'other-unit' ||
+    entity === 'product'
       ? await bobArchives.submit(
           entity,
           'submit-new',
@@ -575,7 +579,10 @@ async function seedArchiveReference(
     expectedRevision: pending.revision,
   }
   const approved =
-    entity === 'supplier' || entity === 'other-unit' || entity === 'product'
+    entity === 'customer' ||
+    entity === 'supplier' ||
+    entity === 'other-unit' ||
+    entity === 'product'
       ? await bobArchives.review(
           entity,
           'approve',
@@ -716,6 +723,51 @@ async function seedVouReferences(archives: ArchiveService, aux: AuxService) {
   warehouseReference.objectId = warehouseCurrent.id
   warehouseReference.code = warehouseDetail.code
 
+  const partnerSubjectId = ulid(),
+    partnerSubmissionId = ulid()
+  const partner = await bobArchives.submit(
+    'sales-partner',
+    'submit-new',
+    {
+      subjectId: partnerSubjectId,
+      submissionId: partnerSubmissionId,
+      idempotencyKey: partnerSubmissionId,
+      expectedLatestApprovedSubmissionId: null,
+      expectedLatestApprovedRevision: null,
+      snapshot: {
+        identityKind: 'ORGANIZATION',
+        legalName: `目标客户渠道商${suffix}`,
+        displayName: `目标客户渠道商${suffix}`,
+        legalIdentifier: `PARTNER-${suffix}`,
+        contactName: '',
+        phone: '',
+        address: '',
+        operatingEntities: [
+          {
+            objectId: operatingEntity.objectId,
+            code: operatingEntity.code,
+            name: operatingEntity.name,
+          },
+        ],
+        defaultOperatingEntityId: operatingEntity.objectId,
+        remark: '',
+        capabilities: ['CHANNEL_PARTNER'],
+      },
+    },
+    serviceActor(submitter.userId),
+    'e2e-customer-partner-submit',
+  )
+  await bobArchives.review(
+    'sales-partner',
+    'approve',
+    {
+      subjectId: partnerSubjectId,
+      submissionId: partnerSubmissionId,
+      expectedRevision: partner.revision,
+    },
+    serviceActor(reviewer.userId),
+    'e2e-customer-partner-approve',
+  )
   const customerSubunit = reference('customerSubunit')
   await seedArchiveReference(archives, 'customer', reference('customer'), {
     identityKind: 'OTHER',
@@ -772,7 +824,7 @@ async function seedVouReferences(archives: ArchiveService, aux: AuxService) {
     enabled: true,
   })
   const storedSubunit = await database
-    .selectFrom('dcl_customer_subunit_roots')
+    .selectFrom('bob_customer_subunit_roots')
     .select('code')
     .where('subunit_id', '=', customerSubunit.objectId)
     .executeTakeFirstOrThrow()
@@ -1569,6 +1621,8 @@ try {
       stdio: 'inherit',
       env: {
         ...process.env,
+        TARGET_E2E_CUSTOMER_TYPE: auxReference('dictionary-item').name,
+        TARGET_E2E_CUSTOMER_PARTNER: `目标客户渠道商${suffix}`,
         TARGET_E2E_USERNAME: submitter.username,
         TARGET_E2E_PASSWORD: submitter.password,
         TARGET_E2E_REVIEWER_USERNAME: reviewer.username,

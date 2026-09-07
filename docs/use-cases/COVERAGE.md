@@ -6,9 +6,9 @@
 
 统计口径：每个带 `meta.title` 的正式 target 路由必须声明 `meta.useCaseKey`；动态 Resource Host 的已实现资源以 Registry 显式 `useCaseKey` 计入。layout 与重定向不单独计数。
 
-- 页面入口：9
-- 已覆盖入口：9
-- 已登记用例：9
+- 页面入口：10
+- 已覆盖入口：10
+- 已登记用例：10
 - 缺少用例：0
 - 孤儿用例：0
 
@@ -26,6 +26,7 @@
 
 | 页面              | 路由                 | 来源                                                         | 状态                                        |
 | ----------------- | -------------------- | ------------------------------------------------------------ | ------------------------------------------- |
+| bob/customer      | `/bob/customer`      | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](bob/customer-management.md)      |
 | bob/product       | `/bob/product`       | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](bob/product-management.md)       |
 | bob/supplier      | `/bob/supplier`      | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](bob/supplier-management.md)      |
 | bob/other-unit    | `/bob/other-unit`    | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](bob/other-unit-management.md)    |

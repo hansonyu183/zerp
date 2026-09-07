@@ -15,6 +15,7 @@ const dclApprovalEntities = [
   'wfl-process-definition',
 ] as const
 const bobApprovalEntities = [
+  'customer',
   'product',
   'supplier',
   'other-unit',
@@ -199,17 +200,11 @@ export class WorkbenchService {
         e.rejection_reason, e.updated_at,
         COALESCE(s.code, mapping.vou_entity_snapshot->>'code', e.subject_id) AS code,
         COALESCE(
-          customer.display_name, supplier.display_name, other_unit.display_name,
-          sales_partner.display_name,
           mapping.vou_entity_snapshot->>'name', rpt_definition.name,
           wfl_definition.compiled_graph->>'name', s.code, e.subject_id
         ) AS name
       FROM approval_entries e
       INNER JOIN dcl_subjects s ON s.id = e.subject_id
-      LEFT JOIN dcl_customer_versions customer ON customer.approval_entry_id = e.id
-      LEFT JOIN bob_supplier_versions supplier ON supplier.approval_entry_id = e.id
-      LEFT JOIN bob_other_unit_versions other_unit ON other_unit.approval_entry_id = e.id
-      LEFT JOIN bob_sales_partner_versions sales_partner ON sales_partner.approval_entry_id = e.id
       LEFT JOIN dcl_acc_mapping_versions mapping ON mapping.approval_entry_id = e.id
       LEFT JOIN dcl_rpt_definition_versions rpt_definition ON rpt_definition.approval_entry_id = e.id
       LEFT JOIN wfl_definition_versions wfl_definition ON wfl_definition.approval_entry_id = e.id
@@ -265,13 +260,14 @@ export class WorkbenchService {
         s.code,
         COALESCE(
           supplier.display_name, other_unit.display_name, sales_partner.display_name,
-          product.name, s.code, e.subject_id
+          product.name, customer.display_name, s.code, e.subject_id
         ) AS name
       FROM approval_entries e
       INNER JOIN bob_subjects s ON s.id = e.subject_id
       LEFT JOIN bob_supplier_versions supplier ON supplier.approval_entry_id = e.id
       LEFT JOIN bob_other_unit_versions other_unit ON other_unit.approval_entry_id = e.id
       LEFT JOIN bob_sales_partner_versions sales_partner ON sales_partner.approval_entry_id = e.id
+      LEFT JOIN bob_customer_versions customer ON customer.approval_entry_id=e.id
       LEFT JOIN bob_product_versions product ON product.approval_entry_id=e.id
       WHERE e.domain = 'bob'
         AND e.status IN ('PENDING', 'REJECTED')

@@ -144,6 +144,22 @@ export const userCreatableVouEntities = vouEntities.filter(
 
 export type VouSelectionOrigin = 'CURRENT' | 'HISTORICAL'
 
+export const vouPaymentMethodSelectionOrigins = ['CUSTOMER', 'CURRENT'] as const
+export type VouPaymentMethodSelectionOrigin =
+  (typeof vouPaymentMethodSelectionOrigins)[number]
+export const vouPaymentMethodSelectionOriginPresentation = {
+  CUSTOMER: { label: '沿用客户' },
+  CURRENT: { label: '主动改选' },
+} as const satisfies Record<VouPaymentMethodSelectionOrigin, { label: string }>
+export const vouPaymentMethodSelectionOriginOptions = Object.freeze(
+  vouPaymentMethodSelectionOrigins.map((value) =>
+    Object.freeze({
+      value,
+      label: vouPaymentMethodSelectionOriginPresentation[value].label,
+    }),
+  ),
+)
+
 /** Exact OpenAPI versioned-reference fields plus the smallest fact needed to
  * distinguish a current selection from a deliberately retained snapshot. */
 export interface VouVersionedReferenceInput {
@@ -155,6 +171,16 @@ export interface VouVersionedReferenceInput {
 /** OpenAPI auxiliary/ACC object references never carry Approval versions. */
 export interface VouObjectReferenceInput {
   objectId: string
+}
+
+export interface VouPaymentMethodSnapshotInput extends VouObjectReferenceInput {
+  code: string
+  name: string
+  defaultSalesSurcharge: string
+}
+
+export interface VouPaymentMethodSelectionInput extends VouPaymentMethodSnapshotInput {
+  selectionOrigin: VouPaymentMethodSelectionOrigin
 }
 
 export interface VouAttachmentMetadata {
@@ -172,18 +198,31 @@ export interface VouQuantitySnapshotInput {
   baseQuantity: string
 }
 
+export interface VouMeasurementUnitSnapshotInput extends VouObjectReferenceInput {
+  code: string
+  name: string
+  symbol: string
+  quantityScale: number
+}
+
+export interface VouProductQuantitySnapshotInput {
+  enteredQuantity: string
+  enteredUnit: VouMeasurementUnitSnapshotInput
+  baseQuantity: string
+}
+
 export interface VouFormulaInput {
-  output: VouQuantitySnapshotInput
+  output: VouProductQuantitySnapshotInput
   sourceType?: 'RAW_SELF' | 'PRODUCT_FIXED' | 'CUSTOMER_LATEST' | 'MANUAL'
   sourceDocumentId?: string
   sourceDocumentNo?: string
   components: readonly {
     material: VouObjectReferenceInput
-    quantity: VouQuantitySnapshotInput
+    quantity: VouProductQuantitySnapshotInput
   }[]
 }
 
-export interface VouProductLineInput extends VouQuantitySnapshotInput {
+export interface VouProductLineInput extends VouProductQuantitySnapshotInput {
   /** Locally allocated immutable line identity, inherited by fulfillment facts. */
   lineId: string
   product: VouObjectReferenceInput
@@ -423,6 +462,7 @@ export interface VouPayloadShapes {
     operatingEntity: VouVersionedReferenceInput
     salesperson?: VouVersionedReferenceInput
     warehouse: VouVersionedReferenceInput
+    paymentMethod: VouPaymentMethodSelectionInput | null
     creditOverrideReason?: string
   }
   'sale-outbound': SourcePayload
@@ -541,7 +581,12 @@ export interface VouPayloadShapes {
     assetAcquisitionLines: readonly {
       assetName: string
       specification?: string
-      category: VouObjectReferenceInput
+      category: VouObjectReferenceInput & {
+        readonly code: string
+        readonly name: string
+        readonly defaultUsefulLifeMonths: number
+        readonly defaultResidualRate: string
+      }
       originalValue: string
       usefulLifeMonths: number
       residualRate: string
@@ -816,6 +861,35 @@ function decimal(value: string, scale: number): boolean {
   return match !== null && (match[1]?.length ?? 0) <= scale
 }
 
+function isPaymentMethodSelection(
+  value: unknown,
+): value is VouPaymentMethodSelectionInput {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const paymentMethod = value as Record<string, unknown>
+  return (
+    typeof paymentMethod.objectId === 'string' &&
+    paymentMethod.objectId.length === 26 &&
+    typeof paymentMethod.code === 'string' &&
+    paymentMethod.code.trim().length > 0 &&
+    paymentMethod.code.trim().length <= 64 &&
+    typeof paymentMethod.name === 'string' &&
+    paymentMethod.name.trim().length > 0 &&
+    paymentMethod.name.trim().length <= 200 &&
+    typeof paymentMethod.defaultSalesSurcharge === 'string' &&
+    /^(?:0|[1-9]\d*)\.\d{2}$/.test(paymentMethod.defaultSalesSurcharge) &&
+    (paymentMethod.selectionOrigin === 'CUSTOMER' ||
+      paymentMethod.selectionOrigin === 'CURRENT') &&
+    Object.keys(paymentMethod).every(
+      (key) =>
+        key === 'objectId' ||
+        key === 'code' ||
+        key === 'name' ||
+        key === 'defaultSalesSurcharge' ||
+        key === 'selectionOrigin',
+    )
+  )
+}
+
 function isVersionedReference(
   value: unknown,
 ): value is VouVersionedReferenceInput {
@@ -885,6 +959,12 @@ function canonicalPayload<Entity extends VouEntity>(
     (!decimal(value.amount, 2) || value.amount.startsWith('-'))
   )
     return undefined
+  if (entity === 'sale-order') {
+    const paymentMethod = (value as VouPayloadShapes['sale-order'])
+      .paymentMethod
+    if (paymentMethod !== null && !isPaymentMethodSelection(paymentMethod))
+      return undefined
+  }
   if (
     entity === 'asset-sale' &&
     (value as unknown as Record<string, unknown>).counterpartyType !==
@@ -944,6 +1024,7 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
     'operatingEntity',
     'salesperson',
     'warehouse',
+    'paymentMethod',
     'productLines',
     'creditOverrideReason',
   ],
@@ -1117,6 +1198,7 @@ export const vouReferenceCandidateEntities = [
   'asset',
   'bill',
   'settlement-method',
+  'payment-method',
   'measurement-unit',
   'asset-category',
   'department',
@@ -1162,6 +1244,7 @@ export type VouEntityFieldDescriptor = Readonly<{
     key: string
     reference: 'versioned' | 'object'
     required: boolean
+    nullable?: boolean
     referenceEntity?: VouReferenceCandidateEntity
     allowedEntities?: readonly VouReferenceCandidateEntity[]
   }>[]
@@ -1214,6 +1297,7 @@ const headerReferenceCandidates: Readonly<
   counterparty: counterpartyCandidates,
   interestParty: ['other-unit'],
   settlementMethod: ['settlement-method'],
+  paymentMethod: ['payment-method'],
 }
 
 function headerReferenceCandidatesForEntity(
@@ -1293,7 +1377,9 @@ export const vouEntityFieldDescriptors: Readonly<
           fields
             .filter(
               (key) =>
-                versionedReferenceFields.has(key) || key === 'settlementMethod',
+                versionedReferenceFields.has(key) ||
+                key === 'settlementMethod' ||
+                key === 'paymentMethod',
             )
             .map((key) => {
               const allowedEntities = headerReferenceCandidatesForEntity(
@@ -1304,10 +1390,12 @@ export const vouEntityFieldDescriptors: Readonly<
                 key,
                 reference:
                   key === 'settlementMethod' ||
+                  key === 'paymentMethod' ||
                   (entity === 'bill-issue' && key === 'supplier')
                     ? ('object' as const)
                     : ('versioned' as const),
                 required: required.has(key),
+                ...(key === 'paymentMethod' ? { nullable: true } : {}),
                 referenceEntity:
                   allowedEntities.length === 1 ? allowedEntities[0] : undefined,
                 allowedEntities,
@@ -1320,6 +1408,7 @@ export const vouEntityFieldDescriptors: Readonly<
               (key) =>
                 !versionedReferenceFields.has(key) &&
                 key !== 'settlementMethod' &&
+                key !== 'paymentMethod' &&
                 !(key in collectionKinds),
             )
             .map((key) => Object.freeze({ key, required: required.has(key) })),
@@ -1540,6 +1629,7 @@ export type VouInputFieldDescriptor = Readonly<{
   key: string
   kind: VouInputKind
   required: boolean
+  nullable?: boolean
   enumValues?: readonly string[]
   referenceEntity?: VouReferenceCandidateEntity
   allowedEntities?: readonly VouReferenceCandidateEntity[]
@@ -1568,6 +1658,19 @@ const selectionFields: readonly VouInputFieldDescriptor[] = Object.freeze([
 const objectReferenceFields: readonly VouInputFieldDescriptor[] = Object.freeze(
   [{ key: 'objectId', kind: 'text', required: true }],
 )
+const paymentMethodSelectionFields: readonly VouInputFieldDescriptor[] =
+  Object.freeze([
+    { key: 'objectId', kind: 'text', required: true },
+    { key: 'code', kind: 'text', required: true },
+    { key: 'name', kind: 'text', required: true },
+    { key: 'defaultSalesSurcharge', kind: 'decimal', required: true },
+    {
+      key: 'selectionOrigin',
+      kind: 'enum',
+      required: true,
+      enumValues: vouPaymentMethodSelectionOrigins,
+    },
+  ])
 const enumValues: Readonly<Record<string, readonly string[]>> = {
   currency: ['CNY'],
   counterpartyType: [
@@ -1827,8 +1930,34 @@ const quantityFields: readonly VouInputFieldDescriptor[] = Object.freeze([
   },
   { key: 'baseQuantity', kind: 'decimal', required: true },
 ])
+const measurementUnitSnapshotFields: readonly VouInputFieldDescriptor[] =
+  Object.freeze([
+    { key: 'objectId', kind: 'text', required: true },
+    { key: 'code', kind: 'text', required: true },
+    { key: 'name', kind: 'text', required: true },
+    { key: 'symbol', kind: 'text', required: true },
+    { key: 'quantityScale', kind: 'integer', required: true },
+  ])
+const productQuantityFields: readonly VouInputFieldDescriptor[] = Object.freeze(
+  [
+    { key: 'enteredQuantity', kind: 'decimal', required: true },
+    {
+      key: 'enteredUnit',
+      kind: 'object',
+      required: true,
+      fields: measurementUnitSnapshotFields,
+      ...referenceCandidateMetadata('enteredUnit'),
+    },
+    { key: 'baseQuantity', kind: 'decimal', required: true },
+  ],
+)
 const formulaFields: readonly VouInputFieldDescriptor[] = Object.freeze([
-  { key: 'output', kind: 'object', required: true, fields: quantityFields },
+  {
+    key: 'output',
+    kind: 'object',
+    required: true,
+    fields: productQuantityFields,
+  },
   scalarDescriptor('sourceType', false),
   scalarDescriptor('sourceDocumentId', false),
   scalarDescriptor('sourceDocumentNo', false),
@@ -1848,7 +1977,7 @@ const formulaFields: readonly VouInputFieldDescriptor[] = Object.freeze([
         key: 'quantity',
         kind: 'object',
         required: true,
-        fields: quantityFields,
+        fields: productQuantityFields,
       },
     ],
   },
@@ -2068,6 +2197,16 @@ function lineInputFields(
   if (variants) return variants[0]?.fields ?? []
   return Object.freeze(
     vouLineFieldDescriptors[kind].map((field): VouInputFieldDescriptor => {
+      const quantityDescriptors =
+        kind === 'product'
+          ? productQuantityFields
+          : kind === 'production' || kind === 'inventory-count'
+            ? quantityFields
+            : undefined
+      const quantityField = quantityDescriptors?.find(
+        (candidate) => candidate.key === field.key,
+      )
+      if (quantityField) return quantityField
       if (field.reference)
         return {
           key: field.key,
@@ -2121,10 +2260,13 @@ export const vouEntityInputDescriptors: Readonly<
         key: reference.key,
         kind: 'object',
         required: reference.required,
+        ...(reference.nullable ? { nullable: true } : {}),
         fields:
-          reference.reference === 'versioned'
-            ? selectionFields
-            : objectReferenceFields,
+          reference.key === 'paymentMethod'
+            ? paymentMethodSelectionFields
+            : reference.reference === 'versioned'
+              ? selectionFields
+              : objectReferenceFields,
         referenceEntity: reference.referenceEntity,
         allowedEntities: reference.allowedEntities,
       })
@@ -2165,6 +2307,7 @@ export const vouEntityInputDescriptors: Readonly<
 ) as Readonly<Record<VouEntity, readonly VouInputFieldDescriptor[]>>
 
 function emptyValue(field: VouInputFieldDescriptor): unknown {
+  if (field.nullable) return null
   switch (field.kind) {
     case 'decimal':
       return '0.00'

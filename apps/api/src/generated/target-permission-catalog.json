@@ -341,7 +341,7 @@
     "domain": "aux",
     "entity": "asset-category",
     "action": "create",
-    "title": "创建资产分类"
+    "title": "创建资产类别"
   },
   {
     "id": "01JFE272A7CDC6BA9E33CFFA76",
@@ -349,7 +349,7 @@
     "domain": "aux",
     "entity": "asset-category",
     "action": "delete",
-    "title": "删除资产分类"
+    "title": "删除资产类别"
   },
   {
     "id": "01J033856CB92CB758AD98C31B",
@@ -357,7 +357,7 @@
     "domain": "aux",
     "entity": "asset-category",
     "action": "disable",
-    "title": "停用资产分类"
+    "title": "停用资产类别"
   },
   {
     "id": "01J5317B421310BFD7FB73862C",
@@ -365,7 +365,7 @@
     "domain": "aux",
     "entity": "asset-category",
     "action": "enable",
-    "title": "启用资产分类"
+    "title": "启用资产类别"
   },
   {
     "id": "01JB15920004DFFCFDF4E5C18E",
@@ -373,7 +373,7 @@
     "domain": "aux",
     "entity": "asset-category",
     "action": "get",
-    "title": "查看资产分类"
+    "title": "查看资产类别"
   },
   {
     "id": "01J87FA9984EB8D198D3191CC7",
@@ -381,7 +381,7 @@
     "domain": "aux",
     "entity": "asset-category",
     "action": "query",
-    "title": "查询资产分类"
+    "title": "查询资产类别"
   },
   {
     "id": "01J6D57EC5C5467AED68FCEAF6",
@@ -389,7 +389,7 @@
     "domain": "aux",
     "entity": "asset-category",
     "action": "save",
-    "title": "保存资产分类"
+    "title": "保存资产类别"
   },
   {
     "id": "01JEC0FAEFAEE036351E661468",

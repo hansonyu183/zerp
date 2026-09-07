@@ -5,7 +5,7 @@ import { ulid } from 'ulid'
 import type { VouPayload } from '@zerp/model'
 
 import { AccService } from '../../src/acc/service.ts'
-import { userPinyin } from '../../src/app/user-pinyin.ts'
+import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { VouApplicationError, VouService } from '../../src/vou/service.ts'
 
@@ -28,6 +28,13 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     warehouseEntryId = ulid()
   const operatingEntityId = ulid(),
     operatingEntityEntryId = ulid()
+  const unit = {
+    objectId: ulid(),
+    code: 'CONTROL-UNIT',
+    name: '件',
+    symbol: '件',
+    quantityScale: 0,
+  }
   const mappingId = ulid(),
     mappingEntryId = ulid()
   const fundMappingId = ulid(),
@@ -115,7 +122,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
         id,
         username: `vou-control-${id}`,
         display_name: 'VOU control',
-        py: userPinyin('VOU control'),
+        py: searchPinyin('VOU control'),
         password_hash: 'unused',
         status: 'ENABLED' as const,
         password_changed_at: now,
@@ -299,6 +306,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
         dayOfMonth: 0,
         dayOffset: 0,
       }),
+      payment_snapshot: null,
       credit_limits: JSON.stringify([{ currency: 'CNY', amount: '1.00' }]),
       enabled: true,
     })
@@ -309,7 +317,18 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
       approval_entry_id: productEntryId,
       name: '控制产品',
       source_snapshots: JSON.stringify({}),
-      unit_conversions: JSON.stringify([]),
+      unit_conversions: JSON.stringify([
+        {
+          unit: {
+            id: unit.objectId,
+            code: unit.code,
+            name: unit.name,
+            symbol: unit.symbol,
+            quantityScale: unit.quantityScale,
+          },
+          factor: '1.000000',
+        },
+      ]),
       recyclable: false,
       enabled: true,
     })
@@ -537,6 +556,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
       approvalEntryId: customerEntryId,
       selectionOrigin: 'CURRENT' as const,
     },
+    paymentMethod: null,
     operatingEntity: {
       objectId: operatingEntityId,
       approvalEntryId: operatingEntityEntryId,
@@ -552,7 +572,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
         lineId: ulid(),
         product: { objectId: productId },
         enteredQuantity: '1.000000',
-        enteredUnit: { objectId: ulid() },
+        enteredUnit: unit,
         baseQuantity: '1.000000',
         unitPrice: '10.00',
       },
@@ -751,6 +771,13 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     warehouseEntryId = ulid()
   const operatingEntityId = ulid(),
     operatingEntityEntryId = ulid()
+  const unit = {
+    objectId: ulid(),
+    code: 'BATCH-UNIT',
+    name: '件',
+    symbol: '件',
+    quantityScale: 0,
+  }
   const documentIds: string[] = []
   const balanceCalls: string[] = []
   const balances = [100n, 15n, 100n, 15n].map((amount) => amount * 100_000_000n)
@@ -833,7 +860,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
         id,
         username: `batch-${id}`,
         display_name: 'Batch control',
-        py: userPinyin('Batch control'),
+        py: searchPinyin('Batch control'),
         password_hash: 'unused',
         status: 'ENABLED' as const,
         password_changed_at: now,
@@ -1000,6 +1027,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
         name: '测试客户类型',
       }),
       settlement_snapshot: prepaid,
+      payment_snapshot: null,
       credit_limits: JSON.stringify([]),
       enabled: true,
     })
@@ -1033,7 +1061,18 @@ test('sale signoff and purchase inbound price the approved source line batch ins
       approval_entry_id: productEntryId,
       name: '批次产品',
       source_snapshots: JSON.stringify({}),
-      unit_conversions: JSON.stringify([]),
+      unit_conversions: JSON.stringify([
+        {
+          unit: {
+            id: unit.objectId,
+            code: unit.code,
+            name: unit.name,
+            symbol: unit.symbol,
+            quantityScale: unit.quantityScale,
+          },
+          factor: '1.000000',
+        },
+      ]),
       recyclable: false,
       enabled: true,
     })
@@ -1084,7 +1123,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     lineId,
     product: { objectId: productId },
     enteredQuantity: '10',
-    enteredUnit: { objectId: ulid() },
+    enteredUnit: unit,
     baseQuantity: '10',
     unitPrice: '10.00',
   })
@@ -1102,6 +1141,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
             currency: 'CNY',
             attachments: [],
             customerSubunit,
+            paymentMethod: null,
             operatingEntity: {
               objectId: operatingEntityId,
               approvalEntryId: operatingEntityEntryId,

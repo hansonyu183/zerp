@@ -11,12 +11,16 @@ import {
   vouEntityInputDescriptors,
   vouEntities,
   vouLineFieldDescriptors,
+  vouPaymentMethodSelectionOriginOptions,
+  vouPaymentMethodSelectionOriginPresentation,
+  vouPaymentMethodSelectionOrigins,
   vouPayloadReferences,
   vouSourceLineSourceEntities,
   vouSourceLineTargetEntities,
   type ApprovalActor,
   type ApprovalEntry,
   type VouInputFieldDescriptor,
+  type VouPaymentMethodSelectionInput,
   type VouSourceLineCandidate,
   type VouSubmissionCommand,
 } from '../src/index.ts'
@@ -59,12 +63,19 @@ const base = {
     operatingEntity: reference,
     salesperson: reference,
     warehouse: reference,
+    paymentMethod: null,
     productLines: [
       {
         lineId: '01J00000000000000000000005',
         product: { objectId: id },
         enteredQuantity: '1.000000',
-        enteredUnit: { objectId: id },
+        enteredUnit: {
+          objectId: id,
+          code: 'UNIT-001',
+          name: '件',
+          symbol: '件',
+          quantityScale: 0,
+        },
         baseQuantity: '1.000000',
         unitPrice: '10.00',
       },
@@ -102,7 +113,11 @@ test('VOU wire owns 36 entity-discriminated payloads and explicit system writers
     rootEntity: 'sale-order',
     businessDate: '2026-09-05',
     sourceLineId: '01J00000000000000000000004',
-    product: { objectId: '01J00000000000000000000005', code: 'P-01', name: '树脂' },
+    product: {
+      objectId: '01J00000000000000000000005',
+      code: 'P-01',
+      name: '树脂',
+    },
     availableBaseQuantity: '1.000000',
   }
   assert.equal(sourceCandidate.rootEntity, 'sale-order')
@@ -118,6 +133,19 @@ test('VOU wire owns 36 entity-discriminated payloads and explicit system writers
       allowedEntities: ['customer-subunit'],
     },
   ])
+  assert.deepEqual(
+    vouEntityFieldDescriptors['sale-order'].headerReferences.find(
+      (field) => field.key === 'paymentMethod',
+    ),
+    {
+      key: 'paymentMethod',
+      reference: 'object',
+      required: true,
+      nullable: true,
+      referenceEntity: 'payment-method',
+      allowedEntities: ['payment-method'],
+    },
+  )
   assert.deepEqual(vouLineFieldDescriptors.product.slice(0, 5), [
     {
       key: 'product',
@@ -181,6 +209,88 @@ test('VOU wire owns 36 entity-discriminated payloads and explicit system writers
       allowedEntities: ['product'],
     },
   )
+  const fieldShape = (field: VouInputFieldDescriptor | undefined) =>
+    field?.fields?.map(({ key, kind, required }) => ({ key, kind, required }))
+  const measurementUnitSnapshotShape = [
+    { key: 'objectId', kind: 'text', required: true },
+    { key: 'code', kind: 'text', required: true },
+    { key: 'name', kind: 'text', required: true },
+    { key: 'symbol', kind: 'text', required: true },
+    { key: 'quantityScale', kind: 'integer', required: true },
+  ]
+  const saleOrderLine = vouEntityInputDescriptors['sale-order'].find(
+    (field) => field.key === 'productLines',
+  )?.item
+  assert.deepEqual(vouPaymentMethodSelectionOrigins, ['CUSTOMER', 'CURRENT'])
+  assert.deepEqual(vouPaymentMethodSelectionOriginPresentation, {
+    CUSTOMER: { label: '沿用客户' },
+    CURRENT: { label: '主动改选' },
+  })
+  assert.deepEqual(vouPaymentMethodSelectionOriginOptions, [
+    { value: 'CUSTOMER', label: '沿用客户' },
+    { value: 'CURRENT', label: '主动改选' },
+  ])
+  assert.deepEqual(
+    vouEntityInputDescriptors['sale-order'].find(
+      (field) => field.key === 'paymentMethod',
+    ),
+    {
+      key: 'paymentMethod',
+      kind: 'object',
+      required: true,
+      nullable: true,
+      fields: [
+        { key: 'objectId', kind: 'text', required: true },
+        { key: 'code', kind: 'text', required: true },
+        { key: 'name', kind: 'text', required: true },
+        { key: 'defaultSalesSurcharge', kind: 'decimal', required: true },
+        {
+          key: 'selectionOrigin',
+          kind: 'enum',
+          required: true,
+          enumValues: ['CUSTOMER', 'CURRENT'],
+        },
+      ],
+      referenceEntity: 'payment-method',
+      allowedEntities: ['payment-method'],
+    },
+  )
+  assert.deepEqual(
+    fieldShape(saleOrderLine?.find((field) => field.key === 'enteredUnit')),
+    measurementUnitSnapshotShape,
+  )
+  const formulaDescriptor = saleOrderLine?.find(
+    (field) => field.key === 'formula',
+  )
+  assert.deepEqual(
+    fieldShape(
+      formulaDescriptor?.fields
+        ?.find((field) => field.key === 'output')
+        ?.fields?.find((field) => field.key === 'enteredUnit'),
+    ),
+    measurementUnitSnapshotShape,
+  )
+  assert.deepEqual(
+    fieldShape(
+      formulaDescriptor?.fields
+        ?.find((field) => field.key === 'components')
+        ?.item?.find((field) => field.key === 'quantity')
+        ?.fields?.find((field) => field.key === 'enteredUnit'),
+    ),
+    measurementUnitSnapshotShape,
+  )
+  for (const [entity, collection] of [
+    ['inventory-count', 'inventoryCountLines'],
+    ['order-production', 'productionLines'],
+  ] as const)
+    assert.deepEqual(
+      fieldShape(
+        vouEntityInputDescriptors[entity]
+          .find((field) => field.key === collection)
+          ?.item?.find((field) => field.key === 'enteredUnit'),
+      ),
+      [{ key: 'objectId', kind: 'text', required: true }],
+    )
   assert.equal(
     vouEntityInputDescriptors['service-acceptance'].find(
       (field) => field.key === 'serviceAcceptance',
@@ -195,10 +305,17 @@ test('VOU wire owns 36 entity-discriminated payloads and explicit system writers
     lineId: '01J00000000000000000000005',
     product: { objectId: '' },
     enteredQuantity: '0.00',
-    enteredUnit: { objectId: '' },
+    enteredUnit: {
+      objectId: '',
+      code: '',
+      name: '',
+      symbol: '',
+      quantityScale: 0,
+    },
     baseQuantity: '0.00',
     unitPrice: '0.00',
   })
+  assert.equal(draft.paymentMethod, null)
 
   const command: VouSubmissionCommand = {
     ...base,
@@ -215,6 +332,61 @@ test('VOU wire owns 36 entity-discriminated payloads and explicit system writers
     trustedSystemActor: false,
   })
   assert.equal(decision.ok, true)
+})
+
+test('sale-order canonical payload owns the final nullable payment-method snapshot', () => {
+  const paymentMethod = {
+    objectId: '01J00000000000000000000006',
+    code: 'PMT-BANK',
+    name: '银行转账',
+    defaultSalesSurcharge: '0.25',
+    selectionOrigin: 'CUSTOMER',
+  } as const satisfies VouPaymentMethodSelectionInput
+  const facts = {
+    actor: submitter,
+    documentExists: false,
+    currentSubmissionId: null,
+    currentRevision: null,
+    referencesValid: true,
+    periodOpen: true,
+    trustedSystemActor: false,
+  }
+  const submit = (paymentMethodValue: unknown, include = true) =>
+    prepareVouSubmission(
+      {
+        ...base,
+        action: 'submit-new',
+        entity: 'sale-order',
+        payload: include
+          ? { ...base.payload, paymentMethod: paymentMethodValue }
+          : Object.fromEntries(
+              Object.entries(base.payload).filter(
+                ([key]) => key !== 'paymentMethod',
+              ),
+            ),
+      } as VouSubmissionCommand,
+      facts,
+    )
+
+  assert.equal(submit(paymentMethod).ok, true)
+  assert.equal(submit(null).ok, true)
+  for (const invalid of [
+    { ...paymentMethod, objectId: 'not-an-id' },
+    { ...paymentMethod, code: '   ' },
+    { ...paymentMethod, name: '' },
+    { ...paymentMethod, defaultSalesSurcharge: '-0.01' },
+    { ...paymentMethod, defaultSalesSurcharge: '0.2' },
+    { ...paymentMethod, selectionOrigin: 'HISTORICAL' },
+    { ...paymentMethod, extra: true },
+  ])
+    assert.deepEqual(submit(invalid), {
+      ok: false,
+      errorKey: 'vou_invalid_payload',
+    })
+  assert.deepEqual(submit(undefined, false), {
+    ok: false,
+    errorKey: 'vou_invalid_payload',
+  })
 })
 
 test('recursive VOU reference facts preserve nested paths and strict reference shapes', () => {

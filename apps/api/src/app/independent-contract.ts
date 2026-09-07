@@ -2,6 +2,20 @@ import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
 import type { Handler } from 'hono'
 
 import type { TargetRouteEnvironment } from './contract.ts'
+import {
+  auxCreateRoute,
+  auxDeleteRoute,
+  auxDisableRoute,
+  auxEnableRoute,
+  auxEntities,
+  auxGetRoute,
+  auxQueryRoute,
+  auxReferenceRoute,
+  auxReferenceRouteBinding,
+  auxRouteBinding,
+  auxSaveRoute,
+  type AuxRouteBinding,
+} from './aux-contract.ts'
 import { userRevisionSchema, userSummarySchema } from './user-contract.ts'
 
 const failureEnvelope = z.object({
@@ -53,14 +67,10 @@ function postRoute<
 
 const empty = z.object({}).strict()
 const identifier = z.object({ id: z.string().min(1).max(64) }).strict()
-const revision = identifier.extend({ revision: z.number().int().positive() })
 const userRevision = identifier.extend({ revision: userRevisionSchema })
 const objectIdentifier = z
   .object({ objectId: z.string().min(1).max(64) })
   .strict()
-const objectRevision = objectIdentifier.extend({
-  objectRevision: z.number().int().positive(),
-})
 const status = z.enum(['ENABLED', 'DISABLED'])
 const jsonObject = z.record(z.string(), z.unknown())
 function pageOf<Item extends z.ZodType>(item: Item) {
@@ -92,7 +102,7 @@ const roleReference = z.object({
   id: z.string(),
   code: z.string(),
   name: z.string(),
-  status,
+  enabled: z.boolean(),
   type: z.enum(['NORMAL', 'SYSTEM', 'SUPERADMIN']),
   assignable: z.boolean(),
 })
@@ -102,16 +112,17 @@ const userDetail = userSummarySchema.extend({
   roleAssignmentEditable: z.boolean(),
 })
 const roleListItem = z.object({
+  py: z.string(),
   id: z.string(),
   code: z.string(),
   name: z.string(),
   description: z.string().nullable(),
-  status,
+  enabled: z.boolean(),
   type: z.enum(['NORMAL', 'SYSTEM', 'SUPERADMIN']),
-  availableActions: z.array(z.enum(['VIEW', 'EDIT', 'ENABLE', 'DISABLE'])),
+  availableActions: z.array(z.enum(['edit', 'enable', 'disable'])),
   manageable: z.boolean(),
   assignable: z.boolean(),
-  revision: z.string(),
+  revision: userRevisionSchema,
 })
 const permissionReference = z.object({
   id: z.string(),
@@ -210,7 +221,13 @@ const userResetPassword = postRoute(
 )
 const roleQuery = postRoute(
   '/app/role/query',
-  pageRequest,
+  z
+    .object({
+      keyword: z.string().max(128).optional(),
+      page: z.number().int().positive(),
+      pageSize: z.literal(20),
+    })
+    .strict(),
   pageOf(roleListItem),
 )
 const roleGet = postRoute('/app/role/get', identifier, roleDetail)
@@ -220,7 +237,7 @@ const roleCreate = postRoute(
     .object({
       name: z.string().min(1).max(128),
       description: z.string().max(1000).nullable(),
-      permissionIds: z.array(z.string()),
+      permissionIds: z.array(z.string()).min(1),
     })
     .strict(),
   roleDetail,
@@ -232,14 +249,14 @@ const roleSave = postRoute(
       id: z.string(),
       name: z.string().min(1).max(128),
       description: z.string().max(1000).nullable(),
-      permissionIds: z.array(z.string()),
-      revision: z.number().int().positive(),
+      permissionIds: z.array(z.string()).min(1),
+      revision: userRevisionSchema,
     })
     .strict(),
   roleDetail,
 )
-const roleEnable = postRoute('/app/role/enable', revision, roleDetail)
-const roleDisable = postRoute('/app/role/disable', revision, roleDetail)
+const roleEnable = postRoute('/app/role/enable', userRevision, roleDetail)
+const roleDisable = postRoute('/app/role/disable', userRevision, roleDetail)
 const permissionQuery = postRoute(
   '/app/permission/query',
   pageRequest,
@@ -276,114 +293,6 @@ const systemParameterReset = postRoute(
   z.object({ key: z.string(), revision: z.number().int().positive() }).strict(),
   systemParameter,
 )
-const auxData = jsonObject
-const auxQueryRequest = pageRequest
-const auxObject = z.object({
-  objectId: z.string(),
-  entity: z.string(),
-  code: z.string(),
-  enabled: z.boolean(),
-  objectRevision: z.string(),
-  data: auxData,
-  updatedAt: z.string().datetime(),
-  updatedBy: z.string(),
-})
-const auxPage = z.object({
-  items: z.array(auxObject),
-  total: z.number().int().nonnegative(),
-  page: z.number().int().positive(),
-  pageSize: z.number().int().positive(),
-})
-const auxCreateRequest = z
-  .object({ data: jsonObject.and(z.object({ name: z.string().min(1) })) })
-  .strict()
-const auxSaveRequest = objectRevision.extend({ data: auxData })
-const auxMutation = z.object({
-  objectId: z.string(),
-  objectRevision: z.string(),
-  enabled: z.boolean(),
-})
-const auxReferenceRequest = z
-  .object({
-    entity: z.enum([
-      'settlement-method',
-      'payment-method',
-      'dictionary-item',
-      'product-type',
-      'product-category',
-      'employee-category',
-      'department',
-      'position',
-      'measurement-unit',
-    ]),
-    keyword: z.string().max(100).optional(),
-    dictionaryTypeCode: z.string().max(32).optional(),
-  })
-  .strict()
-export const auxReferenceCandidateSchema = z
-  .object({
-    objectId: z.string(),
-    code: z.string(),
-    name: z.string(),
-    behaviorProfile: z
-      .enum([
-        'RAW_MATERIAL',
-        'STANDARD_FINISHED',
-        'CUSTOM_FINISHED',
-        'PACKAGING',
-      ])
-      .optional(),
-    symbol: z.string().min(1).max(64).optional(),
-    quantityScale: z.number().int().nonnegative().optional(),
-    termCode: z
-      .enum([
-        'PREPAID',
-        'CASH_ON_DELIVERY',
-        'ARRIVAL_3',
-        'ARRIVAL_5',
-        'ARRIVAL_7',
-        'ARRIVAL_15',
-        'ARRIVAL_30',
-        'MONTHLY_CURRENT',
-        'MONTHLY_30',
-        'MONTHLY_60',
-        'MONTHLY_90',
-      ])
-      .optional(),
-    ruleType: z.enum(['RELATIVE_DAYS', 'MONTH_END']).optional(),
-    monthOffset: z.number().int().min(0).max(3).optional(),
-    dayOfMonth: z.number().int().min(0).max(31).optional(),
-    dayOffset: z.number().int().min(0).max(30).optional(),
-    defaultSalesSurcharge: z
-      .string()
-      .regex(/^(?:0|[1-9]\d*)\.\d{2}$/)
-      .optional(),
-  })
-  .strict()
-const auxReferences = z.array(auxReferenceCandidateSchema)
-
-function auxQueryRoute<const Path extends string>(path: Path) {
-  return postRoute(path, auxQueryRequest, auxPage)
-}
-function auxGetRoute<const Path extends string>(path: Path) {
-  return postRoute(path, objectIdentifier, auxObject)
-}
-function auxCreateRoute<const Path extends string>(path: Path) {
-  return postRoute(path, auxCreateRequest, auxMutation)
-}
-function auxSaveRoute<const Path extends string>(path: Path) {
-  return postRoute(path, auxSaveRequest, auxMutation)
-}
-function auxEnableRoute<const Path extends string>(path: Path) {
-  return postRoute(path, objectRevision, auxMutation)
-}
-function auxDisableRoute<const Path extends string>(path: Path) {
-  return postRoute(path, objectRevision, auxMutation)
-}
-function auxDeleteRoute<const Path extends string>(path: Path) {
-  return postRoute(path, objectRevision, z.object({ deleted: z.literal(true) }))
-}
-
 const bobQueryRequest = pageRequest
 const bobObject = z.object({
   objectId: z.string(),
@@ -445,21 +354,6 @@ function bobRoute<const Path extends string>(
     : postRoute(path, objectIdentifier, bobObject)
 }
 
-export const auxEntities = [
-  'product-category',
-  'product-type',
-  'employee-category',
-  'department',
-  'position',
-  'settlement-method',
-  'payment-method',
-  'dictionary-type',
-  'dictionary-item',
-  'measurement-unit',
-  'income-expense-type',
-  'asset-category',
-] as const
-
 export const bobEntities = [
   'customer',
   'supplier',
@@ -473,31 +367,13 @@ export const bobEntities = [
   'operating-entity',
 ] as const
 
-type AuxRouteAction =
-  'query' | 'get' | 'create' | 'save' | 'enable' | 'disable' | 'delete'
 type BobRouteAction = 'query' | 'get'
-
-export interface AuxRouteBinding {
-  entity: (typeof auxEntities)[number]
-  action: AuxRouteAction
-  permission: string
-}
 
 export interface BobRouteBinding {
   entity: (typeof bobEntities)[number]
   action: BobRouteAction
   permission: string
 }
-
-export const auxReferenceRouteBinding = {
-  permission: '/aux/reference/query',
-} as const
-
-export const auxReferenceRoute = postRoute(
-  '/aux/reference/query',
-  auxReferenceRequest,
-  auxReferences,
-)
 
 export const bobReferenceRouteBinding = {
   permission: '/bob/reference/query',
@@ -508,13 +384,6 @@ export const bobReferenceRoute = postRoute(
   bobReferenceRequest,
   bobReferences,
 )
-
-export function auxRouteBinding(
-  entity: AuxRouteBinding['entity'],
-  action: AuxRouteBinding['action'],
-): AuxRouteBinding {
-  return { entity, action, permission: `/aux/${entity}/${action}` }
-}
 
 export function bobRouteBinding(
   entity: BobRouteBinding['entity'],
@@ -572,15 +441,15 @@ export function registerIndependentRoutes(
       handler: handlers.aux(auxRouteBinding('product-category', 'query')),
     },
     {
-      route: auxGetRoute('/aux/product-category/get'),
+      route: auxGetRoute('/aux/product-category/get', 'product-category'),
       handler: handlers.aux(auxRouteBinding('product-category', 'get')),
     },
     {
-      route: auxCreateRoute('/aux/product-category/create'),
+      route: auxCreateRoute('/aux/product-category/create', 'product-category'),
       handler: handlers.aux(auxRouteBinding('product-category', 'create')),
     },
     {
-      route: auxSaveRoute('/aux/product-category/save'),
+      route: auxSaveRoute('/aux/product-category/save', 'product-category'),
       handler: handlers.aux(auxRouteBinding('product-category', 'save')),
     },
     {
@@ -600,15 +469,15 @@ export function registerIndependentRoutes(
       handler: handlers.aux(auxRouteBinding('product-type', 'query')),
     },
     {
-      route: auxGetRoute('/aux/product-type/get'),
+      route: auxGetRoute('/aux/product-type/get', 'product-type'),
       handler: handlers.aux(auxRouteBinding('product-type', 'get')),
     },
     {
-      route: auxCreateRoute('/aux/product-type/create'),
+      route: auxCreateRoute('/aux/product-type/create', 'product-type'),
       handler: handlers.aux(auxRouteBinding('product-type', 'create')),
     },
     {
-      route: auxSaveRoute('/aux/product-type/save'),
+      route: auxSaveRoute('/aux/product-type/save', 'product-type'),
       handler: handlers.aux(auxRouteBinding('product-type', 'save')),
     },
     {
@@ -628,15 +497,18 @@ export function registerIndependentRoutes(
       handler: handlers.aux(auxRouteBinding('employee-category', 'query')),
     },
     {
-      route: auxGetRoute('/aux/employee-category/get'),
+      route: auxGetRoute('/aux/employee-category/get', 'employee-category'),
       handler: handlers.aux(auxRouteBinding('employee-category', 'get')),
     },
     {
-      route: auxCreateRoute('/aux/employee-category/create'),
+      route: auxCreateRoute(
+        '/aux/employee-category/create',
+        'employee-category',
+      ),
       handler: handlers.aux(auxRouteBinding('employee-category', 'create')),
     },
     {
-      route: auxSaveRoute('/aux/employee-category/save'),
+      route: auxSaveRoute('/aux/employee-category/save', 'employee-category'),
       handler: handlers.aux(auxRouteBinding('employee-category', 'save')),
     },
     {
@@ -656,15 +528,15 @@ export function registerIndependentRoutes(
       handler: handlers.aux(auxRouteBinding('department', 'query')),
     },
     {
-      route: auxGetRoute('/aux/department/get'),
+      route: auxGetRoute('/aux/department/get', 'department'),
       handler: handlers.aux(auxRouteBinding('department', 'get')),
     },
     {
-      route: auxCreateRoute('/aux/department/create'),
+      route: auxCreateRoute('/aux/department/create', 'department'),
       handler: handlers.aux(auxRouteBinding('department', 'create')),
     },
     {
-      route: auxSaveRoute('/aux/department/save'),
+      route: auxSaveRoute('/aux/department/save', 'department'),
       handler: handlers.aux(auxRouteBinding('department', 'save')),
     },
     {
@@ -684,15 +556,15 @@ export function registerIndependentRoutes(
       handler: handlers.aux(auxRouteBinding('position', 'query')),
     },
     {
-      route: auxGetRoute('/aux/position/get'),
+      route: auxGetRoute('/aux/position/get', 'position'),
       handler: handlers.aux(auxRouteBinding('position', 'get')),
     },
     {
-      route: auxCreateRoute('/aux/position/create'),
+      route: auxCreateRoute('/aux/position/create', 'position'),
       handler: handlers.aux(auxRouteBinding('position', 'create')),
     },
     {
-      route: auxSaveRoute('/aux/position/save'),
+      route: auxSaveRoute('/aux/position/save', 'position'),
       handler: handlers.aux(auxRouteBinding('position', 'save')),
     },
     {
@@ -712,11 +584,11 @@ export function registerIndependentRoutes(
       handler: handlers.aux(auxRouteBinding('settlement-method', 'query')),
     },
     {
-      route: auxGetRoute('/aux/settlement-method/get'),
+      route: auxGetRoute('/aux/settlement-method/get', 'settlement-method'),
       handler: handlers.aux(auxRouteBinding('settlement-method', 'get')),
     },
     {
-      route: auxSaveRoute('/aux/settlement-method/save'),
+      route: auxSaveRoute('/aux/settlement-method/save', 'settlement-method'),
       handler: handlers.aux(auxRouteBinding('settlement-method', 'save')),
     },
     {
@@ -732,15 +604,15 @@ export function registerIndependentRoutes(
       handler: handlers.aux(auxRouteBinding('payment-method', 'query')),
     },
     {
-      route: auxGetRoute('/aux/payment-method/get'),
+      route: auxGetRoute('/aux/payment-method/get', 'payment-method'),
       handler: handlers.aux(auxRouteBinding('payment-method', 'get')),
     },
     {
-      route: auxCreateRoute('/aux/payment-method/create'),
+      route: auxCreateRoute('/aux/payment-method/create', 'payment-method'),
       handler: handlers.aux(auxRouteBinding('payment-method', 'create')),
     },
     {
-      route: auxSaveRoute('/aux/payment-method/save'),
+      route: auxSaveRoute('/aux/payment-method/save', 'payment-method'),
       handler: handlers.aux(auxRouteBinding('payment-method', 'save')),
     },
     {
@@ -760,15 +632,15 @@ export function registerIndependentRoutes(
       handler: handlers.aux(auxRouteBinding('dictionary-type', 'query')),
     },
     {
-      route: auxGetRoute('/aux/dictionary-type/get'),
+      route: auxGetRoute('/aux/dictionary-type/get', 'dictionary-type'),
       handler: handlers.aux(auxRouteBinding('dictionary-type', 'get')),
     },
     {
-      route: auxCreateRoute('/aux/dictionary-type/create'),
+      route: auxCreateRoute('/aux/dictionary-type/create', 'dictionary-type'),
       handler: handlers.aux(auxRouteBinding('dictionary-type', 'create')),
     },
     {
-      route: auxSaveRoute('/aux/dictionary-type/save'),
+      route: auxSaveRoute('/aux/dictionary-type/save', 'dictionary-type'),
       handler: handlers.aux(auxRouteBinding('dictionary-type', 'save')),
     },
     {
@@ -788,15 +660,15 @@ export function registerIndependentRoutes(
       handler: handlers.aux(auxRouteBinding('dictionary-item', 'query')),
     },
     {
-      route: auxGetRoute('/aux/dictionary-item/get'),
+      route: auxGetRoute('/aux/dictionary-item/get', 'dictionary-item'),
       handler: handlers.aux(auxRouteBinding('dictionary-item', 'get')),
     },
     {
-      route: auxCreateRoute('/aux/dictionary-item/create'),
+      route: auxCreateRoute('/aux/dictionary-item/create', 'dictionary-item'),
       handler: handlers.aux(auxRouteBinding('dictionary-item', 'create')),
     },
     {
-      route: auxSaveRoute('/aux/dictionary-item/save'),
+      route: auxSaveRoute('/aux/dictionary-item/save', 'dictionary-item'),
       handler: handlers.aux(auxRouteBinding('dictionary-item', 'save')),
     },
     {
@@ -816,15 +688,15 @@ export function registerIndependentRoutes(
       handler: handlers.aux(auxRouteBinding('measurement-unit', 'query')),
     },
     {
-      route: auxGetRoute('/aux/measurement-unit/get'),
+      route: auxGetRoute('/aux/measurement-unit/get', 'measurement-unit'),
       handler: handlers.aux(auxRouteBinding('measurement-unit', 'get')),
     },
     {
-      route: auxCreateRoute('/aux/measurement-unit/create'),
+      route: auxCreateRoute('/aux/measurement-unit/create', 'measurement-unit'),
       handler: handlers.aux(auxRouteBinding('measurement-unit', 'create')),
     },
     {
-      route: auxSaveRoute('/aux/measurement-unit/save'),
+      route: auxSaveRoute('/aux/measurement-unit/save', 'measurement-unit'),
       handler: handlers.aux(auxRouteBinding('measurement-unit', 'save')),
     },
     {
@@ -844,15 +716,21 @@ export function registerIndependentRoutes(
       handler: handlers.aux(auxRouteBinding('income-expense-type', 'query')),
     },
     {
-      route: auxGetRoute('/aux/income-expense-type/get'),
+      route: auxGetRoute('/aux/income-expense-type/get', 'income-expense-type'),
       handler: handlers.aux(auxRouteBinding('income-expense-type', 'get')),
     },
     {
-      route: auxCreateRoute('/aux/income-expense-type/create'),
+      route: auxCreateRoute(
+        '/aux/income-expense-type/create',
+        'income-expense-type',
+      ),
       handler: handlers.aux(auxRouteBinding('income-expense-type', 'create')),
     },
     {
-      route: auxSaveRoute('/aux/income-expense-type/save'),
+      route: auxSaveRoute(
+        '/aux/income-expense-type/save',
+        'income-expense-type',
+      ),
       handler: handlers.aux(auxRouteBinding('income-expense-type', 'save')),
     },
     {
@@ -872,15 +750,15 @@ export function registerIndependentRoutes(
       handler: handlers.aux(auxRouteBinding('asset-category', 'query')),
     },
     {
-      route: auxGetRoute('/aux/asset-category/get'),
+      route: auxGetRoute('/aux/asset-category/get', 'asset-category'),
       handler: handlers.aux(auxRouteBinding('asset-category', 'get')),
     },
     {
-      route: auxCreateRoute('/aux/asset-category/create'),
+      route: auxCreateRoute('/aux/asset-category/create', 'asset-category'),
       handler: handlers.aux(auxRouteBinding('asset-category', 'create')),
     },
     {
-      route: auxSaveRoute('/aux/asset-category/save'),
+      route: auxSaveRoute('/aux/asset-category/save', 'asset-category'),
       handler: handlers.aux(auxRouteBinding('asset-category', 'save')),
     },
     {
@@ -948,7 +826,7 @@ const auxNames: Record<(typeof auxEntities)[number], string> = {
   'dictionary-item': '字典项',
   'measurement-unit': '计量单位',
   'income-expense-type': '收支类型',
-  'asset-category': '资产分类',
+  'asset-category': '资产类别',
 }
 
 const bobNames: Record<(typeof bobEntities)[number], string> = {

@@ -8,7 +8,7 @@ import { argon2idAsync } from '@noble/hashes/argon2.js'
 import { createApp } from '../../src/app.ts'
 import { ManagementService } from '../../src/app/management.ts'
 import { hashPassword, SessionService } from '../../src/app/session.ts'
-import { userPinyin } from '../../src/app/user-pinyin.ts'
+import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { AccMappingCatalogService } from '../../src/acc/mapping-catalog.ts'
 import { loadConfig } from '../../src/platform/config.ts'
@@ -90,7 +90,7 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
       id,
       username,
       display_name: 'Target integration user',
-      py: userPinyin('Target integration user'),
+      py: searchPinyin('Target integration user'),
       password_hash: encoded,
       status: 'ENABLED',
       password_changed_at: new Date(),
@@ -861,7 +861,7 @@ test('user query searches code, pinyin, and name with stable fixed pagination an
         id: actorId,
         username: `query-actor-${suffix}`,
         display_name: '查询操作人',
-        py: userPinyin('查询操作人'),
+        py: searchPinyin('查询操作人'),
         password_hash: await hashPassword(password),
         status: 'ENABLED',
         password_changed_at: new Date(),
@@ -871,7 +871,7 @@ test('user query searches code, pinyin, and name with stable fixed pagination an
         id: user.id,
         username: user.code,
         display_name: user.name,
-        py: userPinyin(user.name),
+        py: searchPinyin(user.name),
         password_hash: 'unused',
         status: 'ENABLED' as const,
         password_changed_at: new Date(),

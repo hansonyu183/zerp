@@ -6,14 +6,15 @@ import { join } from 'node:path'
 import test from 'node:test'
 
 import { serve } from '@hono/node-server'
-import { modelBuildId } from '@zerp/model'
+import { modelBuildId, type VouPayloadFor } from '@zerp/model'
 import { createTargetApiClient } from '../../../../packages/api-client/src/index.ts'
 import { sql } from 'kysely'
 import { ulid } from 'ulid'
 
 import { createApp } from '../../src/app.ts'
 import { hashPassword, SessionService } from '../../src/app/session.ts'
-import { userPinyin } from '../../src/app/user-pinyin.ts'
+import { AuxApplicationError, AuxService } from '../../src/aux/service.ts'
+import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { loadConfig } from '../../src/platform/config.ts'
 import { AttachmentStore } from '../../src/platform/attachment-store.ts'
@@ -25,6 +26,547 @@ import {
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
 const customerTypeId = '01J00000000000000000000103'
+
+test('VOU freezes and validates product measurement-unit snapshots', async (context) => {
+  assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
+  const db = createDatabase(databaseUrl)
+  const vou = new VouService(db, {
+    acc: { async apply() {} },
+    wfl: { async apply() {} },
+  })
+  const aux = new AuxService(db)
+  const actorId = ulid()
+  const actor = { id: actorId, permissions: [] as string[], trusted: true }
+  const auxActor = {
+    id: actorId,
+    permissions: [
+      '/aux/measurement-unit/create',
+      '/aux/measurement-unit/get',
+      '/aux/measurement-unit/save',
+      '/aux/measurement-unit/disable',
+      '/aux/measurement-unit/delete',
+    ],
+  }
+  const subjectIds = {
+    customer: ulid(),
+    product: ulid(),
+    material: ulid(),
+    warehouse: ulid(),
+    operatingEntity: ulid(),
+  }
+  const approvalIds = {
+    customer: ulid(),
+    productV1: ulid(),
+    productV2: ulid(),
+    material: ulid(),
+    warehouse: ulid(),
+    operatingEntity: ulid(),
+  }
+  const customerSubunitId = ulid()
+  const documentIds: string[] = []
+
+  context.after(async () => {
+    try {
+      await sql`DELETE FROM vou_idempotency WHERE submission_id IN (SELECT id FROM approval_entries WHERE domain = 'vou' AND submitted_by = ${actorId})`.execute(
+        db,
+      )
+      await sql`DELETE FROM approval_events WHERE actor_id = ${actorId}`.execute(
+        db,
+      )
+      await sql`DELETE FROM approval_entries WHERE domain = 'vou' AND submitted_by = ${actorId}`.execute(
+        db,
+      )
+      if (documentIds.length)
+        await sql`DELETE FROM vou_documents WHERE id IN (${sql.join(documentIds)})`.execute(
+          db,
+        )
+      await sql`DELETE FROM approval_entries WHERE id IN (${sql.join(Object.values(approvalIds))})`.execute(
+        db,
+      )
+      await sql`DELETE FROM dcl_subjects WHERE id IN (${sql.join(Object.values(subjectIds))})`.execute(
+        db,
+      )
+      await sql`DELETE FROM aux_objects WHERE created_by = ${actorId}`.execute(
+        db,
+      )
+      await sql`DELETE FROM app_audit_events WHERE actor_user_id = ${actorId}`.execute(
+        db,
+      )
+      await sql`DELETE FROM app_users WHERE id = ${actorId}`.execute(db)
+    } finally {
+      await db.destroy()
+    }
+  })
+
+  await db
+    .insertInto('app_users')
+    .values({
+      id: actorId,
+      username: `vou-unit-${actorId}`,
+      display_name: 'VOU unit snapshot actor',
+      py: searchPinyin('VOU unit snapshot actor'),
+      password_hash: 'unused',
+      status: 'ENABLED',
+      password_changed_at: new Date(),
+      password_change_required: false,
+    })
+    .execute()
+  const createdUnit = await aux.create(
+    'measurement-unit',
+    { name: '历史千克', symbol: 'kg', quantityScale: 2 },
+    auxActor,
+  )
+  const createdMaterialUnit = await aux.create(
+    'measurement-unit',
+    { name: '历史克', symbol: 'g', quantityScale: 2 },
+    auxActor,
+  )
+  const unitV1View = await aux.get(
+    'measurement-unit',
+    { id: createdUnit.id },
+    auxActor,
+  )
+  const materialUnitView = await aux.get(
+    'measurement-unit',
+    { id: createdMaterialUnit.id },
+    auxActor,
+  )
+  const unitV1 = {
+    objectId: unitV1View.id,
+    code: unitV1View.code,
+    name: unitV1View.name,
+    symbol: unitV1View.symbol,
+    quantityScale: unitV1View.quantityScale,
+  }
+  const materialUnit = {
+    objectId: materialUnitView.id,
+    code: materialUnitView.code,
+    name: materialUnitView.name,
+    symbol: materialUnitView.symbol,
+    quantityScale: materialUnitView.quantityScale,
+  }
+  const dclUnit = ({
+    objectId: id,
+    code,
+    name,
+    symbol,
+    quantityScale,
+  }: typeof unitV1) => ({ id, code, name, symbol, quantityScale })
+  const now = new Date()
+  const codeSuffix = Math.floor(Math.random() * 10_000)
+    .toString()
+    .padStart(4, '0')
+  const materialCodeSuffix = ((Number(codeSuffix) + 1) % 10_000)
+    .toString()
+    .padStart(4, '0')
+  await db
+    .insertInto('dcl_subjects')
+    .values([
+      {
+        id: subjectIds.customer,
+        entity: 'customer',
+        code: `CUS-${codeSuffix}`,
+        created_at: now,
+        created_by: actorId,
+      },
+      {
+        id: subjectIds.product,
+        entity: 'product',
+        code: `PRD-${codeSuffix}`,
+        created_at: now,
+        created_by: actorId,
+      },
+      {
+        id: subjectIds.material,
+        entity: 'product',
+        code: `PRD-${materialCodeSuffix}`,
+        created_at: now,
+        created_by: actorId,
+      },
+      {
+        id: subjectIds.warehouse,
+        entity: 'warehouse',
+        code: `WHS-${codeSuffix}`,
+        created_at: now,
+        created_by: actorId,
+      },
+      {
+        id: subjectIds.operatingEntity,
+        entity: 'operating-entity',
+        code: `OPE-${codeSuffix}`,
+        created_at: now,
+        created_by: actorId,
+      },
+    ])
+    .execute()
+  await db
+    .insertInto('approval_entries')
+    .values(
+      [
+        [approvalIds.customer, 'customer', subjectIds.customer, 1],
+        [approvalIds.productV1, 'product', subjectIds.product, 1],
+        [approvalIds.material, 'product', subjectIds.material, 1],
+        [approvalIds.warehouse, 'warehouse', subjectIds.warehouse, 1],
+        [
+          approvalIds.operatingEntity,
+          'operating-entity',
+          subjectIds.operatingEntity,
+          1,
+        ],
+      ].map(([id, entity, subjectId, versionNo]) => ({
+        id: id as string,
+        domain: 'dcl',
+        entity: entity as string,
+        subject_id: subjectId as string,
+        version_no: versionNo as number,
+        status: 'APPROVED' as const,
+        revision: 1,
+        submitted_by: actorId,
+        submitted_at: now,
+        approved_by: actorId,
+        approved_at: now,
+        updated_by: actorId,
+        updated_at: now,
+      })),
+    )
+    .execute()
+  await db
+    .insertInto('dcl_customer_versions')
+    .values({
+      approval_entry_id: approvalIds.customer,
+      kind: 'ENTERPRISE',
+      display_name: '单位快照客户',
+      enabled: true,
+    })
+    .execute()
+  await db
+    .insertInto('dcl_customer_subunit_roots')
+    .values({
+      subunit_id: customerSubunitId,
+      customer_id: subjectIds.customer,
+      code: `SUB-${codeSuffix}`,
+    })
+    .execute()
+  await db
+    .insertInto('dcl_customer_version_subunits')
+    .values({
+      customer_approval_entry_id: approvalIds.customer,
+      subunit_id: customerSubunitId,
+      name: '单位快照客户总部',
+      customer_type_id: customerTypeId,
+      customer_type_snapshot: JSON.stringify({
+        id: customerTypeId,
+        code: 'CUSTOMER-TYPE-TEST',
+        name: '测试客户类型',
+      }),
+      payment_snapshot: null,
+      enabled: true,
+    })
+    .execute()
+  await db
+    .insertInto('dcl_product_versions')
+    .values([
+      {
+        approval_entry_id: approvalIds.productV1,
+        name: '单位快照成品 V1',
+        source_snapshots: {},
+        unit_conversions: JSON.stringify([
+          { unit: dclUnit(unitV1), factor: '1.000000' },
+        ]),
+        recyclable: false,
+        enabled: true,
+      },
+      {
+        approval_entry_id: approvalIds.material,
+        name: '单位快照原料',
+        source_snapshots: {},
+        unit_conversions: JSON.stringify([
+          { unit: dclUnit(materialUnit), factor: '1.000000' },
+        ]),
+        recyclable: false,
+        enabled: true,
+      },
+    ])
+    .execute()
+  await db
+    .insertInto('dcl_warehouse_versions')
+    .values({
+      approval_entry_id: approvalIds.warehouse,
+      name: '单位快照仓库',
+      enabled: true,
+    })
+    .execute()
+  await db
+    .insertInto('dcl_operating_entity_versions')
+    .values({
+      approval_entry_id: approvalIds.operatingEntity,
+      legal_name: '单位快照经营主体',
+      short_name: '单位主体',
+      registered_address: '',
+      contact_name: '',
+      contact_phone: '',
+      invoice_title: '',
+      invoice_address: '',
+      invoice_phone: '',
+      invoice_bank: '',
+      invoice_account: '',
+      enabled: true,
+    })
+    .execute()
+
+  const header = {
+    businessDate: '2026-09-07',
+    currency: 'CNY',
+    attachments: [],
+    customerSubunit: {
+      objectId: customerSubunitId,
+      approvalEntryId: approvalIds.customer,
+      selectionOrigin: 'CURRENT' as const,
+    },
+    paymentMethod: null,
+    operatingEntity: {
+      objectId: subjectIds.operatingEntity,
+      approvalEntryId: approvalIds.operatingEntity,
+      selectionOrigin: 'CURRENT' as const,
+    },
+    warehouse: {
+      objectId: subjectIds.warehouse,
+      approvalEntryId: approvalIds.warehouse,
+      selectionOrigin: 'CURRENT' as const,
+    },
+  }
+  const productLine = (
+    enteredUnit: typeof unitV1,
+    enteredQuantity: string,
+    componentUnit = materialUnit,
+  ) => ({
+    lineId: ulid(),
+    product: { objectId: subjectIds.product },
+    enteredQuantity,
+    enteredUnit,
+    baseQuantity: '1.234500',
+    unitPrice: '10.00',
+    formula: {
+      output: {
+        enteredQuantity,
+        enteredUnit,
+        baseQuantity: '1.234500',
+      },
+      sourceType: 'MANUAL' as const,
+      components: [
+        {
+          material: { objectId: subjectIds.material },
+          quantity: {
+            enteredQuantity: '2.50',
+            enteredUnit: componentUnit,
+            baseQuantity: '2.500000',
+          },
+        },
+      ],
+    },
+  })
+  const submit = async (
+    line: ReturnType<typeof productLine>,
+    documentId = ulid(),
+  ) => {
+    const submissionId = ulid()
+    documentIds.push(documentId)
+    return vou.submit(
+      'sale-order',
+      'submit-new',
+      {
+        documentId,
+        submissionId,
+        idempotencyKey: submissionId,
+        expectedRevision: null,
+        payload: { ...header, productLines: [line] },
+      },
+      actor,
+      `unit-snapshot-${submissionId}`,
+    )
+  }
+
+  const first = await submit(productLine(unitV1, '1.200000'))
+  const firstPayload = first.payload as VouPayloadFor<'sale-order'>
+  assert.deepEqual(firstPayload.productLines[0]?.enteredUnit, unitV1)
+  assert.deepEqual(
+    firstPayload.productLines[0]?.formula?.output.enteredUnit,
+    unitV1,
+  )
+  assert.deepEqual(
+    firstPayload.productLines[0]?.formula?.components[0]?.quantity.enteredUnit,
+    materialUnit,
+  )
+  assert.deepEqual(
+    (await vou.get('sale-order', first.documentId, actor)).payload,
+    first.payload,
+  )
+
+  const changedUnit = await aux.save(
+    'measurement-unit',
+    {
+      id: unitV1.objectId,
+      revision: createdUnit.revision,
+      name: '当前吨',
+      symbol: 't',
+      quantityScale: 3,
+    },
+    auxActor,
+  )
+  const disabledUnit = await aux.disable(
+    'measurement-unit',
+    { id: unitV1.objectId, revision: changedUnit.revision },
+    auxActor,
+    `unit-disable-${actorId}`,
+  )
+  assert.deepEqual(
+    (await vou.get('sale-order', first.documentId, actor)).payload,
+    first.payload,
+  )
+  const unitV2 = {
+    objectId: unitV1.objectId,
+    code: unitV1.code,
+    name: '当前吨',
+    symbol: 't',
+    quantityScale: 3,
+  }
+  await db
+    .insertInto('approval_entries')
+    .values({
+      id: approvalIds.productV2,
+      domain: 'dcl',
+      entity: 'product',
+      subject_id: subjectIds.product,
+      version_no: 2,
+      status: 'APPROVED',
+      revision: 1,
+      submitted_by: actorId,
+      submitted_at: now,
+      approved_by: actorId,
+      approved_at: now,
+      updated_by: actorId,
+      updated_at: now,
+    })
+    .execute()
+  await db
+    .insertInto('dcl_product_versions')
+    .values({
+      approval_entry_id: approvalIds.productV2,
+      name: '单位快照成品 V2',
+      source_snapshots: {},
+      unit_conversions: JSON.stringify([
+        { unit: dclUnit(unitV2), factor: '1.000000' },
+      ]),
+      recyclable: false,
+      enabled: true,
+    })
+    .execute()
+
+  const second = await submit(productLine(unitV2, '1.234'))
+  const secondPayload = second.payload as VouPayloadFor<'sale-order'>
+  assert.deepEqual(secondPayload.productLines[0]?.enteredUnit, unitV2)
+  const overPrecisionDocumentId = ulid()
+  await assert.rejects(
+    () => submit(productLine(unitV2, '1.2345'), overPrecisionDocumentId),
+    (error: unknown) =>
+      error instanceof VouApplicationError &&
+      error.errorKey === 'vou_invalid_payload',
+  )
+  assert.equal(
+    await db
+      .selectFrom('vou_documents')
+      .select('id')
+      .where('id', '=', overPrecisionDocumentId)
+      .executeTakeFirst(),
+    undefined,
+  )
+  await assert.rejects(
+    () => vou.get('sale-order', overPrecisionDocumentId, actor),
+    (error: unknown) =>
+      error instanceof VouApplicationError &&
+      error.errorKey === 'vou_not_found',
+  )
+  await assert.rejects(
+    () => submit(productLine({ ...unitV2, symbol: 'forged' }, '1.234')),
+    (error: unknown) => {
+      if (
+        !(error instanceof VouApplicationError) ||
+        error.errorKey !== 'vou_reference_unavailable'
+      )
+        return false
+      assert.deepEqual(error.data, {
+        blockers: [
+          {
+            kind: 'REFERENCE',
+            field: 'productLines[0].enteredUnit',
+            entity: 'measurement-unit',
+            objectId: unitV2.objectId,
+            approvalEntryId: null,
+          },
+          {
+            kind: 'REFERENCE',
+            field: 'productLines[0].formula.output.enteredUnit',
+            entity: 'measurement-unit',
+            objectId: unitV2.objectId,
+            approvalEntryId: null,
+          },
+        ],
+      })
+      return true
+    },
+  )
+  await assert.rejects(
+    () => submit(productLine(unitV2, '1.234', unitV2)),
+    (error: unknown) => {
+      if (
+        !(error instanceof VouApplicationError) ||
+        error.errorKey !== 'vou_reference_unavailable'
+      )
+        return false
+      assert.deepEqual(error.data, {
+        blockers: [
+          {
+            kind: 'REFERENCE',
+            field: 'productLines[0].formula.components[0].quantity.enteredUnit',
+            entity: 'measurement-unit',
+            objectId: unitV2.objectId,
+            approvalEntryId: null,
+          },
+        ],
+      })
+      return true
+    },
+  )
+  await assert.rejects(
+    () =>
+      aux.delete(
+        'measurement-unit',
+        { id: unitV1.objectId, revision: disabledUnit.revision },
+        auxActor,
+      ),
+    (error: unknown) => {
+      if (!(error instanceof AuxApplicationError)) return false
+      assert.equal(error.errorKey, 'conflict')
+      const blockers = (error.data as { blockers?: unknown[] } | null)?.blockers
+      assert.ok(Array.isArray(blockers) && blockers.length > 0)
+      assert.ok(
+        blockers.every(
+          (blocker) =>
+            typeof (blocker as { source?: unknown }).source === 'string' &&
+            Number.isInteger((blocker as { count?: unknown }).count),
+        ),
+      )
+      assert.ok(
+        blockers.some(
+          (blocker) =>
+            (blocker as { source?: unknown }).source ===
+            'vou_product_line_snapshots',
+        ),
+      )
+      return true
+    },
+  )
+})
 
 type HttpSession = { cookie: string; csrfToken: string }
 
@@ -79,6 +621,8 @@ async function post(
         approvalEntryId?: string
         code: string
         name: string
+        defaultUsefulLifeMonths?: number
+        defaultResidualRate?: string
       }>
     }
   }>
@@ -110,6 +654,7 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
   const customerSubunitId = ulid()
   const employeeId = ulid()
   const employeeApprovalId = ulid()
+  const assetCategoryId = ulid()
   const productCode = `PRD-${Math.floor(Math.random() * 10_000)
     .toString()
     .padStart(4, '0')}`
@@ -130,6 +675,10 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     await sql`DELETE FROM dcl_subjects WHERE id IN (${productId}, ${supplierId}, ${customerId}, ${employeeId})`.execute(
       db,
     )
+    await db
+      .deleteFrom('aux_objects')
+      .where('id', '=', assetCategoryId)
+      .execute()
     await sql`DELETE FROM app_users WHERE id IN (${actorId}, ${reviewerId})`.execute(
       db,
     )
@@ -142,7 +691,7 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
         id: actorId,
         username: `vou-${actorId}`,
         display_name: 'VOU test actor',
-        py: userPinyin('VOU test actor'),
+        py: searchPinyin('VOU test actor'),
         password_hash: 'unused',
         status: 'ENABLED' as const,
         password_changed_at: new Date(),
@@ -152,7 +701,7 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
         id: reviewerId,
         username: `vou-${reviewerId}`,
         display_name: 'VOU test reviewer',
-        py: userPinyin('VOU test reviewer'),
+        py: searchPinyin('VOU test reviewer'),
         password_hash: 'unused',
         status: 'ENABLED' as const,
         password_changed_at: new Date(),
@@ -272,6 +821,7 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
         code: 'CUSTOMER-TYPE-TEST',
         name: '测试客户类型',
       }),
+      payment_snapshot: null,
       enabled: true,
     })
     .execute()
@@ -497,7 +1047,25 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
   )
   assert.equal(rolledBack.rows[0]?.count, '0')
 
+  await db
+    .insertInto('aux_objects')
+    .values({
+      id: assetCategoryId,
+      entity: 'asset-category',
+      code: 'ACT-9001',
+      data: {
+        name: '机器设备快照',
+        defaultUsefulLifeMonths: 24,
+        defaultResidualRate: '5.00',
+        description: '',
+      },
+      enabled: true,
+      created_by: actorId,
+      updated_by: actorId,
+    })
+    .execute()
   const assetSubmissionId = ulid()
+  const assetDepartmentId = ulid()
   const asset = await service.submit(
     'asset-acquisition',
     'submit-new',
@@ -518,11 +1086,17 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
         assetAcquisitionLines: [
           {
             assetName: '泵',
-            category: { objectId: ulid() },
+            category: {
+              objectId: assetCategoryId,
+              code: 'ACT-9001',
+              name: '机器设备快照',
+              defaultUsefulLifeMonths: 24,
+              defaultResidualRate: '5.00',
+            },
             originalValue: '100.00',
             usefulLifeMonths: 24,
             residualRate: '0.050000',
-            department: { objectId: ulid() },
+            department: { objectId: assetDepartmentId },
           },
         ],
       },
@@ -533,6 +1107,66 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
   assert.deepEqual(
     (await service.get('asset-acquisition', asset.documentId, actor)).payload,
     asset.payload,
+  )
+  const assetPayload = asset.payload as VouPayloadFor<'asset-acquisition'>
+  assert.deepEqual(assetPayload.assetAcquisitionLines[0], {
+    assetName: '泵',
+    category: {
+      objectId: assetCategoryId,
+      code: 'ACT-9001',
+      name: '机器设备快照',
+      defaultUsefulLifeMonths: 24,
+      defaultResidualRate: '5.00',
+    },
+    originalValue: '100.00',
+    usefulLifeMonths: 24,
+    residualRate: '0.050000',
+    department: { objectId: assetDepartmentId },
+  })
+  await db
+    .updateTable('aux_objects')
+    .set({
+      data: {
+        name: '机器设备新名称',
+        defaultUsefulLifeMonths: 120,
+        defaultResidualRate: '3.00',
+        description: '',
+      },
+      enabled: false,
+    })
+    .where('id', '=', assetCategoryId)
+    .execute()
+  assert.deepEqual(
+    (await service.get('asset-acquisition', asset.documentId, actor)).payload,
+    asset.payload,
+  )
+  const disabledAssetSubmissionId = ulid()
+  await assert.rejects(
+    () =>
+      service.submit(
+        'asset-acquisition',
+        'submit-new',
+        {
+          documentId: ulid(),
+          submissionId: disabledAssetSubmissionId,
+          idempotencyKey: disabledAssetSubmissionId,
+          expectedRevision: null,
+          payload: asset.payload,
+        },
+        actor,
+        'asset-disabled-category',
+      ),
+    (error) =>
+      error instanceof VouApplicationError &&
+      error.errorKey === 'vou_reference_unavailable',
+  )
+  assert.equal(
+    await db
+      .selectFrom('approval_entries')
+      .select('id')
+      .where('id', '=', disabledAssetSubmissionId)
+      .executeTakeFirst(),
+    undefined,
   )
 
   const billSubmissionId = ulid()
@@ -1093,7 +1727,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
         id: ownerId,
         username: `vou-attachment-${ownerId}`,
         display_name: 'attachment owner',
-        py: userPinyin('attachment owner'),
+        py: searchPinyin('attachment owner'),
         password_hash: 'unused',
         status: 'ENABLED',
         password_changed_at: now,
@@ -1103,7 +1737,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
         id: otherId,
         username: `vou-attachment-other-${otherId}`,
         display_name: 'attachment other',
-        py: userPinyin('attachment other'),
+        py: searchPinyin('attachment other'),
         password_hash: 'unused',
         status: 'ENABLED',
         password_changed_at: now,
@@ -1465,7 +2099,13 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
           assetAcquisitionLines: [
             {
               assetName: '错误供应商',
-              category: { objectId: ulid() },
+              category: {
+                objectId: ulid(),
+                code: 'ACT-EDGE',
+                name: '资产类别边界',
+                defaultUsefulLifeMonths: 1,
+                defaultResidualRate: '0.00',
+              },
               originalValue: '1.00',
               usefulLifeMonths: 1,
               residualRate: '0.000000',
@@ -1618,6 +2258,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
           code: 'CUSTOMER-TYPE-TEST',
           name: '测试客户类型',
         }),
+        payment_snapshot: null,
         enabled: true,
       },
       {
@@ -1630,6 +2271,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
           code: 'CUSTOMER-TYPE-TEST',
           name: '测试客户类型',
         }),
+        payment_snapshot: null,
         enabled: true,
       },
     ])
@@ -2077,7 +2719,7 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
         id: actorId,
         username,
         display_name: 'VOU reference actor',
-        py: userPinyin('VOU reference actor'),
+        py: searchPinyin('VOU reference actor'),
         password_hash: await hashPassword(password),
         status: 'ENABLED',
         password_changed_at: now,
@@ -2087,7 +2729,7 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
         id: deniedId,
         username: `vou-denied-${randomBytes(8).toString('hex')}`,
         display_name: 'VOU denied actor',
-        py: userPinyin('VOU denied actor'),
+        py: searchPinyin('VOU denied actor'),
         password_hash: await hashPassword(password),
         status: 'ENABLED',
         password_changed_at: now,
@@ -2305,11 +2947,14 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
         code: 'CUSTOMER-TYPE-TEST',
         name: '测试客户类型',
       }),
+      payment_snapshot: null,
       enabled: true,
     })
     .execute()
   const unitId = ulid(),
-    disabledUnitId = ulid()
+    disabledUnitId = ulid(),
+    assetCategoryId = ulid(),
+    disabledAssetCategoryId = ulid()
   await db
     .insertInto('aux_objects')
     .values([
@@ -2327,6 +2972,34 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
         entity: 'measurement-unit',
         code: 'AUX-1002',
         data: { name: 'VOU 停用单位' },
+        enabled: false,
+        created_by: actorId,
+        updated_by: actorId,
+      },
+      {
+        id: assetCategoryId,
+        entity: 'asset-category',
+        code: 'ACT-1001',
+        data: {
+          name: 'VOU 机器设备',
+          defaultUsefulLifeMonths: 120,
+          defaultResidualRate: '5.00',
+          description: '',
+        },
+        enabled: true,
+        created_by: actorId,
+        updated_by: actorId,
+      },
+      {
+        id: disabledAssetCategoryId,
+        entity: 'asset-category',
+        code: 'ACT-1002',
+        data: {
+          name: 'VOU 停用类别',
+          defaultUsefulLifeMonths: 60,
+          defaultResidualRate: '3.00',
+          description: '',
+        },
         enabled: false,
         created_by: actorId,
         updated_by: actorId,
@@ -2483,6 +3156,7 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
       approvalEntryId: customerApprovalId,
       code: `SUB-${customerSubunitId.slice(-6)}`,
       name: `${customerKeyword}总部`,
+      paymentMethod: null,
     },
   ])
   const units = await post(origin, allowed, {
@@ -2494,6 +3168,20 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
     [unitId],
   )
   assert.equal(units.data.items[0]?.approvalEntryId, undefined)
+  const assetCategories = await post(origin, allowed, {
+    entity: 'asset-category',
+    keyword: 'VOU',
+  })
+  assert.deepEqual(assetCategories.data.items, [
+    {
+      entity: 'asset-category',
+      objectId: assetCategoryId,
+      code: 'ACT-1001',
+      name: 'VOU 机器设备',
+      defaultUsefulLifeMonths: 120,
+      defaultResidualRate: '5.00',
+    },
+  ])
   const assets = await post(origin, allowed, {
     entity: 'asset',
     keyword: 'VOU-REF',

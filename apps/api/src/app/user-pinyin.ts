@@ -2,21 +2,9 @@ import { createHash } from 'node:crypto'
 
 import type { Kysely, Transaction } from 'kysely'
 import { sql } from 'kysely'
-import { pinyin } from 'pinyin-pro'
+import { searchPinyin } from '../platform/pinyin.ts'
 
 import type { DB } from '../db/generated.ts'
-
-/** Canonical search spelling for every persisted APP user name. */
-export function userPinyin(name: string): string {
-  return pinyin(name, {
-    toneType: 'none',
-    type: 'array',
-    nonZh: 'consecutive',
-  })
-    .join('')
-    .replace(/\s+/gu, '')
-    .toLowerCase()
-}
 
 type AnyDb = Kysely<DB> | Transaction<DB>
 
@@ -113,7 +101,7 @@ async function report(db: AnyDb): Promise<UserPinyinBackfillReport> {
     users(db, state.columnPresent),
   ])
   const changedUsers = rows.filter(
-    (row) => row.py !== userPinyin(row.display_name),
+    (row) => row.py !== searchPinyin(row.display_name),
   ).length
   return { ...state, ...facts, changedUsers }
 }
@@ -167,7 +155,7 @@ export class UserPinyinMaintenanceService {
       const rows = await users(tx, true)
       let changedUsers = 0
       for (const row of rows) {
-        const py = userPinyin(row.display_name)
+        const py = searchPinyin(row.display_name)
         if (!py) throw new Error('a user name has no canonical pinyin')
         if (row.py === py) continue
         await sql`UPDATE public.app_users SET py = ${py} WHERE id = ${row.id}`.execute(
@@ -194,7 +182,7 @@ export class UserPinyinMaintenanceService {
         after.factsSha256 !== before.factsSha256
       )
         throw new Error('user pinyin backfill changed protected user facts')
-      if (finalRows.some((row) => row.py !== userPinyin(row.display_name)))
+      if (finalRows.some((row) => row.py !== searchPinyin(row.display_name)))
         throw new Error('user pinyin backfill readback mismatch')
       if (!finalState.columnRequired || !finalState.constraintPresent)
         throw new Error('user pinyin persistence constraints are incomplete')

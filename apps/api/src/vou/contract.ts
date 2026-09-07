@@ -3,6 +3,7 @@ import type { Schema } from 'hono'
 import {
   vouEntities,
   vouEntityPresentation,
+  vouPaymentMethodSelectionOrigins,
   userCreatableVouEntities,
   vouReferenceCandidateEntities,
   vouSourceLineSourceEntities,
@@ -27,6 +28,18 @@ const referenceCandidateBase = {
   code: z.string(),
   name: z.string(),
 }
+const auxMoney = z.string().regex(/^(?:0|[1-9]\d*)\.\d{2}$/)
+const paymentMethodSnapshot = z
+  .object({
+    objectId: z.string().length(26),
+    code: z.string().trim().min(1).max(64),
+    name: z.string().trim().min(1).max(200),
+    defaultSalesSurcharge: auxMoney,
+  })
+  .strict()
+const paymentMethodSelection = paymentMethodSnapshot
+  .extend({ selectionOrigin: z.enum(vouPaymentMethodSelectionOrigins) })
+  .strict()
 const referenceCandidate = z.discriminatedUnion('entity', [
   z
     .object({
@@ -34,12 +47,28 @@ const referenceCandidate = z.discriminatedUnion('entity', [
       entity: z.literal('customer-subunit'),
       customerId: z.string().length(26),
       approvalEntryId: z.string().length(26),
+      paymentMethod: paymentMethodSnapshot.nullable(),
+    })
+    .strict(),
+  paymentMethodSnapshot
+    .extend({ entity: z.literal('payment-method') })
+    .strict(),
+  z
+    .object({
+      ...referenceCandidateBase,
+      entity: z.literal('asset-category'),
+      defaultUsefulLifeMonths: z.number().int().min(1).max(1200),
+      defaultResidualRate: z.string().regex(/^(?:0|[1-9]\d?)(?:\.\d{1,2})?$/),
     })
     .strict(),
   z
     .object({
       ...referenceCandidateBase,
-      entity: referenceCandidateEntity.exclude(['customer-subunit']),
+      entity: referenceCandidateEntity.exclude([
+        'customer-subunit',
+        'payment-method',
+        'asset-category',
+      ]),
     })
     .strict(),
 ])
@@ -53,6 +82,14 @@ const sourceLineQuery = z
   })
   .strict()
 const objectReference = z.object({ objectId: z.string().length(26) }).strict()
+const assetCategoryReference = objectReference
+  .extend({
+    code: z.string().min(1),
+    name: z.string().min(1).max(200),
+    defaultUsefulLifeMonths: z.number().int().min(1).max(1200),
+    defaultResidualRate: z.string().regex(/^(?:0|[1-9]\d?)(?:\.\d{1,2})?$/),
+  })
+  .strict()
 // selectionOrigin is the one target-only fact: OpenAPI already owns the IDs,
 // while the target must retain whether they were selected now or inherited.
 const versionedReference = z
@@ -94,9 +131,24 @@ const quantitySnapshot = z
     baseQuantity: quantity,
   })
   .strict()
+const measurementUnitSnapshot = objectReference
+  .extend({
+    code: z.string().trim().min(1).max(64),
+    name: z.string().trim().min(1).max(200),
+    symbol: z.string().trim().min(1).max(64),
+    quantityScale: z.number().int().min(0).max(6),
+  })
+  .strict()
+const productQuantitySnapshot = z
+  .object({
+    enteredQuantity: quantity,
+    enteredUnit: measurementUnitSnapshot,
+    baseQuantity: quantity,
+  })
+  .strict()
 const formula = z
   .object({
-    output: quantitySnapshot,
+    output: productQuantitySnapshot,
     sourceType: z
       .enum(['RAW_SELF', 'PRODUCT_FIXED', 'CUSTOMER_LATEST', 'MANUAL'])
       .optional(),
@@ -105,14 +157,17 @@ const formula = z
     components: z
       .array(
         z
-          .object({ material: objectReference, quantity: quantitySnapshot })
+          .object({
+            material: objectReference,
+            quantity: productQuantitySnapshot,
+          })
           .strict(),
       )
       .min(1)
       .max(200),
   })
   .strict()
-const productLine = quantitySnapshot
+const productLine = productQuantitySnapshot
   .extend({
     lineId: z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/),
     product: objectReference,
@@ -400,6 +455,7 @@ export const vouPayloadSchemaByEntity = {
     operatingEntity: versionedReference,
     salesperson: versionedReference.optional(),
     warehouse: versionedReference,
+    paymentMethod: paymentMethodSelection.nullable(),
     productLines: z.array(productLine).min(1).max(200),
     creditOverrideReason: z.string().trim().min(1).max(1000).optional(),
   }),
@@ -524,7 +580,7 @@ export const vouPayloadSchemaByEntity = {
           .object({
             assetName: z.string().min(1).max(200),
             specification: z.string().max(200).optional(),
-            category: objectReference,
+            category: assetCategoryReference,
             originalValue: money,
             usefulLifeMonths: z.number().int().min(1).max(1200),
             residualRate: quantity,

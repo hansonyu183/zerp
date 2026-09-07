@@ -4,7 +4,7 @@ import { ulid } from 'ulid'
 import type { TargetPermissionCatalogEntry } from '../../scripts/target-artifacts.ts'
 import type { DB } from '../db/generated.ts'
 import { hashPassword, verifyPassword } from './session.ts'
-import { userPinyin } from './user-pinyin.ts'
+import { searchPinyin } from '../platform/pinyin.ts'
 
 export interface TargetE2EPrincipal {
   userId: string
@@ -234,7 +234,7 @@ export class TargetBootstrapService {
           const matches =
             existing.username === user.username &&
             existing.display_name === user.displayName &&
-            existing.py === userPinyin(user.displayName) &&
+            existing.py === searchPinyin(user.displayName) &&
             existing.status === 'ENABLED' &&
             !existing.password_change_required &&
             (await verifyPassword(existing.password_hash, user.password))
@@ -248,7 +248,7 @@ export class TargetBootstrapService {
               .set({
                 username: user.username,
                 display_name: user.displayName,
-                py: userPinyin(user.displayName),
+                py: searchPinyin(user.displayName),
                 password_hash: user.passwordHash,
                 status: 'ENABLED',
                 password_change_required: false,
@@ -267,7 +267,7 @@ export class TargetBootstrapService {
               id: userId,
               username: user.username,
               display_name: user.displayName,
-              py: userPinyin(user.displayName),
+              py: searchPinyin(user.displayName),
               password_hash: user.passwordHash,
               status: 'ENABLED',
               password_change_required: false,
@@ -414,7 +414,7 @@ export class TargetBootstrapService {
           id: principal.userId,
           username: principal.username,
           display_name: 'Target E2E User',
-          py: userPinyin('Target E2E User'),
+          py: searchPinyin('Target E2E User'),
           password_hash: principal.passwordHash,
           status: 'ENABLED',
           password_changed_at: new Date(),

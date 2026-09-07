@@ -71,3 +71,33 @@ ADR-0046《DCL 是申报版本的唯一写入方》与 ADR-0047《DCL Subject �
 ADR-0051《共享 TypeScript 模型、本地 Draft 与 Hono 一次性切换》把 Hono route metadata 作为完整 APP 权限/菜单目录的来源；这与导航只从会话 `apiPaths` 装配的条款冲突。#380 以互相指向的部分取代关系替代该菜单来源条款：Hono/Zod 仍是唯一 HTTP 契约来源，Hono metadata 仍定义精确 API 权限目录；菜单来源、分组与页面装配改由本 ADR 定义。ADR-0051 的共享 TypeScript model、本地 Draft、审批状态、事务与 cutover 边界继续有效。
 
 本 ADR 不把未来目标写成当前事实。`docs/domains/` 的现行规则优先；每个后续切片只在其实际改变的条款、契约、实现和清理均完成时更新权威文档与 ADR 关系。
+
+## 第二批角色分片（#385）
+
+本片在既有 user 之外登记 app/role，通过同一 Host、Registry 与公共 Shell 进入角色 VM 和类型化 API。角色编辑器只负责名称、说明及精确权限集合，权限目录逐页读取；用户编辑器同步采用 enabled/type/assignable 角色候选并合并全部既有关联。其他待迁移资源继续显示未实现。
+
+用户与角色共同消费公共启停服务：服务参与外层领域事务，经最小类型化存储接口完成读取、revision 校验、转换检查、CAS 与通用审计；领域保留授权、最后管理员及会话副作用。状态与 revision 仍分别来自原对象表，审计复用 app_audit_events。没有第二份状态、通用业务 HTTP 入口或对象注册器。纯拼音转换归入后端工具，用户保留检索存储与回填职责，角色在查询分页前按需计算。
+
+角色管理直接切换为 enabled、十进制字符串 revision 及 edit/enable/disable 动作；类型仍为 NORMAL/SYSTEM/SUPERADMIN。独立权限目录的 ENABLED/DISABLED 协议保持其领域语义。AUX、审批和业务版本等后续分片尚未在本片实施；本节的实现边界不代替实际验证证据。
+
+## 第二批 AUX 共用契约与两页分片（#386）
+
+后续 #387 登记计量单位，采用同目录强类型 VM、专有字段编辑器与既有公共列表；不将单位字段扩展进人员类别/岗位同构表单，也不通过强制转换适配另一实体的写入协议。实际验证见 [计量单位修复记录](../testing/measurement-unit-issue-387-2026-09-06.md)。
+
+全部十二个 AUX 实体一次采用原生管理摘要、字符串 revision 与严格 typed 写入；引用候选和历史快照保持各自原有语义。名称只在 typed data 中保存一份，拼音通过既有后端纯工具按当前名称计算，完整集合匹配、稳定排序后分页。管理协议不保留旧身份别名或数字 revision，存续直接消费者同步切换。
+
+AUX 作为 APP 之外的实际消费者接入完整公共启停组件。外层 AUX 事务继续持有域写锁，组件完成读取、revision/转换检查、CAS 及通用审计，领域保留实体约束和引用规则。状态与对象 revision 仍仅存于 aux_objects，审计复用 app_audit_events；组件不提交外层事务，失败整体回滚。
+
+本片 Registry 在 user、role 之外只增加 employee-category 与 position，两页复用同构名称/说明展示表单及公共列表，静态绑定各自类型化 API。其他 AUX 页面仍显示尚未实现，未迁移 DCL、审批与业务版本规则保持有效。契约覆盖与页面交付分别验收，实际命令及运行结果单独记录。
+
+## 第二批专有 AUX 页面分片（#387–#389）
+
+#387、#388 与 #389 依次登记 measurement-unit、payment-method 与 asset-category。三页继续复用 Host、Registry、公共 ListPageShell 和公共列表 VM，但各自在同目录持有强类型字段、校验、编辑器及 API 适配，不扩展人员类别/岗位表单，不增加表单 DSL 或全局编辑器。
+
+资产类别候选向 VOU 资产购置明确提供当前名称、编码、默认使用期限和默认残值率。购置提交在同一事务重新锁定并核对启用类别及完整候选事实；购置快照分别保存类别采用时的四项事实和用户可覆盖的实际期限、残值率。类别后续修改或停用不改变既有购置单与批准后台账，新购置不能采用停用或已漂移的候选。
+
+## 第二批集成核验（#390）
+
+Registry 当前为原 user 加 role、employee-category、position、measurement-unit、payment-method、asset-category，共七个真实页面。全部十二个 AUX 管理协议已切换，只有五个 AUX 页面登记；其余已授权资源仍通过同一 Host 显示尚未实现。七页、Session 与导航的真实浏览器流程已在独占 PostgreSQL/API/Web 环境验证，公共启停、严格契约、分页拼音和异步隔离也有实际测试证据。
+
+本批按两个独立切片补齐 B2-16 的 VOU 产品单位精度校验和完整交易单位审计快照，以及 B2-17 的销售订单最终收款方式及加价快照。交易消费者通过公开 Service、真实 PostgreSQL 和 Hono 契约分别验证，不再以产品和客户历史快照测试替代。现行 AUX/BOB/VOU 规则保留。具体候选、逐项结果、命令及交付状态见 [#390 集成验收记录](../testing/second-batch-integration-issue-390-2026-09-07.md)。这不表示 DCL、审批、业务版本、ACC 期初已迁移，也不表示已合并或上线。

@@ -2,10 +2,8 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
-import {
-  auxRouteBinding,
-  bobRouteBinding,
-} from '../src/app/independent-contract.ts'
+import { auxRouteBinding } from '../src/app/aux-contract.ts'
+import { bobRouteBinding } from '../src/app/independent-contract.ts'
 import { targetRouteMetadata as appTargetRouteMetadata } from '../src/app/contract.ts'
 import {
   archiveCapabilityPermissionMetadata,

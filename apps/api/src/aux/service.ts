@@ -3,6 +3,8 @@ import { sql } from 'kysely'
 import { ulid } from 'ulid'
 
 import type { DB } from '../db/generated.ts'
+import { changeEnablement } from '../enablement/service.ts'
+import { searchPinyin } from '../platform/pinyin.ts'
 
 const auxiliaryWriteLockKey = '25408967740052824'
 
@@ -23,38 +25,167 @@ export const auxEntities = [
 
 export type AuxEntity = (typeof auxEntities)[number]
 export type AuxActor = { id: string; permissions: readonly string[] }
-export type AuxData = Record<string, unknown>
+type AuxData = Record<string, unknown>
 
-export interface AuxObjectView {
-  objectId: string
-  entity: AuxEntity
-  code: string
-  enabled: boolean
-  objectRevision: string
-  data: AuxData
-  updatedAt: string
-  updatedBy: string
+export interface AuxDataByEntity {
+  'product-category': {
+    name: string
+    parentId: string
+    description: string
+  }
+  'product-type': {
+    name: string
+    behaviorProfile:
+      'RAW_MATERIAL' | 'STANDARD_FINISHED' | 'CUSTOM_FINISHED' | 'PACKAGING'
+    description: string
+  }
+  'employee-category': { name: string; description: string }
+  department: { name: string; parentId: string; description: string }
+  position: { name: string; description: string }
+  'settlement-method': {
+    name: string
+    termCode:
+      | 'PREPAID'
+      | 'CASH_ON_DELIVERY'
+      | 'ARRIVAL_3'
+      | 'ARRIVAL_5'
+      | 'ARRIVAL_7'
+      | 'ARRIVAL_15'
+      | 'ARRIVAL_30'
+      | 'MONTHLY_CURRENT'
+      | 'MONTHLY_30'
+      | 'MONTHLY_60'
+      | 'MONTHLY_90'
+    ruleType: 'RELATIVE_DAYS' | 'MONTH_END'
+    monthOffset: number
+    dayOfMonth: number
+    dayOffset: number
+    defaultSalesSurcharge: string
+    description: string
+  }
+  'payment-method': {
+    name: string
+    defaultSalesSurcharge: string
+    description: string
+  }
+  'dictionary-type': { name: string; description: string }
+  'dictionary-item': {
+    name: string
+    dictionaryTypeId: string
+    sortOrder: number
+    dictionaryTypeCode: string
+    dictionaryTypeName: string
+  }
+  'measurement-unit': {
+    name: string
+    symbol: string
+    quantityScale: number
+  }
+  'income-expense-type': {
+    name: string
+    direction: 'INCOME' | 'EXPENSE'
+    parentId: string
+    description: string
+  }
+  'asset-category': {
+    name: string
+    defaultUsefulLifeMonths: number
+    defaultResidualRate: string
+    description: string
+  }
 }
+
+export interface AuxWriteDataByEntity {
+  'product-category': {
+    name: string
+    parentId?: string
+    description?: string
+  }
+  'product-type': {
+    name: string
+    behaviorProfile: AuxDataByEntity['product-type']['behaviorProfile']
+    description?: string
+  }
+  'employee-category': { name: string; description?: string }
+  department: { name: string; parentId?: string; description?: string }
+  position: { name: string; description?: string }
+  'settlement-method': Omit<
+    AuxDataByEntity['settlement-method'],
+    'description'
+  > & { description?: string }
+  'payment-method': {
+    name: string
+    defaultSalesSurcharge?: string
+    description?: string
+  }
+  'dictionary-type': { name: string; description?: string }
+  'dictionary-item': Omit<
+    AuxDataByEntity['dictionary-item'],
+    'dictionaryTypeCode' | 'dictionaryTypeName'
+  >
+  'measurement-unit': AuxDataByEntity['measurement-unit']
+  'income-expense-type': Omit<
+    AuxDataByEntity['income-expense-type'],
+    'parentId' | 'description'
+  > & { parentId?: string; description?: string }
+  'asset-category': Omit<AuxDataByEntity['asset-category'], 'description'> & {
+    description?: string
+  }
+}
+
+export type AuxWriteData<Entity extends AuxEntity> =
+  AuxWriteDataByEntity[Entity]
+
+export type AuxAvailableAction = 'edit' | 'enable' | 'disable'
+
+export interface AuxListItem {
+  id: string
+  code: string
+  py: string
+  name: string
+  enabled: boolean
+  revision: string
+  availableActions: AuxAvailableAction[]
+}
+
+export type AuxObjectView<Entity extends AuxEntity = AuxEntity> = AuxListItem &
+  AuxDataByEntity[Entity] & {
+    updatedAt: string
+    updatedBy: string
+  }
 
 export interface AuxMutationResult {
-  objectId: string
-  objectRevision: string
+  id: string
+  revision: string
   enabled: boolean
 }
 
+export interface AuxIdentifierInput {
+  id: string
+}
+
+export interface AuxRevisionInput extends AuxIdentifierInput {
+  revision: string
+}
+
+export type AuxSaveInput<Entity extends AuxEntity> = AuxRevisionInput &
+  AuxWriteData<Entity>
+
 export interface AuxQueryInput {
+  keyword?: string
   page: number
-  pageSize: number
-  filters?: {
-    keyword?: string
-    enabled?: boolean
-    behaviorProfile?: string
-    parentId?: string
-    rootOnly?: boolean
-    dictionaryTypeCode?: string
-    direction?: string
-  }
-  sort?: Array<{ field: 'updatedAt' | 'code' | 'name'; order: 'asc' | 'desc' }>
+  pageSize: 20
+}
+
+interface ParsedAuxRow<Entity extends AuxEntity = AuxEntity> {
+  id: string
+  entity: Entity
+  code: string
+  enabled: boolean
+  revision: string
+  data: AuxDataByEntity[Entity]
+  updatedAt: string
+  updatedBy: string
 }
 
 export interface AuxReferenceQueryInput {
@@ -157,8 +288,6 @@ function assertPermission(actor: AuxActor, permission: string): void {
   if (!actor.permissions.includes(permission)) applicationError('forbidden')
 }
 
-type RevisionInput = string | number
-
 function revision(value: string | number | bigint): bigint {
   if (typeof value === 'number') {
     if (!Number.isSafeInteger(value) || value < 1)
@@ -170,7 +299,7 @@ function revision(value: string | number | bigint): bigint {
   return BigInt(value)
 }
 
-function objectRevision(value: string | number | bigint): string {
+function revisionString(value: string | number | bigint): string {
   return String(revision(value))
 }
 
@@ -191,6 +320,35 @@ function asRecord(value: unknown): AuxData {
   if (value === null || Array.isArray(value) || typeof value !== 'object')
     applicationError('internal_error')
   return { ...value } as AuxData
+}
+
+function inputRecord(value: unknown): AuxData {
+  if (value === null || Array.isArray(value) || typeof value !== 'object')
+    applicationError('validation_failed')
+  return { ...value } as AuxData
+}
+
+function strictInput(value: unknown, keys: readonly string[]): AuxData {
+  const input = inputRecord(value)
+  only(input, keys)
+  return input
+}
+
+function inputId(value: unknown): string {
+  return optionalId(value) ?? applicationError('validation_failed')
+}
+
+function inputRevision(value: unknown): string {
+  if (typeof value !== 'string' || !/^[1-9]\d*$/.test(value))
+    applicationError('validation_failed')
+  return value
+}
+
+function writeData(entity: AuxEntity, value: unknown): AuxData {
+  const data = inputRecord(value)
+  if (entity === 'payment-method' && data.defaultSalesSurcharge === undefined)
+    return { ...data, defaultSalesSurcharge: '0.00' }
+  return data
 }
 
 function requiredString(value: unknown): string {
@@ -237,6 +395,12 @@ function money(value: unknown): string {
 
 function fixedMoney(value: unknown): string {
   const normalized = money(value)
+  const [whole, fraction = ''] = normalized.split('.')
+  return `${whole}.${fraction.padEnd(2, '0')}`
+}
+
+function fixedPercentage(value: unknown): string {
+  const normalized = percentage(value)
   const [whole, fraction = ''] = normalized.split('.')
   return `${whole}.${fraction.padEnd(2, '0')}`
 }
@@ -334,7 +498,7 @@ function normaliseData(entity: AuxEntity, source: unknown): AuxData {
       return {
         name,
         defaultUsefulLifeMonths: integer(data.defaultUsefulLifeMonths, 1, 1200),
-        defaultResidualRate: percentage(data.defaultResidualRate),
+        defaultResidualRate: fixedPercentage(data.defaultResidualRate),
         description: optionalString(data.description),
       }
     case 'dictionary-item':
@@ -393,7 +557,7 @@ function normaliseData(entity: AuxEntity, source: unknown): AuxData {
         monthOffset: integer(data.monthOffset, 0, 3),
         dayOfMonth: integer(data.dayOfMonth, 0, 31),
         dayOffset: integer(data.dayOffset, 0, 30),
-        defaultSalesSurcharge: money(data.defaultSalesSurcharge),
+        defaultSalesSurcharge: fixedMoney(data.defaultSalesSurcharge),
         description: optionalString(data.description),
       }
     }
@@ -401,7 +565,7 @@ function normaliseData(entity: AuxEntity, source: unknown): AuxData {
       only(data, ['name', 'defaultSalesSurcharge', 'description'])
       return {
         name,
-        defaultSalesSurcharge: money(data.defaultSalesSurcharge),
+        defaultSalesSurcharge: fixedMoney(data.defaultSalesSurcharge),
         description: optionalString(data.description),
       }
     case 'income-expense-type': {
@@ -436,17 +600,72 @@ function normaliseReferenceData(entity: AuxEntity, source: unknown): AuxData {
   })
 }
 
-function parseRow(row: StoredAuxObject): AuxObjectView {
+function parseData(
+  entity: AuxEntity,
+  source: unknown,
+): AuxDataByEntity[AuxEntity] {
+  const stored = asRecord(source)
+  const normalized = normaliseReferenceData(entity, stored)
+  if (entity !== 'dictionary-item')
+    return normalized as AuxDataByEntity[AuxEntity]
+  return {
+    ...normalized,
+    dictionaryTypeCode: requiredString(stored.dictionaryTypeCode),
+    dictionaryTypeName: requiredString(stored.dictionaryTypeName),
+  } as AuxDataByEntity['dictionary-item']
+}
+
+function parseRow(row: StoredAuxObject): ParsedAuxRow {
   assertEntity(row.entity)
   return {
-    objectId: row.id,
+    id: row.id,
     entity: row.entity,
     code: row.code,
     enabled: row.enabled,
-    objectRevision: objectRevision(row.revision),
-    data: asRecord(row.data),
+    revision: revisionString(row.revision),
+    data: parseData(row.entity, row.data),
     updatedAt: dateTime(row.updated_at),
     updatedBy: row.updated_by,
+  }
+}
+
+function availableActions(
+  entity: AuxEntity,
+  enabled: boolean,
+  actor: AuxActor,
+): AuxAvailableAction[] {
+  const actions: AuxAvailableAction[] = []
+  if (actor.permissions.includes(`/aux/${entity}/save`)) actions.push('edit')
+  if (
+    actor.permissions.includes(
+      `/aux/${entity}/${enabled ? 'disable' : 'enable'}`,
+    )
+  )
+    actions.push(enabled ? 'disable' : 'enable')
+  return actions
+}
+
+function listItem(row: ParsedAuxRow, actor: AuxActor): AuxListItem {
+  return {
+    id: row.id,
+    code: row.code,
+    py: searchPinyin(row.data.name),
+    name: row.data.name,
+    enabled: row.enabled,
+    revision: row.revision,
+    availableActions: availableActions(row.entity, row.enabled, actor),
+  }
+}
+
+function detail<Entity extends AuxEntity>(
+  row: ParsedAuxRow<Entity>,
+  actor: AuxActor,
+): AuxObjectView<Entity> {
+  return {
+    ...listItem(row, actor),
+    ...row.data,
+    updatedAt: row.updatedAt,
+    updatedBy: row.updatedBy,
   }
 }
 
@@ -457,111 +676,72 @@ export class AuxService {
     this.db = db
   }
 
-  async query(
-    entity: AuxEntity,
+  async query<Entity extends AuxEntity>(
+    entity: Entity,
     input: AuxQueryInput,
     actor: AuxActor,
   ): Promise<{
-    items: AuxObjectView[]
+    items: AuxListItem[]
     total: number
     page: number
-    pageSize: number
+    pageSize: 20
   }> {
     assertEntity(entity)
     assertPermission(actor, `/aux/${entity}/query`)
+    const query = strictInput(input, ['keyword', 'page', 'pageSize'])
     if (
-      !Number.isInteger(input.page) ||
-      !Number.isInteger(input.pageSize) ||
-      input.page < 1 ||
-      input.pageSize < 1 ||
-      input.pageSize > 200 ||
-      (input.sort?.length ?? 0) > 1
+      query.pageSize !== 20 ||
+      (query.keyword !== undefined && typeof query.keyword !== 'string')
     )
       applicationError('validation_failed')
-    const filter = input.filters ?? {}
-    if (
-      filter.behaviorProfile !== undefined &&
-      (entity !== 'product-type' ||
-        ![
-          'RAW_MATERIAL',
-          'STANDARD_FINISHED',
-          'CUSTOM_FINISHED',
-          'PACKAGING',
-        ].includes(filter.behaviorProfile))
-    )
-      applicationError('validation_failed')
-    if (
-      filter.direction !== undefined &&
-      (entity !== 'income-expense-type' ||
-        !['INCOME', 'EXPENSE'].includes(filter.direction))
-    )
-      applicationError('validation_failed')
-    const where = [sql`entity = ${entity}`]
-    if (filter.keyword?.trim()) {
-      const keyword = `%${filter.keyword.trim()}%`
-      where.push(
-        sql`(code ILIKE ${keyword} OR COALESCE(data->>'name', '') ILIKE ${keyword})`,
-      )
-    }
-    if (filter.enabled !== undefined)
-      where.push(sql`enabled = ${filter.enabled}`)
-    if (filter.behaviorProfile)
-      where.push(sql`data->>'behaviorProfile' = ${filter.behaviorProfile}`)
-    if (filter.parentId) where.push(sql`data->>'parentId' = ${filter.parentId}`)
-    if (filter.rootOnly) where.push(sql`COALESCE(data->>'parentId', '') = ''`)
-    if (filter.dictionaryTypeCode)
-      where.push(
-        sql`data->>'dictionaryTypeCode' = ${filter.dictionaryTypeCode}`,
-      )
-    if (filter.direction)
-      where.push(sql`data->>'direction' = ${filter.direction}`)
-    const order = input.sort?.[0]
-    const sortField =
-      order?.field === 'code'
-        ? sql.raw('code')
-        : order?.field === 'name'
-          ? sql.raw("COALESCE(data->>'name', '')")
-          : sql.raw('updated_at')
-    const sortOrder = order?.order === 'asc' ? sql.raw('ASC') : sql.raw('DESC')
-    const offset = (input.page - 1) * input.pageSize
-    const [count, rows] = await Promise.all([
-      sql<{
-        total: string | number
-      }>`SELECT count(*)::bigint AS total FROM aux_objects WHERE ${sql.join(where, sql` AND `)}`.execute(
+    const page = integer(query.page, 1, Number.MAX_SAFE_INTEGER)
+    const rows =
+      await sql<StoredAuxObject>`SELECT id, entity, code, enabled, revision, data, updated_at, updated_by FROM aux_objects WHERE entity = ${entity} ORDER BY code, id`.execute(
         this.db,
-      ),
-      sql<StoredAuxObject>`SELECT id, entity, code, enabled, revision, data, updated_at, updated_by FROM aux_objects WHERE ${sql.join(where, sql` AND `)} ORDER BY ${sortField} ${sortOrder}, id ${sortOrder} LIMIT ${input.pageSize} OFFSET ${offset}`.execute(
-        this.db,
-      ),
-    ])
+      )
+    const keyword = String(query.keyword ?? '')
+      .trim()
+      .toLocaleLowerCase()
+    const matches = rows.rows
+      .map(parseRow)
+      .map((row) => listItem(row, actor))
+      .filter(
+        (item) =>
+          !keyword ||
+          item.code.toLocaleLowerCase().includes(keyword) ||
+          item.py.includes(keyword) ||
+          item.name.toLocaleLowerCase().includes(keyword),
+      )
+    const offset = (page - 1) * 20
     return {
-      items: rows.rows.map(parseRow),
-      total: Number(count.rows[0]?.total ?? 0),
-      page: input.page,
-      pageSize: input.pageSize,
+      items: matches.slice(offset, offset + 20),
+      total: matches.length,
+      page,
+      pageSize: 20,
     }
   }
 
-  async get(
-    entity: AuxEntity,
-    objectId: string,
+  async get<Entity extends AuxEntity>(
+    entity: Entity,
+    input: AuxIdentifierInput,
     actor: AuxActor,
-  ): Promise<AuxObjectView> {
+  ): Promise<AuxObjectView<Entity>> {
     assertEntity(entity)
     assertPermission(actor, `/aux/${entity}/get`)
-    optionalId(objectId) ?? applicationError('validation_failed')
+    const identifier = strictInput(input, ['id'])
+    const id = inputId(identifier.id)
     const result =
-      await sql<StoredAuxObject>`SELECT id, entity, code, enabled, revision, data, updated_at, updated_by FROM aux_objects WHERE id = ${objectId} AND entity = ${entity}`.execute(
+      await sql<StoredAuxObject>`SELECT id, entity, code, enabled, revision, data, updated_at, updated_by FROM aux_objects WHERE id = ${id} AND entity = ${entity}`.execute(
         this.db,
       )
     const row = result.rows[0]
     if (!row) applicationError('validation_failed')
-    return parseRow(row)
+    return detail(parseRow(row) as ParsedAuxRow<Entity>, actor)
   }
 
-  async create(
-    entity: AuxEntity,
-    data: unknown,
+  async create<Entity extends AuxEntity>(
+    entity: Entity,
+    data: AuxWriteData<Entity>,
     actor: AuxActor,
   ): Promise<AuxMutationResult> {
     assertEntity(entity)
@@ -573,7 +753,7 @@ export class AuxService {
         transaction,
         entity,
         null,
-        data,
+        writeData(entity, data),
       )
       const counter = await sql<{
         last_value: number
@@ -582,11 +762,11 @@ export class AuxService {
       )
       const number = counter.rows[0]?.last_value
       if (!number) applicationError('conflict')
-      const objectId = ulid()
-      await sql`INSERT INTO aux_objects(id, entity, code, enabled, revision, data, created_by, updated_by) VALUES (${objectId}, ${entity}, ${`${codePrefixes[entity]}-${String(number).padStart(4, '0')}`}, true, 1, ${JSON.stringify(normalised)}::jsonb, ${actor.id}, ${actor.id})`.execute(
+      const id = ulid()
+      await sql`INSERT INTO aux_objects(id, entity, code, enabled, revision, data, created_by, updated_by) VALUES (${id}, ${entity}, ${`${codePrefixes[entity]}-${String(number).padStart(4, '0')}`}, true, 1, ${JSON.stringify(normalised)}::jsonb, ${actor.id}, ${actor.id})`.execute(
         transaction,
       )
-      return { objectId, objectRevision: '1', enabled: true }
+      return { id, revision: '1', enabled: true }
     })
   }
 
@@ -601,7 +781,7 @@ export class AuxService {
         transaction,
         'settlement-method',
         null,
-        data,
+        inputRecord(data),
       )
       const existing = await sql<{
         id: string
@@ -617,8 +797,8 @@ export class AuxService {
       if (existing.rows[0]) {
         const row = existing.rows[0]
         return {
-          objectId: row.id,
-          objectRevision: objectRevision(row.revision),
+          id: row.id,
+          revision: revisionString(row.revision),
           enabled: row.enabled,
         }
       }
@@ -632,46 +812,59 @@ export class AuxService {
       `.execute(transaction)
       const number = counter.rows[0]?.last_value
       if (!number) applicationError('conflict')
-      const objectId = ulid()
+      const id = ulid()
       await sql`INSERT INTO aux_objects(id, entity, code, enabled, revision, data, created_by, updated_by)
-        VALUES (${objectId}, 'settlement-method', ${`${codePrefixes['settlement-method']}-${String(number).padStart(4, '0')}`}, true, 1, ${JSON.stringify(normalised)}::jsonb, ${actor.id}, ${actor.id})`.execute(
+        VALUES (${id}, 'settlement-method', ${`${codePrefixes['settlement-method']}-${String(number).padStart(4, '0')}`}, true, 1, ${JSON.stringify(normalised)}::jsonb, ${actor.id}, ${actor.id})`.execute(
         transaction,
       )
-      return { objectId, objectRevision: '1', enabled: true }
+      return { id, revision: '1', enabled: true }
     })
   }
 
-  async save(
-    entity: AuxEntity,
-    objectId: string,
-    expectedRevision: RevisionInput,
-    data: unknown,
+  async save<Entity extends AuxEntity>(
+    entity: Entity,
+    input: AuxSaveInput<Entity>,
     actor: AuxActor,
   ): Promise<AuxMutationResult> {
     assertEntity(entity)
     assertPermission(actor, `/aux/${entity}/save`)
-    optionalId(objectId) ?? applicationError('validation_failed')
-    const expected = revision(expectedRevision)
+    const source = inputRecord(input)
+    const id = inputId(source.id)
+    const expectedRevision = inputRevision(source.revision)
+    const { id: _id, revision: _revision, ...data } = source
     return this.db.transaction().execute(async (transaction) => {
       await this.lock(transaction)
-      const current = await this.lockObject(transaction, entity, objectId)
-      if (revision(current.revision) !== expected)
+      const current = await this.lockObject(transaction, entity, id)
+      if (revision(current.revision) !== revision(expectedRevision))
         applicationError('conflict', {
-          objectRevision: objectRevision(current.revision),
+          revision: revisionString(current.revision),
         })
       const normalised = await this.validateData(
         transaction,
         entity,
-        objectId,
-        data,
+        id,
+        writeData(entity, data),
         asRecord(current.data),
       )
-      await sql`UPDATE aux_objects SET data = ${JSON.stringify(normalised)}::jsonb, revision = revision + 1, updated_at = now(), updated_by = ${actor.id} WHERE id = ${objectId} AND entity = ${entity}`.execute(
-        transaction,
-      )
+      const updated = await transaction
+        .updateTable('aux_objects')
+        .set({
+          data: JSON.stringify(normalised),
+          revision: sql`revision + 1`,
+          updated_at: new Date(),
+          updated_by: actor.id,
+        })
+        .where('id', '=', id)
+        .where('entity', '=', entity)
+        .where('revision', '=', revisionString(current.revision))
+        .executeTakeFirst()
+      if (updated.numUpdatedRows !== 1n)
+        applicationError('conflict', {
+          revision: revisionString(current.revision),
+        })
       return {
-        objectId,
-        objectRevision: objectRevision(revision(current.revision) + 1n),
+        id,
+        revision: revisionString(revision(current.revision) + 1n),
         enabled: current.enabled,
       }
     })
@@ -679,46 +872,90 @@ export class AuxService {
 
   async enable(
     entity: AuxEntity,
-    objectId: string,
-    expectedRevision: RevisionInput,
+    input: AuxRevisionInput,
     actor: AuxActor,
+    requestId: string,
   ): Promise<AuxMutationResult> {
-    return this.setEnabled(entity, objectId, expectedRevision, true, actor)
+    return this.setEnabled(entity, input, true, actor, requestId)
   }
 
   async disable(
     entity: AuxEntity,
-    objectId: string,
-    expectedRevision: RevisionInput,
+    input: AuxRevisionInput,
     actor: AuxActor,
+    requestId: string,
   ): Promise<AuxMutationResult> {
-    return this.setEnabled(entity, objectId, expectedRevision, false, actor)
+    return this.setEnabled(entity, input, false, actor, requestId)
   }
 
   async delete(
     entity: AuxEntity,
-    objectId: string,
-    expectedRevision: RevisionInput,
+    input: AuxRevisionInput,
     actor: AuxActor,
   ): Promise<void> {
     assertEntity(entity)
     assertPermission(actor, `/aux/${entity}/delete`)
     if (entity === 'settlement-method') applicationError('validation_failed')
-    optionalId(objectId) ?? applicationError('validation_failed')
-    const expected = revision(expectedRevision)
+    const target = strictInput(input, ['id', 'revision'])
+    const id = inputId(target.id)
+    const expectedRevision = inputRevision(target.revision)
     await this.db.transaction().execute(async (transaction) => {
       await this.lock(transaction)
-      const current = await this.lockObject(transaction, entity, objectId)
-      if (revision(current.revision) !== expected)
+      const current = await this.lockObject(transaction, entity, id)
+      if (revision(current.revision) !== revision(expectedRevision))
         applicationError('conflict', {
-          objectRevision: objectRevision(current.revision),
+          revision: revisionString(current.revision),
         })
+      const references = [
+        sql`SELECT source FROM aux_reference_facts WHERE aux_object_id = ${id}`,
+      ]
+      if (entity === 'measurement-unit') {
+        references.push(sql`
+          SELECT 'dcl_product_versions' AS source
+          FROM dcl_product_versions
+          WHERE default_input_unit_id = ${id} OR pricing_unit_id = ${id}
+            OR EXISTS (
+              SELECT 1 FROM jsonb_array_elements(unit_conversions) conversion
+              WHERE conversion->'unit'->>'id' = ${id}
+            )
+            OR fixed_formula->'output'->'enteredUnit'->>'id' = ${id}
+            OR EXISTS (
+              SELECT 1 FROM jsonb_array_elements(COALESCE(fixed_formula->'components', '[]'::jsonb)) component
+              WHERE component->'quantity'->'enteredUnit'->>'id' = ${id}
+            )
+          UNION ALL
+          SELECT 'vou_product_line_snapshots' AS source
+          FROM vou_product_line_snapshots
+          WHERE entered_unit_id = ${id} OR formula_output_entered_unit_id = ${id}
+          UNION ALL
+          SELECT 'vou_formula_component_snapshots' AS source
+          FROM vou_formula_component_snapshots WHERE entered_unit_id = ${id}
+          UNION ALL
+          SELECT 'vou_inventory_count_line_snapshots' AS source
+          FROM vou_inventory_count_line_snapshots WHERE entered_unit_id = ${id}
+          UNION ALL
+          SELECT 'vou_production_line_snapshots' AS source
+          FROM vou_production_line_snapshots WHERE entered_unit_id = ${id}
+          UNION ALL
+          SELECT 'vou_production_material_snapshots' AS source
+          FROM vou_production_material_snapshots WHERE entered_unit_id = ${id}
+        `)
+      }
+      if (entity === 'payment-method')
+        references.push(sql`
+          SELECT 'dcl_customer_version_subunits' AS source
+          FROM dcl_customer_version_subunits
+          WHERE payment_snapshot->>'id' = ${id}
+          UNION ALL
+          SELECT 'vou_sale_order_details' AS source
+          FROM vou_sale_order_details WHERE payment_method_id = ${id}
+        `)
       const blockers = await sql<{
         source: string
         count: string | number
-      }>`SELECT source, count(*)::bigint AS count FROM aux_reference_facts WHERE aux_object_id = ${objectId} GROUP BY source ORDER BY source`.execute(
-        transaction,
-      )
+      }>`SELECT source, count(*)::bigint AS count
+         FROM (${sql.join(references, sql` UNION ALL `)}) reference
+         GROUP BY source ORDER BY source`.execute(transaction)
       if (blockers.rows.length > 0)
         applicationError('conflict', {
           blockers: blockers.rows.map((row) => ({
@@ -726,7 +963,7 @@ export class AuxService {
             count: Number(row.count),
           })),
         })
-      await sql`DELETE FROM aux_objects WHERE id = ${objectId} AND entity = ${entity}`.execute(
+      await sql`DELETE FROM aux_objects WHERE id = ${id} AND entity = ${entity}`.execute(
         transaction,
       )
     })
@@ -830,32 +1067,80 @@ export class AuxService {
 
   private async setEnabled(
     entity: AuxEntity,
-    objectId: string,
-    expectedRevision: RevisionInput,
+    input: AuxRevisionInput,
     enabled: boolean,
     actor: AuxActor,
+    requestId: string,
   ): Promise<AuxMutationResult> {
     assertEntity(entity)
     assertPermission(actor, `/aux/${entity}/${enabled ? 'enable' : 'disable'}`)
-    optionalId(objectId) ?? applicationError('validation_failed')
-    const expected = revision(expectedRevision)
+    const target = strictInput(input, ['id', 'revision'])
+    const id = inputId(target.id)
+    const expectedRevision = inputRevision(target.revision)
     return this.db.transaction().execute(async (transaction) => {
       await this.lock(transaction)
-      const current = await this.lockObject(transaction, entity, objectId)
-      if (
-        revision(current.revision) !== expected ||
-        current.enabled === enabled
-      )
-        applicationError('conflict', {
-          objectRevision: objectRevision(current.revision),
-          enabled: current.enabled,
-        })
-      await sql`UPDATE aux_objects SET enabled = ${enabled}, revision = revision + 1, updated_at = now(), updated_by = ${actor.id} WHERE id = ${objectId} AND entity = ${entity}`.execute(
+      await changeEnablement(
         transaction,
+        { id, revision: expectedRevision, enabled },
+        {
+          domain: 'aux',
+          entity,
+          actorId: actor.id,
+          requestId,
+          eventType: `AUX_${entity.replaceAll('-', '_').toUpperCase()}_${enabled ? 'ENABLED' : 'DISABLED'}`,
+          changedError: 'conflict',
+        },
+        {
+          read: async (tx, targetId) => {
+            const row =
+              await sql<StoredAuxObject>`SELECT id, entity, code, enabled, revision, data, updated_at, updated_by FROM aux_objects WHERE id = ${targetId} AND entity = ${entity} FOR UPDATE`.execute(
+                tx,
+              )
+            const current = row.rows[0]
+            return current
+              ? {
+                  id: current.id,
+                  enabled: current.enabled,
+                  revision: revisionString(current.revision),
+                  data: current.data,
+                }
+              : undefined
+          },
+          write: async (tx, current, nextEnabled, nextRevision) => {
+            const updated = await tx
+              .updateTable('aux_objects')
+              .set({
+                enabled: nextEnabled,
+                revision: nextRevision,
+                updated_at: new Date(),
+                updated_by: actor.id,
+              })
+              .where('id', '=', current.id)
+              .where('entity', '=', entity)
+              .where('revision', '=', current.revision)
+              .executeTakeFirst()
+            return updated.numUpdatedRows === 1n
+          },
+        },
+        {
+          beforeWrite: async (current) => {
+            if (enabled) {
+              const currentData = normaliseReferenceData(entity, current.data)
+              await this.validateData(
+                transaction,
+                entity,
+                current.id,
+                currentData,
+                currentData,
+              )
+            }
+          },
+          afterWrite: async () => undefined,
+        },
       )
       return {
-        objectId,
-        objectRevision: objectRevision(revision(current.revision) + 1n),
+        id,
+        revision: revisionString(revision(expectedRevision) + 1n),
         enabled,
       }
     })

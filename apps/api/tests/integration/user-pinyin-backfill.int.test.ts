@@ -7,11 +7,9 @@ import test from 'node:test'
 import { ulid } from 'ulid'
 import { sql } from 'kysely'
 
-import {
-  userPinyin,
-  UserPinyinMaintenanceService,
-} from '../../src/app/user-pinyin.ts'
+import { UserPinyinMaintenanceService } from '../../src/app/user-pinyin.ts'
 import { createDatabase } from '../../src/db/database.ts'
+import { searchPinyin } from '../../src/platform/pinyin.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
 const script = fileURLToPath(
@@ -160,7 +158,7 @@ test('controlled user pinyin backfill preserves identities, credentials, roles, 
       .where('id', '=', auditId)
       .executeTakeFirstOrThrow(),
   }
-  assert.equal(after.user.py, userPinyin(name))
+  assert.equal(after.user.py, searchPinyin(name))
   assert.equal(after.user.py, 'chongqingyonghu')
   assert.deepEqual({ ...after.user, py: before.user.py }, before.user)
   assert.deepEqual(after.role, before.role)

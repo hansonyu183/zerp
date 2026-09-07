@@ -5,7 +5,7 @@ import { createNodeWflStarlark } from '@zerp/wfl-starlark/node'
 import { ulid } from 'ulid'
 
 import { createDatabase } from '../../src/db/database.ts'
-import { userPinyin } from '../../src/app/user-pinyin.ts'
+import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { VouApplicationError, VouService } from '../../src/vou/service.ts'
 import { WflService, type WflVouPort } from '../../src/wfl/service.ts'
 
@@ -87,6 +87,18 @@ async function seedSaleOrderReferences(
     objectId: ulid(),
     approvalEntryId: ulid(),
   }))
+  const unitId = ulid()
+  const unitCode = String(
+    [...unitId].reduce((sum, character) => sum + character.charCodeAt(0), 0) %
+      10_000,
+  ).padStart(4, '0')
+  const unit = {
+    objectId: unitId,
+    code: `TST-${unitCode}`,
+    name: '件',
+    symbol: '件',
+    quantityScale: 0,
+  }
   const now = new Date()
   await db
     .insertInto('dcl_subjects')
@@ -179,7 +191,18 @@ async function seedSaleOrderReferences(
           approval_entry_id: fact.approvalEntryId,
           name: fact.name,
           source_snapshots: {},
-          unit_conversions: JSON.stringify([]),
+          unit_conversions: JSON.stringify([
+            {
+              unit: {
+                id: unit.objectId,
+                code: unit.code,
+                name: unit.name,
+                symbol: unit.symbol,
+                quantityScale: unit.quantityScale,
+              },
+              factor: '1.000000',
+            },
+          ]),
           recyclable: false,
           enabled: true,
         })
@@ -208,6 +231,7 @@ async function seedSaleOrderReferences(
         name: '测试客户类型',
       }),
       settlement_snapshot: null,
+      payment_snapshot: null,
       credit_limits: JSON.stringify([]),
       enabled: true,
     })
@@ -223,24 +247,19 @@ async function seedSaleOrderReferences(
       name: 'WFL 客户子单位',
     },
   ]
-  const unitId = ulid()
-  const unitCode = String(
-    [...unitId].reduce((sum, character) => sum + character.charCodeAt(0), 0) %
-      10_000,
-  ).padStart(4, '0')
   await db
     .insertInto('aux_objects')
     .values({
       id: unitId,
       entity: 'measurement-unit',
-      code: `TST-${unitCode}`,
-      data: { name: '件', quantityScale: 0 },
+      code: unit.code,
+      data: { name: unit.name, symbol: unit.symbol, quantityScale: 0 },
       enabled: true,
       created_by: actorId,
       updated_by: actorId,
     })
     .execute()
-  return { facts: referenceFacts, unitId }
+  return { facts: referenceFacts, unitId, unit }
 }
 
 function saleOrderPayload(
@@ -267,6 +286,7 @@ function saleOrderPayload(
     currency: 'CNY',
     attachments: [],
     customerSubunit: ref('customer-subunit'),
+    paymentMethod: null,
     operatingEntity: ref('operating-entity'),
     salesperson: ref('salesperson'),
     warehouse: ref('warehouse'),
@@ -275,7 +295,7 @@ function saleOrderPayload(
         lineId: sourceOrderLineId,
         product: { objectId: product.objectId },
         enteredQuantity: '1',
-        enteredUnit: { objectId: references.unitId },
+        enteredUnit: references.unit,
         baseQuantity: '1',
         unitPrice: '1.00',
       },
@@ -412,7 +432,7 @@ test('WFL definition compiles, trials against a real VOU, approves and becomes c
         id,
         username: `wfl-${id}`,
         display_name: 'WFL actor',
-        py: userPinyin('WFL actor'),
+        py: searchPinyin('WFL actor'),
         password_hash: 'unused',
         status: 'ENABLED' as const,
         password_changed_at: new Date(),
@@ -573,7 +593,7 @@ test('WFL definition lifecycle exposes candidates, history and a derived current
         id,
         username: `wfl-${id}`,
         display_name: 'WFL actor',
-        py: userPinyin('WFL actor'),
+        py: searchPinyin('WFL actor'),
         password_hash: 'unused',
         status: 'ENABLED' as const,
         password_changed_at: new Date(),
@@ -724,7 +744,7 @@ test('WFL instance persists exact-entry nodes and six typed actions through its 
         id,
         username: `wfl-${id}`,
         display_name: 'WFL actor',
-        py: userPinyin('WFL actor'),
+        py: searchPinyin('WFL actor'),
         password_hash: 'unused',
         status: 'ENABLED' as const,
         password_changed_at: new Date(),

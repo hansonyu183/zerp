@@ -6,7 +6,7 @@ import { ulid } from 'ulid'
 
 import { createDatabase } from '../../src/db/database.ts'
 import { AccApplicationError, AccService } from '../../src/acc/service.ts'
-import { userPinyin } from '../../src/app/user-pinyin.ts'
+import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { VouService } from '../../src/vou/service.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
@@ -42,7 +42,7 @@ test('ACC restores f856118f subject templates and independent book access scopes
         id,
         username: `acc-scope-${id}`,
         display_name: 'ACC scope actor',
-        py: userPinyin('ACC scope actor'),
+        py: searchPinyin('ACC scope actor'),
         password_hash: 'unused',
         status: 'ENABLED' as const,
         password_changed_at: new Date(),
@@ -241,7 +241,7 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
         id,
         username: `acc-opening-${id}`,
         display_name: 'Opening actor',
-        py: userPinyin('Opening actor'),
+        py: searchPinyin('Opening actor'),
         password_hash: 'unused',
         status: 'ENABLED' as const,
         password_changed_at: now,
@@ -757,7 +757,7 @@ test('ACC book, subjects, Opening and periods keep one transactional fact bounda
         id,
         username: `acc-${id}`,
         display_name: 'ACC actor',
-        py: userPinyin('ACC actor'),
+        py: searchPinyin('ACC actor'),
         password_hash: 'unused',
         status: 'ENABLED' as const,
         password_changed_at: new Date(),
@@ -1359,7 +1359,7 @@ test('ACC automatic inventory posting rejects missing product or warehouse dimen
       id: actorId,
       username: `acc-inventory-${actorId}`,
       display_name: 'ACC inventory actor',
-      py: userPinyin('ACC inventory actor'),
+      py: searchPinyin('ACC inventory actor'),
       password_hash: 'unused',
       status: 'ENABLED',
       password_changed_at: now,
@@ -1580,6 +1580,7 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
     mappingEntryId = ulid()
   const assetDocumentId = ulid(),
     assetEntryId = ulid(),
+    assetCategoryId = ulid(),
     assetSaleDocumentId = ulid(),
     assetSaleEntryId = ulid(),
     inboundDocumentId = ulid(),
@@ -1629,6 +1630,10 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
         .where('id', '=', mappingSubjectId)
         .execute()
       await db
+        .deleteFrom('aux_objects')
+        .where('id', '=', assetCategoryId)
+        .execute()
+      await db
         .deleteFrom('acc_subjects')
         .where('book_id', '=', bookId)
         .execute()
@@ -1646,7 +1651,7 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
       id: actorId,
       username: `acc-effects-${actorId}`,
       display_name: 'ACC effects actor',
-      py: userPinyin('ACC effects actor'),
+      py: searchPinyin('ACC effects actor'),
       password_hash: 'unused',
       status: 'ENABLED',
       password_changed_at: now,
@@ -1813,6 +1818,23 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
     'asset-acquisition',
     'ACQ-TEST',
   )
+  await db
+    .insertInto('aux_objects')
+    .values({
+      id: assetCategoryId,
+      entity: 'asset-category',
+      code: 'ACT-8001',
+      data: {
+        name: '资产类别台账',
+        defaultUsefulLifeMonths: 12,
+        defaultResidualRate: '1.00',
+        description: '',
+      },
+      enabled: true,
+      created_by: actorId,
+      updated_by: actorId,
+    })
+    .execute()
   await db.transaction().execute((tx) =>
     service.apply(tx, {
       kind: 'acc',
@@ -1835,7 +1857,13 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
         assetAcquisitionLines: [
           {
             assetName: 'UN_POST 资产',
-            category: { objectId: ulid() },
+            category: {
+              objectId: assetCategoryId,
+              code: 'ACT-8001',
+              name: '资产类别台账',
+              defaultUsefulLifeMonths: 12,
+              defaultResidualRate: '1.00',
+            },
             originalValue: '100.00',
             usefulLifeMonths: 12,
             residualRate: '0.000000',
@@ -1872,6 +1900,40 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
       db,
     )
   ).rows[0]!.id
+  const expectedCategorySnapshot = {
+    objectId: assetCategoryId,
+    code: 'ACT-8001',
+    name: '资产类别台账',
+    defaultUsefulLifeMonths: 12,
+    defaultResidualRate: '1.00',
+  }
+  const readCategorySnapshot = async () => {
+    const row = await db
+      .selectFrom('acc_asset_registers')
+      .select('payload')
+      .where('id', '=', assetId)
+      .executeTakeFirstOrThrow()
+    return (
+      row.payload as unknown as {
+        acquisition: { category: typeof expectedCategorySnapshot }
+      }
+    ).acquisition.category
+  }
+  assert.deepEqual(await readCategorySnapshot(), expectedCategorySnapshot)
+  await db
+    .updateTable('aux_objects')
+    .set({
+      data: {
+        name: '资产类别台账新名称',
+        defaultUsefulLifeMonths: 120,
+        defaultResidualRate: '3.00',
+        description: '',
+      },
+      enabled: false,
+    })
+    .where('id', '=', assetCategoryId)
+    .execute()
+  assert.deepEqual(await readCategorySnapshot(), expectedCategorySnapshot)
   await db
     .updateTable('dcl_acc_mapping_versions')
     .set({
@@ -2242,7 +2304,7 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
       id: actorId,
       username: `acc-container-${actorId}`,
       display_name: 'ACC container actor',
-      py: userPinyin('ACC container actor'),
+      py: searchPinyin('ACC container actor'),
       password_hash: 'unused',
       status: 'ENABLED',
       password_changed_at: now,

@@ -391,34 +391,37 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   assert.equal(staleUser.errorKey, 'user_changed')
 
   const created = await post('/aux/department/create', {
-    data: { name: '研发部', parentId: '', description: 'Issue 363' },
+    name: '研发部',
+    parentId: '',
+    description: 'Issue 363',
   })
   assert.equal(created.code, 0)
-  createdAuxIds.push(created.data.objectId)
+  createdAuxIds.push(created.data.id)
   const queried = await post('/aux/department/query', {
+    keyword: '研发',
     page: 1,
     pageSize: 20,
-    filters: { keyword: '研发' },
-    sort: [{ field: 'code', order: 'asc' }],
   })
-  assert.equal(queried.data.items[0].data.name, '研发部')
+  assert.equal(queried.data.items[0].name, '研发部')
   const staleAux = await post('/aux/department/save', {
-    objectId: created.data.objectId,
-    objectRevision: Number(created.data.objectRevision) + 1,
-    data: { name: '研发二部', parentId: '', description: 'Issue 363' },
+    id: created.data.id,
+    revision: String(BigInt(created.data.revision) + 1n),
+    name: '研发二部',
+    parentId: '',
+    description: 'Issue 363',
   })
   assert.equal(staleAux.errorKey, 'conflict')
   await db
     .insertInto('aux_reference_facts')
     .values({
       id: `F${suffix}`.padEnd(26, '0'),
-      aux_object_id: created.data.objectId,
+      aux_object_id: created.data.id,
       source: 'dcl_employee_versions',
     })
     .execute()
   const blockedDelete = await post('/aux/department/delete', {
-    objectId: created.data.objectId,
-    objectRevision: Number(created.data.objectRevision),
+    id: created.data.id,
+    revision: created.data.revision,
   })
   assert.equal(blockedDelete.errorKey, 'conflict')
   assert.deepEqual(blockedDelete.data.blockers, [
@@ -434,7 +437,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     dayOffset: 0,
     defaultSalesSurcharge: '0.00',
     description: '',
-  }
+  } as const
   const auxService = new AuxService(db)
   await assert.rejects(
     () =>
@@ -459,28 +462,22 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     settlementMethod,
     { id: principal.userId, permissions: [], trusted: true },
   )
-  createdAuxIds.push(seededSettlementMethod.objectId)
+  createdAuxIds.push(seededSettlementMethod.id)
   const repeatedSettlementMethod = await auxService.ensureE2ESettlementMethod(
     settlementMethod,
     { id: principal.userId, permissions: [], trusted: true },
   )
-  assert.equal(
-    repeatedSettlementMethod.objectId,
-    seededSettlementMethod.objectId,
-  )
-  await assert.rejects(
-    () =>
-      auxService.create(
-        'payment-method',
-        { name: `缺失附加费 ${suffix}`, description: '' },
-        {
-          id: principal.userId,
-          permissions: ['/aux/payment-method/create'],
-        },
-      ),
-    (error) =>
-      error instanceof AuxApplicationError &&
-      error.errorKey === 'validation_failed',
+  assert.equal(repeatedSettlementMethod.id, seededSettlementMethod.id)
+  const defaultPaymentMethod = await auxService.create(
+    'payment-method',
+    {
+      name: `默认附加费 ${suffix}`,
+      description: '',
+    },
+    {
+      id: principal.userId,
+      permissions: ['/aux/payment-method/create'],
+    },
   )
   const paymentMethod = await auxService.create(
     'payment-method',
@@ -505,25 +502,23 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     'dictionary-item',
     {
       name: `E2E 字典项 ${suffix}`,
-      dictionaryTypeId: dictionaryType.objectId,
+      dictionaryTypeId: dictionaryType.id,
       sortOrder: 1,
     },
     { id: principal.userId, permissions: ['/aux/dictionary-item/create'] },
   )
   createdAuxIds.push(
-    paymentMethod.objectId,
-    measurementUnit.objectId,
-    dictionaryType.objectId,
-    dictionaryItem.objectId,
+    defaultPaymentMethod.id,
+    paymentMethod.id,
+    measurementUnit.id,
+    dictionaryType.id,
+    dictionaryItem.id,
   )
   const settlementReferences = await post('/aux/reference/query', {
     entity: 'settlement-method',
     keyword: suffix,
   })
-  assert.equal(
-    settlementReferences.data[0].objectId,
-    seededSettlementMethod.objectId,
-  )
+  assert.equal(settlementReferences.data[0].objectId, seededSettlementMethod.id)
   assert.equal(settlementReferences.data[0].name, settlementMethod.name)
   assert.equal(settlementReferences.data[0].termCode, 'MONTHLY_30')
   assert.equal(settlementReferences.data[0].ruleType, 'MONTH_END')
@@ -533,16 +528,25 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   assert.equal(settlementReferences.data[0].defaultSalesSurcharge, '0.00')
   const paymentReferences = await post('/aux/reference/query', {
     entity: 'payment-method',
-    keyword: suffix,
+    keyword: `E2E 银行转账 ${suffix}`,
   })
-  assert.equal(paymentReferences.data[0].objectId, paymentMethod.objectId)
+  assert.equal(paymentReferences.data[0].objectId, paymentMethod.id)
   assert.equal(paymentReferences.data[0].name, `E2E 银行转账 ${suffix}`)
   assert.equal(paymentReferences.data[0].defaultSalesSurcharge, '0.05')
+  const defaultPaymentReferences = await post('/aux/reference/query', {
+    entity: 'payment-method',
+    keyword: `默认附加费 ${suffix}`,
+  })
+  assert.equal(
+    defaultPaymentReferences.data[0].objectId,
+    defaultPaymentMethod.id,
+  )
+  assert.equal(defaultPaymentReferences.data[0].defaultSalesSurcharge, '0.00')
   const unitReferences = await post('/aux/reference/query', {
     entity: 'measurement-unit',
     keyword: suffix,
   })
-  assert.equal(unitReferences.data[0].objectId, measurementUnit.objectId)
+  assert.equal(unitReferences.data[0].objectId, measurementUnit.id)
   assert.equal(unitReferences.data[0].name, `E2E 千克 ${suffix}`)
   assert.equal(unitReferences.data[0].symbol, 'kg')
   assert.equal(unitReferences.data[0].quantityScale, 3)
@@ -553,7 +557,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   assert.ok(
     dictionaryItemReferences.data.some(
       (candidate: { objectId: string; name: string }) =>
-        candidate.objectId === dictionaryItem.objectId &&
+        candidate.objectId === dictionaryItem.id &&
         candidate.name === `E2E 字典项 ${suffix}`,
     ),
   )
@@ -565,7 +569,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
         description: '',
       }),
     })
-    .where('id', '=', paymentMethod.objectId)
+    .where('id', '=', paymentMethod.id)
     .execute()
   const malformedPaymentReferences = await post('/aux/reference/query', {
     entity: 'payment-method',

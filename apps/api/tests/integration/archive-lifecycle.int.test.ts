@@ -9,8 +9,9 @@ import { sql } from 'kysely'
 import pg from 'pg'
 import { ulid } from 'ulid'
 
+import { AuxApplicationError, AuxService } from '../../src/aux/service.ts'
 import { createDatabase } from '../../src/db/database.ts'
-import { userPinyin } from '../../src/app/user-pinyin.ts'
+import { searchPinyin } from '../../src/platform/pinyin.ts'
 import {
   ArchiveApplicationError,
   ArchiveService,
@@ -90,7 +91,7 @@ test('business-key and referenced-entry locks admit at most one concurrent write
         id,
         username: `archive-lock-${id}`,
         display_name: 'Archive lock test',
-        py: userPinyin('Archive lock test'),
+        py: searchPinyin('Archive lock test'),
         password_hash: 'unused',
         status: 'ENABLED',
         password_changed_at: new Date(),
@@ -341,7 +342,7 @@ test('typed DCL archives persist idempotent V1/V2 lifecycle and derive current f
         id: submitterId,
         username: `archive-submitter-${submitterId}`,
         display_name: 'Archive Submitter',
-        py: userPinyin('Archive Submitter'),
+        py: searchPinyin('Archive Submitter'),
         password_hash: 'unused',
         status: 'ENABLED',
         password_changed_at: new Date(),
@@ -351,7 +352,7 @@ test('typed DCL archives persist idempotent V1/V2 lifecycle and derive current f
         id: reviewerId,
         username: `archive-reviewer-${reviewerId}`,
         display_name: 'Archive Reviewer',
-        py: userPinyin('Archive Reviewer'),
+        py: searchPinyin('Archive Reviewer'),
         password_hash: 'unused',
         status: 'ENABLED',
         password_changed_at: new Date(),
@@ -576,6 +577,10 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
         .where('created_by', '=', submitterId)
         .execute()
       await db.deleteFrom('aux_objects').where('id', 'in', auxIds).execute()
+      await db
+        .deleteFrom('app_audit_events')
+        .where('actor_user_id', '=', submitterId)
+        .execute()
       await sql`DELETE FROM dcl_acc_subject_facts WHERE id = ${accountId}`.execute(
         db,
       )
@@ -605,7 +610,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
         id: submitterId,
         username: `archive-all-submitter-${submitterId}`,
         display_name: 'All Archive Submitter',
-        py: userPinyin('All Archive Submitter'),
+        py: searchPinyin('All Archive Submitter'),
         password_hash: 'unused',
         status: 'ENABLED',
         password_changed_at: new Date(),
@@ -615,7 +620,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
         id: reviewerId,
         username: `archive-all-reviewer-${reviewerId}`,
         display_name: 'All Archive Reviewer',
-        py: userPinyin('All Archive Reviewer'),
+        py: searchPinyin('All Archive Reviewer'),
         password_hash: 'unused',
         status: 'ENABLED',
         password_changed_at: new Date(),
@@ -1917,6 +1922,185 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     for (const submission of [item.latestApproved, item.openCandidate])
       if (submission) assert.ok(!('snapshot' in submission), entity)
   }
+
+  const aux = new AuxService(db)
+  const unitActor = {
+    id: submitterId,
+    permissions: ['get', 'save', 'disable', 'delete'].map(
+      (action) => `/aux/measurement-unit/${action}`,
+    ),
+  }
+  const unitBefore = await aux.get(
+    'measurement-unit',
+    { id: auxIds[3]! },
+    unitActor,
+  )
+  const unitChanged = await aux.save(
+    'measurement-unit',
+    {
+      id: unitBefore.id,
+      revision: unitBefore.revision,
+      name: '新的单位名称',
+      symbol: 'new',
+      quantityScale: 6,
+    },
+    unitActor,
+  )
+  const disabledUnit = await aux.disable(
+    'measurement-unit',
+    { id: unitBefore.id, revision: unitChanged.revision },
+    unitActor,
+    ulid(),
+  )
+  const historicalProduct = await service.get(
+    'product',
+    product.subjectId,
+    reviewer,
+    product.submissionId,
+  )
+  assert.deepEqual(historicalProduct.snapshot.pricingUnit, {
+    id: auxIds[3],
+    code: 'TST-0004',
+    name: '测试引用 4',
+    symbol: 'kg',
+    quantityScale: 3,
+  })
+  await assert.rejects(
+    () =>
+      aux.delete(
+        'measurement-unit',
+        { id: unitBefore.id, revision: disabledUnit.revision },
+        unitActor,
+      ),
+    (error: unknown) => {
+      assert.ok(error instanceof AuxApplicationError)
+      assert.equal(error.errorKey, 'conflict')
+      const { blockers } = error.data as {
+        blockers: Array<{ source: string; count: number }>
+      }
+      assert.ok(
+        blockers.some(
+          (blocker) =>
+            blocker.source === 'dcl_product_versions' && blocker.count > 0,
+        ),
+      )
+      return true
+    },
+  )
+  assert.equal(
+    (await aux.get('measurement-unit', { id: unitBefore.id }, unitActor))
+      .revision,
+    disabledUnit.revision,
+  )
+  const rejectedUnitSubjectId = ulid()
+  subjectIds.push(rejectedUnitSubjectId)
+  await assert.rejects(
+    service.submit(
+      'product',
+      'submit-new',
+      {
+        subjectId: rejectedUnitSubjectId,
+        submissionId: ulid(),
+        idempotencyKey: ulid(),
+        expectedLatestApprovedSubmissionId: null,
+        expectedLatestApprovedRevision: null,
+        snapshot: { ...formulaSnapshot, barcode: 'disabled-unit-387' },
+      },
+      submitter,
+      ulid(),
+    ),
+    (error: unknown) =>
+      error instanceof ArchiveApplicationError &&
+      error.errorKey === 'product_reference_unavailable',
+  )
+  const auxActor = {
+    id: submitterId,
+    permissions: [
+      '/aux/payment-method/get',
+      '/aux/payment-method/save',
+      '/aux/payment-method/disable',
+    ],
+  }
+  const paymentBefore = await aux.get(
+    'payment-method',
+    { id: auxIds[9]! },
+    auxActor,
+  )
+  const paymentChanged = await aux.save(
+    'payment-method',
+    {
+      id: paymentBefore.id,
+      revision: paymentBefore.revision,
+      name: '新收款名称',
+      defaultSalesSurcharge: '0.06',
+      description: '',
+    },
+    auxActor,
+  )
+  const paymentDisabled = await aux.disable(
+    'payment-method',
+    { id: paymentBefore.id, revision: paymentChanged.revision },
+    auxActor,
+    ulid(),
+  )
+  assert.equal(paymentDisabled.enabled, false)
+  const rejectedCustomerSubjectId = ulid()
+  const rejectedCustomerSubmissionId = ulid()
+  subjectIds.push(rejectedCustomerSubjectId)
+  await assert.rejects(
+    service.submit(
+      'customer',
+      'submit-new',
+      {
+        subjectId: rejectedCustomerSubjectId,
+        submissionId: rejectedCustomerSubmissionId,
+        idempotencyKey: rejectedCustomerSubmissionId,
+        expectedLatestApprovedSubmissionId: null,
+        expectedLatestApprovedRevision: null,
+        snapshot: {
+          ...customerSnapshot,
+          legalName: '不得采用停用收款方式',
+          displayName: '不得采用停用收款方式',
+          legalIdentifier: 'CUSTOMER-DISABLED-AUX-001',
+          identityAttachments: [],
+          subunits: customerSnapshot.subunits.map((subunit) => ({
+            ...subunit,
+            id: ulid(),
+          })),
+        },
+      },
+      submitter,
+      ulid(),
+    ),
+    (error: unknown) =>
+      error instanceof ArchiveApplicationError &&
+      error.errorKey === 'customer_invalid_data',
+  )
+  const historicalCustomer = await service.get(
+    'customer',
+    customer.subjectId,
+    reviewer,
+    customer.submissionId,
+  )
+  const historicalSubunit = (
+    historicalCustomer.snapshot.subunits as Array<Record<string, unknown>>
+  )[0]!
+  assert.deepEqual(
+    historicalSubunit.paymentMethod,
+    customerSubunit.paymentMethod,
+  )
+  assert.deepEqual(
+    historicalSubunit.settlementMethod,
+    customerSubunit.settlementMethod,
+  )
+  const paymentAfter = await aux.get(
+    'payment-method',
+    { id: paymentBefore.id },
+    auxActor,
+  )
+  assert.equal(paymentAfter.enabled, false)
+  assert.equal(paymentAfter.revision, paymentDisabled.revision)
+  assert.equal(paymentAfter.defaultSalesSurcharge, '0.06')
 
   const duplicateSubjectId = ulid()
   const duplicateSubmissionId = ulid()

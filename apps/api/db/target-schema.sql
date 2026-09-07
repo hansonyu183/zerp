@@ -768,6 +768,19 @@ CREATE TABLE vou_sale_order_details (
     business_date date NOT NULL,
     currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
     total_amount_minor bigint NOT NULL,
+    payment_method_id varchar(26),
+    payment_method_code varchar(64),
+    payment_method_name varchar(200),
+    payment_method_sales_surcharge_minor bigint CHECK (payment_method_sales_surcharge_minor >= 0),
+    payment_method_selection_origin varchar(16) CHECK (payment_method_selection_origin IN ('CUSTOMER', 'CURRENT')),
+    CHECK (
+        (payment_method_id IS NULL AND payment_method_code IS NULL
+            AND payment_method_name IS NULL AND payment_method_sales_surcharge_minor IS NULL
+            AND payment_method_selection_origin IS NULL)
+        OR (payment_method_id IS NOT NULL AND payment_method_code IS NOT NULL
+            AND payment_method_name IS NOT NULL AND payment_method_sales_surcharge_minor IS NOT NULL
+            AND payment_method_selection_origin IS NOT NULL)
+    ),
     credit_limit numeric(24, 8),
     credit_occupancy_before numeric(24, 8),
     credit_order_amount numeric(24, 8),
@@ -1224,6 +1237,10 @@ CREATE TABLE vou_product_line_snapshots (
     line_id varchar(26) NOT NULL CHECK (line_id ~ '^[0-9A-HJKMNP-TV-Z]{26}$'),
     entered_quantity_micros bigint NOT NULL,
     entered_unit_id varchar(26) NOT NULL,
+    entered_unit_code varchar(64) NOT NULL,
+    entered_unit_name varchar(200) NOT NULL,
+    entered_unit_symbol varchar(64) NOT NULL,
+    entered_unit_quantity_scale integer NOT NULL CHECK (entered_unit_quantity_scale BETWEEN 0 AND 6),
     base_quantity_micros bigint NOT NULL,
     unit_price_minor bigint NOT NULL,
     settlement_surcharge_minor bigint,
@@ -1237,9 +1254,30 @@ CREATE TABLE vou_product_line_snapshots (
     formula_source_document_no varchar(32),
     formula_output_entered_quantity_micros bigint,
     formula_output_entered_unit_id varchar(26),
+    formula_output_entered_unit_code varchar(64),
+    formula_output_entered_unit_name varchar(200),
+    formula_output_entered_unit_symbol varchar(64),
+    formula_output_entered_unit_quantity_scale integer CHECK (formula_output_entered_unit_quantity_scale BETWEEN 0 AND 6),
     formula_output_base_quantity_micros bigint,
     PRIMARY KEY (approval_entry_id, line_no),
-    UNIQUE (approval_entry_id, line_id)
+    UNIQUE (approval_entry_id, line_id),
+    CHECK (
+        (formula_output_entered_quantity_micros IS NULL
+            AND formula_output_entered_unit_id IS NULL
+            AND formula_output_entered_unit_code IS NULL
+            AND formula_output_entered_unit_name IS NULL
+            AND formula_output_entered_unit_symbol IS NULL
+            AND formula_output_entered_unit_quantity_scale IS NULL
+            AND formula_output_base_quantity_micros IS NULL)
+        OR
+        (formula_output_entered_quantity_micros IS NOT NULL
+            AND formula_output_entered_unit_id IS NOT NULL
+            AND formula_output_entered_unit_code IS NOT NULL
+            AND formula_output_entered_unit_name IS NOT NULL
+            AND formula_output_entered_unit_symbol IS NOT NULL
+            AND formula_output_entered_unit_quantity_scale IS NOT NULL
+            AND formula_output_base_quantity_micros IS NOT NULL)
+    )
 );
 
 CREATE TABLE vou_formula_component_snapshots (
@@ -1249,6 +1287,10 @@ CREATE TABLE vou_formula_component_snapshots (
     material_id varchar(26) NOT NULL,
     entered_quantity_micros bigint NOT NULL,
     entered_unit_id varchar(26) NOT NULL,
+    entered_unit_code varchar(64) NOT NULL,
+    entered_unit_name varchar(200) NOT NULL,
+    entered_unit_symbol varchar(64) NOT NULL,
+    entered_unit_quantity_scale integer NOT NULL CHECK (entered_unit_quantity_scale BETWEEN 0 AND 6),
     base_quantity_micros bigint NOT NULL,
     PRIMARY KEY (approval_entry_id, line_no, component_no),
     FOREIGN KEY (approval_entry_id, line_no) REFERENCES vou_product_line_snapshots(approval_entry_id, line_no) ON DELETE CASCADE
@@ -1342,6 +1384,8 @@ CREATE TABLE vou_asset_acquisition_line_snapshots (
     asset_name varchar(200) NOT NULL,
     specification varchar(200),
     original_value_minor bigint NOT NULL,
+    category_default_useful_life_months integer NOT NULL CHECK (category_default_useful_life_months BETWEEN 1 AND 1200),
+    category_default_residual_rate_hundredths bigint NOT NULL CHECK (category_default_residual_rate_hundredths BETWEEN 0 AND 9999),
     useful_life_months integer NOT NULL,
     residual_rate_micros bigint NOT NULL,
     location varchar(200),

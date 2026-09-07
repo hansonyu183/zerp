@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { expect, test, type Page } from '@playwright/test'
+import { modelBuildId } from '@zerp/model'
 
 const targetE2ERoleName = 'Target E2E Role'
 const targetE2ERoleText = `${process.env.TARGET_E2E_USERNAME!} · ${targetE2ERoleName}`
@@ -36,6 +37,83 @@ async function openUserManagement(page: Page): Promise<void> {
   await expect(page.getByTestId('business-unimplemented')).toHaveCount(0)
 }
 
+async function openRoleManagement(page: Page): Promise<void> {
+  const drawer = page.locator('.v-navigation-drawer')
+  if (
+    !(await drawer.getAttribute('class'))?.includes(
+      'v-navigation-drawer--active',
+    )
+  )
+    await page.getByRole('button', { name: '切换导航', exact: true }).click()
+  await expect(drawer).toHaveClass(/v-navigation-drawer--active/)
+  const closed = drawer.locator(
+    '.v-list-group:not(.v-list-group--open) > .v-list-group__header',
+  )
+  while (await closed.count()) await closed.first().click()
+  await drawer.locator('a[href="/app/role"]').click()
+  await expect(
+    page.getByLabel('编码、拼音或名称', { exact: true }),
+  ).toBeVisible()
+  await expect(page.getByTestId('business-unimplemented')).toHaveCount(0)
+}
+
+async function toggleVirtualOption(page: Page, title: string): Promise<void> {
+  const option = page.getByRole('option').filter({ hasText: title })
+  const options = page.getByRole('listbox')
+  const chip = page
+    .getByRole('dialog')
+    .locator('.v-chip')
+    .filter({ hasText: title })
+  let wasSelected = false
+  await expect(options).toBeVisible()
+  // Vuetify only mounts the visible portion of long option lists.
+  await options.evaluate((element) => {
+    element.scrollTop = 0
+  })
+  await expect(async () => {
+    if (!(await option.count())) {
+      await options.evaluate((element) => {
+        element.scrollTop += element.clientHeight
+      })
+      throw new Error(`permission option is not mounted yet: ${title}`)
+    }
+    wasSelected = (await option.getAttribute('aria-selected')) === 'true'
+    await option.evaluate((element) => (element as HTMLElement).click())
+  }).toPass({ timeout: 15_000, intervals: [50] })
+  await expect(chip).toHaveCount(wasSelected ? 0 : 1)
+}
+
+async function closeOpenListbox(page: Page): Promise<void> {
+  const listbox = page.locator('[role="listbox"]:visible')
+  if (!(await listbox.count())) return
+  await page.keyboard.press('Escape')
+  await expect(listbox).toHaveCount(0)
+}
+
+async function createRole(
+  page: Page,
+  input: { name: string; permissionText: string },
+): Promise<void> {
+  await page.getByRole('button', { name: '新增角色', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  await dialog.getByLabel('名称', { exact: true }).fill(input.name)
+  await dialog.locator('.v-select .v-field').click()
+  await toggleVirtualOption(page, input.permissionText)
+  await closeOpenListbox(page)
+  await dialog.getByRole('button', { name: '保存', exact: true }).click()
+  await expect(dialog).toHaveCount(0)
+}
+
+async function findRoleRow(page: Page, name: string) {
+  const keyword = page.getByLabel('编码、拼音或名称', { exact: true })
+  await keyword.fill(name)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  const row = page.getByRole('row').filter({ hasText: name })
+  await expect(row).toBeVisible()
+  return row
+}
+
 async function createUser(
   page: Page,
   input: { code: string; name: string; password: string },
@@ -51,7 +129,7 @@ async function createUser(
     .filter({ hasText: targetE2ERoleText })
   await expect(targetE2ERole).toHaveCount(1)
   await targetE2ERole.click()
-  await page.keyboard.press('Escape')
+  await closeOpenListbox(page)
   await dialog.getByLabel('初始密码', { exact: true }).fill(input.password)
   await dialog.getByRole('button', { name: '保存', exact: true }).click()
   await expect(dialog).toHaveCount(0)
@@ -287,5 +365,167 @@ test('user list and reused editor remain usable at desktop and 390px in both the
     } finally {
       await context.close()
     }
+  }
+})
+
+test('role management creates, edits and changes enablement at desktop and 390px', async ({
+  browser,
+}) => {
+  test.setTimeout(120_000)
+  const directory = resolve(process.cwd(), '..', '.scratch', 'issue-385-role')
+  mkdirSync(directory, { recursive: true })
+
+  for (const width of [1280, 390]) {
+    const roleName = `角色页-${width}-${randomBytes(6).toString('hex')}`
+    const updatedName = `${roleName}-已编辑`
+    const context = await browser.newContext({
+      viewport: { width, height: width === 390 ? 844 : 800 },
+    })
+    try {
+      const page = await context.newPage()
+      await signIn(page)
+      await openRoleManagement(page)
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true)
+
+      if (width === 390) {
+        await expect(
+          page.getByRole('button', { name: '新增角色', exact: true }),
+        ).toBeVisible()
+        await page.screenshot({
+          animations: 'disabled',
+          path: resolve(directory, '390-list.png'),
+        })
+      }
+      await createRole(page, {
+        name: roleName,
+        permissionText: '系统管理 · 用户管理 · 新增',
+      })
+      const row = await findRoleRow(page, roleName)
+      await row.getByRole('button', { name: '编辑', exact: true }).click()
+      const dialog = page.getByRole('dialog')
+      await expect(dialog.getByLabel('权限', { exact: true })).toBeEnabled()
+      if (width === 390)
+        await page.screenshot({
+          animations: 'disabled',
+          path: resolve(directory, '390-editor.png'),
+        })
+      await dialog.getByLabel('名称', { exact: true }).fill(updatedName)
+      await dialog.getByRole('button', { name: '保存', exact: true }).click()
+      await expect(dialog).toHaveCount(0)
+      const updated = await findRoleRow(page, updatedName)
+      await updated.getByRole('button', { name: '停用', exact: true }).click()
+      await expect(
+        updated.getByRole('button', { name: '启用', exact: true }),
+      ).toBeVisible()
+      await updated.getByRole('button', { name: '启用', exact: true }).click()
+      await expect(
+        updated.getByRole('button', { name: '停用', exact: true }),
+      ).toBeVisible()
+    } finally {
+      await context.close()
+    }
+  }
+})
+
+test('a role with one non-query permission grants the menu without an overbroad request and is revoked on Session restore', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(120_000)
+  const suffix = randomBytes(6).toString('hex')
+  const roleName = `单项权限-${suffix}`
+  const userCode = `role-ui-${suffix}`
+  const initialPassword = password()
+  const changedPassword = password()
+
+  await signIn(page)
+  await openRoleManagement(page)
+  await createRole(page, {
+    name: roleName,
+    permissionText: '系统管理 · 用户管理 · 查看',
+  })
+  await openUserManagement(page)
+  await createUser(page, {
+    code: userCode,
+    name: '角色权限测试用户',
+    password: initialPassword,
+  })
+
+  const row = await findUserRow(page, userCode)
+  await row.getByRole('button', { name: '编辑', exact: true }).click()
+  const editor = page.getByRole('dialog')
+  await expect(editor.getByRole('combobox', { name: '角色' })).toBeEnabled()
+  await editor.getByRole('combobox', { name: '角色' }).press('ArrowDown')
+  await toggleVirtualOption(page, targetE2ERoleText)
+  await toggleVirtualOption(page, roleName)
+  await closeOpenListbox(page)
+  await editor.getByRole('button', { name: '保存', exact: true }).click()
+  await expect(editor).toHaveCount(0)
+
+  const userContext = await browser.newContext()
+  try {
+    const userPage = await userContext.newPage()
+    await signIn(userPage, userCode, initialPassword)
+    await completeRequiredPasswordChange(
+      userPage,
+      initialPassword,
+      changedPassword,
+    )
+    await signIn(userPage, userCode, changedPassword)
+    const requests: string[] = []
+    userPage.on('request', (request) => requests.push(request.url()))
+    await userPage.goto('/app/user')
+    await expect(
+      userPage.locator('.management-page .v-card-title'),
+    ).toContainText('用户管理')
+    await expect(userPage.locator('a[href="/app/user"]')).toHaveCount(1)
+    expect(requests.some((url) => url.endsWith('/app/user/query'))).toBe(false)
+
+    const restored = await userPage.request.post(
+      `${process.env.TARGET_API_BASE_URL}/session/auth/restore`,
+      { data: {}, headers: { 'X-ZERP-Model-Build': modelBuildId } },
+    )
+    const restoreBody = (await restored.json()) as {
+      code: number
+      data?: { csrfToken: string; user: { id: string } }
+    }
+    expect(restoreBody.code).toBe(0)
+    const csrfToken = restoreBody.data!.csrfToken
+    const userId = restoreBody.data!.user.id
+
+    await openRoleManagement(page)
+    const roleRow = await findRoleRow(page, roleName)
+    await roleRow.getByRole('button', { name: '停用', exact: true }).click()
+    await expect(
+      roleRow.getByRole('button', { name: '启用', exact: true }),
+    ).toBeVisible()
+
+    const revokedGet = await userPage.request.post(
+      `${process.env.TARGET_API_BASE_URL}/app/user/get`,
+      {
+        data: { id: userId },
+        headers: {
+          'X-CSRF-Token': csrfToken,
+          'X-ZERP-Model-Build': modelBuildId,
+        },
+      },
+    )
+    const revokedBody = (await revokedGet.json()) as {
+      code: number
+      errorKey: string
+    }
+    expect(revokedBody.code).not.toBe(0)
+    expect(revokedBody.errorKey).toBe('forbidden')
+
+    await userPage.reload()
+    await expect(userPage.locator('a[href="/app/user"]')).toHaveCount(0)
+    await userPage.goto('/app/user')
+    await expect(userPage.getByText('无权访问', { exact: true })).toBeVisible()
+  } finally {
+    await userContext.close()
   }
 })

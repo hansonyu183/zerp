@@ -6,7 +6,8 @@ import { ulid } from 'ulid'
 
 import type { DB } from '../db/generated.ts'
 import { AppServiceError, hashPassword, type Principal } from './session.ts'
-import { userPinyin } from './user-pinyin.ts'
+import { searchPinyin } from '../platform/pinyin.ts'
+import { changeEnablement } from '../enablement/service.ts'
 
 const systemUserId = '01JAPPSYST3MACTR0000000000'
 const superadminCode = 'superadmin'
@@ -42,7 +43,7 @@ export interface PageInput {
   sort?: Array<{ field: string; order: 'asc' | 'desc' }>
 }
 
-export interface UserQueryInput {
+export interface ManagementQueryInput {
   keyword: string
   page: number
   pageSize: 20
@@ -67,7 +68,7 @@ export class ManagementService {
     this.passwordMinLength = options.passwordMinLength
   }
 
-  async queryUsers(input: UserQueryInput, principal: Principal) {
+  async queryUsers(input: ManagementQueryInput, principal: Principal) {
     this.require(principal, '/app/user/query')
     const page = this.page(input, 20)
     const keyword = this.search(input.keyword)
@@ -156,7 +157,7 @@ export class ManagementService {
           id,
           username,
           display_name: displayName,
-          py: userPinyin(displayName),
+          py: searchPinyin(displayName),
           password_hash: await hashPassword(input.password),
           status: 'ENABLED',
           password_change_required: true,
@@ -225,7 +226,7 @@ export class ManagementService {
         .updateTable('app_users')
         .set({
           display_name: displayName,
-          py: userPinyin(displayName),
+          py: searchPinyin(displayName),
           updated_at: new Date(),
           updated_by: principal.user.id,
           revision: sql`revision + 1`,
@@ -257,7 +258,7 @@ export class ManagementService {
     requestId: string,
   ) {
     this.id(input.id)
-    const revision = this.revision(input.revision)
+    this.revision(input.revision)
     this.require(
       principal,
       status === 'ENABLED' ? '/app/user/enable' : '/app/user/disable',
@@ -265,44 +266,69 @@ export class ManagementService {
     return this.db.transaction().execute(async (tx) => {
       await this.lock(tx)
       await this.assertCurrentActor(tx, principal)
-      const target = await tx
-        .selectFrom('app_users')
-        .selectAll()
-        .where('id', '=', input.id)
-        .forUpdate()
-        .executeTakeFirst()
-      if (!target) throw new AppServiceError('not_found', 'user not found')
-      if (target.id === systemUserId || target.id === principal.user.id)
-        throw new AppServiceError('conflict', 'cannot change this user status')
-      if (!(await this.userManageable(target.id, principal, tx)))
-        throw new AppServiceError('forbidden', 'user cannot be maintained')
-      if (target.status === status)
-        throw new AppServiceError('conflict', 'user status is unchanged')
-      const updated = await tx
-        .updateTable('app_users')
-        .set({
-          status,
-          updated_at: new Date(),
-          updated_by: principal.user.id,
-          revision: sql`revision + 1`,
-        })
-        .where('id', '=', target.id)
-        .where('revision', '=', String(revision))
-        .executeTakeFirst()
-      if (Number(updated.numUpdatedRows) !== 1)
-        throw new AppServiceError('user_changed', 'user revision conflict')
-      if (status === 'DISABLED')
-        await this.revokeUserSessions(tx, target.id, 'user_disabled')
-      await this.ensureAuthorizationSafety(tx)
-      await this.audit(
+      await changeEnablement(
         tx,
-        `USER_${status}`,
-        principal.user.id,
-        'user',
-        target.id,
-        requestId,
+        { ...input, enabled: status === 'ENABLED' },
+        {
+          domain: 'app',
+          entity: 'user',
+          actorId: principal.user.id,
+          requestId,
+          eventType: `USER_${status}`,
+          changedError: 'user_changed',
+        },
+        {
+          read: async (storeTx, id) => {
+            const row = await storeTx
+              .selectFrom('app_users')
+              .selectAll()
+              .where('id', '=', id)
+              .forUpdate()
+              .executeTakeFirst()
+            return row
+              ? {
+                  id: row.id,
+                  enabled: row.status === 'ENABLED',
+                  revision: String(row.revision),
+                }
+              : undefined
+          },
+          write: async (storeTx, current, enabled, revision) => {
+            const updated = await storeTx
+              .updateTable('app_users')
+              .set({
+                status: enabled ? 'ENABLED' : 'DISABLED',
+                revision,
+                updated_at: new Date(),
+                updated_by: principal.user.id,
+              })
+              .where('id', '=', current.id)
+              .where('revision', '=', current.revision)
+              .executeTakeFirst()
+            return updated.numUpdatedRows === 1n
+          },
+        },
+        {
+          beforeWrite: async (current) => {
+            if (current.id === systemUserId || current.id === principal.user.id)
+              throw new AppServiceError(
+                'conflict',
+                'cannot change this user status',
+              )
+            if (!(await this.userManageable(current.id, principal, tx)))
+              throw new AppServiceError(
+                'forbidden',
+                'user cannot be maintained',
+              )
+          },
+          afterWrite: async (current) => {
+            if (status === 'DISABLED')
+              await this.revokeUserSessions(tx, current.id, 'user_disabled')
+            await this.ensureAuthorizationSafety(tx)
+          },
+        },
       )
-      return this.userDetail(target.id, principal, tx)
+      return this.userDetail(input.id, principal, tx)
     })
   }
 
@@ -364,48 +390,30 @@ export class ManagementService {
     return { temporaryPassword }
   }
 
-  async queryRoles(input: PageInput, principal: Principal) {
+  async queryRoles(input: ManagementQueryInput, principal: Principal) {
     this.require(principal, '/app/role/query')
     const page = this.page(input, 20)
-    const status = this.optionalStatus(input.filters?.status)
-    const search = this.optionalSearch(input.filters?.search)
+    const keyword = this.search(input.keyword).toLowerCase()
     const rows = await this.db
       .selectFrom('app_roles')
       .selectAll()
-      .$if(Boolean(status), (qb) => qb.where('status', '=', status!))
-      .$if(Boolean(search), (qb) =>
-        qb.where((eb) =>
-          eb.or([
-            eb('code', 'ilike', `%${search}%`),
-            eb('name', 'ilike', `%${search}%`),
-          ]),
-        ),
-      )
       .orderBy('code', 'asc')
       .orderBy('id', 'asc')
-      .offset((page.page - 1) * 20)
-      .limit(20)
       .execute()
-    const count = await this.db
-      .selectFrom('app_roles')
-      .select((eb) => eb.fn.countAll<string>().as('count'))
-      .$if(Boolean(status), (qb) => qb.where('status', '=', status!))
-      .$if(Boolean(search), (qb) =>
-        qb.where((eb) =>
-          eb.or([
-            eb('code', 'ilike', `%${search}%`),
-            eb('name', 'ilike', `%${search}%`),
-          ]),
-        ),
-      )
-      .executeTakeFirstOrThrow()
+    const matches = rows.filter((role) =>
+      [role.code, searchPinyin(role.name), role.name].some((value) =>
+        value.toLowerCase().includes(keyword),
+      ),
+    )
     return {
       items: await Promise.all(
-        rows.map((row) => this.roleListItem(row, principal)),
+        matches
+          .slice((page.page - 1) * 20, page.page * 20)
+          .map((row) => this.roleListItem(row, principal)),
       ),
-      total: Number(count.count),
+      total: matches.length,
       page: page.page,
-      pageSize: 20,
+      pageSize: 20 as const,
     }
   }
 
@@ -431,18 +439,17 @@ export class ManagementService {
     requestId: string,
   ) {
     this.require(principal, '/app/role/create')
-    this.require(principal, '/app/permission/query')
     const name = this.displayName(input.name)
     const permissionIds = this.ids(input.permissionIds, 'permission')
     const id = ulid()
-    await this.db.transaction().execute(async (tx) => {
+    return this.db.transaction().execute(async (tx) => {
       await this.lock(tx)
       await this.assertCurrentActor(tx, principal)
       await this.assertPermissionSet(tx, permissionIds, principal)
       const existing = await tx
         .selectFrom('app_roles')
         .select('id')
-        .where(sql`lower(name)`, '=', name.toLowerCase())
+        .where(sql`lower(btrim(name))`, '=', name.toLowerCase())
         .executeTakeFirst()
       if (existing)
         throw new AppServiceError(
@@ -476,8 +483,13 @@ export class ManagementService {
         requestId,
         { permissionCount: permissionIds.length },
       )
+      const role = await tx
+        .selectFrom('app_roles')
+        .selectAll()
+        .where('id', '=', id)
+        .executeTakeFirstOrThrow()
+      return this.roleDetail(role, principal, tx)
     })
-    return this.getRole(id, principal)
   }
 
   async saveRole(
@@ -486,18 +498,17 @@ export class ManagementService {
       name: string
       description?: string | null
       permissionIds: string[]
-      revision: string | number
+      revision: string
     },
     principal: Principal,
     requestId: string,
   ) {
     this.require(principal, '/app/role/save')
-    this.require(principal, '/app/permission/query')
     this.id(input.id)
     const name = this.displayName(input.name)
     const revision = this.revision(input.revision)
     const permissionIds = this.ids(input.permissionIds, 'permission')
-    await this.db.transaction().execute(async (tx) => {
+    return this.db.transaction().execute(async (tx) => {
       await this.lock(tx)
       await this.assertCurrentActor(tx, principal)
       const role = await tx
@@ -507,13 +518,15 @@ export class ManagementService {
         .forUpdate()
         .executeTakeFirst()
       if (!role) throw new AppServiceError('not_found', 'role not found')
+      if (BigInt(role.revision) !== revision)
+        throw new AppServiceError('role_changed', 'role revision conflict')
       if (!(await this.roleManageable(role, principal, tx)))
         throw new AppServiceError('forbidden', 'role cannot be maintained')
       await this.assertPermissionSet(tx, permissionIds, principal)
       const duplicate = await tx
         .selectFrom('app_roles')
         .select('id')
-        .where(sql`lower(name)`, '=', name.toLowerCase())
+        .where(sql`lower(btrim(name))`, '=', name.toLowerCase())
         .where('id', '!=', role.id)
         .executeTakeFirst()
       if (duplicate)
@@ -551,58 +564,93 @@ export class ManagementService {
         requestId,
         { permissionCount: permissionIds.length },
       )
+      const current = await tx
+        .selectFrom('app_roles')
+        .selectAll()
+        .where('id', '=', input.id)
+        .executeTakeFirstOrThrow()
+      return this.roleDetail(current, principal, tx)
     })
-    return this.getRole(input.id, principal)
   }
 
   async setRoleStatus(
-    input: { id: string; revision: string | number },
+    input: { id: string; revision: string },
     status: Status,
     principal: Principal,
     requestId: string,
   ) {
     this.id(input.id)
-    const revision = this.revision(input.revision)
+    this.revision(input.revision)
     this.require(
       principal,
       status === 'ENABLED' ? '/app/role/enable' : '/app/role/disable',
     )
-    await this.db.transaction().execute(async (tx) => {
+    return this.db.transaction().execute(async (tx) => {
       await this.lock(tx)
       await this.assertCurrentActor(tx, principal)
+      await changeEnablement(
+        tx,
+        { ...input, enabled: status === 'ENABLED' },
+        {
+          domain: 'app',
+          entity: 'role',
+          actorId: principal.user.id,
+          requestId,
+          eventType: `ROLE_${status}`,
+          changedError: 'role_changed',
+        },
+        {
+          read: async (storeTx, id) => {
+            const row = await storeTx
+              .selectFrom('app_roles')
+              .selectAll()
+              .where('id', '=', id)
+              .forUpdate()
+              .executeTakeFirst()
+            return row
+              ? {
+                  id: row.id,
+                  enabled: row.status === 'ENABLED',
+                  revision: String(row.revision),
+                  code: row.code,
+                }
+              : undefined
+          },
+          write: async (storeTx, current, enabled, revision) => {
+            const updated = await storeTx
+              .updateTable('app_roles')
+              .set({
+                status: enabled ? 'ENABLED' : 'DISABLED',
+                revision,
+                updated_at: new Date(),
+                updated_by: principal.user.id,
+              })
+              .where('id', '=', current.id)
+              .where('revision', '=', current.revision)
+              .executeTakeFirst()
+            return updated.numUpdatedRows === 1n
+          },
+        },
+        {
+          beforeWrite: async (current) => {
+            if (!(await this.roleManageable(current, principal, tx)))
+              throw new AppServiceError(
+                'forbidden',
+                'role cannot be maintained',
+              )
+          },
+          afterWrite: async () => {
+            await this.ensureAuthorizationSafety(tx)
+          },
+        },
+      )
       const role = await tx
         .selectFrom('app_roles')
         .selectAll()
         .where('id', '=', input.id)
-        .forUpdate()
-        .executeTakeFirst()
-      if (!role) throw new AppServiceError('not_found', 'role not found')
-      if (!(await this.roleManageable(role, principal, tx)))
-        throw new AppServiceError('forbidden', 'role cannot be maintained')
-      const updated = await tx
-        .updateTable('app_roles')
-        .set({
-          status,
-          updated_at: new Date(),
-          updated_by: principal.user.id,
-          revision: sql`revision + 1`,
-        })
-        .where('id', '=', role.id)
-        .where('revision', '=', String(revision))
-        .executeTakeFirst()
-      if (Number(updated.numUpdatedRows) !== 1)
-        throw new AppServiceError('role_changed', 'role revision conflict')
-      await this.ensureAuthorizationSafety(tx)
-      await this.audit(
-        tx,
-        `ROLE_${status}`,
-        principal.user.id,
-        'role',
-        role.id,
-        requestId,
-      )
+        .executeTakeFirstOrThrow()
+      return this.roleDetail(role, principal, tx)
     })
-    return this.getRole(input.id, principal)
   }
 
   async queryPermissions(input: PageInput, principal: Principal) {
@@ -892,10 +940,12 @@ export class ManagementService {
     return unique
   }
   private revision(value: string | number) {
-    const parsed = BigInt(value)
-    if (parsed < 1n)
+    if (
+      (typeof value === 'string' && !/^[1-9]\d*$/.test(value)) ||
+      (typeof value === 'number' && (!Number.isSafeInteger(value) || value < 1))
+    )
       throw new AppServiceError('validation_failed', 'invalid revision')
-    return parsed
+    return BigInt(value)
   }
   private username(value: string) {
     const result = value.trim().toLowerCase()
@@ -1278,7 +1328,7 @@ export class ManagementService {
           id: role.id,
           code: role.code,
           name: role.name,
-          status: role.status,
+          enabled: role.status === 'ENABLED',
           type:
             role.code === superadminCode
               ? 'SUPERADMIN'
@@ -1295,14 +1345,19 @@ export class ManagementService {
         principal.apiPaths.includes('/app/role/query'),
     }
   }
-  private async roleListItem(role: RoleRow, principal: Principal) {
-    const manageable = await this.roleManageable(role, principal, this.db)
+  private async roleListItem(
+    role: RoleRow,
+    principal: Principal,
+    tx: AnyDb = this.db,
+  ) {
+    const manageable = await this.roleManageable(role, principal, tx)
     return {
       id: role.id,
       code: role.code,
       name: role.name,
       description: role.description,
-      status: role.status,
+      enabled: role.status === 'ENABLED',
+      py: searchPinyin(role.name),
       type:
         role.code === superadminCode
           ? 'SUPERADMIN'
@@ -1311,29 +1366,32 @@ export class ManagementService {
             : 'NORMAL',
       revision: String(role.revision),
       manageable,
-      assignable: await this.roleAssignable(role, principal, this.db),
+      assignable: await this.roleAssignable(role, principal, tx),
       availableActions: [
-        principal.apiPaths.includes('/app/role/get') && 'VIEW',
-        manageable && principal.apiPaths.includes('/app/role/save') && 'EDIT',
+        manageable && principal.apiPaths.includes('/app/role/save') && 'edit',
         manageable &&
           role.status === 'DISABLED' &&
           principal.apiPaths.includes('/app/role/enable') &&
-          'ENABLE',
+          'enable',
         manageable &&
           role.status === 'ENABLED' &&
           principal.apiPaths.includes('/app/role/disable') &&
-          'DISABLE',
+          'disable',
       ].filter(Boolean),
     }
   }
-  private async roleDetail(role: RoleRow, principal: Principal) {
+  private async roleDetail(
+    role: RoleRow,
+    principal: Principal,
+    tx: AnyDb = this.db,
+  ) {
     return {
-      ...(await this.roleListItem(role, principal)),
+      ...(await this.roleListItem(role, principal, tx)),
       createdAt: role.created_at.toISOString(),
       updatedAt: role.updated_at.toISOString(),
       permissions:
         role.code === superadminCode
-          ? await this.db
+          ? await tx
               .selectFrom('app_permissions')
               .select([
                 'id',
@@ -1347,7 +1405,7 @@ export class ManagementService {
               .where('status', '=', 'ENABLED')
               .orderBy('path', 'asc')
               .execute()
-          : await this.rolePermissions(this.db, role.id, true),
+          : await this.rolePermissions(tx, role.id, true),
     }
   }
   private async directRoleCount(permissionId: string) {

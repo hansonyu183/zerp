@@ -27,7 +27,7 @@ describe('business resource registry', () => {
     expect(registry.resolve('app', 'role')).toBeNull()
   })
 
-  it('keeps the target domain matrix fixed and registers the completed user slice', () => {
+  it('keeps the target domain matrix fixed and registers the completed APP and AUX slices', () => {
     expect(targetDomainCapabilities).toEqual({
       session: { approval: false, businessVersion: false, enabled: false },
       bob: { approval: true, businessVersion: true, enabled: true },
@@ -47,7 +47,44 @@ describe('business resource registry', () => {
         enabled: true,
       },
     })
-    expect(targetResourceRegistry.resolve('app', 'role')).toBeNull()
+    expect(targetResourceRegistry.resolve('app', 'role')).toMatchObject({
+      domain: 'app',
+      entity: 'role',
+      capabilities: {
+        approval: false,
+        businessVersion: false,
+        enabled: true,
+      },
+    })
+    expect(
+      targetResourceRegistry.resolve('aux', 'employee-category'),
+    ).toMatchObject({
+      domain: 'aux',
+      entity: 'employee-category',
+      capabilities: {
+        approval: false,
+        businessVersion: false,
+        enabled: true,
+      },
+    })
+    expect(targetResourceRegistry.resolve('aux', 'position')).toMatchObject({
+      domain: 'aux',
+      entity: 'position',
+      capabilities: {
+        approval: false,
+        businessVersion: false,
+        enabled: true,
+      },
+    })
+    expect(
+      targetResourceRegistry.resolve('aux', 'measurement-unit'),
+    ).toMatchObject({ domain: 'aux', entity: 'measurement-unit' })
+    expect(
+      targetResourceRegistry.resolve('aux', 'payment-method'),
+    ).toMatchObject({ domain: 'aux', entity: 'payment-method' })
+    expect(
+      targetResourceRegistry.resolve('aux', 'asset-category'),
+    ).toMatchObject({ domain: 'aux', entity: 'asset-category' })
     expect('dcl' in targetDomainCapabilities).toBe(false)
   })
 })

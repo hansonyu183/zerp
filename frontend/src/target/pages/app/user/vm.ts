@@ -23,13 +23,8 @@ type RolePage = Awaited<ReturnType<typeof queryTargetRoles>>
 type RoleItem = RolePage['items'][number]
 type RoleCandidate = Pick<
   RoleItem,
-  'id' | 'code' | 'name' | 'status' | 'type' | 'assignable'
+  'id' | 'code' | 'name' | 'enabled' | 'type' | 'assignable'
 >
-
-const roleStatusLabels = {
-  ENABLED: '启用',
-  DISABLED: '停用',
-} as const satisfies Record<RoleCandidate['status'], string>
 
 const roleTypeLabels = {
   NORMAL: '普通角色',
@@ -65,13 +60,6 @@ function messageOf(cause: unknown, fallback: string): string {
 
 function isRevisionConflict(cause: unknown): boolean {
   return cause instanceof TargetApiError && cause.errorKey === 'user_changed'
-}
-
-function sameIds(left: readonly string[], right: readonly string[]): boolean {
-  return (
-    left.length === right.length &&
-    [...left].sort().every((id, index) => id === [...right].sort()[index])
-  )
 }
 
 type EditorCompletion = {
@@ -110,11 +98,24 @@ export function useUserManagementViewModel() {
     return session.csrfToken
   }
 
+  function csrfFor(generation: number, path: string): string | null {
+    if (
+      disposed ||
+      session.generation !== generation ||
+      !can(path) ||
+      !session.csrfToken
+    )
+      return null
+    return session.csrfToken
+  }
+
   const roleOptions = computed(() => {
     return roles.value.map((role) => ({
       value: role.id,
-      title: `${role.code} · ${role.name}（${roleStatusLabels[role.status]} · ${roleTypeLabels[role.type]}）`,
-      disabled: !role.assignable && !editor.roleIds.includes(role.id),
+      title: `${role.code} · ${role.name}（${role.enabled ? '启用' : '停用'} · ${roleTypeLabels[role.type]}）`,
+      disabled:
+        (!role.enabled || !role.assignable) &&
+        !editor.roleIds.includes(role.id),
     }))
   })
 
@@ -175,7 +176,7 @@ export function useUserManagementViewModel() {
     const promise = new Promise<'changed' | void>((resolve, reject) => {
       editorCompletion = { resolve, reject }
     })
-    return { request: editorRequest, promise }
+    return { request: editorRequest, generation: session.generation, promise }
   }
 
   function finishEditor(result: 'changed' | void): void {
@@ -190,27 +191,43 @@ export function useUserManagementViewModel() {
   function failEditorUnresolved(message: string): void {
     const completion = editorCompletion
     editorCompletion = null
-    editorRequest += 1
-    editorOpen.value = false
-    clearEditorFields()
+    editorWriteBlocked.value = true
+    editorError.value = message
     completion?.reject(new ListActionUnresolvedError(message))
   }
 
-  async function loadRoles(): Promise<RoleItem[]> {
+  function isEditorCurrent(opening: { request: number; generation: number }) {
+    return (
+      !disposed &&
+      opening.request === editorRequest &&
+      opening.generation === session.generation
+    )
+  }
+
+  async function loadRoles(opening: {
+    request: number
+    generation: number
+  }): Promise<RoleItem[]> {
     const all: RoleItem[] = []
     let nextPage = 1
     let total = 0
     do {
-      const result = await queryTargetRoles(csrf(), {
+      if (!isEditorCurrent(opening)) return all
+      const token = csrfFor(opening.generation, userPaths.roleQuery)
+      if (!token) return all
+      const result = await queryTargetRoles(token, {
+        keyword: '',
         page: nextPage,
         pageSize: 20,
-        filters: { status: 'ENABLED' },
-        sort: [{ field: 'code', order: 'asc' }],
       })
       all.push(...result.items)
       total = result.total
       nextPage += 1
-    } while (all.length < total)
+    } while (
+      all.length < total &&
+      isEditorCurrent(opening) &&
+      csrfFor(opening.generation, userPaths.roleQuery) !== null
+    )
     return all
   }
 
@@ -232,33 +249,46 @@ export function useUserManagementViewModel() {
 
   function openCreate(): Promise<'changed' | void> {
     const opening = beginEditor('create')
-    if (!can(userPaths.roleQuery)) {
-      editorError.value = '缺少角色查询权限，无法选择可分配角色或新增用户。'
+    if (!can(userPaths.create) || !can(userPaths.roleQuery)) {
+      editorError.value =
+        '缺少新增用户或角色查询权限，无法选择可分配角色或新增用户。'
       return opening.promise
     }
     editorLoading.value = true
-    void loadRoles()
+    void loadRoles(opening)
       .then((result) => {
-        if (disposed || opening.request !== editorRequest) return
+        if (!isEditorCurrent(opening)) return
         roles.value = result
       })
       .catch((cause) => {
-        if (disposed || opening.request !== editorRequest) return
+        if (!isEditorCurrent(opening)) return
         editorError.value = messageOf(cause, '角色选项加载失败。')
       })
       .finally(() => {
-        if (!disposed && opening.request === editorRequest)
-          editorLoading.value = false
+        if (isEditorCurrent(opening)) editorLoading.value = false
       })
     return opening.promise
   }
 
   function openEdit(item: UserListItem): Promise<'changed' | void> {
     const opening = beginEditor('edit')
+    if (
+      !can(userPaths.get) ||
+      !can(userPaths.save) ||
+      !can(userPaths.roleQuery)
+    ) {
+      editorError.value = '编辑用户需要详情、保存和角色查询权限。'
+      return opening.promise
+    }
+    const token = csrfFor(opening.generation, userPaths.get)
+    if (!token) {
+      editorError.value = '会话已失效，无法加载用户编辑信息。'
+      return opening.promise
+    }
     editorLoading.value = true
-    void Promise.all([getTargetUser(csrf(), item.id), loadRoles()])
+    void Promise.all([getTargetUser(token, item.id), loadRoles(opening)])
       .then(([current, roleItems]) => {
-        if (disposed || opening.request !== editorRequest) return
+        if (!isEditorCurrent(opening)) return
         detail.value = current
         roles.value = mergeRoleCandidates(roleItems, current.roles)
         Object.assign(editor, {
@@ -271,40 +301,23 @@ export function useUserManagementViewModel() {
         })
       })
       .catch((cause) => {
-        if (disposed || opening.request !== editorRequest) return
+        if (!isEditorCurrent(opening)) return
         editorError.value = messageOf(cause, '用户编辑信息加载失败。')
       })
       .finally(() => {
-        if (!disposed && opening.request === editorRequest)
-          editorLoading.value = false
+        if (isEditorCurrent(opening)) editorLoading.value = false
       })
     return opening.promise
   }
 
-  async function verifySavedUser(): Promise<boolean> {
-    if (!can(userPaths.get) || !editor.id) return false
-    try {
-      const current = await getTargetUser(csrf(), editor.id)
-      return (
-        current.revision !== editor.revision &&
-        current.name === editor.name.trim() &&
-        sameIds(
-          current.roles.map((role) => role.id),
-          editor.roleIds,
-        )
-      )
-    } catch {
-      return false
-    }
-  }
-
-  async function verifyCreatedUser(): Promise<void> {
-    if (!can(userPaths.query)) return
+  async function verifyCreatedUser(generation: number): Promise<void> {
+    const token = csrfFor(generation, userPaths.query)
+    if (!token) return
     // A unique matching row improves the operator's evidence, but without the
     // response ID it cannot prove which request created it. Keep the outcome
     // unresolved instead of risking a duplicate account.
     try {
-      await queryTargetUsers(csrf(), {
+      await queryTargetUsers(token, {
         keyword: editor.code.trim(),
         page: 1,
         pageSize: 20,
@@ -332,27 +345,39 @@ export function useUserManagementViewModel() {
       return
     }
     const request = editorRequest
+    const generation = session.generation
+    const token = csrf()
     saving.value = true
     editorError.value = null
     try {
       if (editorMode.value === 'create') {
-        await createTargetUser(csrf(), {
+        await createTargetUser(token, {
           code: editor.code.trim(),
           name: editor.name.trim(),
           password: editor.password,
           roleIds: [...editor.roleIds],
         })
       } else {
-        await saveTargetUser(csrf(), {
+        await saveTargetUser(token, {
           id: editor.id,
           name: editor.name.trim(),
           roleIds: [...editor.roleIds],
           revision: editor.revision,
         })
       }
-      if (!disposed && request === editorRequest) finishEditor('changed')
+      if (
+        !disposed &&
+        request === editorRequest &&
+        generation === session.generation
+      )
+        finishEditor('changed')
     } catch (cause) {
-      if (disposed || request !== editorRequest) return
+      if (
+        disposed ||
+        request !== editorRequest ||
+        generation !== session.generation
+      )
+        return
       if (isRevisionConflict(cause)) {
         editorError.value = messageOf(cause, '数据已变化，请刷新后重试。')
         editorWriteBlocked.value = true
@@ -365,22 +390,24 @@ export function useUserManagementViewModel() {
         editorError.value = messageOf(cause, '用户保存失败。')
         return
       }
-      const verified =
-        editorMode.value === 'edit' ? await verifySavedUser() : false
-      if (disposed || request !== editorRequest) return
-      if (verified) {
-        finishEditor('changed')
-        return
-      }
-      if (editorMode.value === 'create') await verifyCreatedUser()
-      if (!disposed && request === editorRequest)
+      if (editorMode.value === 'create') await verifyCreatedUser(generation)
+      if (
+        !disposed &&
+        request === editorRequest &&
+        generation === session.generation
+      )
         failEditorUnresolved(
           can(userPaths.query)
             ? '请求结果未知；查询核实未能确认结果，已停止再次提交。'
             : '请求结果未知；当前账号没有查询权限，无法核实，已停止再次提交。',
         )
     } finally {
-      if (!disposed && request === editorRequest) saving.value = false
+      if (
+        !disposed &&
+        request === editorRequest &&
+        generation === session.generation
+      )
+        saving.value = false
     }
   }
 
@@ -409,15 +436,17 @@ export function useUserManagementViewModel() {
     item: UserListItem,
     enabled: boolean,
   ): Promise<'changed'> {
+    const generation = session.generation
+    const token = csrf()
     try {
       await setTargetUserEnabled(
-        csrf(),
+        token,
         { id: item.id, revision: item.revision },
         enabled,
       )
       return 'changed'
     } catch (cause) {
-      if (disposed) throw cause
+      if (disposed || generation !== session.generation) throw cause
       if (isRevisionConflict(cause))
         throw new ListActionUnresolvedError(
           messageOf(cause, '数据已变化，请刷新后重试。'),
@@ -434,41 +463,22 @@ export function useUserManagementViewModel() {
           messageOf(cause, enabled ? '用户启用失败。' : '用户停用失败。'),
         )
       try {
-        if (can(userPaths.get)) {
-          const current = await getTargetUser(csrf(), item.id)
-          if (current.enabled === enabled && current.revision !== item.revision)
-            return 'changed'
-        } else if (can(userPaths.query)) {
-          let page = 1
-          while (!disposed) {
-            const result = await queryTargetUsers(csrf(), {
+        const readToken = csrfFor(generation, userPaths.get)
+        if (readToken) await getTargetUser(readToken, item.id)
+        else {
+          const queryToken = csrfFor(generation, userPaths.query)
+          if (queryToken)
+            await queryTargetUsers(queryToken, {
               keyword: item.code,
-              page,
+              page: 1,
               pageSize: 20,
             })
-            if (disposed) break
-            const current = result.items.find(
-              (candidate) => candidate.id === item.id,
-            )
-            if (current) {
-              if (
-                current.enabled === enabled &&
-                current.revision !== item.revision
-              )
-                return 'changed'
-              break
-            }
-            if (page * 20 >= result.total) break
-            page += 1
-          }
         }
       } catch {
-        // The result remains unknown and the row is locked below.
+        // A read can inform the operator but cannot prove this write.
       }
       throw new ListActionUnresolvedError(
-        can(userPaths.get) || can(userPaths.query)
-          ? '请求结果未知；读取核实未能确认结果，请刷新列表后再操作。'
-          : '请求结果未知；当前账号没有读取权限，无法核实，已停止再次提交。',
+        '请求结果未知；已停止再次提交，请刷新列表后核实。',
       )
     }
   }

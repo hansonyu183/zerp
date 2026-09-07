@@ -11,9 +11,14 @@ import { ulid } from 'ulid'
 import { createApp } from '../../src/app.ts'
 import { ManagementService } from '../../src/app/management.ts'
 import { hashPassword, SessionService } from '../../src/app/session.ts'
-import { userPinyin } from '../../src/app/user-pinyin.ts'
+import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { AccService } from '../../src/acc/service.ts'
-import { AuxService } from '../../src/aux/service.ts'
+import {
+  AuxService,
+  type AuxEntity,
+  type AuxObjectView,
+  type AuxWriteData,
+} from '../../src/aux/service.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { ArchiveService } from '../../src/dcl/archives.ts'
 import { WarehouseService } from '../../src/dcl/warehouse.ts'
@@ -83,7 +88,7 @@ async function createPrincipal(
       id,
       username,
       display_name: prefix,
-      py: userPinyin(prefix),
+      py: searchPinyin(prefix),
       password_hash: await hashPassword(password),
       status: 'ENABLED',
       password_changed_at: new Date(),
@@ -193,18 +198,13 @@ async function seedSaleOrderReferences(
     ],
     trusted: true,
   }
-  const auxiliary = async (
-    entity: Parameters<AuxService['create']>[0],
-    data: unknown,
-  ) => {
+  const auxiliary = async <Entity extends AuxEntity>(
+    entity: Entity,
+    data: AuxWriteData<Entity>,
+  ): Promise<AuxObjectView<Entity>> => {
     const created = await aux.create(entity, data, actor)
-    const fact = await aux.get(entity, created.objectId, actor)
-    return {
-      id: fact.objectId,
-      code: fact.code,
-      name: String(fact.data.name),
-      ...fact.data,
-    }
+    const fact = await aux.get(entity, { id: created.id }, actor)
+    return fact
   }
   const [
     unit,
@@ -226,13 +226,13 @@ async function seedSaleOrderReferences(
     }),
     auxiliary('product-category', {
       name: 'HTTP 产品分类',
-      parentId: null,
+      parentId: '',
       description: '',
     }),
     auxiliary('employee-category', { name: 'HTTP 员工分类', description: '' }),
     auxiliary('department', {
       name: 'HTTP 部门',
-      parentId: null,
+      parentId: '',
       description: '',
     }),
     auxiliary('position', { name: 'HTTP 岗位', description: '' }),
@@ -444,15 +444,15 @@ async function seedSaleOrderReferences(
       id: unit.id,
       code: unit.code,
       name: unit.name,
-      symbol: 'kg',
-      quantityScale: 0,
+      symbol: unit.symbol,
+      quantityScale: unit.quantityScale,
     },
     defaultInputUnit: {
       id: unit.id,
       code: unit.code,
       name: unit.name,
-      symbol: 'kg',
-      quantityScale: 0,
+      symbol: unit.symbol,
+      quantityScale: unit.quantityScale,
     },
     unitConversions: [
       {
@@ -460,8 +460,8 @@ async function seedSaleOrderReferences(
           id: unit.id,
           code: unit.code,
           name: unit.name,
-          symbol: 'kg',
-          quantityScale: 0,
+          symbol: unit.symbol,
+          quantityScale: unit.quantityScale,
         },
         factor: '1.000000',
       },
@@ -542,7 +542,13 @@ async function seedSaleOrderReferences(
   ] as const
   return {
     facts,
-    unitId: unit.id,
+    unitSnapshot: {
+      objectId: unit.id,
+      code: unit.code,
+      name: unit.name,
+      symbol: unit.symbol,
+      quantityScale: unit.quantityScale,
+    },
     auxiliaryIds: [
       unit.id,
       productType.id,
@@ -595,6 +601,7 @@ function saleOrderPayload(
     currency: 'CNY',
     attachments: [],
     customerSubunit: reference('customer-subunit'),
+    paymentMethod: null,
     operatingEntity: reference('operating-entity'),
     salesperson: reference('salesperson'),
     warehouse: reference('warehouse'),
@@ -603,7 +610,7 @@ function saleOrderPayload(
         lineId: sourceOrderLineId,
         product: { objectId: product.objectId },
         enteredQuantity: '1',
-        enteredUnit: { objectId: references.unitId },
+        enteredUnit: references.unitSnapshot,
         baseQuantity: '1',
         unitPrice: '1.00',
       },

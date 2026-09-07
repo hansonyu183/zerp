@@ -3,10 +3,8 @@ import type { OpenAPIHono } from '@hono/zod-openapi'
 
 import type { TargetAppType } from '../src/app/contract.ts'
 import type { registerIndependentRoutes } from '../src/app/independent-contract.ts'
-import {
-  auxReferenceRoute,
-  bobReferenceRoute,
-} from '../src/app/independent-contract.ts'
+import { auxReferenceRoute } from '../src/app/aux-contract.ts'
+import { bobReferenceRoute } from '../src/app/independent-contract.ts'
 import {
   archiveRouteSets,
   type registerArchiveRoutes,

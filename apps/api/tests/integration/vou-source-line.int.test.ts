@@ -10,7 +10,7 @@ import { ulid } from 'ulid'
 
 import { createApp } from '../../src/app.ts'
 import { hashPassword, SessionService } from '../../src/app/session.ts'
-import { userPinyin } from '../../src/app/user-pinyin.ts'
+import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { loadConfig } from '../../src/platform/config.ts'
 import { VouApplicationError, VouService } from '../../src/vou/service.ts'
@@ -150,7 +150,7 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
         id: actorId,
         username,
         display_name: 'VOU source-line actor',
-        py: userPinyin('VOU source-line actor'),
+        py: searchPinyin('VOU source-line actor'),
         password_hash: await hashPassword(password),
         status: 'ENABLED',
         password_changed_at: now,
@@ -160,7 +160,7 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
         id: deniedId,
         username: deniedUsername,
         display_name: 'VOU source-line denied',
-        py: userPinyin('VOU source-line denied'),
+        py: searchPinyin('VOU source-line denied'),
         password_hash: await hashPassword(password),
         status: 'ENABLED',
         password_changed_at: now,
@@ -286,6 +286,13 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
 
   const productId = ulid()
   const unitId = ulid()
+  const enteredUnitSnapshot = {
+    entered_unit_id: unitId,
+    entered_unit_code: 'UNIT-SOURCE',
+    entered_unit_name: '来源件',
+    entered_unit_symbol: '件',
+    entered_unit_quantity_scale: 0,
+  }
   const sourceLineId = ulid()
   const source = await addDocument({
     entity: 'purchase-order',
@@ -299,7 +306,7 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
       line_no: 1,
       line_id: sourceLineId,
       entered_quantity_micros: 10_000_000,
-      entered_unit_id: unitId,
+      ...enteredUnitSnapshot,
       base_quantity_micros: 10_000_000,
       unit_price_minor: 100,
     })
@@ -338,7 +345,7 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
         line_no: 1,
         line_id: productionLineId,
         entered_quantity_micros: 2_000_000,
-        entered_unit_id: unitId,
+        ...enteredUnitSnapshot,
         base_quantity_micros: 2_000_000,
         unit_price_minor: 100,
         formula_source_type: 'PRODUCT_FIXED',
@@ -348,7 +355,7 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
         line_no: 1,
         line_id: resaleLineId,
         entered_quantity_micros: 2_000_000,
-        entered_unit_id: unitId,
+        ...enteredUnitSnapshot,
         base_quantity_micros: 2_000_000,
         unit_price_minor: 100,
       },
@@ -487,7 +494,7 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
       line_no: 1,
       line_id: openLineId,
       entered_quantity_micros: 1_000_000,
-      entered_unit_id: unitId,
+      ...enteredUnitSnapshot,
       base_quantity_micros: 1_000_000,
       unit_price_minor: 100,
     })
@@ -520,7 +527,7 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
         line_no: 1,
         line_id: lineId,
         entered_quantity_micros: 1_000_000,
-        entered_unit_id: unitId,
+        ...enteredUnitSnapshot,
         base_quantity_micros: 1_000_000,
         unit_price_minor: 100,
       })
@@ -622,7 +629,7 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
       line_no: 1,
       line_id: saleLineId,
       entered_quantity_micros: 10_000_000,
-      entered_unit_id: unitId,
+      ...enteredUnitSnapshot,
       base_quantity_micros: 10_000_000,
       unit_price_minor: 100,
     })

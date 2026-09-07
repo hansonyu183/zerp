@@ -953,6 +953,17 @@ export class ArchiveService {
       await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:archive:${entity}:${input.subjectId}`}, 0))`.execute(
         tx,
       )
+      if (
+        entity === 'product' &&
+        (action === 'approve' || action === 'unapprove')
+      )
+        await tx
+          .selectFrom('dcl_subjects')
+          .select('id')
+          .where('id', '=', input.subjectId)
+          .where('entity', '=', 'product')
+          .forUpdate()
+          .executeTakeFirst()
       const entry = await this.loadEntry(
         tx,
         entity,
@@ -1856,6 +1867,8 @@ export class ArchiveService {
             .selectFrom('aux_objects')
             .select(['id', 'entity', 'enabled', 'code', 'data'])
             .where('id', 'in', ids)
+            .orderBy('id')
+            .forShare()
             .execute()
     return references.map(([field, id]) => {
       const row = rows.find((item) => item.id === id)

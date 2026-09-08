@@ -241,6 +241,8 @@ export interface AccPeriods {
 export interface AccRegisterEntries {
   created_at: Timestamp
   id: string
+  mapping_id: string | null
+  mapping_revision: Int8 | null
   object_id: string
   opening_approval_entry_id: string | null
   payload: Json

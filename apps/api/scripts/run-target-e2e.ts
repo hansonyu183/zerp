@@ -1628,6 +1628,7 @@ try {
       stdio: 'inherit',
       env: {
         ...process.env,
+        TARGET_E2E_GENERAL: '1',
         TARGET_E2E_ORDER_FACTS_JSON: JSON.stringify(orderPageFacts),
         TARGET_E2E_ORDER_NO_QUERY_USERNAME: orderReviewOnly.username,
         TARGET_E2E_ORDER_NO_QUERY_PASSWORD: orderReviewOnly.password,

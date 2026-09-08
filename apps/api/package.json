@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "node src/server.ts",
-    "test": "pnpm test:unit && pnpm test:artifacts && pnpm test:integration",
+    "test": "pnpm test:unit && pnpm test:artifacts && pnpm test:integration && pnpm test:migrations",
     "test:unit": "node --test tests/unit/*.test.ts",
     "test:integration": "node --test --test-concurrency=1 tests/integration/*.test.ts",
     "test:artifacts": "node --test scripts/*.test.ts",
@@ -35,7 +35,9 @@
     "migrate:acc-mapping": "node scripts/migrate-acc-mapping.ts",
     "e2e:vou-catalog": "node scripts/run-vou-catalog-e2e.mjs",
     "migrate:vou-opening": "node scripts/migrate-vou-opening.ts",
-    "e2e:vou-opening": "node scripts/run-vou-opening-e2e.mjs"
+    "e2e:vou-opening": "node scripts/run-vou-opening-e2e.mjs",
+    "e2e:wfl": "node scripts/run-wfl-e2e.ts",
+    "test:migrations": "node scripts/run-migration-tests.ts"
   },
   "dependencies": {
     "@hono/node-server": "2.1.1",

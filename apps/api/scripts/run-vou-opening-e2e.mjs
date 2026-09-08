@@ -15,6 +15,8 @@ const { createServer } = await import(frontendRequire.resolve('vite'))
 
 // The caller supplies the authorized database. The existing fixture transaction
 // rolls back every test fact; shared services and schema are left in place.
+if (!new URL(process.env.TARGET_TEST_DATABASE_URL).pathname.endsWith('_test'))
+  throw new Error('browser E2E requires a disposable *_test database')
 await withWflDatabase(async (db) => {
   const fixture = await seedOpeningFixture(db)
   const config = loadConfig({

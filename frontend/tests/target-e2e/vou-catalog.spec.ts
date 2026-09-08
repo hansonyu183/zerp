@@ -8,10 +8,8 @@ import {
 const facts = JSON.parse(
   process.env.TARGET_E2E_VOU_CATALOG_JSON ?? '{}',
 ) as Record<string, { documentId: string; documentNo: string }>
-test.skip(
-  !process.env.TARGET_E2E_VOU_CATALOG_JSON,
-  'Requires the catalog fixture',
-)
+if (!process.env.TARGET_E2E_VOU_CATALOG_JSON)
+  throw new Error('TARGET_E2E_VOU_CATALOG_JSON fixture is required')
 async function signIn(page: Page, code: string, password: string) {
   await page.goto('/signin')
   await page.getByLabel('用户编码', { exact: true }).fill(code)

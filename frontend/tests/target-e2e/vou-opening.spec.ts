@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 const facts = JSON.parse(process.env.TARGET_E2E_OPENING_JSON ?? '{}')
-test.skip(!process.env.TARGET_E2E_OPENING_JSON, 'Requires opening fixture')
+if (!process.env.TARGET_E2E_OPENING_JSON)
+  throw new Error('TARGET_E2E_OPENING_JSON fixture is required')
 async function signIn(page: Page, reviewer = false) {
   await page.goto('/signin')
   await page

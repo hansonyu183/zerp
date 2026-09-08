@@ -18,12 +18,7 @@ test('BOB migration preserves version identities and exact grants atomically', a
   const source = await sql<{
     name: string | null
   }>`SELECT to_regclass('dcl_supplier_versions')::text AS name`.execute(db)
-  if (!source.rows[0]?.name) {
-    context.skip(
-      'one-time source has already been converted; pre-migration evidence is recorded separately',
-    )
-    return
-  }
+  assert.ok(source.rows[0]?.name, 'pinned pre-migration schema is required')
   const catalog: TargetPermissionCatalogEntry[] = JSON.parse(
     await readFile(
       new URL(

@@ -21,16 +21,7 @@ test('product migration preserves identities, exact stored quantities, history a
   }>`SELECT to_regclass('dcl_product_versions')::text AS name,to_regclass('bob_product_versions')::text AS target`.execute(
     db,
   )
-  if (!source.rows[0]?.name) {
-    assert.ok(
-      source.rows[0]?.target,
-      'neither product source nor target table exists',
-    )
-    context.skip(
-      'source table absent; migration verification was not executed in this run',
-    )
-    return
-  }
+  assert.ok(source.rows[0]?.name, 'pinned pre-migration schema is required')
   const catalog: TargetPermissionCatalogEntry[] = JSON.parse(
     await readFile(
       new URL(

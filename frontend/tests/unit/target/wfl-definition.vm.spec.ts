@@ -12,6 +12,9 @@ vi.mock('@/target/api.ts', async (original) => ({
   wflSubmissions: vi.fn(),
   wflCurrent: vi.fn(),
   wflApprove: vi.fn(),
+  wflInstance: vi.fn(),
+  wflInstanceAction: vi.fn(),
+  wflNodeDocument: vi.fn(),
 }))
 const pending: Awaited<ReturnType<typeof api.wflSubmission>> = {
   subjectId: 'subject',
@@ -79,10 +82,114 @@ it('a late approval cannot restore data after session generation changes', async
   const changing = vm.review('approve')
   session.generation++
   await nextTick()
+  expect(vm.busy.value).toBe(false)
   resolve({ ...pending, status: 'APPROVED', revision: '2' })
   await changing
   expect(vm.selected.value).toBeNull()
   expect(vm.feedback.value).toBe('')
+  vm.dispose()
+})
+
+it('reports a confirmed write without replacing a newly opened history entry', async () => {
+  const { vm } = setup()
+  let resolve!: (value: typeof pending) => void
+  vi.mocked(api.wflApprove).mockReturnValue(
+    new Promise((done) => {
+      resolve = done
+    }),
+  )
+  vi.mocked(api.wflQuery).mockResolvedValue({
+    items: [],
+    total: 0,
+    page: 1,
+    pageSize: 20,
+  })
+  const changing = vm.review('approve')
+  const other = { ...pending, submissionId: 'other-entry' }
+  vi.mocked(api.wflSubmission).mockResolvedValue(other)
+  await vm.open('subject', 'other-entry')
+  resolve({ ...pending, status: 'APPROVED', revision: '2' })
+  await changing
+  expect(vm.selected.value).toEqual(other)
+  expect(vm.feedback.value).toBe('操作成功。')
+  expect(api.wflQuery).toHaveBeenCalledTimes(1)
+  expect(vm.busy.value).toBe(false)
+  vm.dispose()
+})
+
+it('keeps an in-flight approval unresolved when another history entry is opened', async () => {
+  const { vm } = setup()
+  let reject!: (cause: Error) => void
+  vi.mocked(api.wflApprove).mockReturnValue(
+    new Promise((_, fail) => {
+      reject = fail
+    }),
+  )
+  const changing = vm.review('approve')
+  const other = { ...pending, submissionId: 'other-entry' }
+  vi.mocked(api.wflSubmission).mockResolvedValue(other)
+  await vm.open('subject', 'other-entry')
+  reject(new TypeError('connection lost'))
+  await changing
+  expect(vm.selected.value).toEqual(other)
+  expect(vm.unknown.value).toBe(true)
+  expect(vm.busy.value).toBe(false)
+  await vm.review('approve')
+  expect(api.wflApprove).toHaveBeenCalledTimes(1)
+  vi.mocked(api.wflSubmission).mockResolvedValue({
+    ...pending,
+    status: 'APPROVED',
+    revision: '2',
+  })
+  await vm.verify()
+  expect(api.wflSubmission).toHaveBeenLastCalledWith('test', {
+    subjectId: 'subject',
+    approvalEntryId: 'entry',
+  })
+  expect(vm.unknown.value).toBe(false)
+  vm.dispose()
+})
+
+it('keeps an opening action unresolved when the user reads another instance', async () => {
+  const { vm, session } = setup()
+  session.apiPaths.push('/wfl/process-instance/get', '/vou/sale-order/get')
+  const node = {
+    nodeId: 'node',
+    nodeKey: 'root',
+    nodeName: '订单',
+    entity: 'sale-order',
+    documentId: 'document',
+    documentNo: 'SO-1',
+    submissionId: 'submission',
+    status: 'APPROVED',
+    revision: '1',
+    availableActions: ['OPEN_DOCUMENT'],
+  } as const
+  vm.instance.value = {
+    processId: 'process',
+    definitionName: '流程',
+    nodes: [node],
+  } as never
+  let reject!: (cause: Error) => void
+  vi.mocked(api.wflInstanceAction).mockReturnValue(
+    new Promise((_, fail) => {
+      reject = fail
+    }),
+  )
+  const opening = vm.nodeAction(node as never, 'OPEN_DOCUMENT')
+  const other = {
+    processId: 'other-process',
+    definitionName: '其他流程',
+    nodes: [],
+  }
+  vi.mocked(api.wflInstance).mockResolvedValue(other as never)
+  await vm.openInstance('other-process')
+  reject(new TypeError('connection lost'))
+  await opening
+  expect(vm.instance.value).toEqual(other)
+  expect(vm.unknown.value).toBe(true)
+  expect(vm.busy.value).toBe(false)
+  expect(api.wflNodeDocument).not.toHaveBeenCalled()
   vm.dispose()
 })
 

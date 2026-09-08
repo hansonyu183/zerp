@@ -194,17 +194,20 @@ export function useWflDefinitionViewModel() {
   ) {
     if (disposed || busy.value || unknown.value) return
     const token = generation
+    const sessionGeneration = session.generation
+    const ownsWrite = () =>
+      !disposed && sessionGeneration === session.generation
     busy.value = true
     error.value = ''
     feedback.value = ''
     try {
       const result = await operation()
-      if (disposed || token !== generation) return
-      after(result)
+      if (!ownsWrite()) return
+      if (token === generation) after(result)
       feedback.value = '操作成功。'
       await read()
     } catch (e) {
-      if (!disposed && token === generation) {
+      if (ownsWrite()) {
         fail(e)
         if (!(e instanceof api.TargetApiError)) {
           unknown.value = true
@@ -212,7 +215,7 @@ export function useWflDefinitionViewModel() {
         }
       }
     } finally {
-      if (!disposed) busy.value = false
+      if (ownsWrite()) busy.value = false
     }
   }
   async function readExact(
@@ -471,6 +474,9 @@ export function useWflDefinitionViewModel() {
       const token = generation,
         processId = instance.value.processId,
         requestKey = ulid()
+      const sessionGeneration = session.generation
+      const ownsWrite = () =>
+        !disposed && sessionGeneration === session.generation
       busy.value = true
       let recorded = false
       try {
@@ -480,20 +486,24 @@ export function useWflDefinitionViewModel() {
           action,
           requestKey,
         })
-        if (disposed || token !== generation) return
-        instance.value = result
+        if (!ownsWrite()) return
         recorded = true
+        if (token !== generation) {
+          feedback.value = '打开动作已记录，请重新打开单据查看。'
+          return
+        }
+        instance.value = result
         const detail = await api.wflNodeDocument(
           csrf(),
           node.entity,
           node.documentId,
         )
-        if (!disposed && token === generation) {
+        if (ownsWrite() && token === generation) {
           document.value = detail
           feedback.value = ''
         }
       } catch (e) {
-        if (!disposed && token === generation) {
+        if (ownsWrite()) {
           fail(e)
           if (recorded)
             feedback.value = '打开动作已记录，单据读取失败，可重新读取。'
@@ -517,7 +527,7 @@ export function useWflDefinitionViewModel() {
           }
         }
       } finally {
-        if (!disposed) busy.value = false
+        if (ownsWrite()) busy.value = false
       }
       return
     }
@@ -561,6 +571,7 @@ export function useWflDefinitionViewModel() {
     () => session.generation,
     () => {
       generation++
+      busy.value = false
       editing.value = false
       script.value = ''
       selected.value = null

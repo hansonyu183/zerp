@@ -53,7 +53,7 @@ API 启动前先同步生成的权限目录，再从 `APP_TEST_ADMIN_PASSWORD_FI
 - [共享术语](CONTEXT.md)
 - [Approval](docs/domains/approval.md)
 - [APP](docs/domains/app.md)
-- [DCL](docs/domains/dcl.md)
+- [DCL 历史归属](docs/domains/dcl.md)
 - [BOB](docs/domains/bob.md)
 - [AUX](docs/domains/aux.md)
 - [VOU](docs/domains/vou.md)

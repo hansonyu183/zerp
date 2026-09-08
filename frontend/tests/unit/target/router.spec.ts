@@ -7,7 +7,11 @@ describe('target router', () => {
   it('routes every two-part business resource through the common Host', () => {
     const router = createTargetRouter(createMemoryHistory())
 
-    for (const path of ['/app/user', '/bob/customer', '/dcl/customer']) {
+    for (const path of [
+      '/app/user',
+      '/bob/customer',
+      '/wfl/process-definition',
+    ]) {
       const route = router.resolve(path)
       expect(route.name).toBe('resource-host')
       expect(route.meta).toMatchObject({

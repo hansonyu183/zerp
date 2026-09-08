@@ -247,7 +247,7 @@ BOB `query` 永远只返回 current 行；BOB Submission 状态不进入筛选�
 
 客户、供应商、其他单位和销售合作方的 `query` 必须各自在一个只读 `REPEATABLE READ` 事务中完成，直接连接所属 stable subject、highest `APPROVED` Approval Entry 和对应 typed snapshot，不连接 Party 或关系 root。查询 SQL 次数不得随页大小增长。
 
-资金账号只在 BOB current `get` 与 DCL 授权历史详情中返回完整值；BOB `query` 摘要和 reference resolver 必须清空 `accountNumber`，也不得把账号纳入关键字搜索。
+资金账号只在 BOB current `get` 与 BOB 授权提交及历史详情中返回完整值；BOB `query` 摘要和 reference resolver 必须清空 `accountNumber`，也不得把账号纳入关键字搜索。
 
 ### 6.2 查看与引用
 

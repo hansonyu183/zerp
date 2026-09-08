@@ -459,18 +459,13 @@ const failureEnvelope = z.object({
   requestId: z.string(),
 })
 
-function defineArchiveRoutes<
-  const Entity extends ArchiveEntity,
-  const Domain extends 'bob' | 'dcl',
-  const Query extends 'query' | 'submission-query',
-  const Get extends 'get' | 'submission-get',
->(
-  domain: Domain,
-  queryAction: Query,
-  getAction: Get,
+function defineArchiveRoutes<const Entity extends ArchiveEntity>(
   entity: Entity,
   snapshot: (typeof archiveSnapshotSchemas)[Entity],
 ) {
+  const domain = 'bob'
+  const queryAction = 'submission-query'
+  const getAction = 'submission-get'
   const submission = z.object({
     entity: z.literal(entity),
     subjectId: z.string(),
@@ -594,7 +589,7 @@ function defineArchiveRoutes<
     failureEnvelope,
   ])
   const route = <
-    const Action extends ArchiveAction | Query | Get,
+    const Action extends ArchiveAction | typeof queryAction | typeof getAction,
     const Request extends z.ZodType,
     const Response extends z.ZodType,
   >(
@@ -635,39 +630,15 @@ function defineArchiveRoutes<
 }
 
 export const bobArchiveRouteSets = {
-  customer: defineArchiveRoutes(
-    'bob',
-    'submission-query',
-    'submission-get',
-    'customer',
-    archiveSnapshotSchemas.customer,
-  ),
-  product: defineArchiveRoutes(
-    'bob',
-    'submission-query',
-    'submission-get',
-    'product',
-    archiveSnapshotSchemas.product,
-  ),
+  customer: defineArchiveRoutes('customer', archiveSnapshotSchemas.customer),
+  product: defineArchiveRoutes('product', archiveSnapshotSchemas.product),
 
-  supplier: defineArchiveRoutes(
-    'bob',
-    'submission-query',
-    'submission-get',
-    'supplier',
-    archiveSnapshotSchemas.supplier,
-  ),
+  supplier: defineArchiveRoutes('supplier', archiveSnapshotSchemas.supplier),
   'other-unit': defineArchiveRoutes(
-    'bob',
-    'submission-query',
-    'submission-get',
     'other-unit',
     archiveSnapshotSchemas['other-unit'],
   ),
   'sales-partner': defineArchiveRoutes(
-    'bob',
-    'submission-query',
-    'submission-get',
     'sales-partner',
     archiveSnapshotSchemas['sales-partner'],
   ),

@@ -6,7 +6,7 @@ ACC 负责 ZERP 的内部会计事实。当前实现 Accounting Book（会计账
 
 ACC 不作为法定会计软件，也不提供面向用户的查询报表。科目流水、科目余额、应收预收、应付预付、库存、票据、空桶和员工借款报表统一记录为 RPT 领域待办，由 RPT 直接查询 ACC 及其他领域的投影数据并单独授权。
 
-本页未特别标注的会计业务不变量适用于当前 Hono 运行时；本地 Draft、Submission、shared TypeScript model 和 `PENDING | APPROVED | REJECTED` 使用 ADR-0051 的语义。
+本页未特别标注的会计业务不变量适用于当前 Hono 运行时；本地 Draft、Submission、shared TypeScript model 和 `PENDING | APPROVED | REJECTED` 使用 [Approval](approval.md) 的当前语义，临时输入不持久化。
 
 ## 2. 会计账簿
 
@@ -47,7 +47,7 @@ ACC 的动作、路径和数据结构由 `apps/api/` 的可执行 Hono/Zod 路�
 
 每本账簿维护自己的分层科目表。科目编码在账簿内唯一，是财务人员维护的会计分类代码，不是系统对象编号。科目包含名称、父级、借方或贷方余额方向、启停状态、必需辅助核算维度、库存数量核算标志和结算用途；末级关系由是否存在子科目实时派生。
 
-客户子单位使用 Customer 内唯一且不可复用的 `SUB-NNNN` 顺序 code，不占用 DCL Subject 编码；界面、日志和诊断必须同时展示 Customer code 与子单位 code，不得只凭子单位 code 识别对象。
+客户子单位使用 Customer 内唯一且不可复用的 `SUB-NNNN` 顺序 code，不占用 BOB Subject 编码；界面、日志和诊断必须同时展示 Customer code 与子单位 code，不得只凭子单位 code 识别对象。
 
 辅助核算维度限定为客户子单位、Supplier、Other Unit、Employee、Sales Partner、部门、产品、仓库、资金账户、资产和票据。对应 wire value 固定为 `CUSTOMER_SUBUNIT`、`SUPPLIER`、`OTHER_UNIT`、`EMPLOYEE`、`SALES_PARTNER`、`DEPARTMENT`、`PRODUCT`、`WAREHOUSE`、`FUND_ACCOUNT`、`ASSET`、`BILL`。应收、预收必须要求客户子单位，应付、预付必须要求 Supplier；其他往来必须使用一种明确强类型业务档案。Party 不是核算维度且不存在。
 
@@ -135,9 +135,9 @@ VOU 批准事件携带完整的强类型单据副本。ACC 以系统身份在同
 - 查询、操作与范围外用户分别只能执行其动作权限和账簿范围共同允许的科目操作。
 - 期初临时表单允许未完成输入，关闭或刷新即销毁；提交和批准时逐币种试算平衡并生成可追溯的期初系统凭证；
 - 零期初需要明确批准，反批准只有在账簿没有后续会计事实时成功。
-- 当前映射只读返回最新 `APPROVED` entry，字段目录稳定供 DCL 编辑和 ACC 记账共同使用；
-- 每个版本明确选择 `POST` 或 `UN_POST` 默认结果，批准后固定并供后续会计事实引用；
-- 映射版本生命周期和反批准 blocker 由 DCL 统一执行，ACC 只读取当前最新批准映射。
+- 当前映射由 ACC 直接维护，字段目录供映射编辑和记账共同使用；
+- 当前配置明确选择 `POST` 或 `UN_POST` 默认结果，以 revision 保护保存并供后续记账采用；
+- 映射没有审批和业务版本；修改不重算既有分录，既有分录保持采用时事实。
 - 自动记账只消费事件携带的完整 VOU 副本，对全部适用账簿同步生成逐币种平衡且可追溯的系统凭证；
 - 任一账簿记账失败会回滚 VOU 批准和全部 ACC 事实，重复批准事件不会重复记账；
 - 反批准精确删除同一来源 revision 的事实，不生成冲销凭证，未曾记账或重复反批准均幂等成功。

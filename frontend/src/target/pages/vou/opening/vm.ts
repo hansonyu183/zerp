@@ -538,7 +538,7 @@ export function useOpeningEditorViewModel(
       if (current(version)) {
         if (
           !(cause instanceof api.TargetApiError) ||
-          cause.errorKey === 'internal_error'
+          ['internal_error', 'invalid_response'].includes(cause.errorKey)
         ) {
           unknownAction.value = 'submit'
           unknown.value = true
@@ -580,7 +580,7 @@ export function useOpeningEditorViewModel(
       if (current(version)) {
         if (
           !(cause instanceof api.TargetApiError) ||
-          cause.errorKey === 'internal_error'
+          ['internal_error', 'invalid_response'].includes(cause.errorKey)
         ) {
           unknownAction.value = 'delete'
           unknown.value = true

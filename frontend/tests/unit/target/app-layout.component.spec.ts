@@ -160,15 +160,15 @@ describe('target account layout', () => {
         ],
       },
       {
-        domain: 'dcl',
-        displayName: '申报资料',
+        domain: 'wfl',
+        displayName: '业务流程',
         resources: [
           {
-            key: 'dcl/customer',
-            domain: 'dcl',
-            entity: 'customer',
-            displayName: '客户申报',
-            routePath: '/dcl/customer',
+            key: 'wfl/process-definition',
+            domain: 'wfl',
+            entity: 'process-definition',
+            displayName: '流程定义',
+            routePath: '/wfl/process-definition',
           },
         ],
       },
@@ -177,8 +177,10 @@ describe('target account layout', () => {
     const wrapper = mountLayout()
 
     expect(wrapper.get('a[href="/app/user"]').text()).toContain('用户管理')
-    expect(wrapper.get('a[href="/dcl/customer"]').text()).toContain('客户申报')
-    expect(wrapper.text()).toContain('申报资料')
+    expect(wrapper.get('a[href="/wfl/process-definition"]').text()).toContain(
+      '流程定义',
+    )
+    expect(wrapper.text()).toContain('业务流程')
     wrapper.unmount()
   })
 

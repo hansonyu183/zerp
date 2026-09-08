@@ -124,6 +124,15 @@ test('AUX assets enforce revision, unique identities, adopted references and ato
   })
   const session = await login.json()
   assert.equal(session.code, 0)
+  const currentReferenceId = ulid()
+  await db
+    .insertInto('aux_reference_facts')
+    .values({
+      id: currentReferenceId,
+      aux_object_id: warehouse.id,
+      source: 'aux_current:warehouse:test',
+    })
+    .execute()
   const response = await app.request('/aux/warehouse/disable', {
     method: 'POST',
     headers: {
@@ -137,52 +146,16 @@ test('AUX assets enforce revision, unique identities, adopted references and ato
   const envelope = await response.json()
   assert.equal(envelope.errorKey, 'warehouse_disable_blocked')
   assert.ok(envelope.requestId)
-  assert.equal(envelope.data.inventory.length, 1)
-  assert.equal(envelope.data.documents.length, 1)
-  assert.equal(envelope.data.sources.length, 1)
-  assert.equal(envelope.data.references.length, 1)
-  const before = await aux.get('warehouse', { id: warehouse.id }, actor)
-  await assert.rejects(
-    aux.disable(
-      'warehouse',
-      { id: warehouse.id, revision: warehouse.revision },
-      actor,
-      'blocked',
-    ),
-    (error) =>
-      error instanceof AuxApplicationError &&
-      error.errorKey === 'warehouse_disable_blocked' &&
-      Object.values(error.data as Record<string, unknown[]>).every(
-        (rows) => rows.length === 1,
-      ),
-  )
-  assert.deepEqual(
-    await aux.get('warehouse', { id: warehouse.id }, actor),
-    before,
-  )
-  await db
-    .deleteFrom('dcl_warehouse_usage_facts')
-    .where('id', 'in', usageIds)
-    .execute()
-  const currentReferenceId = ulid()
-  await db
-    .insertInto('aux_reference_facts')
-    .values({
-      id: currentReferenceId,
-      aux_object_id: warehouse.id,
-      source: 'aux_current:warehouse:test',
-    })
-    .execute()
-  await assert.rejects(
-    aux.disable(
-      'warehouse',
-      { id: warehouse.id, revision: warehouse.revision },
-      actor,
-      'current-reference',
-    ),
-    (error) =>
-      error instanceof AuxApplicationError &&
-      error.errorKey === 'warehouse_disable_blocked',
+  // Historical DCL usage is evidence, not a current blocker source.
+  assert.deepEqual(envelope.data, {
+    inventory: [],
+    documents: [],
+    sources: [],
+    references: [{ source: 'aux_current:warehouse:test' }],
+  })
+  assert.equal(
+    (await aux.get('warehouse', { id: warehouse.id }, actor)).revision,
+    warehouse.revision,
   )
   await db
     .deleteFrom('aux_reference_facts')

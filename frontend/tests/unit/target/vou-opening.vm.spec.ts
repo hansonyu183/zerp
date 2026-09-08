@@ -72,28 +72,32 @@ it('retains a failed form and its submit identity, but closes and new instances 
   expect(fresh.draft.value.lines).toEqual([])
   fresh.dispose()
 })
-it('never replays unknown submission, verifies the same submission and refreshes once', async () => {
-  const changed = vi.fn().mockResolvedValue(true)
-  const vm = useOpeningEditorViewModel(changed)
-  await vm.openCreate()
-  await vm.selectBook(bookId)
-  const submissionId = vm.draft.value.submissionId
-  vi.mocked(api.submitTargetOpening).mockRejectedValueOnce(
-    new TypeError('connection lost'),
-  )
-  await vm.submit()
-  await vm.submit()
-  expect(api.submitTargetOpening).toHaveBeenCalledTimes(1)
-  expect(vm.unknown.value).toBe(true)
-  vi.mocked(api.getTargetOpening).mockResolvedValue({
-    submissionId,
-    bookId,
-  } as never)
-  await vm.verify()
-  expect(changed).toHaveBeenCalledTimes(1)
-  expect(vm.open.value).toBe(false)
-  vm.dispose()
-})
+it.each([
+  new TypeError('connection lost'),
+  new api.TargetApiError('invalid_response', 'invalid response', 'req'),
+])(
+  'never replays unknown submission, verifies the same submission and refreshes once (%s)',
+  async (failure) => {
+    const changed = vi.fn().mockResolvedValue(true)
+    const vm = useOpeningEditorViewModel(changed)
+    await vm.openCreate()
+    await vm.selectBook(bookId)
+    const submissionId = vm.draft.value.submissionId
+    vi.mocked(api.submitTargetOpening).mockRejectedValueOnce(failure)
+    await vm.submit()
+    await vm.submit()
+    expect(api.submitTargetOpening).toHaveBeenCalledTimes(1)
+    expect(vm.unknown.value).toBe(true)
+    vi.mocked(api.getTargetOpening).mockResolvedValue({
+      submissionId,
+      bookId,
+    } as never)
+    await vm.verify()
+    expect(changed).toHaveBeenCalledTimes(1)
+    expect(vm.open.value).toBe(false)
+    vm.dispose()
+  },
+)
 it('does not request reference data without exact authority and ignores results after account change', async () => {
   const session = useTargetSession()
   session.apiPaths = ['/vou/opening/submit-new']
@@ -118,47 +122,70 @@ it('omits the renderer empty status when querying the real opening contract', as
     expect.objectContaining({ status: undefined, pageSize: 20 }),
   )
 })
-it('clones into a fresh intent and requires explicit original deletion before resubmission', async () => {
-  const session = useTargetSession()
-  session.apiPaths.push('/vou/opening/delete')
-  session.user = { id: 'submitter' } as never
-  const changed = vi.fn().mockResolvedValue(true)
-  const vm = useOpeningEditorViewModel(changed)
-  const original = {
-    entity: 'opening',
-    bookId,
-    documentId: bookId,
-    submissionId: 'original',
-    revision: '1',
-    status: 'PENDING',
-    submittedBy: 'submitter',
-    payload: {
+it.each([false, true])(
+  'clones into a fresh intent and verifies an unknown original deletion before resubmission (%s)',
+  async (unknown) => {
+    const session = useTargetSession()
+    session.apiPaths.push('/vou/opening/delete', '/vou/opening/audit-history')
+    session.user = { id: 'submitter' } as never
+    const changed = vi.fn().mockResolvedValue(true)
+    const vm = useOpeningEditorViewModel(changed)
+    const original = {
+      entity: 'opening',
       bookId,
+      documentId: bookId,
       submissionId: 'original',
-      idempotencyKey: 'old-key',
-      lines: [],
-      assets: [],
-      bills: [],
-      containers: [],
-    },
-  }
-  await vm.cloneSubmission(original as never)
-  expect(vm.draft.value.submissionId).not.toBe('original')
-  expect(vm.source.value?.submissionId).toBe('original')
-  await vm.submit()
-  expect(api.submitTargetOpening).not.toHaveBeenCalled()
-  vi.mocked(api.deleteTargetVoucher).mockResolvedValue({
-    deleted: true,
-    submissionId: 'original',
-  } as never)
-  await vm.deleteSource()
-  expect(vm.source.value).toBeNull()
-  expect(vm.open.value).toBe(true)
-  expect(api.deleteTargetVoucher).toHaveBeenCalledWith('csrf', 'opening', {
-    documentId: bookId,
-    submissionId: 'original',
-    expectedRevision: '1',
-  })
-  expect(changed).toHaveBeenCalledTimes(1)
-  vm.dispose()
-})
+      revision: '1',
+      status: 'PENDING',
+      submittedBy: 'submitter',
+      payload: {
+        bookId,
+        submissionId: 'original',
+        idempotencyKey: 'old-key',
+        lines: [],
+        assets: [],
+        bills: [],
+        containers: [],
+      },
+    }
+    await vm.cloneSubmission(original as never)
+    expect(vm.draft.value.submissionId).not.toBe('original')
+    expect(vm.source.value?.submissionId).toBe('original')
+    await vm.submit()
+    expect(api.submitTargetOpening).not.toHaveBeenCalled()
+    vi.mocked(api.deleteTargetVoucher).mockResolvedValue({
+      deleted: true,
+      submissionId: 'original',
+    } as never)
+    if (unknown) {
+      vi.mocked(api.deleteTargetVoucher).mockRejectedValueOnce(
+        new api.TargetApiError('invalid_response', 'invalid response', 'req'),
+      )
+    }
+    await vm.deleteSource()
+    if (unknown) {
+      await vm.deleteSource()
+      expect(api.deleteTargetVoucher).toHaveBeenCalledTimes(1)
+      expect(vm.unknown.value).toBe(true)
+      vi.mocked(api.queryTargetVoucherAudit).mockResolvedValue([
+        {
+          action: 'DELETED',
+          submissionId: 'original',
+          fromRevision: '1',
+          actorId: 'submitter',
+        },
+      ] as never)
+      await vm.verify()
+      expect(vm.unknown.value).toBe(false)
+    }
+    expect(vm.source.value).toBeNull()
+    expect(vm.open.value).toBe(true)
+    expect(api.deleteTargetVoucher).toHaveBeenCalledWith('csrf', 'opening', {
+      documentId: bookId,
+      submissionId: 'original',
+      expectedRevision: '1',
+    })
+    expect(changed).toHaveBeenCalledTimes(1)
+    vm.dispose()
+  },
+)

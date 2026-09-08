@@ -2721,18 +2721,18 @@ export class VouService implements WflVouPort {
       `.execute(transaction)
       return row.rows.length === 1
     }
-    const domain =
-      entity === 'service-contract'
-        ? 'vou'
-        : [
-              'customer',
-              'supplier',
-              'other-unit',
-              'sales-partner',
-              'product',
-            ].includes(entity)
-          ? 'bob'
-          : 'dcl'
+    if (
+      ![
+        'service-contract',
+        'customer',
+        'supplier',
+        'other-unit',
+        'sales-partner',
+        'product',
+      ].includes(entity)
+    )
+      return false
+    const domain = entity === 'service-contract' ? 'vou' : 'bob'
     const row = await transaction
       .selectFrom('approval_entries')
       .select('id')

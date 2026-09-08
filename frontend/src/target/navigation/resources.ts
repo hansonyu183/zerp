@@ -38,7 +38,6 @@ const domainPresentation: Readonly<
   acc: { displayName: '会计', order: 50 },
   rpt: { displayName: '报表', order: 60 },
   wfl: { displayName: '业务流程', order: 70 },
-  dcl: { displayName: '申报资料', order: 80 },
 }
 
 const appPresentation: Readonly<Record<string, string>> = {
@@ -87,9 +86,7 @@ function archiveName(entity: string): string | undefined {
     ? archiveEntityPresentation[
         entity as keyof typeof archiveEntityPresentation
       ].label
-    : entity === 'warehouse'
-      ? '仓库'
-      : undefined
+    : undefined
 }
 
 export function resourceDisplayName(domain: string, entity: string): string {
@@ -114,10 +111,6 @@ export function resourceDisplayName(domain: string, entity: string): string {
   if (domain === 'bob') {
     const name = archiveName(entity)
     if (name) return name
-  }
-  if (domain === 'dcl') {
-    const name = archiveName(entity)
-    if (name) return `${name}申报`
   }
   return `${entity}（待配置名称）`
 }

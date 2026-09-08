@@ -1983,40 +1983,6 @@ export class AuxService {
         ORDER BY document.entity, document.document_no, document.id
       `.execute(transaction),
     ])
-    const legacy = await transaction
-      .selectFrom('dcl_warehouse_usage_facts')
-      .selectAll()
-      .where('warehouse_id', '=', warehouseId)
-      .execute()
-    const retained = {
-      inventory: [],
-      documents: [],
-      sources: [],
-      references: [],
-    } as Record<
-      'inventory' | 'documents' | 'sources' | 'references',
-      Array<Record<string, unknown>>
-    >
-    for (const row of legacy) {
-      if (row.kind === 'INVENTORY' && BigInt(row.quantity_micros ?? 0) === 0n)
-        continue
-      const key =
-        row.kind === 'INVENTORY'
-          ? 'inventory'
-          : row.kind === 'DOCUMENT'
-            ? 'documents'
-            : row.kind === 'SOURCE'
-              ? 'sources'
-              : 'references'
-      retained[key].push({
-        entity: row.entity,
-        businessId: row.business_id,
-        businessCode: row.business_code,
-        ...(row.quantity_micros === null
-          ? {}
-          : { quantityMicros: String(row.quantity_micros) }),
-      })
-    }
     const currentReferences = await sql<{ source: string }>`
       SELECT fact.source FROM aux_reference_facts fact
       WHERE fact.aux_object_id = ${warehouseId}
@@ -2038,35 +2004,26 @@ export class AuxService {
             WHERE entry.id = split_part(fact.source, ':', 3)
               AND entry.domain = 'vou' AND entry.entity = 'opening' AND entry.status IN ('PENDING', 'REJECTED')))
     `.execute(transaction)
-    retained.references.push(
-      ...currentReferences.rows.map((row) => ({ source: row.source })),
-    )
     if (
       inventory.rows.length === 0 &&
       documents.rows.length === 0 &&
-      Object.values(retained).every((rows) => rows.length === 0)
+      currentReferences.rows.length === 0
     )
       return
     applicationError('warehouse_disable_blocked', {
-      inventory: [
-        ...retained.inventory,
-        ...inventory.rows.map((row) => ({
-          entity: 'product',
-          bookId: row.book_id,
-          businessId: row.product_id,
-          quantity: row.quantity,
-        })),
-      ],
-      documents: [
-        ...retained.documents,
-        ...documents.rows.map((row) => ({
-          entity: row.entity,
-          businessId: row.document_id,
-          businessCode: row.document_no,
-        })),
-      ],
-      sources: retained.sources,
-      references: retained.references,
+      inventory: inventory.rows.map((row) => ({
+        entity: 'product',
+        bookId: row.book_id,
+        businessId: row.product_id,
+        quantity: row.quantity,
+      })),
+      documents: documents.rows.map((row) => ({
+        entity: row.entity,
+        businessId: row.document_id,
+        businessCode: row.document_no,
+      })),
+      sources: [],
+      references: currentReferences.rows.map((row) => ({ source: row.source })),
     })
   }
 

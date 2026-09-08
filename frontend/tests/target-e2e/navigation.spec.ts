@@ -104,7 +104,7 @@ test('navigation and Host retain the shell at desktop and 390px in both themes',
     process.cwd(),
     '..',
     '.scratch',
-    'issue-381-navigation',
+    'issue-405-navigation',
   )
   mkdirSync(directory, { recursive: true })
   for (const width of [1280, 390]) {
@@ -115,7 +115,10 @@ test('navigation and Host retain the shell at desktop and 390px in both themes',
       const page = await context.newPage()
       await signIn(page)
       await page.goto('/bob/customer')
-      await expect(page.getByTestId('business-unimplemented')).toBeVisible()
+      await expect(
+        page.getByRole('button', { name: '新增客户', exact: true }),
+      ).toBeVisible()
+      await expect(page.getByRole('table')).toBeVisible()
       for (const theme of ['light', 'dark']) {
         if (theme === 'dark') await page.getByLabel('切换深色模式').click()
         await expect(page.locator('.topbar')).toBeVisible()

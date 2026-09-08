@@ -8,6 +8,8 @@ partially_superseded_by: ADR-0052, ADR-0053, ADR-0055, ADR-0058, ADR-0059
 
 # 共享 TypeScript 模型、本地 Draft 与 Hono 一次性切换
 
+本 ADR 的 IndexedDB 多草稿、自动保存与刷新恢复决定已由 ADR-0053 全面取代；BOB、VOU、WFL 及配置页均只保留页面实例内的临时输入。下文保留原决定背景，当前生命周期以领域文档及后续替代 ADR 为准。
+
 ## Decision
 
 ZERP 的目标业务模型是同仓、纯 TypeScript 模块：它不依赖 Vue、Hono、Kysely、Node、浏览器存储、环境变量或外部 I/O。浏览器以缓存或刚读取的事实运行它来计算 View State、合法性、blocker、动作资格和强类型意图；Hono 服务重新认证、授权、读取并锁定当前 PostgreSQL 事实，在同一模型上得到唯一权威的领域 Result 与持久化 Plan。领域保留自己的强类型命令、事实、稳定错误与 Plan；不建立 metadata 驱动的通用业务引擎或网络中台。

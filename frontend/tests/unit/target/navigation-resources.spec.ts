@@ -33,7 +33,6 @@ describe('apiPath navigation resources', () => {
       'aux/vehicle': '车辆',
       'aux/fund-account': '资金账户',
       'bob/reference': '业务资料引用',
-      'dcl/customer': '客户申报',
       'rpt/definition': '报表定义维护',
       'rpt/rpt-000001': '报表 000001',
       'acc/book': '会计账簿',

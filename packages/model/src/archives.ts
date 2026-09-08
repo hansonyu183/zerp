@@ -71,7 +71,7 @@ export interface AuxSnapshot {
   name: string
 }
 
-/** Immutable settlement facts frozen from the enabled AUX object into a DCL version. */
+/** Immutable settlement facts frozen from the enabled AUX object into a BOB version. */
 export interface SettlementMethodSnapshot extends AuxSnapshot {
   termCode:
     | 'PREPAID'
@@ -143,15 +143,11 @@ function mechanics<T, E extends string>(
   command: ArchiveCommand<T>,
   facts: ArchiveFacts,
 ): ArchiveDecision<T, E> | SubmissionMechanicsPlan {
-  const domain =
-    entity === 'customer' ||
-    entity === 'product' ||
-    entity === 'supplier' ||
-    entity === 'other-unit' ||
-    entity === 'sales-partner'
-      ? 'bob'
-      : 'dcl'
-  const result = prepareSubmissionMechanics({ domain, entity }, command, facts)
+  const result = prepareSubmissionMechanics(
+    { domain: 'bob', entity },
+    command,
+    facts,
+  )
   return result.ok ? result.plan : result
 }
 

@@ -38,13 +38,20 @@ async function approve(page: Page, name: string, compare = false) {
   await page.getByRole('button', { name: '提交记录', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await dialog.getByLabel('搜索编码或名称', { exact: true }).fill(name)
+  const queried = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/bob/customer/submission-query') &&
+      response.request().postDataJSON()?.filters?.keyword === name,
+  )
   await dialog.getByRole('button', { name: '搜索', exact: true }).click()
+  await queried
   const detailResponse = page.waitForResponse((response) =>
     response.url().endsWith('/bob/customer/submission-get'),
   )
   await dialog
+    .getByRole('row')
+    .filter({ hasText: '待批准' })
     .getByRole('button', { name: '查看', exact: true })
-    .first()
     .click()
   const detail = await (await detailResponse).json()
   expect(detail.data.availableApprovalActions).toContain('approve')

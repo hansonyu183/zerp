@@ -65,7 +65,7 @@ describe('target session', () => {
         '/app/user/create',
         '/app/user/save',
         '/bob/customer/get',
-        '/dcl/customer/query',
+        '/wfl/process-definition/query',
       ],
     })
     const session = useTargetSession()
@@ -100,15 +100,15 @@ describe('target session', () => {
         ],
       },
       {
-        domain: 'dcl',
-        displayName: '申报资料',
+        domain: 'wfl',
+        displayName: '业务流程',
         resources: [
           {
-            key: 'dcl/customer',
-            domain: 'dcl',
-            entity: 'customer',
-            displayName: '客户申报',
-            routePath: '/dcl/customer',
+            key: 'wfl/process-definition',
+            domain: 'wfl',
+            entity: 'process-definition',
+            displayName: '流程定义',
+            routePath: '/wfl/process-definition',
           },
         ],
       },

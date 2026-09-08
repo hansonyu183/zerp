@@ -23,12 +23,18 @@ async function signIn(page: Page, username: string, password: string) {
   await page.getByRole('button', { name: '登录', exact: true }).click()
   await expect(page.getByLabel('用户编码', { exact: true })).toHaveCount(0)
 }
-async function openMenu(page: Page, path: string) {
+async function openMenu(page: Page, path: string, query = true) {
   const drawer = page.locator('.v-navigation-drawer')
   const group = drawer.locator('.v-list-group').filter({ hasText: '业务单据' })
   if (!(await group.getAttribute('class'))?.includes('v-list-group--open'))
     await group.locator('.v-list-group__header').click()
+  const loaded = query
+    ? page.waitForResponse(
+        (response) => new URL(response.url()).pathname === `${path}/query`,
+      )
+    : null
   await drawer.locator(`a[href="${path}"]`).click()
+  if (loaded) await loaded
   await expect(page.getByTestId('vou-list-page')).toBeVisible()
 }
 
@@ -60,12 +66,23 @@ test('sales and purchases open from menus, share date range fields, show immutab
       'type',
       'date',
     )
+    await expect(page.getByLabel('期间起', { exact: true })).toHaveValue(
+      row.businessDate,
+    )
+    await expect(page.getByLabel('期间止', { exact: true })).toHaveValue(
+      row.businessDate,
+    )
     await page.getByLabel('单号', { exact: true }).fill(row.documentNo)
     const response = page.waitForResponse(
-      (r) => new URL(r.url()).pathname === `/vou/${entity}/query`,
+      (r) =>
+        new URL(r.url()).pathname === `/vou/${entity}/query` &&
+        r.request().postDataJSON()?.filters?.documentNo === row.documentNo,
     )
     await page.getByTestId('list-search').click()
-    const envelope = await (await response).json()
+    expect(await page.getByTestId('field-error').allTextContents()).toEqual([])
+    const queried = await response
+    expect(new URL(queried.url()).pathname).toBe(`/vou/${entity}/query`)
+    const envelope = await queried.json()
     expect(envelope.code).toBe(0)
     expect(envelope.data.total).toBe(1)
     expect(envelope.data.items[0].handlerName).toBeNull()
@@ -129,7 +146,7 @@ test('approval-only order resource does not request lists or current reference o
     if (request.method() === 'POST' && !path.startsWith('/session/'))
       requests.push(path)
   })
-  await openMenu(page, '/vou/sale-order')
+  await openMenu(page, '/vou/sale-order', false)
   await expect(
     page.getByText('当前账号没有查询权限，仅显示已授权操作。'),
   ).toBeVisible()

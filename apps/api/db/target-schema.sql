@@ -1763,8 +1763,6 @@ CREATE TABLE acc_register_entries (
     id varchar(26) PRIMARY KEY,
     register_kind varchar(32) NOT NULL CHECK (register_kind IN ('ASSET', 'BILL', 'CONTAINER', 'EMPLOYEE_LOAN')),
     object_id varchar(26) NOT NULL,
-    mapping_id varchar(26) REFERENCES acc_mappings(id),
-    mapping_revision bigint,
     source_kind varchar(32) NOT NULL DEFAULT 'VOU' CHECK (source_kind IN ('VOU', 'OPENING')),
     vou_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
     opening_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,

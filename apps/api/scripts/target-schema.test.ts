@@ -205,6 +205,15 @@ test('isolated target schema contains every target typed aggregate', async () =>
   )
   assert.match(schema, /acc_journal_entries_opening_source_unique/)
   assert.match(schema, /acc_register_entries_opening_source_unique/)
+  const globalRegister = schema.slice(
+    schema.indexOf('CREATE TABLE acc_register_entries ('),
+    schema.indexOf('CREATE UNIQUE INDEX acc_register_entries'),
+  )
+  assert.doesNotMatch(
+    globalRegister,
+    /mapping_id|mapping_revision/,
+    'global object effects are independent of per-book accounting mappings',
+  )
   assert.match(
     schema,
     /acc_period_balances[\s\S]*opening_balance numeric\(24, 8\) NOT NULL/,

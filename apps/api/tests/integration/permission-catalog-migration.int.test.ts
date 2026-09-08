@@ -93,12 +93,7 @@ test('one-time target permission migration preserves every effective authority b
       id: `${index === 0 ? 'A' : 'B'}${suffix}`.padEnd(26, '0'),
     }))
   const bootstrap = new TargetBootstrapService(db)
-  const superadminRole = await db
-    .selectFrom('app_roles')
-    .select('id')
-    .where('code', '=', 'superadmin')
-    .executeTakeFirstOrThrow()
-  const superadminRoleId = superadminRole.id
+  const superadminRoleId = `S${suffix}`.padEnd(26, '0')
   context.after(async () => {
     try {
       await db
@@ -113,12 +108,25 @@ test('one-time target permission migration preserves every effective authority b
         .deleteFrom('app_role_permissions')
         .where('role_id', '=', roleId)
         .execute()
-      await db.deleteFrom('app_roles').where('id', '=', roleId).execute()
+      await db
+        .deleteFrom('app_roles')
+        .where('id', 'in', [roleId, superadminRoleId])
+        .execute()
       await bootstrap.migratePermissionCatalog(desired)
     } finally {
       await db.destroy()
     }
   })
+
+  await db
+    .insertInto('app_roles')
+    .values({
+      id: superadminRoleId,
+      code: 'superadmin',
+      name: 'Migration Superadmin',
+      status: 'ENABLED',
+    })
+    .execute()
 
   assert.equal(baseline.length, 2)
   await bootstrap.migratePermissionCatalog(baseline)

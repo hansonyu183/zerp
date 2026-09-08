@@ -1,10 +1,11 @@
 ---
 id: ADR-0044
 date: 2026-08-28
-status: accepted
+status: superseded
+superseded_by: ADR-0056
 ---
 
-# 会计映射申报由 DCL 拥有并投影到 ACC 当前记账解释
+# 会计映射的 DCL 声明与 ACC 当前读取
 
 会计映射的稳定主体 `(bookId, vouEntity)` 由 DCL 唯一拥有创建、候选编辑、提交、撤回、驳回、批准、反批、草稿删除、版本历史和审计。`/dcl/acc-mapping` 是会计映射唯一维护入口；`/acc/mapping` 只提供当前最新批准映射的 `query|get` 和稳定字段目录 `catalog`，不提供版本写入、生命周期或候选查询。
 

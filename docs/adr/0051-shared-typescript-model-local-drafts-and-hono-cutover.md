@@ -3,10 +3,12 @@ id: ADR-0051
 date: 2026-09-03
 status: accepted
 partially_supersedes: ADR-0004, ADR-0032, ADR-0045, ADR-0046, ADR-0047, ADR-0048
-partially_superseded_by: ADR-0052
+partially_superseded_by: ADR-0052, ADR-0053, ADR-0055, ADR-0058, ADR-0059
 ---
 
 # 共享 TypeScript 模型、本地 Draft 与 Hono 一次性切换
+
+本 ADR 的 IndexedDB 多草稿、自动保存与刷新恢复决定已由 ADR-0053 全面取代；BOB、VOU、WFL 及配置页均只保留页面实例内的临时输入。下文保留原决定背景，当前生命周期以领域文档及后续替代 ADR 为准。
 
 ## Decision
 
@@ -29,3 +31,5 @@ WFL 的 Starlark 语义不是本票可假定迁移的实现细节。#361 必须�
 ## Superseded clauses
 
 本 ADR 显式取代 ADR-0004、ADR-0032、ADR-0045、ADR-0046、ADR-0047 与 ADR-0048 中关于服务端 `DRAFT`、候选保存/删除、`unsubmit`、旧 Approval 动作资格、前端仅展示 Approval、Go/OpenAPI YAML 为长期目标契约来源的条款。ADR-0052 只部分取代本 ADR 将 Hono route metadata 用作完整 APP 权限/菜单目录的条款；本 ADR 保留 Hono/Zod 的契约来源、APP 精确权限目录、共享 TypeScript model、本地 Draft、审批状态、事务与一次性 cutover 边界。那些 ADR 仍保留其未冲突的业务所有权、精确引用、事务原子性、职责分离和 WFL/VOU 业务规则；当前领域规则以本 ADR 与 `docs/domains/` 为准。
+
+#402 的 VOU 页面临时表单进一步按 [ADR-0052](0052-session-dynamic-navigation-and-page-migration.md#vou-order-slice-402) 部分取代本 ADR 的本地 Draft 持久化与刷新恢复条款；不改变共享模型、不可变提交、幂等或审批事务边界。

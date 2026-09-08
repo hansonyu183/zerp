@@ -468,33 +468,14 @@ export function validateCurrentStateLegacyLanguage(
 
 export function validateCurrentArchitectureAssertions(documents) {
   const architectureFailures = []
-  const bobWriterOrCandidate =
-    /\bBOB\b\s+(?:is|are|acts?\s+as|serves\s+as|becomes?)\s+(?:an?\s+|the\s+)?(?:\w+\s+){0,4}(?:writer|candidates?)\b|\bBOB\b\s+(?:creates?|saves?|submits?|manages?|maintains?)\s+(?:\w+\s+){0,4}candidates?\b|BOB\s*(?:是|作为|成为)\s*(?:[\p{L}\p{N}_-]+\s*){0,4}(?:写入方|写服务|候选)|BOB\s*(?:创建|保存|提交|管理|维护)\s*(?:[\p{L}\p{N}_-]+\s*){0,4}候选/iu
   const auxSettlementOrPaymentReference =
     /(?:结算方式|收款方式|付款方式).{0,160}(?:(?<!不)(?<!不得)(?<!无需)(?:保存|携带|使用|记录)[^不\n]{0,24}(?:approvalEntryId|AUX\s+Approval\s+Entry)|(?:(?:必须|需要|要求|应当)|(?:提交|审核|批准)[^不\n]{0,24})[^不\n]{0,16}(?:回查|确认|校验|验证|查询|重新查询)[^不\n]{0,32}(?:latest\s+approved|AUX\s+current|current\s+AUX)|(?:approvalEntryId|AUX\s+Approval\s+Entry|latest\s+approved|AUX\s+current|current\s+AUX)[^不\n]{0,24}(?:必须|需要|要求|应当)[^不\n]{0,16}(?:保存|携带|使用|记录|回查|确认|校验|验证|查询|重新查询))/iu
-  const operationBobWriter =
-    /\bBOB\b.{0,48}\b(?:is|are|acts?\s+as|serves\s+as|becomes?|owns?|provides?)\b.{0,48}\bwriter\b|\|[^\n|]*\bBOB\b[^\n|]*\|[^\n|]*\bwriter\b[^\n|]*\||BOB.{0,48}(?:是|作为|成为|拥有|提供).{0,48}(?:写入方|写服务)|\|[^\n|]*BOB[^\n|]*\|[^\n|]*(?:写入方|写服务)[^\n|]*\|/iu
 
   for (const { file, source } of documents) {
     const normalizedFile = file.replaceAll('\\', '/')
     if (!isCurrentStateDocument(normalizedFile)) continue
 
     for (const [index, line] of source.split('\n').entries()) {
-      if (normalizedFile.startsWith('docs/operations/')) {
-        if (operationBobWriter.test(line)) {
-          architectureFailures.push(
-            `${normalizedFile}:${index + 1} operations 不得将 BOB 列为 writer`,
-          )
-        } else if (bobWriterOrCandidate.test(line)) {
-          architectureFailures.push(
-            `${normalizedFile}:${index + 1} BOB current 文档不得将 BOB 描述为 writer 或 candidate`,
-          )
-        }
-      } else if (bobWriterOrCandidate.test(line)) {
-        architectureFailures.push(
-          `${normalizedFile}:${index + 1} BOB current 文档不得将 BOB 描述为 writer 或 candidate`,
-        )
-      }
       if (auxSettlementOrPaymentReference.test(line)) {
         architectureFailures.push(
           `${normalizedFile}:${index + 1} AUX 结算或付款引用不得要求 AUX Approval Entry 或 current 回查`,
@@ -510,7 +491,7 @@ export function validateBobFormalTerminology(documents) {
   const forbiddenArtifactEnglish =
     /\b(?:projections?|read models?|current models?|current reads?)\b/iu
   const forbiddenOwnershipEnglish = /\b(?:stable roots?|typed.{0,48}roots?)\b/iu
-  const forbiddenArtifactChinese = /(?:投影|读模型|当前模型|当前读取)/u
+  const forbiddenArtifactChinese = /(?:投影|读模型|当前模型)/u
   const forbiddenOwnershipChinese = /(?:稳定根|关系根)/u
   const forbiddenSymbol = /BOB(?:ReadModels?|QueryProjection)/u
 
@@ -542,7 +523,7 @@ export function validateBobFormalTerminology(documents) {
         forbiddenSymbol.test(line)
       ) {
         terminologyFailures.push(
-          `${normalizedFile}:${index + 1} 必须将 BOB 表述为当前有效的只读业务资料，并将 stable subject 与 typed relationship identity 归 DCL`,
+          `${normalizedFile}:${index + 1} 不得把 BOB 表述为投影、读模型或关系根`,
         )
       }
     }
@@ -819,9 +800,9 @@ function useCaseCoverage(pages, documentedKeys, orphanKeys) {
     '',
     '<!-- 此文件由 `pnpm docs:coverage` 生成，请勿手工编辑。 -->',
     '',
-    '数据来源：[`frontend/src/target/router/index.ts`](../../frontend/src/target/router/index.ts) 的带标题路由，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。',
+    '数据来源：[`frontend/src/target/router/index.ts`](../../frontend/src/target/router/index.ts) 的带标题路由、[动态资源登记](../../frontend/src/target/navigation/registry.ts) 的显式页面用例，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。',
     '',
-    '统计口径：每个带 `meta.title` 的正式 target 路由必须声明 `meta.useCaseKey`；layout 与重定向不单独计数。',
+    '统计口径：每个带 `meta.title` 的正式 target 路由必须声明 `meta.useCaseKey`；动态 Resource Host 的已实现资源以 Registry 显式 `useCaseKey` 计入。layout 与重定向不单独计数。',
     '',
     `- 页面入口：${pages.length}`,
     `- 已覆盖入口：${coveredPages.length}`,
@@ -1098,6 +1079,66 @@ function hasDirectProperty(source, start, end, property) {
   return directPropertyRange(source, start, end, property) !== null
 }
 
+export function parseTargetRegisteredResourcePages(source) {
+  const failures = []
+  const pages = []
+  const seenUseCaseKeys = new Set()
+
+  for (let start = 0; start < source.length; start += 1) {
+    if (source[start] !== '{') continue
+    const end = matchingObjectEnd(source, start)
+    if (end < 0) {
+      failures.push('frontend/src/target/navigation/registry.ts 存在未闭合对象')
+      break
+    }
+    if (!hasDirectProperty(source, start, end, 'useCaseKey')) continue
+    const domain = directStringProperty(source, start, end, 'domain')
+    const entity = directStringProperty(source, start, end, 'entity')
+    const useCaseKey = directStringProperty(source, start, end, 'useCaseKey')
+    if (!domain || !entity || !useCaseKey) {
+      failures.push(
+        'Registry 页面 useCaseKey 必须与直接 domain/entity 一起登记',
+      )
+      continue
+    }
+    if (!/^[a-z][a-z0-9-]*$/u.test(domain)) {
+      failures.push(`Registry domain 不合法：${domain}`)
+      continue
+    }
+    if (
+      !/^[a-z][a-z0-9-]*$/u.test(entity) &&
+      !(domain === 'rpt' && entity === ':code') &&
+      !(domain === 'vou' && entity === ':entity')
+    ) {
+      failures.push(`Registry entity 不合法：${entity}`)
+      continue
+    }
+    if (!/^[a-z][a-z0-9-]*\/[a-z][a-z0-9-]*$/u.test(useCaseKey)) {
+      failures.push(
+        `Registry ${domain}/${entity} 的 useCaseKey 不合法：${useCaseKey}`,
+      )
+      continue
+    }
+    if (!hasDirectProperty(source, start, end, 'component')) {
+      failures.push(`Registry ${domain}/${entity} 缺少 component`)
+      continue
+    }
+    if (seenUseCaseKeys.has(useCaseKey)) {
+      failures.push(`Registry useCaseKey 重复：${useCaseKey}`)
+      continue
+    }
+    seenUseCaseKeys.add(useCaseKey)
+    pages.push({
+      title: `${domain}/${entity}`,
+      route: `/${domain}/${entity}`,
+      source: '[资源登记](../../frontend/src/target/navigation/registry.ts)',
+      useCaseKey,
+    })
+  }
+
+  return { failures, pages }
+}
+
 export function parseTargetRouterPages(source) {
   const failures = []
   const pages = []
@@ -1184,10 +1225,25 @@ const targetRouterPages = parseTargetRouterPages(
   ),
 )
 failures.push(...targetRouterPages.failures)
-const expectedUseCasePages = targetRouterPages.pages
+const targetRegisteredResourcePages = parseTargetRegisteredResourcePages(
+  fs.readFileSync(
+    path.join(root, 'frontend', 'src', 'target', 'navigation', 'registry.ts'),
+    'utf8',
+  ),
+)
+failures.push(...targetRegisteredResourcePages.failures)
+const expectedUseCasePages = [
+  ...targetRouterPages.pages,
+  ...targetRegisteredResourcePages.pages,
+]
 const expectedUseCaseKeys = expectedUseCasePages.map(
   ({ useCaseKey }) => useCaseKey,
 )
+const duplicateUseCaseKeys = expectedUseCaseKeys.filter(
+  (key, index) => expectedUseCaseKeys.indexOf(key) !== index,
+)
+for (const key of new Set(duplicateUseCaseKeys))
+  failures.push(`页面 useCaseKey 重复：${key}`)
 const expectedUseCaseKeySet = new Set(expectedUseCaseKeys)
 const orphanUseCases = [...documentedUseCases].filter(
   (key) => !expectedUseCaseKeySet.has(key),

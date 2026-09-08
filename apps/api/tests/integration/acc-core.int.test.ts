@@ -1,16 +1,417 @@
+import { VouOpeningService } from '../../src/vou/opening-service.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { VouPayloadFor } from '@zerp/model'
 import { sql } from 'kysely'
 import { ulid } from 'ulid'
 
+import {
+  BobArchiveService,
+  BobArchiveApplicationError,
+} from '../../src/bob/archives.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { AccApplicationError, AccService } from '../../src/acc/service.ts'
+import { AuxApplicationError, AuxService } from '../../src/aux/service.ts'
 import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { VouService } from '../../src/vou/service.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
 const customerTypeId = '01J00000000000000000000105'
+
+test('ACC opening freezes AUX bill and employee-dimension adoptions until its submission is deleted', async (context) => {
+  assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
+  const db = createDatabase(databaseUrl)
+  const acc = new AccService(db)
+  const openingService = new VouOpeningService(db, acc)
+  const aux = new AuxService(db)
+  const submitterId = ulid()
+  const reviewerId = ulid()
+  const bookId = ulid()
+  const submissionId = ulid()
+  const auxObjectIds: string[] = []
+  const submitter = {
+    id: submitterId,
+    permissions: [] as string[],
+    trusted: true,
+  }
+  const reviewer = {
+    id: reviewerId,
+    permissions: [] as string[],
+    trusted: true,
+  }
+  const auxActor = {
+    id: submitterId,
+    permissions: [
+      ...(['operating-entity', 'employee'] as const).flatMap((entity) =>
+        ['create', 'get', 'save', 'disable', 'delete'].map(
+          (action) => `/aux/${entity}/${action}`,
+        ),
+      ),
+      ...(['employee-category', 'department', 'position'] as const).flatMap(
+        (entity) => [`/aux/${entity}/create`],
+      ),
+    ],
+  }
+  context.after(async () => {
+    try {
+      await sql`DELETE FROM acc_journal_entries WHERE opening_approval_entry_id = ${submissionId}`.execute(
+        db,
+      )
+      await sql`DELETE FROM acc_bill_book_values WHERE opening_approval_entry_id = ${submissionId}`.execute(
+        db,
+      )
+      await sql`DELETE FROM acc_bill_registers WHERE created_opening_approval_entry_id = ${submissionId}`.execute(
+        db,
+      )
+      await sql`DELETE FROM acc_register_entries WHERE opening_approval_entry_id = ${submissionId}`.execute(
+        db,
+      )
+      await db
+        .deleteFrom('aux_reference_facts')
+        .where('source', 'like', `acc:opening:${submissionId}:%`)
+        .execute()
+      await db
+        .deleteFrom('approval_entries')
+        .where('id', '=', submissionId)
+        .execute()
+      await db
+        .deleteFrom('acc_mappings')
+        .where('book_id', '=', bookId)
+        .execute()
+      await db
+        .deleteFrom('acc_subjects')
+        .where('book_id', '=', bookId)
+        .execute()
+      await db
+        .deleteFrom('vou_idempotency')
+        .where('entity', '=', 'opening')
+        .where('document_id', '=', bookId)
+        .execute()
+      await db.deleteFrom('acc_books').where('id', '=', bookId).execute()
+      await db
+        .deleteFrom('aux_reference_facts')
+        .where('aux_object_id', 'in', auxObjectIds)
+        .execute()
+      await db
+        .deleteFrom('aux_objects')
+        .where('id', 'in', auxObjectIds)
+        .execute()
+      await db
+        .deleteFrom('approval_events')
+        .where('actor_id', 'in', [submitterId, reviewerId])
+        .execute()
+      await db
+        .deleteFrom('app_audit_events')
+        .where('actor_user_id', 'in', [submitterId, reviewerId])
+        .execute()
+      await db
+        .deleteFrom('app_users')
+        .where('id', 'in', [submitterId, reviewerId])
+        .execute()
+    } finally {
+      await db.destroy()
+    }
+  })
+
+  const now = new Date()
+  await db
+    .insertInto('app_users')
+    .values(
+      [submitterId, reviewerId].map((id) => ({
+        id,
+        username: `acc-opening-aux-${id}`,
+        display_name: 'ACC opening AUX actor',
+        py: searchPinyin('ACC opening AUX actor'),
+        password_hash: 'unused',
+        status: 'ENABLED' as const,
+        password_changed_at: now,
+        password_change_required: false,
+      })),
+    )
+    .execute()
+
+  const operatingEntity = await aux.create(
+    'operating-entity',
+    {
+      legalName: '期初员工所属主体',
+      shortName: '期初主体',
+      legalIdentifier: '91310000MA1K123456',
+      registeredAddress: '',
+      contactName: '',
+      contactPhone: '',
+      invoiceTitle: '',
+      invoiceAddress: '',
+      invoicePhone: '',
+      invoiceBank: '',
+      invoiceAccount: '',
+      remark: '',
+    },
+    auxActor,
+  )
+  const [employeeCategory, department, position] = await Promise.all([
+    aux.create(
+      'employee-category',
+      { name: `期初类别${submissionId}` },
+      auxActor,
+    ),
+    aux.create('department', { name: `期初部门${submissionId}` }, auxActor),
+    aux.create('position', { name: `期初岗位${submissionId}` }, auxActor),
+  ])
+  auxObjectIds.push(
+    operatingEntity.id,
+    employeeCategory.id,
+    department.id,
+    position.id,
+  )
+  const employee = await aux.create(
+    'employee',
+    {
+      identityKind: 'PERSON',
+      legalName: '期初人员 V1',
+      displayName: '期初人员 V1',
+      legalIdentifier: `EMP-${submissionId}`,
+      contactName: '',
+      phone: '',
+      address: '',
+      employeeCategoryId: employeeCategory.id,
+      departmentId: department.id,
+      positionId: position.id,
+      employmentDate: '2026-09-07',
+      workPhone: '',
+      workEmail: '',
+      operatingEntityId: operatingEntity.id,
+      remark: '',
+    },
+    auxActor,
+  )
+  auxObjectIds.push(employee.id)
+  const employeeV1 = await aux.get('employee', { id: employee.id }, auxActor)
+
+  const book = await acc.createBook(
+    {
+      id: bookId,
+      name: '期初 AUX 引用',
+      description: '',
+      startMonth: '2026-09',
+      baseCurrency: 'CNY',
+      subjectTemplate: 'EMPTY',
+      queryUserIds: [],
+      operateUserIds: [],
+    },
+    submitter,
+  )
+  const employeeSubject = await acc.createSubject(
+    {
+      id: ulid(),
+      bookId: book.id,
+      code: '122101',
+      name: '员工借款',
+      parentId: null,
+      balanceDirection: 'DEBIT',
+      enabled: true,
+      requiredDimensions: ['EMPLOYEE'],
+      inventoryQuantity: false,
+      settlementPurpose: 'OTHER',
+    },
+    submitter,
+  )
+  const billSubject = await acc.createSubject(
+    {
+      id: ulid(),
+      bookId: book.id,
+      code: '1121',
+      name: '应收票据',
+      parentId: null,
+      balanceDirection: 'DEBIT',
+      enabled: true,
+      requiredDimensions: ['BILL'],
+      inventoryQuantity: false,
+      settlementPurpose: 'NONE',
+    },
+    submitter,
+  )
+  const equitySubject = await acc.createSubject(
+    {
+      id: ulid(),
+      bookId: book.id,
+      code: '4001',
+      name: '期初权益',
+      parentId: null,
+      balanceDirection: 'CREDIT',
+      enabled: true,
+      requiredDimensions: [],
+      inventoryQuantity: false,
+      settlementPurpose: 'NONE',
+    },
+    submitter,
+  )
+  const billId = ulid()
+  const pending = await openingService.submitOpening(
+    {
+      bookId,
+      submissionId,
+      idempotencyKey: submissionId,
+      lines: [
+        {
+          subjectId: employeeSubject.id,
+          currency: 'CNY',
+          direction: 'DEBIT',
+          amount: '50.00',
+          dimensions: { EMPLOYEE: employee.id },
+        },
+        {
+          subjectId: billSubject.id,
+          currency: 'CNY',
+          direction: 'DEBIT',
+          amount: '50.00',
+          dimensions: { BILL: billId },
+        },
+        {
+          subjectId: equitySubject.id,
+          currency: 'CNY',
+          direction: 'CREDIT',
+          amount: '100.00',
+          dimensions: {},
+        },
+      ],
+      assets: [],
+      bills: [
+        {
+          billId,
+          billNo: `BILL-${submissionId}`,
+          billType: 'RECEIVABLE',
+          positionType: 'ASSET',
+          medium: 'PAPER',
+          faceAmount: '50.00',
+          issueDate: '2026-09-01',
+          maturityDate: '2026-10-01',
+          drawer: '出票人',
+          acceptor: '承兑人',
+          payee: '收款人',
+          annualRateBps: 0,
+          interestDays: 0,
+          interestAmount: '0.00',
+          customerCostAmount: '0.00',
+          currency: 'CNY',
+          valueAmount: '50.00',
+          originatingCounterparty: {
+            entity: 'employee',
+            objectId: employee.id,
+          },
+        },
+      ],
+      containers: [],
+    },
+    submitter,
+    'acc-opening-aux-submit',
+  )
+  assert.equal(pending.payload.lines[0]!.dimensions.EMPLOYEE, employee.id)
+  const sources = await sql<{ source: string }>`
+    SELECT source FROM aux_reference_facts
+    WHERE aux_object_id = ${employee.id} AND source LIKE ${`acc:opening:${submissionId}:%`}
+    ORDER BY source
+  `.execute(db)
+  assert.deepEqual(
+    sources.rows.map((row) => row.source),
+    [
+      `acc:opening:${submissionId}:bill:${billId}:originating-counterparty`,
+      `acc:opening:${submissionId}:line:1:dimension:EMPLOYEE`,
+    ],
+  )
+
+  await aux.save(
+    'employee',
+    {
+      id: employeeV1.id,
+      revision: employeeV1.revision,
+      identityKind: employeeV1.identityKind,
+      legalName: employeeV1.legalName,
+      displayName: '期初人员 V2',
+      legalIdentifier: employeeV1.legalIdentifier,
+      contactName: employeeV1.contactName,
+      phone: employeeV1.phone,
+      address: employeeV1.address,
+      employeeCategoryId: employeeV1.employeeCategory.id,
+      departmentId: employeeV1.department.id,
+      positionId: employeeV1.position.id,
+      employmentDate: employeeV1.employmentDate,
+      workPhone: employeeV1.workPhone,
+      workEmail: employeeV1.workEmail,
+      operatingEntityId: employeeV1.operatingEntity.id,
+      remark: employeeV1.remark,
+    },
+    auxActor,
+  )
+  const employeeV2 = await aux.get('employee', { id: employee.id }, auxActor)
+  const disabled = await aux.disable(
+    'employee',
+    { id: employee.id, revision: employeeV2.revision },
+    auxActor,
+    'acc-opening-aux-disable',
+  )
+  const approved = await openingService.reviewOpening(
+    'approve',
+    {
+      bookId,
+      submissionId,
+      expectedRevision: pending.approval.revision,
+    },
+    reviewer,
+    'acc-opening-aux-approve',
+  )
+  const frozen = await openingService.getOpening(bookId, submitter)
+  assert.equal(
+    frozen.payload.bills[0]!.originatingCounterparty?.name,
+    '期初人员 V1',
+  )
+  assert.equal(approved.approval.status, 'APPROVED')
+  await assert.rejects(
+    aux.delete(
+      'employee',
+      { id: employee.id, revision: disabled.revision },
+      auxActor,
+      'acc-opening-aux-delete-blocked',
+    ),
+    (error: unknown) =>
+      error instanceof AuxApplicationError && error.errorKey === 'conflict',
+  )
+  const unapproved = await openingService.reviewOpening(
+    'unapprove',
+    {
+      bookId,
+      submissionId,
+      expectedRevision: approved.approval.revision,
+      reason: '撤回期初',
+    },
+    reviewer,
+    'acc-opening-aux-unapprove',
+  )
+  await openingService.deleteOpening(
+    {
+      bookId,
+      submissionId,
+      expectedRevision: unapproved.approval.revision,
+    },
+    submitter,
+    'acc-opening-aux-delete',
+  )
+  await aux.delete(
+    'employee',
+    { id: employee.id, revision: disabled.revision },
+    auxActor,
+    'acc-opening-aux-delete',
+  )
+  assert.equal(
+    (
+      await db
+        .selectFrom('aux_objects')
+        .select('id')
+        .where('id', '=', employee.id)
+        .execute()
+    ).length,
+    0,
+  )
+})
 
 test('ACC restores f856118f subject templates and independent book access scopes', async (context) => {
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
@@ -23,8 +424,17 @@ test('ACC restores f856118f subject templates and independent book access scopes
   context.after(async () => {
     try {
       await db
+        .deleteFrom('acc_mappings')
+        .where('book_id', 'in', bookIds)
+        .execute()
+      await db
         .deleteFrom('acc_subjects')
         .where('book_id', 'in', bookIds)
+        .execute()
+      await db
+        .deleteFrom('vou_idempotency')
+        .where('entity', '=', 'opening')
+        .where('document_id', 'in', bookIds)
         .execute()
       await db.deleteFrom('acc_books').where('id', 'in', bookIds).execute()
       await db
@@ -168,7 +578,6 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
     reviewerId = ulid(),
     bookId = ulid(),
     openingId = ulid(),
-    mappingId = ulid(),
     mappingEntryId = ulid()
   const supplierId = ulid(),
     supplierEntryId = ulid(),
@@ -180,6 +589,23 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
   const actor = { id: actorId, permissions: [] as string[], trusted: true }
   context.after(async () => {
     try {
+      const opening = await db
+        .selectFrom('approval_entries')
+        .select(['status', 'revision'])
+        .where('id', '=', openingId)
+        .executeTakeFirst()
+      if (opening?.status === 'APPROVED')
+        await new VouOpeningService(db, service).reviewOpening(
+          'unapprove',
+          {
+            bookId,
+            submissionId: openingId,
+            expectedRevision: String(opening.revision),
+            reason: '清理当前测试创建的期初事实',
+          },
+          { ...actor, id: reviewerId },
+          ulid(),
+        )
       await sql`DELETE FROM acc_opening_container_balances WHERE opening_approval_entry_id = ${openingId}`.execute(
         db,
       )
@@ -216,13 +642,21 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
           customerEntryId,
         ])
         .execute()
+      await sql`DELETE FROM bob_subjects WHERE id IN (${supplierId}, ${customerId})`.execute(
+        db,
+      )
       await db
-        .deleteFrom('dcl_subjects')
-        .where('id', 'in', [mappingId, supplierId, customerId])
+        .deleteFrom('acc_mappings')
+        .where('book_id', '=', bookId)
         .execute()
       await db
         .deleteFrom('acc_subjects')
         .where('book_id', '=', bookId)
+        .execute()
+      await db
+        .deleteFrom('vou_idempotency')
+        .where('entity', '=', 'opening')
+        .where('document_id', '=', bookId)
         .execute()
       await db.deleteFrom('acc_books').where('id', '=', bookId).execute()
       await db
@@ -308,52 +742,36 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
     actor,
   )
   await db
-    .insertInto('dcl_subjects')
+    .insertInto('bob_subjects')
     .values([
-      {
-        id: mappingId,
-        entity: 'acc-mapping',
-        code: null,
-        created_at: now,
-        created_by: actorId,
-      },
-      {
-        id: supplierId,
-        entity: 'supplier',
-        code: 'SUP-0001',
-        created_at: now,
-        created_by: actorId,
-      },
       {
         id: customerId,
         entity: 'customer',
-        code: 'CUS-0001',
+        code: `CUS-${String(
+          (
+            await db
+              .updateTable('archive_code_counters')
+              .set((eb) => ({ next_value: eb('next_value', '+', 1) }))
+              .where('entity', '=', 'customer')
+              .returning('next_value')
+              .executeTakeFirstOrThrow()
+          ).next_value - 1,
+        ).padStart(4, '0')}`,
         created_at: now,
         created_by: actorId,
       },
     ])
     .execute()
+  await sql`
+    INSERT INTO bob_subjects (id, entity, code, enabled, revision, created_at, created_by)
+    VALUES (${supplierId}, 'supplier', 'SUP-0001', true, 1, ${now}, ${actorId})
+  `.execute(db)
   await db
     .insertInto('approval_entries')
     .values([
       {
-        id: mappingEntryId,
-        domain: 'dcl',
-        entity: 'acc-mapping',
-        subject_id: mappingId,
-        version_no: 1,
-        status: 'APPROVED',
-        revision: 1,
-        submitted_by: actorId,
-        submitted_at: now,
-        approved_by: actorId,
-        approved_at: now,
-        updated_by: actorId,
-        updated_at: now,
-      },
-      {
         id: supplierEntryId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'supplier',
         subject_id: supplierId,
         version_no: 1,
@@ -368,7 +786,7 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
       },
       {
         id: customerEntryId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'customer',
         subject_id: customerId,
         version_no: 1,
@@ -384,7 +802,7 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
     ])
     .execute()
   await db
-    .insertInto('dcl_supplier_versions')
+    .insertInto('bob_supplier_versions')
     .values({
       approval_entry_id: supplierEntryId,
       kind: 'ORGANIZATION',
@@ -403,11 +821,10 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
       default_operating_entity_reference: null,
       settlement_method_snapshot: null,
       default_purchaser_snapshot: null,
-      enabled: true,
     })
     .execute()
   await db
-    .insertInto('dcl_customer_versions')
+    .insertInto('bob_customer_versions')
     .values({
       approval_entry_id: customerEntryId,
       kind: 'OTHER',
@@ -428,11 +845,10 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
       invoice_account: null,
       remittance_profiles: JSON.stringify([]),
       tax_attachments: JSON.stringify([]),
-      enabled: true,
     })
     .execute()
   await db
-    .insertInto('dcl_customer_subunit_roots')
+    .insertInto('bob_customer_subunit_roots')
     .values({
       subunit_id: subunitId,
       customer_id: customerId,
@@ -440,7 +856,7 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
     })
     .execute()
   await db
-    .insertInto('dcl_customer_version_subunits')
+    .insertInto('bob_customer_version_subunits')
     .values({
       customer_approval_entry_id: customerEntryId,
       subunit_id: subunitId,
@@ -473,11 +889,16 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
     })
     .execute()
   await db
-    .insertInto('dcl_acc_mapping_versions')
+    .insertInto('acc_mappings')
     .values({
-      approval_entry_id: mappingEntryId,
+      id: mappingEntryId,
+      created_at: new Date(),
+      updated_at: new Date(),
+      created_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
+      updated_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
       book_id: book.id,
       vou_entity_id: 'asset-acquisition',
+      vou_entity: 'asset-acquisition',
       book_snapshot: JSON.stringify({}),
       vou_entity_snapshot: JSON.stringify({}),
       default_result: 'UN_POST',
@@ -493,7 +914,7 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
       }),
     })
     .execute()
-  const pending = await service.submitOpening(
+  const pending = await new VouOpeningService(db, service).submitOpening(
     {
       bookId,
       submissionId: openingId,
@@ -582,7 +1003,7 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
     actor,
     'opening-typed-submit',
   )
-  const approved = await service.reviewOpening(
+  const approved = await new VouOpeningService(db, service).reviewOpening(
     'approve',
     {
       bookId,
@@ -623,7 +1044,28 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
     ).rows[0]!.count,
     '1',
   )
-  await service.reviewOpening(
+  await assert.rejects(
+    new BobArchiveService(db).review(
+      'customer',
+      'unapprove',
+      {
+        subjectId: customerId,
+        submissionId: customerEntryId,
+        expectedRevision: '1',
+        reason: '会计期初引用检查',
+      },
+      actor,
+      ulid(),
+    ),
+    (error) =>
+      error instanceof BobArchiveApplicationError &&
+      error.errorKey === 'approval_strong_reference_exists' &&
+      error.data?.blockers.some(
+        (blocker) =>
+          blocker.kind === 'CUSTOMER_REFERENCE' && blocker.domain === 'vou',
+      ) === true,
+  )
+  await new VouOpeningService(db, service).reviewOpening(
     'unapprove',
     {
       bookId,
@@ -700,48 +1142,75 @@ test('ACC book, subjects, Opening and periods keep one transactional fact bounda
   }
   context.after(async () => {
     try {
-      await sql`DELETE FROM acc_register_entries WHERE opening_approval_entry_id IS NOT NULL`.execute(
-        db,
-      )
-      await sql`DELETE FROM acc_period_balances`.execute(db)
-      await db.deleteFrom('acc_journal_entries').execute()
+      const entries = (
+        await db
+          .selectFrom('approval_entries')
+          .select('id')
+          .where('submitted_by', 'in', [submitterId, reviewerId])
+          .execute()
+      ).map((row) => row.id)
+      const books = (
+        await db
+          .selectFrom('acc_books')
+          .select('id')
+          .where('created_by', 'in', [submitterId, reviewerId])
+          .execute()
+      ).map((row) => row.id)
+      if (entries.length) {
+        await db
+          .deleteFrom('acc_register_entries')
+          .where('opening_approval_entry_id', 'in', entries)
+          .execute()
+        await db
+          .deleteFrom('vou_idempotency')
+          .where('submission_id', 'in', entries)
+          .execute()
+      }
+      if (books.length) {
+        await db
+          .deleteFrom('acc_period_balances')
+          .where('book_id', 'in', books)
+          .execute()
+        await db
+          .deleteFrom('acc_journal_entries')
+          .where('book_id', 'in', books)
+          .execute()
+      }
       await db
         .deleteFrom('approval_events')
-        .where('domain', '=', 'acc')
+        .where('actor_id', 'in', [submitterId, reviewerId])
         .execute()
+      if (entries.length) {
+        await db
+          .deleteFrom('approval_entries')
+          .where('domain', '=', 'vou')
+          .where('id', 'in', entries)
+          .execute()
+        await db
+          .deleteFrom('approval_entries')
+          .where('id', 'in', entries)
+          .execute()
+      }
       await db
-        .deleteFrom('approval_entries')
-        .where('domain', '=', 'acc')
+        .deleteFrom('vou_documents')
+        .where('created_by', 'in', [submitterId, reviewerId])
         .execute()
+      await db.deleteFrom('bob_subjects').where('id', '=', productId).execute()
+      if (books.length) {
+        await db
+          .deleteFrom('acc_mappings')
+          .where('book_id', 'in', books)
+          .execute()
+        await db
+          .deleteFrom('acc_subjects')
+          .where('book_id', 'in', books)
+          .execute()
+        await db.deleteFrom('acc_books').where('id', 'in', books).execute()
+      }
       await db
-        .deleteFrom('approval_events')
-        .where('domain', '=', 'vou')
+        .deleteFrom('app_audit_events')
+        .where('actor_user_id', 'in', [submitterId, reviewerId])
         .execute()
-      await db.deleteFrom('vou_idempotency').execute()
-      await db
-        .deleteFrom('approval_entries')
-        .where('domain', '=', 'vou')
-        .execute()
-      await db.deleteFrom('vou_documents').execute()
-      await db
-        .deleteFrom('approval_events')
-        .where('entity', '=', 'acc-mapping')
-        .execute()
-      await db
-        .deleteFrom('approval_entries')
-        .where('entity', '=', 'acc-mapping')
-        .execute()
-      await db
-        .deleteFrom('dcl_subjects')
-        .where('entity', '=', 'acc-mapping')
-        .execute()
-      await db
-        .deleteFrom('approval_entries')
-        .where('id', '=', productApprovalEntryId)
-        .execute()
-      await db.deleteFrom('dcl_subjects').where('id', '=', productId).execute()
-      await db.deleteFrom('acc_subjects').execute()
-      await db.deleteFrom('acc_books').execute()
       await db
         .deleteFrom('app_users')
         .where('id', 'in', [submitterId, reviewerId])
@@ -767,20 +1236,22 @@ test('ACC book, subjects, Opening and periods keep one transactional fact bounda
     .execute()
   const now = new Date()
   await db
-    .insertInto('dcl_subjects')
-    .values({
-      id: productId,
-      entity: 'product',
-      code: 'PRD-0001',
-      created_at: now,
-      created_by: submitterId,
-    })
+    .insertInto('bob_subjects')
+    .values([
+      {
+        id: productId,
+        entity: 'product',
+        code: 'PRD-0001',
+        created_at: now,
+        created_by: submitterId,
+      },
+    ])
     .execute()
   await db
     .insertInto('approval_entries')
     .values({
       id: productApprovalEntryId,
-      domain: 'dcl',
+      domain: 'bob',
       entity: 'product',
       subject_id: productId,
       version_no: 1,
@@ -795,14 +1266,13 @@ test('ACC book, subjects, Opening and periods keep one transactional fact bounda
     })
     .execute()
   await db
-    .insertInto('dcl_product_versions')
+    .insertInto('bob_product_versions')
     .values({
       approval_entry_id: productApprovalEntryId,
       name: '记账测试产品',
       source_snapshots: {},
       unit_conversions: JSON.stringify([]),
       recyclable: false,
-      enabled: true,
     })
     .execute()
   const pricingPayload = (amount: string): VouPayloadFor<'sale-pricing'> => ({
@@ -877,7 +1347,7 @@ test('ACC book, subjects, Opening and periods keep one transactional fact bounda
     submitter,
   )
   const submissionId = ulid()
-  const pending = await service.submitOpening(
+  const pending = await new VouOpeningService(db, service).submitOpening(
     {
       bookId: book.id,
       submissionId,
@@ -906,7 +1376,7 @@ test('ACC book, subjects, Opening and periods keep one transactional fact bounda
     'opening-submit',
   )
   assert.equal(pending.approval.status, 'PENDING')
-  const approved = await service.reviewOpening(
+  const approved = await new VouOpeningService(db, service).reviewOpening(
     'approve',
     {
       bookId: book.id,
@@ -942,7 +1412,10 @@ test('ACC book, subjects, Opening and periods keep one transactional fact bounda
     ).rows[0]!.count,
     '0',
   )
-  const unapprovedOpening = await service.reviewOpening(
+  const unapprovedOpening = await new VouOpeningService(
+    db,
+    service,
+  ).reviewOpening(
     'unapprove',
     {
       bookId: book.id,
@@ -974,7 +1447,7 @@ test('ACC book, subjects, Opening and periods keep one transactional fact bounda
     ).rows[0]!.count,
     '0',
   )
-  const reapproved = await service.reviewOpening(
+  const reapproved = await new VouOpeningService(db, service).reviewOpening(
     'approve',
     {
       bookId: book.id,
@@ -985,43 +1458,18 @@ test('ACC book, subjects, Opening and periods keep one transactional fact bounda
     'opening-reapprove',
   )
   assert.equal(reapproved.approval.status, 'APPROVED')
-  const mappingSubjectId = ulid(),
-    mappingEntryId = ulid(),
-    mappingNow = new Date()
+  const mappingEntryId = ulid()
   await db
-    .insertInto('dcl_subjects')
-    .values({
-      id: mappingSubjectId,
-      entity: 'acc-mapping',
-      code: null,
-      created_at: mappingNow,
-      created_by: reviewerId,
-    })
-    .execute()
-  await db
-    .insertInto('approval_entries')
+    .insertInto('acc_mappings')
     .values({
       id: mappingEntryId,
-      domain: 'dcl',
-      entity: 'acc-mapping',
-      subject_id: mappingSubjectId,
-      version_no: 1,
-      status: 'APPROVED',
-      revision: 2,
-      submitted_by: submitterId,
-      submitted_at: mappingNow,
-      approved_by: reviewerId,
-      approved_at: mappingNow,
-      updated_by: reviewerId,
-      updated_at: mappingNow,
-    })
-    .execute()
-  await db
-    .insertInto('dcl_acc_mapping_versions')
-    .values({
-      approval_entry_id: mappingEntryId,
+      created_at: new Date(),
+      updated_at: new Date(),
+      created_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
+      updated_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
       book_id: book.id,
       vou_entity_id: 'sale-pricing',
+      vou_entity: 'sale-pricing',
       book_snapshot: JSON.stringify({
         id: book.id,
         code: book.code,
@@ -1229,7 +1677,7 @@ test('ACC book, subjects, Opening and periods keep one transactional fact bounda
     1,
   )
   await assert.rejects(
-    service.reviewOpening(
+    new VouOpeningService(db, service).reviewOpening(
       'unapprove',
       {
         bookId: book.id,
@@ -1312,7 +1760,6 @@ test('ACC automatic inventory posting rejects missing product or warehouse dimen
     inventorySubjectId = ulid(),
     offsetSubjectId = ulid(),
     openingId = ulid(),
-    mappingSubjectId = ulid(),
     mappingEntryId = ulid(),
     documentId = ulid(),
     vouEntryId = ulid()
@@ -1339,12 +1786,21 @@ test('ACC automatic inventory posting rejects missing product or warehouse dimen
         .where('id', '=', documentId)
         .execute()
       await db
-        .deleteFrom('dcl_subjects')
-        .where('id', '=', mappingSubjectId)
+        .deleteFrom('acc_mappings')
+        .where('book_id', '=', bookId)
         .execute()
       await db
         .deleteFrom('acc_subjects')
         .where('book_id', '=', bookId)
+        .execute()
+      await db
+        .deleteFrom('bob_subjects')
+        .where('created_by', '=', actorId)
+        .execute()
+      await db
+        .deleteFrom('vou_idempotency')
+        .where('entity', '=', 'opening')
+        .where('document_id', '=', bookId)
         .execute()
       await db.deleteFrom('acc_books').where('id', '=', bookId).execute()
       await db.deleteFrom('app_users').where('id', '=', actorId).execute()
@@ -1413,7 +1869,7 @@ test('ACC automatic inventory posting rejects missing product or warehouse dimen
     .insertInto('approval_entries')
     .values({
       id: openingId,
-      domain: 'acc',
+      domain: 'vou',
       entity: 'opening',
       subject_id: bookId,
       version_no: null,
@@ -1456,39 +1912,16 @@ test('ACC automatic inventory posting rejects missing product or warehouse dimen
     })
     .execute()
   await db
-    .insertInto('dcl_subjects')
-    .values({
-      id: mappingSubjectId,
-      entity: 'acc-mapping',
-      code: null,
-      created_at: now,
-      created_by: actorId,
-    })
-    .execute()
-  await db
-    .insertInto('approval_entries')
+    .insertInto('acc_mappings')
     .values({
       id: mappingEntryId,
-      domain: 'dcl',
-      entity: 'acc-mapping',
-      subject_id: mappingSubjectId,
-      version_no: 1,
-      status: 'APPROVED',
-      revision: 2,
-      submitted_by: actorId,
-      submitted_at: now,
-      approved_by: actorId,
-      approved_at: now,
-      updated_by: actorId,
-      updated_at: now,
-    })
-    .execute()
-  await db
-    .insertInto('dcl_acc_mapping_versions')
-    .values({
-      approval_entry_id: mappingEntryId,
+      created_at: new Date(),
+      updated_at: new Date(),
+      created_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
+      updated_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
       book_id: book.id,
       vou_entity_id: 'sale-pricing',
+      vou_entity: 'sale-pricing',
       book_snapshot: JSON.stringify({
         id: book.id,
         code: book.code,
@@ -1576,7 +2009,6 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
     inventorySubjectId = ulid(),
     offsetSubjectId = ulid()
   const openingId = ulid(),
-    mappingSubjectId = ulid(),
     mappingEntryId = ulid()
   const assetDocumentId = ulid(),
     assetEntryId = ulid(),
@@ -1626,16 +2058,25 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
         ])
         .execute()
       await db
-        .deleteFrom('dcl_subjects')
-        .where('id', '=', mappingSubjectId)
-        .execute()
-      await db
         .deleteFrom('aux_objects')
         .where('id', '=', assetCategoryId)
         .execute()
       await db
+        .deleteFrom('acc_mappings')
+        .where('book_id', '=', bookId)
+        .execute()
+      await db
         .deleteFrom('acc_subjects')
         .where('book_id', '=', bookId)
+        .execute()
+      await db
+        .deleteFrom('bob_subjects')
+        .where('created_by', '=', actorId)
+        .execute()
+      await db
+        .deleteFrom('vou_idempotency')
+        .where('entity', '=', 'opening')
+        .where('document_id', '=', bookId)
         .execute()
       await db.deleteFrom('acc_books').where('id', '=', bookId).execute()
       await db.deleteFrom('app_users').where('id', '=', actorId).execute()
@@ -1705,38 +2146,10 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
     .insertInto('approval_entries')
     .values({
       id: openingId,
-      domain: 'acc',
+      domain: 'vou',
       entity: 'opening',
       subject_id: bookId,
       version_no: null,
-      status: 'APPROVED',
-      revision: 1,
-      submitted_by: actorId,
-      submitted_at: now,
-      approved_by: actorId,
-      approved_at: now,
-      updated_by: actorId,
-      updated_at: now,
-    })
-    .execute()
-  await db
-    .insertInto('dcl_subjects')
-    .values({
-      id: mappingSubjectId,
-      entity: 'acc-mapping',
-      code: null,
-      created_at: now,
-      created_by: actorId,
-    })
-    .execute()
-  await db
-    .insertInto('approval_entries')
-    .values({
-      id: mappingEntryId,
-      domain: 'dcl',
-      entity: 'acc-mapping',
-      subject_id: mappingSubjectId,
-      version_no: 1,
       status: 'APPROVED',
       revision: 1,
       submitted_by: actorId,
@@ -1753,11 +2166,16 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
     defaultResult: 'POST' | 'UN_POST',
   ) =>
     db
-      .insertInto('dcl_acc_mapping_versions')
+      .insertInto('acc_mappings')
       .values({
-        approval_entry_id: mappingEntryId,
+        id: mappingEntryId,
+        created_at: new Date(),
+        updated_at: new Date(),
+        created_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${bookId})`,
+        updated_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${bookId})`,
         book_id: bookId,
         vou_entity_id: entity,
+        vou_entity: entity,
         book_snapshot: JSON.stringify({
           id: bookId,
           code: book.code,
@@ -1935,8 +2353,9 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
     .execute()
   assert.deepEqual(await readCategorySnapshot(), expectedCategorySnapshot)
   await db
-    .updateTable('dcl_acc_mapping_versions')
+    .updateTable('acc_mappings')
     .set({
+      vou_entity: 'asset-sale',
       vou_entity_id: 'asset-sale',
       vou_entity_snapshot: JSON.stringify({
         id: 'asset-sale',
@@ -1950,7 +2369,7 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
         templates: [],
       }),
     })
-    .where('approval_entry_id', '=', mappingEntryId)
+    .where('id', '=', mappingEntryId)
     .execute()
   await createVou(
     assetSaleDocumentId,
@@ -2088,8 +2507,9 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
     '0',
   )
   await db
-    .updateTable('dcl_acc_mapping_versions')
+    .updateTable('acc_mappings')
     .set({
+      vou_entity: 'sale-pricing',
       vou_entity_id: 'sale-pricing',
       vou_entity_snapshot: JSON.stringify({
         id: 'sale-pricing',
@@ -2164,7 +2584,7 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
         ],
       }),
     })
-    .where('approval_entry_id', '=', mappingEntryId)
+    .where('id', '=', mappingEntryId)
     .execute()
   const warehouseId = ulid(),
     productId = ulid()
@@ -2252,8 +2672,7 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
   const actorId = ulid(),
     bookId = ulid(),
     openingId = ulid()
-  const mappingSubjectId = ulid(),
-    mappingEntryId = ulid()
+  const mappingEntryId = ulid()
   const customerId = ulid(),
     customerApprovalEntryId = ulid(),
     customerSubunitId = ulid()
@@ -2289,8 +2708,17 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
         .where('id', '=', documentId)
         .execute()
       await db
-        .deleteFrom('dcl_subjects')
-        .where('id', 'in', [mappingSubjectId, customerId])
+        .deleteFrom('bob_subjects')
+        .where('created_by', '=', actorId)
+        .execute()
+      await db
+        .deleteFrom('acc_mappings')
+        .where('book_id', '=', bookId)
+        .execute()
+      await db
+        .deleteFrom('vou_idempotency')
+        .where('entity', '=', 'opening')
+        .where('document_id', '=', bookId)
         .execute()
       await db.deleteFrom('acc_books').where('id', '=', bookId).execute()
       await db.deleteFrom('app_users').where('id', '=', actorId).execute()
@@ -2328,7 +2756,7 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
     .insertInto('approval_entries')
     .values({
       id: openingId,
-      domain: 'acc',
+      domain: 'vou',
       entity: 'opening',
       subject_id: book.id,
       version_no: null,
@@ -2343,19 +2771,21 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
     })
     .execute()
   await db
-    .insertInto('dcl_subjects')
+    .insertInto('bob_subjects')
     .values([
-      {
-        id: mappingSubjectId,
-        entity: 'acc-mapping',
-        code: null,
-        created_at: now,
-        created_by: actorId,
-      },
       {
         id: customerId,
         entity: 'customer',
-        code: 'CUS-0001',
+        code: `CUS-${String(
+          (
+            await db
+              .updateTable('archive_code_counters')
+              .set((eb) => ({ next_value: eb('next_value', '+', 1) }))
+              .where('entity', '=', 'customer')
+              .returning('next_value')
+              .executeTakeFirstOrThrow()
+          ).next_value - 1,
+        ).padStart(4, '0')}`,
         created_at: now,
         created_by: actorId,
       },
@@ -2365,23 +2795,8 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
     .insertInto('approval_entries')
     .values([
       {
-        id: mappingEntryId,
-        domain: 'dcl',
-        entity: 'acc-mapping',
-        subject_id: mappingSubjectId,
-        version_no: 1,
-        status: 'APPROVED',
-        revision: 1,
-        submitted_by: actorId,
-        submitted_at: now,
-        approved_by: actorId,
-        approved_at: now,
-        updated_by: actorId,
-        updated_at: now,
-      },
-      {
         id: customerApprovalEntryId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'customer',
         subject_id: customerId,
         version_no: 1,
@@ -2397,7 +2812,7 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
     ])
     .execute()
   await db
-    .insertInto('dcl_customer_subunit_roots')
+    .insertInto('bob_customer_subunit_roots')
     .values({
       subunit_id: customerSubunitId,
       customer_id: customerId,
@@ -2405,7 +2820,7 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
     })
     .execute()
   await db
-    .insertInto('dcl_customer_version_subunits')
+    .insertInto('bob_customer_version_subunits')
     .values({
       customer_approval_entry_id: customerApprovalEntryId,
       subunit_id: customerSubunitId,
@@ -2420,11 +2835,16 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
     })
     .execute()
   await db
-    .insertInto('dcl_acc_mapping_versions')
+    .insertInto('acc_mappings')
     .values({
-      approval_entry_id: mappingEntryId,
+      id: mappingEntryId,
+      created_at: new Date(),
+      updated_at: new Date(),
+      created_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
+      updated_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
       book_id: book.id,
       vou_entity_id: 'sale-signoff',
+      vou_entity: 'sale-signoff',
       book_snapshot: JSON.stringify({
         id: book.id,
         code: book.code,

@@ -68,9 +68,9 @@ export async function drainAttachmentDeletions(
         if (!current) return false
         const reference = await sql<{ referenced: boolean }>`
           SELECT EXISTS (
-            SELECT 1 FROM dcl_customer_attachment_staging WHERE storage_key = ${current.storage_key}
+            SELECT 1 FROM bob_customer_attachment_staging WHERE storage_key = ${current.storage_key}
             UNION ALL
-            SELECT 1 FROM dcl_customer_attachments WHERE storage_key = ${current.storage_key}
+            SELECT 1 FROM bob_customer_attachments WHERE storage_key = ${current.storage_key}
             UNION ALL
             SELECT 1 FROM vou_attachment_staging WHERE storage_key = ${current.storage_key}
             UNION ALL

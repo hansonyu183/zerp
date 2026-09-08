@@ -1,3 +1,8 @@
+import { VouOpeningService } from '../src/vou/opening-service.ts'
+import pg from 'pg'
+import { RptService, PgRptDefinitionValidator } from '../src/rpt/service.ts'
+import { createRptBrowserFixture } from '../tests/fixtures/rpt-browser.ts'
+import { ulid } from 'ulid'
 import { spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { resolve } from 'node:path'
@@ -12,15 +17,14 @@ import {
   type VouPayload,
   type VouPayloadFor,
 } from '@zerp/model'
-import pg from 'pg'
 
 import { TargetBootstrapService } from '../src/app/bootstrap.ts'
+import { AccMappingCatalogService } from '../src/acc/mapping-catalog.ts'
 import { AccService } from '../src/acc/service.ts'
 import { AuxService } from '../src/aux/service.ts'
 import { createDatabase } from '../src/db/database.ts'
-import { ArchiveService, type ArchiveSnapshot } from '../src/dcl/archives.ts'
-import { WarehouseService } from '../src/dcl/warehouse.ts'
-import { PgRptDefinitionValidator } from '../src/rpt/service.ts'
+import { BobArchiveService } from '../src/bob/archives.ts'
+import type { ArchiveSnapshot } from '../src/bob/archives.ts'
 import { VouService } from '../src/vou/service.ts'
 
 const databaseUrl = process.env.TARGET_DATABASE_URL
@@ -31,7 +35,13 @@ if (!new URL(databaseUrl).pathname.slice(1).endsWith('_test'))
 
 const suffix = randomBytes(8).toString('hex')
 async function principal(
-  kind: 'submitter' | 'reviewer' | 'report' | 'create-only',
+  kind:
+    | 'submitter'
+    | 'reviewer'
+    | 'report'
+    | 'create-only'
+    | 'report-export'
+    | 'order-review-only',
   index: number,
 ) {
   const password = randomBytes(24).toString('base64url')
@@ -54,11 +64,14 @@ async function principal(
 }
 const database = createDatabase(databaseUrl)
 const bootstrap = new TargetBootstrapService(database)
-const rptValidationPool = new pg.Pool({ connectionString: databaseUrl })
-const rptValidator = new PgRptDefinitionValidator(rptValidationPool, database)
-const archives = new ArchiveService(database, rptValidator)
-const warehouse = new WarehouseService(database)
+const rptPool = new pg.Pool({ connectionString: databaseUrl })
+const rpt = new RptService(
+  database,
+  new PgRptDefinitionValidator(rptPool, database),
+)
+const bobArchives = new BobArchiveService(database)
 const acc = new AccService(database)
+const openingService = new VouOpeningService(database, acc)
 const aux = new AuxService(database)
 const vou = new VouService(database, {
   acc,
@@ -68,10 +81,9 @@ const submitter = await principal('submitter', 1)
 const reviewer = await principal('reviewer', 2)
 const reportAdmin = await principal('report', 3)
 const createOnly = await principal('create-only', 4)
-const managerEmployeeId = `M${suffix}`
-  .toUpperCase()
-  .padEnd(26, '0')
-  .slice(0, 26)
+const reportExporter = await principal('report-export', 5)
+const orderReviewOnly = await principal('order-review-only', 6)
+let managerEmployeeId = `M${suffix}`.toUpperCase().padEnd(26, '0').slice(0, 26)
 const managerApprovalEntryId = `A${suffix}`
   .toUpperCase()
   .padEnd(26, '0')
@@ -438,7 +450,7 @@ async function deleteAccFixtureBooks(bookIds: readonly string[]) {
     const entries = await transaction
       .selectFrom('approval_entries')
       .select('id')
-      .where('domain', '=', 'acc')
+      .where('domain', '=', 'vou')
       .where('entity', '=', 'opening')
       .where('subject_id', 'in', bookIds)
       .execute()
@@ -467,7 +479,7 @@ async function deleteAccFixtureBooks(bookIds: readonly string[]) {
     }
     await transaction
       .deleteFrom('approval_events')
-      .where('domain', '=', 'acc')
+      .where('domain', '=', 'vou')
       .where('entity', '=', 'opening')
       .where('subject_id', 'in', bookIds)
       .execute()
@@ -492,6 +504,10 @@ async function deleteAccFixtureBooks(bookIds: readonly string[]) {
       .where('book_id', 'in', bookIds)
       .execute()
     await transaction
+      .deleteFrom('acc_mappings')
+      .where('book_id', 'in', bookIds)
+      .execute()
+    await transaction
       .deleteFrom('acc_subjects')
       .where('book_id', 'in', bookIds)
       .execute()
@@ -505,22 +521,6 @@ async function deleteAccFixtureBooks(bookIds: readonly string[]) {
 async function deleteE2ECatalogFacts() {
   await database.transaction().execute(async (transaction) => {
     await transaction
-      .deleteFrom('dcl_acc_subject_facts')
-      .where('id', 'in', [
-        ...archiveFacts.accounting.subjects.map((subject) => subject.id),
-        ...accUiFacts.subjects.map((subject) => subject.id),
-        ...accMappingUiFacts.subjects.map((subject) => subject.id),
-      ])
-      .execute()
-    await transaction
-      .deleteFrom('dcl_acc_book_facts')
-      .where('id', 'in', [
-        archiveFacts.accounting.book.id,
-        accUiFacts.book.id,
-        accMappingUiFacts.book.id,
-      ])
-      .execute()
-    await transaction
       .deleteFrom('aux_objects')
       .where('id', 'in', [
         ...archiveFacts.auxObjects.map((item) => item.id),
@@ -531,10 +531,13 @@ async function deleteE2ECatalogFacts() {
 }
 
 async function seedArchiveReference(
-  archives: ArchiveService,
   entity: Exclude<
     (typeof vouReferenceFacts.references)[number]['entity'],
-    'warehouse' | 'customer-subunit'
+    | 'warehouse'
+    | 'fund-account'
+    | 'customer-subunit'
+    | 'operating-entity'
+    | 'employee'
   >,
   reference: {
     objectId: string
@@ -544,65 +547,83 @@ async function seedArchiveReference(
   },
   snapshot: ArchiveSnapshot,
 ) {
-  const pending = await archives.submit(
+  const input = {
+    subjectId: reference.objectId,
+    submissionId: reference.approvalEntryId,
+    idempotencyKey: reference.approvalEntryId,
+    expectedLatestApprovedSubmissionId: null,
+    expectedLatestApprovedRevision: null,
+    snapshot,
+  }
+  const pending = await bobArchives.submit(
     entity,
     'submit-new',
-    {
-      subjectId: reference.objectId,
-      submissionId: reference.approvalEntryId,
-      idempotencyKey: reference.approvalEntryId,
-      expectedLatestApprovedSubmissionId: null,
-      expectedLatestApprovedRevision: null,
-      snapshot,
-    },
+    input,
     serviceActor(submitter.userId),
     `e2e-${entity}-submit`,
   )
-  const approved = await archives.review(
+  const review = {
+    subjectId: reference.objectId,
+    submissionId: reference.approvalEntryId,
+    expectedRevision: pending.revision,
+  }
+  const approved = await bobArchives.review(
     entity,
     'approve',
-    {
-      subjectId: reference.objectId,
-      submissionId: reference.approvalEntryId,
-      expectedRevision: pending.revision,
-    },
+    review,
     serviceActor(reviewer.userId),
     `e2e-${entity}-approve`,
   )
   reference.code = approved.code ?? reference.code
 }
 
-async function seedVouReferences(
-  archives: ArchiveService,
-  warehouse: WarehouseService,
-) {
+async function seedVouReferences(aux: AuxService) {
   const reference = (key: string) => {
     const found = vouReferenceFacts.references.find((item) => item.key === key)
     if (!found) throw new Error(`missing ${key} E2E VOU reference`)
     return found
   }
-  const operatingEntity = reference('operatingEntity')
-  await seedArchiveReference(archives, 'operating-entity', operatingEntity, {
-    legalName: '目标经营主体有限公司',
-    shortName: '目标经营主体',
-    legalIdentifier: `91${suffix.toUpperCase()}`,
-    registeredAddress: '上海市',
-    contactName: '目标联系人',
-    contactPhone: '13800000000',
-    invoiceTitle: '目标经营主体有限公司',
-    invoiceAddress: '上海市',
-    invoicePhone: '021-10000000',
-    invoiceBank: '目标银行',
-    invoiceAccount: '6222000000000000',
-    remark: '',
-    enabled: true,
-  })
-  const operatingEntityReference = {
-    objectId: operatingEntity.objectId,
-    approvalEntryId: operatingEntity.approvalEntryId,
-    code: operatingEntity.code,
-    name: operatingEntity.name,
+  const peopleActor = {
+    id: submitter.userId,
+    permissions: [
+      '/aux/operating-entity/create',
+      '/aux/operating-entity/get',
+      '/aux/employee/create',
+      '/aux/employee/get',
+      '/aux/warehouse/create',
+      '/aux/warehouse/get',
+      '/aux/fund-account/create',
+      '/aux/fund-account/get',
+    ],
   }
+  const operatingEntity = reference('operatingEntity')
+  const createdOperatingEntity = await aux.create(
+    'operating-entity',
+    {
+      legalName: '目标经营主体有限公司',
+      shortName: '目标经营主体',
+      legalIdentifier: `91${suffix.toUpperCase()}`,
+      registeredAddress: '上海市',
+      contactName: '目标联系人',
+      contactPhone: '13800000000',
+      invoiceTitle: '目标经营主体有限公司',
+      invoiceAddress: '上海市',
+      invoicePhone: '021-10000000',
+      invoiceBank: '目标银行',
+      invoiceAccount: '6222000000000000',
+      remark: '',
+    },
+    peopleActor,
+  )
+  const storedOperatingEntity = await aux.get(
+    'operating-entity',
+    { id: createdOperatingEntity.id },
+    peopleActor,
+  )
+  operatingEntity.objectId = storedOperatingEntity.id
+  operatingEntity.code = storedOperatingEntity.code
+  operatingEntity.name = storedOperatingEntity.name
+
   const manager = {
     key: 'manager',
     entity: 'employee' as const,
@@ -611,63 +632,121 @@ async function seedVouReferences(
     code: 'EMP-E2E',
     name: '目标负责人',
   }
-  await seedArchiveReference(archives, 'employee', manager, {
-    identityKind: 'PERSON',
-    legalName: '目标负责人',
-    displayName: manager.name,
-    legalIdentifier: `MGR-${suffix}`,
+  const employeeInput = (legalName: string, displayName: string) => ({
+    identityKind: 'PERSON' as const,
+    legalName,
+    displayName,
+    legalIdentifier: `EMP-${suffix}-${displayName}`,
     contactName: '',
     phone: '',
     address: '',
-    employeeCategory: auxReference('employee-category'),
-    department: auxReference('department'),
-    position: auxReference('position'),
+    employeeCategoryId: auxReference('employee-category').id,
+    departmentId: auxReference('department').id,
+    positionId: auxReference('position').id,
     employmentDate: '2026-08-01',
     workPhone: '',
     workEmail: '',
-    operatingEntity: operatingEntityReference,
+    operatingEntityId: storedOperatingEntity.id,
     remark: '',
-    enabled: true,
   })
+  const createdManager = await aux.create(
+    'employee',
+    employeeInput('目标负责人', manager.name),
+    peopleActor,
+  )
+  const storedManager = await aux.get(
+    'employee',
+    { id: createdManager.id },
+    peopleActor,
+  )
+  managerEmployeeId = storedManager.id
+  manager.objectId = storedManager.id
+  manager.code = storedManager.code
+  manager.name = storedManager.name
+
+  const employee = reference('employee')
+  const createdEmployee = await aux.create(
+    'employee',
+    employeeInput('目标员工', '目标员工'),
+    peopleActor,
+  )
+  const storedEmployee = await aux.get(
+    'employee',
+    { id: createdEmployee.id },
+    peopleActor,
+  )
+  employee.objectId = storedEmployee.id
+  employee.code = storedEmployee.code
+  employee.name = storedEmployee.name
+
   const warehouseReference = reference('warehouse')
-  const warehousePending = await warehouse.submit(
+  const warehouseCurrent = await aux.create(
+    'warehouse',
+    {
+      name: warehouseReference.name,
+      address: '上海市',
+      contactName: '目标仓管员',
+      contactPhone: '',
+      managerEmployeeId: manager.objectId,
+      remark: '',
+    },
+    peopleActor,
+  )
+  const warehouseDetail = await aux.get(
+    'warehouse',
+    { id: warehouseCurrent.id },
+    peopleActor,
+  )
+  warehouseReference.objectId = warehouseCurrent.id
+  warehouseReference.code = warehouseDetail.code
+
+  const partnerSubjectId = ulid(),
+    partnerSubmissionId = ulid()
+  const partner = await bobArchives.submit(
+    'sales-partner',
     'submit-new',
     {
-      subjectId: warehouseReference.objectId,
-      submissionId: warehouseReference.approvalEntryId,
-      idempotencyKey: warehouseReference.approvalEntryId,
+      subjectId: partnerSubjectId,
+      submissionId: partnerSubmissionId,
+      idempotencyKey: partnerSubmissionId,
       expectedLatestApprovedSubmissionId: null,
       expectedLatestApprovedRevision: null,
       snapshot: {
-        name: warehouseReference.name,
-        address: '上海市',
-        contactName: '目标仓管员',
-        contactPhone: '13800000000',
-        managerEmployeeId: manager.objectId,
-        managerEmployeeApprovalEntryId: manager.approvalEntryId,
-        managerEmployeeCode: manager.code,
-        managerEmployeeName: manager.name,
+        identityKind: 'ORGANIZATION',
+        legalName: `目标客户渠道商${suffix}`,
+        displayName: `目标客户渠道商${suffix}`,
+        legalIdentifier: `PARTNER-${suffix}`,
+        contactName: '',
+        phone: '',
+        address: '',
+        operatingEntities: [
+          {
+            objectId: operatingEntity.objectId,
+            code: operatingEntity.code,
+            name: operatingEntity.name,
+          },
+        ],
+        defaultOperatingEntityId: operatingEntity.objectId,
         remark: '',
-        enabled: true,
+        capabilities: ['CHANNEL_PARTNER'],
       },
     },
     serviceActor(submitter.userId),
-    'e2e-warehouse-submit',
+    'e2e-customer-partner-submit',
   )
-  const warehouseApproved = await warehouse.review(
+  await bobArchives.review(
+    'sales-partner',
     'approve',
     {
-      subjectId: warehouseReference.objectId,
-      submissionId: warehouseReference.approvalEntryId,
-      expectedRevision: warehousePending.revision,
+      subjectId: partnerSubjectId,
+      submissionId: partnerSubmissionId,
+      expectedRevision: partner.revision,
     },
     serviceActor(reviewer.userId),
-    'e2e-warehouse-approve',
+    'e2e-customer-partner-approve',
   )
-  warehouseReference.code = warehouseApproved.code
-
   const customerSubunit = reference('customerSubunit')
-  await seedArchiveReference(archives, 'customer', reference('customer'), {
+  await seedArchiveReference('customer', reference('customer'), {
     identityKind: 'OTHER',
     legalName: '目标客户',
     displayName: '目标客户',
@@ -710,7 +789,6 @@ async function seedVouReferences(
         primarySalesAttribution: {
           type: 'INTERNAL_EMPLOYEE',
           objectId: manager.objectId,
-          approvalEntryId: manager.approvalEntryId,
           code: manager.code,
           name: manager.name,
         },
@@ -723,12 +801,12 @@ async function seedVouReferences(
     enabled: true,
   })
   const storedSubunit = await database
-    .selectFrom('dcl_customer_subunit_roots')
+    .selectFrom('bob_customer_subunit_roots')
     .select('code')
     .where('subunit_id', '=', customerSubunit.objectId)
     .executeTakeFirstOrThrow()
   customerSubunit.code = storedSubunit.code
-  await seedArchiveReference(archives, 'supplier', reference('supplier'), {
+  await seedArchiveReference('supplier', reference('supplier'), {
     identityKind: 'ORGANIZATION',
     legalName: '目标供应商',
     displayName: '目标供应商',
@@ -741,9 +819,8 @@ async function seedVouReferences(
     settlementMethod: auxReference('settlement-method'),
     defaultPurchaser: null,
     remark: '',
-    enabled: true,
   })
-  await seedArchiveReference(archives, 'other-unit', reference('otherUnit'), {
+  await seedArchiveReference('other-unit', reference('otherUnit'), {
     identityKind: 'ORGANIZATION',
     legalName: '目标其他单位',
     displayName: '目标其他单位',
@@ -755,12 +832,9 @@ async function seedVouReferences(
     defaultOperatingEntityId: null,
     settlementMethod: null,
     remark: '',
-    enabled: true,
   })
-  await seedArchiveReference(
-    archives,
+  const account = await aux.create(
     'fund-account',
-    reference('fundAccount'),
     {
       name: '目标资金账户',
       currency: 'CNY',
@@ -768,12 +842,21 @@ async function seedVouReferences(
       bank: '目标银行',
       branch: '',
       accountNumber: `FAC${suffix}`,
-      operatingEntity: operatingEntityReference,
+      operatingEntityId: operatingEntity.objectId,
       remark: '',
-      enabled: true,
     },
+    peopleActor,
   )
-  await seedArchiveReference(archives, 'product', reference('product'), {
+  const accountDetail = await aux.get(
+    'fund-account',
+    { id: account.id },
+    peopleActor,
+  )
+  Object.assign(reference('fundAccount'), {
+    objectId: account.id,
+    code: accountDetail.code,
+  })
+  await seedArchiveReference('product', reference('product'), {
     name: '目标产品',
     barcode: `PRD-${suffix}`,
     specification: '',
@@ -803,24 +886,6 @@ async function seedVouReferences(
     defaultPackagingSpec: '1.000000',
     recyclable: false,
     fixedFormula: null,
-    remark: '',
-    enabled: true,
-  })
-  await seedArchiveReference(archives, 'employee', reference('employee'), {
-    identityKind: 'PERSON',
-    legalName: '目标员工',
-    displayName: '目标员工',
-    legalIdentifier: `EMP-${suffix}`,
-    contactName: '',
-    phone: '',
-    address: '',
-    employeeCategory: auxReference('employee-category'),
-    department: auxReference('department'),
-    position: auxReference('position'),
-    employmentDate: '2026-08-01',
-    workPhone: '',
-    workEmail: '',
-    operatingEntity: operatingEntityReference,
     remark: '',
     enabled: true,
   })
@@ -881,29 +946,26 @@ async function seedAccFacts(acc: AccService) {
     })),
   )
   archiveFacts.accounting.book.code = effectBook.code
-  await acc.publishMappingCatalog(effectBook.id, submitterActor)
   const uiBook = await createBook(accUiFacts.book, accUiFacts.subjects)
   accUiFacts.book.code = uiBook.code
-  await acc.publishMappingCatalog(uiBook.id, submitterActor)
   const mappingUiBook = await createBook(
     accMappingUiFacts.book,
     accMappingUiFacts.subjects,
   )
   accMappingUiFacts.book.code = mappingUiBook.code
-  await acc.publishMappingCatalog(mappingUiBook.id, submitterActor)
 }
 
 async function seedApprovedOpeningAndMappings() {
   const submitterActor = {
     id: submitter.userId,
-    permissions: ['/acc/opening/submit-new', '/dcl/acc-mapping/submit-new'],
+    permissions: ['/vou/opening/submit-new', '/acc/mapping/save'],
   }
   const reviewerActor = {
     id: reviewer.userId,
-    permissions: ['/acc/opening/approve', '/dcl/acc-mapping/approve'],
+    permissions: ['/vou/opening/approve'],
   }
   const submissionId = fixtureId('O', 1)
-  const pending = await acc.submitOpening(
+  const pending = await openingService.submitOpening(
     {
       bookId: archiveFacts.accounting.book.id,
       submissionId,
@@ -916,7 +978,7 @@ async function seedApprovedOpeningAndMappings() {
     submitterActor,
     'e2e-acc-opening-submit',
   )
-  await acc.reviewOpening(
+  await openingService.reviewOpening(
     'approve',
     {
       bookId: archiveFacts.accounting.book.id,
@@ -934,103 +996,72 @@ async function seedApprovedOpeningAndMappings() {
     },
     { book: accUiFacts.book, subjects: accUiFacts.subjects },
   ]
-  for (const [bookIndex, mappedBook] of mappedBooks.entries()) {
-    for (const [
-      index,
-      vouEntity,
-    ] of archiveFacts.accounting.vouEntities.entries()) {
-      const mappingIndex =
-        bookIndex * archiveFacts.accounting.vouEntities.length + index + 1
-      const subjectId = fixtureId('G', mappingIndex)
-      const mappingSubmissionId = fixtureId('H', mappingIndex)
+  for (const mappedBook of mappedBooks) {
+    for (const vouEntity of archiveFacts.accounting.vouEntities) {
       const posting = vouPostingSource(vouEntity.code as VouEntity)
       const [debitSubject, creditSubject] = mappedBook.subjects
       if (!debitSubject || !creditSubject)
         throw new Error('target E2E effect book requires two posting subjects')
-      const mapping = await archives.submit(
-        'acc-mapping',
-        'submit-new',
+      await new AccMappingCatalogService(database).save(
         {
-          subjectId,
-          submissionId: mappingSubmissionId,
-          idempotencyKey: mappingSubmissionId,
-          expectedLatestApprovedSubmissionId: null,
-          expectedLatestApprovedRevision: null,
-          snapshot: {
-            book: {
-              id: mappedBook.book.id,
-              code: mappedBook.book.code,
-              name: mappedBook.book.name,
-            },
-            vouEntity: {
-              id: vouEntity.id,
-              code: vouEntity.code,
-              name: vouEntity.name,
-            },
-            defaultResult: posting ? 'POST' : 'UN_POST',
-            definition: {
-              defaultTemplateId: posting ? 'e2e-effect' : null,
-              rules: [],
-              templates: posting
-                ? [
-                    {
-                      templateId: 'e2e-effect',
-                      collection: posting.collection,
-                      lines: [
-                        {
-                          subjectSource: 'FIXED',
-                          subjectValue: debitSubject.id,
-                          direction: 'DEBIT',
-                          amountField: posting.amountField,
-                          currencyField: 'currency',
-                          dimensions: {},
-                          quantityField: null,
-                          costCounterpartSubjectId: null,
-                          costCounterpartDimensions: {},
-                        },
-                        {
-                          subjectSource: 'FIXED',
-                          subjectValue: creditSubject.id,
-                          direction: 'CREDIT',
-                          amountField: posting.amountField,
-                          currencyField: 'currency',
-                          dimensions: {},
-                          quantityField: null,
-                          costCounterpartSubjectId: null,
-                          costCounterpartDimensions: {},
-                        },
-                      ],
-                    },
-                  ]
-                : [],
-              assetConfiguration:
-                bookIndex === 1 && vouEntity.code === 'asset-acquisition'
-                  ? {
-                      assetSubjectId: accUiFacts.subjects[0]!.id,
-                      assetDimensions: {},
-                      accumulatedDepreciationSubjectId:
-                        accUiFacts.subjects[1]!.id,
-                      accumulatedDepreciationDimensions: {},
-                      depreciationExpenseSubjectId: accUiFacts.subjects[1]!.id,
-                      depreciationExpenseDimensions: {},
-                    }
-                  : null,
-            },
+          bookId: mappedBook.book.id,
+          vouEntity: vouEntity.code,
+          expectedRevision: null,
+          defaultResult: posting ? 'POST' : 'UN_POST',
+          definition: {
+            defaultTemplateId: posting ? 'e2e-effect' : null,
+            rules: [],
+            templates: posting
+              ? [
+                  {
+                    templateId: 'e2e-effect',
+                    collection: posting.collection,
+                    lines: [
+                      {
+                        subjectSource: 'FIXED',
+                        subjectValue: debitSubject.id,
+                        direction: 'DEBIT',
+                        amountField: posting.amountField,
+                        currencyField: 'currency',
+                        dimensions: {},
+                        quantityField: null,
+                        costCounterpartSubjectId: null,
+                        costCounterpartDimensions: {},
+                      },
+                      {
+                        subjectSource: 'FIXED',
+                        subjectValue: creditSubject.id,
+                        direction: 'CREDIT',
+                        amountField: posting.amountField,
+                        currencyField: 'currency',
+                        dimensions: {},
+                        quantityField: null,
+                        costCounterpartSubjectId: null,
+                        costCounterpartDimensions: {},
+                      },
+                    ],
+                  },
+                ]
+              : [],
+            assetConfiguration:
+              mappedBook.book.id === accUiFacts.book.id &&
+              vouEntity.code === 'asset-acquisition'
+                ? {
+                    assetSubjectId: accUiFacts.subjects[0]!.id,
+                    assetDimensions: {},
+                    accumulatedDepreciationSubjectId:
+                      accUiFacts.subjects[1]!.id,
+                    accumulatedDepreciationDimensions: {},
+                    depreciationExpenseSubjectId: accUiFacts.subjects[1]!.id,
+                    depreciationExpenseDimensions: {},
+                  }
+                : null,
           },
         },
-        submitterActor,
-        `e2e-acc-mapping-${vouEntity.code}-submit`,
-      )
-      await archives.review(
-        'acc-mapping',
-        'approve',
         {
-          subjectId,
-          submissionId: mappingSubmissionId,
-          expectedRevision: mapping.revision,
+          ...submitterActor,
+          permissions: [...submitterActor.permissions, '/acc/mapping/save'],
         },
-        reviewerActor,
-        `e2e-acc-mapping-${vouEntity.code}-approve`,
       )
     }
   }
@@ -1062,8 +1093,6 @@ async function seedApprovedSourceOrders() {
   }
   const warehouseSnapshot = {
     objectId: warehouseReference.objectId,
-    approvalEntryId: warehouseReference.approvalEntryId,
-    selectionOrigin: 'HISTORICAL' as const,
   }
   const productLine = (lineId: string) => ({
     lineId,
@@ -1107,8 +1136,6 @@ async function seedApprovedSourceOrders() {
         paymentMethod: null,
         operatingEntity: {
           objectId: operatingEntityReference.objectId,
-          approvalEntryId: operatingEntityReference.approvalEntryId,
-          selectionOrigin: 'HISTORICAL' as const,
         },
         warehouse: warehouseSnapshot,
         productLines: [productLine(vouSourceFacts.saleOrder.lineId)],
@@ -1169,6 +1196,9 @@ async function verifyTrustedSystemVouLifecycle() {
       selectionOrigin: 'CURRENT' as const,
     }
   }
+  const currentReference = (key: string) => ({
+    objectId: reference(key).objectId,
+  })
   const sourceLines = [
     {
       sourceLineId: vouSourceFacts.saleOrder.lineId,
@@ -1222,9 +1252,9 @@ async function verifyTrustedSystemVouLifecycle() {
         businessDate: '2026-09-04',
         currency: 'CNY',
         attachments: [],
-        employee: reference('employee'),
-        fundAccount: reference('fundAccount'),
-        handler: reference('employee'),
+        employee: currentReference('employee'),
+        fundAccount: currentReference('fundAccount'),
+        handler: currentReference('employee'),
         amount: '0.00',
       } satisfies VouPayloadFor<'expense-payment'>,
     },
@@ -1345,7 +1375,7 @@ async function verifyTrustedSystemVouLifecycle() {
         currency: 'CNY',
         attachments: [],
         supplier: reference('supplier'),
-        warehouse: reference('warehouse'),
+        warehouse: currentReference('warehouse'),
         parentEntity: 'purchase-order',
         parentDocumentId: vouSourceFacts.purchaseOrder.documentId,
         sourceLines: [
@@ -1366,6 +1396,58 @@ async function verifyTrustedSystemVouLifecycle() {
     serviceActor(reviewer.userId),
     'e2e-purchase-return-source-approve',
   )
+}
+
+async function seedPendingOrderPages() {
+  async function pending(
+    entity: 'sale-order' | 'purchase-order',
+    sourceDocumentId: string,
+    referenceKey: 'customerSubunit' | 'supplier',
+  ) {
+    const source = await vou.get(
+      entity,
+      sourceDocumentId,
+      serviceActor(submitter.userId),
+    )
+    const documentId = ulid(),
+      submissionId = ulid()
+    const result = await vou.submit(
+      entity,
+      'submit-new',
+      {
+        documentId,
+        submissionId,
+        idempotencyKey: submissionId,
+        expectedRevision: null,
+        payload: {
+          ...source.payload,
+          remark: entity === 'sale-order' ? '销售完整备注' : '采购完整备注',
+        },
+      },
+      serviceActor(submitter.userId),
+      'e2e-order-page-submit',
+    )
+    return {
+      documentId,
+      documentNo: result.documentNo,
+      businessDate: result.payload.businessDate,
+      counterpartyName: vouReferenceFacts.references.find(
+        (reference) => reference.key === referenceKey,
+      )!.name,
+    }
+  }
+  return {
+    sale: await pending(
+      'sale-order',
+      vouSourceFacts.saleOrder.documentId,
+      'customerSubunit',
+    ),
+    purchase: await pending(
+      'purchase-order',
+      vouSourceFacts.purchaseOrder.documentId,
+      'supplier',
+    ),
+  }
 }
 
 async function seedVouAccObjects() {
@@ -1517,12 +1599,24 @@ try {
   await bootstrap.createE2EPrincipal(reviewer)
   await bootstrap.createE2EPrincipal(reportAdmin, true)
   await bootstrap.createE2EPrincipal(createOnly, false, ['/app/user/create'])
+  await bootstrap.createE2EPrincipal(orderReviewOnly, false, [
+    '/vou/sale-order/approve',
+    '/bob/reference/query',
+  ])
+  const report = await createRptBrowserFixture(
+    rpt,
+    serviceActor(submitter.userId),
+  )
+  await bootstrap.createE2EPrincipal(reportExporter, false, [
+    `/rpt/${report.code}/export`,
+  ])
   await seedAuxFacts(aux)
   await seedAccFacts(acc)
-  await seedVouReferences(archives, warehouse)
+  await seedVouReferences(aux)
   await seedVouAccObjects()
   await seedApprovedOpeningAndMappings()
   await seedApprovedSourceOrders()
+  const orderPageFacts = await seedPendingOrderPages()
   await verifyTrustedSystemVouLifecycle()
 
   const playwrightArgs = process.argv.slice(2).filter((arg) => arg !== '--')
@@ -1534,12 +1628,21 @@ try {
       stdio: 'inherit',
       env: {
         ...process.env,
+        TARGET_E2E_GENERAL: '1',
+        TARGET_E2E_ORDER_FACTS_JSON: JSON.stringify(orderPageFacts),
+        TARGET_E2E_ORDER_NO_QUERY_USERNAME: orderReviewOnly.username,
+        TARGET_E2E_ORDER_NO_QUERY_PASSWORD: orderReviewOnly.password,
+        TARGET_E2E_CUSTOMER_TYPE: auxReference('dictionary-item').name,
+        TARGET_E2E_CUSTOMER_PARTNER: `目标客户渠道商${suffix}`,
         TARGET_E2E_USERNAME: submitter.username,
         TARGET_E2E_PASSWORD: submitter.password,
         TARGET_E2E_REVIEWER_USERNAME: reviewer.username,
         TARGET_E2E_REVIEWER_PASSWORD: reviewer.password,
         TARGET_E2E_REPORT_USERNAME: reportAdmin.username,
         TARGET_E2E_REPORT_PASSWORD: reportAdmin.password,
+        TARGET_E2E_RPT_CODE: report.code,
+        TARGET_E2E_RPT_EXPORT_USERNAME: reportExporter.username,
+        TARGET_E2E_RPT_EXPORT_PASSWORD: reportExporter.password,
         TARGET_E2E_CREATE_ONLY_USERNAME: createOnly.username,
         TARGET_E2E_CREATE_ONLY_PASSWORD: createOnly.password,
         TARGET_E2E_MANAGER_EMPLOYEE_ID: managerEmployeeId,
@@ -1597,12 +1700,12 @@ try {
     )
   `.execute(database)
   try {
-    let opening = await acc.getOpening(
+    let opening = await openingService.getOpening(
       accUiFacts.book.id,
       serviceActor(submitter.userId),
     )
     if (opening.approval.status === 'APPROVED')
-      opening = await acc.reviewOpening(
+      opening = await openingService.reviewOpening(
         'unapprove',
         {
           bookId: opening.bookId,
@@ -1614,7 +1717,7 @@ try {
         'e2e-acc-opening-cleanup-unapprove',
       )
     if (opening.approval.status === 'REJECTED')
-      opening = await acc.reviewOpening(
+      opening = await openingService.reviewOpening(
         'unreject',
         {
           bookId: opening.bookId,
@@ -1624,7 +1727,7 @@ try {
         serviceActor(reviewer.userId),
         'e2e-acc-opening-cleanup-unreject',
       )
-    await acc.deleteOpening(
+    await openingService.deleteOpening(
       {
         bookId: opening.bookId,
         submissionId: opening.submissionId,
@@ -1638,9 +1741,8 @@ try {
       throw error
   }
   const reportSubjects = await database
-    .selectFrom('dcl_subjects')
+    .selectFrom('rpt_definitions')
     .select('code')
-    .where('entity', '=', 'rpt-definition')
     .where('created_by', '=', submitter.userId)
     .execute()
   await bootstrap.deleteE2EWarehouseFixtures(submitter.userId)
@@ -1704,8 +1806,10 @@ try {
   ])
   await bootstrap.deleteE2EPrincipal(reviewer)
   await bootstrap.deleteE2EPrincipal(createOnly)
+  await bootstrap.deleteE2EPrincipal(orderReviewOnly)
+  await bootstrap.deleteE2EPrincipal(reportExporter)
   await bootstrap.deleteE2EPrincipal(reportAdmin)
   await bootstrap.deleteE2EPrincipal(submitter)
-  await rptValidationPool.end()
+  await rptPool.end()
   await database.destroy()
 }

@@ -17,6 +17,7 @@ import {
 import {
   BobApplicationError,
   type BobEntity,
+  type ManagedBobEntity,
   type BobQueryInput,
   type BobReferenceQueryInput,
   type BobService,
@@ -65,7 +66,9 @@ function independentFailure(requestId: string, error: unknown) {
   return applicationFailure(
     requestId,
     error,
-    error instanceof AuxApplicationError ? error.data : null,
+    error instanceof AuxApplicationError || error instanceof BobApplicationError
+      ? error.data
+      : null,
   )
 }
 
@@ -339,12 +342,14 @@ export function createIndependentHandlers(
             entity,
             input as unknown as AuxWriteData<typeof entity>,
             actor,
+            requestId,
           )
         else if (binding.action === 'save')
           data = await service.save(
             entity,
             input as unknown as AuxSaveInput<typeof entity>,
             actor,
+            requestId,
           )
         else if (binding.action === 'enable' || binding.action === 'disable')
           data = await service[binding.action](
@@ -358,6 +363,7 @@ export function createIndependentHandlers(
             entity,
             input as unknown as AuxRevisionInput,
             actor,
+            requestId,
           )
           data = { deleted: true }
         }
@@ -379,17 +385,28 @@ export function createIndependentHandlers(
         }
         const data =
           'entity' in binding
-            ? binding.action === 'query'
-              ? service.query(
-                  binding.entity as BobEntity,
-                  input as unknown as BobQueryInput,
+            ? binding.action === 'enable' || binding.action === 'disable'
+              ? service.setEnabled(
+                  binding.entity as ManagedBobEntity,
+                  {
+                    objectId: text(input, 'objectId'),
+                    expectedRevision: text(input, 'expectedRevision'),
+                  },
+                  binding.action === 'enable',
                   actor,
+                  requestId,
                 )
-              : service.get(
-                  binding.entity as BobEntity,
-                  text(input, 'objectId'),
-                  actor,
-                )
+              : binding.action === 'query'
+                ? service.query(
+                    binding.entity as BobEntity,
+                    input as unknown as BobQueryInput,
+                    actor,
+                  )
+                : service.get(
+                    binding.entity as BobEntity,
+                    text(input, 'objectId'),
+                    actor,
+                  )
             : service.queryReferenceCandidates(
                 input as unknown as BobReferenceQueryInput,
                 actor,

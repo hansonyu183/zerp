@@ -8,11 +8,16 @@ import {
   TargetApiError,
 } from '../../../api.ts'
 import {
+  ListActionRefreshRequiredError,
   ListActionUnresolvedError,
   useListPageViewModel,
   type ListAction,
   type ListSearchInput,
 } from '../../../components/list-page/vm.ts'
+import {
+  measurementUnitListPage,
+  type MeasurementUnitFilters,
+} from '../../../navigation/list-pages.ts'
 import { useTargetSession } from '../../../session/vm.ts'
 type MeasurementUnitDetail = Awaited<
   ReturnType<typeof getTargetMeasurementUnit>
@@ -289,6 +294,7 @@ export function useMeasurementUnitManagementViewModel() {
     action: ListAction,
   ): boolean {
     if (action === 'create') return can(measurementUnitPaths.create)
+    if (action === 'delete') return false
     if (!item) return false
     if (action === 'edit')
       return (
@@ -323,7 +329,7 @@ export function useMeasurementUnitManagementViewModel() {
     } catch (cause) {
       if (disposed || generation !== session.generation) throw cause
       if (isRevisionConflict(cause))
-        throw new ListActionUnresolvedError(
+        throw new ListActionRefreshRequiredError(
           messageOf(cause, '数据已变化，请刷新列表后重试。'),
         )
       if (
@@ -348,27 +354,42 @@ export function useMeasurementUnitManagementViewModel() {
     }
   }
 
-  const list = useListPageViewModel<MeasurementUnitListItem>({
-    ...(can(measurementUnitPaths.query)
-      ? {
-          onSearch: (input: ListSearchInput) =>
-            queryTargetMeasurementUnits(csrf(), input),
-        }
-      : {}),
-    ...(can(measurementUnitPaths.create) ? { onCreate: openCreate } : {}),
-    ...(can(measurementUnitPaths.get) && can(measurementUnitPaths.save)
-      ? { onEdit: openEdit }
-      : {}),
-    ...(can(measurementUnitPaths.enable)
-      ? { onEnable: (item: MeasurementUnitListItem) => setEnabled(item, true) }
-      : {}),
-    ...(can(measurementUnitPaths.disable)
-      ? {
-          onDisable: (item: MeasurementUnitListItem) => setEnabled(item, false),
-        }
-      : {}),
-    onCanAction: canListAction,
-  })
+  const list = useListPageViewModel<
+    MeasurementUnitListItem,
+    MeasurementUnitFilters
+  >(
+    {
+      ...(can(measurementUnitPaths.query)
+        ? {
+            onSearch: (input: ListSearchInput<MeasurementUnitFilters>) =>
+              queryTargetMeasurementUnits(csrf(), {
+                ...input,
+                quantityScale: input.quantityScale ?? undefined,
+              }),
+          }
+        : {}),
+      ...(can(measurementUnitPaths.create) ? { onCreate: openCreate } : {}),
+      ...(can(measurementUnitPaths.get) && can(measurementUnitPaths.save)
+        ? { onEdit: openEdit }
+        : {}),
+      ...(can(measurementUnitPaths.enable)
+        ? {
+            onEnable: (item: MeasurementUnitListItem) => setEnabled(item, true),
+          }
+        : {}),
+      ...(can(measurementUnitPaths.disable)
+        ? {
+            onDisable: (item: MeasurementUnitListItem) =>
+              setEnabled(item, false),
+          }
+        : {}),
+      onCanAction: canListAction,
+    },
+    {
+      initialFilters: () => ({ keyword: '', quantityScale: null }),
+      validateFilters: measurementUnitListPage.normalizeFilters,
+    },
+  )
 
   const creationNotice = computed(() =>
     list.actionBlocked.value && lastCreatedId.value

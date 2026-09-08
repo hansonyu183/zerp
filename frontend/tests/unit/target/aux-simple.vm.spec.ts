@@ -95,7 +95,7 @@ describe('AUX simple management public view-model seam', () => {
       '/aux/employee-category/disable',
     )
     const vm = useEmployeeCategoryManagementViewModel()
-    vm.list.keyword.value = ' cai '
+    vm.list.filterInput.value.keyword = ' cai '
 
     await vm.list.submitSearch()
 

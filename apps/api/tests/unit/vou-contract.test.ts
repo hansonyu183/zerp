@@ -80,13 +80,9 @@ test('VOU order quantities require a complete measurement-unit snapshot', () => 
     },
     operatingEntity: {
       objectId: '01J00000000000000000000003',
-      approvalEntryId: '01J00000000000000000000004',
-      selectionOrigin: 'CURRENT',
     },
     warehouse: {
       objectId: '01J00000000000000000000005',
-      approvalEntryId: '01J00000000000000000000006',
-      selectionOrigin: 'CURRENT',
     },
     paymentMethod: null,
     productLines: [
@@ -132,7 +128,7 @@ test('VOU query contract owns fixed-size filters, sort, and page metadata', () =
       page: 2,
       pageSize: 20,
       filters: {
-        keyword: 'BJ2026',
+        documentNo: 'BJ2026',
         status: ['PENDING', 'REJECTED'],
         dateFrom: '2026-09-01',
         dateTo: '2026-09-30',
@@ -148,7 +144,26 @@ test('VOU query contract owns fixed-size filters, sort, and page metadata', () =
   )
   assert.equal(
     responseSchema('query').safeParse(
-      success({ items: [view], total: 21, page: 2, pageSize: 20 }),
+      success({
+        items: [
+          {
+            vouType: 'sale-pricing',
+            documentId: id,
+            documentNo: 'BJ2026090001',
+            handlerName: null,
+            revision: '1',
+            status: 'PENDING',
+            businessDate: '2026-09-05',
+            submittedDate: '2026-09-05',
+            counterpartyName: null,
+            amount: '10.00',
+            currency: 'CNY',
+          },
+        ],
+        total: 21,
+        page: 2,
+        pageSize: 20,
+      }),
     ).success,
     true,
   )
@@ -385,13 +400,9 @@ test('VOU sale-order and reference contracts expose exact payment-method snapsho
     },
     operatingEntity: {
       objectId: '01J00000000000000000000003',
-      approvalEntryId: '01J00000000000000000000004',
-      selectionOrigin: 'CURRENT',
     },
     warehouse: {
       objectId: '01J00000000000000000000005',
-      approvalEntryId: '01J00000000000000000000006',
-      selectionOrigin: 'CURRENT',
     },
     paymentMethod,
     productLines: [
@@ -500,4 +511,17 @@ test('VOU attachment downloads declare every supported binary MIME type', () => 
     Object.keys(vouAttachmentDownloadRoute.responses[200].content).sort(),
     ['application/pdf', 'image/jpeg', 'image/png'],
   )
+})
+
+test('VOU query rejects the removed keyword alias and inverted date ranges', () => {
+  for (const filters of [
+    { keyword: 'old' },
+    { dateFrom: '2026-09-30', dateTo: '2026-09-01' },
+    { submittedFrom: '2026-09-30', submittedTo: '2026-09-01' },
+  ])
+    assert.equal(
+      requestSchema('query').safeParse({ page: 1, pageSize: 20, filters })
+        .success,
+      false,
+    )
 })

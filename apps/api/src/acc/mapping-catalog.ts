@@ -1,8 +1,16 @@
-import { sql, type Kysely } from 'kysely'
+import { ulid } from 'ulid'
+import {
+  prepareAccMappingSave,
+  vouEntities,
+  vouEntityInputDescriptors,
+  type AccMappingData,
+} from '@zerp/model'
+import { sql, type Kysely, type Transaction } from 'kysely'
 
 import type { DB, JsonValue } from '../db/generated.ts'
 
 export type AccMappingCatalogActor = {
+  id: string
   permissions: readonly string[]
 }
 
@@ -19,7 +27,11 @@ export type AccMappingCatalog = {
     id: string
     code: string
     name: string
-    fieldCatalog: { headerFields: string[]; lineFields: string[] }
+    fieldCatalog: {
+      headerFields: string[]
+      lineFields: string[]
+      collections: string[]
+    }
   }>
   subjects: Array<{
     id: string
@@ -32,11 +44,10 @@ export type AccMappingCatalog = {
 
 export type AccMappingCurrent = {
   subjectId: string
-  approvalEntryId: string
-  approvalRevision: string
+  revision: string
   book: { id: string; code: string; name: string }
   vouEntity: { id: string; code: string; name: string }
-  defaultResult: string
+  defaultResult: 'POST' | 'UN_POST'
   definition: AccMappingDefinition
 }
 
@@ -78,19 +89,18 @@ export type AccMappingDefinition = {
 
 type CurrentMappingRow = {
   subject_id: string
-  approval_entry_id: string
   revision: string | number | bigint
   book_id: string
   book_snapshot: JsonValue
   vou_entity_snapshot: JsonValue
-  default_result: string
+  default_result: 'POST' | 'UN_POST'
   mapping_definition: JsonValue
 }
 
 export class AccMappingCatalogError extends Error {
-  readonly errorKey: 'forbidden' | 'not_found'
+  readonly errorKey: string
 
-  constructor(errorKey: 'forbidden' | 'not_found') {
+  constructor(errorKey: string) {
     super(errorKey)
     this.errorKey = errorKey
   }
@@ -124,22 +134,42 @@ export class AccMappingCatalogService {
       throw new AccMappingCatalogError('forbidden')
     const [books, vouEntities, subjects] = await Promise.all([
       this.db
-        .selectFrom('dcl_acc_book_facts')
-        .select(['id', 'code', 'name'])
-        .where('enabled', '=', true)
+        .selectFrom('acc_books as b')
+        .innerJoin('acc_book_access as a', 'a.book_id', 'b.id')
+        .select(['b.id', 'b.code', 'b.name'])
+        .where('a.user_id', '=', actor.id)
+        .where('a.can_query', '=', true)
         .orderBy('code')
         .execute(),
       this.db
-        .selectFrom('dcl_acc_vou_entity_facts')
+        .selectFrom('acc_mapping_vou_entities')
         .select(['id', 'code', 'name', 'field_catalog'])
         .where('enabled', '=', true)
         .orderBy('code')
         .execute(),
       this.db
-        .selectFrom('dcl_acc_subject_facts')
-        .select(['id', 'book_id', 'code', 'name', 'required_dimensions'])
+        .selectFrom('acc_subjects as s')
+        .innerJoin('acc_book_access as a', 'a.book_id', 's.book_id')
+        .select([
+          's.id',
+          's.book_id',
+          's.code',
+          's.name',
+          's.required_dimensions',
+        ])
+        .where('a.user_id', '=', actor.id)
+        .where('a.can_query', '=', true)
         .where('enabled', '=', true)
-        .where('leaf', '=', true)
+        .where((eb) =>
+          eb.not(
+            eb.exists(
+              eb
+                .selectFrom('acc_subjects as child')
+                .select('child.id')
+                .whereRef('child.parent_id', '=', 's.id'),
+            ),
+          ),
+        )
         .orderBy('book_id')
         .orderBy('code')
         .execute(),
@@ -153,6 +183,7 @@ export class AccMappingCatalogService {
           code: item.code,
           name: item.name,
           fieldCatalog: {
+            collections: mappingCollections(item.code),
             headerFields: strings(catalog.headerFields),
             lineFields: strings(catalog.lineFields),
           },
@@ -178,6 +209,7 @@ export class AccMappingCatalogService {
     pageSize: number
   }> {
     this.require(actor, 'query')
+    await this.requireBook(this.db, input.bookId, actor, false)
     const rows = await this.currentRows(input.bookId, input.vouEntity)
     const start = (input.page - 1) * input.pageSize
     return {
@@ -196,6 +228,7 @@ export class AccMappingCatalogService {
     actor: AccMappingCatalogActor,
   ): Promise<AccMappingCurrent> {
     this.require(actor, 'get')
+    await this.requireBook(this.db, bookId, actor, false)
     const row = await this.currentRows(bookId, vouEntity).then(
       (rows) => rows[0],
     )
@@ -208,41 +241,141 @@ export class AccMappingCatalogService {
       throw new AccMappingCatalogError('forbidden')
   }
 
-  private async currentRows(bookId: string, vouEntity?: string) {
-    const vouFilter = vouEntity
-      ? sql`AND current_mapping.vou_entity_snapshot->>'code' = ${vouEntity}`
-      : sql``
-    const result = await sql<CurrentMappingRow>`
-      SELECT current_mapping.subject_id,
-             current_mapping.approval_entry_id,
-             current_mapping.revision,
-             current_mapping.book_id,
-             current_mapping.book_snapshot,
-             current_mapping.vou_entity_snapshot,
-             current_mapping.default_result,
-             current_mapping.mapping_definition
-      FROM (
-        SELECT DISTINCT ON (e.subject_id)
-               e.subject_id,
-               e.id AS approval_entry_id,
-               e.revision,
-               m.book_id,
-               m.book_snapshot,
-               m.vou_entity_snapshot,
-               m.default_result,
-               m.mapping_definition
-        FROM dcl_acc_mapping_versions AS m
-        INNER JOIN approval_entries AS e ON e.id = m.approval_entry_id
-        WHERE e.domain = 'dcl'
-          AND e.entity = 'acc-mapping'
-          AND e.status = 'APPROVED'
-        ORDER BY e.subject_id, e.version_no DESC
-      ) AS current_mapping
-      WHERE current_mapping.book_id = ${bookId}
-      ${vouFilter}
-      ORDER BY current_mapping.subject_id
-    `.execute(this.db)
-    return result.rows
+  private async requireBook(
+    executor: Kysely<DB> | Transaction<DB>,
+    bookId: string,
+    actor: AccMappingCatalogActor,
+    operate: boolean,
+  ) {
+    const access = await executor
+      .selectFrom('acc_book_access')
+      .selectAll()
+      .where('book_id', '=', bookId)
+      .where('user_id', '=', actor.id)
+      .forShare()
+      .executeTakeFirst()
+    if (!access || !(operate ? access.can_operate : access.can_query))
+      throw new AccMappingCatalogError('acc_book_access_denied')
+  }
+
+  async save(
+    input: {
+      bookId: string
+      vouEntity: string
+      expectedRevision: string | null
+      defaultResult: 'POST' | 'UN_POST'
+      definition: AccMappingDefinition
+    },
+    actor: AccMappingCatalogActor,
+  ): Promise<AccMappingCurrent> {
+    this.require(actor, 'save')
+    return this.db.transaction().execute(async (tx) => {
+      await this.requireBook(tx, input.bookId, actor, true)
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`acc:mapping:${input.bookId}:${input.vouEntity}`}, 0))`.execute(
+        tx,
+      )
+      const existing = (
+        await this.currentRows(input.bookId, input.vouEntity, tx, true)
+      )[0]
+      if (
+        (existing ? String(existing.revision) : null) !== input.expectedRevision
+      )
+        throw new AccMappingCatalogError('acc_mapping_stale_revision')
+      const book = await tx
+        .selectFrom('acc_books')
+        .select(['id', 'code', 'name'])
+        .where('id', '=', input.bookId)
+        .executeTakeFirst()
+      const vouEntity = await tx
+        .selectFrom('acc_mapping_vou_entities')
+        .selectAll()
+        .where('code', '=', input.vouEntity)
+        .executeTakeFirst()
+      if (!book)
+        throw new AccMappingCatalogError('acc_mapping_book_unavailable')
+      if (!vouEntity)
+        throw new AccMappingCatalogError('acc_mapping_vou_entity_unavailable')
+      // Lock the real subjects used by subject maintenance, not just catalog copies.
+      const subjects = await tx
+        .selectFrom('acc_subjects')
+        .selectAll()
+        .where('book_id', '=', input.bookId)
+        .orderBy('id')
+        .forUpdate()
+        .execute()
+      const parents = new Set(
+        subjects.flatMap((subject) =>
+          subject.parent_id ? [subject.parent_id] : [],
+        ),
+      )
+      const catalog = object(vouEntity.field_catalog)
+      const result = prepareAccMappingSave(
+        {
+          book,
+          vouEntity,
+          defaultResult: input.defaultResult,
+          definition: input.definition,
+        },
+        {
+          book: { ...book, enabled: true },
+          vouEntity,
+          fieldCatalog: {
+            collections: mappingCollections(vouEntity.code),
+            headerFields: strings(catalog.headerFields),
+            lineFields: strings(catalog.lineFields),
+          },
+          accounts: subjects.map((subject) => ({
+            id: subject.id,
+            bookId: subject.book_id,
+            enabled: subject.enabled,
+            leaf: !parents.has(subject.id),
+            requiredDimensions: strings(subject.required_dimensions),
+          })),
+        },
+      )
+      if (!result.ok) throw new AccMappingCatalogError(result.error.errorKey)
+      const id = existing?.subject_id ?? ulid()
+      const revision = existing ? BigInt(existing.revision) + 1n : 1n
+      const data = result.data
+      await sql`INSERT INTO acc_mappings(id, book_id, vou_entity_id, vou_entity, book_snapshot, vou_entity_snapshot, default_result, mapping_definition, revision, created_at, created_by, updated_at, updated_by)
+        VALUES(${id}, ${book.id}, ${vouEntity.id}, ${vouEntity.code}, ${JSON.stringify(data.book)}::jsonb, ${JSON.stringify(data.vouEntity)}::jsonb, ${data.defaultResult}, ${JSON.stringify(data.definition)}::jsonb, ${revision}, now(), ${actor.id}, now(), ${actor.id})
+        ON CONFLICT(id) DO UPDATE SET book_snapshot=excluded.book_snapshot, vou_entity_snapshot=excluded.vou_entity_snapshot, default_result=excluded.default_result, mapping_definition=excluded.mapping_definition, revision=excluded.revision, updated_at=excluded.updated_at, updated_by=excluded.updated_by`.execute(
+        tx,
+      )
+      await syncMappingSubjectUsages(tx, id, data)
+      await tx
+        .insertInto('app_audit_events')
+        .values({
+          id: ulid(),
+          event_type: 'ACC_MAPPING_SAVED',
+          actor_user_id: actor.id,
+          target_type: 'acc/mapping',
+          target_id: id,
+          result: 'SUCCESS',
+          summary: JSON.stringify({
+            revision: String(revision),
+            data,
+          }) as unknown as JsonValue,
+        })
+        .execute()
+      return this.current(
+        (await this.currentRows(book.id, vouEntity.code, tx))[0]!,
+      )
+    })
+  }
+
+  private async currentRows(
+    bookId: string,
+    vouEntity?: string,
+    executor: Kysely<DB> | Transaction<DB> = this.db,
+    lock = false,
+  ) {
+    const filter = vouEntity ? sql`AND vou_entity = ${vouEntity}` : sql``
+    return (
+      await sql<CurrentMappingRow>`SELECT id AS subject_id, revision, book_id, book_snapshot, vou_entity_snapshot, default_result, mapping_definition FROM acc_mappings WHERE book_id = ${bookId} ${filter} ORDER BY vou_entity ${lock ? sql`FOR UPDATE` : sql``}`.execute(
+        executor,
+      )
+    ).rows
   }
 
   private current(row: CurrentMappingRow): AccMappingCurrent {
@@ -250,8 +383,7 @@ export class AccMappingCatalogService {
     const vouEntity = object(row.vou_entity_snapshot)
     return {
       subjectId: row.subject_id,
-      approvalEntryId: row.approval_entry_id,
-      approvalRevision: String(row.revision),
+      revision: String(row.revision),
       book: {
         id: String(book.id ?? ''),
         code: String(book.code ?? ''),
@@ -266,4 +398,41 @@ export class AccMappingCatalogService {
       definition: definition(row.mapping_definition),
     }
   }
+}
+
+export async function syncMappingSubjectUsages(
+  tx: Transaction<DB>,
+  mappingId: string,
+  data: AccMappingData,
+) {
+  const ids = new Set<string>()
+  for (const template of data.definition.templates)
+    for (const line of template.lines) {
+      if (line.subjectSource === 'FIXED') ids.add(line.subjectValue)
+      if (line.costCounterpartSubjectId) ids.add(line.costCounterpartSubjectId)
+    }
+  const asset = data.definition.assetConfiguration
+  if (asset) {
+    ids.add(asset.assetSubjectId)
+    ids.add(asset.accumulatedDepreciationSubjectId)
+    ids.add(asset.depreciationExpenseSubjectId)
+  }
+  await sql`DELETE FROM acc_mapping_subject_usages WHERE mapping_id=${mappingId}`.execute(
+    tx,
+  )
+  for (const id of [...ids].sort())
+    await sql`INSERT INTO acc_mapping_subject_usages(mapping_id,subject_id) VALUES(${mappingId},${id})`.execute(
+      tx,
+    )
+}
+
+function mappingCollections(code: string): string[] {
+  const entity = vouEntities.find((entity) => entity === code)
+  return entity
+    ? vouEntityInputDescriptors[entity]
+        .filter(
+          (field) => field.kind === 'array' && field.key !== 'attachments',
+        )
+        .map((field) => field.key)
+    : []
 }

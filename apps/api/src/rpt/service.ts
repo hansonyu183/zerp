@@ -1,9 +1,18 @@
+import { createHash } from 'node:crypto'
+import type { z } from '@hono/zod-openapi'
+import { definitionInput } from './contract.ts'
 import type { ApprovalActor } from '@zerp/model'
-import { sql, type Kysely, type RawBuilder, type Transaction } from 'kysely'
+import {
+  sql,
+  type Kysely,
+  type RawBuilder,
+  type Transaction,
+  type Selectable,
+} from 'kysely'
 import type pg from 'pg'
 import { ulid } from 'ulid'
 
-import type { DB, JsonValue } from '../db/generated.ts'
+import type { DB, JsonValue, RptDefinitions } from '../db/generated.ts'
 
 type Executor = Kysely<DB> | Transaction<DB>
 
@@ -22,6 +31,7 @@ export interface RptParameter {
   required: boolean
   defaultValue?: unknown
   enumValues?: readonly string[]
+  enumCaptions?: Record<string, string>
   referenceType?: RptReferenceType
 }
 
@@ -54,7 +64,7 @@ export type RptReferenceType =
 
 export interface RptDefinition {
   subjectId: string
-  approvalEntryId: string
+  revision: string
   code: string
   name: string
   sql: string
@@ -85,7 +95,7 @@ export class RptApplicationError extends Error {
 
 function requirePermission(actor: ApprovalActor, permission: string): void {
   if (actor.trusted !== true && !actor.permissions.includes(permission))
-    throw new RptApplicationError('approval_invalid_action')
+    throw new RptApplicationError('rpt_permission_denied')
 }
 
 function json(value: unknown): JsonValue {
@@ -239,7 +249,7 @@ function bindStatement(
   return sql.join(parts, sql.raw(''))
 }
 
-function assertDefinitionContract(definition: RptDefinition): void {
+export function assertRptDefinitionContract(definition: RptDefinition): void {
   const parameterNames = new Set<string>()
   const referenceTypes: readonly RptReferenceType[] = [
     'ACCOUNTING_BOOK',
@@ -278,6 +288,13 @@ function assertDefinitionContract(definition: RptDefinition): void {
         (parameter.type === 'ENUM' &&
           (!parameter.enumValues ||
             parameter.enumValues.length === 0 ||
+            !parameter.enumCaptions ||
+            parameter.enumValues.some(
+              (value) => !parameter.enumCaptions?.[value]?.trim(),
+            ) ||
+            Object.keys(parameter.enumCaptions).some(
+              (value) => !parameter.enumValues?.includes(value),
+            ) ||
             parameter.enumValues.some(
               (value) => !value || value.length > 200,
             ) ||
@@ -409,7 +426,7 @@ export async function validateRptDefinition(
   definition: RptDefinition,
 ): Promise<void> {
   assertRptReadOnlyStatement(definition.sql)
-  assertDefinitionContract(definition)
+  assertRptDefinitionContract(definition)
   const parameters: RptParameter[] = []
   const statement = bindStatement(
     definition,
@@ -480,6 +497,193 @@ export class RptService {
     this.validator = validator
   }
 
+  async get(subjectId: string, actor: ApprovalActor) {
+    requirePermission(actor, '/rpt/definition/get')
+    const row = await this.db
+      .selectFrom('rpt_definitions')
+      .selectAll()
+      .where('id', '=', subjectId)
+      .executeTakeFirst()
+    if (!row) throw new RptApplicationError('rpt_definition_not_found')
+    return this.projectDefinition(row)
+  }
+
+  async save(
+    input: z.infer<typeof definitionInput>,
+    actor: ApprovalActor,
+    requestId: string,
+  ) {
+    requirePermission(actor, '/rpt/definition/save')
+    const parsed = definitionInput.safeParse(input)
+    if (!parsed.success)
+      throw new RptApplicationError('rpt_definition_invalid_data')
+    input = parsed.data
+    return this.db.transaction().execute(async (tx) => {
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended('rpt:definition:save',0))`.execute(
+        tx,
+      )
+      const existing = await tx
+        .selectFrom('rpt_definitions')
+        .selectAll()
+        .where('id', '=', input.subjectId)
+        .forUpdate()
+        .executeTakeFirst()
+      if (
+        (existing ? String(existing.revision) : null) !== input.expectedRevision
+      )
+        throw new RptApplicationError('rpt_revision_conflict')
+      let code = existing?.code
+      if (!code) {
+        const counter = await sql<{
+          value: string
+        }>`UPDATE rpt_code_counter SET next_value=next_value+1 WHERE key='definition' RETURNING (next_value-1)::text value`.execute(
+          tx,
+        )
+        code = `rpt-${counter.rows[0]!.value.padStart(6, '0')}`
+        if (!/^rpt-[0-9]{6}$/.test(code))
+          throw new RptApplicationError('rpt_code_exhausted')
+      }
+      const revision = String(BigInt(existing?.revision ?? 0) + 1n)
+      const definition = { ...input, code, revision }
+      try {
+        await this.validator.validate(definition)
+      } catch {
+        throw new RptApplicationError('rpt_definition_invalid_data')
+      }
+      const now = new Date()
+      const values = {
+        name: input.name,
+        description: input.description,
+        enabled: input.enabled,
+        sql_text: input.sql,
+        parameters: json(input.parameters),
+        columns: json(input.columns),
+        revision,
+        validity: 'VALID',
+        diagnostic: null,
+        updated_at: now,
+        updated_by: actor.id,
+      }
+      const row = existing
+        ? await tx
+            .updateTable('rpt_definitions')
+            .set(values)
+            .where('id', '=', input.subjectId)
+            .returningAll()
+            .executeTakeFirstOrThrow()
+        : await tx
+            .insertInto('rpt_definitions')
+            .values({
+              ...values,
+              id: input.subjectId,
+              code,
+              created_at: now,
+              created_by: actor.id,
+            })
+            .returningAll()
+            .executeTakeFirstOrThrow()
+      await tx
+        .insertInto('rpt_definition_audits')
+        .values({
+          id: ulid(),
+          definition_id: row.id,
+          revision,
+          actor_id: actor.id,
+          request_id: requestId,
+          created_at: now,
+        })
+        .execute()
+      await this.syncPermissions(tx, row.code, row.name, row.enabled, actor.id)
+      return this.projectDefinition(row)
+    })
+  }
+
+  private deterministic(error: unknown): boolean {
+    return (
+      (error instanceof RptApplicationError &&
+        [
+          'rpt_definition_invalid_sql',
+          'rpt_parameter_contract_mismatch',
+          'rpt_result_columns_mismatch',
+          'rpt_result_column_type_mismatch',
+        ].includes(error.errorKey)) ||
+      (typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        [
+          '42P01',
+          '42703',
+          '42883',
+          '42804',
+          '42P18',
+          '42601',
+          '42704',
+        ].includes(String(error.code)))
+    )
+  }
+
+  private async invalidate(definition: RptDefinition, error: unknown) {
+    if (!this.deterministic(error)) return
+    await this.db.transaction().execute(async (tx) => {
+      const row = await tx
+        .updateTable('rpt_definitions')
+        .set({
+          validity: 'INVALID',
+          diagnostic:
+            error instanceof Error ? error.message : 'Invalid definition',
+        })
+        .where('id', '=', definition.subjectId)
+        .where('revision', '=', definition.revision)
+        .returningAll()
+        .executeTakeFirst()
+      if (row)
+        await this.syncPermissions(
+          tx,
+          row.code,
+          row.name,
+          false,
+          row.updated_by,
+        )
+    })
+  }
+
+  async syncPermissions(
+    tx: Transaction<DB>,
+    code: string,
+    name: string,
+    enabled: boolean,
+    actorId: string,
+  ) {
+    for (const action of ['query', 'export']) {
+      const path = `/rpt/${code}/${action}`
+      const status = enabled ? ('ENABLED' as const) : ('DISABLED' as const)
+      await tx
+        .insertInto('app_permissions')
+        .values({
+          id: `01J${createHash('sha256').update(path).digest('hex').slice(0, 23).toUpperCase()}`,
+          path,
+          domain: 'rpt',
+          entity: code,
+          action,
+          description: name,
+          status,
+          created_by: actorId,
+          updated_by: actorId,
+        })
+        .onConflict((c) =>
+          c
+            .column('path')
+            .doUpdateSet({
+              description: name,
+              status,
+              updated_by: actorId,
+              updated_at: new Date(),
+            }),
+        )
+        .execute()
+    }
+  }
+
   async directory(actor: ApprovalActor) {
     const definitions = await this.enabledDefinitions(this.db)
     return definitions
@@ -489,16 +693,14 @@ export class RptService {
           actor.permissions.includes(`/rpt/${definition.code}/query`) ||
           actor.permissions.includes(`/rpt/${definition.code}/export`),
       )
-      .map(
-        ({ subjectId, approvalEntryId, code, name, parameters, columns }) => ({
-          subjectId,
-          approvalEntryId,
-          code,
-          name,
-          parameters,
-          columns,
-        }),
-      )
+      .map(({ subjectId, revision, code, name, parameters, columns }) => ({
+        subjectId,
+        revision,
+        code,
+        name,
+        parameters,
+        columns,
+      }))
   }
 
   async query(
@@ -517,22 +719,30 @@ export class RptService {
     const definition = await this.definitionByCode(this.db, code)
     const statement = bindStatement(definition, input.parameters)
     const offset = (input.page - 1) * input.pageSize
-    const fetchedRows = await this.db.transaction().execute(async (tx) => {
-      await sql`SET LOCAL TRANSACTION READ ONLY`.execute(tx)
-      await sql`SET LOCAL statement_timeout = '10s'`.execute(tx)
-      await sql`SET LOCAL lock_timeout = '1s'`.execute(tx)
-      await sql`SET LOCAL idle_in_transaction_session_timeout = '15s'`.execute(
-        tx,
-      )
-      await this.assertReferenceParameters(tx, definition, input.parameters)
-      const result = await sql<
-        Record<string, unknown>
-      >`SELECT * FROM (${statement}) AS report_result LIMIT ${input.pageSize + 1} OFFSET ${offset}`.execute(
-        tx,
-      )
-      this.assertRows(definition, result.rows)
-      return result.rows
-    })
+    const fetchedRows = await this.db
+      .transaction()
+      .execute(async (tx) => {
+        await sql`SET LOCAL TRANSACTION READ ONLY`.execute(tx)
+        await sql`SET LOCAL statement_timeout = '10s'`.execute(tx)
+        await sql`SET LOCAL lock_timeout = '1s'`.execute(tx)
+        await sql`SET LOCAL idle_in_transaction_session_timeout = '15s'`.execute(
+          tx,
+        )
+        await this.assertReferenceParameters(tx, definition, input.parameters)
+        const result = await sql<
+          Record<string, unknown>
+        >`SELECT * FROM (${statement}) AS report_result LIMIT ${input.pageSize + 1} OFFSET ${offset}`.execute(
+          tx,
+        )
+        this.assertRows(definition, result.rows)
+        return this.wireRows(definition, result.rows)
+      })
+      .catch(async (error) => {
+        await this.invalidate(definition, error)
+        throw error instanceof RptApplicationError
+          ? error
+          : new RptApplicationError('rpt_execution_failed')
+      })
     const { rows, hasMore } = projectRptPage(fetchedRows, input.pageSize)
     await this.audit(
       definition,
@@ -543,7 +753,7 @@ export class RptService {
       requestId,
     )
     return {
-      approvalEntryId: definition.approvalEntryId,
+      revision: definition.revision,
       columns: definition.columns,
       rows,
       page: input.page,
@@ -561,22 +771,32 @@ export class RptService {
     requirePermission(actor, `/rpt/${code}/export`)
     const definition = await this.definitionByCode(this.db, code)
     const statement = bindStatement(definition, parameters)
-    const rows = await this.db.transaction().execute(async (tx) => {
-      await sql`SET LOCAL TRANSACTION READ ONLY`.execute(tx)
-      await sql`SET LOCAL statement_timeout = '30s'`.execute(tx)
-      await sql`SET LOCAL lock_timeout = '1s'`.execute(tx)
-      await sql`SET LOCAL idle_in_transaction_session_timeout = '35s'`.execute(
-        tx,
-      )
-      await this.assertReferenceParameters(tx, definition, parameters)
-      const result = await sql<
-        Record<string, unknown>
-      >`SELECT * FROM (${statement}) AS report_result LIMIT 100001`.execute(tx)
-      if (result.rows.length > 100_000)
-        throw new RptApplicationError('rpt_export_limit_exceeded')
-      this.assertRows(definition, result.rows)
-      return result.rows
-    })
+    const rows = await this.db
+      .transaction()
+      .execute(async (tx) => {
+        await sql`SET LOCAL TRANSACTION READ ONLY`.execute(tx)
+        await sql`SET LOCAL statement_timeout = '30s'`.execute(tx)
+        await sql`SET LOCAL lock_timeout = '1s'`.execute(tx)
+        await sql`SET LOCAL idle_in_transaction_session_timeout = '35s'`.execute(
+          tx,
+        )
+        await this.assertReferenceParameters(tx, definition, parameters)
+        const result = await sql<
+          Record<string, unknown>
+        >`SELECT * FROM (${statement}) AS report_result LIMIT 100001`.execute(
+          tx,
+        )
+        if (result.rows.length > 100_000)
+          throw new RptApplicationError('rpt_export_limit_exceeded')
+        this.assertRows(definition, result.rows)
+        return this.wireRows(definition, result.rows)
+      })
+      .catch(async (error) => {
+        await this.invalidate(definition, error)
+        throw error instanceof RptApplicationError
+          ? error
+          : new RptApplicationError('rpt_execution_failed')
+      })
     await this.audit(
       definition,
       actor.id,
@@ -586,7 +806,7 @@ export class RptService {
       requestId,
     )
     return {
-      approvalEntryId: definition.approvalEntryId,
+      revision: definition.revision,
       columns: definition.columns,
       rows,
     }
@@ -603,7 +823,11 @@ export class RptService {
     },
     actor: ApprovalActor,
   ): Promise<RptReferencePage> {
-    requirePermission(actor, `/rpt/${code}/query`)
+    if (
+      actor.trusted !== true &&
+      !actor.permissions.includes(`/rpt/${code}/export`)
+    )
+      requirePermission(actor, `/rpt/${code}/query`)
     if (
       !/^[a-z][a-zA-Z0-9]{0,63}$/.test(input.parameterKey) ||
       input.page < 1 ||
@@ -676,7 +900,10 @@ export class RptService {
     for (const definition of definitions) {
       try {
         await this.validator.validate(definition)
+        if (definition.validity !== 'VALID')
+          throw new RptApplicationError('rpt_definition_not_executable')
       } catch (error) {
+        await this.invalidate(definition, error)
         failures.push(
           `${definition.code}: ${error instanceof Error ? error.message : String(error)}`,
         )
@@ -696,23 +923,31 @@ export class RptService {
     const definition = definitions.find((item) => item.code === code)
     if (!definition)
       throw new RptApplicationError('rpt_definition_not_executable')
-    assertRptReadOnlyStatement(definition.sql)
-    assertDefinitionContract(definition)
+    try {
+      await this.validator.validate(definition)
+    } catch (error) {
+      await this.invalidate(definition, error)
+      throw new RptApplicationError(
+        this.deterministic(error)
+          ? 'rpt_definition_not_executable'
+          : 'rpt_execution_failed',
+      )
+    }
     return definition
   }
 
   private referenceSource(referenceType: RptReferenceType): string | undefined {
-    const currentDcl = (entity: string, table: string, name: string) => `
+    const currentBob = (entity: string, table: string, name: string) => `
       SELECT subject.id, subject.code, ${name} AS name
-      FROM dcl_subjects subject
+      FROM bob_subjects subject
       JOIN LATERAL (
         SELECT id FROM approval_entries entry
-        WHERE entry.domain = 'dcl' AND entry.entity = '${entity}'
+        WHERE entry.domain = 'bob' AND entry.entity = '${entity}'
           AND entry.subject_id = subject.id AND entry.status = 'APPROVED'
         ORDER BY entry.version_no DESC LIMIT 1
       ) approval ON TRUE
-      JOIN ${table} version ON version.approval_entry_id = approval.id AND version.enabled
-      WHERE subject.entity = '${entity}'`
+      JOIN ${table} version ON version.approval_entry_id = approval.id
+      WHERE subject.entity = '${entity}' AND subject.enabled`
     switch (referenceType) {
       case 'ACCOUNTING_BOOK':
         return `SELECT id, code, name FROM acc_books`
@@ -722,53 +957,46 @@ export class RptService {
         return `
         SELECT root.subunit_id AS id, root.code, subunit.name,
           subject.code AS customer_code, customer.display_name AS customer_name
-        FROM dcl_subjects subject
+        FROM bob_subjects subject
         JOIN LATERAL (
           SELECT id FROM approval_entries entry
-          WHERE entry.domain = 'dcl' AND entry.entity = 'customer'
+          WHERE entry.domain = 'bob' AND entry.entity = 'customer'
             AND entry.subject_id = subject.id AND entry.status = 'APPROVED'
           ORDER BY entry.version_no DESC LIMIT 1
         ) approval ON TRUE
-        JOIN dcl_customer_versions customer ON customer.approval_entry_id = approval.id AND customer.enabled
-        JOIN dcl_customer_version_subunits subunit ON subunit.customer_approval_entry_id = approval.id AND subunit.enabled
-        JOIN dcl_customer_subunit_roots root ON root.subunit_id = subunit.subunit_id
+        JOIN bob_customer_versions customer ON customer.approval_entry_id = approval.id AND subject.enabled
+        JOIN bob_customer_version_subunits subunit ON subunit.customer_approval_entry_id = approval.id AND subunit.enabled
+        JOIN bob_customer_subunit_roots root ON root.subunit_id = subunit.subunit_id
         WHERE subject.entity = 'customer'`
       case 'SUPPLIER':
-        return currentDcl(
+        return currentBob(
           'supplier',
-          'dcl_supplier_versions',
+          'bob_supplier_versions',
           'version.display_name',
         )
       case 'OTHER_UNIT':
-        return currentDcl(
+        return currentBob(
           'other-unit',
-          'dcl_other_unit_versions',
+          'bob_other_unit_versions',
           'version.display_name',
         )
       case 'EMPLOYEE':
-        return currentDcl(
-          'employee',
-          'dcl_employee_versions',
-          'version.display_name',
-        )
+        return `SELECT id, code, data->>'displayName' AS name
+          FROM aux_objects WHERE entity = 'employee' AND enabled`
       case 'SALES_PARTNER':
-        return currentDcl(
+        return currentBob(
           'sales-partner',
-          'dcl_sales_partner_versions',
+          'bob_sales_partner_versions',
           'version.display_name',
         )
       case 'DEPARTMENT':
         return `SELECT id, code, data->>'name' AS name FROM aux_objects WHERE entity = 'department' AND enabled`
       case 'PRODUCT':
-        return currentDcl('product', 'dcl_product_versions', 'version.name')
+        return currentBob('product', 'bob_product_versions', 'version.name')
       case 'WAREHOUSE':
-        return currentDcl('warehouse', 'dcl_warehouse_versions', 'version.name')
+        return `SELECT id, code, data->>'name' AS name FROM aux_objects WHERE entity='warehouse' AND enabled`
       case 'FUND_ACCOUNT':
-        return currentDcl(
-          'fund-account',
-          'dcl_fund_account_versions',
-          'version.name',
-        )
+        return `SELECT id, code, data->>'name' AS name FROM aux_objects WHERE entity='fund-account' AND enabled`
       case 'ASSET':
         return `
         SELECT object_id AS id, payload->>'assetNo' AS code, payload->>'name' AS name
@@ -786,32 +1014,36 @@ export class RptService {
         return `
         SELECT root.subunit_id AS id, root.code, subunit.name,
           'customer-subunit'::varchar AS entity, root.subunit_id AS object_id, approval.id AS approval_entry_id
-        FROM dcl_subjects subject
-        JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'dcl' AND entry.entity = 'customer' AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
-        JOIN dcl_customer_versions customer ON customer.approval_entry_id = approval.id AND customer.enabled
-        JOIN dcl_customer_version_subunits subunit ON subunit.customer_approval_entry_id = approval.id AND subunit.enabled
-        JOIN dcl_customer_subunit_roots root ON root.subunit_id = subunit.subunit_id
+        FROM bob_subjects subject
+        JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'bob' AND entry.entity = 'customer' AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
+        JOIN bob_customer_versions customer ON customer.approval_entry_id = approval.id AND subject.enabled
+        JOIN bob_customer_version_subunits subunit ON subunit.customer_approval_entry_id = approval.id AND subunit.enabled
+        JOIN bob_customer_subunit_roots root ON root.subunit_id = subunit.subunit_id
         WHERE subject.entity = 'customer'
         UNION ALL
         SELECT subject.id, subject.code, version.display_name AS name, subject.entity, subject.id AS object_id, approval.id AS approval_entry_id
-        FROM dcl_subjects subject
-        JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'dcl' AND entry.entity = subject.entity AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
-        JOIN dcl_supplier_versions version ON subject.entity = 'supplier' AND version.approval_entry_id = approval.id AND version.enabled
+        FROM bob_subjects subject
+        JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'bob' AND entry.entity = subject.entity AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
+        JOIN bob_supplier_versions version ON subject.entity = 'supplier' AND version.approval_entry_id = approval.id
+        WHERE subject.enabled
         UNION ALL
         SELECT subject.id, subject.code, version.display_name AS name, subject.entity, subject.id AS object_id, approval.id AS approval_entry_id
-        FROM dcl_subjects subject
-        JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'dcl' AND entry.entity = subject.entity AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
-        JOIN dcl_other_unit_versions version ON subject.entity = 'other-unit' AND version.approval_entry_id = approval.id AND version.enabled
+        FROM bob_subjects subject
+        JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'bob' AND entry.entity = subject.entity AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
+        JOIN bob_other_unit_versions version ON subject.entity = 'other-unit' AND version.approval_entry_id = approval.id
+        WHERE subject.enabled
+        UNION ALL
+        SELECT employee.id, employee.code, employee.data->>'displayName' AS name,
+          'employee'::varchar AS entity, employee.id AS object_id,
+          NULL::varchar AS approval_entry_id
+        FROM aux_objects employee
+        WHERE employee.entity = 'employee' AND employee.enabled
         UNION ALL
         SELECT subject.id, subject.code, version.display_name AS name, subject.entity, subject.id AS object_id, approval.id AS approval_entry_id
-        FROM dcl_subjects subject
-        JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'dcl' AND entry.entity = subject.entity AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
-        JOIN dcl_employee_versions version ON subject.entity = 'employee' AND version.approval_entry_id = approval.id AND version.enabled
-        UNION ALL
-        SELECT subject.id, subject.code, version.display_name AS name, subject.entity, subject.id AS object_id, approval.id AS approval_entry_id
-        FROM dcl_subjects subject
-        JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'dcl' AND entry.entity = subject.entity AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
-        JOIN dcl_sales_partner_versions version ON subject.entity = 'sales-partner' AND version.approval_entry_id = approval.id AND version.enabled`
+        FROM bob_subjects subject
+        JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'bob' AND entry.entity = subject.entity AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
+        JOIN bob_sales_partner_versions version ON subject.entity = 'sales-partner' AND version.approval_entry_id = approval.id
+        WHERE subject.enabled`
     }
   }
 
@@ -829,7 +1061,7 @@ export class RptService {
       return rows.map(({ id: _id, object_id, approval_entry_id, ...item }) => ({
         ...item,
         objectId: object_id!,
-        approvalEntryId: approval_entry_id!,
+        ...(approval_entry_id ? { approvalEntryId: approval_entry_id } : {}),
       }))
     return rows
   }
@@ -876,51 +1108,47 @@ export class RptService {
       throw new RptApplicationError('rpt_reference_ambiguous')
   }
 
-  private async enabledDefinitions(
-    executor: Executor,
-    requireValid = true,
-  ): Promise<RptDefinition[]> {
-    const rows = await sql<{
-      subject_id: string
-      approval_entry_id: string
-      code: string
-      name: string
-      sql_text: string
-      parameters: JsonValue
-      columns: JsonValue
-      validity: string | null
-    }>`
-      SELECT s.id AS subject_id, e.id AS approval_entry_id, s.code, v.name,
-        v.sql_text, v.parameters, v.columns, validity.status AS validity
-      FROM dcl_subjects s
-      JOIN LATERAL (
-        SELECT * FROM approval_entries candidate
-        WHERE candidate.domain = 'dcl' AND candidate.entity = 'rpt-definition'
-          AND candidate.subject_id = s.id AND candidate.status = 'APPROVED'
-        ORDER BY candidate.version_no DESC LIMIT 1
-      ) e ON TRUE
-      JOIN dcl_rpt_definition_versions v ON v.approval_entry_id = e.id AND v.enabled
-      LEFT JOIN rpt_definition_validities validity ON validity.approval_entry_id = e.id
-      WHERE s.entity = 'rpt-definition'
-      ORDER BY s.code
-    `.execute(executor)
-    return rows.rows
+  private async enabledDefinitions(executor: Executor, requireValid = true) {
+    const rows = await executor
+      .selectFrom('rpt_definitions')
+      .selectAll()
+      .where('enabled', '=', true)
+      .orderBy('code')
+      .execute()
+    return rows
       .filter((row) => !requireValid || row.validity === 'VALID')
-      .map((row) => {
-        if (!row.code)
-          throw new RptApplicationError('rpt_definition_invalid_code')
-        return {
-          subjectId: row.subject_id,
-          approvalEntryId: row.approval_entry_id,
-          code: row.code,
-          name: row.name,
-          sql: row.sql_text,
-          parameters: array<RptParameter>(row.parameters),
-          columns: array<RptColumn>(row.columns).sort(
-            (left, right) => left.order - right.order,
-          ),
-        }
-      })
+      .map((row) => this.projectDefinition(row))
+  }
+
+  private projectDefinition(row: Selectable<RptDefinitions>) {
+    return {
+      subjectId: row.id as string,
+      revision: String(row.revision),
+      code: row.code as string,
+      name: row.name as string,
+      description: row.description as string,
+      enabled: row.enabled as boolean,
+      sql: row.sql_text as string,
+      parameters: array<RptParameter>(row.parameters),
+      columns: array<RptColumn>(row.columns).sort((a, b) => a.order - b.order),
+      validity: row.validity as 'VALID' | 'INVALID',
+    }
+  }
+
+  private wireRows(definition: RptDefinition, rows: Record<string, unknown>[]) {
+    return rows.map((row) =>
+      Object.fromEntries(
+        definition.columns.map((column) => {
+          let value = row[column.alias]
+          if (value instanceof Date) {
+            if (column.type === 'DATE')
+              value = `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
+            else if (column.type === 'DATETIME') value = value.toISOString()
+          }
+          return [column.alias, value]
+        }),
+      ),
+    )
   }
 
   private assertRows(
@@ -947,7 +1175,8 @@ export class RptService {
       .values({
         id: ulid(),
         definition_subject_id: definition.subjectId,
-        approval_entry_id: definition.approvalEntryId,
+        approval_entry_id: null,
+        definition_revision: definition.revision,
         actor_id: actorId,
         action,
         parameters: json(parameters),

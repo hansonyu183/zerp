@@ -1,3 +1,4 @@
+import { vouEntities } from '@zerp/model'
 import { defineComponent } from 'vue'
 import { describe, expect, it } from 'vitest'
 
@@ -35,8 +36,8 @@ describe('business resource registry', () => {
       app: { approval: false, businessVersion: false, enabled: true },
       aux: { approval: false, businessVersion: false, enabled: true },
       acc: { approval: false, businessVersion: false, enabled: true },
-      rpt: { approval: false, businessVersion: false, enabled: true },
-      wfl: { approval: false, businessVersion: false, enabled: true },
+      rpt: { approval: false, businessVersion: false, enabled: false },
+      wfl: { approval: true, businessVersion: true, enabled: true },
     })
     expect(targetResourceRegistry.resolve('app', 'user')).toMatchObject({
       domain: 'app',
@@ -85,6 +86,85 @@ describe('business resource registry', () => {
     expect(
       targetResourceRegistry.resolve('aux', 'asset-category'),
     ).toMatchObject({ domain: 'aux', entity: 'asset-category' })
+    expect(
+      targetResourceRegistry.resolve('aux', 'operating-entity'),
+    ).toMatchObject({ domain: 'aux', entity: 'operating-entity' })
+    expect(targetResourceRegistry.resolve('aux', 'employee')).toMatchObject({
+      domain: 'aux',
+      entity: 'employee',
+    })
+    for (const entity of ['supplier', 'other-unit', 'sales-partner'])
+      expect(targetResourceRegistry.resolve('bob', entity)).toMatchObject({
+        domain: 'bob',
+        entity,
+        capabilities: {
+          approval: true,
+          businessVersion: true,
+          enabled: true,
+        },
+      })
+    expect(targetResourceRegistry.resolve('bob', 'supplier')).toMatchObject({
+      useCaseKey: 'bob/supplier-management',
+    })
+    expect(targetResourceRegistry.resolve('bob', 'other-unit')).toMatchObject({
+      useCaseKey: 'bob/other-unit-management',
+    })
+    expect(
+      targetResourceRegistry.resolve('bob', 'sales-partner'),
+    ).toMatchObject({ useCaseKey: 'bob/sales-partner-management' })
     expect('dcl' in targetDomainCapabilities).toBe(false)
+    for (const [domain, entity] of [
+      ['app', 'user'],
+      ['app', 'role'],
+      ['aux', 'employee-category'],
+      ['aux', 'position'],
+      ['aux', 'measurement-unit'],
+      ['aux', 'payment-method'],
+      ['aux', 'asset-category'],
+      ['aux', 'operating-entity'],
+      ['aux', 'employee'],
+    ]) {
+      const definition = targetResourceRegistry.resolve(
+        domain!,
+        entity!,
+      )!.definition!
+      expect(
+        definition.columns.slice(0, 3).map((field) => [field.key, field.type]),
+      ).toEqual([
+        ['code', 'text'],
+        ['name', 'text'],
+        ['enabled', 'boolean'],
+      ])
+      expect(definition.columns.at(-1)).toMatchObject({
+        key: '$actions',
+        type: 'actions',
+      })
+      expect(definition.filters[0]).toMatchObject({
+        key: 'keyword',
+        type: 'text',
+      })
+    }
   })
+})
+
+it('opens every shared voucher type through the real registry with independent document fields', () => {
+  for (const entity of vouEntities) {
+    const page = targetResourceRegistry.resolve('vou', entity)
+    expect(page, entity).not.toBeNull()
+    expect(page?.vouType).toBe(entity)
+    expect(page?.definition?.columns.map((field) => field.key)).toEqual([
+      'documentNo',
+      'handlerName',
+      'businessDate',
+      'counterpartyName',
+      'status',
+      'amount',
+      '$actions',
+    ])
+    expect(page?.capabilities).toEqual({
+      approval: true,
+      businessVersion: false,
+      enabled: false,
+    })
+  }
 })

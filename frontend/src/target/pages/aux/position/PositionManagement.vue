@@ -1,19 +1,13 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, reactive } from 'vue'
 
+import type { positionListPage } from '../../../navigation/list-pages.ts'
 import ListPageShell from '../../../components/list-page/ListPageShell.vue'
-import type { ListIdentity } from '../../../components/list-page/vm.ts'
 import SimpleAuxEditorPresentation from '../simple/SimpleAuxEditorPresentation.vue'
-import {
-  usePositionManagementViewModel,
-  type PositionListItem,
-} from '../simple/vm.ts'
+import { usePositionManagementViewModel } from '../simple/vm.ts'
 
+defineProps<{ definition: typeof positionListPage }>()
 const vm = reactive(usePositionManagementViewModel())
-
-function item(value: ListIdentity): PositionListItem {
-  return value as PositionListItem
-}
 
 onMounted(() => void vm.list.initialize())
 onBeforeUnmount(vm.dispose)
@@ -21,34 +15,9 @@ onBeforeUnmount(vm.dispose)
 
 <template>
   <ListPageShell
-    title="岗位"
-    create-label="新增岗位"
-    :items="vm.list.items"
-    :total="vm.list.total"
-    :page="vm.list.page"
-    :keyword="vm.list.keyword"
-    :loading="vm.list.loading"
-    :query-error="vm.list.queryError"
+    :definition="definition"
+    :vm="vm.list"
     :notice="vm.creationNotice"
-    :feedback="vm.list.feedback"
-    show-enabled
-    :can-search="vm.list.searchable"
-    :can-create="vm.list.canAction('create')"
-    :action-pending="vm.list.actionPending"
-    :action-blocked="vm.list.actionBlocked"
-    :can-edit="(value) => vm.list.canAction('edit', item(value))"
-    :can-enable="(value) => vm.list.canAction('enable', item(value))"
-    :can-disable="(value) => vm.list.canAction('disable', item(value))"
-    :is-row-pending="vm.list.isRowPending"
-    :is-row-blocked="vm.list.isRowBlocked"
-    @update:keyword="vm.list.keyword = $event"
-    @search="vm.list.submitSearch"
-    @create="vm.list.create"
-    @edit="vm.list.edit(item($event))"
-    @enable="vm.list.enable(item($event))"
-    @disable="vm.list.disable(item($event))"
-    @page="vm.list.goToPage"
-    @dismiss-feedback="vm.list.dismissFeedback"
   />
   <SimpleAuxEditorPresentation
     :open="vm.editorOpen"

@@ -1,17 +1,19 @@
+import {
+  archiveCapabilityPermissionMetadata,
+  bobArchiveSnapshotSchemas,
+} from '../src/bob/archive-contract.ts'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
 import { auxRouteBinding } from '../src/app/aux-contract.ts'
-import { bobRouteBinding } from '../src/app/independent-contract.ts'
 import { targetRouteMetadata as appTargetRouteMetadata } from '../src/app/contract.ts'
+
 import {
-  archiveCapabilityPermissionMetadata,
-  archiveBlockerSchema,
+  bobArchiveRouteSets,
   archiveReviewSchemas,
-  archiveRouteSets,
-  archiveSnapshotSchemas,
-} from '../src/dcl/archive-contract.ts'
+  archiveBlockerSchema as bobArchiveBlockerSchema,
+} from '../src/bob/archive-contract.ts'
 import { validateTargetRouteMetadata } from './target-artifacts.ts'
 import { vouEntities, userCreatableVouEntities } from '@zerp/model'
 
@@ -89,24 +91,24 @@ test('workbench route is session-scoped and emits no independent permission', ()
 test('target artifact gate emits action permissions without presentation state', () => {
   assert.deepEqual(
     validateTargetRouteMetadata(
-      ['POST /dcl/warehouse/approve'],
+      ['POST /dcl/product/approve'],
       [
         {
           method: 'post',
-          path: '/dcl/warehouse/approve',
-          permission: '/dcl/warehouse/approve',
-          title: '批准仓库申报',
+          path: '/dcl/product/approve',
+          permission: '/dcl/product/approve',
+          title: '批准产品申报',
         },
       ],
     ),
     [
       {
-        id: '01J9F8A0A4F06EBCAB84681A2E',
-        path: '/dcl/warehouse/approve',
+        id: '01J79A1EBF2FFEA8AC2DA6FE05',
+        path: '/dcl/product/approve',
         domain: 'dcl',
-        entity: 'warehouse',
+        entity: 'product',
         action: 'approve',
-        title: '批准仓库申报',
+        title: '批准产品申报',
       },
     ],
   )
@@ -114,29 +116,29 @@ test('target artifact gate emits action permissions without presentation state',
 
 test('target catalog emits a customer-subunit capability without inventing HTTP routes', () => {
   const catalog = validateTargetRouteMetadata(
-    ['POST /dcl/customer/submit-new'],
+    ['POST /bob/customer/submit-new'],
     [
       {
         method: 'post',
-        path: '/dcl/customer/submit-new',
-        permission: '/dcl/customer/submit-new',
+        path: '/bob/customer/submit-new',
+        permission: '/bob/customer/submit-new',
         title: '提交客户申报',
       },
     ],
     archiveCapabilityPermissionMetadata,
   )
   assert.ok(
-    catalog.some((entry) => entry.path === '/dcl/customer/save-subunits'),
+    catalog.some((entry) => entry.path === '/bob/customer/save-subunits'),
   )
   assert.throws(
     () =>
       validateTargetRouteMetadata(
-        ['POST /dcl/customer/submit-new'],
+        ['POST /bob/customer/submit-new'],
         [
           {
             method: 'post',
-            path: '/dcl/customer/submit-new',
-            permission: '/dcl/customer/save-subunits',
+            path: '/bob/customer/submit-new',
+            permission: '/bob/customer/save-subunits',
             title: '错误的路由权限',
           },
         ],
@@ -161,7 +163,7 @@ test('archive wire contract closes review reason and reference semantics', () =>
     archiveReviewSchemas.withReason.parse({ ...review, reason: '  reason  ' }),
     { ...review, reason: 'reason' },
   )
-  const customer = archiveSnapshotSchemas.customer
+  const customer = bobArchiveSnapshotSchemas.customer
   assert.throws(() =>
     customer.parse({
       identityKind: 'OTHER',
@@ -257,13 +259,13 @@ test('archive query contract uses the fixed page shell and entity-specific filte
     pageSize: 20,
     filters: { keyword: 'water', status: 'APPROVED', enabled: true },
   }
-  const operatingEntity =
-    archiveRouteSets['operating-entity'].query.request.body.content[
+  const vehicle =
+    bobArchiveRouteSets['sales-partner'].query.request.body.content[
       'application/json'
     ].schema
-  assert.deepEqual(operatingEntity.parse(input), input)
+  assert.deepEqual(vehicle.parse(input), input)
   assert.throws(() =>
-    operatingEntity.parse({
+    vehicle.parse({
       ...input,
       filters: {
         ...input.filters,
@@ -273,7 +275,7 @@ test('archive query contract uses the fixed page shell and entity-specific filte
   )
 
   const product =
-    archiveRouteSets.product.query.request.body.content['application/json']
+    bobArchiveRouteSets.product.query.request.body.content['application/json']
       .schema
   assert.deepEqual(
     product.parse({
@@ -292,77 +294,31 @@ test('archive query contract uses the fixed page shell and entity-specific filte
     },
   )
   assert.throws(() => product.parse({ ...input, pageSize: 10 }))
-
-  const mapping =
-    archiveRouteSets['acc-mapping'].query.request.body.content[
-      'application/json'
-    ].schema
-  assert.deepEqual(
-    mapping.parse({
-      ...input,
-      filters: { bookId: '01J00000000000000000000001', vouEntity: 'SALE' },
-    }),
-    {
-      ...input,
-      filters: { bookId: '01J00000000000000000000001', vouEntity: 'SALE' },
-    },
-  )
 })
 
-test('archive failures expose only typed DCL and ACC blockers', () => {
+test('archive failures expose typed current AUX and ACC blockers', () => {
   assert.deepEqual(
-    archiveBlockerSchema.parse({
-      kind: 'DCL_APPROVAL_REFERENCE',
+    bobArchiveBlockerSchema.parse({
+      kind: 'AUX_CURRENT_REFERENCE',
       entity: 'vehicle',
-      subjectId: '01J00000000000000000000001',
-      submissionId: '01J00000000000000000000002',
+      objectId: '01J00000000000000000000001',
       field: 'carrier',
       approvalEntryId: '01J00000000000000000000003',
     }),
     {
-      kind: 'DCL_APPROVAL_REFERENCE',
+      kind: 'AUX_CURRENT_REFERENCE',
       entity: 'vehicle',
-      subjectId: '01J00000000000000000000001',
-      submissionId: '01J00000000000000000000002',
+      objectId: '01J00000000000000000000001',
       field: 'carrier',
       approvalEntryId: '01J00000000000000000000003',
-    },
-  )
-  assert.deepEqual(
-    archiveBlockerSchema.parse({
-      kind: 'ACC_MAPPING_REFERENCE',
-      mappingApprovalEntryId: '01J00000000000000000000003',
-      documentType: 'VOUCHER',
-      documentId: 'vou-1',
-    }),
-    {
-      kind: 'ACC_MAPPING_REFERENCE',
-      mappingApprovalEntryId: '01J00000000000000000000003',
-      documentType: 'VOUCHER',
-      documentId: 'vou-1',
     },
   )
   assert.throws(() =>
-    archiveBlockerSchema.parse({
+    bobArchiveBlockerSchema.parse({
       entity: 'vehicle',
       field: 'carrier',
     }),
   )
-})
-
-test('only RPT get accepts an explicit owned approval entry', () => {
-  const request = {
-    subjectId: '01J00000000000000000000001',
-    approvalEntryId: '01J00000000000000000000002',
-  }
-  const rptGet =
-    archiveRouteSets['rpt-definition'].get.request.body.content[
-      'application/json'
-    ].schema
-  assert.deepEqual(rptGet.parse(request), request)
-  const productGet =
-    archiveRouteSets.product.get.request.body.content['application/json'].schema
-  assert.throws(() => productGet.parse(request))
 })
 
 test('independent route bindings carry the exact registered permission', () => {
@@ -371,10 +327,10 @@ test('independent route bindings carry the exact registered permission', () => {
     action: 'create',
     permission: '/aux/department/create',
   })
-  assert.deepEqual(bobRouteBinding('employee', 'get'), {
+  assert.deepEqual(auxRouteBinding('employee', 'get'), {
     entity: 'employee',
     action: 'get',
-    permission: '/bob/employee/get',
+    permission: '/aux/employee/get',
   })
 })
 
@@ -417,6 +373,11 @@ test('target OpenAPI contains the complete issue 363 APP, AUX, and BOB inventory
     'measurement-unit',
     'income-expense-type',
     'asset-category',
+    'operating-entity',
+    'employee',
+    'warehouse',
+    'vehicle',
+    'fund-account',
   ]
   const auxPaths = auxEntities.flatMap((entity) =>
     ['query', 'get', 'save', 'enable', 'disable', 'create', 'delete']
@@ -431,14 +392,9 @@ test('target OpenAPI contains the complete issue 363 APP, AUX, and BOB inventory
   const bobPaths = [
     'customer',
     'supplier',
-    'employee',
     'other-unit',
     'sales-partner',
     'product',
-    'warehouse',
-    'vehicle',
-    'fund-account',
-    'operating-entity',
   ].flatMap((entity) => [`/bob/${entity}/query`, `/bob/${entity}/get`])
   bobPaths.push('/bob/reference/query')
   const removedMenuPaths = [
@@ -461,27 +417,18 @@ test('target OpenAPI contains the complete issue 363 APP, AUX, and BOB inventory
     assert.ok(paths.has(path), `missing issue #363 target path ${path}`)
   for (const path of removedMenuPaths)
     assert.equal(paths.has(path), false, `removed legacy menu path ${path}`)
-  assert.ok(paths.has('/app/workbench/query'), 'missing issue #366 APP Workbench path')
+  assert.ok(
+    paths.has('/app/workbench/query'),
+    'missing issue #366 APP Workbench path',
+  )
 })
 
-test('target OpenAPI contains every issue 364 DCL lifecycle route', async () => {
+test('target OpenAPI keeps BOB lifecycle and removes DCL RPT lifecycle', async () => {
   const document = JSON.parse(await readFile(generatedOpenApi, 'utf8')) as {
     paths: Record<string, unknown>
   }
   const paths = new Set(Object.keys(document.paths))
-  const entities = [
-    'operating-entity',
-    'vehicle',
-    'fund-account',
-    'product',
-    'employee',
-    'supplier',
-    'customer',
-    'other-unit',
-    'sales-partner',
-    'acc-mapping',
-    'rpt-definition',
-  ]
+  const entities = ['rpt-definition']
   const actions = [
     'query',
     'get',
@@ -498,11 +445,36 @@ test('target OpenAPI contains every issue 364 DCL lifecycle route', async () => 
   for (const entity of entities)
     for (const action of actions)
       assert.ok(
-        paths.has(`/dcl/${entity}/${action}`),
-        `missing issue #364 target path /dcl/${entity}/${action}`,
+        !paths.has(`/dcl/${entity}/${action}`),
+        `retired RPT lifecycle /dcl/${entity}/${action}`,
       )
-  assert.ok(paths.has('/dcl/customer/attachment-stage'))
-  assert.ok(paths.has('/dcl/customer/attachment-cleanup'))
+  for (const entity of [
+    'customer',
+    'supplier',
+    'other-unit',
+    'sales-partner',
+    'product',
+  ]) {
+    for (const action of [
+      ...actions,
+      'submission-query',
+      'submission-get',
+      'enable',
+      'disable',
+    ])
+      assert.ok(
+        paths.has(`/bob/${entity}/${action}`),
+        `missing BOB archive path ${entity}/${action}`,
+      )
+    assert.ok(
+      ![...paths].some((path) => path.startsWith(`/dcl/${entity}/`)),
+      `retired DCL archive entry remains: ${entity}`,
+    )
+    for (const legacy of ['create', 'save', 'submit', 'unsubmit'])
+      assert.ok(!paths.has(`/bob/${entity}/${legacy}`))
+  }
+  assert.ok(paths.has('/bob/customer/attachment-stage'))
+  assert.ok(paths.has('/bob/customer/attachment-cleanup'))
   for (const legacy of ['create', 'save', 'submit', 'unsubmit'])
     for (const entity of entities)
       assert.ok(
@@ -511,7 +483,7 @@ test('target OpenAPI contains every issue 364 DCL lifecycle route', async () => 
       )
 })
 
-test('archive query exposes summaries only and RPT get admits one owned version', async () => {
+test('archive query exposes summaries while RPT get reads only current configuration', async () => {
   const document = JSON.parse(await readFile(generatedOpenApi, 'utf8')) as {
     paths: Record<
       string,
@@ -526,18 +498,17 @@ test('archive query exposes summaries only and RPT get admits one owned version'
     >
   }
   const querySchema =
-    document.paths['/dcl/operating-entity/query']!.post.responses[200].content[
-      'application/json'
-    ].schema
+    document.paths['/bob/product/submission-query']!.post.responses[200]
+      .content['application/json'].schema
   assert.doesNotMatch(JSON.stringify(querySchema), /"snapshot"/)
 
   const rptGetSchema =
-    document.paths['/dcl/rpt-definition/get']!.post.requestBody.content[
+    document.paths['/rpt/definition/get']!.post.requestBody.content[
       'application/json'
     ].schema
-  assert.match(JSON.stringify(rptGetSchema), /"approvalEntryId"/)
+  assert.doesNotMatch(JSON.stringify(rptGetSchema), /"approvalEntryId"/)
   const productGetSchema =
-    document.paths['/dcl/product/get']!.post.requestBody.content[
+    document.paths['/bob/product/submission-get']!.post.requestBody.content[
       'application/json'
     ].schema
   assert.doesNotMatch(JSON.stringify(productGetSchema), /"approvalEntryId"/)
@@ -551,6 +522,7 @@ test('target OpenAPI exposes typed ACC mapping current-read permissions', async 
     '/acc/mapping/query',
     '/acc/mapping/get',
     '/acc/mapping/catalog',
+    '/acc/mapping/save',
   ])
     assert.ok(document.paths[path])
   const catalog = JSON.parse(
@@ -562,6 +534,7 @@ test('target OpenAPI exposes typed ACC mapping current-read permissions', async 
     '/acc/mapping/query',
     '/acc/mapping/get',
     '/acc/mapping/catalog',
+    '/acc/mapping/save',
   ])
     assert.ok(catalog.some((entry) => entry.path === path))
 })
@@ -571,40 +544,91 @@ test('target OpenAPI and catalog expose the complete VOU cutover surface without
     paths: Record<string, unknown>
   }
   for (const action of [
-    'query', 'get', 'audit-history', 'submit-new', 'submit-change',
-    'approve', 'reject', 'unreject', 'unapprove', 'delete',
-    'attachment-stage', 'attachment-cleanup',
+    'query',
+    'get',
+    'audit-history',
+    'submit-new',
+    'submit-change',
+    'approve',
+    'reject',
+    'unreject',
+    'unapprove',
+    'delete',
+    'attachment-stage',
+    'attachment-cleanup',
   ])
     assert.ok(document.paths[`/vou/{entity}/${action}`])
   for (const legacy of ['create', 'save', 'submit', 'unsubmit'])
     assert.ok(!document.paths[`/vou/{entity}/${legacy}`])
 
-  const catalog = JSON.parse(await readFile(generatedCatalog, 'utf8')) as Array<{ path: string }>
+  const catalog = JSON.parse(
+    await readFile(generatedCatalog, 'utf8'),
+  ) as Array<{ path: string }>
   for (const entity of vouEntities)
-    for (const action of ['query', 'get', 'approve', 'reject', 'unreject', 'unapprove', 'delete'])
-      assert.ok(catalog.some((entry) => entry.path === `/vou/${entity}/${action}`))
+    for (const action of [
+      'query',
+      'get',
+      'approve',
+      'reject',
+      'unreject',
+      'unapprove',
+      'delete',
+    ])
+      assert.ok(
+        catalog.some((entry) => entry.path === `/vou/${entity}/${action}`),
+      )
   for (const entity of userCreatableVouEntities)
     for (const action of ['submit-new', 'submit-change'])
-      assert.ok(catalog.some((entry) => entry.path === `/vou/${entity}/${action}`))
+      assert.ok(
+        catalog.some((entry) => entry.path === `/vou/${entity}/${action}`),
+      )
 })
 
 test('target OpenAPI exposes executable ACC, WFL and RPT transaction cores', async () => {
-  const openapi = JSON.parse(await readFile(generatedOpenApi, 'utf8')) as { paths: Record<string, unknown> }
+  const openapi = JSON.parse(await readFile(generatedOpenApi, 'utf8')) as {
+    paths: Record<string, unknown>
+  }
   const required = [
-    '/acc/book/query', '/acc/book/get', '/acc/book/create', '/acc/book/save', '/acc/book/delete',
-    '/acc/subject/query', '/acc/subject/get', '/acc/subject/create', '/acc/subject/save', '/acc/subject/delete',
-    '/acc/opening/query', '/acc/opening/submit-new', '/acc/opening/approve', '/acc/opening/reject',
-    '/acc/opening/unreject', '/acc/opening/unapprove', '/acc/opening/delete',
-    '/acc/period/query', '/acc/period/lock', '/acc/period/unlock',
-    '/dcl/wfl-process-definition/submit-new', '/dcl/wfl-process-definition/submit-change',
-    '/dcl/wfl-process-definition/approve', '/dcl/wfl-process-definition/reject',
-    '/dcl/wfl-process-definition/unreject', '/dcl/wfl-process-definition/unapprove',
-    '/dcl/wfl-process-definition/enable', '/dcl/wfl-process-definition/disable',
-    '/wfl/process-definition/get', '/wfl/process-definition/trial',
-    '/rpt/directory/query', '/rpt/{code}/query', '/rpt/{code}/export',
+    '/acc/book/query',
+    '/acc/book/get',
+    '/acc/book/create',
+    '/acc/book/save',
+    '/acc/book/delete',
+    '/acc/subject/query',
+    '/acc/subject/get',
+    '/acc/subject/create',
+    '/acc/subject/save',
+    '/acc/subject/delete',
+    '/vou/opening/query',
+    '/vou/opening/submit-new',
+    '/vou/opening/approve',
+    '/vou/opening/reject',
+    '/vou/opening/unreject',
+    '/vou/opening/unapprove',
+    '/vou/opening/delete',
+    '/acc/period/query',
+    '/acc/period/lock',
+    '/acc/period/unlock',
+    '/wfl/process-definition/submit-new',
+    '/wfl/process-definition/submit-change',
+    '/wfl/process-definition/approve',
+    '/wfl/process-definition/reject',
+    '/wfl/process-definition/unreject',
+    '/wfl/process-definition/unapprove',
+    '/wfl/process-definition/enable',
+    '/wfl/process-definition/disable',
+    '/wfl/process-definition/get',
+    '/wfl/process-definition/trial',
+    '/rpt/directory/query',
+    '/rpt/{code}/query',
+    '/rpt/{code}/export',
   ]
   for (const path of required) assert.ok(openapi.paths[path], path)
-  for (const legacy of ['/acc/opening/save', '/acc/opening/unsubmit', '/dcl/wfl-process-definition/save'])
+  for (const legacy of [
+    '/vou/opening/save',
+    '/vou/opening/unsubmit',
+    '/wfl/process-definition/save',
+  ])
     assert.equal(openapi.paths[legacy], undefined, legacy)
 })
 

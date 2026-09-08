@@ -10,6 +10,7 @@ import { ManagementService } from '../../src/app/management.ts'
 import { hashPassword, SessionService } from '../../src/app/session.ts'
 import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { createDatabase } from '../../src/db/database.ts'
+import { AccService } from '../../src/acc/service.ts'
 import { AccMappingCatalogService } from '../../src/acc/mapping-catalog.ts'
 import { loadConfig } from '../../src/platform/config.ts'
 import { modelBuildId } from '@zerp/model'
@@ -27,35 +28,21 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
   const bookId = `B${suffix}`.toUpperCase().padEnd(26, '0')
   const vouEntityId = `V${suffix}`.toUpperCase().padEnd(26, '0')
   const subjectId = `S${suffix}`.toUpperCase().padEnd(26, '0')
-  const mappingSubjectId = `M${suffix}`.toUpperCase().padEnd(26, '0')
-  const mappingV1Id = `A${suffix}`.toUpperCase().padEnd(26, '0')
-  const mappingV2Id = `Z${suffix}`.toUpperCase().padEnd(26, '0')
   const username = `target-${suffix}`
   context.after(async () => {
     try {
       await db
-        .deleteFrom('approval_events')
-        .where('entry_id', 'in', [mappingV1Id, mappingV2Id])
+        .deleteFrom('acc_mappings')
+        .where('book_id', '=', bookId)
         .execute()
       await db
-        .deleteFrom('approval_entries')
-        .where('id', 'in', [mappingV1Id, mappingV2Id])
+        .deleteFrom('acc_subjects')
+        .where('book_id', '=', bookId)
         .execute()
+      await db.deleteFrom('acc_books').where('id', '=', bookId).execute()
       await db
-        .deleteFrom('dcl_subjects')
-        .where('id', '=', mappingSubjectId)
-        .execute()
-      await db
-        .deleteFrom('dcl_acc_subject_facts')
-        .where('id', '=', subjectId)
-        .execute()
-      await db
-        .deleteFrom('dcl_acc_vou_entity_facts')
+        .deleteFrom('acc_mapping_vou_entities')
         .where('id', '=', vouEntityId)
-        .execute()
-      await db
-        .deleteFrom('dcl_acc_book_facts')
-        .where('id', '=', bookId)
         .execute()
       await db
         .deleteFrom('app_audit_events')
@@ -97,12 +84,22 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
       password_change_required: false,
     })
     .execute()
+  const acc = new AccService(db)
+  const book = await acc.createBook(
+    {
+      id: bookId,
+      name: 'HTTP账簿',
+      description: '',
+      startMonth: '2098-01',
+      baseCurrency: 'CNY',
+      subjectTemplate: 'EMPTY',
+      queryUserIds: [],
+      operateUserIds: [],
+    },
+    { id, permissions: [], trusted: true },
+  )
   await db
-    .insertInto('dcl_acc_book_facts')
-    .values({ id: bookId, code: 'HTTP-BOOK', name: 'HTTP账簿', enabled: true })
-    .execute()
-  await db
-    .insertInto('dcl_acc_vou_entity_facts')
+    .insertInto('acc_mapping_vou_entities')
     .values({
       id: vouEntityId,
       code: 'HTTP-SALE',
@@ -114,116 +111,41 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
       }),
     })
     .execute()
-  await db
-    .insertInto('dcl_acc_subject_facts')
-    .values({
+  await acc.createSubject(
+    {
       id: subjectId,
-      book_id: bookId,
+      bookId,
       code: '1001',
       name: '现金',
-      leaf: true,
+      parentId: null,
+      balanceDirection: 'DEBIT',
       enabled: true,
-      required_dimensions: JSON.stringify(['customer']),
-    })
-    .execute()
-  await db
-    .insertInto('dcl_subjects')
-    .values({
-      id: mappingSubjectId,
-      entity: 'acc-mapping',
-      code: null,
-      created_at: new Date(),
-      created_by: id,
-    })
-    .execute()
+      requiredDimensions: [],
+      inventoryQuantity: false,
+      settlementPurpose: 'NONE',
+    },
+    { id, permissions: [], trusted: true },
+  )
   const mappingDefinition = {
     defaultTemplateId: null,
     rules: [],
     templates: [],
     assetConfiguration: null,
   }
-  await db
-    .insertInto('approval_entries')
-    .values([
-      {
-        id: mappingV1Id,
-        domain: 'dcl',
-        entity: 'acc-mapping',
-        subject_id: mappingSubjectId,
-        version_no: 1,
-        status: 'APPROVED',
-        revision: 1,
-        submitted_by: id,
-        submitted_at: new Date(),
-        approved_by: id,
-        approved_at: new Date(),
-        updated_by: id,
-        updated_at: new Date(),
-        rejected_by: null,
-        rejected_at: null,
-        rejection_reason: null,
-      },
-      {
-        id: mappingV2Id,
-        domain: 'dcl',
-        entity: 'acc-mapping',
-        subject_id: mappingSubjectId,
-        version_no: 2,
-        status: 'APPROVED',
-        revision: 2,
-        submitted_by: id,
-        submitted_at: new Date(),
-        approved_by: id,
-        approved_at: new Date(),
-        updated_by: id,
-        updated_at: new Date(),
-        rejected_by: null,
-        rejected_at: null,
-        rejection_reason: null,
-      },
-    ])
-    .execute()
-  await db
-    .insertInto('dcl_acc_mapping_versions')
-    .values([
-      {
-        approval_entry_id: mappingV1Id,
-        book_id: bookId,
-        vou_entity_id: vouEntityId,
-        book_snapshot: JSON.stringify({
-          id: bookId,
-          code: 'HTTP-BOOK',
-          name: 'HTTP账簿',
-        }),
-        vou_entity_snapshot: JSON.stringify({
-          id: vouEntityId,
-          code: 'HTTP-SALE',
-          name: 'HTTP销售',
-        }),
-        default_result: 'POST',
-        mapping_definition: JSON.stringify(mappingDefinition),
-      },
-      {
-        approval_entry_id: mappingV2Id,
-        book_id: bookId,
-        vou_entity_id: vouEntityId,
-        book_snapshot: JSON.stringify({
-          id: bookId,
-          code: 'HTTP-BOOK',
-          name: 'HTTP账簿',
-        }),
-        vou_entity_snapshot: JSON.stringify({
-          id: vouEntityId,
-          code: 'HTTP-SALE',
-          name: 'HTTP销售',
-        }),
-        default_result: 'UN_POST',
-        mapping_definition: JSON.stringify(mappingDefinition),
-      },
-    ])
-    .execute()
+  const mappingInput = {
+    bookId,
+    vouEntity: 'HTTP-SALE',
+    expectedRevision: null,
+    defaultResult: 'UN_POST' as const,
+    definition: mappingDefinition,
+  }
+  const mapping = await new AccMappingCatalogService(db).save(mappingInput, {
+    id,
+    permissions: ['/acc/mapping/save'],
+  })
   const config = loadConfig({
     DATABASE_URL: databaseUrl,
+    TARGET_DATABASE_SCOPE: process.env.TARGET_DATABASE_SCOPE,
     APP_SESSION_COOKIE_SECURE: 'false',
   })
   const app = createApp({
@@ -276,12 +198,12 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
   const invalidIndependentRoute = await fetch(
     `${origin}/app/system-parameter/query`,
     {
-    method: 'POST',
-    headers: {
-      ...headers,
-      cookie: 'zerp_session=invalid-session',
-      'x-csrf-token': 'invalid-csrf',
-    },
+      method: 'POST',
+      headers: {
+        ...headers,
+        cookie: 'zerp_session=invalid-session',
+        'x-csrf-token': 'invalid-csrf',
+      },
       body: JSON.stringify({ page: 1, pageSize: 20 }),
     },
   )
@@ -331,7 +253,11 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
       headers,
       body: '{}',
     })
-    assert.equal(response.status, 404, `${legacyRoute} must not remain an alias`)
+    assert.equal(
+      response.status,
+      404,
+      `${legacyRoute} must not remain an alias`,
+    )
   }
   const signin = await client.session.auth.signin.$post({
     json: { code: username, password },
@@ -418,7 +344,9 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
   assert.equal(outOfBoundsProfile.status, 200)
   assert.equal((await outOfBoundsProfile.json()).errorKey, 'validation_failed')
 
-  const csrfHeaders = { headers: { 'X-CSRF-Token': sessionPayload.data.csrfToken } }
+  const csrfHeaders = {
+    headers: { 'X-CSRF-Token': sessionPayload.data.csrfToken },
+  }
   const initialProfile = await (
     await client.session.user.get.$post({ json: {} }, csrfHeaders)
   ).json()
@@ -576,21 +504,48 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
   })
   const catalogPayload = await catalog.json()
   assert.equal(catalogPayload.code, 0)
-  assert.deepEqual(catalogPayload.data.books.filter((item: { id: string }) => item.id === bookId), [
-    { id: bookId, code: 'HTTP-BOOK', name: 'HTTP账簿' },
-  ])
-  assert.deepEqual(catalogPayload.data.vouEntities.filter((item: { id: string }) => item.id === vouEntityId), [
-    {
-      id: vouEntityId,
-      code: 'HTTP-SALE',
-      name: 'HTTP销售',
-      fieldCatalog: { headerFields: ['status'], lineFields: ['amount'] },
-    },
-  ])
-  assert.ok(catalogPayload.data.vouEntities.some((item: { id: string }) => item.id === 'sale-pricing'))
-  assert.deepEqual(catalogPayload.data.subjects.filter((item: { id: string }) => item.id === subjectId), [
-    { id: subjectId, bookId, code: '1001', name: '现金', requiredDimensions: ['customer'] },
-  ])
+  assert.deepEqual(
+    catalogPayload.data.books.filter(
+      (item: { id: string }) => item.id === bookId,
+    ),
+    [{ id: bookId, code: book.code, name: 'HTTP账簿' }],
+  )
+  assert.deepEqual(
+    catalogPayload.data.vouEntities.filter(
+      (item: { id: string }) => item.id === vouEntityId,
+    ),
+    [
+      {
+        id: vouEntityId,
+        code: 'HTTP-SALE',
+        name: 'HTTP销售',
+        fieldCatalog: {
+          collections: [],
+          headerFields: ['status'],
+          lineFields: ['amount'],
+        },
+      },
+    ],
+  )
+  assert.ok(
+    catalogPayload.data.vouEntities.some(
+      (item: { id: string }) => item.id === 'sale-pricing',
+    ),
+  )
+  assert.deepEqual(
+    catalogPayload.data.subjects.filter(
+      (item: { id: string }) => item.id === subjectId,
+    ),
+    [
+      {
+        id: subjectId,
+        bookId,
+        code: '1001',
+        name: '现金',
+        requiredDimensions: [],
+      },
+    ],
+  )
   const mappingQuery = await fetch(`${origin}/acc/mapping/query`, {
     method: 'POST',
     headers: {
@@ -603,7 +558,7 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
   const mappingQueryPayload = await mappingQuery.json()
   assert.equal(mappingQueryPayload.code, 0)
   assert.equal(mappingQueryPayload.data.total, 1)
-  assert.equal(mappingQueryPayload.data.items[0].approvalEntryId, mappingV2Id)
+  assert.equal(mappingQueryPayload.data.items[0].subjectId, mapping.subjectId)
   assert.equal(mappingQueryPayload.data.items[0].defaultResult, 'UN_POST')
   const mappingGet = async () =>
     fetch(`${origin}/acc/mapping/get`, {
@@ -615,24 +570,36 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
       },
       body: JSON.stringify({ bookId, vouEntity: 'HTTP-SALE' }),
     })
-  assert.equal(
-    (await (await mappingGet()).json()).data.approvalEntryId,
-    mappingV2Id,
-  )
-  await db
-    .updateTable('approval_entries')
-    .set({
-      status: 'PENDING',
-      revision: 3,
-      updated_at: new Date(),
-      updated_by: id,
+  assert.equal((await (await mappingGet()).json()).data.revision, '1')
+  const saveMapping = () =>
+    fetch(`${origin}/acc/mapping/save`, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        cookie,
+        'x-csrf-token': sessionPayload.data.csrfToken,
+      },
+      body: JSON.stringify({ ...mappingInput, expectedRevision: '1' }),
     })
-    .where('id', '=', mappingV2Id)
+  assert.equal((await (await saveMapping()).json()).errorKey, 'forbidden')
+  const savePermission = await db
+    .selectFrom('app_permissions')
+    .select('id')
+    .where('path', '=', '/acc/mapping/save')
+    .executeTakeFirstOrThrow()
+  await db
+    .insertInto('app_role_permissions')
+    .values({ role_id: roleId, permission_id: savePermission.id })
     .execute()
-  const fallback = await (await mappingGet()).json()
-  assert.equal(fallback.code, 0)
-  assert.equal(fallback.data.approvalEntryId, mappingV1Id)
-  assert.equal(fallback.data.defaultResult, 'POST')
+  assert.equal((await (await saveMapping()).json()).data.revision, '2')
+  assert.equal(
+    (await (await saveMapping()).json()).errorKey,
+    'acc_mapping_stale_revision',
+  )
+  assert.equal(
+    (await (await mappingGet()).json()).data.subjectId,
+    mapping.subjectId,
+  )
   assert.ok(
     (
       await db
@@ -904,6 +871,7 @@ test('user query searches code, pinyin, and name with stable fixed pagination an
 
   const config = loadConfig({
     DATABASE_URL: databaseUrl,
+    TARGET_DATABASE_SCOPE: process.env.TARGET_DATABASE_SCOPE,
     APP_SESSION_COOKIE_SECURE: 'false',
   })
   const app = createApp({

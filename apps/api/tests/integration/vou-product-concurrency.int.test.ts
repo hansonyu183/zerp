@@ -12,9 +12,8 @@ import {
   type AuxWriteData,
 } from '../../src/aux/service.ts'
 import { createDatabase } from '../../src/db/database.ts'
-import { ArchiveService } from '../../src/dcl/archives.ts'
+import { BobArchiveService } from '../../src/bob/archives.ts'
 import { searchPinyin } from '../../src/platform/pinyin.ts'
-import { PgRptDefinitionValidator } from '../../src/rpt/service.ts'
 import { VouService } from '../../src/vou/service.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
@@ -54,7 +53,7 @@ async function settleWithin<T>(promise: Promise<T>, milliseconds: number) {
       promise,
       new Promise<never>((_, reject) => {
         timeout = setTimeout(
-          () => reject(new Error('concurrent VOU/DCL operations timed out')),
+          () => reject(new Error('concurrent VOU/BOB operations timed out')),
           milliseconds,
         )
       }),
@@ -64,7 +63,7 @@ async function settleWithin<T>(promise: Promise<T>, milliseconds: number) {
   }
 }
 
-test('VOU product adoption serializes with DCL approval without cross-subject advisory cycles', async (context) => {
+test('VOU product adoption serializes with BOB approval without cross-subject advisory cycles', async (context) => {
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
   const suffix = ulid()
   const vouApplication = `vou-product-read-${suffix}`
@@ -81,10 +80,7 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
   const observer = new pg.Client({
     connectionString: databaseUrlFor(`vou-product-observer-${suffix}`),
   })
-  const archives = new ArchiveService(
-    dclDb,
-    new PgRptDefinitionValidator(validationPool, dclDb),
-  )
+  const archives = new BobArchiveService(dclDb)
   const vou = new VouService(vouDb, {
     acc: { async apply() {} },
     wfl: { async apply() {} },
@@ -107,6 +103,8 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
       '/aux/product-type/get',
       '/aux/product-category/create',
       '/aux/product-category/get',
+      '/aux/operating-entity/create',
+      '/aux/operating-entity/get',
     ],
   }
   const productIds = [ulid(), ulid(), ulid()].sort()
@@ -118,12 +116,10 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
   const directSubjectIds = {
     customer: ulid(),
     warehouse: ulid(),
-    operatingEntity: ulid(),
   }
   const directApprovalIds = {
     customer: ulid(),
     warehouse: ulid(),
-    operatingEntity: ulid(),
   }
   const customerSubunitId = ulid()
   const vouDocumentId = ulid()
@@ -140,7 +136,7 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
         .where('submission_id', '=', vouSubmissionId)
         .execute()
       await db
-        .deleteFrom('dcl_archive_idempotency')
+        .deleteFrom('archive_idempotency')
         .where('subject_id', 'in', productIds)
         .execute()
       await db
@@ -165,11 +161,19 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
         .execute()
       await db
         .deleteFrom('dcl_subjects')
+        .where('id', 'in', Object.values(directSubjectIds))
+        .execute()
+      await db
+        .deleteFrom('bob_subjects')
         .where('id', 'in', [...productIds, ...Object.values(directSubjectIds)])
         .execute()
       await db
         .deleteFrom('aux_objects')
         .where('id', 'in', auxObjectIds)
+        .execute()
+      await db
+        .deleteFrom('app_audit_events')
+        .where('actor_user_id', 'in', [actorId, reviewerId])
         .execute()
       await db
         .deleteFrom('app_users')
@@ -392,12 +396,26 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
     'product-v2-submit',
   )
 
+  const operatingEntity = await createAux('operating-entity', {
+    legalName: '并发经营主体',
+    shortName: '并发主体',
+    legalIdentifier: '91310000MA1K123456',
+    registeredAddress: '',
+    contactName: '',
+    contactPhone: '',
+    invoiceTitle: '',
+    invoiceAddress: '',
+    invoicePhone: '',
+    invoiceBank: '',
+    invoiceAccount: '',
+    remark: '',
+  })
   const now = new Date()
   const codeSeed = Math.floor(Math.random() * 10_000)
   const code = (prefix: string, offset: number) =>
     `${prefix}-${String((codeSeed + offset) % 10_000).padStart(4, '0')}`
   await db
-    .insertInto('dcl_subjects')
+    .insertInto('bob_subjects')
     .values([
       {
         id: directSubjectIds.customer,
@@ -406,61 +424,40 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
         created_at: now,
         created_by: actorId,
       },
-      {
-        id: directSubjectIds.warehouse,
-        entity: 'warehouse',
-        code: code('WHS', 1),
-        created_at: now,
-        created_by: actorId,
-      },
-      {
-        id: directSubjectIds.operatingEntity,
-        entity: 'operating-entity',
-        code: code('OPE', 2),
-        created_at: now,
-        created_by: actorId,
-      },
     ])
     .execute()
   await db
     .insertInto('approval_entries')
     .values(
-      [
-        [directApprovalIds.customer, 'customer', directSubjectIds.customer],
-        [directApprovalIds.warehouse, 'warehouse', directSubjectIds.warehouse],
-        [
-          directApprovalIds.operatingEntity,
-          'operating-entity',
-          directSubjectIds.operatingEntity,
-        ],
-      ].map(([id, entity, subjectId]) => ({
-        id: id!,
-        domain: 'dcl',
-        entity: entity!,
-        subject_id: subjectId!,
-        version_no: 1,
-        status: 'APPROVED' as const,
-        revision: 1,
-        submitted_by: actorId,
-        submitted_at: now,
-        approved_by: reviewerId,
-        approved_at: now,
-        updated_by: reviewerId,
-        updated_at: now,
-      })),
+      [[directApprovalIds.customer, 'customer', directSubjectIds.customer]].map(
+        ([id, entity, subjectId]) => ({
+          id: id!,
+          domain: 'bob',
+          entity: entity!,
+          subject_id: subjectId!,
+          version_no: 1,
+          status: 'APPROVED' as const,
+          revision: 1,
+          submitted_by: actorId,
+          submitted_at: now,
+          approved_by: reviewerId,
+          approved_at: now,
+          updated_by: reviewerId,
+          updated_at: now,
+        }),
+      ),
     )
     .execute()
   await db
-    .insertInto('dcl_customer_versions')
+    .insertInto('bob_customer_versions')
     .values({
       approval_entry_id: directApprovalIds.customer,
       kind: 'ENTERPRISE',
       display_name: '并发客户',
-      enabled: true,
     })
     .execute()
   await db
-    .insertInto('dcl_customer_subunit_roots')
+    .insertInto('bob_customer_subunit_roots')
     .values({
       subunit_id: customerSubunitId,
       customer_id: directSubjectIds.customer,
@@ -468,7 +465,7 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
     })
     .execute()
   await db
-    .insertInto('dcl_customer_version_subunits')
+    .insertInto('bob_customer_version_subunits')
     .values({
       customer_approval_entry_id: directApprovalIds.customer,
       subunit_id: customerSubunitId,
@@ -483,32 +480,20 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
       enabled: true,
     })
     .execute()
-  await db
-    .insertInto('dcl_warehouse_versions')
-    .values({
-      approval_entry_id: directApprovalIds.warehouse,
-      name: '并发仓库',
-      enabled: true,
-    })
-    .execute()
-  await db
-    .insertInto('dcl_operating_entity_versions')
-    .values({
-      approval_entry_id: directApprovalIds.operatingEntity,
-      legal_name: '并发经营主体',
-      short_name: '并发主体',
-      registered_address: '',
-      contact_name: '',
-      contact_phone: '',
-      invoice_title: '',
-      invoice_address: '',
-      invoice_phone: '',
-      invoice_bank: '',
-      invoice_account: '',
-      enabled: true,
-    })
-    .execute()
+  const currentWarehouse = await new AuxService(db).create(
+    'warehouse',
+    {
+      name: '测试仓库',
+      address: '',
+      contactName: '',
+      contactPhone: '',
+      managerEmployeeId: null,
+      remark: '',
+    },
+    { id: actorId, permissions: ['/aux/warehouse/create'] },
+  )
 
+  auxObjectIds.push(currentWarehouse.id)
   const payload: VouPayloadFor<'sale-order'> = {
     businessDate: '2026-09-07',
     currency: 'CNY',
@@ -519,16 +504,8 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
       selectionOrigin: 'CURRENT',
     },
     paymentMethod: null,
-    operatingEntity: {
-      objectId: directSubjectIds.operatingEntity,
-      approvalEntryId: directApprovalIds.operatingEntity,
-      selectionOrigin: 'CURRENT',
-    },
-    warehouse: {
-      objectId: directSubjectIds.warehouse,
-      approvalEntryId: directApprovalIds.warehouse,
-      selectionOrigin: 'CURRENT',
-    },
+    operatingEntity: { objectId: operatingEntity.id },
+    warehouse: { objectId: currentWarehouse.id },
     productLines: [
       [materialId, materialUnit],
       [finishedId, oldFinishedUnit],
@@ -545,7 +522,7 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
 
   await blocker.query('BEGIN')
   blockerTransactionOpen = true
-  await blocker.query('SELECT id FROM dcl_subjects WHERE id = $1 FOR UPDATE', [
+  await blocker.query('SELECT id FROM bob_subjects WHERE id = $1 FOR UPDATE', [
     blockingProductId,
   ])
   const vouSubmission = vou.submit(
@@ -561,7 +538,8 @@ test('VOU product adoption serializes with DCL approval without cross-subject ad
     actor,
     'vou-product-concurrent-submit',
   )
-  let review: Promise<Awaited<ReturnType<ArchiveService['review']>>> | undefined
+  let review:
+    Promise<Awaited<ReturnType<BobArchiveService['review']>>> | undefined
   try {
     await waitForLock(observer, vouApplication)
     review = archives.review(

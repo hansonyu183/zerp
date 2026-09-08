@@ -4,20 +4,13 @@ import {
   type SubmissionFacts,
   type SubmissionMechanicsPlan,
 } from './submission.ts'
-import type { ApprovalStatus } from './approval.ts'
 
 export const archiveEntityPresentation = {
-  'operating-entity': { label: '经营主体', draftLabel: '经营主体资料' },
-  vehicle: { label: '车辆', draftLabel: '车辆资料' },
-  'fund-account': { label: '资金账户', draftLabel: '资金账户资料' },
   product: { label: '产品', draftLabel: '产品资料' },
-  employee: { label: '员工', draftLabel: '员工资料' },
   supplier: { label: '供应商', draftLabel: '供应商资料' },
   customer: { label: '客户', draftLabel: '客户资料' },
   'other-unit': { label: '其他单位', draftLabel: '其他单位资料' },
   'sales-partner': { label: '销售合作方', draftLabel: '销售合作方资料' },
-  'acc-mapping': { label: '记账映射', draftLabel: '记账映射规则' },
-  'rpt-definition': { label: '报表定义', draftLabel: '报表定义资料' },
 } as const
 
 type Text = string
@@ -25,6 +18,34 @@ const trim = (value: string): string => value.trim()
 const hasText = (value: string): boolean => trim(value).length > 0
 const upperCompact = (value: string): string =>
   value.replace(/[\s-]/g, '').toUpperCase()
+
+export interface StableArchiveReference {
+  objectId: string
+  code: string
+  name: string
+}
+export interface StableArchiveReferenceFact {
+  objectId: string
+  enabled: boolean
+}
+
+function stableReference(
+  field: string,
+  reference: StableArchiveReference,
+  fact: StableArchiveReferenceFact | undefined,
+): { ok: true } | { ok: false; stale: false; blocker: ReferenceBlocker } {
+  return fact?.objectId === reference.objectId && fact.enabled
+    ? { ok: true }
+    : {
+        ok: false,
+        stale: false,
+        blocker: {
+          field,
+          objectId: reference.objectId,
+          expectedApprovalEntryId: '',
+        },
+      }
+}
 
 export interface ExactReference {
   objectId: string
@@ -50,7 +71,7 @@ export interface AuxSnapshot {
   name: string
 }
 
-/** Immutable settlement facts frozen from the enabled AUX object into a DCL version. */
+/** Immutable settlement facts frozen from the enabled AUX object into a BOB version. */
 export interface SettlementMethodSnapshot extends AuxSnapshot {
   termCode:
     | 'PREPAID'
@@ -122,7 +143,11 @@ function mechanics<T, E extends string>(
   command: ArchiveCommand<T>,
   facts: ArchiveFacts,
 ): ArchiveDecision<T, E> | SubmissionMechanicsPlan {
-  const result = prepareSubmissionMechanics(entity, command, facts)
+  const result = prepareSubmissionMechanics(
+    { domain: 'bob', entity },
+    command,
+    facts,
+  )
   return result.ok ? result.plan : result
 }
 
@@ -174,295 +199,6 @@ function exactReference(
       },
     }
   return { ok: true }
-}
-
-export interface OperatingEntityData {
-  legalName: Text
-  shortName: Text
-  legalIdentifier: Text
-  registeredAddress: Text
-  contactName: Text
-  contactPhone: Text
-  invoiceTitle: Text
-  invoiceAddress: Text
-  invoicePhone: Text
-  invoiceBank: Text
-  invoiceAccount: Text
-  remark: Text
-  enabled: boolean
-}
-export interface OperatingEntitySubmitCommand extends ArchiveCommand<OperatingEntityData> {}
-export interface OperatingEntitySubmitFacts extends ArchiveFacts {}
-export type OperatingEntitySubmitErrorKey = 'operating_entity_invalid_data'
-export type OperatingEntitySubmissionPlan = ArchivePlan<OperatingEntityData>
-export type OperatingEntitySubmitDecision = ArchiveDecision<
-  OperatingEntityData,
-  OperatingEntitySubmitErrorKey
->
-function normalizeOperatingEntity(
-  data: OperatingEntityData,
-): OperatingEntityData | undefined {
-  const legalName = trim(data.legalName)
-  const legalIdentifier = upperCompact(data.legalIdentifier)
-  if (!legalName || !/^[0-9A-Z]{18}$/.test(legalIdentifier)) return undefined
-  return {
-    ...data,
-    legalName,
-    shortName: trim(data.shortName),
-    legalIdentifier,
-    registeredAddress: trim(data.registeredAddress),
-    contactName: trim(data.contactName),
-    contactPhone: trim(data.contactPhone),
-    invoiceTitle: trim(data.invoiceTitle),
-    invoiceAddress: trim(data.invoiceAddress),
-    invoicePhone: trim(data.invoicePhone),
-    invoiceBank: trim(data.invoiceBank),
-    invoiceAccount: trim(data.invoiceAccount),
-    remark: trim(data.remark),
-  }
-}
-export function prepareOperatingEntitySubmit(
-  command: OperatingEntitySubmitCommand,
-  facts: OperatingEntitySubmitFacts,
-): OperatingEntitySubmitDecision {
-  const common = mechanics<OperatingEntityData, OperatingEntitySubmitErrorKey>(
-    'operating-entity',
-    command,
-    facts,
-  )
-  if ('ok' in common) return common
-  const data = normalizeOperatingEntity(command.data)
-  return data
-    ? { ok: true, plan: { ...common, data } }
-    : { ok: false, error: { errorKey: 'operating_entity_invalid_data' } }
-}
-export function projectOperatingEntityViewState(
-  command: OperatingEntitySubmitCommand,
-  facts: OperatingEntitySubmitFacts,
-): ArchiveViewState<OperatingEntitySubmitErrorKey> {
-  return project(prepareOperatingEntitySubmit(command, facts))
-}
-
-export interface VehicleTypeReference {
-  id: string
-  code: string
-  name: string
-}
-export type VehicleCarrier =
-  | { kind: 'INTERNAL'; operatingEntityId: string; approvalEntryId: string }
-  | { kind: 'EXTERNAL'; otherUnitId: string; approvalEntryId: string }
-export interface VehicleData {
-  name: Text
-  plateNumber: Text
-  vehicleType: VehicleTypeReference
-  carrier: VehicleCarrier
-  vin: Text
-  engineNumber: Text
-  ratedLoadKg: number
-  bulkWaterCarrier: boolean
-  remark: Text
-  enabled: boolean
-}
-export interface VehicleSubmitCommand extends ArchiveCommand<VehicleData> {}
-export interface VehicleSubmitFacts extends ArchiveFacts {
-  operatingEntity?: ExactReferenceFact
-  otherUnit?: ExactReferenceFact
-}
-export type VehicleSubmitErrorKey =
-  | 'vehicle_invalid_data'
-  | 'vehicle_reference_stale'
-  | 'vehicle_reference_unavailable'
-export type VehicleSubmissionPlan = ArchivePlan<VehicleData>
-export type VehicleSubmitDecision = ArchiveDecision<
-  VehicleData,
-  VehicleSubmitErrorKey
->
-function normalizeVehicle(data: VehicleData): VehicleData | undefined {
-  const name = trim(data.name),
-    plateNumber = data.plateNumber.replace(/\s/g, '').toUpperCase(),
-    vin = trim(data.vin).toUpperCase(),
-    engineNumber = trim(data.engineNumber),
-    remark = trim(data.remark)
-  const vehicleType = {
-    id: trim(data.vehicleType.id),
-    code: trim(data.vehicleType.code),
-    name: trim(data.vehicleType.name),
-  }
-  if (
-    !name ||
-    !plateNumber ||
-    !vehicleType.id ||
-    !vehicleType.code ||
-    !vehicleType.name ||
-    !Number.isFinite(data.ratedLoadKg) ||
-    data.ratedLoadKg < 0
-  )
-    return undefined
-  const carrier =
-    data.carrier.kind === 'INTERNAL'
-      ? {
-          kind: 'INTERNAL' as const,
-          operatingEntityId: trim(data.carrier.operatingEntityId),
-          approvalEntryId: trim(data.carrier.approvalEntryId),
-        }
-      : {
-          kind: 'EXTERNAL' as const,
-          otherUnitId: trim(data.carrier.otherUnitId),
-          approvalEntryId: trim(data.carrier.approvalEntryId),
-        }
-  if (
-    !(carrier.kind === 'INTERNAL'
-      ? carrier.operatingEntityId
-      : carrier.otherUnitId) ||
-    !carrier.approvalEntryId
-  )
-    return undefined
-  return {
-    ...data,
-    name,
-    plateNumber,
-    vehicleType,
-    carrier,
-    vin,
-    engineNumber,
-    remark,
-  }
-}
-export function prepareVehicleSubmit(
-  command: VehicleSubmitCommand,
-  facts: VehicleSubmitFacts,
-): VehicleSubmitDecision {
-  const common = mechanics<VehicleData, VehicleSubmitErrorKey>(
-    'vehicle',
-    command,
-    facts,
-  )
-  if ('ok' in common) return common
-  const data = normalizeVehicle(command.data)
-  if (!data) return { ok: false, error: { errorKey: 'vehicle_invalid_data' } }
-  const ref: ExactReference =
-    data.carrier.kind === 'INTERNAL'
-      ? {
-          objectId: data.carrier.operatingEntityId,
-          approvalEntryId: data.carrier.approvalEntryId,
-          code: '',
-          name: '',
-        }
-      : {
-          objectId: data.carrier.otherUnitId,
-          approvalEntryId: data.carrier.approvalEntryId,
-          code: '',
-          name: '',
-        }
-  const checked = exactReference(
-    'carrier',
-    ref,
-    data.carrier.kind === 'INTERNAL' ? facts.operatingEntity : facts.otherUnit,
-  )
-  if (!checked.ok)
-    return block(
-      checked.stale
-        ? 'vehicle_reference_stale'
-        : 'vehicle_reference_unavailable',
-      checked.blocker,
-    )
-  return { ok: true, plan: { ...common, data } }
-}
-export function projectVehicleViewState(
-  command: VehicleSubmitCommand,
-  facts: VehicleSubmitFacts,
-): ArchiveViewState<VehicleSubmitErrorKey> {
-  return project(prepareVehicleSubmit(command, facts))
-}
-
-export interface FundAccountData {
-  name: Text
-  currency: Text
-  accountName: Text
-  bank: Text
-  branch: Text
-  accountNumber: Text
-  remark: Text
-  enabled: boolean
-  operatingEntity: ExactReference
-}
-export interface FundAccountSubmitCommand extends ArchiveCommand<FundAccountData> {}
-export interface FundAccountSubmitFacts extends ArchiveFacts {
-  operatingEntity?: ExactReferenceFact
-}
-export type FundAccountSubmitErrorKey =
-  | 'fund_account_invalid_data'
-  | 'fund_account_reference_stale'
-  | 'fund_account_reference_unavailable'
-export type FundAccountSubmissionPlan = ArchivePlan<FundAccountData>
-export type FundAccountSubmitDecision = ArchiveDecision<
-  FundAccountData,
-  FundAccountSubmitErrorKey
->
-function normalizeFundAccount(
-  data: FundAccountData,
-): FundAccountData | undefined {
-  const operatingEntity = {
-    objectId: trim(data.operatingEntity.objectId),
-    approvalEntryId: trim(data.operatingEntity.approvalEntryId),
-    code: trim(data.operatingEntity.code),
-    name: trim(data.operatingEntity.name),
-  }
-  const accountNumber = upperCompact(data.accountNumber)
-  if (
-    !hasText(data.name) ||
-    !/^[A-Z]{3}$/.test(trim(data.currency).toUpperCase()) ||
-    !hasText(data.accountName) ||
-    !hasText(data.bank) ||
-    !accountNumber ||
-    !operatingEntity.objectId ||
-    !operatingEntity.approvalEntryId
-  )
-    return undefined
-  return {
-    ...data,
-    name: trim(data.name),
-    currency: trim(data.currency).toUpperCase(),
-    accountName: trim(data.accountName),
-    bank: trim(data.bank),
-    branch: trim(data.branch),
-    accountNumber,
-    remark: trim(data.remark),
-    operatingEntity,
-  }
-}
-export function prepareFundAccountSubmit(
-  command: FundAccountSubmitCommand,
-  facts: FundAccountSubmitFacts,
-): FundAccountSubmitDecision {
-  const common = mechanics<FundAccountData, FundAccountSubmitErrorKey>(
-    'fund-account',
-    command,
-    facts,
-  )
-  if ('ok' in common) return common
-  const data = normalizeFundAccount(command.data)
-  if (!data)
-    return { ok: false, error: { errorKey: 'fund_account_invalid_data' } }
-  const checked = exactReference(
-    'operatingEntity',
-    data.operatingEntity,
-    facts.operatingEntity,
-  )
-  if (!checked.ok)
-    return block(
-      checked.stale
-        ? 'fund_account_reference_stale'
-        : 'fund_account_reference_unavailable',
-      checked.blocker,
-    )
-  return { ok: true, plan: { ...common, data } }
-}
-export function projectFundAccountViewState(
-  command: FundAccountSubmitCommand,
-  facts: FundAccountSubmitFacts,
-): ArchiveViewState<FundAccountSubmitErrorKey> {
-  return project(prepareFundAccountSubmit(command, facts))
 }
 
 export interface ProductAuxReference {
@@ -527,7 +263,6 @@ export interface ProductData {
   recyclable: boolean
   fixedFormula: ProductFixedFormula | null
   remark: Text
-  enabled: boolean
 }
 export interface ProductSubmitCommand extends ArchiveCommand<ProductData> {}
 export interface ProductSubmitFacts extends ArchiveFacts {
@@ -593,32 +328,39 @@ function normalizeProductQuantity(
     ? { enteredQuantity, enteredUnit, baseQuantity }
     : undefined
 }
-function normalizeProduct(data: ProductData): ProductData | undefined {
+export function normalizeProductData(
+  data: ProductData,
+  onInvalid?: (field: string) => void,
+): ProductData | undefined {
+  const invalid = (field: string): undefined => {
+    onInvalid?.(field)
+    return undefined
+  }
   const productType = normalizeProductReference(data.productType, false),
     productCategory = normalizeProductReference(data.productCategory, false),
     pricingUnit = normalizeProductUnit(data.pricingUnit),
     defaultInputUnit = normalizeProductUnit(data.defaultInputUnit)
   const unitIds = new Set<string>()
   const unitConversions: ProductUnitConversion[] = []
-  for (const conversion of data.unitConversions) {
+  for (const [index, conversion] of data.unitConversions.entries()) {
     const unit = normalizeProductUnit(conversion.unit)
     const factor = trim(conversion.factor)
     if (!unit || !positiveDecimal.test(factor) || unitIds.has(unit.id))
-      return undefined
+      return invalid(`unitConversions[${index}]`)
     unitIds.add(unit.id)
     unitConversions.push({ unit, factor })
   }
+  if (!hasText(data.name)) return invalid('name')
+  if (!productType) return invalid('productType')
+  if (!productCategory) return invalid('productCategory')
+  if (!pricingUnit) return invalid('pricingUnit')
+  if (!defaultInputUnit) return invalid('defaultInputUnit')
   if (
-    !hasText(data.name) ||
-    !productType ||
-    !productCategory ||
-    !pricingUnit ||
-    !defaultInputUnit ||
     !unitConversions.length ||
     !unitIds.has(pricingUnit.id) ||
     !unitIds.has(defaultInputUnit.id)
   )
-    return undefined
+    return invalid('unitConversions')
   const behaviorProfile = productType.behaviorProfile
   const defaultPackagingSpec = trim(data.defaultPackagingSpec)
   if (
@@ -627,7 +369,7 @@ function normalizeProduct(data: ProductData): ProductData | undefined {
       ? defaultPackagingSpec !== '' || pricingUnit.id !== defaultInputUnit.id
       : !positiveDecimal.test(defaultPackagingSpec))
   )
-    return undefined
+    return invalid('defaultPackagingSpec')
   let fixedFormula: ProductFixedFormula | null = null
   if (data.fixedFormula) {
     const output = normalizeProductQuantity(data.fixedFormula.output)
@@ -638,8 +380,10 @@ function normalizeProduct(data: ProductData): ProductData | undefined {
       data.fixedFormula.components.length < 1 ||
       data.fixedFormula.components.length > 200
     )
-      return undefined
-    for (const component of data.fixedFormula.components) {
+      return invalid(
+        !output ? 'fixedFormula.output' : 'fixedFormula.components',
+      )
+    for (const [index, component] of data.fixedFormula.components.entries()) {
       const material = {
         objectId: trim(component.material.objectId),
         approvalEntryId: trim(component.material.approvalEntryId),
@@ -657,7 +401,7 @@ function normalizeProduct(data: ProductData): ProductData | undefined {
         component.resolutionStatus !== 'CURRENT' ||
         component.requiresConfirmation
       )
-        return undefined
+        return invalid(`fixedFormula.components[${index}]`)
       materialIds.add(material.objectId)
       components.push({
         material,
@@ -672,7 +416,7 @@ function normalizeProduct(data: ProductData): ProductData | undefined {
     (behaviorProfile === 'STANDARD_FINISHED' && !fixedFormula) ||
     (behaviorProfile !== 'STANDARD_FINISHED' && fixedFormula)
   )
-    return undefined
+    return invalid('fixedFormula')
   return {
     ...data,
     name: trim(data.name),
@@ -699,7 +443,7 @@ export function prepareProductSubmit(
     facts,
   )
   if ('ok' in common) return common
-  const data = normalizeProduct(command.data)
+  const data = normalizeProductData(command.data)
   if (!data) return { ok: false, error: { errorKey: 'product_invalid_data' } }
   for (const [field, reference] of [
     ['productType', data.productType],
@@ -767,7 +511,6 @@ export interface IdentityArchiveData {
   phone: Text
   address: Text
   remark: Text
-  enabled: boolean
 }
 function validUnifiedSocialCreditCode(value: string): boolean {
   const alphabet = '0123456789ABCDEFGHJKLMNPQRTUWXY'
@@ -817,9 +560,9 @@ function normalizedIdentifier(
     return undefined
   return normalized
 }
-function normalizeIdentity<T extends IdentityArchiveData>(
-  data: T,
-): T | undefined {
+function normalizeIdentity(
+  data: IdentityArchiveData,
+): IdentityArchiveData | undefined {
   const legalIdentifier = normalizedIdentifier(
     data.identityKind,
     data.legalIdentifier,
@@ -831,7 +574,7 @@ function normalizeIdentity<T extends IdentityArchiveData>(
   )
     return undefined
   return {
-    ...data,
+    identityKind: data.identityKind,
     legalName: trim(data.legalName),
     displayName: trim(data.displayName),
     legalIdentifier,
@@ -842,132 +585,8 @@ function normalizeIdentity<T extends IdentityArchiveData>(
   }
 }
 
-export interface EmployeeData extends IdentityArchiveData {
-  employeeCategory: ProductAuxReference
-  department: ProductAuxReference
-  position: ProductAuxReference
-  employmentDate: Text
-  workPhone: Text
-  workEmail: Text
-  operatingEntity: ExactReference
-}
-export interface EmployeeSubmitCommand extends ArchiveCommand<EmployeeData> {}
-export interface EmployeeSubmitFacts extends ArchiveFacts {
-  operatingEntity?: ExactReferenceFact
-  references: readonly ProductReferenceFact[]
-}
-export type EmployeeSubmitErrorKey =
-  | 'employee_invalid_data'
-  | 'employee_reference_stale'
-  | 'employee_reference_unavailable'
-export type EmployeeSubmissionPlan = ArchivePlan<EmployeeData>
-export type EmployeeSubmitDecision = ArchiveDecision<
-  EmployeeData,
-  EmployeeSubmitErrorKey
->
-export function prepareEmployeeSubmit(
-  command: EmployeeSubmitCommand,
-  facts: EmployeeSubmitFacts,
-): EmployeeSubmitDecision {
-  const common = mechanics<EmployeeData, EmployeeSubmitErrorKey>(
-    'employee',
-    command,
-    facts,
-  )
-  if ('ok' in common) return common
-  const base = normalizeIdentity(command.data),
-    operatingEntity = command.data.operatingEntity
-  if (
-    !base ||
-    !hasText(base.employmentDate) ||
-    !hasText(operatingEntity.objectId) ||
-    !hasText(operatingEntity.approvalEntryId) ||
-    [base.employeeCategory, base.department, base.position].some(
-      (reference) =>
-        !hasText(reference.id) ||
-        !hasText(reference.code) ||
-        !hasText(reference.name),
-    )
-  )
-    return { ok: false, error: { errorKey: 'employee_invalid_data' } }
-  const checked = exactReference(
-    'operatingEntity',
-    operatingEntity,
-    facts.operatingEntity,
-  )
-  if (!checked.ok)
-    return block(
-      checked.stale
-        ? 'employee_reference_stale'
-        : 'employee_reference_unavailable',
-      checked.blocker,
-    )
-  for (const [field, reference] of [
-    ['employeeCategory', base.employeeCategory],
-    ['department', base.department],
-    ['position', base.position],
-  ] as const) {
-    if (
-      !facts.references.some(
-        (fact) =>
-          fact.field === field &&
-          fact.objectId === reference.id &&
-          fact.available,
-      )
-    )
-      return block('employee_reference_unavailable', {
-        field,
-        objectId: reference.id,
-        expectedApprovalEntryId: '',
-      })
-  }
-  return {
-    ok: true,
-    plan: {
-      ...common,
-      data: {
-        ...base,
-        employeeCategory: {
-          ...base.employeeCategory,
-          id: trim(base.employeeCategory.id),
-          code: trim(base.employeeCategory.code),
-          name: trim(base.employeeCategory.name),
-        },
-        department: {
-          ...base.department,
-          id: trim(base.department.id),
-          code: trim(base.department.code),
-          name: trim(base.department.name),
-        },
-        position: {
-          ...base.position,
-          id: trim(base.position.id),
-          code: trim(base.position.code),
-          name: trim(base.position.name),
-        },
-        employmentDate: trim(base.employmentDate),
-        workPhone: trim(base.workPhone),
-        workEmail: trim(base.workEmail),
-        operatingEntity: {
-          ...operatingEntity,
-          objectId: trim(operatingEntity.objectId),
-          approvalEntryId: trim(operatingEntity.approvalEntryId),
-          code: trim(operatingEntity.code),
-          name: trim(operatingEntity.name),
-        },
-      },
-    },
-  }
-}
-export function projectEmployeeViewState(
-  command: EmployeeSubmitCommand,
-  facts: EmployeeSubmitFacts,
-): ArchiveViewState<EmployeeSubmitErrorKey> {
-  return project(prepareEmployeeSubmit(command, facts))
-}
-
 export interface OperatingEntitySetData {
-  operatingEntities: readonly ExactReference[]
+  operatingEntities: readonly StableArchiveReference[]
   defaultOperatingEntityId: string | null
 }
 function normalizeOperatingEntitySet(
@@ -976,7 +595,6 @@ function normalizeOperatingEntitySet(
   const ids = new Set<string>()
   const operatingEntities = data.operatingEntities.map((reference) => ({
     objectId: trim(reference.objectId),
-    approvalEntryId: trim(reference.approvalEntryId),
     code: trim(reference.code),
     name: trim(reference.name),
   }))
@@ -984,7 +602,6 @@ function normalizeOperatingEntitySet(
     operatingEntities.some(
       (reference) =>
         !reference.objectId ||
-        !reference.approvalEntryId ||
         ids.has(reference.objectId) ||
         !ids.add(reference.objectId),
     )
@@ -1001,12 +618,12 @@ function normalizeOperatingEntitySet(
 export interface SupplierData
   extends IdentityArchiveData, OperatingEntitySetData {
   settlementMethod: (AuxSnapshot | SettlementMethodSnapshot) | null
-  defaultPurchaser: ExactReference | null
+  defaultPurchaser: StableArchiveReference | null
 }
 export interface SupplierSubmitCommand extends ArchiveCommand<SupplierData> {}
 export interface SupplierSubmitFacts extends ArchiveFacts {
-  operatingEntities: readonly ExactReferenceFact[]
-  defaultPurchaser?: ExactReferenceFact
+  operatingEntities: readonly StableArchiveReferenceFact[]
+  defaultPurchaser?: StableArchiveReferenceFact
 }
 export type SupplierSubmitErrorKey =
   | 'supplier_invalid_data'
@@ -1026,7 +643,10 @@ function prepareIdentitySet<
   entity: string,
   invalid: E,
 ):
-  | { common: SubmissionMechanicsPlan; data: T & OperatingEntitySetData }
+  | {
+      common: SubmissionMechanicsPlan
+      data: IdentityArchiveData & OperatingEntitySetData
+    }
   | ArchiveDecision<T, E> {
   const common = mechanics<T, E>(entity, command, facts)
   if ('ok' in common) return common
@@ -1048,7 +668,7 @@ export function prepareSupplierSubmit(
   )
   if ('ok' in prepared) return prepared
   for (const reference of prepared.data.operatingEntities) {
-    const checked = exactReference(
+    const checked = stableReference(
       'operatingEntities',
       reference,
       facts.operatingEntities.find(
@@ -1064,7 +684,7 @@ export function prepareSupplierSubmit(
       )
   }
   if (command.data.defaultPurchaser) {
-    const checked = exactReference(
+    const checked = stableReference(
       'defaultPurchaser',
       command.data.defaultPurchaser,
       facts.defaultPurchaser,
@@ -1102,7 +722,7 @@ export interface OtherUnitData
 }
 export interface OtherUnitSubmitCommand extends ArchiveCommand<OtherUnitData> {}
 export interface OtherUnitSubmitFacts extends ArchiveFacts {
-  operatingEntities: readonly ExactReferenceFact[]
+  operatingEntities: readonly StableArchiveReferenceFact[]
 }
 export type OtherUnitSubmitErrorKey =
   | 'other_unit_invalid_data'
@@ -1125,7 +745,7 @@ export function prepareOtherUnitSubmit(
   )
   if ('ok' in prepared) return prepared
   for (const reference of prepared.data.operatingEntities) {
-    const checked = exactReference(
+    const checked = stableReference(
       'operatingEntities',
       reference,
       facts.operatingEntities.find(
@@ -1165,7 +785,7 @@ export interface SalesPartnerData
 }
 export interface SalesPartnerSubmitCommand extends ArchiveCommand<SalesPartnerData> {}
 export interface SalesPartnerSubmitFacts extends ArchiveFacts {
-  operatingEntities: readonly ExactReferenceFact[]
+  operatingEntities: readonly StableArchiveReferenceFact[]
 }
 export type SalesPartnerSubmitErrorKey =
   | 'sales_partner_invalid_data'
@@ -1197,7 +817,7 @@ export function prepareSalesPartnerSubmit(
   )
     return { ok: false, error: { errorKey: 'sales_partner_invalid_data' } }
   for (const reference of prepared.data.operatingEntities) {
-    const checked = exactReference(
+    const checked = stableReference(
       'operatingEntities',
       reference,
       facts.operatingEntities.find(
@@ -1257,9 +877,9 @@ export interface CustomerPricingPolicy {
 }
 export type CustomerSalesAttributionType =
   'INTERNAL_EMPLOYEE' | 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER'
-export interface CustomerSalesAttribution extends ExactReference {
-  type: CustomerSalesAttributionType
-}
+export type CustomerSalesAttribution =
+  | (StableArchiveReference & { type: 'INTERNAL_EMPLOYEE' })
+  | (ExactReference & { type: 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER' })
 interface CustomerSubunitBase {
   id: string
   name: string
@@ -1305,14 +925,13 @@ export interface CustomerData {
     bank: string
     accountNumber: string
   }[]
-  defaultOperatingEntity: ExactReference | null
+  defaultOperatingEntity: StableArchiveReference | null
   identityAttachments: readonly AttachmentMetadata[]
   subunits: readonly CustomerSubunit[]
-  enabled: boolean
 }
 export interface CustomerSubmitCommand extends ArchiveCommand<CustomerData> {}
 export interface CustomerSubmitFacts extends ArchiveFacts {
-  defaultOperatingEntity?: ExactReferenceFact
+  defaultOperatingEntity?: StableArchiveReferenceFact
   customerTypes: readonly { objectId: string; available: boolean }[]
   salesAttributions: readonly (ExactReferenceFact & {
     type: CustomerSalesAttributionType
@@ -1347,7 +966,7 @@ function normalizeAttachment(
     : undefined
 }
 const money = /^(?:0|[1-9]\d*)\.\d{2}$/
-const positiveMoney = /^(?:0*[1-9]\d*)\.\d{2}$/
+const positiveMoney = /^(?:[1-9]\d*\.\d{2}|0\.(?:[1-9]\d|0[1-9]))$/
 function normalizeAuxSnapshot(value: AuxSnapshot): AuxSnapshot | undefined {
   const normalized = {
     id: trim(value.id),
@@ -1456,7 +1075,25 @@ function normalizePricingPolicy(
     thirdPartyIntermediaryVariableUnitCost,
   }
 }
-function normalizeCustomer(data: CustomerData): CustomerData | undefined {
+function normalizeSalesAttribution(
+  reference: CustomerSalesAttribution,
+): CustomerSalesAttribution {
+  const base = {
+    objectId: trim(reference.objectId),
+    code: trim(reference.code),
+    name: trim(reference.name),
+  }
+  return reference.type === 'INTERNAL_EMPLOYEE'
+    ? { ...base, type: reference.type }
+    : {
+        ...base,
+        type: reference.type,
+        approvalEntryId: trim(reference.approvalEntryId),
+      }
+}
+export function normalizeCustomerData(
+  data: CustomerData,
+): CustomerData | undefined {
   const legalIdentifier = normalizedIdentifier(
     data.identityKind,
     data.legalIdentifier,
@@ -1513,14 +1150,9 @@ function normalizeCustomer(data: CustomerData): CustomerData | undefined {
       paymentMethod,
       transportPolicy,
       pricingPolicy,
-      primarySalesAttribution: {
-        ...subunit.primarySalesAttribution,
-        type: subunit.primarySalesAttribution.type,
-        objectId: trim(subunit.primarySalesAttribution.objectId),
-        approvalEntryId: trim(subunit.primarySalesAttribution.approvalEntryId),
-        code: trim(subunit.primarySalesAttribution.code),
-        name: trim(subunit.primarySalesAttribution.name),
-      },
+      primarySalesAttribution: normalizeSalesAttribution(
+        subunit.primarySalesAttribution,
+      ),
       internalReminder: trim(subunit.internalReminder),
       defaultSalesOrderRemark: trim(subunit.defaultSalesOrderRemark),
       attachments: attachments as AttachmentMetadata[],
@@ -1543,7 +1175,8 @@ function normalizeCustomer(data: CustomerData): CustomerData | undefined {
   for (const subunit of subunits) {
     if (
       !subunit.primarySalesAttribution.objectId ||
-      !subunit.primarySalesAttribution.approvalEntryId ||
+      (subunit.primarySalesAttribution.type !== 'INTERNAL_EMPLOYEE' &&
+        !subunit.primarySalesAttribution.approvalEntryId) ||
       !subunit.primarySalesAttribution.code ||
       !subunit.primarySalesAttribution.name
     )
@@ -1559,11 +1192,7 @@ function normalizeCustomer(data: CustomerData): CustomerData | undefined {
       currencies.add(limit.currency)
     }
   }
-  if (
-    subunits.length === 0 ||
-    (data.enabled && !subunits.some((subunit) => subunit.enabled))
-  )
-    return undefined
+  if (subunits.length === 0) return undefined
   const identityAttachments = data.identityAttachments.map(normalizeAttachment)
   if (identityAttachments.some((attachment) => !attachment)) return undefined
   const defaultOperatingEntity =
@@ -1571,15 +1200,10 @@ function normalizeCustomer(data: CustomerData): CustomerData | undefined {
       ? null
       : {
           objectId: trim(data.defaultOperatingEntity.objectId),
-          approvalEntryId: trim(data.defaultOperatingEntity.approvalEntryId),
           code: trim(data.defaultOperatingEntity.code),
           name: trim(data.defaultOperatingEntity.name),
         }
-  if (
-    defaultOperatingEntity &&
-    (!defaultOperatingEntity.objectId ||
-      !defaultOperatingEntity.approvalEntryId)
-  )
+  if (defaultOperatingEntity && !defaultOperatingEntity.objectId)
     return undefined
   const remittanceProfiles = data.remittanceProfiles.map((profile) => ({
     payerName: trim(profile.payerName),
@@ -1616,10 +1240,10 @@ export function prepareCustomerSubmit(
     facts,
   )
   if ('ok' in common) return common
-  const data = normalizeCustomer(command.data)
+  const data = normalizeCustomerData(command.data)
   if (!data) return { ok: false, error: { errorKey: 'customer_invalid_data' } }
   if (data.defaultOperatingEntity) {
-    const checked = exactReference(
+    const checked = stableReference(
       'defaultOperatingEntity',
       data.defaultOperatingEntity,
       facts.defaultOperatingEntity,
@@ -1648,11 +1272,18 @@ export function prepareCustomerSubmit(
         candidate.objectId === subunit.primarySalesAttribution.objectId &&
         candidate.type === subunit.primarySalesAttribution.type,
     )
-    const checked = exactReference(
-      'subunits.primarySalesAttribution',
-      subunit.primarySalesAttribution,
-      fact,
-    )
+    const checked =
+      subunit.primarySalesAttribution.type === 'INTERNAL_EMPLOYEE'
+        ? stableReference(
+            'subunits.primarySalesAttribution',
+            subunit.primarySalesAttribution,
+            fact,
+          )
+        : exactReference(
+            'subunits.primarySalesAttribution',
+            subunit.primarySalesAttribution,
+            fact,
+          )
     if (!checked.ok)
       return block(
         checked.stale
@@ -1730,13 +1361,13 @@ export interface AccMappingData {
   defaultResult: MappingResult
   definition: MappingDefinition
 }
-export interface AccMappingSubmitCommand extends ArchiveCommand<AccMappingData> {}
-export interface AccMappingSubmitFacts extends ArchiveFacts {
+export interface AccMappingValidationFacts {
   book: { id: string; enabled: boolean }
   vouEntity: { id: string; enabled: boolean }
   fieldCatalog: {
     headerFields: readonly string[]
     lineFields: readonly string[]
+    collections: readonly string[]
   }
   accounts: readonly {
     id: string
@@ -1746,15 +1377,10 @@ export interface AccMappingSubmitFacts extends ArchiveFacts {
     requiredDimensions: readonly string[]
   }[]
 }
-export type AccMappingSubmitErrorKey =
+export type AccMappingErrorKey =
   | 'acc_mapping_invalid_data'
   | 'acc_mapping_book_unavailable'
   | 'acc_mapping_vou_entity_unavailable'
-export type AccMappingSubmissionPlan = ArchivePlan<AccMappingData>
-export type AccMappingSubmitDecision = ArchiveDecision<
-  AccMappingData,
-  AccMappingSubmitErrorKey
->
 function normalizeMappingRule(rule: MappingRule): MappingRule | undefined {
   const conditions = rule.conditions.map((condition) => ({
     field: trim(condition.field),
@@ -1821,7 +1447,7 @@ function rulesAreExclusive(left: MappingRule, right: MappingRule): boolean {
 
 function subjectIsAvailable(
   id: string,
-  facts: AccMappingSubmitFacts,
+  facts: AccMappingValidationFacts,
   bookId: string,
 ): boolean {
   return facts.accounts.some(
@@ -1832,7 +1458,7 @@ function subjectIsAvailable(
 
 function subjectRequiredDimensions(
   id: string,
-  facts: AccMappingSubmitFacts,
+  facts: AccMappingValidationFacts,
   bookId: string,
 ): readonly string[] | undefined {
   const account = facts.accounts.find(
@@ -1846,7 +1472,7 @@ function subjectRequiredDimensions(
 function dimensionsMatchSubject(
   dimensions: Readonly<Record<string, string>>,
   subjectId: string,
-  facts: AccMappingSubmitFacts,
+  facts: AccMappingValidationFacts,
   bookId: string,
 ): boolean {
   const required = subjectRequiredDimensions(subjectId, facts, bookId)
@@ -1860,7 +1486,7 @@ function dimensionsMatchSubject(
 
 function normalizeDimensions(
   dimensions: Readonly<Record<string, string>>,
-  facts: AccMappingSubmitFacts,
+  facts: AccMappingValidationFacts,
 ): Record<string, string> | undefined {
   const normalized = Object.fromEntries(
     Object.entries(dimensions).map(([key, value]) => [trim(key), trim(value)]),
@@ -1874,10 +1500,15 @@ function normalizeDimensions(
 
 function normalizeVoucherTemplate(
   template: MappingVoucherTemplate,
-  facts: AccMappingSubmitFacts,
+  facts: AccMappingValidationFacts,
   bookId: string,
 ): MappingVoucherTemplate | undefined {
   const templateId = trim(template.templateId)
+  if (
+    template.collection !== null &&
+    !facts.fieldCatalog.collections.includes(trim(template.collection))
+  )
+    return undefined
   const lines: MappingVoucherTemplateLine[] = []
   for (const line of template.lines) {
     const subjectValue = trim(line.subjectValue)
@@ -1944,40 +1575,35 @@ function normalizeVoucherTemplate(
 
 function mappingFieldExists(
   field: string,
-  facts: AccMappingSubmitFacts,
+  facts: AccMappingValidationFacts,
 ): boolean {
   return [...facts.fieldCatalog.headerFields, ...facts.fieldCatalog.lineFields]
     .map(trim)
     .includes(field)
 }
 
-export function prepareAccMappingSubmit(
-  command: AccMappingSubmitCommand,
-  facts: AccMappingSubmitFacts,
-): AccMappingSubmitDecision {
-  const common = mechanics<AccMappingData, AccMappingSubmitErrorKey>(
-    'acc-mapping',
-    command,
-    facts,
-  )
-  if ('ok' in common) return common
+export function prepareAccMappingSave(
+  data: AccMappingData,
+  facts: AccMappingValidationFacts,
+):
+  | { ok: true; data: AccMappingData }
+  | { ok: false; error: { errorKey: AccMappingErrorKey } } {
   const book = {
-      id: trim(command.data.book.id),
-      code: trim(command.data.book.code),
-      name: trim(command.data.book.name),
+      id: trim(data.book.id),
+      code: trim(data.book.code),
+      name: trim(data.book.name),
     },
     vouEntity = {
-      id: trim(command.data.vouEntity.id),
-      code: trim(command.data.vouEntity.code),
-      name: trim(command.data.vouEntity.name),
+      id: trim(data.vouEntity.id),
+      code: trim(data.vouEntity.code),
+      name: trim(data.vouEntity.name),
     }
   if (
     !book.id ||
     !book.code ||
     !vouEntity.id ||
     !vouEntity.code ||
-    (command.data.defaultResult !== 'POST' &&
-      command.data.defaultResult !== 'UN_POST') ||
+    (data.defaultResult !== 'POST' && data.defaultResult !== 'UN_POST') ||
     !facts.book.enabled ||
     facts.book.id !== book.id ||
     !facts.vouEntity.enabled ||
@@ -1994,12 +1620,12 @@ export function prepareAccMappingSubmit(
               : 'acc_mapping_invalid_data',
       },
     }
-  const templates = command.data.definition.templates.map((template) =>
+  const templates = data.definition.templates.map((template) =>
     normalizeVoucherTemplate(template, facts, book.id),
   )
   const templateIds = new Set<string>()
-  const rules = command.data.definition.rules.map(normalizeMappingRule)
-  const assetConfiguration = command.data.definition.assetConfiguration
+  const rules = data.definition.rules.map(normalizeMappingRule)
+  const assetConfiguration = data.definition.assetConfiguration
   const normalizedAssetConfiguration =
     assetConfiguration === null
       ? null
@@ -2026,14 +1652,12 @@ export function prepareAccMappingSubmit(
         }
   if (
     templates.some((template) => template === undefined) ||
-    templates.some(
-      (template) =>
-        template !== undefined && templateIds.has(template.templateId),
-    ) ||
-    templates.some(
-      (template) =>
-        template !== undefined && !templateIds.add(template.templateId),
-    ) ||
+    templates.some((template) => {
+      if (!template) return false
+      if (templateIds.has(template.templateId)) return true
+      templateIds.add(template.templateId)
+      return false
+    }) ||
     rules.some(
       (rule) =>
         rule === undefined ||
@@ -2055,10 +1679,10 @@ export function prepareAccMappingSubmit(
                 candidate !== undefined && !rulesAreExclusive(rule, candidate),
             ),
     ) ||
-    (command.data.defaultResult === 'POST'
-      ? command.data.definition.defaultTemplateId === null ||
-        !templateIds.has(trim(command.data.definition.defaultTemplateId))
-      : command.data.definition.defaultTemplateId !== null) ||
+    (data.defaultResult === 'POST'
+      ? data.definition.defaultTemplateId === null ||
+        !templateIds.has(trim(data.definition.defaultTemplateId))
+      : data.definition.defaultTemplateId !== null) ||
     (normalizedAssetConfiguration !== null &&
       (!subjectIsAvailable(
         normalizedAssetConfiguration.assetSubjectId,
@@ -2102,282 +1726,20 @@ export function prepareAccMappingSubmit(
     return { ok: false, error: { errorKey: 'acc_mapping_invalid_data' } }
   return {
     ok: true,
-    plan: {
-      ...common,
-      data: {
-        book,
-        vouEntity,
-        defaultResult: command.data.defaultResult,
-        definition: {
-          defaultTemplateId:
-            command.data.definition.defaultTemplateId === null
-              ? null
-              : trim(command.data.definition.defaultTemplateId),
-          rules: rules as MappingRule[],
-          templates: templates as MappingVoucherTemplate[],
-          assetConfiguration:
-            normalizedAssetConfiguration as MappingAssetConfiguration | null,
-        },
+    data: {
+      book,
+      vouEntity,
+      defaultResult: data.defaultResult,
+      definition: {
+        defaultTemplateId:
+          data.definition.defaultTemplateId === null
+            ? null
+            : trim(data.definition.defaultTemplateId),
+        rules: rules as MappingRule[],
+        templates: templates as MappingVoucherTemplate[],
+        assetConfiguration:
+          normalizedAssetConfiguration as MappingAssetConfiguration | null,
       },
     },
   }
-}
-export function projectAccMappingViewState(
-  command: AccMappingSubmitCommand,
-  facts: AccMappingSubmitFacts,
-): ArchiveViewState<AccMappingSubmitErrorKey> {
-  return project(prepareAccMappingSubmit(command, facts))
-}
-
-export type RptParameterType =
-  | 'TEXT'
-  | 'INTEGER'
-  | 'DECIMAL'
-  | 'BOOLEAN'
-  | 'DATE'
-  | 'DATE_RANGE'
-  | 'ENUM'
-  | 'REFERENCE'
-export type RptReferenceType =
-  | 'ACCOUNTING_BOOK'
-  | 'ACCOUNT_SUBJECT'
-  | 'CUSTOMER_SUBUNIT'
-  | 'SUPPLIER'
-  | 'OTHER_UNIT'
-  | 'EMPLOYEE'
-  | 'SALES_PARTNER'
-  | 'DEPARTMENT'
-  | 'PRODUCT'
-  | 'WAREHOUSE'
-  | 'FUND_ACCOUNT'
-  | 'ASSET'
-  | 'BILL'
-  | 'COUNTERPARTY'
-export type RptColumnType =
-  'TEXT' | 'INTEGER' | 'DECIMAL' | 'BOOLEAN' | 'DATE' | 'DATETIME' | 'ID'
-export interface RptParameter {
-  key: string
-  name: string
-  type: RptParameterType
-  required: boolean
-  defaultValue?: unknown
-  enumValues?: readonly string[]
-  referenceType?: RptReferenceType
-}
-export interface RptColumn {
-  alias: string
-  name: string
-  order: number
-  type: RptColumnType
-  width: number
-  visible: boolean
-  format?: string
-  drilldownEntity?: 'VOU'
-}
-export interface RptDefinitionData {
-  name: string
-  description: string
-  enabled: boolean
-  sql: string
-  parameters: readonly RptParameter[]
-  columns: readonly RptColumn[]
-}
-
-function validRptDate(value: string): boolean {
-  const parsed = new Date(`${value}T00:00:00.000Z`)
-  return (
-    !Number.isNaN(parsed.valueOf()) &&
-    parsed.toISOString().slice(0, 10) === value
-  )
-}
-
-function validRptParameterValue(
-  parameter: RptParameter,
-  value: unknown,
-): boolean {
-  if (value === null) return !parameter.required
-  if (parameter.type === 'TEXT') return typeof value === 'string'
-  if (parameter.type === 'INTEGER')
-    return typeof value === 'number' && Number.isSafeInteger(value)
-  if (parameter.type === 'DECIMAL')
-    return (
-      typeof value === 'string' && /^-?(?:0|[1-9]\d*)(?:\.\d+)?$/.test(value)
-    )
-  if (parameter.type === 'BOOLEAN') return typeof value === 'boolean'
-  if (parameter.type === 'DATE')
-    return (
-      typeof value === 'string' &&
-      /^\d{4}-\d{2}-\d{2}$/.test(value) &&
-      validRptDate(value)
-    )
-  if (parameter.type === 'DATE_RANGE')
-    return (
-      Array.isArray(value) &&
-      value.length === 2 &&
-      value.every(
-        (item) =>
-          typeof item === 'string' &&
-          /^\d{4}-\d{2}-\d{2}$/.test(item) &&
-          validRptDate(item),
-      ) &&
-      value[0]! <= value[1]!
-    )
-  if (parameter.type === 'ENUM')
-    return (
-      typeof value === 'string' &&
-      parameter.enumValues?.includes(value) === true
-    )
-  return typeof value === 'string' && /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(value)
-}
-/** Technical SQL validity is a separate RPT fact, never an Approval status. */
-export interface RptDefinitionValidity {
-  status: 'VALID' | 'INVALID'
-  diagnostic: string | null
-  validatedAt: string
-  validatedBy: string
-}
-export interface RptDefinitionExecutionState {
-  approvalStatus: ApprovalStatus
-  enabled: boolean
-  validity: RptDefinitionValidity | null
-  executable: boolean
-}
-export function projectRptDefinitionExecutionState(
-  approvalStatus: ApprovalStatus,
-  data: Pick<RptDefinitionData, 'enabled'>,
-  validity: RptDefinitionValidity | null,
-): RptDefinitionExecutionState {
-  return {
-    approvalStatus,
-    enabled: data.enabled,
-    validity,
-    executable:
-      approvalStatus === 'APPROVED' &&
-      data.enabled &&
-      validity?.status === 'VALID',
-  }
-}
-export interface RptDefinitionSubmitCommand extends ArchiveCommand<RptDefinitionData> {}
-export interface RptDefinitionSubmitFacts extends ArchiveFacts {}
-export type RptDefinitionSubmitErrorKey = 'rpt_definition_invalid_data'
-export type RptDefinitionSubmissionPlan = ArchivePlan<RptDefinitionData>
-export type RptDefinitionSubmitDecision = ArchiveDecision<
-  RptDefinitionData,
-  RptDefinitionSubmitErrorKey
->
-export function prepareRptDefinitionSubmit(
-  command: RptDefinitionSubmitCommand,
-  facts: RptDefinitionSubmitFacts,
-): RptDefinitionSubmitDecision {
-  const common = mechanics<RptDefinitionData, RptDefinitionSubmitErrorKey>(
-    'rpt-definition',
-    command,
-    facts,
-  )
-  if ('ok' in common) return common
-  const sql = trim(command.data.sql),
-    parameters = command.data.parameters.map((parameter) => ({
-      ...parameter,
-      key: trim(parameter.key),
-      name: trim(parameter.name),
-      ...(parameter.enumValues
-        ? { enumValues: parameter.enumValues.map(trim) }
-        : {}),
-    })),
-    columns = command.data.columns.map((column) => ({
-      ...column,
-      alias: trim(column.alias),
-      name: trim(column.name),
-      ...(column.format === undefined ? {} : { format: trim(column.format) }),
-    }))
-  const names = new Set<string>(),
-    aliases = new Set<string>(),
-    orders = new Set<number>()
-  if (
-    !hasText(command.data.name) ||
-    !/^(select|with)\b/i.test(sql) ||
-    /;/.test(sql) ||
-    parameters.some(
-      (parameter) =>
-        !/^[a-z][a-zA-Z0-9]{0,63}$/.test(parameter.key) ||
-        !hasText(parameter.name) ||
-        parameter.name.length > 100 ||
-        ![
-          'TEXT',
-          'INTEGER',
-          'DECIMAL',
-          'BOOLEAN',
-          'DATE',
-          'DATE_RANGE',
-          'ENUM',
-          'REFERENCE',
-        ].includes(parameter.type) ||
-        names.has(parameter.key) ||
-        !names.add(parameter.key) ||
-        (parameter.type === 'ENUM' &&
-          (!parameter.enumValues ||
-            parameter.enumValues.length === 0 ||
-            parameter.enumValues.some(
-              (value) => !hasText(value) || value.length > 200,
-            ) ||
-            new Set(parameter.enumValues).size !==
-              parameter.enumValues.length)) ||
-        (parameter.type !== 'ENUM' && parameter.enumValues !== undefined) ||
-        (parameter.type === 'REFERENCE' &&
-          parameter.referenceType === undefined) ||
-        (parameter.type !== 'REFERENCE' &&
-          parameter.referenceType !== undefined) ||
-        (parameter.defaultValue !== undefined &&
-          !validRptParameterValue(parameter, parameter.defaultValue)),
-    ) ||
-    columns.length === 0 ||
-    columns.some(
-      (column) =>
-        !/^[a-z][a-z0-9_]{0,62}[a-z0-9]$/.test(column.alias) ||
-        !hasText(column.name) ||
-        column.name.length > 100 ||
-        !Number.isInteger(column.order) ||
-        column.order < 1 ||
-        !Number.isInteger(column.width) ||
-        column.width < 60 ||
-        column.width > 1000 ||
-        ![
-          'TEXT',
-          'INTEGER',
-          'DECIMAL',
-          'BOOLEAN',
-          'DATE',
-          'DATETIME',
-          'ID',
-        ].includes(column.type) ||
-        (column.format !== undefined && column.format.length > 100) ||
-        (column.drilldownEntity !== undefined &&
-          column.drilldownEntity !== 'VOU') ||
-        aliases.has(column.alias) ||
-        orders.has(column.order) ||
-        !aliases.add(column.alias) ||
-        !orders.add(column.order),
-    )
-  )
-    return { ok: false, error: { errorKey: 'rpt_definition_invalid_data' } }
-  return {
-    ok: true,
-    plan: {
-      ...common,
-      data: {
-        ...command.data,
-        name: trim(command.data.name),
-        description: trim(command.data.description),
-        sql,
-        parameters,
-        columns,
-      },
-    },
-  }
-}
-export function projectRptDefinitionViewState(
-  command: RptDefinitionSubmitCommand,
-  facts: RptDefinitionSubmitFacts,
-): ArchiveViewState<RptDefinitionSubmitErrorKey> {
-  return project(prepareRptDefinitionSubmit(command, facts))
 }

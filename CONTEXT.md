@@ -23,9 +23,9 @@ _Authority_: [APP 最终权限计算](docs/domains/app.md#4-最终权限计算)�
 _Avoid_: Domain 审批行、审批 Store Adapter、审批主体注册表
 _Authority_: [Approval 领域](docs/domains/approval.md#2-审批条目与主体边界)
 
-**Draft（本地草稿）**:
-仅属于已认证用户当前浏览器与设备的 IndexedDB 编辑状态；它可以保存未完成输入、展示快照和待提交附件，但不是服务器业务事实、Approval 条目或跨设备协作对象。
-_Avoid_: 服务端草稿、Approval `DRAFT`、共享候选、自动上传的业务附件
+**Draft（临时编辑输入）**:
+仅属于当前页面实例的未提交编辑状态；它保留未完成输入、展示快照和待提交附件，关闭、刷新或切换账号后销毁，不是服务器业务事实或 Approval 条目。
+_Avoid_: 持久化草稿、刷新恢复、Approval `DRAFT`、共享候选、自动上传的业务附件
 _Authority_: [Approval 草稿与 Submission](docs/domains/approval.md#2-审批条目与主体边界)
 
 **Submission（提交件）**:
@@ -39,8 +39,8 @@ _Avoid_: 领域自定义审批状态机
 _Authority_: [Approval 生命周期](docs/domains/approval.md#3-生命周期)
 
 **Approval Version（审批版本）**:
-中央 Approval 为 DCL stable subject 管理的版本化审批记录；DCL 是申报版本的唯一业务写入方。
-_Avoid_: 非 DCL Approval Version consumer、Domain 版本头、领域自有版本管理、分支或合并
+中央 Approval 为版本化 stable subject 管理的审批记录；版本组件拥有版本号、唯一开放 Submission、最高已批准选择和版本并发，BOB 与 WFL 可以各自在自己的领域事务中消费它。
+_Avoid_: Domain 版本头、领域自有版本管理、把版本组件硬编码为 BOB 专属、分支或合并
 _Authority_: [Approval Version](docs/domains/approval.md#6-approval-version)
 
 **Approval Metadata（审批元数据）**:
@@ -68,7 +68,7 @@ _Authority_: [Approval 授权](docs/domains/approval.md#4-授权与事务边界)
 **Continuous Effectiveness（连续生效）**:
 使用 Approval Version 的主数据在候选变更期间继续以最后有效版本供业务使用，候选审核后一次切换；AUX current data 则由保存直接生效，并由采用方 snapshot 隔离历史业务解释。两者都只有显式停用才立即阻止新引用。
 _Avoid_: 编辑即停用、候选待审期间无可用版本、AUX 修改后重解释历史、逐页面决定变更期是否可用
-_Authority_: [DCL current 投影边界](docs/domains/dcl.md#4-原子性与引用)、[AUX Stable-ID Direct CRUD](docs/domains/aux.md#2-stable-id-direct-crud-生命周期)
+_Authority_: [BOB 当前有效资料读取](docs/domains/bob.md#4-当前有效资料读取)、[AUX Stable-ID Direct CRUD](docs/domains/aux.md#2-stable-id-direct-crud-生命周期)
 
 **Business Identity Record（业务身份档案）**:
 客户、供应商、员工、其他单位或销售合作方各自拥有的身份档案；同一现实个人或组织具有多种业务身份时分别建档、分别审批，不跨类型共享或同步身份资料。
@@ -87,7 +87,7 @@ _Avoid_: 个人客户、兼职员工主体、跨业务身份共享的个人主�
 _Avoid_: 企业主体、机构主体、跨业务身份共享的组织主档、没有业务规则用途的组织分类
 
 **Customer（客户）**:
-可以向我方任一经营主体下单的外部销售相对方，独立拥有法定身份、法定识别号及汇款识别资料；客户不维护可交易经营主体名单，默认经营主体只用于新单据预填，实际经营主体由每张单据明确保存。
+BOB 内整体消费 Approval 与 Version、拥有独立对象启停的客户聚合；可以向我方任一经营主体下单的外部销售相对方，独立拥有法定身份、法定识别号及汇款识别资料；客户不维护可交易经营主体名单，默认经营主体只用于新单据预填，实际经营主体由每张单据明确保存。
 _Avoid_: Party 的客户关系、按我方经营主体重复建立客户、客户经营主体白名单、把默认经营主体当作交易事实
 
 **Employee（员工）**:
@@ -117,7 +117,7 @@ _Avoid_: 持久化默认子单位、第一行默认、最低编码默认、最�
 **Operating Entity（经营主体）**:
 我方实际承担合同销售方、开票方和收款方责任的法人公司；只有经营主体自身保留税号语义。
 _Avoid_: 商品品牌、客户类型、报表标签、客户的固定归属主体、允许跨经营主体收款分摊
-_Authority_: [DCL 经营主体申报](docs/domains/dcl.md#2-经营主体申报)、[BOB 领域边界](docs/domains/bob.md#2-领域职责与边界)、[VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
+_Authority_: [AUX 经营主体与员工](docs/domains/aux.md#39-经营主体与员工)、[BOB 领域边界](docs/domains/bob.md#2-领域职责与边界)、[VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
 
 **Sales Receipt Allocation（销售收款分摊）**:
 一笔客户来款分配到该客户下一个或多个客户子单位及其未结应收的金额明细；付款户名和付款银行账号等识别资料属于 Customer，不属于客户子单位。
@@ -146,7 +146,7 @@ _Authority_: [BOB 领域边界](docs/domains/bob.md#2-领域职责与边界)
 **Vehicle Carrier Affiliation（车辆承运归属）**:
 车辆唯一归属的承运责任方；自有车辆归属一个经营主体，外部车辆直接归属一个其他单位档案。
 _Avoid_: 物流平台、为自有车辆虚构其他单位、每张送货单临时改变车辆归属
-_Authority_: [BOB 车辆承运归属](docs/domains/bob.md#24-车辆承运归属)
+_Authority_: [AUX 仓库、资金账户与车辆](docs/domains/aux.md#310-仓库资金账户与车辆)
 
 **Customer Type（客户类型）**:
 客户子单位的可配置业务分类。
@@ -310,14 +310,14 @@ _Authority_: [APP 系统参数](docs/domains/app.md#38-系统参数)
 ## Accounting
 
 **Accounting Opening（会计期初）**:
-一个会计账簿的 Approval-only 期初主体；它没有版本号，本地 Draft submit 后使用中央 `PENDING`、`APPROVED`、`REJECTED` 生命周期。
+VOU 拥有的每账簿唯一 Approval-only 期初主体，ACC 负责同事务的平衡校验与账务事实；它没有版本号，临时表单 submit 后使用中央 `PENDING`、`APPROVED`、`REJECTED` 生命周期。
 _Avoid_: `state`、局部批准人/时间字段、期初版本
-_Authority_: [ACC 账簿期初](docs/domains/acc.md#6-账簿期初)
+_Authority_: [VOU 会计期初](docs/domains/vou.md#会计期初)、[ACC 账簿期初](docs/domains/acc.md#6-账簿期初)
 
 **Accounting Mapping（会计映射）**:
-以 `(bookId, vouEntity)` 为稳定主体的 Approval Version，由 DCL 拥有声明、候选、版本和审批生命周期；ACC 只读取最新 `APPROVED` entry 作为当前记账映射，候选不参与记账。
-_Avoid_: mapping version header、当前映射指针、候选参与记账、ACC 维护映射版本
-_Authority_: [DCL 会计映射申报](docs/domains/dcl.md#38-会计映射申报)、[ACC 当前记账映射](docs/domains/acc.md#7-当前记账映射)
+以 `(bookId, vouEntity)` 为稳定身份的 ACC 当前配置；通过完整校验后直接保存，用对象 revision 控制并发。后续记账采用当前配置，既有分录保持采用时事实。
+_Avoid_: 映射审批候选、映射业务版本、历史版本回退、修改配置追溯重算分录
+_Authority_: [ACC 当前记账映射](docs/domains/acc.md#7-当前记账映射)
 
 **Accounting Subject（会计科目）**:
 归 ACC 领域和单本会计账簿所有的分层会计分类。
@@ -327,9 +327,9 @@ _Authority_: [ACC 会计科目](docs/domains/acc.md#5-会计科目)
 ## Reporting
 
 **Report Definition（报表定义）**:
-由 DCL subject 保存 stable ID、code 与创建审计；每个不可变业务版本（包括 enabled）由一个 Approval Version entry 的 typed snapshot 承载，RPT 以该 entry 保存技术有效性与运行审计，最新 `APPROVED + enabled + VALID` entry 是唯一执行版本。
-_Avoid_: `currentVersionId`、历史版本回退、候选执行
-_Authority_: [DCL 报表定义申报](docs/domains/dcl.md#39-报表定义申报)、[RPT 当前执行规则](docs/domains/rpt.md#3-报表定义与-dcl)
+由 RPT 管理的报表当前配置，描述读取既有业务事实的参数、查询口径与结果列；经验证后供精确授权的使用者查询和导出，不使用审批或业务版本。
+_Avoid_: 报表审批、候选执行、历史版本回退
+_Authority_: [RPT 当前定义](docs/domains/rpt.md#3-当前定义)
 
 ## Workflow
 

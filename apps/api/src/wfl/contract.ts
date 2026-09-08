@@ -307,57 +307,57 @@ function route<
 }
 export const wflRouteSet = {
   submitNew: route(
-    '/dcl/wfl-process-definition/submit-new',
+    '/wfl/process-definition/submit-new',
     submit,
     envelope(definitionView),
   ),
   submitChange: route(
-    '/dcl/wfl-process-definition/submit-change',
+    '/wfl/process-definition/submit-change',
     submit,
     envelope(definitionView),
   ),
   approve: route(
-    '/dcl/wfl-process-definition/approve',
+    '/wfl/process-definition/approve',
     review,
     envelope(definitionView),
   ),
   reject: route(
-    '/dcl/wfl-process-definition/reject',
+    '/wfl/process-definition/reject',
     reason,
     envelope(definitionView),
   ),
   unreject: route(
-    '/dcl/wfl-process-definition/unreject',
+    '/wfl/process-definition/unreject',
     review,
     envelope(definitionView),
   ),
   unapprove: route(
-    '/dcl/wfl-process-definition/unapprove',
+    '/wfl/process-definition/unapprove',
     reason,
     envelope(definitionView),
   ),
   query: route(
-    '/dcl/wfl-process-definition/query',
+    '/wfl/process-definition/submission-query',
     instanceQuery,
     envelope(page(definitionQueryItem)),
   ),
   get: route(
-    '/dcl/wfl-process-definition/get',
+    '/wfl/process-definition/submission-get',
     definitionIdentity,
     envelope(definitionView),
   ),
   versions: route(
-    '/dcl/wfl-process-definition/versions',
+    '/wfl/process-definition/versions',
     definitionIdentity.pick({ subjectId: true }),
     envelope(z.array(definitionView)),
   ),
   auditHistory: route(
-    '/dcl/wfl-process-definition/audit-history',
+    '/wfl/process-definition/audit-history',
     definitionIdentity.pick({ subjectId: true }),
     envelope(z.array(definitionAudit)),
   ),
   delete: route(
-    '/dcl/wfl-process-definition/delete',
+    '/wfl/process-definition/delete',
     definitionDelete,
     envelope(
       z
@@ -369,7 +369,7 @@ export const wflRouteSet = {
     ),
   ),
   enable: route(
-    '/dcl/wfl-process-definition/enable',
+    '/wfl/process-definition/enable',
     enable,
     envelope(
       z
@@ -378,12 +378,13 @@ export const wflRouteSet = {
           approvalEntryId: z.string().length(26),
           enabled: z.boolean(),
           revision,
+          availableRuntimeActions: z.array(runtimeAction),
         })
         .strict(),
     ),
   ),
   disable: route(
-    '/dcl/wfl-process-definition/disable',
+    '/wfl/process-definition/disable',
     enable,
     envelope(
       z
@@ -392,6 +393,7 @@ export const wflRouteSet = {
           approvalEntryId: z.string().length(26),
           enabled: z.boolean(),
           revision,
+          availableRuntimeActions: z.array(runtimeAction),
         })
         .strict(),
     ),

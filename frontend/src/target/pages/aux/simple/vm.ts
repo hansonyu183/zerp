@@ -14,6 +14,7 @@ import {
   TargetApiError,
 } from '../../../api.ts'
 import {
+  ListActionRefreshRequiredError,
   ListActionUnresolvedError,
   useListPageViewModel,
   type EnabledListItem,
@@ -24,7 +25,7 @@ import { useTargetSession } from '../../../session/vm.ts'
 
 export type SimpleAuxListItem = EnabledListItem & {
   revision: string
-  availableActions: readonly ('edit' | 'enable' | 'disable')[]
+  availableActions: readonly ('edit' | 'enable' | 'disable' | 'delete')[]
 }
 
 type SimpleAuxDetail = SimpleAuxListItem & {
@@ -328,6 +329,7 @@ function createSimpleAuxManagementViewModel<
 
   function canListAction(item: Item | null, action: ListAction): boolean {
     if (action === 'create') return can(operations.paths.create)
+    if (action === 'delete') return false
     if (!item) return false
     if (action === 'edit')
       return (
@@ -357,7 +359,7 @@ function createSimpleAuxManagementViewModel<
     } catch (cause) {
       if (disposed || generation !== session.generation) throw cause
       if (isRevisionConflict(cause))
-        throw new ListActionUnresolvedError(
+        throw new ListActionRefreshRequiredError(
           messageOf(cause, '数据已变化，请刷新列表后重试。'),
         )
       if (

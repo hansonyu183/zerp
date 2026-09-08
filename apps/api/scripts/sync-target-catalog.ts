@@ -1,6 +1,9 @@
 import { TargetBootstrapService } from '../src/app/bootstrap.ts'
 import { AccService } from '../src/acc/service.ts'
 import { createDatabase } from '../src/db/database.ts'
+import { requiresAuxAssetPermissionMigration } from '../src/aux/migration-assets.ts'
+import { requiresAuxPeoplePermissionMigration } from '../src/aux/migration.ts'
+import { requiresBobArchivePermissionMigration } from '../src/bob/migration-guard.ts'
 import { assertTargetDatabaseBoundary } from '../src/platform/config.ts'
 import { readTargetPermissionCatalog } from './target-artifacts.ts'
 
@@ -11,9 +14,55 @@ assertTargetDatabaseBoundary(databaseUrl, process.env.TARGET_DATABASE_SCOPE)
 
 const database = createDatabase(databaseUrl)
 try {
-  await new TargetBootstrapService(database).migratePermissionCatalog(
-    await readTargetPermissionCatalog(),
+  const catalog = await readTargetPermissionCatalog()
+  const existingPermissions = await database
+    .selectFrom('app_permissions')
+    .select('path')
+    .execute()
+  if (
+    requiresAuxPeoplePermissionMigration(
+      existingPermissions.map((permission) => permission.path),
+      catalog.map((permission) => permission.path),
+    )
   )
+    throw new Error(
+      'legacy DCL/BOB people permissions require pnpm migrate:aux-people before catalog sync',
+    )
+  if (
+    requiresAuxAssetPermissionMigration(
+      existingPermissions.map((permission) => permission.path),
+      catalog.map((permission) => permission.path),
+    )
+  )
+    throw new Error(
+      'legacy DCL/BOB asset permissions require pnpm migrate:aux-assets before catalog sync',
+    )
+  if (
+    requiresBobArchivePermissionMigration(
+      existingPermissions.map((permission) => permission.path),
+      catalog.map((permission) => permission.path),
+    )
+  )
+    throw new Error(
+      'legacy DCL BOB archive permissions require pnpm migrate:bob-archives before catalog sync',
+    )
+  if (
+    existingPermissions.some((permission) =>
+      permission.path.startsWith('/dcl/rpt-definition/'),
+    )
+  )
+    throw new Error(
+      'legacy RPT permissions require pnpm migrate:rpt before catalog sync',
+    )
+  if (
+    existingPermissions.some((permission) =>
+      permission.path.startsWith('/dcl/wfl-process-definition/'),
+    )
+  )
+    throw new Error(
+      'legacy WFL permissions require pnpm migrate:wfl before catalog sync',
+    )
+  await new TargetBootstrapService(database).migratePermissionCatalog(catalog)
   await new AccService(database).syncVouEntityCatalog()
 } finally {
   await database.destroy()

@@ -1,3 +1,4 @@
+import { VouOpeningService } from '../../src/vou/opening-service.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { sql } from 'kysely'
@@ -5,6 +6,7 @@ import { ulid } from 'ulid'
 import type { VouPayload } from '@zerp/model'
 
 import { AccService } from '../../src/acc/service.ts'
+import { AuxService } from '../../src/aux/service.ts'
 import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { VouApplicationError, VouService } from '../../src/vou/service.ts'
@@ -16,6 +18,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
   const db = createDatabase(databaseUrl)
   const acc = new AccService(db)
+  const openingService = new VouOpeningService(db, acc)
   const vou = new VouService(db, { acc, wfl: { async apply() {} } })
   const actorId = ulid(),
     reviewerId = ulid(),
@@ -26,8 +29,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     productEntryId = ulid(),
     warehouseId = ulid(),
     warehouseEntryId = ulid()
-  const operatingEntityId = ulid(),
-    operatingEntityEntryId = ulid()
+  let operatingEntityId = ''
   const unit = {
     objectId: ulid(),
     code: 'CONTROL-UNIT',
@@ -74,7 +76,6 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
           customerEntryId,
           productEntryId,
           warehouseEntryId,
-          operatingEntityEntryId,
         ])
         .execute()
       await db
@@ -85,7 +86,16 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
           customerId,
           productId,
           warehouseId,
-          operatingEntityId,
+        ])
+        .execute()
+      await db
+        .deleteFrom('bob_subjects')
+        .where('id', 'in', [
+          mappingId,
+          fundMappingId,
+          customerId,
+          productId,
+          warehouseId,
         ])
         .execute()
       await db
@@ -99,10 +109,27 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
         .where('subject_id', '=', bookId)
         .execute()
       await db
+        .deleteFrom('acc_mappings')
+        .where('book_id', '=', bookId)
+        .execute()
+      await db
         .deleteFrom('acc_subjects')
         .where('book_id', '=', bookId)
         .execute()
+      await db
+        .deleteFrom('vou_idempotency')
+        .where('entity', '=', 'opening')
+        .where('document_id', '=', bookId)
+        .execute()
       await db.deleteFrom('acc_books').where('id', '=', bookId).execute()
+      await db
+        .deleteFrom('aux_objects')
+        .where('created_by', '=', actorId)
+        .execute()
+      await db
+        .deleteFrom('app_audit_events')
+        .where('actor_user_id', 'in', [actorId, reviewerId])
+        .execute()
       await db
         .deleteFrom('app_users')
         .where('id', 'in', [actorId, reviewerId])
@@ -134,34 +161,6 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     .insertInto('dcl_subjects')
     .values([
       {
-        id: customerId,
-        entity: 'customer',
-        code: `CUS-${code}`,
-        created_at: now,
-        created_by: actorId,
-      },
-      {
-        id: productId,
-        entity: 'product',
-        code: `PRD-${code}`,
-        created_at: now,
-        created_by: actorId,
-      },
-      {
-        id: warehouseId,
-        entity: 'warehouse',
-        code: `WHS-${code}`,
-        created_at: now,
-        created_by: actorId,
-      },
-      {
-        id: operatingEntityId,
-        entity: 'operating-entity',
-        code: `OPE-${code}`,
-        created_at: now,
-        created_by: actorId,
-      },
-      {
         id: mappingId,
         entity: 'acc-mapping',
         code: null,
@@ -178,11 +177,35 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     ])
     .execute()
   await db
+    .insertInto('bob_subjects')
+    .values([
+      {
+        id: customerId,
+        entity: 'customer',
+        code: `CUS-${code}`,
+        created_at: now,
+        created_by: actorId,
+      },
+    ])
+    .execute()
+  await db
+    .insertInto('bob_subjects')
+    .values([
+      {
+        id: productId,
+        entity: 'product',
+        code: `PRD-${code}`,
+        created_at: now,
+        created_by: actorId,
+      },
+    ])
+    .execute()
+  await db
     .insertInto('approval_entries')
     .values([
       {
         id: customerEntryId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'customer',
         subject_id: customerId,
         version_no: 1,
@@ -197,39 +220,9 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
       },
       {
         id: productEntryId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'product',
         subject_id: productId,
-        version_no: 1,
-        status: 'APPROVED',
-        revision: 1,
-        submitted_by: actorId,
-        submitted_at: now,
-        approved_by: reviewerId,
-        approved_at: now,
-        updated_by: reviewerId,
-        updated_at: now,
-      },
-      {
-        id: warehouseEntryId,
-        domain: 'dcl',
-        entity: 'warehouse',
-        subject_id: warehouseId,
-        version_no: 1,
-        status: 'APPROVED',
-        revision: 1,
-        submitted_by: actorId,
-        submitted_at: now,
-        approved_by: reviewerId,
-        approved_at: now,
-        updated_by: reviewerId,
-        updated_at: now,
-      },
-      {
-        id: operatingEntityEntryId,
-        domain: 'dcl',
-        entity: 'operating-entity',
-        subject_id: operatingEntityId,
         version_no: 1,
         status: 'APPROVED',
         revision: 1,
@@ -273,22 +266,21 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     ])
     .execute()
   await db
-    .insertInto('dcl_customer_versions')
+    .insertInto('bob_customer_versions')
     .values({
       approval_entry_id: customerEntryId,
       kind: 'OTHER',
       display_name: '控制客户',
       remittance_profiles: JSON.stringify([]),
       tax_attachments: JSON.stringify([]),
-      enabled: true,
     })
     .execute()
   await db
-    .insertInto('dcl_customer_subunit_roots')
+    .insertInto('bob_customer_subunit_roots')
     .values({ subunit_id: subunitId, customer_id: customerId, code: 'CONTROL' })
     .execute()
   await db
-    .insertInto('dcl_customer_version_subunits')
+    .insertInto('bob_customer_version_subunits')
     .values({
       customer_approval_entry_id: customerEntryId,
       subunit_id: subunitId,
@@ -312,7 +304,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     })
     .execute()
   await db
-    .insertInto('dcl_product_versions')
+    .insertInto('bob_product_versions')
     .values({
       approval_entry_id: productEntryId,
       name: '控制产品',
@@ -330,36 +322,58 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
         },
       ]),
       recyclable: false,
-      enabled: true,
     })
     .execute()
-  await db
-    .insertInto('dcl_warehouse_versions')
-    .values({
-      approval_entry_id: warehouseEntryId,
-      name: '控制仓库',
-      enabled: true,
-    })
-    .execute()
-  await db
-    .insertInto('dcl_operating_entity_versions')
-    .values({
-      approval_entry_id: operatingEntityEntryId,
-      legal_name: '控制经营主体',
-      short_name: '控制经营主体',
-      legal_identifier: `OPE-${code}`,
-      registered_address: '',
-      contact_name: '',
-      contact_phone: '',
-      invoice_title: '',
-      invoice_address: '',
-      invoice_phone: '',
-      invoice_bank: '',
-      invoice_account: '',
-      remark: null,
-      enabled: true,
-    })
-    .execute()
+  const currentWarehouse = await new AuxService(db).create(
+    'warehouse',
+    {
+      name: '测试仓库',
+      address: '',
+      contactName: '',
+      contactPhone: '',
+      managerEmployeeId: null,
+      remark: '',
+    },
+    { id: actorId, permissions: ['/aux/warehouse/create'] },
+  )
+  const aux = new AuxService(db)
+  const operatingEntityCreated = await aux.create(
+    'operating-entity',
+    {
+      legalName: '控制经营主体',
+      shortName: '控制经营主体',
+      legalIdentifier: '91310000MA1K123456',
+      registeredAddress: '',
+      contactName: '',
+      contactPhone: '',
+      invoiceTitle: '',
+      invoiceAddress: '',
+      invoicePhone: '',
+      invoiceBank: '',
+      invoiceAccount: '',
+      remark: '',
+    },
+    {
+      id: actorId,
+      permissions: [
+        '/aux/operating-entity/create',
+        '/aux/operating-entity/get',
+      ],
+    },
+  )
+  const operatingEntity = await aux.get(
+    'operating-entity',
+    { id: operatingEntityCreated.id },
+    {
+      id: actorId,
+      permissions: [
+        '/aux/operating-entity/create',
+        '/aux/operating-entity/get',
+      ],
+    },
+  )
+  operatingEntityId = operatingEntity.id
+
   const book = await acc.createBook(
     {
       id: bookId,
@@ -404,7 +418,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     actor,
   )
   const openingId = ulid()
-  const opening = await acc.submitOpening(
+  const opening = await openingService.submitOpening(
     {
       bookId: book.id,
       submissionId: openingId,
@@ -417,7 +431,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     actor,
     'control-opening',
   )
-  await acc.reviewOpening(
+  await openingService.reviewOpening(
     'approve',
     {
       bookId: book.id,
@@ -428,11 +442,16 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     'control-opening-approve',
   )
   await db
-    .insertInto('dcl_acc_mapping_versions')
+    .insertInto('acc_mappings')
     .values({
-      approval_entry_id: mappingEntryId,
+      id: mappingEntryId,
+      created_at: new Date(),
+      updated_at: new Date(),
+      created_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
+      updated_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
       book_id: book.id,
       vou_entity_id: 'sale-order',
+      vou_entity: 'sale-order',
       book_snapshot: JSON.stringify({}),
       vou_entity_snapshot: JSON.stringify({ code: 'sale-order' }),
       default_result: 'UN_POST',
@@ -444,11 +463,16 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     })
     .execute()
   await db
-    .insertInto('dcl_acc_mapping_versions')
+    .insertInto('acc_mappings')
     .values({
-      approval_entry_id: fundMappingEntryId,
+      id: fundMappingEntryId,
+      created_at: new Date(),
+      updated_at: new Date(),
+      created_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
+      updated_by: sql<string>`(SELECT created_by FROM acc_books WHERE id=${book.id})`,
       book_id: book.id,
       vou_entity_id: 'sale-pricing',
+      vou_entity: 'sale-pricing',
       book_snapshot: JSON.stringify({}),
       vou_entity_snapshot: JSON.stringify({ code: 'sale-pricing' }),
       default_result: 'POST',
@@ -559,14 +583,8 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     paymentMethod: null,
     operatingEntity: {
       objectId: operatingEntityId,
-      approvalEntryId: operatingEntityEntryId,
-      selectionOrigin: 'CURRENT' as const,
     },
-    warehouse: {
-      objectId: warehouseId,
-      approvalEntryId: warehouseEntryId,
-      selectionOrigin: 'CURRENT' as const,
-    },
+    warehouse: { objectId: currentWarehouse.id },
     productLines: [
       {
         lineId: ulid(),
@@ -629,7 +647,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     0,
   )
   await db
-    .updateTable('dcl_customer_version_subunits')
+    .updateTable('bob_customer_version_subunits')
     .set({
       settlement_snapshot: JSON.stringify({
         termCode: 'CASH_ON_DELIVERY',
@@ -676,8 +694,22 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     (approved.payload as { operatingEntity: unknown }).operatingEntity,
     {
       objectId: operatingEntityId,
-      approvalEntryId: operatingEntityEntryId,
-      selectionOrigin: 'CURRENT',
+      code: operatingEntity.code,
+      name: operatingEntity.legalName,
+      snapshot: {
+        legalName: operatingEntity.legalName,
+        shortName: operatingEntity.shortName,
+        legalIdentifier: operatingEntity.legalIdentifier,
+        registeredAddress: operatingEntity.registeredAddress,
+        contactName: operatingEntity.contactName,
+        contactPhone: operatingEntity.contactPhone,
+        invoiceTitle: operatingEntity.invoiceTitle,
+        invoiceAddress: operatingEntity.invoiceAddress,
+        invoicePhone: operatingEntity.invoicePhone,
+        invoiceBank: operatingEntity.invoiceBank,
+        invoiceAccount: operatingEntity.invoiceAccount,
+        remark: operatingEntity.remark,
+      },
     },
   )
   assert.deepEqual(
@@ -769,8 +801,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     productEntryId = ulid()
   const warehouseId = ulid(),
     warehouseEntryId = ulid()
-  const operatingEntityId = ulid(),
-    operatingEntityEntryId = ulid()
+  let operatingEntityId = ''
   const unit = {
     objectId: ulid(),
     code: 'BATCH-UNIT',
@@ -828,18 +859,24 @@ test('sale signoff and purchase inbound price the approved source line batch ins
           supplierEntryId,
           productEntryId,
           warehouseEntryId,
-          operatingEntityEntryId,
         ])
         .execute()
       await db
         .deleteFrom('dcl_subjects')
-        .where('id', 'in', [
-          customerId,
-          supplierId,
-          productId,
-          warehouseId,
-          operatingEntityId,
-        ])
+        .where('id', 'in', [customerId, productId, warehouseId])
+        .execute()
+      await db
+        .deleteFrom('bob_subjects')
+        .where('id', 'in', [customerId, productId, warehouseId])
+        .execute()
+      await sql`DELETE FROM bob_subjects WHERE id = ${supplierId}`.execute(db)
+      await db
+        .deleteFrom('aux_objects')
+        .where('created_by', '=', actorId)
+        .execute()
+      await db
+        .deleteFrom('app_audit_events')
+        .where('actor_user_id', 'in', [actorId, reviewerId])
         .execute()
       await db
         .deleteFrom('app_users')
@@ -869,7 +906,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     )
     .execute()
   await db
-    .insertInto('dcl_subjects')
+    .insertInto('bob_subjects')
     .values([
       {
         id: customerId,
@@ -878,13 +915,11 @@ test('sale signoff and purchase inbound price the approved source line batch ins
         created_at: now,
         created_by: actorId,
       },
-      {
-        id: supplierId,
-        entity: 'supplier',
-        code: `SUP-${suffix}`,
-        created_at: now,
-        created_by: actorId,
-      },
+    ])
+    .execute()
+  await db
+    .insertInto('bob_subjects')
+    .values([
       {
         id: productId,
         entity: 'product',
@@ -892,28 +927,18 @@ test('sale signoff and purchase inbound price the approved source line batch ins
         created_at: now,
         created_by: actorId,
       },
-      {
-        id: warehouseId,
-        entity: 'warehouse',
-        code: `WHS-${suffix}`,
-        created_at: now,
-        created_by: actorId,
-      },
-      {
-        id: operatingEntityId,
-        entity: 'operating-entity',
-        code: `OPE-${suffix}`,
-        created_at: now,
-        created_by: actorId,
-      },
     ])
     .execute()
+  await sql`
+    INSERT INTO bob_subjects (id, entity, code, enabled, revision, created_at, created_by)
+    VALUES (${supplierId}, 'supplier', ${`SUP-${suffix}`}, true, 1, ${now}, ${actorId})
+  `.execute(db)
   await db
     .insertInto('approval_entries')
     .values([
       {
         id: customerEntryId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'customer',
         subject_id: customerId,
         version_no: 1,
@@ -928,7 +953,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
       },
       {
         id: supplierEntryId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'supplier',
         subject_id: supplierId,
         version_no: 1,
@@ -943,39 +968,9 @@ test('sale signoff and purchase inbound price the approved source line batch ins
       },
       {
         id: productEntryId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'product',
         subject_id: productId,
-        version_no: 1,
-        status: 'APPROVED',
-        revision: 1,
-        submitted_by: actorId,
-        submitted_at: now,
-        approved_by: reviewerId,
-        approved_at: now,
-        updated_by: reviewerId,
-        updated_at: now,
-      },
-      {
-        id: warehouseEntryId,
-        domain: 'dcl',
-        entity: 'warehouse',
-        subject_id: warehouseId,
-        version_no: 1,
-        status: 'APPROVED',
-        revision: 1,
-        submitted_by: actorId,
-        submitted_at: now,
-        approved_by: reviewerId,
-        approved_at: now,
-        updated_by: reviewerId,
-        updated_at: now,
-      },
-      {
-        id: operatingEntityEntryId,
-        domain: 'dcl',
-        entity: 'operating-entity',
-        subject_id: operatingEntityId,
         version_no: 1,
         status: 'APPROVED',
         revision: 1,
@@ -996,18 +991,17 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     dayOffset: 0,
   })
   await db
-    .insertInto('dcl_customer_versions')
+    .insertInto('bob_customer_versions')
     .values({
       approval_entry_id: customerEntryId,
       kind: 'OTHER',
       display_name: '批次客户',
       remittance_profiles: JSON.stringify([]),
       tax_attachments: JSON.stringify([]),
-      enabled: true,
     })
     .execute()
   await db
-    .insertInto('dcl_customer_subunit_roots')
+    .insertInto('bob_customer_subunit_roots')
     .values({
       subunit_id: subunitId,
       customer_id: customerId,
@@ -1015,7 +1009,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     })
     .execute()
   await db
-    .insertInto('dcl_customer_version_subunits')
+    .insertInto('bob_customer_version_subunits')
     .values({
       customer_approval_entry_id: customerEntryId,
       subunit_id: subunitId,
@@ -1033,7 +1027,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     })
     .execute()
   await db
-    .insertInto('dcl_supplier_versions')
+    .insertInto('bob_supplier_versions')
     .values({
       approval_entry_id: supplierEntryId,
       kind: 'ORGANIZATION',
@@ -1052,11 +1046,10 @@ test('sale signoff and purchase inbound price the approved source line batch ins
       default_operating_entity_reference: null,
       settlement_method_snapshot: prepaid,
       default_purchaser_snapshot: null,
-      enabled: true,
     })
     .execute()
   await db
-    .insertInto('dcl_product_versions')
+    .insertInto('bob_product_versions')
     .values({
       approval_entry_id: productEntryId,
       name: '批次产品',
@@ -1074,36 +1067,47 @@ test('sale signoff and purchase inbound price the approved source line batch ins
         },
       ]),
       recyclable: false,
-      enabled: true,
     })
     .execute()
-  await db
-    .insertInto('dcl_warehouse_versions')
-    .values({
-      approval_entry_id: warehouseEntryId,
-      name: '批次仓库',
-      enabled: true,
-    })
-    .execute()
-  await db
-    .insertInto('dcl_operating_entity_versions')
-    .values({
-      approval_entry_id: operatingEntityEntryId,
-      legal_name: '批次经营主体',
-      short_name: '批次经营主体',
-      legal_identifier: `OPE-${suffix}`,
-      registered_address: '',
-      contact_name: '',
-      contact_phone: '',
-      invoice_title: '',
-      invoice_address: '',
-      invoice_phone: '',
-      invoice_bank: '',
-      invoice_account: '',
-      remark: null,
-      enabled: true,
-    })
-    .execute()
+  const currentWarehouse = await new AuxService(db).create(
+    'warehouse',
+    {
+      name: '测试仓库',
+      address: '',
+      contactName: '',
+      contactPhone: '',
+      managerEmployeeId: null,
+      remark: '',
+    },
+    { id: actorId, permissions: ['/aux/warehouse/create'] },
+  )
+  const aux = new AuxService(db)
+  const operatingEntityCreated = await aux.create(
+    'operating-entity',
+    {
+      legalName: '批次经营主体',
+      shortName: '批次经营主体',
+      legalIdentifier: '91310000MA1K123457',
+      registeredAddress: '',
+      contactName: '',
+      contactPhone: '',
+      invoiceTitle: '',
+      invoiceAddress: '',
+      invoicePhone: '',
+      invoiceBank: '',
+      invoiceAccount: '',
+      remark: '',
+    },
+    {
+      id: actorId,
+      permissions: [
+        '/aux/operating-entity/create',
+        '/aux/operating-entity/get',
+      ],
+    },
+  )
+  operatingEntityId = operatingEntityCreated.id
+
   const customerSubunit = {
     objectId: subunitId,
     approvalEntryId: customerEntryId,
@@ -1114,11 +1118,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     approvalEntryId: supplierEntryId,
     selectionOrigin: 'CURRENT' as const,
   }
-  const warehouse = {
-    objectId: warehouseId,
-    approvalEntryId: warehouseEntryId,
-    selectionOrigin: 'CURRENT' as const,
-  }
+  const warehouse = { objectId: currentWarehouse.id }
   const productLine = (lineId: string) => ({
     lineId,
     product: { objectId: productId },
@@ -1144,8 +1144,6 @@ test('sale signoff and purchase inbound price the approved source line batch ins
             paymentMethod: null,
             operatingEntity: {
               objectId: operatingEntityId,
-              approvalEntryId: operatingEntityEntryId,
-              selectionOrigin: 'CURRENT' as const,
             },
             warehouse,
             productLines: [productLine(lineId)],

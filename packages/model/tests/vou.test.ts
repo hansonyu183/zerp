@@ -14,6 +14,7 @@ import {
   vouPaymentMethodSelectionOriginOptions,
   vouPaymentMethodSelectionOriginPresentation,
   vouPaymentMethodSelectionOrigins,
+  vouAuxCurrentReferences,
   vouPayloadReferences,
   vouSourceLineSourceEntities,
   vouSourceLineTargetEntities,
@@ -51,6 +52,7 @@ const reference = {
   approvalEntryId: '01J00000000000000000000002',
   selectionOrigin: 'CURRENT' as const,
 }
+const auxPeopleReference = { objectId: id }
 const base = {
   documentId: '01J00000000000000000000003',
   submissionId: '01J00000000000000000000004',
@@ -60,9 +62,9 @@ const base = {
     businessDate: '2026-09-04',
     currency: 'CNY',
     customerSubunit: reference,
-    operatingEntity: reference,
-    salesperson: reference,
-    warehouse: reference,
+    operatingEntity: auxPeopleReference,
+    salesperson: auxPeopleReference,
+    warehouse: auxPeopleReference,
     paymentMethod: null,
     productLines: [
       {
@@ -483,6 +485,53 @@ test('recursive VOU reference facts preserve nested paths and strict reference s
   )
 })
 
+test('traverses only stable AUX people in intermediary snapshots', () => {
+  const employee = {
+    objectId: '01J00000000000000000000001',
+    entity: 'employee' as const,
+    code: 'EMP-0001',
+    name: '员工',
+  }
+  const salesPartner = {
+    objectId: '01J00000000000000000000003',
+    approvalEntryId: '01J00000000000000000000004',
+    entity: 'sales-partner' as const,
+    code: 'SP-0001',
+    name: '渠道伙伴',
+  }
+  const payload = {
+    businessDate: '2026-09-04',
+    currency: 'CNY',
+    attachments: [],
+    intermediaryCalculation: {
+      source: { lines: [{ salesperson: salesPartner }] },
+      result: { summaries: [{ payee: employee }] },
+    },
+  } as unknown as import('../src/index.ts').VouPayload
+
+  assert.deepEqual(
+    vouAuxCurrentReferences(payload).map((fact) => [
+      fact.field,
+      fact.candidateEntity,
+      fact.reference.objectId,
+    ]),
+    [
+      [
+        'intermediaryCalculation.result.summaries[0].payee',
+        'employee',
+        employee.objectId,
+      ],
+    ],
+  )
+  assert.deepEqual(
+    vouPayloadReferences(payload).map((fact) => [
+      fact.field,
+      fact.candidateEntity,
+    ]),
+    [['intermediaryCalculation.source.lines[0].salesperson', 'sales-partner']],
+  )
+})
+
 test('bill draft descriptors select a single entity-legal variant and parse after required values are supplied', () => {
   const expectedVariants = {
     'bill-receipt': 'asset-primary',
@@ -555,7 +604,7 @@ test('sale and purchase return lines require the exact source document and line 
     currency: 'CNY',
     parentEntity: 'sale-order',
     parentDocumentId: '01J00000000000000000000003',
-    warehouse: reference,
+    warehouse: auxPeopleReference,
     returnReason: '精确来源回归',
     returnLines: [returnLine],
     attachments: [],
@@ -603,7 +652,7 @@ test('the target contract accepts rich sale-order facts and rejects the retired 
 test('sale orders and asset sales own their authoritative business counterparties', () => {
   const saleOrder = {
     ...base.payload,
-    operatingEntity: reference,
+    operatingEntity: auxPeopleReference,
   }
   assert.equal(
     vouPayloadSchemaByEntity['sale-order'].safeParse(saleOrder).success,

@@ -5,6 +5,7 @@ import { ulid } from 'ulid'
 import type { VouPayloadFor } from '@zerp/model'
 import { createDatabase } from '../../src/db/database.ts'
 import { AuxApplicationError, AuxService } from '../../src/aux/service.ts'
+import { auxCurrentDataSchemas } from '../../src/app/aux-contract.ts'
 import { VouApplicationError, VouService } from '../../src/vou/service.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
@@ -18,9 +19,16 @@ test('sales orders adopt explicit customer or current payment snapshots without 
   const actor = { id: actorId, permissions: [], trusted: true }
   const auxActor = {
     id: actorId,
-    permissions: ['create', 'get', 'save', 'disable', 'delete'].map(
-      (action) => `/aux/payment-method/${action}`,
-    ),
+    permissions: [
+      ...['create', 'get', 'save', 'disable', 'delete'].map(
+        (action) => `/aux/payment-method/${action}`,
+      ),
+      '/aux/operating-entity/create',
+      '/aux/operating-entity/get',
+      '/aux/operating-entity/save',
+      '/aux/operating-entity/disable',
+      '/aux/operating-entity/delete',
+    ],
   }
   const aux = new AuxService(db)
   const vou = new VouService(db, {
@@ -38,14 +46,10 @@ test('sales orders adopt explicit customer or current payment snapshots without 
   const subjects = {
     customer: ulid(),
     product: ulid(),
-    warehouse: ulid(),
-    'operating-entity': ulid(),
   }
   const entries = {
     customer: ulid(),
     product: ulid(),
-    warehouse: ulid(),
-    'operating-entity': ulid(),
   }
   const subunitId = ulid()
   const emptySubunitId = ulid()
@@ -70,6 +74,9 @@ test('sales orders adopt explicit customer or current payment snapshots without 
         db,
       )
       await sql`DELETE FROM dcl_subjects WHERE id IN (${sql.join(Object.values(subjects))})`.execute(
+        db,
+      )
+      await sql`DELETE FROM bob_subjects WHERE id IN (${sql.join(Object.values(subjects))})`.execute(
         db,
       )
       await sql`DELETE FROM aux_objects WHERE created_by = ${actorId}`.execute(
@@ -154,30 +161,30 @@ test('sales orders adopt explicit customer or current payment snapshots without 
   const prefix = {
     customer: 'CUS',
     product: 'PRD',
-    warehouse: 'WHS',
-    'operating-entity': 'OPE',
   }
   const codeSuffix = Math.floor(Math.random() * 10000)
     .toString()
     .padStart(4, '0')
-  await db
-    .insertInto('dcl_subjects')
-    .values(
-      Object.entries(subjects).map(([entity, id]) => ({
+  for (const [entity, id] of Object.entries(subjects)) {
+    await db
+      .insertInto('bob_subjects')
+      .values({
         id,
         entity,
         code: `${prefix[entity as keyof typeof prefix]}-${codeSuffix}`,
         created_at: now,
         created_by: actorId,
-      })),
-    )
-    .execute()
+      })
+      .execute()
+  }
   await db
     .insertInto('approval_entries')
     .values(
       Object.entries(entries).map(([entity, id]) => ({
         id,
-        domain: 'dcl',
+        domain: ['customer', 'product'].includes(String(entity))
+          ? 'bob'
+          : 'dcl',
         entity,
         subject_id: subjects[entity as keyof typeof subjects],
         version_no: 1,
@@ -193,16 +200,15 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     )
     .execute()
   await db
-    .insertInto('dcl_customer_versions')
+    .insertInto('bob_customer_versions')
     .values({
       approval_entry_id: entries.customer,
       kind: 'ENTERPRISE',
       display_name: '收款客户',
-      enabled: true,
     })
     .execute()
   await db
-    .insertInto('dcl_customer_subunit_roots')
+    .insertInto('bob_customer_subunit_roots')
     .values(
       [subunitId, emptySubunitId].map((id) => ({
         subunit_id: id,
@@ -212,7 +218,7 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     )
     .execute()
   await db
-    .insertInto('dcl_customer_version_subunits')
+    .insertInto('bob_customer_version_subunits')
     .values(
       [subunitId, emptySubunitId].map((id) => ({
         customer_approval_entry_id: entries.customer,
@@ -238,7 +244,7 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     )
     .execute()
   await db
-    .insertInto('dcl_product_versions')
+    .insertInto('bob_product_versions')
     .values({
       approval_entry_id: entries.product,
       name: '收款测试商品',
@@ -256,34 +262,43 @@ test('sales orders adopt explicit customer or current payment snapshots without 
         },
       ]),
       recyclable: false,
-      enabled: true,
     })
     .execute()
-  await db
-    .insertInto('dcl_warehouse_versions')
-    .values({
-      approval_entry_id: entries.warehouse,
-      name: '收款测试仓库',
-      enabled: true,
-    })
-    .execute()
-  await db
-    .insertInto('dcl_operating_entity_versions')
-    .values({
-      approval_entry_id: entries['operating-entity'],
-      legal_name: '收款测试主体',
-      short_name: '收款主体',
-      registered_address: '',
-      contact_name: '',
-      contact_phone: '',
-      invoice_title: '',
-      invoice_address: '',
-      invoice_phone: '',
-      invoice_bank: '',
-      invoice_account: '',
-      enabled: true,
-    })
-    .execute()
+  const currentWarehouse = await new AuxService(db).create(
+    'warehouse',
+    {
+      name: '测试仓库',
+      address: '',
+      contactName: '',
+      contactPhone: '',
+      managerEmployeeId: null,
+      remark: '',
+    },
+    { id: actorId, permissions: ['/aux/warehouse/create'] },
+  )
+  const operatingEntityCreated = await aux.create(
+    'operating-entity',
+    {
+      legalName: '收款测试主体',
+      shortName: '收款主体',
+      legalIdentifier: '91310000MA1K123456',
+      registeredAddress: '',
+      contactName: '',
+      contactPhone: '',
+      invoiceTitle: '',
+      invoiceAddress: '',
+      invoicePhone: '',
+      invoiceBank: '',
+      invoiceAccount: '',
+      remark: '',
+    },
+    auxActor,
+  )
+  const operatingEntity = await aux.get(
+    'operating-entity',
+    { id: operatingEntityCreated.id },
+    auxActor,
+  )
   const reference = (key: keyof typeof subjects) => ({
     objectId: subjects[key],
     approvalEntryId: entries[key],
@@ -297,8 +312,8 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     currency: 'CNY',
     attachments: [],
     customerSubunit: { ...reference('customer'), objectId: selectedSubunit },
-    operatingEntity: reference('operating-entity'),
-    warehouse: reference('warehouse'),
+    operatingEntity: { objectId: operatingEntity.id },
+    warehouse: { objectId: currentWarehouse.id },
     paymentMethod,
     productLines: [
       {
@@ -495,7 +510,7 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     ),
   )
   for (const [method, source] of [
-    [disabledFirst, 'dcl_customer_version_subunits'],
+    [disabledFirst, 'bob_customer_version_subunits'],
     [disabledAlternate, 'vou_sale_order_details'],
   ] as const) {
     await assert.rejects(
@@ -543,5 +558,61 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     (error: unknown) =>
       error instanceof AuxApplicationError &&
       error.errorKey === 'validation_failed',
+  )
+  const adoptedOperatingEntity = (first.payload as VouPayloadFor<'sale-order'>)
+    .operatingEntity
+  const originalOperatingData = auxCurrentDataSchemas['operating-entity'].parse(
+    Object.fromEntries(
+      Object.keys(auxCurrentDataSchemas['operating-entity'].shape).map(
+        (key) => [key, operatingEntity[key as keyof typeof operatingEntity]],
+      ),
+    ),
+  )
+  assert.deepEqual(adoptedOperatingEntity.snapshot, originalOperatingData)
+  const renamedOperatingEntity = await aux.save(
+    'operating-entity',
+    {
+      ...originalOperatingData,
+      id: operatingEntity.id,
+      revision: operatingEntity.revision,
+      shortName: '采用后改名',
+      registeredAddress: '采用后改地址',
+      contactPhone: '13900000000',
+    },
+    auxActor,
+  )
+  const disabledOperatingEntity = await aux.disable(
+    'operating-entity',
+    {
+      id: operatingEntity.id,
+      revision: renamedOperatingEntity.revision,
+    },
+    auxActor,
+    'disable-adopted-operating-entity',
+  )
+  assert.deepEqual(
+    (
+      (await vou.get('sale-order', first.documentId, actor))
+        .payload as VouPayloadFor<'sale-order'>
+    ).operatingEntity,
+    adoptedOperatingEntity,
+  )
+  await assert.rejects(
+    submit(payload(inherited)),
+    (error: unknown) =>
+      error instanceof VouApplicationError &&
+      error.errorKey === 'vou_reference_unavailable',
+  )
+  await assert.rejects(
+    aux.delete(
+      'operating-entity',
+      {
+        id: operatingEntity.id,
+        revision: disabledOperatingEntity.revision,
+      },
+      auxActor,
+    ),
+    (error: unknown) =>
+      error instanceof AuxApplicationError && error.errorKey === 'conflict',
   )
 })

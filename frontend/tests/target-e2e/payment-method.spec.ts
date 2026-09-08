@@ -162,5 +162,10 @@ test('payment methods use typed fields through menu on desktop and 390px', async
     await expect(dialog).toHaveCount(0)
     await expect(page.getByText('操作已成功，但列表刷新失败。')).toBeVisible()
     await page.unroute('**/aux/payment-method/query')
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true)
   }
 })

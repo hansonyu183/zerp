@@ -3,6 +3,7 @@ id: ADR-0052
 date: 2026-09-06
 status: accepted
 partially_supersedes: ADR-0051
+partially_superseded_by: ADR-0055, ADR-0056, ADR-0058, ADR-0059
 ---
 
 # 独立 Session、权限驱动导航与动态业务页面的分片迁移
@@ -13,7 +14,7 @@ partially_supersedes: ADR-0051
 
 目标导航从会话上下文的非 Session `apiPaths` 按资源去重并按领域分组。每个已授权资源都有一个入口：已登记页面装配实际业务页面，未登记资源显示明确的未实现页。菜单、直达 URL 和权限变化共用同一资源判定；前端不因旧菜单模板、`query` 权限、页面登记状态或路由前缀过滤资源。业务页面使用统一的 Host 与最小公共列表 Shell，领域模块只提供自己的精确动作和业务事实。
 
-目标业务归属同时收口：DCL 版本化业务资料（含配置资料）的稳定身份、版本写入和正式资料读取合回 BOB；需要批准的会计期初迁入 VOU。迁入后的 BOB 自己维护稳定身份、审批版本、启停和正式资料读取，不保留 DCL/BOB 双根、双写、别名、兼容读取或中间代理。该目标保留 Hono/Zod 作为唯一 HTTP 契约来源、服务端精确授权、事务原子性、强类型引用和审计。
+目标业务归属按 #392 修订：员工、经营主体、仓库、资金账户、车辆归 AUX 直接维护；产品、客户、供应商、其他单位、销售合作方归 BOB 审批与版本管理；会计映射归 ACC 当前配置，报表定义归 RPT 当前配置，流程定义归 WFL 并保留既有审批与版本；需要批准的会计期初迁入 VOU。各切片不保留双根、双写、别名、兼容读取或中间代理。该目标保留 Hono/Zod 作为唯一 HTTP 契约来源、服务端精确授权、事务原子性、强类型引用和审计。
 
 ## Target domain capability matrix
 
@@ -27,10 +28,10 @@ partially_supersedes: ADR-0051
 | APP     | 无   | 无       | 有       |
 | AUX     | 无   | 无       | 有       |
 | ACC     | 无   | 无       | 有       |
-| RPT     | 无   | 无       | 有       |
-| WFL     | 无   | 无       | 有       |
+| RPT     | 无   | 无       | 无       |
+| WFL     | 有   | 有       | 有       |
 
-DCL 不在目标能力矩阵中。当前 DCL 仍持有既有版本化业务资料的稳定身份、版本写入和正式资料读取边界，并继续按当前领域规则服务；它不是已经删除的领域，也不能为达成目标矩阵而被请求期过滤。后续切片逐一迁移实际业务对象并删除其 DCL 路由、权限、数据和专属页面后，才可收束 DCL 的当前边界。
+DCL 不在目标能力矩阵中。ADR-0053 至 ADR-0058 已完成 13 个原 DCL 实体逐项迁移，当前 DCL 无运行时路由、权限、菜单或写入方。必要旧表和转换命令保留历史证据及一次性迁移职责，不构成当前资料消费者。
 
 ## Completed Session slice: #379
 
@@ -101,3 +102,25 @@ AUX 作为 APP 之外的实际消费者接入完整公共启停组件。外层 A
 Registry 当前为原 user 加 role、employee-category、position、measurement-unit、payment-method、asset-category，共七个真实页面。全部十二个 AUX 管理协议已切换，只有五个 AUX 页面登记；其余已授权资源仍通过同一 Host 显示尚未实现。七页、Session 与导航的真实浏览器流程已在独占 PostgreSQL/API/Web 环境验证，公共启停、严格契约、分页拼音和异步隔离也有实际测试证据。
 
 本批按两个独立切片补齐 B2-16 的 VOU 产品单位精度校验和完整交易单位审计快照，以及 B2-17 的销售订单最终收款方式及加价快照。交易消费者通过公开 Service、真实 PostgreSQL 和 Hono 契约分别验证，不再以产品和客户历史快照测试替代。现行 AUX/BOB/VOU 规则保留。具体候选、逐项结果、命令及交付状态见 [#390 集成验收记录](../testing/second-batch-integration-issue-390-2026-09-07.md)。这不表示 DCL、审批、业务版本、ACC 期初已迁移，也不表示已合并或上线。
+
+## 第三批动态字段与七页切换（#393）
+
+本片直接演进已有 Registry/Host/ListPage，替代固定关键词和基础列模板。资料页登记强制字符串 id/code/py/name、boolean enabled 与 keyword 筛选；隐藏 id/py 不弱化行契约。最终列依次 code(text)、name(text)、enabled(boolean)、扩展列、唯一末尾 $actions(actions)。单据页以后使用独立契约，不放宽资料页或引入任意 rowKey。
+
+基础和扩展共用有限 text/integer/decimal/date/boolean/enum/reference/actions 字段、DynamicForm、DynamicCols 与 RowActions。range 仅适用于数字和日期筛选；decimal 使用字符串精确比较和补零，超精度拒绝；0、false、空值各自保留语义。字段只引用顶层键，禁止重复键、任意脚本、格式回调、组件和查询操作符；reference 只能采用已登记的精确授权来源。
+
+七个既有资料页保留专有编辑器与服务端业务校验。实例拥有完整 filterInput 和深复制 appliedQuery，翻页及写后刷新复用已提交快照。输入法选词不查询；迟到、卸载及会话变化后的结果失效。changed 刷新一次、取消不刷新、已确认写入后刷新失败不重放；普通查询不能解除未知写入锁定。编辑输入只在当前实例存在。
+
+本片不执行其他领域的数据迁移、不恢复 CI、不生产部署，验证分项运行且不调用隐式清库的聚合命令。
+
+## VOU order slice: #402
+
+销售与采购订单在同一个 Registry 登记独立 VouListPage；保留 vouType、documentId、documentNo、handlerName、字符串 revision，不继承资料页身份与启停。单据基础列、期间与单号筛选经过自身强契约校验后，与扩展列、提交日期范围、状态、相对方共用 DynamicForm、DynamicCols 和 RowActions。公共页面不内置销售或采购判断，登记绑定各自的查询与引用源，订单消费者提供只读业务详情。
+
+列表 query 切换为摘要，get 保留完整不可变内容；订单经办人不存在时为 null。审批仍由公共 Approval 在 VOU 的原有事务中执行，不引入业务版本。专用编辑器未实施时明确显示能力边界，不添加虚假创建入口。真实资源没有 query 权限时不请求列表或引用，Host 在资源或 Session generation 变化时重建实例。页面用例见[销售订单](../use-cases/vou/sale-order.md)与[采购订单](../use-cases/vou/purchase-order.md)，业务规则见 [VOU](../domains/vou.md)。其余类型由后续 #403 切片接入；不包含期初迁移或生产发布。
+
+本片进一步部分取代 ADR-0051 中 VOU 本地 Draft 持久化与刷新恢复条款：单据未提交编辑态仅属于当前页面实例，关闭、刷新或切换账号销毁。共享模型、不可变 Submission、幂等、审批及同事务约束继续有效。
+
+## VOU catalog slice: #403
+
+以共享 `vouEntities` 及其字段目录装配所有既有类型的 Registry 登记，复用独立 VouListPage 与 RowActions。列表摘要和各类型合法筛选由服务端投影历史事实并在分页前匹配；公共字段与 VM 不增加类型业务分支。人工新建资格来自共享系统生成目录，缺失编辑器明确提示；保留精确权限和服务端审批资格。范围不含期初与全部专用编辑器重建，业务规则见 [VOU](../domains/vou.md#单据列表与详情)。

@@ -29,43 +29,47 @@ test('isolated target schema contains every target typed aggregate', async () =>
       'object_number_counters',
       'aux_objects',
       'aux_reference_facts',
-      'dcl_code_counters',
+      'archive_code_counters',
       'dcl_subjects',
+      'bob_subjects',
       'approval_entries',
-      'dcl_customer_versions',
-      'dcl_customer_subunit_roots',
-      'dcl_customer_version_subunits',
-      'dcl_supplier_versions',
-      'dcl_supplier_version_operating_entities',
-      'dcl_other_unit_versions',
-      'dcl_other_unit_version_operating_entities',
+      'bob_legacy_enablement_evidence',
+      'bob_customer_versions',
+      'bob_customer_subunit_roots',
+      'bob_customer_version_subunits',
+      'bob_supplier_versions',
+      'bob_supplier_version_operating_entities',
+      'bob_other_unit_versions',
+      'bob_other_unit_version_operating_entities',
       'dcl_employee_versions',
-      'dcl_sales_partner_versions',
-      'dcl_sales_partner_version_operating_entities',
-      'dcl_product_versions',
+      'bob_sales_partner_versions',
+      'bob_sales_partner_version_operating_entities',
+      'bob_product_versions',
       'dcl_warehouse_versions',
       'dcl_vehicle_versions',
       'dcl_fund_account_versions',
       'dcl_operating_entity_versions',
-      'dcl_acc_mapping_versions',
-      'dcl_rpt_definition_versions',
-      'rpt_definition_validities',
-      'dcl_acc_book_facts',
-      'dcl_acc_vou_entity_facts',
-      'dcl_acc_subject_facts',
-      'dcl_acc_mapping_subject_usages',
-      'dcl_acc_mapping_reference_facts',
+      'acc_mapping_history',
+      'rpt_code_counter',
+      'rpt_definitions',
+      'rpt_definition_audits',
+      'rpt_definition_history',
+      'rpt_definition_validity_history',
+      'acc_mapping_vou_entities',
+      'acc_mapping_legacy_reference_facts',
       'approval_events',
       'attachment_deletion_jobs',
       'dcl_warehouse_idempotency',
-      'dcl_archive_idempotency',
-      'dcl_customer_attachment_staging',
-      'dcl_customer_attachments',
+      'archive_idempotency',
+      'bob_customer_attachment_staging',
+      'bob_customer_attachments',
       'dcl_warehouse_reference_facts',
       'dcl_warehouse_usage_facts',
       'acc_books',
       'acc_book_access',
       'acc_subjects',
+      'acc_mappings',
+      'acc_mapping_subject_usages',
       'acc_opening_snapshots',
       'acc_periods',
       'acc_period_balances',
@@ -79,6 +83,7 @@ test('isolated target schema contains every target typed aggregate', async () =>
       'acc_bill_book_values',
       'acc_register_entries',
       'acc_opening_container_balances',
+      'wfl_definitions',
       'wfl_definition_versions',
       'wfl_definition_runtime_states',
       'wfl_trials',
@@ -149,15 +154,17 @@ test('isolated target schema contains every target typed aggregate', async () =>
     'vou_document_reference_facts',
   ])
     assert.ok(!tables.includes(legacy), legacy)
+  assert.match(
+    schema,
+    /bob_subjects_customer_code_ck CHECK \(entity <> 'customer' OR code ~ '\^CUS-/,
+  )
   assert.doesNotMatch(schema, /\bbob_current_objects\b/)
   assert.doesNotMatch(schema, /\bbob_customer_subunits\b/)
   for (const [entity, prefix] of [
-    ['customer', 'CUS'],
     ['supplier', 'SUP'],
     ['other-unit', 'OTU'],
     ['employee', 'EMP'],
     ['sales-partner', 'SLP'],
-    ['product', 'PRD'],
     ['warehouse', 'WHS'],
     ['vehicle', 'VEH'],
     ['fund-account', 'FAC'],
@@ -191,27 +198,33 @@ test('isolated target schema contains every target typed aggregate', async () =>
   assert.match(schema, /rpt_execution_audits/)
   assert.doesNotMatch(schema, /CREATE (?:FUNCTION|TRIGGER|PROCEDURE)/i)
   assert.match(schema, /'acc-mapping'/)
-  assert.match(schema, /dcl_acc_mapping_versions/)
+  assert.match(schema, /acc_mapping_history/)
   assert.match(
     schema,
     /acc_journal_entries[\s\S]*source_kind varchar\(32\) NOT NULL DEFAULT 'VOU'/,
   )
   assert.match(schema, /acc_journal_entries_opening_source_unique/)
   assert.match(schema, /acc_register_entries_opening_source_unique/)
+  const globalRegister = schema.slice(
+    schema.indexOf('CREATE TABLE acc_register_entries ('),
+    schema.indexOf('CREATE UNIQUE INDEX acc_register_entries'),
+  )
+  assert.doesNotMatch(
+    globalRegister,
+    /mapping_id|mapping_revision/,
+    'global object effects are independent of per-book accounting mappings',
+  )
   assert.match(
     schema,
     /acc_period_balances[\s\S]*opening_balance numeric\(24, 8\) NOT NULL/,
   )
-  assert.match(schema, /dcl_rpt_definition_versions/)
+  assert.match(schema, /rpt_definitions/)
   assert.match(schema, /status IN \('VALID', 'INVALID'\)/)
   assert.match(
     schema,
-    /dcl_acc_vou_entity_facts[\s\S]*field_catalog jsonb NOT NULL/,
+    /acc_mapping_vou_entities[\s\S]*field_catalog jsonb NOT NULL/,
   )
-  assert.match(
-    schema,
-    /dcl_acc_subject_facts[\s\S]*required_dimensions jsonb NOT NULL/,
-  )
+  assert.match(schema, /acc_subjects[\s\S]*required_dimensions jsonb NOT NULL/)
   assert.doesNotMatch(schema, /current_(?:version|approval)_?(?:id|entry)/i)
   for (const legacy of ['DRAFT', 'WITHDRAWN', 'REVOKED', 'UNSUBMITTED'])
     assert.doesNotMatch(schema, new RegExp(`\\b${legacy}\\b`))

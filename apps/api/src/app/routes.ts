@@ -1,3 +1,10 @@
+import type { VouOpeningService } from '../vou/opening-service.ts'
+import {
+  registerOpeningRoutes,
+  openingRouteMetadata,
+} from '../vou/opening-contract.ts'
+import { ApprovalPersistenceError } from '../platform/approval.ts'
+import { VersionedArchiveError } from '../platform/versioned-archives.ts'
 import type { OpenAPIHono } from '@hono/zod-openapi'
 import { getCookie, setCookie } from 'hono/cookie'
 import type { VouEntity } from '@zerp/model'
@@ -7,19 +14,15 @@ import { currentRequestId } from '../platform/request-id.ts'
 import type { AuxService } from '../aux/service.ts'
 import type { BobService } from '../bob/service.ts'
 import {
-  WarehouseApplicationError,
-  type WarehouseService,
-} from '../dcl/warehouse.ts'
+  BobArchiveApplicationError,
+  type BobArchiveService,
+  type ArchiveReviewInput as BobArchiveReviewInput,
+  type ArchiveSubmitInput as BobArchiveSubmitInput,
+} from '../bob/archives.ts'
 import {
-  ArchiveApplicationError,
-  type ArchiveReviewInput,
-  type ArchiveService,
-  type ArchiveSubmitInput,
-} from '../dcl/archives.ts'
-import {
-  archiveQuerySchemas,
-  type ArchiveRouteHandler,
-} from '../dcl/archive-contract.ts'
+  archiveQuerySchemas as bobArchiveQuerySchemas,
+  type BobArchiveRouteHandler,
+} from '../bob/archive-contract.ts'
 import {
   AccMappingCatalogError,
   type AccMappingCatalogService,
@@ -73,6 +76,7 @@ export const targetRouteMetadata = [
   ...baseTargetRouteMetadata,
   ...vouRouteMetadata,
   ...accRouteMetadata,
+  ...openingRouteMetadata,
   ...wflRouteMetadata,
   ...rptRouteMetadata,
 ]
@@ -102,18 +106,13 @@ function sessionFailure(error: unknown, requestId: string) {
   return applicationFailure(requestId, error, null)
 }
 
-function warehouseFailure(requestId: string, error: WarehouseApplicationError) {
-  const code: 1002 | 3001 = error.errorKey === 'forbidden' ? 1002 : 3001
-  return {
-    code,
-    errorKey: error.errorKey,
-    message: error.errorKey,
-    data: error.data,
-    requestId,
-  }
-}
-
-function archiveFailure(requestId: string, error: ArchiveApplicationError) {
+function archiveFailure(
+  requestId: string,
+  error: {
+    errorKey: string
+    data: BobArchiveApplicationError['data']
+  },
+) {
   const code: 1002 | 3001 = error.errorKey === 'forbidden' ? 1002 : 3001
   return {
     code,
@@ -128,8 +127,7 @@ export function registerAppRoutes(
   app: OpenAPIHono<TargetRouteEnvironment>,
   service: SessionService,
   config: TargetConfig,
-  warehouse?: WarehouseService,
-  archives?: ArchiveService,
+  bobArchives?: BobArchiveService,
   accMappingCatalog?: AccMappingCatalogService,
   management?: ManagementService,
   aux?: AuxService,
@@ -139,40 +137,8 @@ export function registerAppRoutes(
   wfl?: WflService,
   rpt?: RptService,
   workbench?: WorkbenchService,
+  opening?: VouOpeningService,
 ) {
-  async function executeWarehouse<T>(
-    context: {
-      req: { header(name: string): string | undefined; path: string }
-    },
-    token: string | undefined,
-    requestId: string,
-    operation: (actor: { id: string; permissions: string[] }) => Promise<T>,
-  ) {
-    try {
-      if (!warehouse) throw new Error('Warehouse service is unavailable')
-      const current = await service.authenticate(
-        token,
-        context.req.header('X-CSRF-Token'),
-        true,
-        context.req.path,
-      )
-      return {
-        code: 0 as const,
-        errorKey: '' as const,
-        message: 'ok' as const,
-        data: await operation({
-          id: current.user.id,
-          permissions: current.apiPaths,
-        }),
-        requestId,
-      }
-    } catch (error) {
-      if (error instanceof SessionError) return sessionFailure(error, requestId)
-      if (error instanceof WarehouseApplicationError)
-        return warehouseFailure(requestId, error)
-      throw error
-    }
-  }
   async function executeArchive<T>(
     context: {
       req: { header(name: string): string | undefined; path: string }
@@ -181,7 +147,6 @@ export function registerAppRoutes(
     operation: (actor: { id: string; permissions: string[] }) => Promise<T>,
   ) {
     try {
-      if (!archives) throw new Error('DCL archive service is unavailable')
       const current = await service.authenticate(
         getCookie(
           context as Parameters<typeof getCookie>[0],
@@ -203,7 +168,7 @@ export function registerAppRoutes(
       }
     } catch (error) {
       if (error instanceof SessionError) return sessionFailure(error, requestId)
-      if (error instanceof ArchiveApplicationError)
+      if (error instanceof BobArchiveApplicationError)
         return archiveFailure(requestId, error)
       throw error
     }
@@ -213,7 +178,7 @@ export function registerAppRoutes(
       req: { header(name: string): string | undefined; path: string }
     },
     requestId: string,
-    operation: (actor: { permissions: string[] }) => Promise<T>,
+    operation: (actor: { id: string; permissions: string[] }) => Promise<T>,
   ) {
     try {
       if (!accMappingCatalog)
@@ -231,7 +196,10 @@ export function registerAppRoutes(
         code: 0 as const,
         errorKey: '' as const,
         message: 'ok' as const,
-        data: await operation({ permissions: current.apiPaths }),
+        data: await operation({
+          id: current.user.id,
+          permissions: current.apiPaths,
+        }),
         requestId,
       }
     } catch (error) {
@@ -284,6 +252,8 @@ export function registerAppRoutes(
       if (
         error instanceof AccApplicationError ||
         error instanceof WflApplicationError ||
+        error instanceof ApprovalPersistenceError ||
+        error instanceof VersionedArchiveError ||
         error instanceof RptApplicationError
       )
         return {
@@ -323,6 +293,8 @@ export function registerAppRoutes(
       if (
         error instanceof AccApplicationError ||
         error instanceof WflApplicationError ||
+        error instanceof ApprovalPersistenceError ||
+        error instanceof VersionedArchiveError ||
         error instanceof RptApplicationError
       )
         return {
@@ -335,7 +307,7 @@ export function registerAppRoutes(
       throw error
     }
   }
-  const archiveHandler: ArchiveRouteHandler = async (
+  const bobArchiveHandler: BobArchiveRouteHandler = async (
     entity,
     action,
     context,
@@ -343,24 +315,22 @@ export function registerAppRoutes(
     const requestId = currentRequestId(context)
     const input = context.req.valid('json')
     const response = await executeArchive(context, requestId, async (actor) => {
-      if (action === 'query') {
-        return archives!.query(
+      if (!bobArchives) throw new Error('BOB archive service is unavailable')
+      if (action === 'query')
+        return bobArchives.query(
           entity,
-          archiveQuerySchemas[entity].parse(input),
+          bobArchiveQuerySchemas[entity].parse(input),
           actor,
         )
-      }
       if (action === 'get')
-        return archives!.get(
+        return bobArchives.get(
           entity,
           (input as { subjectId: string }).subjectId,
           actor,
-          entity === 'rpt-definition'
-            ? (input as { approvalEntryId?: string }).approvalEntryId
-            : undefined,
+          (input as { submissionId?: string }).submissionId,
         )
       if (action === 'versions') {
-        const items = await archives!.versions(
+        const items = await bobArchives.versions(
           entity,
           (input as { subjectId: string }).subjectId,
           actor,
@@ -368,30 +338,30 @@ export function registerAppRoutes(
         return { items, total: items.length }
       }
       if (action === 'audit-history')
-        return archives!.auditHistory(
+        return bobArchives.auditHistory(
           entity,
           (input as { subjectId: string }).subjectId,
           actor,
         )
       if (action === 'submit-new' || action === 'submit-change')
-        return archives!.submit(
+        return bobArchives.submit(
           entity,
           action,
-          input as ArchiveSubmitInput,
+          input as BobArchiveSubmitInput,
           actor,
           requestId,
         )
       if (action === 'delete')
-        return archives!.delete(
+        return bobArchives.delete(
           entity,
-          input as ArchiveReviewInput,
+          input as BobArchiveReviewInput,
           actor,
           requestId,
         )
-      return archives!.review(
+      return bobArchives.review(
         entity,
         action,
-        input as ArchiveReviewInput,
+        input as BobArchiveReviewInput,
         actor,
         requestId,
       )
@@ -406,19 +376,22 @@ export function registerAppRoutes(
       aux,
       bob,
     }),
-    archive: archiveHandler,
+    bobArchive: bobArchiveHandler,
     archiveAttachments: {
       stage: async (context) =>
         context.json(
           (await executeArchive(context, currentRequestId(context), (actor) =>
-            archives!.stageCustomerAttachment(context.req.valid('json'), actor),
+            bobArchives!.stageCustomerAttachment(
+              context.req.valid('json'),
+              actor,
+            ),
           )) as never,
           200,
         ),
       cleanup: async (context) =>
         context.json(
           (await executeArchive(context, currentRequestId(context), (actor) =>
-            archives!.cleanupCustomerAttachments(actor),
+            bobArchives!.cleanupCustomerAttachments(actor),
           )) as never,
           200,
         ),
@@ -427,6 +400,13 @@ export function registerAppRoutes(
       context.json(
         (await executeAccCatalog(context, currentRequestId(context), (actor) =>
           accMappingCatalog!.query(context.req.valid('json'), actor),
+        )) as never,
+        200,
+      ),
+    accMappingSave: async (context) =>
+      context.json(
+        (await executeAccCatalog(context, currentRequestId(context), (actor) =>
+          accMappingCatalog!.save(context.req.valid('json'), actor),
         )) as never,
         200,
       ),
@@ -567,195 +547,52 @@ export function registerAppRoutes(
         )
       }
     },
-    warehouseQuery: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
+  })
+  const withOpening = registerOpeningRoutes(target, async (action, context) => {
+    if (!opening) throw new Error('VOU opening service is unavailable')
+    const input = context.req.valid('json')
+    const response = await executeCore<unknown>(context, (actor) => {
+      if (action === 'openingQuery') return opening.queryOpenings(input, actor)
+      if (action === 'openingAudit')
+        return opening.auditOpening(input.bookId, actor)
+      if (action === 'openingGet')
+        return opening.getOpening(input.bookId, actor)
+      if (action === 'openingSubmit')
+        return opening.submitOpening(input, actor, currentRequestId(context))
+      if (action === 'openingDelete')
+        return opening.deleteOpening(input, actor, currentRequestId(context))
+      if (action === 'openingApprove')
+        return opening.reviewOpening(
+          'approve',
+          input,
+          actor,
           currentRequestId(context),
-          async (actor) => {
-            return warehouse!.query(context.req.valid('json'), actor)
-          },
-        ),
-        200,
-      ),
-    warehouseGet: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
+        )
+      if (action === 'openingReject')
+        return opening.reviewOpening(
+          'reject',
+          input,
+          actor,
           currentRequestId(context),
-          (actor) => warehouse!.get(context.req.valid('json').subjectId, actor),
-        ),
-        200,
-      ),
-    warehouseVersions: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
+        )
+      if (action === 'openingUnreject')
+        return opening.reviewOpening(
+          'unreject',
+          input,
+          actor,
           currentRequestId(context),
-          async (actor) => {
-            const items = await warehouse!.versions(
-              context.req.valid('json').subjectId,
-              actor,
-            )
-            return { items, total: items.length }
-          },
-        ),
-        200,
-      ),
-    warehouseAudit: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
-          currentRequestId(context),
-          (actor) =>
-            warehouse!.auditHistory(context.req.valid('json').subjectId, actor),
-        ),
-        200,
-      ),
-    warehouseManagerReference: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
-          currentRequestId(context),
-          (actor) =>
-            warehouse!.managerReference(
-              context.req.valid('json').employeeId,
-              context.req.valid('json').action,
-              actor,
-            ),
-        ),
-        200,
-      ),
-    warehouseSubmitNew: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
-          currentRequestId(context),
-          (actor) =>
-            warehouse!.submit(
-              'submit-new',
-              context.req.valid('json'),
-              actor,
-              currentRequestId(context),
-            ),
-        ),
-        200,
-      ),
-    warehouseSubmitChange: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
-          currentRequestId(context),
-          (actor) =>
-            warehouse!.submit(
-              'submit-change',
-              context.req.valid('json'),
-              actor,
-              currentRequestId(context),
-            ),
-        ),
-        200,
-      ),
-    warehouseApprove: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
-          currentRequestId(context),
-          (actor) =>
-            warehouse!.review(
-              'approve',
-              context.req.valid('json'),
-              actor,
-              currentRequestId(context),
-            ),
-        ),
-        200,
-      ),
-    warehouseReject: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
-          currentRequestId(context),
-          (actor) =>
-            warehouse!.review(
-              'reject',
-              context.req.valid('json'),
-              actor,
-              currentRequestId(context),
-            ),
-        ),
-        200,
-      ),
-    warehouseUnreject: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
-          currentRequestId(context),
-          (actor) =>
-            warehouse!.review(
-              'unreject',
-              context.req.valid('json'),
-              actor,
-              currentRequestId(context),
-            ),
-        ),
-        200,
-      ),
-    warehouseUnapprove: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
-          currentRequestId(context),
-          (actor) =>
-            warehouse!.review(
-              'unapprove',
-              context.req.valid('json'),
-              actor,
-              currentRequestId(context),
-            ),
-        ),
-        200,
-      ),
-    warehouseDelete: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
-          currentRequestId(context),
-          (actor) =>
-            warehouse!.delete(
-              context.req.valid('json'),
-              actor,
-              currentRequestId(context),
-            ),
-        ),
-        200,
-      ),
-    warehouseReference: async (context) =>
-      context.json(
-        await executeWarehouse(
-          context,
-          getCookie(context, config.sessionCookieName),
-          currentRequestId(context),
-          (actor) =>
-            warehouse!.reference(context.req.valid('json').search, actor),
-        ),
-        200,
-      ),
+        )
+      return opening.reviewOpening(
+        'unapprove',
+        input,
+        actor,
+        currentRequestId(context),
+      )
+    })
+    return context.json(response as never, 200)
   })
   const withVou = registerVouRoutes(
-    target,
+    withOpening,
     async (action: VouRouteAction, context: any) => {
       if (action === 'attachment-download') {
         try {
@@ -859,40 +696,6 @@ export function registerAppRoutes(
         if (action === 'subjectSave') return acc.saveSubject(input, actor)
         if (action === 'subjectDelete')
           return acc.deleteSubject(input.id, input.expectedRevision, actor)
-        if (action === 'openingQuery')
-          return acc.getOpening(input.bookId, actor)
-        if (action === 'openingSubmit')
-          return acc.submitOpening(input, actor, currentRequestId(context))
-        if (action === 'openingDelete')
-          return acc.deleteOpening(input, actor, currentRequestId(context))
-        if (action === 'openingApprove')
-          return acc.reviewOpening(
-            'approve',
-            input,
-            actor,
-            currentRequestId(context),
-          )
-        if (action === 'openingReject')
-          return acc.reviewOpening(
-            'reject',
-            input,
-            actor,
-            currentRequestId(context),
-          )
-        if (action === 'openingUnreject')
-          return acc.reviewOpening(
-            'unreject',
-            input,
-            actor,
-            currentRequestId(context),
-          )
-        if (action === 'openingUnapprove')
-          return acc.reviewOpening(
-            'unapprove',
-            input,
-            actor,
-            currentRequestId(context),
-          )
         if (action === 'periodQuery')
           return acc.queryPeriods(input.bookId, actor)
         return acc.setPeriod(input, action === 'periodLock', actor)
@@ -935,7 +738,12 @@ export function registerAppRoutes(
         if (action === 'delete')
           return wfl.delete(input, actor, currentRequestId(context))
         if (action === 'enable' || action === 'disable')
-          return wfl.setEnabled(input, action === 'enable', actor)
+          return wfl.setEnabled(
+            input,
+            action === 'enable',
+            actor,
+            currentRequestId(context),
+          )
         if (action === 'currentQuery')
           return wfl.queryCurrentDefinitions(input, actor)
         if (action === 'current') return wfl.current(input.code, actor)
@@ -957,6 +765,9 @@ export function registerAppRoutes(
       const input = context.req.valid('json')
       const response = await executeCore<unknown>(context, (actor) => {
         if (action === 'directory') return rpt.directory(actor)
+        if (action === 'get') return rpt.get(input.subjectId, actor)
+        if (action === 'save')
+          return rpt.save(input, actor, currentRequestId(context))
         const code = context.req.valid('param').code
         if (action === 'query')
           return rpt.query(code, input, actor, currentRequestId(context))

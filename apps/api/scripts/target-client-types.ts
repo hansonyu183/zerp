@@ -5,10 +5,7 @@ import type { TargetAppType } from '../src/app/contract.ts'
 import type { registerIndependentRoutes } from '../src/app/independent-contract.ts'
 import { auxReferenceRoute } from '../src/app/aux-contract.ts'
 import { bobReferenceRoute } from '../src/app/independent-contract.ts'
-import {
-  archiveRouteSets,
-  type registerArchiveRoutes,
-} from '../src/dcl/archive-contract.ts'
+import { bobArchiveRouteSets, type registerBobArchiveRoutes } from '../src/bob/archive-contract.ts'
 import { vouRouteSet } from '../src/vou/contract.ts'
 
 type SchemaOf<T> =
@@ -16,7 +13,7 @@ type SchemaOf<T> =
 const noWidePath: string extends keyof SchemaOf<TargetAppType> ? false : true =
   true
 const noWideArchivePath: string extends keyof SchemaOf<
-  ReturnType<typeof registerArchiveRoutes>
+  ReturnType<typeof registerBobArchiveRoutes>
 >
   ? false
   : true = true
@@ -28,11 +25,11 @@ const noWideIndependentPath: string extends keyof SchemaOf<
 const auxReferencePath: '/aux/reference/query' = auxReferenceRoute.path
 const bobReferencePath: '/bob/reference/query' = bobReferenceRoute.path
 const vouReferencePath: '/vou/reference/query' = vouRouteSet.reference.path
-const vehicleDeletePath: '/dcl/vehicle/delete' =
-  archiveRouteSets.vehicle.delete.path
+const supplierDeletePath: '/bob/supplier/delete' =
+  bobArchiveRouteSets.supplier.delete.path
 
 const client = hc<TargetAppType>('http://target.invalid')
-const archiveClient = hc<ReturnType<typeof registerArchiveRoutes>>(
+const archiveClient = hc<ReturnType<typeof registerBobArchiveRoutes>>(
   'http://target.invalid',
 )
 
@@ -48,14 +45,14 @@ void client.vou[':entity'].get.$post({
   param: { entity: 'sales-receipt' },
   json: { documentId: '01J00000000000000000000000' },
 })
-void client.dcl.vehicle.delete.$post({
+void client.bob.supplier.delete.$post({
   json: {
     subjectId: '01J00000000000000000000000',
     submissionId: '01J00000000000000000000001',
     expectedRevision: '1',
   },
 })
-void archiveClient.dcl.vehicle.delete.$post({
+void archiveClient.bob.supplier.delete.$post({
   json: {
     subjectId: '01J00000000000000000000000',
     submissionId: '01J00000000000000000000001',
@@ -68,4 +65,4 @@ void noWideIndependentPath
 void auxReferencePath
 void bobReferencePath
 void vouReferencePath
-void vehicleDeletePath
+void supplierDeletePath

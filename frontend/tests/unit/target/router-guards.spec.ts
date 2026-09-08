@@ -57,15 +57,15 @@ describe('target router session guard', () => {
 
   it('uses refreshed Session permissions for later direct navigation', async () => {
     const router = createTargetRouter(createMemoryHistory())
-    const session = authenticatedSession(['/dcl/customer/query'])
+    const session = authenticatedSession(['/wfl/process-definition/query'])
     router.beforeEach(createSessionGuard(session))
 
-    await router.push('/dcl/customer')
+    await router.push('/wfl/process-definition')
     expect(router.currentRoute.value.name).toBe('resource-host')
 
     session.apiPaths = []
     await router.push('/')
-    await router.push('/dcl/customer')
+    await router.push('/wfl/process-definition')
     expect(router.currentRoute.value.name).toBe('forbidden')
   })
 })

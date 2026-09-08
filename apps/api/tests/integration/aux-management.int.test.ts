@@ -144,6 +144,76 @@ test('AUX management searches before stable pagination and keeps current name as
   )
 })
 
+test('measurement-unit quantity-scale query ANDs with keyword before count and pagination', async (context) => {
+  assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
+  const db = createDatabase(databaseUrl)
+  const bootstrap = new TargetBootstrapService(db)
+  const suffix = randomBytes(6).toString('hex').toUpperCase()
+  const principal = {
+    userId: ulid(),
+    roleId: ulid(),
+    username: `unit-query-${suffix.toLowerCase()}`,
+    passwordHash: await hashPassword(`UnitQuery!${suffix}`),
+  }
+  const actor = {
+    id: principal.userId,
+    permissions: [
+      '/aux/measurement-unit/query',
+      '/aux/measurement-unit/create',
+    ],
+  }
+  const service = new AuxService(db)
+
+  await bootstrap.createE2EPrincipal(principal, false, [
+    '/aux/measurement-unit/query',
+  ])
+  context.after(async () => {
+    try {
+      await bootstrap.deleteE2EPrincipal(principal)
+    } finally {
+      await db.destroy()
+    }
+  })
+
+  for (let index = 0; index < 23; index += 1) {
+    await service.create(
+      'measurement-unit',
+      {
+        name: `计量筛选${suffix}-${String(index).padStart(2, '0')}`,
+        symbol: `u${index}`,
+        quantityScale: index < 21 ? 0 : 3,
+      },
+      actor,
+    )
+  }
+
+  const keyword = `jiliangshaixuan${suffix.toLowerCase()}`
+  const first = await service.query(
+    'measurement-unit',
+    { keyword, quantityScale: 0, page: 1, pageSize: 20 },
+    actor,
+  )
+  const second = await service.query(
+    'measurement-unit',
+    { keyword, quantityScale: 0, page: 2, pageSize: 20 },
+    actor,
+  )
+  assert.equal(first.total, 21)
+  assert.equal(first.items.length, 20)
+  assert.equal(second.total, 21)
+  assert.equal(second.items.length, 1)
+  assert.equal(
+    (
+      await service.query(
+        'measurement-unit',
+        { keyword, quantityScale: 6, page: 1, pageSize: 20 },
+        actor,
+      )
+    ).total,
+    0,
+  )
+})
+
 test('AUX shared enablement preserves BigInt CAS, audits atomically, and re-enables typed dictionary items', async (context) => {
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
   const db = createDatabase(databaseUrl)

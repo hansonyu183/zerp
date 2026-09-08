@@ -1,225 +1,171 @@
-<script setup lang="ts">
+<script
+  setup
+  lang="ts"
+  generic="Row extends EnabledListItem, Filters extends { keyword: string }"
+>
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  type UnwrapRef,
+} from 'vue'
 import AppSnackbar from '../AppSnackbar.vue'
 import ManagementPageFrame from '../ManagementPageFrame.vue'
-import type { EnabledListItem, ListIdentity } from './vm.ts'
+import DynamicForm from '../dynamic-fields/DynamicForm.vue'
+import DynamicCols from '../dynamic-fields/DynamicCols.vue'
+import RowActions from '../dynamic-fields/RowActions.vue'
+import { useReferenceOptionsViewModel } from '../dynamic-fields/reference-options.ts'
+import type { FilterField } from '../dynamic-fields/types.ts'
+import type { ListPageDefinition } from './definition.ts'
+import type { EnabledListItem, ListPageViewModel } from './vm.ts'
 
-type ShellItem = ListIdentity | EnabledListItem
-
-withDefaults(
-  defineProps<{
-    title: string
-    createLabel?: string
-    items: readonly ShellItem[]
-    total: number
-    page: number
-    keyword: string
-    loading?: boolean
-    queryError?: string | null
-    notice?: string | null
-    feedback?: string | null
-    showEnabled?: boolean
-    canSearch?: boolean
-    canCreate?: boolean
-    actionPending?: boolean
-    actionBlocked?: boolean
-    canEdit?: (item: ShellItem) => boolean
-    canEnable?: (item: ShellItem) => boolean
-    canDisable?: (item: ShellItem) => boolean
-    isRowPending?: (id: string) => boolean
-    isRowBlocked?: (id: string) => boolean
-  }>(),
-  {
-    loading: false,
-    createLabel: '新增',
-    queryError: null,
-    notice: null,
-    feedback: null,
-    showEnabled: false,
-    canSearch: false,
-    canCreate: false,
-    actionPending: false,
-    actionBlocked: false,
-    canEdit: () => false,
-    canEnable: () => false,
-    canDisable: () => false,
-    isRowPending: () => false,
-    isRowBlocked: () => false,
-  },
-)
-
-const emit = defineEmits<{
-  'update:keyword': [value: string]
-  search: []
-  create: []
-  edit: [item: ShellItem]
-  enable: [item: ShellItem]
-  disable: [item: ShellItem]
-  page: [page: number]
-  dismissFeedback: []
+const props = defineProps<{
+  definition: ListPageDefinition<Row, Filters>
+  vm: UnwrapRef<ListPageViewModel<Row, Filters>>
+  notice?: string | null
 }>()
 
-function isEnabledItem(item: ShellItem): item is EnabledListItem {
-  return 'enabled' in item && typeof item.enabled === 'boolean'
+const references = reactive(useReferenceOptionsViewModel())
+onMounted(() => {
+  if (!props.vm.searchable) return
+  const sources = new Set(
+    (props.definition.filters as readonly FilterField[])
+      .filter((field) => field.type === 'reference')
+      .map((field) => field.source),
+  )
+  for (const source of sources) void references.load(source)
+})
+onBeforeUnmount(references.dispose)
+
+const contractError = computed(() => {
+  try {
+    props.definition.validateRows(props.vm.items)
+    return null
+  } catch (cause) {
+    return cause instanceof Error ? cause.message : '列表数据不符合字段契约。'
+  }
+})
+const rows = computed(() => (contractError.value ? [] : props.vm.items))
+const pendingDelete = ref<Row | null>(null)
+
+function rowActions(item: Row) {
+  const pending = props.vm.isRowPending(item.id)
+  const disabled = pending || props.vm.isRowBlocked(item.id)
+  return (
+    [
+      { key: 'edit', caption: '编辑' },
+      { key: 'enable', caption: '启用', color: 'success' },
+      { key: 'disable', caption: '停用', color: 'warning' },
+      { key: 'delete', caption: '删除', color: 'error' },
+    ] as const
+  )
+    .filter((action) => props.vm.canAction(action.key, item))
+    .map((action) => ({ ...action, disabled, loading: pending }))
+}
+function runAction(key: string, item: Row) {
+  if (key === 'edit') void props.vm.edit(item)
+  else if (key === 'enable') void props.vm.enable(item)
+  else if (key === 'disable') void props.vm.disable(item)
+  else if (key === 'delete') pendingDelete.value = item
 }
 
-function submitSearch(): void {
-  emit('search')
+function cancelDelete() {
+  pendingDelete.value = null
 }
 
-function onKeywordKeydown(event: KeyboardEvent): void {
-  if (event.key !== 'Enter' || !event.isComposing) return
-  event.preventDefault()
-  event.stopPropagation()
+function confirmDelete() {
+  const item = pendingDelete.value
+  pendingDelete.value = null
+  if (item) void props.vm.delete(item)
 }
-
-const identityHeaders = [
-  { title: '编码', key: 'code' },
-  { title: '名称', key: 'name' },
-]
 </script>
 
 <template>
-  <ManagementPageFrame :title="title" data-testid="list-page-shell">
+  <ManagementPageFrame :title="definition.title" data-testid="list-page-shell">
     <template #actions>
       <v-btn
-        v-if="canCreate"
+        v-if="vm.canAction('create')"
         data-testid="list-create"
         color="primary"
         prepend-icon="mdi-plus"
-        :loading="actionPending"
-        :disabled="actionPending || actionBlocked"
-        @click="emit('create')"
+        :loading="vm.actionPending"
+        :disabled="vm.actionPending || vm.actionBlocked"
+        @click="vm.create"
       >
-        {{ createLabel }}
+        {{ definition.createLabel }}
       </v-btn>
     </template>
     <template #alerts>
-      <v-alert v-if="queryError" type="error" class="mb-4">
-        {{ queryError }}
-      </v-alert>
-      <v-alert v-if="notice" type="info" class="mb-4">
-        {{ notice }}
-      </v-alert>
-      <v-alert v-if="!canSearch" type="info" class="mb-4">
-        当前账号没有查询权限，仅显示已授权操作。
-      </v-alert>
+      <v-alert
+        v-if="vm.queryError || contractError"
+        type="error"
+        class="mb-4"
+        >{{ vm.queryError || contractError }}</v-alert
+      >
+      <v-alert v-if="notice" type="info" class="mb-4">{{ notice }}</v-alert>
+      <v-alert v-if="!vm.searchable" type="info" class="mb-4"
+        >当前账号没有查询权限，仅显示已授权操作。</v-alert
+      >
     </template>
     <template #filters>
-      <v-form class="list-filters" @submit.prevent="submitSearch">
-        <v-text-field
-          :model-value="keyword"
-          data-testid="list-keyword"
-          label="编码、拼音或名称"
-          hide-details
-          clearable
-          variant="outlined"
-          :disabled="!canSearch"
-          @keydown.enter="onKeywordKeydown"
-          @update:model-value="emit('update:keyword', $event ?? '')"
-        />
-        <v-btn
-          data-testid="list-search"
-          color="primary"
-          type="submit"
-          :disabled="!canSearch"
-        >
-          查询
-        </v-btn>
-      </v-form>
+      <DynamicForm
+        :fields="definition.filters"
+        :model-value="vm.filterInput"
+        :disabled="!vm.searchable"
+        :reference-options="references.options"
+        @update:model-value="vm.filterInput = $event"
+        @search="vm.submitSearch"
+      />
+      <v-progress-linear
+        v-if="references.loading"
+        indeterminate
+        aria-label="引用选项加载中"
+      />
+      <v-alert v-if="references.error" type="error">{{
+        references.error
+      }}</v-alert>
     </template>
-    <v-data-table
-      :headers="[
-        ...identityHeaders,
-        ...(showEnabled ? [{ title: '状态', key: 'enabled' }] : []),
-        { title: '操作', key: 'actions', sortable: false },
-      ]"
-      :items="items"
-      :loading="loading"
-      :items-per-page="20"
-      disable-sort
-      hide-default-footer
+    <DynamicCols
+      :fields="definition.columns"
+      :items="rows"
+      :loading="vm.loading"
     >
-      <template #item.enabled="{ item }">
-        <v-chip
-          v-if="isEnabledItem(item)"
-          :color="item.enabled ? 'success' : 'default'"
-        >
-          {{ item.enabled ? '启用' : '停用' }}
-        </v-chip>
+      <template #actions="{ item }">
+        <RowActions
+          :data-testid="`list-row-${item.id}`"
+          :actions="rowActions(item)"
+          @action="runAction($event, item)"
+        />
       </template>
-      <template #item.actions="{ item }">
-        <div class="list-row-actions" :data-testid="`list-row-${item.id}`">
-          <v-btn
-            v-if="canEdit(item)"
-            size="small"
-            variant="text"
-            :loading="isRowPending(item.id)"
-            :disabled="isRowPending(item.id) || isRowBlocked(item.id)"
-            @click="emit('edit', item)"
-          >
-            编辑
-          </v-btn>
-          <v-btn
-            v-if="canEnable(item)"
-            size="small"
-            color="success"
-            variant="text"
-            :loading="isRowPending(item.id)"
-            :disabled="isRowPending(item.id) || isRowBlocked(item.id)"
-            @click="emit('enable', item)"
-          >
-            启用
-          </v-btn>
-          <v-btn
-            v-if="canDisable(item)"
-            size="small"
-            color="warning"
-            variant="text"
-            :loading="isRowPending(item.id)"
-            :disabled="isRowPending(item.id) || isRowBlocked(item.id)"
-            @click="emit('disable', item)"
-          >
-            停用
-          </v-btn>
-        </div>
-      </template>
-      <template #no-data>{{
-        canSearch ? '暂无数据。' : '无查询权限。'
-      }}</template>
-    </v-data-table>
+    </DynamicCols>
     <template #footer>
-      <span>共 {{ total }} 项</span>
+      <span>共 {{ vm.total }} 项</span>
       <v-pagination
-        v-if="canSearch && total > 20"
-        :model-value="page"
-        :length="Math.ceil(total / 20)"
-        @update:model-value="emit('page', $event)"
+        v-if="vm.searchable && vm.total > vm.pageSize"
+        :model-value="vm.page"
+        :length="Math.ceil(vm.total / vm.pageSize)"
+        @update:model-value="vm.goToPage"
       />
     </template>
   </ManagementPageFrame>
-  <AppSnackbar :message="feedback" @dismiss="emit('dismissFeedback')" />
+  <v-dialog
+    :model-value="Boolean(pendingDelete)"
+    max-width="480"
+    persistent
+    @update:model-value="$event || cancelDelete()"
+  >
+    <v-card title="确认删除">
+      <v-card-text>
+        确认删除“{{ pendingDelete?.name }}”吗？此操作不可撤销。
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn @click="cancelDelete">取消</v-btn>
+        <v-btn color="error" @click="confirmDelete">删除</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+  <AppSnackbar :message="vm.feedback" @dismiss="vm.dismissFeedback" />
 </template>
-
-<style scoped>
-.list-filters {
-  display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: minmax(220px, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-  width: 100%;
-}
-.list-row-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-@media (max-width: 600px) {
-  .list-filters {
-    grid-template-columns: 1fr;
-  }
-  .list-filters :deep(.v-btn) {
-    width: 100%;
-  }
-}
-</style>

@@ -18,3 +18,6 @@
 - [2026-09-06 #387 计量单位验证](measurement-unit-issue-387-2026-09-06.md)
 - [2026-09-06 #388 收款方式验证](payment-method-issue-388-2026-09-06.md)
 - [2026-09-07 #390 第二批逐项集成验收](second-batch-integration-issue-390-2026-09-07.md)
+- [2026-09-07 #393 动态字段与七页切换验收](dynamic-fields-issue-393-2026-09-07.md)
+
+- [2026-09-08 #405 第三批最终集成验收](third-batch-integration-issue-405-2026-09-08.md)

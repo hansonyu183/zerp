@@ -7,8 +7,8 @@ export const targetDomainCapabilities = {
   app: { approval: false, businessVersion: false, enabled: true },
   aux: { approval: false, businessVersion: false, enabled: true },
   acc: { approval: false, businessVersion: false, enabled: true },
-  rpt: { approval: false, businessVersion: false, enabled: true },
-  wfl: { approval: false, businessVersion: false, enabled: true },
+  rpt: { approval: false, businessVersion: false, enabled: false },
+  wfl: { approval: true, businessVersion: true, enabled: true },
 } as const
 
 export type TargetDomain = keyof typeof targetDomainCapabilities
@@ -38,7 +38,6 @@ const domainPresentation: Readonly<
   acc: { displayName: '会计', order: 50 },
   rpt: { displayName: '报表', order: 60 },
   wfl: { displayName: '业务流程', order: 70 },
-  dcl: { displayName: '申报资料', order: 80 },
 }
 
 const appPresentation: Readonly<Record<string, string>> = {
@@ -63,13 +62,17 @@ const auxPresentation: Readonly<Record<string, string>> = {
   'measurement-unit': '计量单位',
   'income-expense-type': '收支类型',
   'asset-category': '资产类别',
+  'operating-entity': '经营主体',
+  employee: '员工',
+  warehouse: '仓库',
+  'fund-account': '资金账户',
+  vehicle: '车辆',
 }
 
 const accPresentation: Readonly<Record<string, string>> = {
   book: '会计账簿',
   subject: '会计科目',
   mapping: '会计映射',
-  opening: '会计期初',
   period: '会计期间',
 }
 
@@ -83,11 +86,7 @@ function archiveName(entity: string): string | undefined {
     ? archiveEntityPresentation[
         entity as keyof typeof archiveEntityPresentation
       ].label
-    : entity === 'warehouse'
-      ? '仓库'
-      : entity === 'wfl-process-definition'
-        ? '流程定义'
-        : undefined
+    : undefined
 }
 
 export function resourceDisplayName(domain: string, entity: string): string {
@@ -100,6 +99,9 @@ export function resourceDisplayName(domain: string, entity: string): string {
   if (domain === 'wfl' && wflPresentation[entity])
     return wflPresentation[entity]
   if (domain === 'rpt' && entity === 'directory') return '报表目录'
+  if (domain === 'rpt' && entity === 'definition') return '报表定义维护'
+  if (domain === 'rpt' && /^rpt-[0-9]{6}$/.test(entity))
+    return `报表 ${entity.slice(4)}`
   if (domain === 'bob' && entity === 'reference') return '业务资料引用'
   if (domain === 'vou' && entity === 'reference') return '业务单据引用'
   if (domain === 'vou' && entity === 'source-line') return '业务单据来源行'
@@ -109,11 +111,6 @@ export function resourceDisplayName(domain: string, entity: string): string {
   if (domain === 'bob') {
     const name = archiveName(entity)
     if (name) return name
-  }
-  if (domain === 'dcl') {
-    if (entity === 'acc-mapping') return '会计映射申报'
-    const name = archiveName(entity)
-    if (name) return `${name}申报`
   }
   return `${entity}（待配置名称）`
 }

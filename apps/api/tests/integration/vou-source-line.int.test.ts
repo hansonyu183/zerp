@@ -8,6 +8,7 @@ import { createTargetApiClient } from '../../../../packages/api-client/src/index
 import { sql } from 'kysely'
 import { ulid } from 'ulid'
 
+import { AuxService } from '../../src/aux/service.ts'
 import { createApp } from '../../src/app.ts'
 import { hashPassword, SessionService } from '../../src/app/session.ts'
 import { searchPinyin } from '../../src/platform/pinyin.ts'
@@ -27,7 +28,10 @@ function permissionParts(path: string) {
 test('VOU source-line HTTP query returns only server-eligible current quantities', async (context) => {
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
   const db = createDatabase(databaseUrl)
-  const config = loadConfig({ DATABASE_URL: databaseUrl })
+  const config = loadConfig({
+    DATABASE_URL: databaseUrl,
+    TARGET_DATABASE_SCOPE: process.env.TARGET_DATABASE_SCOPE,
+  })
   const vou = new VouService(db, {
     acc: { async apply() {} },
     wfl: { async apply() {} },
@@ -57,7 +61,7 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
   const createdDocumentIds: string[] = []
   const createdApprovalIds: string[] = []
   const createdIdempotencyKeys: string[] = []
-  const warehouseId = ulid()
+  let warehouseId = ulid()
   const now = new Date()
   const existingPermission = await db
     .selectFrom('app_permissions')
@@ -97,23 +101,16 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
       await db.deleteFrom('app_roles').where('id', '=', roleId).execute()
       await db
         .deleteFrom('approval_entries')
-        .where(
-          'id',
-          'in',
-          createdApprovalIds.filter((id) => id !== warehouseApprovalId),
-        )
-        .execute()
-      await db
-        .deleteFrom('approval_entries')
-        .where('id', '=', warehouseApprovalId)
+        .where('id', 'in', createdApprovalIds)
         .execute()
       await db
         .deleteFrom('vou_documents')
         .where('id', 'in', createdDocumentIds)
         .execute()
+      await db.deleteFrom('aux_objects').where('id', '=', warehouseId).execute()
       await db
-        .deleteFrom('dcl_subjects')
-        .where('id', '=', warehouseId)
+        .deleteFrom('app_audit_events')
+        .where('actor_user_id', '=', actorId)
         .execute()
       await db
         .deleteFrom('app_users')
@@ -186,44 +183,19 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
     .values({ user_id: actorId, role_id: roleId })
     .execute()
 
-  const warehouseApprovalId = ulid()
-  createdApprovalIds.push(warehouseApprovalId)
-  await db
-    .insertInto('dcl_subjects')
-    .values({
-      id: warehouseId,
-      entity: 'warehouse',
-      code: `WHS-${String(randomBytes(2).readUInt16BE() % 10_000).padStart(4, '0')}`,
-      created_at: now,
-      created_by: actorId,
-    })
-    .execute()
-  await db
-    .insertInto('approval_entries')
-    .values({
-      id: warehouseApprovalId,
-      domain: 'dcl',
-      entity: 'warehouse',
-      subject_id: warehouseId,
-      version_no: 1,
-      status: 'APPROVED',
-      revision: 1,
-      submitted_by: actorId,
-      submitted_at: now,
-      approved_by: actorId,
-      approved_at: now,
-      updated_by: actorId,
-      updated_at: now,
-    })
-    .execute()
-  await db
-    .insertInto('dcl_warehouse_versions')
-    .values({
-      approval_entry_id: warehouseApprovalId,
+  const warehouse = await new AuxService(db).create(
+    'warehouse',
+    {
       name: '来源行测试仓库',
-      enabled: true,
-    })
-    .execute()
+      address: '',
+      contactName: '',
+      contactPhone: '',
+      managerEmployeeId: null,
+      remark: '',
+    },
+    { id: actorId, permissions: ['/aux/warehouse/create'] },
+  )
+  warehouseId = warehouse.id
 
   async function addDocument(input: {
     entity:
@@ -703,8 +675,6 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
         parentDocumentId: input.parentDocumentId ?? saleOrder.documentId,
         warehouse: {
           objectId: warehouseId,
-          approvalEntryId: warehouseApprovalId,
-          selectionOrigin: 'CURRENT',
         },
         returnReason: '来源行精确校验',
         returnLines: [

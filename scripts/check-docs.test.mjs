@@ -6,6 +6,7 @@ import {
   generateAdrIndex,
   isUseCasePageFile,
   parseTargetEntryPage,
+  parseTargetRegisteredResourcePages,
   parseTargetRouterPages,
   validateAdrDocuments,
   validateAdrIndex,
@@ -64,6 +65,34 @@ test('requires every titled target route to declare a use-case key', () => {
   assert.match(parsed.failures.join('\n'), /\/signin 缺少 meta\.useCaseKey/)
 })
 
+test('includes explicitly documented Resource Host pages from the Registry', () => {
+  assert.deepEqual(
+    parseTargetRegisteredResourcePages(`
+      const resources = [
+        { domain: 'aux', entity: 'warehouse', component: Warehouse },
+        {
+          domain: 'bob',
+          entity: 'supplier',
+          component: SupplierManagement,
+          useCaseKey: 'bob/supplier-management',
+        },
+      ]
+    `),
+    {
+      failures: [],
+      pages: [
+        {
+          title: 'bob/supplier',
+          route: '/bob/supplier',
+          source:
+            '[资源登记](../../frontend/src/target/navigation/registry.ts)',
+          useCaseKey: 'bob/supplier-management',
+        },
+      ],
+    },
+  )
+})
+
 test('requires a document for every target route use-case key', () => {
   assert.match(
     validateTargetRouteUseCases(
@@ -111,5 +140,27 @@ test('use-case baseline can only describe current target-route gaps', () => {
       '\n',
     ),
     /只能随债务减少/,
+  )
+})
+
+test('documents the constrained RPT code registration without accepting arbitrary dynamic resources', () => {
+  const registration = `{domain:'rpt',entity:':code',component:ReportPage,useCaseKey:'rpt/report-query'}`
+  const parsed = parseTargetRegisteredResourcePages(registration)
+  assert.deepEqual(parsed.failures, [])
+  assert.equal(parsed.pages[0].route, '/rpt/:code')
+  assert.ok(
+    parseTargetRegisteredResourcePages(registration.replace("'rpt'", "'bob'"))
+      .failures.length,
+  )
+})
+
+test('documents the shared VOU catalog without accepting an arbitrary dynamic resource', () => {
+  const registration = `{domain:'vou',entity:':entity',component:VoucherManagement,useCaseKey:'vou/catalog'}`
+  const parsed = parseTargetRegisteredResourcePages(registration)
+  assert.deepEqual(parsed.failures, [])
+  assert.equal(parsed.pages[0].route, '/vou/:entity')
+  assert.ok(
+    parseTargetRegisteredResourcePages(registration.replace("'vou'", "'bob'"))
+      .failures.length,
   )
 })

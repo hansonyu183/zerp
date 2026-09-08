@@ -1,3 +1,4 @@
+import type { VouOpeningService } from './vou/opening-service.ts'
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { bodyLimit } from 'hono/body-limit'
 import { HTTPException } from 'hono/http-exception'
@@ -12,8 +13,7 @@ import type { ManagementService } from './app/management.ts'
 import type { AuxService } from './aux/service.ts'
 import type { BobService } from './bob/service.ts'
 import { noopLogger, type AppLogger } from './platform/logging.ts'
-import type { WarehouseService } from './dcl/warehouse.ts'
-import type { ArchiveService } from './dcl/archives.ts'
+import type { BobArchiveService } from './bob/archives.ts'
 import type { AccMappingCatalogService } from './acc/mapping-catalog.ts'
 import type { VouService } from './vou/service.ts'
 import type { AccService } from './acc/service.ts'
@@ -35,10 +35,10 @@ export interface CreateAppOptions {
   bob?: BobService
   config?: TargetConfig
   logger?: AppLogger
-  warehouse?: WarehouseService
-  archives?: ArchiveService
+  bobArchives?: BobArchiveService
   accMappingCatalog?: AccMappingCatalogService
   vou?: VouService
+  opening?: VouOpeningService
   acc?: AccService
   wfl?: WflService
   rpt?: RptService
@@ -147,8 +147,7 @@ export function createApp(options: CreateAppOptions = {}) {
       app,
       options.session,
       options.config,
-      options.warehouse,
-      options.archives,
+      options.bobArchives,
       options.accMappingCatalog,
       options.management,
       options.aux,
@@ -158,6 +157,7 @@ export function createApp(options: CreateAppOptions = {}) {
       options.wfl,
       options.rpt,
       options.workbench,
+      options.opening,
     )
   options.registerRoutes?.(app)
   app.onError((error, context) => {

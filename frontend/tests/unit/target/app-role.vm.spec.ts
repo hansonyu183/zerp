@@ -146,7 +146,7 @@ describe('APP role management public view-model seam', () => {
       '/app/permission/query',
     )
     const vm = useRoleManagementViewModel()
-    vm.list.keyword.value = ' cai '
+    vm.list.filterInput.value.keyword = ' cai '
 
     await vm.list.submitSearch()
 

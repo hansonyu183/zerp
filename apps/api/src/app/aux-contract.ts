@@ -60,6 +60,11 @@ export const auxEntities = [
   'measurement-unit',
   'income-expense-type',
   'asset-category',
+  'operating-entity',
+  'employee',
+  'warehouse',
+  'fund-account',
+  'vehicle',
 ] as const
 
 export type AuxContractEntity = (typeof auxEntities)[number]
@@ -158,6 +163,80 @@ const auxWriteShapes = {
     defaultResidualRate: percentage,
     ...descriptionShape,
   },
+  'operating-entity': {
+    legalName: z.string().min(1).max(200),
+    shortName: z.string().max(100),
+    legalIdentifier: z.string().min(1).max(128),
+    registeredAddress: z.string().max(500),
+    contactName: z.string().max(100),
+    contactPhone: z.string().max(32),
+    invoiceTitle: z.string().max(200),
+    invoiceAddress: z.string().max(500),
+    invoicePhone: z.string().max(32),
+    invoiceBank: z.string().max(200),
+    invoiceAccount: z.string().max(128),
+    remark: z.string().max(1000),
+  },
+  employee: {
+    identityKind: z.enum(['PERSON', 'ORGANIZATION']),
+    legalName: z.string().min(1).max(200),
+    displayName: z.string().min(1).max(200),
+    legalIdentifier: z.string().min(1).max(128),
+    contactName: z.string().max(100),
+    phone: z.string().max(32),
+    address: z.string().max(500),
+    employeeCategoryId: identifierShape.id,
+    departmentId: identifierShape.id,
+    positionId: identifierShape.id,
+    employmentDate: z.string().date(),
+    workPhone: z.string().max(32),
+    workEmail: z.string().max(320),
+    operatingEntityId: identifierShape.id,
+    remark: z.string().max(1000),
+  },
+  warehouse: {
+    ...nameShape,
+    address: z.string().max(500),
+    contactName: z.string().max(100),
+    contactPhone: z.string().max(32),
+    managerEmployeeId: identifierShape.id.nullable(),
+    remark: z.string().max(1000),
+  },
+  'fund-account': {
+    ...nameShape,
+    currency: z.string().regex(/^[A-Z]{3}$/),
+    accountName: z.string().min(1).max(200),
+    bank: z.string().min(1).max(200),
+    branch: z.string().max(200),
+    accountNumber: z.string().min(1).max(128),
+    operatingEntityId: identifierShape.id,
+    remark: z.string().max(1000),
+  },
+  vehicle: {
+    ...nameShape,
+    plateNumber: z.string().min(1).max(64),
+    vehicleTypeId: identifierShape.id,
+    carrier: z.discriminatedUnion('kind', [
+      z
+        .object({
+          kind: z.literal('INTERNAL'),
+          operatingEntityId: identifierShape.id,
+        })
+        .strict(),
+      z
+        .object({
+          kind: z.literal('EXTERNAL'),
+          otherUnitId: identifierShape.id,
+          approvalEntryId: identifierShape.id,
+        })
+        .strict(),
+    ]),
+    vin: z.string().max(64),
+    engineNumber: z.string().max(64),
+    ratedLoadKg: z.number().nonnegative(),
+    bulkWaterCarrier: z.boolean(),
+    remark: z.string().max(1000),
+  },
 } as const
 
 const auxDetailOnlyShapes = {
@@ -176,6 +255,11 @@ const auxDetailOnlyShapes = {
   'measurement-unit': {},
   'income-expense-type': {},
   'asset-category': {},
+  'operating-entity': {},
+  employee: {},
+  warehouse: {},
+  'fund-account': {},
+  vehicle: {},
 } as const
 
 const listItem = z
@@ -186,7 +270,7 @@ const listItem = z
     ...nameShape,
     enabled: z.boolean(),
     ...revisionShape,
-    availableActions: z.array(z.enum(['edit', 'enable', 'disable'])),
+    availableActions: z.array(z.enum(['edit', 'enable', 'disable', 'delete'])),
   })
   .strict()
 
@@ -199,12 +283,27 @@ const page = z
   })
   .strict()
 
+const measurementUnitListItem = listItem
+  .extend({
+    symbol: z.string().min(1).max(64),
+    quantityScale: z.number().int().min(0).max(6),
+  })
+  .strict()
+
+const measurementUnitPage = page
+  .extend({ items: z.array(measurementUnitListItem) })
+  .strict()
+
 const queryRequest = z
   .object({
     keyword: z.string().max(200).optional(),
     page: z.number().int().positive(),
     pageSize: z.literal(20),
   })
+  .strict()
+
+const measurementUnitQueryRequest = queryRequest
+  .extend({ quantityScale: z.number().int().min(0).max(6).optional() })
   .strict()
 
 const mutation = z
@@ -219,6 +318,12 @@ export function auxQueryRoute<const Path extends string>(path: Path) {
   return postRoute(path, queryRequest, page)
 }
 
+export function measurementUnitQueryRoute<const Path extends string>(
+  path: Path,
+) {
+  return postRoute(path, measurementUnitQueryRequest, measurementUnitPage)
+}
+
 export function auxGetRoute<
   const Path extends string,
   const Entity extends AuxContractEntity,
@@ -231,6 +336,170 @@ export function auxGetRoute<
         ...listItem.shape,
         ...auxWriteShapes[entity],
         ...auxDetailOnlyShapes[entity],
+        updatedAt: z.string().datetime(),
+        updatedBy: z.string(),
+      })
+      .strict(),
+  )
+}
+
+const currentSnapshot = z
+  .object({
+    id: identifierShape.id,
+    code: z.string().min(1).max(64),
+    name: z.string().min(1).max(200),
+  })
+  .strict()
+
+const {
+  employeeCategoryId: _employeeCategoryId,
+  departmentId: _departmentId,
+  positionId: _positionId,
+  operatingEntityId: _operatingEntityId,
+  ...employeeCurrentDataShape
+} = auxWriteShapes.employee
+
+/** Frozen current-data snapshots used by transaction consumers such as VOU. */
+const warehouseCurrentData = z
+  .object({
+    name: auxWriteShapes.warehouse.name,
+    address: auxWriteShapes.warehouse.address,
+    contactName: auxWriteShapes.warehouse.contactName,
+    contactPhone: auxWriteShapes.warehouse.contactPhone,
+    manager: currentSnapshot.nullable(),
+    remark: auxWriteShapes.warehouse.remark,
+  })
+  .strict()
+
+const fundAccountCurrentData = z
+  .object({
+    name: auxWriteShapes['fund-account'].name,
+    currency: auxWriteShapes['fund-account'].currency,
+    accountName: auxWriteShapes['fund-account'].accountName,
+    bank: auxWriteShapes['fund-account'].bank,
+    branch: auxWriteShapes['fund-account'].branch,
+    accountNumber: auxWriteShapes['fund-account'].accountNumber,
+    operatingEntity: currentSnapshot,
+    remark: auxWriteShapes['fund-account'].remark,
+  })
+  .strict()
+
+const vehicleCurrentData = z
+  .object({
+    name: auxWriteShapes.vehicle.name,
+    plateNumber: auxWriteShapes.vehicle.plateNumber,
+    vehicleType: currentSnapshot,
+    carrier: z.discriminatedUnion('kind', [
+      z
+        .object({
+          kind: z.literal('INTERNAL'),
+          operatingEntityId: identifierShape.id,
+          code: z.string().min(1).max(64),
+          name: z.string().min(1).max(200),
+        })
+        .strict(),
+      z
+        .object({
+          kind: z.literal('EXTERNAL'),
+          otherUnitId: identifierShape.id,
+          approvalEntryId: identifierShape.id,
+          code: z.string().min(1).max(64),
+          name: z.string().min(1).max(200),
+        })
+        .strict(),
+    ]),
+    vin: auxWriteShapes.vehicle.vin,
+    engineNumber: auxWriteShapes.vehicle.engineNumber,
+    ratedLoadKg: auxWriteShapes.vehicle.ratedLoadKg,
+    bulkWaterCarrier: auxWriteShapes.vehicle.bulkWaterCarrier,
+    remark: auxWriteShapes.vehicle.remark,
+  })
+  .strict()
+
+export const auxCurrentDataSchemas = {
+  'operating-entity': z.object(auxWriteShapes['operating-entity']).strict(),
+  employee: z
+    .object({
+      ...employeeCurrentDataShape,
+      employeeCategory: currentSnapshot,
+      department: currentSnapshot,
+      position: currentSnapshot,
+      operatingEntity: currentSnapshot,
+    })
+    .strict(),
+  warehouse: warehouseCurrentData,
+  'fund-account': fundAccountCurrentData,
+  vehicle: vehicleCurrentData,
+} as const
+
+export function operatingEntityGetRoute<const Path extends string>(path: Path) {
+  return postRoute(
+    path,
+    z.object(identifierShape).strict(),
+    z
+      .object({
+        ...listItem.shape,
+        ...auxWriteShapes['operating-entity'],
+        updatedAt: z.string().datetime(),
+        updatedBy: z.string(),
+      })
+      .strict(),
+  )
+}
+
+export function employeeGetRoute<const Path extends string>(path: Path) {
+  return postRoute(
+    path,
+    z.object(identifierShape).strict(),
+    z
+      .object({
+        ...listItem.shape,
+        ...auxCurrentDataSchemas.employee.shape,
+        updatedAt: z.string().datetime(),
+        updatedBy: z.string(),
+      })
+      .strict(),
+  )
+}
+
+export function warehouseGetRoute<const Path extends string>(path: Path) {
+  return postRoute(
+    path,
+    z.object(identifierShape).strict(),
+    z
+      .object({
+        ...listItem.shape,
+        ...auxCurrentDataSchemas.warehouse.shape,
+        updatedAt: z.string().datetime(),
+        updatedBy: z.string(),
+      })
+      .strict(),
+  )
+}
+
+export function fundAccountGetRoute<const Path extends string>(path: Path) {
+  return postRoute(
+    path,
+    z.object(identifierShape).strict(),
+    z
+      .object({
+        ...listItem.shape,
+        ...auxCurrentDataSchemas['fund-account'].shape,
+        updatedAt: z.string().datetime(),
+        updatedBy: z.string(),
+      })
+      .strict(),
+  )
+}
+
+export function vehicleGetRoute<const Path extends string>(path: Path) {
+  return postRoute(
+    path,
+    z.object(identifierShape).strict(),
+    z
+      .object({
+        ...listItem.shape,
+        ...auxCurrentDataSchemas.vehicle.shape,
         updatedAt: z.string().datetime(),
         updatedBy: z.string(),
       })

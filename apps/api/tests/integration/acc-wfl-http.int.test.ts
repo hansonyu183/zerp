@@ -1,3 +1,6 @@
+import { VouOpeningService } from '../../src/vou/opening-service.ts'
+import { withWflDatabase } from './wfl-fixture.ts'
+import { BobArchiveService } from '../../src/bob/archives.ts'
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
 import test from 'node:test'
@@ -20,8 +23,6 @@ import {
   type AuxWriteData,
 } from '../../src/aux/service.ts'
 import { createDatabase } from '../../src/db/database.ts'
-import { ArchiveService } from '../../src/dcl/archives.ts'
-import { WarehouseService } from '../../src/dcl/warehouse.ts'
 import { loadConfig } from '../../src/platform/config.ts'
 import { VouService } from '../../src/vou/service.ts'
 import { WflService, type WflVouPort } from '../../src/wfl/service.ts'
@@ -167,8 +168,7 @@ function post(
 }
 
 async function seedSaleOrderReferences(
-  archives: ArchiveService,
-  warehouse: WarehouseService,
+  bobArchives: BobArchiveService,
   aux: AuxService,
   actorId: string,
   reviewerId: string,
@@ -191,6 +191,12 @@ async function seedSaleOrderReferences(
       '/aux/department/get',
       '/aux/position/create',
       '/aux/position/get',
+      '/aux/operating-entity/create',
+      '/aux/operating-entity/get',
+      '/aux/employee/create',
+      '/aux/employee/get',
+      '/aux/warehouse/create',
+      '/aux/warehouse/get',
       '/aux/dictionary-type/create',
       '/aux/dictionary-type/get',
       '/aux/dictionary-item/create',
@@ -206,37 +212,34 @@ async function seedSaleOrderReferences(
     const fact = await aux.get(entity, { id: created.id }, actor)
     return fact
   }
-  const [
-    unit,
-    productType,
-    productCategory,
-    employeeCategory,
-    department,
-    position,
-  ] = await Promise.all([
-    auxiliary('measurement-unit', {
-      name: '件',
-      symbol: '件',
-      quantityScale: 0,
-    }),
-    auxiliary('product-type', {
-      name: 'HTTP 产品类型',
-      behaviorProfile: 'RAW_MATERIAL',
-      description: '',
-    }),
-    auxiliary('product-category', {
-      name: 'HTTP 产品分类',
-      parentId: '',
-      description: '',
-    }),
-    auxiliary('employee-category', { name: 'HTTP 员工分类', description: '' }),
-    auxiliary('department', {
-      name: 'HTTP 部门',
-      parentId: '',
-      description: '',
-    }),
-    auxiliary('position', { name: 'HTTP 岗位', description: '' }),
-  ])
+  const unit = await auxiliary('measurement-unit', {
+    name: '件',
+    symbol: '件',
+    quantityScale: 0,
+  })
+  const productType = await auxiliary('product-type', {
+    name: 'HTTP 产品类型',
+    behaviorProfile: 'RAW_MATERIAL',
+    description: '',
+  })
+  const productCategory = await auxiliary('product-category', {
+    name: 'HTTP 产品分类',
+    parentId: '',
+    description: '',
+  })
+  const employeeCategory = await auxiliary('employee-category', {
+    name: 'HTTP 员工分类',
+    description: '',
+  })
+  const department = await auxiliary('department', {
+    name: 'HTTP 部门',
+    parentId: '',
+    description: '',
+  })
+  const position = await auxiliary('position', {
+    name: 'HTTP 岗位',
+    description: '',
+  })
   const dictionaryType = await auxiliary('dictionary-type', {
     name: 'HTTP 客户类型字典',
     description: '',
@@ -247,9 +250,14 @@ async function seedSaleOrderReferences(
     sortOrder: 1,
   })
   const submit = async (
-    entity: Parameters<ArchiveService['submit']>[0],
+    entity: 'product' | 'customer',
     snapshot: Record<string, unknown>,
   ) => {
+    if (entity === 'product') {
+      const { enabled: _enabled, ...content } = snapshot
+      snapshot = content
+    }
+    const domain = 'bob'
     const objectId = ulid(),
       approvalEntryId = ulid()
     const input = {
@@ -260,11 +268,16 @@ async function seedSaleOrderReferences(
       expectedLatestApprovedRevision: null,
       snapshot,
     }
-    const crossesHttp = (
-      ['operating-entity', 'product', 'customer'] as const
-    ).includes(entity as 'operating-entity' | 'product' | 'customer')
+    const crossesHttp = (['product', 'customer'] as const).includes(
+      entity as 'product' | 'customer',
+    )
     const pendingResponse = crossesHttp
-      ? await post(origin, submitterSession, `/dcl/${entity}/submit-new`, input)
+      ? await post(
+          origin,
+          submitterSession,
+          `/${domain}/${entity}/submit-new`,
+          input,
+        )
       : undefined
     if (pendingResponse)
       assert.equal(
@@ -274,7 +287,7 @@ async function seedSaleOrderReferences(
       )
     const pending = pendingResponse
       ? pendingResponse.data
-      : await archives.submit(
+      : await bobArchives.submit(
           entity,
           'submit-new',
           input,
@@ -290,7 +303,7 @@ async function seedSaleOrderReferences(
       ? await post(
           origin,
           reviewerSession,
-          `/dcl/${entity}/approve`,
+          `/${domain}/${entity}/approve`,
           reviewInput,
         )
       : undefined
@@ -302,7 +315,7 @@ async function seedSaleOrderReferences(
       )
     const approved = approvedResponse
       ? approvedResponse.data
-      : await archives.review(
+      : await bobArchives.review(
           entity,
           'approve',
           reviewInput,
@@ -313,7 +326,7 @@ async function seedSaleOrderReferences(
       const readback = await post(
         origin,
         reviewerSession,
-        `/dcl/${entity}/get`,
+        `/${domain}/${entity}/${domain === 'bob' ? 'submission-get' : 'get'}`,
         { subjectId: objectId },
       )
       assert.equal(readback.code, 0)
@@ -326,10 +339,10 @@ async function seedSaleOrderReferences(
       name: String(snapshot.name ?? snapshot.displayName ?? snapshot.legalName),
     }
   }
-  const operatingEntity = await submit('operating-entity', {
+  const operatingEntity = await auxiliary('operating-entity', {
     legalName: 'HTTP 经营主体',
     shortName: 'HTTP 主体',
-    legalIdentifier: '91310000MA1K123456',
+    legalIdentifier: `F${actorId.slice(-17)}`,
     registeredAddress: '',
     contactName: '',
     contactPhone: '',
@@ -339,37 +352,30 @@ async function seedSaleOrderReferences(
     invoiceBank: '',
     invoiceAccount: '',
     remark: '',
-    enabled: true,
   })
-  const employee = await submit('employee', {
+  const employee = await auxiliary('employee', {
     identityKind: 'PERSON',
     legalName: 'HTTP 销售员',
     displayName: 'HTTP 销售员',
-    legalIdentifier: 'HTTP-EMP',
+    legalIdentifier: `HTTP-EMP-${actorId}`,
     contactName: '',
     phone: '',
     address: '',
-    employeeCategory,
-    department,
-    position,
+    employeeCategoryId: employeeCategory.id,
+    departmentId: department.id,
+    positionId: position.id,
     employmentDate: '2026-09-04',
     workPhone: '',
     workEmail: '',
-    operatingEntity: {
-      objectId: operatingEntity.objectId,
-      approvalEntryId: operatingEntity.approvalEntryId,
-      code: operatingEntity.code,
-      name: operatingEntity.name,
-    },
+    operatingEntityId: operatingEntity.id,
     remark: '',
-    enabled: true,
   })
   const customerSubunitId = ulid()
   const customer = await submit('customer', {
     identityKind: 'OTHER',
     legalName: 'HTTP 客户',
     displayName: 'HTTP 客户',
-    legalIdentifier: 'HTTP-CUS',
+    legalIdentifier: `HTTP-CUS-${actorId}`,
     phone: '',
     email: '',
     address: '',
@@ -411,8 +417,7 @@ async function seedSaleOrderReferences(
         creditLimits: [],
         primarySalesAttribution: {
           type: 'INTERNAL_EMPLOYEE',
-          objectId: employee.objectId,
-          approvalEntryId: employee.approvalEntryId,
+          objectId: employee.id,
           code: employee.code,
           name: employee.name,
         },
@@ -422,7 +427,6 @@ async function seedSaleOrderReferences(
         enabled: true,
       },
     ],
-    enabled: true,
   })
   const product = await submit('product', {
     name: 'HTTP 产品',
@@ -472,42 +476,15 @@ async function seedSaleOrderReferences(
     remark: '',
     enabled: true,
   })
-  const warehouseSubjectId = ulid(),
-    warehouseEntryId = ulid()
-  const warehousePending = await warehouse.submit(
-    'submit-new',
-    {
-      subjectId: warehouseSubjectId,
-      submissionId: warehouseEntryId,
-      idempotencyKey: warehouseEntryId,
-      expectedLatestApprovedSubmissionId: null,
-      expectedLatestApprovedRevision: null,
-      snapshot: {
-        name: 'HTTP 仓库',
-        address: '',
-        contactName: '',
-        contactPhone: '',
-        managerEmployeeId: null,
-        managerEmployeeApprovalEntryId: null,
-        managerEmployeeCode: null,
-        managerEmployeeName: null,
-        remark: '',
-        enabled: true,
-      },
-    },
-    actor,
-    'wfl-http-warehouse-submit',
-  )
-  const warehouseApproved = await warehouse.review(
-    'approve',
-    {
-      subjectId: warehouseSubjectId,
-      submissionId: warehouseEntryId,
-      expectedRevision: warehousePending.revision,
-    },
-    { ...actor, id: reviewerId },
-    'wfl-http-warehouse-approve',
-  )
+  const warehouseCurrent = await auxiliary('warehouse', {
+    name: 'HTTP 仓库',
+    address: '',
+    contactName: '',
+    contactPhone: '',
+    managerEmployeeId: null,
+    remark: '',
+  })
+  const warehouseSubjectId = warehouseCurrent.id
   const facts = [
     {
       entity: 'customer-subunit',
@@ -518,20 +495,17 @@ async function seedSaleOrderReferences(
     {
       entity: 'operating-entity',
       field: 'operating-entity',
-      objectId: operatingEntity.objectId,
-      approvalEntryId: operatingEntity.approvalEntryId,
+      objectId: operatingEntity.id,
     },
     {
       entity: 'employee',
       field: 'salesperson',
-      objectId: employee.objectId,
-      approvalEntryId: employee.approvalEntryId,
+      objectId: employee.id,
     },
     {
       entity: 'warehouse',
       field: 'warehouse',
       objectId: warehouseSubjectId,
-      approvalEntryId: warehouseEntryId,
     },
     {
       entity: 'product',
@@ -558,53 +532,49 @@ async function seedSaleOrderReferences(
       position.id,
       dictionaryType.id,
       customerType.id,
+      operatingEntity.id,
+      employee.id,
+      warehouseSubjectId,
     ],
-    archiveSubjectIds: [
-      operatingEntity.objectId,
-      customer.objectId,
-      employee.objectId,
-      product.objectId,
-    ],
+    archiveSubjectIds: [customer.objectId, product.objectId],
     archiveApprovalEntryIds: [
-      operatingEntity.approvalEntryId,
       customer.approvalEntryId,
-      employee.approvalEntryId,
       product.approvalEntryId,
     ],
     warehouseSubjectId,
-    warehouseEntryId,
-    warehouseCode: warehouseApproved.code,
+    warehouseCode: warehouseCurrent.code,
   }
 }
 
 function saleOrderPayload(
   references: Awaited<ReturnType<typeof seedSaleOrderReferences>>,
 ): VouPayload {
-  const reference = (
-    field:
-      | 'customer-subunit'
-      | 'operating-entity'
-      | 'salesperson'
-      | 'warehouse'
-      | 'product',
-  ) => {
-    const fact = references.facts.find((item) => item.field === field)!
+  const versionedReference = (field: 'customer-subunit') => {
+    const fact = references.facts.find((item) => item.field === field)
+    if (!fact || !('approvalEntryId' in fact))
+      throw new Error(`missing versioned ${field} fixture`)
     return {
       objectId: fact.objectId,
       approvalEntryId: fact.approvalEntryId,
       selectionOrigin: 'CURRENT' as const,
     }
   }
+  const currentReference = (
+    field: 'operating-entity' | 'salesperson' | 'warehouse',
+  ) => {
+    const fact = references.facts.find((item) => item.field === field)!
+    return { objectId: fact.objectId }
+  }
   const product = references.facts.find((item) => item.field === 'product')!
   return {
     businessDate: '2026-09-04',
     currency: 'CNY',
     attachments: [],
-    customerSubunit: reference('customer-subunit'),
+    customerSubunit: versionedReference('customer-subunit'),
     paymentMethod: null,
-    operatingEntity: reference('operating-entity'),
-    salesperson: reference('salesperson'),
-    warehouse: reference('warehouse'),
+    operatingEntity: currentReference('operating-entity'),
+    salesperson: currentReference('salesperson'),
+    warehouse: currentReference('warehouse'),
     productLines: [
       {
         lineId: sourceOrderLineId,
@@ -621,13 +591,17 @@ function saleOrderPayload(
 test('ACC HTTP routes enforce session, CSRF, permissions, envelope, opening and period facts', async (context) => {
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
   const db = createDatabase(databaseUrl)
-  const config = loadConfig({ DATABASE_URL: databaseUrl })
+  const config = loadConfig({
+    DATABASE_URL: databaseUrl,
+    TARGET_DATABASE_SCOPE: process.env.TARGET_DATABASE_SCOPE,
+  })
   const acc = new AccService(db)
   const app = createApp({
     database: { ping: async () => undefined },
     session: new SessionService(db, config),
     config,
     acc,
+    opening: new VouOpeningService(db, acc),
   })
   let listening: (() => void) | undefined
   const started = new Promise<void>((resolve) => {
@@ -645,8 +619,8 @@ test('ACC HTTP routes enforce session, CSRF, permissions, envelope, opening and 
     '/acc/book/create',
     '/acc/book/query',
     '/acc/subject/create',
-    '/acc/opening/submit-new',
-    '/acc/opening/approve',
+    '/vou/opening/submit-new',
+    '/vou/opening/approve',
     '/acc/period/lock',
     '/acc/period/query',
     '/acc/period/unlock',
@@ -687,16 +661,23 @@ test('ACC HTTP routes enforce session, CSRF, permissions, envelope, opening and 
       }
       await db
         .deleteFrom('approval_events')
-        .where('domain', '=', 'acc')
+        .where('domain', '=', 'vou')
+        .where('subject_id', 'in', books)
         .execute()
       await db
         .deleteFrom('approval_entries')
-        .where('domain', '=', 'acc')
+        .where('domain', '=', 'vou')
+        .where('subject_id', 'in', books)
         .execute()
       if (books.length > 0) {
         await db
           .deleteFrom('acc_subjects')
           .where('book_id', 'in', books)
+          .execute()
+        await db
+          .deleteFrom('vou_idempotency')
+          .where('entity', '=', 'opening')
+          .where('document_id', 'in', books)
           .execute()
         await db.deleteFrom('acc_books').where('id', 'in', books).execute()
       }
@@ -811,7 +792,7 @@ test('ACC HTTP routes enforce session, CSRF, permissions, envelope, opening and 
   const malformedOpening = await post(
     origin,
     submitterSession,
-    '/acc/opening/submit-new',
+    '/vou/opening/submit-new',
     {
       bookId,
       submissionId: ulid(),
@@ -827,7 +808,7 @@ test('ACC HTTP routes enforce session, CSRF, permissions, envelope, opening and 
   const pending = await post(
     origin,
     submitterSession,
-    '/acc/opening/submit-new',
+    '/vou/opening/submit-new',
     {
       bookId,
       submissionId,
@@ -842,7 +823,7 @@ test('ACC HTTP routes enforce session, CSRF, permissions, envelope, opening and 
   const reviewWithoutScope = await post(
     origin,
     reviewerSession,
-    '/acc/opening/approve',
+    '/vou/opening/approve',
     { bookId, submissionId, expectedRevision: pending.data.approval.revision },
   )
   assert.equal(reviewWithoutScope.errorKey, 'acc_book_access_denied')
@@ -850,7 +831,7 @@ test('ACC HTTP routes enforce session, CSRF, permissions, envelope, opening and 
     id: submitter.id,
     permissions: ['/acc/book/save'],
   })
-  const approved = await post(origin, reviewerSession, '/acc/opening/approve', {
+  const approved = await post(origin, reviewerSession, '/vou/opening/approve', {
     bookId,
     submissionId,
     expectedRevision: pending.data.approval.revision,
@@ -875,563 +856,430 @@ test('ACC HTTP routes enforce session, CSRF, permissions, envelope, opening and 
   assert.equal(unlocked.data.locked, false)
 })
 
-test('WFL definition, current, trial, instance and six actions cross the authenticated HTTP seam', async (context) => {
-  assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
-  const db = createDatabase(databaseUrl)
-  const config = loadConfig({ DATABASE_URL: databaseUrl })
-  const runtime = await createNodeWflStarlark()
-  const acc = new AccService(db)
-  const aux = new AuxService(db)
-  const archives = new ArchiveService(db, { async validate() {} })
-  const warehouse = new WarehouseService(db)
-  let vou!: VouService
-  const port: WflVouPort = {
-    createChild: (...args) => vou.createChild(...args),
-    approveChild: (...args) => vou.approveChild(...args),
-    rejectChild: (...args) => vou.rejectChild(...args),
-    retryChild: (...args) => vou.retryChild(...args),
-    cancelChild: (...args) => vou.cancelChild(...args),
-  }
-  const wfl = new WflService(db, runtime, port)
-  vou = new VouService(db, { acc, wfl })
-  const errors: unknown[] = []
-  const app = createApp({
-    database: { ping: async () => undefined },
-    session: new SessionService(db, config),
-    management: new ManagementService(db, config),
-    config,
-    vou,
-    acc,
-    wfl,
-    archives,
-    aux,
-    warehouse,
-    logger: {
-      info() {},
-      error(entry) {
-        errors.push(entry)
-      },
-    },
-  })
-  let listening: (() => void) | undefined
-  const started = new Promise<void>((resolve) => {
-    listening = resolve
-  })
-  const server = serve(
-    { fetch: app.fetch, hostname: '127.0.0.1', port: 0 },
-    () => listening?.(),
-  )
-  await started
-  const address = server.address()
-  assert.ok(address && typeof address !== 'string')
-  const origin = `http://127.0.0.1:${address.port}`
-  const wflPaths = [
-    '/dcl/operating-entity/submit-new',
-    '/dcl/operating-entity/approve',
-    '/dcl/operating-entity/get',
-    '/dcl/product/submit-new',
-    '/dcl/product/approve',
-    '/dcl/product/get',
-    '/dcl/customer/submit-new',
-    '/dcl/customer/save-subunits',
-    '/dcl/customer/approve',
-    '/dcl/customer/get',
-    '/dcl/wfl-process-definition/submit-new',
-    '/dcl/wfl-process-definition/query',
-    '/dcl/wfl-process-definition/get',
-    '/dcl/wfl-process-definition/approve',
-    '/dcl/wfl-process-definition/reject',
-    '/dcl/wfl-process-definition/unreject',
-    '/dcl/wfl-process-definition/unapprove',
-    '/dcl/wfl-process-definition/enable',
-    '/dcl/wfl-process-definition/disable',
-    '/wfl/process-definition/trial',
-    '/wfl/process-definition/query',
-    '/wfl/process-definition/get',
-    '/wfl/process-instance/query',
-    '/wfl/process-instance/get',
-    '/wfl/process-instance/audit-history',
-    '/wfl/process-instance/open-document',
-    '/wfl/process-instance/create-child',
-    '/wfl/process-instance/approve-child',
-    '/wfl/process-instance/reject-child',
-    '/wfl/process-instance/retry-child',
-    '/wfl/process-instance/cancel-child',
-  ]
-  const permissionFixture = await seedPermissions(db, wflPaths)
-  const users: Array<{ id: string; roleId: string }> = []
-  let refs: Awaited<ReturnType<typeof seedSaleOrderReferences>> | undefined
-  let subjectId: string | undefined
-  let documentIds: string[] = []
-  context.after(async () => {
-    await new Promise<void>((resolve, reject) =>
-      server.close((error) => (error ? reject(error) : resolve())),
-    )
-    try {
-      if (subjectId) {
-        const instances = await db
-          .selectFrom('wfl_instances')
-          .select('id')
-          .where('definition_subject_id', '=', subjectId)
-          .execute()
-        if (instances.length > 0)
-          await db
-            .deleteFrom('wfl_instances')
-            .where(
-              'id',
-              'in',
-              instances.map((item) => item.id),
-            )
-            .execute()
-        await db
-          .deleteFrom('approval_events')
-          .where('subject_id', '=', subjectId)
-          .execute()
-        await db
-          .deleteFrom('approval_entries')
-          .where('subject_id', '=', subjectId)
-          .execute()
-        await db
-          .deleteFrom('dcl_subjects')
-          .where('id', '=', subjectId)
-          .execute()
-      }
-      if (documentIds.length > 0) {
-        await db
-          .deleteFrom('vou_idempotency')
-          .where('document_id', 'in', documentIds)
-          .execute()
-        await db
-          .deleteFrom('approval_events')
-          .where('subject_id', 'in', documentIds)
-          .execute()
-        await db
-          .deleteFrom('approval_entries')
-          .where('subject_id', 'in', documentIds)
-          .execute()
-        await db
-          .deleteFrom('vou_documents')
-          .where('id', 'in', documentIds)
-          .execute()
-      }
-      if (refs) {
-        await db
-          .deleteFrom('dcl_archive_idempotency')
-          .where('subject_id', 'in', refs.archiveSubjectIds)
-          .execute()
-        await db
-          .deleteFrom('dcl_warehouse_idempotency')
-          .where('subject_id', '=', refs.warehouseSubjectId)
-          .execute()
-        await db
-          .deleteFrom('approval_events')
-          .where('entry_id', 'in', [
-            ...refs.archiveApprovalEntryIds,
-            refs.warehouseEntryId,
-          ])
-          .execute()
-        await db
-          .deleteFrom('approval_entries')
-          .where('id', 'in', [
-            ...refs.archiveApprovalEntryIds,
-            refs.warehouseEntryId,
-          ])
-          .execute()
-        await db
-          .deleteFrom('dcl_subjects')
-          .where('id', 'in', refs.archiveSubjectIds)
-          .execute()
-        await db
-          .deleteFrom('dcl_subjects')
-          .where('id', 'in', [
-            ...refs.archiveSubjectIds,
-            refs.warehouseSubjectId,
-          ])
-          .execute()
-        await db
-          .deleteFrom('aux_objects')
-          .where('id', 'in', refs.auxiliaryIds)
-          .execute()
-      }
-      if (users.length > 0) {
-        await db
-          .deleteFrom('app_sessions')
-          .where(
-            'user_id',
-            'in',
-            users.map((user) => user.id),
-          )
-          .execute()
-        await db
-          .deleteFrom('app_user_roles')
-          .where(
-            'user_id',
-            'in',
-            users.map((user) => user.id),
-          )
-          .execute()
-        await db
-          .deleteFrom('app_role_permissions')
-          .where(
-            'role_id',
-            'in',
-            users.map((user) => user.roleId),
-          )
-          .execute()
-        await db
-          .deleteFrom('app_roles')
-          .where(
-            'id',
-            'in',
-            users.map((user) => user.roleId),
-          )
-          .execute()
-        await db
-          .deleteFrom('app_users')
-          .where(
-            'id',
-            'in',
-            users.map((user) => user.id),
-          )
-          .execute()
-      }
-      if (permissionFixture.createdIds.length > 0)
-        await db
-          .deleteFrom('app_permissions')
-          .where('id', 'in', permissionFixture.createdIds)
-          .execute()
-    } finally {
-      await db.destroy()
+test('WFL definition, current, trial, instance and six actions cross the authenticated HTTP seam', async (context) =>
+  withWflDatabase(async (db) => {
+    assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
+    const config = loadConfig({
+      DATABASE_URL: databaseUrl,
+      TARGET_DATABASE_SCOPE: process.env.TARGET_DATABASE_SCOPE,
+    })
+    const runtime = await createNodeWflStarlark()
+    const acc = new AccService(db)
+    const aux = new AuxService(db)
+    let vou!: VouService
+    const port: WflVouPort = {
+      createChild: (...args) => vou.createChild(...args),
+      approveChild: (...args) => vou.approveChild(...args),
+      rejectChild: (...args) => vou.rejectChild(...args),
+      retryChild: (...args) => vou.retryChild(...args),
+      cancelChild: (...args) => vou.cancelChild(...args),
     }
-  })
-  const allPermissionIds = (
-    await db.selectFrom('app_permissions').select('id').execute()
-  ).map((item) => item.id)
-  const allPermissions = (
-    await db.selectFrom('app_permissions').select('path').execute()
-  ).map((item) => item.path)
-  const submitter = await createPrincipal(db, 'wfl-submit', allPermissionIds)
-  const reviewer = await createPrincipal(db, 'wfl-review', allPermissionIds)
-  users.push(submitter, reviewer)
-  const submitterSession = await signin(
-    origin,
-    submitter.username,
-    submitter.password,
-  )
-  const reviewerSession = await signin(
-    origin,
-    reviewer.username,
-    reviewer.password,
-  )
-  const submitterActor: Actor = {
-    id: submitter.id,
-    permissions: allPermissions,
-  }
-  const reviewerActor: Actor = { id: reviewer.id, permissions: allPermissions }
-  refs = await seedSaleOrderReferences(
-    archives,
-    warehouse,
-    aux,
-    submitter.id,
-    reviewer.id,
-    origin,
-    submitterSession,
-    reviewerSession,
-  )
-  const rootDocumentId = ulid(),
-    rootSubmissionId = ulid()
-  documentIds = [rootDocumentId]
-  await vou.submit(
-    'sale-order',
-    'submit-new',
-    {
-      documentId: rootDocumentId,
-      submissionId: rootSubmissionId,
-      idempotencyKey: rootSubmissionId,
-      expectedRevision: null,
-      payload: saleOrderPayload(refs),
-    },
-    submitterActor,
-    'wfl-http-root-submit',
-  )
-  subjectId = ulid()
-  const definitionEntryId = ulid()
-  const beforeTrial = await db
-    .selectFrom('vou_documents')
-    .select((builder) => builder.fn.countAll<string>().as('count'))
-    .executeTakeFirstOrThrow()
-  const pending = await post(
-    origin,
-    submitterSession,
-    '/dcl/wfl-process-definition/submit-new',
-    {
-      subjectId,
-      submissionId: definitionEntryId,
-      idempotencyKey: definitionEntryId,
-      expectedLatestApprovedSubmissionId: null,
-      expectedLatestApprovedRevision: null,
-      script: wflScript,
-      trialDocument: { entity: 'sale-order', documentId: rootDocumentId },
-    },
-  )
-  assert.equal(pending.data.status, 'PENDING')
-  assert.deepEqual(pending.data.availableRuntimeActions, [])
-  assert.equal(
-    (
-      await post(
-        origin,
-        submitterSession,
-        '/dcl/wfl-process-definition/query',
-        {},
+    const wfl = new WflService(db, runtime, port)
+    vou = new VouService(db, { acc, wfl })
+    const errors: unknown[] = []
+    const app = createApp({
+      database: { ping: async () => undefined },
+      session: new SessionService(db, config),
+      management: new ManagementService(db, config),
+      config,
+      vou,
+      acc,
+      opening: new VouOpeningService(db, acc),
+      wfl,
+      bobArchives: new BobArchiveService(db),
+      aux,
+      logger: {
+        info() {},
+        error(entry) {
+          errors.push(entry)
+        },
+      },
+    })
+    let listening: (() => void) | undefined
+    const started = new Promise<void>((resolve) => {
+      listening = resolve
+    })
+    const server = serve(
+      { fetch: app.fetch, hostname: '127.0.0.1', port: 0 },
+      () => listening?.(),
+    )
+    await started
+    const address = server.address()
+    assert.ok(address && typeof address !== 'string')
+    const origin = `http://127.0.0.1:${address.port}`
+    const wflPaths = [
+      '/bob/product/submit-new',
+      '/bob/product/approve',
+      '/bob/product/submission-get',
+      '/bob/customer/submit-new',
+      '/bob/customer/save-subunits',
+      '/bob/customer/approve',
+      '/bob/customer/get',
+      '/bob/customer/submission-get',
+      '/wfl/process-definition/submit-new',
+      '/wfl/process-definition/submission-query',
+      '/wfl/process-definition/submission-get',
+      '/wfl/process-definition/approve',
+      '/wfl/process-definition/reject',
+      '/wfl/process-definition/unreject',
+      '/wfl/process-definition/unapprove',
+      '/wfl/process-definition/enable',
+      '/wfl/process-definition/disable',
+      '/wfl/process-definition/trial',
+      '/wfl/process-definition/query',
+      '/wfl/process-definition/get',
+      '/wfl/process-instance/query',
+      '/wfl/process-instance/get',
+      '/wfl/process-instance/audit-history',
+      '/wfl/process-instance/open-document',
+      '/wfl/process-instance/create-child',
+      '/wfl/process-instance/approve-child',
+      '/wfl/process-instance/reject-child',
+      '/wfl/process-instance/retry-child',
+      '/wfl/process-instance/cancel-child',
+    ]
+    await seedPermissions(db, wflPaths)
+    const users: Array<{ id: string; roleId: string }> = []
+    let refs: Awaited<ReturnType<typeof seedSaleOrderReferences>> | undefined
+    let subjectId: string | undefined
+    let documentIds: string[] = []
+    context.after(async () => {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
       )
-    ).data.items[0].openCandidate.submissionId,
-    definitionEntryId,
-  )
-  const trial = await post(
-    origin,
-    submitterSession,
-    '/wfl/process-definition/trial',
-    {
-      approvalEntryId: definitionEntryId,
-      document: { entity: 'sale-order', documentId: rootDocumentId },
-    },
-  )
-  assert.equal(trial.data.graph.code, 'http-flow')
-  const afterTrial = await db
-    .selectFrom('vou_documents')
-    .select((builder) => builder.fn.countAll<string>().as('count'))
-    .executeTakeFirstOrThrow()
-  assert.equal(afterTrial.count, beforeTrial.count)
-  const rejected = await post(
-    origin,
-    reviewerSession,
-    '/dcl/wfl-process-definition/reject',
-    {
-      subjectId,
-      submissionId: definitionEntryId,
-      expectedRevision: pending.data.revision,
-      reason: 'HTTP 审核驳回',
-    },
-  )
-  assert.equal(rejected.data.status, 'REJECTED')
-  const reopened = await post(
-    origin,
-    reviewerSession,
-    '/dcl/wfl-process-definition/unreject',
-    {
-      subjectId,
-      submissionId: definitionEntryId,
-      expectedRevision: rejected.data.revision,
-    },
-  )
-  assert.equal(reopened.data.status, 'PENDING')
-  const approved = await post(
-    origin,
-    reviewerSession,
-    '/dcl/wfl-process-definition/approve',
-    {
-      subjectId,
-      submissionId: definitionEntryId,
-      expectedRevision: reopened.data.revision,
-    },
-  )
-  assert.equal(approved.data.status, 'APPROVED')
-  assert.deepEqual(approved.data.availableRuntimeActions, ['enable'])
-  const enabled = await post(
-    origin,
-    reviewerSession,
-    '/dcl/wfl-process-definition/enable',
-    {
-      subjectId,
-      approvalEntryId: definitionEntryId,
-      expectedApprovalRevision: approved.data.revision,
-      expectedRuntimeRevision: null,
-    },
-  )
-  assert.equal(enabled.data.enabled, true)
-  const enabledDefinition = await post(
-    origin,
-    reviewerSession,
-    '/dcl/wfl-process-definition/get',
-    { subjectId },
-  )
-  assert.deepEqual(enabledDefinition.data.availableRuntimeActions, ['disable'])
-  assert.equal(
-    (
-      await post(origin, reviewerSession, '/wfl/process-definition/query', {
+    })
+    const allPermissionIds = (
+      await db.selectFrom('app_permissions').select('id').execute()
+    ).map((item) => item.id)
+    const allPermissions = (
+      await db.selectFrom('app_permissions').select('path').execute()
+    ).map((item) => item.path)
+    const submitter = await createPrincipal(db, 'wfl-submit', allPermissionIds)
+    const reviewer = await createPrincipal(db, 'wfl-review', allPermissionIds)
+    users.push(submitter, reviewer)
+    const submitterSession = await signin(
+      origin,
+      submitter.username,
+      submitter.password,
+    )
+    const reviewerSession = await signin(
+      origin,
+      reviewer.username,
+      reviewer.password,
+    )
+    const submitterActor: Actor = {
+      id: submitter.id,
+      permissions: allPermissions,
+    }
+    const reviewerActor: Actor = {
+      id: reviewer.id,
+      permissions: allPermissions,
+    }
+    refs = await seedSaleOrderReferences(
+      new BobArchiveService(db),
+      aux,
+      submitter.id,
+      reviewer.id,
+      origin,
+      submitterSession,
+      reviewerSession,
+    )
+    const rootDocumentId = ulid(),
+      rootSubmissionId = ulid()
+    documentIds = [rootDocumentId]
+    await vou.submit(
+      'sale-order',
+      'submit-new',
+      {
+        documentId: rootDocumentId,
+        submissionId: rootSubmissionId,
+        idempotencyKey: rootSubmissionId,
+        expectedRevision: null,
+        payload: saleOrderPayload(refs),
+      },
+      submitterActor,
+      'wfl-http-root-submit',
+    )
+    subjectId = ulid()
+    const definitionEntryId = ulid()
+    const beforeTrial = await db
+      .selectFrom('vou_documents')
+      .select((builder) => builder.fn.countAll<string>().as('count'))
+      .executeTakeFirstOrThrow()
+    const pending = await post(
+      origin,
+      submitterSession,
+      '/wfl/process-definition/submit-new',
+      {
+        subjectId,
+        submissionId: definitionEntryId,
+        idempotencyKey: definitionEntryId,
+        expectedLatestApprovedSubmissionId: null,
+        expectedLatestApprovedRevision: null,
+        script: wflScript,
+        trialDocument: { entity: 'sale-order', documentId: rootDocumentId },
+      },
+    )
+    assert.equal(pending.data.status, 'PENDING')
+    assert.deepEqual(pending.data.availableRuntimeActions, [])
+    assert.equal(
+      (
+        await post(
+          origin,
+          submitterSession,
+          '/wfl/process-definition/submission-query',
+          {},
+        )
+      ).data.items[0].openCandidate.submissionId,
+      definitionEntryId,
+    )
+    const trial = await post(
+      origin,
+      submitterSession,
+      '/wfl/process-definition/trial',
+      {
+        approvalEntryId: definitionEntryId,
+        document: { entity: 'sale-order', documentId: rootDocumentId },
+      },
+    )
+    assert.equal(trial.data.graph.code, 'http-flow')
+    const afterTrial = await db
+      .selectFrom('vou_documents')
+      .select((builder) => builder.fn.countAll<string>().as('count'))
+      .executeTakeFirstOrThrow()
+    assert.equal(afterTrial.count, beforeTrial.count)
+    const rejected = await post(
+      origin,
+      reviewerSession,
+      '/wfl/process-definition/reject',
+      {
+        subjectId,
+        submissionId: definitionEntryId,
+        expectedRevision: pending.data.revision,
+        reason: 'HTTP 审核驳回',
+      },
+    )
+    assert.equal(rejected.data.status, 'REJECTED')
+    const reopened = await post(
+      origin,
+      reviewerSession,
+      '/wfl/process-definition/unreject',
+      {
+        subjectId,
+        submissionId: definitionEntryId,
+        expectedRevision: rejected.data.revision,
+      },
+    )
+    assert.equal(reopened.data.status, 'PENDING')
+    const approved = await post(
+      origin,
+      reviewerSession,
+      '/wfl/process-definition/approve',
+      {
+        subjectId,
+        submissionId: definitionEntryId,
+        expectedRevision: reopened.data.revision,
+      },
+    )
+    assert.equal(approved.data.status, 'APPROVED')
+    assert.deepEqual(approved.data.availableRuntimeActions, ['enable'])
+    const enabled = await post(
+      origin,
+      reviewerSession,
+      '/wfl/process-definition/enable',
+      {
+        subjectId,
+        approvalEntryId: definitionEntryId,
+        expectedApprovalRevision: approved.data.revision,
+        expectedRuntimeRevision: null,
+      },
+    )
+    assert.equal(enabled.data.enabled, true)
+    const enabledDefinition = await post(
+      origin,
+      reviewerSession,
+      '/wfl/process-definition/submission-get',
+      { subjectId },
+    )
+    assert.deepEqual(enabledDefinition.data.availableRuntimeActions, [
+      'disable',
+    ])
+    assert.equal(
+      (
+        await post(origin, reviewerSession, '/wfl/process-definition/query', {
+          page: 1,
+          pageSize: 20,
+        })
+      ).data.items[0].approvalEntryId,
+      definitionEntryId,
+    )
+    assert.equal(
+      (
+        await post(origin, reviewerSession, '/wfl/process-definition/get', {
+          code: 'http-flow',
+        })
+      ).data.approvalEntryId,
+      definitionEntryId,
+    )
+    await vou.review(
+      'sale-order',
+      'approve',
+      {
+        documentId: rootDocumentId,
+        submissionId: rootSubmissionId,
+        expectedRevision: '1',
+      },
+      reviewerActor,
+      'wfl-http-root-approve',
+    )
+    const blockedUnapprove = await post(
+      origin,
+      reviewerSession,
+      '/wfl/process-definition/unapprove',
+      {
+        subjectId,
+        submissionId: definitionEntryId,
+        expectedRevision: approved.data.revision,
+        reason: 'HTTP 实例 blocker',
+      },
+    )
+    assert.equal(blockedUnapprove.errorKey, 'wfl_definition_in_use')
+    let instance = (
+      await post(origin, submitterSession, '/wfl/process-instance/query', {
         page: 1,
         pageSize: 20,
-      })
-    ).data.items[0].approvalEntryId,
-    definitionEntryId,
-  )
-  assert.equal(
-    (
-      await post(origin, reviewerSession, '/wfl/process-definition/get', {
         code: 'http-flow',
       })
-    ).data.approvalEntryId,
-    definitionEntryId,
-  )
-  await vou.review(
-    'sale-order',
-    'approve',
-    {
-      documentId: rootDocumentId,
-      submissionId: rootSubmissionId,
-      expectedRevision: '1',
-    },
-    reviewerActor,
-    'wfl-http-root-approve',
-  )
-  const blockedUnapprove = await post(
-    origin,
-    reviewerSession,
-    '/dcl/wfl-process-definition/unapprove',
-    {
-      subjectId,
-      submissionId: definitionEntryId,
-      expectedRevision: approved.data.revision,
-      reason: 'HTTP 实例 blocker',
-    },
-  )
-  assert.equal(blockedUnapprove.errorKey, 'wfl_definition_in_use')
-  let instance = (
-    await post(origin, submitterSession, '/wfl/process-instance/query', {
-      page: 1,
-      pageSize: 20,
-      code: 'http-flow',
-    })
-  ).data.items[0]
-  assert.equal(instance.approvalEntryId, definitionEntryId)
-  const root = instance.nodes.find(
-    (node: { nodeKey: string }) => node.nodeKey === 'root',
-  )
-  assert.ok(root)
-  await post(origin, reviewerSession, '/wfl/process-instance/action', {
-    processId: instance.processId,
-    nodeId: root.nodeId,
-    action: 'OPEN_DOCUMENT',
-  })
-  const createdOutbound = await post(
-    origin,
-    submitterSession,
-    '/wfl/process-instance/action',
-    {
+    ).data.items[0]
+    assert.equal(instance.approvalEntryId, definitionEntryId)
+    const root = instance.nodes.find(
+      (node: { nodeKey: string }) => node.nodeKey === 'root',
+    )
+    assert.ok(root)
+    await post(origin, reviewerSession, '/wfl/process-instance/action', {
       processId: instance.processId,
       nodeId: root.nodeId,
-      action: 'CREATE_CHILD',
-      targetNodeKey: 'outbound',
-      requestKey: 'http-wfl-request-0001',
-    },
-  )
-  assert.equal(createdOutbound.errorKey, '', JSON.stringify(errors))
-  instance = createdOutbound.data
-  const outbound = instance.nodes.find(
-    (node: { nodeKey: string }) => node.nodeKey === 'outbound',
-  )
-  assert.ok(outbound)
-  documentIds.push(outbound.documentId)
-  instance = (
-    await post(origin, reviewerSession, '/wfl/process-instance/action', {
-      processId: instance.processId,
-      nodeId: outbound.nodeId,
-      action: 'APPROVE_CHILD',
-      expectedRevision: outbound.revision,
+      action: 'OPEN_DOCUMENT',
     })
-  ).data
-  const approvedOutbound = instance.nodes.find(
-    (node: { nodeKey: string }) => node.nodeKey === 'outbound',
-  )
-  instance = (
-    await post(origin, submitterSession, '/wfl/process-instance/action', {
-      processId: instance.processId,
-      nodeId: approvedOutbound.nodeId,
-      action: 'CREATE_CHILD',
-      targetNodeKey: 'delivery',
-      requestKey: 'http-wfl-request-0002',
-    })
-  ).data
-  let delivery = instance.nodes.find(
-    (node: { nodeKey: string }) => node.nodeKey === 'delivery',
-  )
-  assert.ok(delivery)
-  documentIds.push(delivery.documentId)
-  instance = (
-    await post(origin, reviewerSession, '/wfl/process-instance/action', {
-      processId: instance.processId,
-      nodeId: delivery.nodeId,
-      action: 'REJECT_CHILD',
-      expectedRevision: delivery.revision,
-      reason: 'HTTP 驳回',
-    })
-  ).data
-  delivery = instance.nodes.find(
-    (node: { nodeKey: string }) => node.nodeKey === 'delivery',
-  )
-  instance = (
-    await post(origin, reviewerSession, '/wfl/process-instance/action', {
-      processId: instance.processId,
-      nodeId: delivery.nodeId,
-      action: 'RETRY_CHILD',
-      expectedRevision: delivery.revision,
-    })
-  ).data
-  delivery = instance.nodes.find(
-    (node: { nodeKey: string }) => node.nodeKey === 'delivery',
-  )
-  instance = (
-    await post(origin, reviewerSession, '/wfl/process-instance/action', {
-      processId: instance.processId,
-      nodeId: delivery.nodeId,
-      action: 'REJECT_CHILD',
-      expectedRevision: delivery.revision,
-      reason: 'HTTP 取消前驳回',
-    })
-  ).data
-  delivery = instance.nodes.find(
-    (node: { nodeKey: string }) => node.nodeKey === 'delivery',
-  )
-  const cancelled = await post(
-    origin,
-    submitterSession,
-    '/wfl/process-instance/action',
-    {
-      processId: instance.processId,
-      nodeId: delivery.nodeId,
-      action: 'CANCEL_CHILD',
-      expectedRevision: delivery.revision,
-    },
-  )
-  assert.equal(cancelled.errorKey, '', JSON.stringify(errors))
-  const audit = await post(
-    origin,
-    submitterSession,
-    '/wfl/process-instance/audit-history',
-    { processId: instance.processId },
-  )
-  assert.deepEqual(
-    audit.data
-      .map((item: { action: string }) => item.action)
-      .filter((action: string) =>
-        [
-          'OPEN_DOCUMENT',
-          'CREATE_CHILD',
-          'APPROVE_CHILD',
-          'REJECT_CHILD',
-          'RETRY_CHILD',
-          'CANCEL_CHILD',
-        ].includes(action),
-      ),
-    [
-      'OPEN_DOCUMENT',
-      'CREATE_CHILD',
-      'APPROVE_CHILD',
-      'CREATE_CHILD',
-      'REJECT_CHILD',
-      'RETRY_CHILD',
-      'REJECT_CHILD',
-      'CANCEL_CHILD',
-    ],
-  )
-})
+    const createdOutbound = await post(
+      origin,
+      submitterSession,
+      '/wfl/process-instance/action',
+      {
+        processId: instance.processId,
+        nodeId: root.nodeId,
+        action: 'CREATE_CHILD',
+        targetNodeKey: 'outbound',
+        requestKey: 'http-wfl-request-0001',
+      },
+    )
+    assert.equal(createdOutbound.errorKey, '', JSON.stringify(errors))
+    instance = createdOutbound.data
+    const outbound = instance.nodes.find(
+      (node: { nodeKey: string }) => node.nodeKey === 'outbound',
+    )
+    assert.ok(outbound)
+    documentIds.push(outbound.documentId)
+    instance = (
+      await post(origin, reviewerSession, '/wfl/process-instance/action', {
+        processId: instance.processId,
+        nodeId: outbound.nodeId,
+        action: 'APPROVE_CHILD',
+        expectedRevision: outbound.revision,
+      })
+    ).data
+    const approvedOutbound = instance.nodes.find(
+      (node: { nodeKey: string }) => node.nodeKey === 'outbound',
+    )
+    instance = (
+      await post(origin, submitterSession, '/wfl/process-instance/action', {
+        processId: instance.processId,
+        nodeId: approvedOutbound.nodeId,
+        action: 'CREATE_CHILD',
+        targetNodeKey: 'delivery',
+        requestKey: 'http-wfl-request-0002',
+      })
+    ).data
+    let delivery = instance.nodes.find(
+      (node: { nodeKey: string }) => node.nodeKey === 'delivery',
+    )
+    assert.ok(delivery)
+    documentIds.push(delivery.documentId)
+    instance = (
+      await post(origin, reviewerSession, '/wfl/process-instance/action', {
+        processId: instance.processId,
+        nodeId: delivery.nodeId,
+        action: 'REJECT_CHILD',
+        expectedRevision: delivery.revision,
+        reason: 'HTTP 驳回',
+      })
+    ).data
+    delivery = instance.nodes.find(
+      (node: { nodeKey: string }) => node.nodeKey === 'delivery',
+    )
+    instance = (
+      await post(origin, reviewerSession, '/wfl/process-instance/action', {
+        processId: instance.processId,
+        nodeId: delivery.nodeId,
+        action: 'RETRY_CHILD',
+        expectedRevision: delivery.revision,
+      })
+    ).data
+    delivery = instance.nodes.find(
+      (node: { nodeKey: string }) => node.nodeKey === 'delivery',
+    )
+    instance = (
+      await post(origin, reviewerSession, '/wfl/process-instance/action', {
+        processId: instance.processId,
+        nodeId: delivery.nodeId,
+        action: 'REJECT_CHILD',
+        expectedRevision: delivery.revision,
+        reason: 'HTTP 取消前驳回',
+      })
+    ).data
+    delivery = instance.nodes.find(
+      (node: { nodeKey: string }) => node.nodeKey === 'delivery',
+    )
+    const cancelled = await post(
+      origin,
+      submitterSession,
+      '/wfl/process-instance/action',
+      {
+        processId: instance.processId,
+        nodeId: delivery.nodeId,
+        action: 'CANCEL_CHILD',
+        expectedRevision: delivery.revision,
+      },
+    )
+    assert.equal(cancelled.errorKey, '', JSON.stringify(errors))
+    const audit = await post(
+      origin,
+      submitterSession,
+      '/wfl/process-instance/audit-history',
+      { processId: instance.processId },
+    )
+    assert.deepEqual(
+      audit.data
+        .map((item: { action: string }) => item.action)
+        .filter((action: string) =>
+          [
+            'OPEN_DOCUMENT',
+            'CREATE_CHILD',
+            'APPROVE_CHILD',
+            'REJECT_CHILD',
+            'RETRY_CHILD',
+            'CANCEL_CHILD',
+          ].includes(action),
+        ),
+      [
+        'OPEN_DOCUMENT',
+        'CREATE_CHILD',
+        'APPROVE_CHILD',
+        'CREATE_CHILD',
+        'REJECT_CHILD',
+        'RETRY_CHILD',
+        'REJECT_CHILD',
+        'CANCEL_CHILD',
+      ],
+    )
+  }))

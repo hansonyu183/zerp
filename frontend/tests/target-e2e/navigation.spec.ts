@@ -40,7 +40,6 @@ test('all authorized resources have one menu entry and unregistered pages send n
     ),
   ].sort()
   expect(expected).toContain('/bob/customer')
-  expect(expected).toContain('/dcl/customer')
   expect(expected).toContain('/app/user')
   const drawer = page.locator('.v-navigation-drawer')
   for (const group of await drawer
@@ -53,24 +52,8 @@ test('all authorized resources have one menu entry and unregistered pages send n
       elements.map((element) => element.getAttribute('href')!).sort(),
     )
   expect(links).toEqual(expected)
-  for (const path of [
-    '/bob/customer',
-    '/dcl/customer',
-    '/acc/opening',
-    '/vou/sale-order',
-  ]) {
-    const closedGroups = drawer.locator(
-      '.v-list-group:not(.v-list-group--open) > .v-list-group__header',
-    )
-    while (await closedGroups.count()) await closedGroups.first().click()
-    await drawer.locator(`a[href="${path}"]`).click()
-    await expect(page.getByTestId('business-unimplemented')).toBeVisible()
-    await expect(page.getByTestId('business-unimplemented')).toContainText(
-      '功能尚未实现',
-    )
-    await page.reload()
-    await expect(page.getByTestId('business-unimplemented')).toBeVisible()
-  }
+  expect(links).not.toContain('/acc/opening')
+  expect(links).toContain('/vou/opening')
   await page.goto('/app/no-such-resource')
   await expect(page.getByText('无权访问', { exact: true })).toBeVisible()
   expect(businessRequests).toEqual([])
@@ -121,7 +104,7 @@ test('navigation and Host retain the shell at desktop and 390px in both themes',
     process.cwd(),
     '..',
     '.scratch',
-    'issue-381-navigation',
+    'issue-405-navigation',
   )
   mkdirSync(directory, { recursive: true })
   for (const width of [1280, 390]) {
@@ -132,7 +115,10 @@ test('navigation and Host retain the shell at desktop and 390px in both themes',
       const page = await context.newPage()
       await signIn(page)
       await page.goto('/bob/customer')
-      await expect(page.getByTestId('business-unimplemented')).toBeVisible()
+      await expect(
+        page.getByRole('button', { name: '新增客户', exact: true }),
+      ).toBeVisible()
+      await expect(page.getByRole('table')).toBeVisible()
       for (const theme of ['light', 'dark']) {
         if (theme === 'dark') await page.getByLabel('切换深色模式').click()
         await expect(page.locator('.topbar')).toBeVisible()

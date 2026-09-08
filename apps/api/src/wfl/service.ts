@@ -2,7 +2,6 @@ import { createHash } from 'node:crypto'
 
 import {
   availableApprovalActions,
-  decideApproval,
   type ApprovalAction,
   type ApprovalActor,
   type ApprovalEntry,
@@ -16,6 +15,9 @@ import type {
 } from '@zerp/wfl-starlark'
 import { sql, type Kysely, type Transaction } from 'kysely'
 import { ulid } from 'ulid'
+
+import { ApprovalPersistence } from '../platform/approval.ts'
+import { VersionedArchives } from '../platform/versioned-archives.ts'
 
 import type { DB, JsonValue } from '../db/generated.ts'
 import type {
@@ -81,7 +83,7 @@ export function availableWflDefinitionRuntimeActions(
   if (definition.status !== 'APPROVED' || !definition.latestApproved) return []
   const action = definition.enabled ? 'disable' : 'enable'
   return actor.trusted === true ||
-    actor.permissions.includes(`/dcl/wfl-process-definition/${action}`)
+    actor.permissions.includes(`/wfl/process-definition/${action}`)
     ? [action]
     : []
 }
@@ -94,7 +96,7 @@ export function canDeleteWflDefinition(
     (definition.status === 'PENDING' || definition.status === 'REJECTED') &&
     (actor.trusted === true || definition.submittedBy === actor.id) &&
     (actor.trusted === true ||
-      actor.permissions.includes('/dcl/wfl-process-definition/delete'))
+      actor.permissions.includes('/wfl/process-definition/delete'))
   )
 }
 
@@ -290,8 +292,8 @@ function approvalEntry(row: {
   const status = row.status as ApprovalStatus
   return {
     id: row.id,
-    domain: 'dcl',
-    entity: 'wfl-process-definition',
+    domain: 'wfl',
+    entity: 'process-definition',
     subjectId: row.subject_id,
     versionNo: row.version_no,
     status,
@@ -327,6 +329,8 @@ function approvalEntry(row: {
 
 export class WflService implements PlanExecutor<WflApplicationPlan> {
   private readonly db: Kysely<DB>
+  private readonly approval = new ApprovalPersistence()
+  private readonly versioning = new VersionedArchives()
   private readonly runtime: WflStarlark
   private readonly vouPort: WflVouPort
 
@@ -345,13 +349,13 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
     page: number
     pageSize: number
   }> {
-    requirePermission(actor, '/dcl/wfl-process-definition/query')
+    requirePermission(actor, '/wfl/process-definition/submission-query')
     const rows = await this.db
       .selectFrom('approval_entries as e')
-      .innerJoin('dcl_subjects as s', 's.id', 'e.subject_id')
+      .innerJoin('wfl_definitions as s', 's.id', 'e.subject_id')
       .select(['e.id', 'e.subject_id', 'e.status', 'e.version_no', 's.code'])
-      .where('e.domain', '=', 'dcl')
-      .where('e.entity', '=', 'wfl-process-definition')
+      .where('e.domain', '=', 'wfl')
+      .where('e.entity', '=', 'process-definition')
       .orderBy('s.code', 'asc')
       .orderBy('e.version_no', 'desc')
       .execute()
@@ -415,12 +419,12 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
     actor: ApprovalActor,
     approvalEntryId?: string,
   ): Promise<WflDefinitionView> {
-    requirePermission(actor, '/dcl/wfl-process-definition/get')
+    requirePermission(actor, '/wfl/process-definition/submission-get')
     let query = this.db
       .selectFrom('approval_entries')
       .select('id')
-      .where('domain', '=', 'dcl')
-      .where('entity', '=', 'wfl-process-definition')
+      .where('domain', '=', 'wfl')
+      .where('entity', '=', 'process-definition')
       .where('subject_id', '=', subjectId)
     if (approvalEntryId) query = query.where('id', '=', approvalEntryId)
     else
@@ -438,12 +442,12 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
     subjectId: string,
     actor: ApprovalActor,
   ): Promise<WflDefinitionView[]> {
-    requirePermission(actor, '/dcl/wfl-process-definition/versions')
+    requirePermission(actor, '/wfl/process-definition/versions')
     const rows = await this.db
       .selectFrom('approval_entries')
       .select('id')
-      .where('domain', '=', 'dcl')
-      .where('entity', '=', 'wfl-process-definition')
+      .where('domain', '=', 'wfl')
+      .where('entity', '=', 'process-definition')
       .where('subject_id', '=', subjectId)
       .orderBy('version_no', 'desc')
       .execute()
@@ -456,12 +460,12 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
     subjectId: string,
     actor: ApprovalActor,
   ): Promise<WflDefinitionAuditView[]> {
-    requirePermission(actor, '/dcl/wfl-process-definition/audit-history')
+    requirePermission(actor, '/wfl/process-definition/audit-history')
     const rows = await this.db
       .selectFrom('approval_events')
       .selectAll()
-      .where('domain', '=', 'dcl')
-      .where('entity', '=', 'wfl-process-definition')
+      .where('domain', '=', 'wfl')
+      .where('entity', '=', 'process-definition')
       .where('subject_id', '=', subjectId)
       .orderBy('created_at', 'asc')
       .orderBy('id', 'asc')
@@ -487,8 +491,12 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
     actor: ApprovalActor,
     requestId: string,
   ): Promise<{ submissionId: string; deleted: true }> {
-    requirePermission(actor, '/dcl/wfl-process-definition/delete')
+    requirePermission(actor, '/wfl/process-definition/delete')
     return this.db.transaction().execute(async (tx) => {
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended('wfl:definitions', 0))`.execute(
+        tx,
+      )
+
       await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`wfl:definition:${input.subjectId}`}, 0))`.execute(
         tx,
       )
@@ -496,8 +504,8 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
         .selectFrom('approval_entries')
         .selectAll()
         .where('id', '=', input.submissionId)
-        .where('domain', '=', 'dcl')
-        .where('entity', '=', 'wfl-process-definition')
+        .where('domain', '=', 'wfl')
+        .where('entity', '=', 'process-definition')
         .where('subject_id', '=', input.subjectId)
         .forUpdate()
         .executeTakeFirst()
@@ -517,34 +525,13 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
         throw new WflApplicationError('wfl_definition_in_use', [
           { kind: 'WFL_INSTANCE', id: blocker.id, approvalEntryId: entry.id },
         ])
-      const now = new Date()
-      await tx
-        .insertInto('approval_events')
-        .values({
-          id: ulid(),
-          entry_id: entry.id,
-          domain: 'dcl',
-          entity: 'wfl-process-definition',
-          subject_id: entry.subject_id,
-          version_no: entry.version_no,
-          action: 'DELETED',
-          from_status: entry.status,
-          to_status: null,
-          from_revision: entry.revision,
-          to_revision: null,
-          actor_id: actor.id,
-          reason: null,
-          request_id: requestId,
-          created_at: now,
-        })
-        .execute()
-      const deleted = await tx
-        .deleteFrom('approval_entries')
-        .where('id', '=', entry.id)
-        .where('revision', '=', entry.revision)
-        .executeTakeFirst()
-      if (Number(deleted.numDeletedRows) !== 1)
-        throw new WflApplicationError('approval_stale_revision')
+      await this.approval.delete(tx, {
+        entry: approvalEntry(entry),
+        actor,
+        expectedRevision: input.expectedRevision,
+        occurredAt: new Date(),
+        requestId,
+      })
       const remaining = await tx
         .selectFrom('approval_entries')
         .select('id')
@@ -552,7 +539,7 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
         .executeTakeFirst()
       if (!remaining)
         await tx
-          .deleteFrom('dcl_subjects')
+          .deleteFrom('wfl_definitions')
           .where('id', '=', input.subjectId)
           .execute()
       return { submissionId: entry.id, deleted: true as const }
@@ -614,11 +601,11 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
       enabled: boolean
     }>`
       SELECT DISTINCT ON (s.id) e.id, v.compiled_graph->>'code' AS code,
-        v.compiled_graph->>'name' AS name, r.enabled
-      FROM dcl_subjects s
-      JOIN wfl_definition_runtime_states r ON r.subject_id = s.id
-      JOIN approval_entries e ON e.subject_id = s.id AND e.domain = 'dcl'
-        AND e.entity = 'wfl-process-definition' AND e.status = 'APPROVED'
+        v.compiled_graph->>'name' AS name, coalesce(r.enabled,false) AS enabled
+      FROM wfl_definitions s
+      LEFT JOIN wfl_definition_runtime_states r ON r.subject_id = s.id
+      JOIN approval_entries e ON e.subject_id = s.id AND e.domain = 'wfl'
+        AND e.entity = 'process-definition' AND e.status = 'APPROVED'
       JOIN wfl_definition_versions v ON v.approval_entry_id = e.id
       ORDER BY s.id, e.version_no DESC
     `.execute(this.db)
@@ -767,7 +754,12 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
             input.processId,
             'OPEN_DOCUMENT',
             actor.id,
-            { nodeId: node.nodeId, documentId: node.documentId, requestId },
+            {
+              nodeId: node.nodeId,
+              documentId: node.documentId,
+              requestId,
+              requestKey: input.requestKey,
+            },
             new Date(),
           )
         } else if (prior.fingerprint !== fingerprint)
@@ -872,7 +864,12 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
         input.processId,
         input.action,
         actor.id,
-        { nodeId: node.nodeId, documentId: node.documentId, requestId },
+        {
+          nodeId: node.nodeId,
+          documentId: node.documentId,
+          requestId,
+          requestKey: input.requestKey,
+        },
         now,
       )
       return this.readInstance(tx, input.processId, actor)
@@ -920,6 +917,16 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
         .execute()
       return
     }
+    // Reapproval belongs to the original instance, independent of current matching definitions.
+    const existing = await tx
+      .selectFrom('wfl_instances')
+      .select('id')
+      .where('root_document_id', '=', plan.documentId)
+      .executeTakeFirst()
+    if (existing) return
+    await sql`SELECT pg_advisory_xact_lock(hashtextextended('wfl:definitions', 0))`.execute(
+      tx,
+    )
     const candidates = await sql<{
       subject_id: string
       approval_entry_id: string
@@ -928,11 +935,11 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
       compiled_graph: JsonValue
     }>`
       SELECT s.id AS subject_id, e.id AS approval_entry_id, s.code, v.script, v.compiled_graph
-      FROM dcl_subjects s
+      FROM wfl_definitions s
       JOIN wfl_definition_runtime_states runtime ON runtime.subject_id = s.id AND runtime.enabled
       JOIN LATERAL (
-        SELECT * FROM approval_entries candidate WHERE candidate.domain = 'dcl'
-          AND candidate.entity = 'wfl-process-definition' AND candidate.subject_id = s.id
+        SELECT * FROM approval_entries candidate WHERE candidate.domain = 'wfl'
+          AND candidate.entity = 'process-definition' AND candidate.subject_id = s.id
           AND candidate.status = 'APPROVED' ORDER BY candidate.version_no DESC LIMIT 1
       ) e ON TRUE
       JOIN wfl_definition_versions v ON v.approval_entry_id = e.id
@@ -956,13 +963,6 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
       throw new WflApplicationError('wfl_multiple_definitions_match')
     const match = matches[0]
     if (!match) return
-    const existing = await tx
-      .selectFrom('wfl_instances')
-      .select('id')
-      .where('definition_subject_id', '=', match.subject_id)
-      .where('root_document_id', '=', plan.documentId)
-      .executeTakeFirst()
-    if (existing) return
     const graph = match.compiled_graph as unknown as WflStarlarkGraph
     const instanceId = ulid(),
       rootNodeId = ulid()
@@ -1012,48 +1012,57 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
     actor: ApprovalActor,
     requestId: string,
   ) {
-    requirePermission(actor, `/dcl/wfl-process-definition/${action}`)
-    const prepared = await this.compileAndTrial(
-      this.db,
-      input.script,
-      input.trialDocument,
-      actor,
-    )
+    requirePermission(actor, `/wfl/process-definition/${action}`)
+    const hash = createHash('sha256')
+      .update(JSON.stringify({ action, actorId: actor.id, ...input }))
+      .digest('hex')
     return this.db.transaction().execute(async (tx) => {
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended('wfl:definitions', 0))`.execute(
+        tx,
+      )
+
       await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`wfl:definition:${input.subjectId}`}, 0))`.execute(
         tx,
       )
+      const prior = await tx
+        .selectFrom('archive_idempotency')
+        .selectAll()
+        .where('entity', '=', 'wfl-process-definition')
+        .where('idempotency_key', '=', input.idempotencyKey)
+        .executeTakeFirst()
+      if (prior) {
+        if (prior.request_hash !== hash)
+          throw new WflApplicationError('archive_idempotency_conflict')
+        return prior.response as unknown as WflDefinitionView
+      }
+      const prepared = await this.compileAndTrial(
+        tx,
+        input.script,
+        input.trialDocument,
+        actor,
+      )
       const subject = await tx
-        .selectFrom('dcl_subjects')
+        .selectFrom('wfl_definitions')
         .selectAll()
         .where('id', '=', input.subjectId)
-        .where('entity', '=', 'wfl-process-definition')
+        .where('entity', '=', 'process-definition')
         .executeTakeFirst()
-      const history = await tx
-        .selectFrom('approval_entries')
-        .select(['id', 'version_no', 'status', 'revision'])
-        .where('domain', '=', 'dcl')
-        .where('entity', '=', 'wfl-process-definition')
-        .where('subject_id', '=', input.subjectId)
-        .orderBy('version_no', 'asc')
-        .forUpdate()
-        .execute()
-      const latestApproved = history
-        .filter((row) => row.status === 'APPROVED')
-        .at(-1)
-      if (action === 'submit-new' && subject)
-        throw new WflApplicationError('vou_submit_mode_mismatch')
-      if (action === 'submit-change' && !subject)
-        throw new WflApplicationError('vou_submit_mode_mismatch')
-      if (history.some((row) => row.status !== 'APPROVED'))
-        throw new WflApplicationError('approval_open_version_exists')
-      if (
-        (latestApproved?.id ?? null) !==
-          input.expectedLatestApprovedSubmissionId ||
-        (latestApproved ? String(latestApproved.revision) : null) !==
-          input.expectedLatestApprovedRevision
+      const plan = await this.versioning.prepareSubmission(
+        tx,
+        {
+          domain: 'wfl',
+          entity: 'process-definition',
+          subjectId: input.subjectId,
+        },
+        !!subject,
+        {
+          ...input,
+          action,
+          actor,
+          requestId,
+          occurredAt: new Date().toISOString(),
+        },
       )
-        throw new WflApplicationError('approval_stale_revision')
       const duplicateCode = await sql<{ subject_id: string }>`
         SELECT e.subject_id
         FROM wfl_definition_versions v
@@ -1067,39 +1076,32 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
       const now = new Date()
       if (!subject) {
         const counter = await tx
-          .updateTable('dcl_code_counters')
+          .updateTable('archive_code_counters')
           .set((eb) => ({ next_value: eb('next_value', '+', 1) }))
           .where('entity', '=', 'wfl-process-definition')
           .returning('next_value')
           .executeTakeFirstOrThrow()
         await tx
-          .insertInto('dcl_subjects')
+          .insertInto('wfl_definitions')
           .values({
             id: input.subjectId,
-            entity: 'wfl-process-definition',
+            entity: 'process-definition',
             code: `wfl-${String(counter.next_value - 1).padStart(6, '0')}`,
             created_at: now,
             created_by: actor.id,
           })
           .execute()
       }
-      const versionNo = history.length + 1
-      await tx
-        .insertInto('approval_entries')
-        .values({
-          id: input.submissionId,
-          domain: 'dcl',
-          entity: 'wfl-process-definition',
-          subject_id: input.subjectId,
-          version_no: versionNo,
-          status: 'PENDING',
-          revision: 1,
-          submitted_by: actor.id,
-          submitted_at: now,
-          updated_by: actor.id,
-          updated_at: now,
-        })
-        .execute()
+      await this.approval.create(tx, {
+        entryId: input.submissionId,
+        domain: 'wfl',
+        entity: 'process-definition',
+        subjectId: input.subjectId,
+        versionNo: plan.versionNo,
+        actorId: actor.id,
+        occurredAt: now,
+        requestId,
+      })
       await tx
         .insertInto('wfl_definition_versions')
         .values({
@@ -1119,27 +1121,20 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
           created_by: actor.id,
         })
         .execute()
+      const view = await this.readDefinition(tx, input.submissionId, actor)
       await tx
-        .insertInto('approval_events')
+        .insertInto('archive_idempotency')
         .values({
-          id: ulid(),
-          entry_id: input.submissionId,
-          domain: 'dcl',
           entity: 'wfl-process-definition',
+          idempotency_key: input.idempotencyKey,
+          request_hash: hash,
           subject_id: input.subjectId,
-          version_no: versionNo,
-          action: 'SUBMITTED',
-          from_status: null,
-          to_status: 'PENDING',
-          from_revision: null,
-          to_revision: 1,
-          actor_id: actor.id,
-          reason: null,
-          request_id: requestId,
+          submission_id: input.submissionId,
+          response: json(view),
           created_at: now,
         })
         .execute()
-      return this.readDefinition(tx, input.submissionId, actor)
+      return view
     })
   }
 
@@ -1149,14 +1144,18 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
     actor: ApprovalActor,
     requestId: string,
   ) {
-    requirePermission(actor, `/dcl/wfl-process-definition/${action}`)
+    requirePermission(actor, `/wfl/process-definition/${action}`)
     return this.db.transaction().execute(async (tx) => {
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended('wfl:definitions', 0))`.execute(
+        tx,
+      )
+
       const row = await tx
         .selectFrom('approval_entries')
         .selectAll()
         .where('id', '=', input.submissionId)
-        .where('domain', '=', 'dcl')
-        .where('entity', '=', 'wfl-process-definition')
+        .where('domain', '=', 'wfl')
+        .where('entity', '=', 'process-definition')
         .where('subject_id', '=', input.subjectId)
         .forUpdate()
         .executeTakeFirst()
@@ -1192,6 +1191,17 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
         )
       }
       if (action === 'unapprove') {
+        const scope = {
+          domain: 'wfl',
+          entity: 'process-definition',
+          subjectId: input.subjectId,
+        }
+        const latest = await this.versioning.latestApproved(tx, scope, true)
+        if (latest?.id !== row.id)
+          throw new WflApplicationError('approval_not_latest_approved')
+        if (await this.versioning.open(tx, scope, true))
+          throw new WflApplicationError('approval_open_version_exists')
+
         const blocker = await tx
           .selectFrom('wfl_instances')
           .select('id')
@@ -1203,57 +1213,15 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
           ])
       }
       const now = new Date()
-      const decision = decideApproval({
+      await this.approval.transition(tx, {
         action,
         entry: approvalEntry(row),
         actor,
         expectedRevision: input.expectedRevision,
-        occurredAt: now.toISOString(),
+        occurredAt: now,
         requestId,
         ...(input.reason === undefined ? {} : { reason: input.reason }),
       })
-      if (!decision.ok) throw new WflApplicationError(decision.error.errorKey)
-      const plan = decision.plan
-      await tx
-        .updateTable('approval_entries')
-        .set({
-          status: plan.toStatus,
-          revision: BigInt(plan.toRevision),
-          updated_by: actor.id,
-          updated_at: now,
-          approved_by: plan.metadata.approved?.actorId ?? null,
-          approved_at: plan.metadata.approved
-            ? new Date(plan.metadata.approved.occurredAt)
-            : null,
-          rejected_by: plan.metadata.rejected?.actorId ?? null,
-          rejected_at: plan.metadata.rejected
-            ? new Date(plan.metadata.rejected.occurredAt)
-            : null,
-          rejection_reason: plan.metadata.rejected?.reason ?? null,
-        })
-        .where('id', '=', row.id)
-        .where('revision', '=', plan.fromRevision)
-        .executeTakeFirstOrThrow()
-      await tx
-        .insertInto('approval_events')
-        .values({
-          id: ulid(),
-          entry_id: row.id,
-          domain: 'dcl',
-          entity: 'wfl-process-definition',
-          subject_id: row.subject_id,
-          version_no: row.version_no,
-          action: plan.event.action,
-          from_status: plan.fromStatus,
-          to_status: plan.toStatus,
-          from_revision: BigInt(plan.fromRevision),
-          to_revision: BigInt(plan.toRevision),
-          actor_id: actor.id,
-          reason: plan.reason ?? null,
-          request_id: requestId,
-          created_at: now,
-        })
-        .execute()
       return this.readDefinition(tx, row.id, actor)
     })
   }
@@ -1262,18 +1230,23 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
     input: WflEnableInput,
     enabled: boolean,
     actor: ApprovalActor,
+    requestId?: string,
   ) {
     requirePermission(
       actor,
-      `/dcl/wfl-process-definition/${enabled ? 'enable' : 'disable'}`,
+      `/wfl/process-definition/${enabled ? 'enable' : 'disable'}`,
     )
     return this.db.transaction().execute(async (tx) => {
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended('wfl:definitions', 0))`.execute(
+        tx,
+      )
+
       const entry = await tx
         .selectFrom('approval_entries')
         .select(['id', 'revision'])
         .where('id', '=', input.approvalEntryId)
-        .where('domain', '=', 'dcl')
-        .where('entity', '=', 'wfl-process-definition')
+        .where('domain', '=', 'wfl')
+        .where('entity', '=', 'process-definition')
         .where('subject_id', '=', input.subjectId)
         .where('status', '=', 'APPROVED')
         .executeTakeFirst()
@@ -1282,8 +1255,8 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
       const latest = await tx
         .selectFrom('approval_entries')
         .select('id')
-        .where('domain', '=', 'dcl')
-        .where('entity', '=', 'wfl-process-definition')
+        .where('domain', '=', 'wfl')
+        .where('entity', '=', 'process-definition')
         .where('subject_id', '=', input.subjectId)
         .where('status', '=', 'APPROVED')
         .orderBy('version_no', 'desc')
@@ -1297,6 +1270,33 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
         .forUpdate()
         .executeTakeFirst()
       const now = new Date()
+      if (runtime && runtime.enabled === enabled)
+        throw new WflApplicationError('approval_invalid_transition')
+      if (!runtime && !enabled)
+        throw new WflApplicationError('approval_invalid_transition')
+      await tx
+        .insertInto('app_audit_events')
+        .values({
+          id: ulid(),
+          event_type: enabled
+            ? 'WFL_DEFINITION_ENABLED'
+            : 'WFL_DEFINITION_DISABLED',
+          actor_user_id: actor.id,
+          target_type: 'wfl/process-definition',
+          target_id: input.subjectId,
+          result: 'SUCCESS',
+          request_id: requestId ?? null,
+          summary: json({
+            approvalEntryId: entry.id,
+            fromRevision: runtime ? String(runtime.revision) : null,
+            toRevision: String(BigInt(runtime?.revision ?? 0) + 1n),
+            enabled,
+          }),
+          created_at: now,
+          created_by: actor.id,
+        })
+        .execute()
+
       if (!runtime) {
         if (input.expectedRuntimeRevision !== null)
           throw new WflApplicationError('approval_stale_revision')
@@ -1314,10 +1314,15 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
           approvalEntryId: entry.id,
           enabled,
           revision: '1',
+          availableRuntimeActions: availableWflDefinitionRuntimeActions(
+            { status: 'APPROVED', enabled, latestApproved: true },
+            actor,
+          ),
         }
       }
       if (String(runtime.revision) !== input.expectedRuntimeRevision)
         throw new WflApplicationError('approval_stale_revision')
+
       const revision = BigInt(runtime.revision) + 1n
       await tx
         .updateTable('wfl_definition_runtime_states')
@@ -1330,6 +1335,10 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
         approvalEntryId: entry.id,
         enabled,
         revision: String(revision),
+        availableRuntimeActions: availableWflDefinitionRuntimeActions(
+          { status: 'APPROVED', enabled, latestApproved: true },
+          actor,
+        ),
       }
     })
   }
@@ -1337,14 +1346,14 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
   async current(code: string, actor: ApprovalActor) {
     requirePermission(actor, '/wfl/process-definition/get')
     const row = await sql<{ id: string; enabled: boolean }>`
-      SELECT e.id, r.enabled
-      FROM dcl_subjects s
-      JOIN wfl_definition_runtime_states r ON r.subject_id = s.id AND r.enabled
-      JOIN approval_entries e ON e.subject_id = s.id AND e.domain = 'dcl'
-        AND e.entity = 'wfl-process-definition' AND e.status = 'APPROVED'
-      JOIN wfl_definition_versions v ON v.approval_entry_id = e.id
+      SELECT e.id, coalesce(r.enabled,false) AS enabled
+      FROM wfl_definitions s
+      LEFT JOIN wfl_definition_runtime_states r ON r.subject_id=s.id
+      JOIN LATERAL (SELECT * FROM approval_entries candidate
+        WHERE candidate.subject_id=s.id AND candidate.domain='wfl' AND candidate.entity='process-definition'
+          AND candidate.status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
+      JOIN wfl_definition_versions v ON v.approval_entry_id=e.id
       WHERE v.compiled_graph->>'code' = ${code}
-      ORDER BY e.version_no DESC
       LIMIT 1
     `.execute(this.db)
     if (!row.rows[0]) throw new WflApplicationError('wfl_definition_not_found')
@@ -1644,7 +1653,12 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
       const graphNode = graph.nodes.find((item) => item.key === row.node_key)
       const entity = row.entity as VouEntity | null
       const actions: WflNodeAction[] = []
-      if (entity && row.document_id && this.can(actor, `/vou/${entity}/get`))
+      if (
+        entity &&
+        row.document_id &&
+        this.can(actor, `/vou/${entity}/get`) &&
+        this.can(actor, '/wfl/process-instance/open-document')
+      )
         actions.push('OPEN_DOCUMENT')
       if (targetMap.get(row.id)?.length) actions.push('CREATE_CHILD')
       if (row.parent_node_id && entity && row.status === 'PENDING') {
@@ -1758,7 +1772,7 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
     const row = await executor
       .selectFrom('approval_entries as e')
       .innerJoin('wfl_definition_versions as v', 'v.approval_entry_id', 'e.id')
-      .innerJoin('dcl_subjects as s', 's.id', 'e.subject_id')
+      .innerJoin('wfl_definitions as s', 's.id', 'e.subject_id')
       .leftJoin('wfl_definition_runtime_states as r', 'r.subject_id', 's.id')
       .select([
         'e.id',
@@ -1789,8 +1803,8 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
         ? await executor
             .selectFrom('approval_entries')
             .select('id')
-            .where('domain', '=', 'dcl')
-            .where('entity', '=', 'wfl-process-definition')
+            .where('domain', '=', 'wfl')
+            .where('entity', '=', 'process-definition')
             .where('subject_id', '=', row.subject_id)
             .where('status', '=', 'APPROVED')
             .orderBy('version_no', 'desc')

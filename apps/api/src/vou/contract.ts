@@ -1,3 +1,4 @@
+import { auxCurrentDataSchemas } from '../app/aux-contract.ts'
 import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
 import type { Schema } from 'hono'
 import {
@@ -82,6 +83,41 @@ const sourceLineQuery = z
   })
   .strict()
 const objectReference = z.object({ objectId: z.string().length(26) }).strict()
+const operatingEntityReference = objectReference
+  .extend({
+    code: z.string().optional(),
+    name: z.string().optional(),
+    snapshot: auxCurrentDataSchemas['operating-entity'].optional(),
+  })
+  .strict()
+const employeeReference = objectReference
+  .extend({
+    code: z.string().optional(),
+    name: z.string().optional(),
+    snapshot: auxCurrentDataSchemas.employee.optional(),
+  })
+  .strict()
+const warehouseReference = objectReference
+  .extend({
+    code: z.string().optional(),
+    name: z.string().optional(),
+    snapshot: auxCurrentDataSchemas.warehouse.optional(),
+  })
+  .strict()
+const fundAccountReference = objectReference
+  .extend({
+    code: z.string().optional(),
+    name: z.string().optional(),
+    snapshot: auxCurrentDataSchemas['fund-account'].optional(),
+  })
+  .strict()
+const vehicleReference = objectReference
+  .extend({
+    code: z.string().optional(),
+    name: z.string().optional(),
+    snapshot: auxCurrentDataSchemas.vehicle.optional(),
+  })
+  .strict()
 const assetCategoryReference = objectReference
   .extend({
     code: z.string().min(1),
@@ -289,7 +325,7 @@ const billLine = z.union([
 const billCashLine = z
   .object({
     billLineId: z.string().optional(),
-    fundAccount: versionedReference,
+    fundAccount: fundAccountReference,
     direction: z.enum(['IN', 'OUT']),
     amountType: z.enum(['PRINCIPAL', 'INTEREST', 'FEE', 'MARGIN', 'OTHER']),
     amount: money,
@@ -298,16 +334,22 @@ const billCashLine = z
   .strict()
 const amountFacts = {
   amount: money,
-  fundAccount: versionedReference,
-  handler: versionedReference,
+  fundAccount: fundAccountReference,
+  handler: employeeReference,
 }
-const intermediaryReference = z
+const intermediaryEmployeeReference = employeeReference
+  .extend({
+    entity: z.literal('employee'),
+    code: z.string().min(1),
+    name: z.string().min(1),
+  })
+  .strict()
+const intermediaryVersionedReference = z
   .object({
     objectId: z.string().min(1),
     approvalEntryId: z.string().min(1),
     entity: z.enum([
       'customer-subunit',
-      'employee',
       'sales-partner',
       'other-unit',
       'product',
@@ -316,6 +358,10 @@ const intermediaryReference = z
     name: z.string().min(1),
   })
   .strict()
+const intermediaryReference = z.union([
+  intermediaryEmployeeReference,
+  intermediaryVersionedReference,
+])
 const intermediarySourceLine = z
   .object({
     sourceSignoffLineId: z.string().min(1),
@@ -452,9 +498,9 @@ export const vouPayloadSchemaByEntity = {
   'sale-pricing': payload({ priceLines: z.array(priceLine).min(1).max(200) }),
   'sale-order': payload({
     customerSubunit: versionedReference,
-    operatingEntity: versionedReference,
-    salesperson: versionedReference.optional(),
-    warehouse: versionedReference,
+    operatingEntity: operatingEntityReference,
+    salesperson: employeeReference.optional(),
+    warehouse: warehouseReference,
     paymentMethod: paymentMethodSelection.nullable(),
     productLines: z.array(productLine).min(1).max(200),
     creditOverrideReason: z.string().trim().min(1).max(1000).optional(),
@@ -465,7 +511,7 @@ export const vouPayloadSchemaByEntity = {
   'sale-delivery': payload({
     sourceLines: z.array(sourceLine).min(1).max(200),
     carrier: versionedReference.optional(),
-    vehicle: versionedReference.optional(),
+    vehicle: vehicleReference.optional(),
   }),
   'sale-signoff': payload({
     customerSubunit: versionedReference,
@@ -477,7 +523,7 @@ export const vouPayloadSchemaByEntity = {
     signoffLines: z.array(signoffLine).min(1).max(200),
   }),
   'sale-return': payload({
-    warehouse: versionedReference,
+    warehouse: warehouseReference,
     returnReason: z.string().min(1).max(1000),
     returnLines: z.array(returnLine).min(1).max(200),
   }),
@@ -487,85 +533,99 @@ export const vouPayloadSchemaByEntity = {
   }),
   'purchase-order': payload({
     supplier: versionedReference,
-    purchaser: versionedReference.optional(),
-    warehouse: versionedReference,
+    purchaser: employeeReference.optional(),
+    warehouse: warehouseReference,
     productLines: z.array(productLine).min(1).max(200),
   }),
   'purchase-inbound': payload({
     supplier: versionedReference,
-    warehouse: versionedReference,
+    warehouse: warehouseReference,
     sourceLines: z.array(sourceLine).min(1).max(200),
   }),
   'purchase-return': payload({
     supplier: versionedReference,
-    warehouse: versionedReference,
+    warehouse: warehouseReference,
     returnReason: z.string().min(1).max(1000),
     returnLines: z.array(returnLine).min(1).max(200),
   }),
   'order-production': payload({
-    materialWarehouse: versionedReference,
-    finishedWarehouse: versionedReference,
+    materialWarehouse: warehouseReference,
+    finishedWarehouse: warehouseReference,
     productionLines: z.array(productionLine).min(1).max(200),
   }),
   'self-production': payload({
-    materialWarehouse: versionedReference,
-    finishedWarehouse: versionedReference,
+    materialWarehouse: warehouseReference,
+    finishedWarehouse: warehouseReference,
     productionLines: z.array(productionLine).min(1).max(200),
   }),
   'inventory-count': payload({
-    warehouse: versionedReference,
+    warehouse: warehouseReference,
     inventoryCountLines: z.array(inventoryLine).min(1).max(200),
   }),
   'sales-receipt': payload({
     ...amountFacts,
     customer: versionedReference,
-    operatingEntity: versionedReference,
+    operatingEntity: operatingEntityReference,
     subunitAllocations: z
       .array(z.object({ subunit: versionedReference, amount: money }).strict())
       .min(1)
       .max(200),
   }),
   'purchase-refund': payload({ ...amountFacts, supplier: versionedReference }),
-  'other-receipt': payload({
-    ...amountFacts,
-    counterparty: versionedReference,
-    counterpartyType: z.enum([
-      'customer-subunit',
-      'supplier',
-      'other-unit',
-      'employee',
-      'sales-partner',
-    ]),
-    otherCategory: z.enum(['COMMISSION', 'INTERMEDIARY']).optional(),
-  }),
+  'other-receipt': z.union([
+    payload({
+      ...amountFacts,
+      counterparty: employeeReference,
+      counterpartyType: z.literal('employee'),
+      otherCategory: z.enum(['COMMISSION', 'INTERMEDIARY']).optional(),
+    }),
+    payload({
+      ...amountFacts,
+      counterparty: versionedReference,
+      counterpartyType: z.enum([
+        'customer-subunit',
+        'supplier',
+        'other-unit',
+        'sales-partner',
+      ]),
+      otherCategory: z.enum(['COMMISSION', 'INTERMEDIARY']).optional(),
+    }),
+  ]),
   'sales-refund': payload({ ...amountFacts, customer: versionedReference }),
   'purchase-payment': payload({ ...amountFacts, supplier: versionedReference }),
-  'other-payment': payload({
-    ...amountFacts,
-    counterparty: versionedReference,
-    counterpartyType: z.enum([
-      'customer-subunit',
-      'supplier',
-      'other-unit',
-      'employee',
-      'sales-partner',
-    ]),
-    otherCategory: z.enum(['COMMISSION', 'INTERMEDIARY']).optional(),
-  }),
-  'employee-loan': payload({ ...amountFacts, employee: versionedReference }),
+  'other-payment': z.union([
+    payload({
+      ...amountFacts,
+      counterparty: employeeReference,
+      counterpartyType: z.literal('employee'),
+      otherCategory: z.enum(['COMMISSION', 'INTERMEDIARY']).optional(),
+    }),
+    payload({
+      ...amountFacts,
+      counterparty: versionedReference,
+      counterpartyType: z.enum([
+        'customer-subunit',
+        'supplier',
+        'other-unit',
+        'sales-partner',
+      ]),
+      otherCategory: z.enum(['COMMISSION', 'INTERMEDIARY']).optional(),
+    }),
+  ]),
+  'employee-loan': payload({ ...amountFacts, employee: employeeReference }),
   'employee-repayment': payload({
     ...amountFacts,
-    employee: versionedReference,
+    employee: employeeReference,
   }),
   'employee-loan-writeoff': payload({
-    employee: versionedReference,
+    employee: employeeReference,
     expenseLines: z.array(expenseLine).min(1).max(200),
   }),
   'expense-reimbursement': payload({
-    employee: versionedReference,
+    employee: employeeReference,
     expenseLines: z.array(expenseLine).min(1).max(200),
   }),
-  'expense-payment': payload({ ...amountFacts, employee: versionedReference }),
+  'expense-payment': payload({ ...amountFacts, employee: employeeReference }),
   'other-income': payload({
     ...amountFacts,
     sourceName: z.string().min(1).max(200),
@@ -585,7 +645,7 @@ export const vouPayloadSchemaByEntity = {
             usefulLifeMonths: z.number().int().min(1).max(1200),
             residualRate: quantity,
             department: objectReference,
-            custodian: versionedReference.optional(),
+            custodian: employeeReference.optional(),
             location: z.string().max(200).optional(),
             remark: z.string().max(1000).optional(),
           })
@@ -628,14 +688,14 @@ export const vouPayloadSchemaByEntity = {
   }),
   'bill-receipt': payload({
     customer: versionedReference,
-    handler: versionedReference,
+    handler: employeeReference,
     internalCostRateBps: z.number().int().min(0).max(100000).optional(),
     billLines: z.array(billLine).min(1).max(20),
     billCashLines: z.array(billCashLine).max(20).optional(),
   }),
   'bill-payment': payload({
     supplier: versionedReference,
-    handler: versionedReference,
+    handler: employeeReference,
     billLines: z.array(billLine).min(1).max(20),
     billCashLines: z.array(billCashLine).max(20).optional(),
   }),
@@ -664,7 +724,7 @@ export const vouPayloadSchemaByEntity = {
   'service-contract': payload({
     counterparty: versionedReference,
     counterpartyType: z.enum(['other-unit', 'sales-partner']),
-    employee: versionedReference,
+    employee: employeeReference,
     serviceContract: z
       .object({
         capabilities: z
@@ -677,7 +737,7 @@ export const vouPayloadSchemaByEntity = {
       .strict(),
   }),
   'service-acceptance': payload({
-    employee: versionedReference,
+    employee: employeeReference,
     serviceAcceptance: z
       .object({
         contractDocumentId: z.string().min(1),
@@ -789,13 +849,27 @@ const auditEvent = z
   .strict()
 const queryFilters = z
   .object({
-    keyword: z.string().trim().min(1).max(200).optional(),
+    documentNo: z.string().trim().min(1).max(200).optional(),
     status: z.array(approvalStatus).min(1).max(3).optional(),
     dateFrom: z.string().date().optional(),
     dateTo: z.string().date().optional(),
+    submittedFrom: z.string().date().optional(),
+    submittedTo: z.string().date().optional(),
     counterpartyObjectId: z.string().length(26).optional(),
+    counterpartyName: z.string().trim().min(1).max(200).optional(),
+    handlerName: z.string().trim().min(1).max(200).optional(),
+    warehouseName: z.string().trim().min(1).max(200).optional(),
   })
   .strict()
+  .refine(
+    (v) => !v.dateFrom || !v.dateTo || v.dateFrom <= v.dateTo,
+    '期间起止顺序错误',
+  )
+  .refine(
+    (v) =>
+      !v.submittedFrom || !v.submittedTo || v.submittedFrom <= v.submittedTo,
+    '提交日期起止顺序错误',
+  )
 const querySort = z
   .object({
     field: z.enum([
@@ -816,9 +890,24 @@ export const vouQueryRequestSchema = z
     sort: z.array(querySort).min(1).max(1).optional(),
   })
   .strict()
+const vouSummary = z
+  .object({
+    vouType: z.enum(vouEntities),
+    documentId: z.string().length(26),
+    documentNo: z.string().min(1),
+    handlerName: z.string().nullable(),
+    revision: z.string().regex(/^[1-9]\d*$/),
+    status: approvalStatus,
+    businessDate: z.string().date(),
+    submittedDate: z.string().date(),
+    counterpartyName: z.string().nullable(),
+    amount: money.nullable(),
+    currency: z.string(),
+  })
+  .strict()
 const vouPage = z
   .object({
-    items: z.array(vouView),
+    items: z.array(vouSummary),
     total: z.number().int().nonnegative(),
     page: z.number().int().positive(),
     pageSize: z.literal(20),

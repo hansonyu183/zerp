@@ -1,4 +1,8 @@
 import {
+  registerOpeningRoutes,
+  type OpeningRouteHandler,
+} from '../vou/opening-contract.ts'
+import {
   createRoute,
   OpenAPIHono,
   type RouteHandler,
@@ -13,12 +17,13 @@ import {
   registerIndependentRoutes,
   type IndependentRouteHandlers,
 } from './independent-contract.ts'
+
 import {
-  archiveRouteMetadata,
-  registerArchiveRoutes,
+  bobArchiveRouteMetadata,
+  registerBobArchiveRoutes,
+  type BobArchiveRouteHandler,
   type ArchiveAttachmentHandlers,
-  type ArchiveRouteHandler,
-} from '../dcl/archive-contract.ts'
+} from '../bob/archive-contract.ts'
 import { registerVouRoutes, type VouRouteHandler } from '../vou/contract.ts'
 import { registerAccRoutes, type AccRouteHandler } from '../acc/contract.ts'
 import { registerWflRoutes, type WflRouteHandler } from '../wfl/contract.ts'
@@ -58,18 +63,6 @@ const failureEnvelope = z.object({
         documents: z.array(z.record(z.string(), z.unknown())),
         sources: z.array(z.record(z.string(), z.unknown())),
         references: z.array(z.record(z.string(), z.unknown())),
-      })
-      .strict(),
-    z
-      .object({
-        fieldBlockers: z.array(
-          z.object({
-            field: z.literal('manager'),
-            objectId: z.string(),
-            expectedApprovalEntryId: z.string(),
-            currentApprovalEntryId: z.string().optional(),
-          }),
-        ),
       })
       .strict(),
   ]),
@@ -151,7 +144,7 @@ const workbenchPageEnvelope = z.union([
         items: z.array(
           z
             .object({
-              domain: z.enum(['dcl', 'vou']),
+              domain: z.enum(['wfl', 'bob', 'vou']),
               entity: z.string(),
               subjectOrDocumentId: z.string(),
               submissionId: z.string(),
@@ -252,338 +245,6 @@ export const queryUsersRoute = createRoute({
   },
 })
 
-const warehouseSnapshot = z
-  .object({
-    name: z.string().min(1).max(200),
-    address: z.string().max(500).nullable(),
-    contactName: z.string().max(100).nullable(),
-    contactPhone: z.string().max(32).nullable(),
-    managerEmployeeId: z.string().max(26).nullable(),
-    managerEmployeeApprovalEntryId: z.string().max(26).nullable(),
-    managerEmployeeCode: z.string().max(64).nullable(),
-    managerEmployeeName: z.string().max(200).nullable(),
-    remark: z.string().max(1000).nullable(),
-    enabled: z.boolean(),
-  })
-  .strict()
-  .superRefine((snapshot, context) => {
-    const managerFields = [
-      snapshot.managerEmployeeId,
-      snapshot.managerEmployeeApprovalEntryId,
-      snapshot.managerEmployeeCode,
-      snapshot.managerEmployeeName,
-    ]
-    const populated = managerFields.filter((value) => value !== null).length
-    if (populated !== 0 && populated !== managerFields.length)
-      context.addIssue({
-        code: 'custom',
-        message: 'manager reference must be empty or complete',
-        path: ['managerEmployeeId'],
-      })
-  })
-
-const warehouseSubmission = z.object({
-  subjectId: z.string(),
-  code: z.string(),
-  submissionId: z.string(),
-  versionNo: z.number().int().positive(),
-  status: z.enum(['PENDING', 'APPROVED', 'REJECTED']),
-  revision: z.string(),
-  submittedBy: z.string(),
-  submittedAt: z.string().datetime(),
-  approvedBy: z.string().nullable(),
-  approvedAt: z.string().datetime().nullable(),
-  rejectedBy: z.string().nullable(),
-  rejectedAt: z.string().datetime().nullable(),
-  rejectionReason: z.string().nullable(),
-  snapshot: warehouseSnapshot,
-  availableApprovalActions: z.array(
-    z.enum(['reject', 'approve', 'unreject', 'unapprove']),
-  ),
-  canDelete: z.boolean(),
-})
-const warehouseSubmissionListItem = warehouseSubmission.omit({ snapshot: true })
-
-const warehouseEnvelope = z.union([
-  z.object({
-    code: z.literal(0),
-    errorKey: z.literal(''),
-    message: z.literal('ok'),
-    data: warehouseSubmission,
-    requestId: z.string(),
-  }),
-  failureEnvelope,
-])
-
-const warehouseSubmit = z
-  .object({
-    subjectId: z.string().length(26),
-    submissionId: z.string().length(26),
-    idempotencyKey: z.string().min(1).max(128),
-    expectedLatestApprovedSubmissionId: z.string().length(26).nullable(),
-    expectedLatestApprovedRevision: z.string().regex(/^\d+$/).nullable(),
-    snapshot: warehouseSnapshot,
-  })
-  .strict()
-
-const warehouseIdentity = z
-  .object({ subjectId: z.string().length(26) })
-  .strict()
-
-const warehouseReview = z
-  .object({
-    subjectId: z.string().length(26),
-    submissionId: z.string().length(26),
-    expectedRevision: z.string().regex(/^\d+$/),
-    reason: z.string().max(1000).optional(),
-  })
-  .strict()
-
-const warehouseDelete = warehouseReview.omit({ reason: true })
-
-const warehouseDeleteEnvelope = z.union([
-  z.object({
-    code: z.literal(0),
-    errorKey: z.literal(''),
-    message: z.literal('ok'),
-    data: z.object({ submissionId: z.string(), deleted: z.literal(true) }),
-    requestId: z.string(),
-  }),
-  failureEnvelope,
-])
-
-const warehouseQueryEnvelope = z.union([
-  z.object({
-    code: z.literal(0),
-    errorKey: z.literal(''),
-    message: z.literal('ok'),
-    data: z.object({
-      items: z.array(
-        z
-          .object({
-            entity: z.literal('warehouse'),
-            subjectId: z.string(),
-            code: z.string(),
-            name: z.string(),
-            enabled: z.boolean(),
-            managerName: z.string().nullable(),
-            latestApproved: warehouseSubmissionListItem.nullable(),
-            openCandidate: warehouseSubmissionListItem.nullable(),
-          })
-          .strict(),
-      ),
-      total: z.number().int().nonnegative(),
-      page: z.number().int().positive(),
-      pageSize: z.literal(20),
-    }),
-    requestId: z.string(),
-  }),
-  failureEnvelope,
-])
-
-const warehouseSubmissionPageEnvelope = z.union([
-  z.object({
-    code: z.literal(0),
-    errorKey: z.literal(''),
-    message: z.literal('ok'),
-    data: z.object({
-      items: z.array(warehouseSubmission),
-      total: z.number().int().nonnegative(),
-    }),
-    requestId: z.string(),
-  }),
-  failureEnvelope,
-])
-
-const warehouseAuditEnvelope = z.union([
-  z.object({
-    code: z.literal(0),
-    errorKey: z.literal(''),
-    message: z.literal('ok'),
-    data: z.array(
-      z.object({
-        id: z.string(),
-        submissionId: z.string(),
-        versionNo: z.number().int().positive(),
-        action: z.enum([
-          'SUBMITTED',
-          'APPROVED',
-          'REJECTED',
-          'UNREJECTED',
-          'UNAPPROVED',
-          'DELETED',
-        ]),
-        fromStatus: z.enum(['PENDING', 'APPROVED', 'REJECTED']).nullable(),
-        toStatus: z.enum(['PENDING', 'APPROVED', 'REJECTED']).nullable(),
-        fromRevision: z.string().nullable(),
-        toRevision: z.string().nullable(),
-        actorId: z.string(),
-        reason: z.string().nullable(),
-        createdAt: z.string().datetime(),
-      }),
-    ),
-    requestId: z.string(),
-  }),
-  failureEnvelope,
-])
-
-const warehouseReferenceEnvelope = z.union([
-  z.object({
-    code: z.literal(0),
-    errorKey: z.literal(''),
-    message: z.literal('ok'),
-    data: z.array(
-      z.object({
-        subjectId: z.string(),
-        approvalEntryId: z.string(),
-        versionNo: z.number().int().positive(),
-        code: z.string(),
-        name: z.string(),
-        enabled: z.literal(true),
-      }),
-    ),
-    requestId: z.string(),
-  }),
-  failureEnvelope,
-])
-
-const warehouseManagerReferenceEnvelope = z.union([
-  z.object({
-    code: z.literal(0),
-    errorKey: z.literal(''),
-    message: z.literal('ok'),
-    data: z
-      .object({
-        employeeId: z.string(),
-        latestApprovedEntryId: z.string(),
-        code: z.string(),
-        displayName: z.string(),
-        enabled: z.boolean(),
-      })
-      .nullable(),
-    requestId: z.string(),
-  }),
-  failureEnvelope,
-])
-
-function warehouseRoute<
-  const Path extends string,
-  RequestSchema extends z.ZodType,
-  ResponseSchema extends z.ZodType,
->(path: Path, requestSchema: RequestSchema, responseSchema: ResponseSchema) {
-  return createRoute({
-    method: 'post',
-    path,
-    request: {
-      body: { content: { 'application/json': { schema: requestSchema } } },
-    },
-    responses: {
-      200: {
-        description: `Warehouse ${path} envelope`,
-        content: { 'application/json': { schema: responseSchema } },
-      },
-    },
-  })
-}
-
-export const warehouseQueryRoute = warehouseRoute(
-  '/dcl/warehouse/query',
-  z
-    .object({
-      page: z.number().int().positive(),
-      pageSize: z.literal(20),
-      filters: z
-        .object({
-          keyword: z.string().trim().min(1).max(200).optional(),
-          status: z.enum(['PENDING', 'APPROVED', 'REJECTED']).optional(),
-          enabled: z.boolean().optional(),
-        })
-        .strict(),
-    })
-    .strict(),
-  warehouseQueryEnvelope,
-)
-export const warehouseGetRoute = warehouseRoute(
-  '/dcl/warehouse/get',
-  warehouseIdentity,
-  warehouseEnvelope,
-)
-export const warehouseVersionsRoute = warehouseRoute(
-  '/dcl/warehouse/versions',
-  warehouseIdentity,
-  warehouseSubmissionPageEnvelope,
-)
-export const warehouseAuditRoute = warehouseRoute(
-  '/dcl/warehouse/audit-history',
-  warehouseIdentity,
-  warehouseAuditEnvelope,
-)
-export const warehouseManagerReferenceRoute = warehouseRoute(
-  '/dcl/warehouse/manager-reference',
-  z
-    .object({
-      employeeId: z.string().length(26),
-      action: z.enum(['submit-new', 'submit-change']),
-    })
-    .strict(),
-  warehouseManagerReferenceEnvelope,
-)
-export const warehouseSubmitNewRoute = warehouseRoute(
-  '/dcl/warehouse/submit-new',
-  warehouseSubmit,
-  warehouseEnvelope,
-)
-export const warehouseSubmitChangeRoute = warehouseRoute(
-  '/dcl/warehouse/submit-change',
-  warehouseSubmit,
-  warehouseEnvelope,
-)
-export const warehouseApproveRoute = warehouseRoute(
-  '/dcl/warehouse/approve',
-  warehouseReview,
-  warehouseEnvelope,
-)
-export const warehouseRejectRoute = warehouseRoute(
-  '/dcl/warehouse/reject',
-  warehouseReview,
-  warehouseEnvelope,
-)
-export const warehouseUnrejectRoute = warehouseRoute(
-  '/dcl/warehouse/unreject',
-  warehouseReview,
-  warehouseEnvelope,
-)
-export const warehouseUnapproveRoute = warehouseRoute(
-  '/dcl/warehouse/unapprove',
-  warehouseReview,
-  warehouseEnvelope,
-)
-export const warehouseDeleteRoute = warehouseRoute(
-  '/dcl/warehouse/delete',
-  warehouseDelete,
-  warehouseDeleteEnvelope,
-)
-
-export const warehouseReferenceRoute = createRoute({
-  method: 'post',
-  path: '/bob/warehouse/reference',
-  request: {
-    body: {
-      content: {
-        'application/json': {
-          schema: z.object({ search: z.string().max(128).optional() }).strict(),
-        },
-      },
-    },
-  },
-  responses: {
-    200: {
-      description: 'Current Warehouse reference envelope',
-      content: { 'application/json': { schema: warehouseReferenceEnvelope } },
-    },
-  },
-})
-
 const accMappingCatalog = z
   .object({
     books: z.array(
@@ -597,6 +258,7 @@ const accMappingCatalog = z
           name: z.string(),
           fieldCatalog: z
             .object({
+              collections: z.array(z.string()),
               headerFields: z.array(z.string()),
               lineFields: z.array(z.string()),
             })
@@ -689,13 +351,16 @@ const accMappingDefinition = z
 const accMappingCurrent = z
   .object({
     subjectId: z.string().length(26),
-    approvalEntryId: z.string().length(26),
-    approvalRevision: z.string(),
+    revision: z.string(),
     book: z
       .object({ id: z.string().length(26), code: z.string(), name: z.string() })
       .strict(),
     vouEntity: z
-      .object({ id: z.string().length(26), code: z.string(), name: z.string() })
+      .object({
+        id: z.string().min(1).max(26),
+        code: z.string(),
+        name: z.string(),
+      })
       .strict(),
     defaultResult: z.enum(['POST', 'UN_POST']),
     definition: accMappingDefinition,
@@ -755,7 +420,7 @@ export const accMappingQueryRoute = accMappingRoute(
     })
     .strict(),
   accMappingQueryData,
-  'Current approved ACC mappings envelope',
+  'Current ACC mappings envelope',
 )
 export const accMappingGetRoute = accMappingRoute(
   '/acc/mapping/get',
@@ -766,7 +431,24 @@ export const accMappingGetRoute = accMappingRoute(
     })
     .strict(),
   accMappingCurrent,
-  'Current approved ACC mapping envelope',
+  'Current ACC mapping envelope',
+)
+export const accMappingSaveRoute = accMappingRoute(
+  '/acc/mapping/save',
+  z
+    .object({
+      bookId: z.string().length(26),
+      vouEntity: z.string().min(1).max(64),
+      expectedRevision: z
+        .string()
+        .regex(/^[1-9]\d*$/)
+        .nullable(),
+      defaultResult: z.enum(['POST', 'UN_POST']),
+      definition: accMappingDefinition,
+    })
+    .strict(),
+  accMappingCurrent,
+  'Saved ACC current mapping envelope',
 )
 export const accMappingCatalogRoute = accMappingRoute(
   '/acc/mapping/catalog',
@@ -787,39 +469,10 @@ export const targetRouteMetadata = [
   },
   ...(
     [
-      ['query', warehouseQueryRoute, '查询仓库申报'],
-      ['get', warehouseGetRoute, '查看仓库申报'],
-      ['versions', warehouseVersionsRoute, '查看仓库申报版本'],
-      ['audit-history', warehouseAuditRoute, '查看仓库申报审核记录'],
-      ['submit-new', warehouseSubmitNewRoute, '提交新仓库申报'],
-      ['submit-change', warehouseSubmitChangeRoute, '提交仓库变更'],
-      ['approve', warehouseApproveRoute, '批准仓库申报'],
-      ['reject', warehouseRejectRoute, '驳回仓库申报'],
-      ['unreject', warehouseUnrejectRoute, '恢复仓库申报审核'],
-      ['unapprove', warehouseUnapproveRoute, '反批准仓库申报'],
-      ['delete', warehouseDeleteRoute, '撤回仓库提交件'],
-    ] as const
-  ).map(([action, route, title]) => ({
-    method: route.method,
-    path: route.path,
-    permission: `/dcl/warehouse/${action}`,
-    title,
-  })),
-  {
-    method: warehouseManagerReferenceRoute.method,
-    path: warehouseManagerReferenceRoute.path,
-  },
-  {
-    method: warehouseReferenceRoute.method,
-    path: warehouseReferenceRoute.path,
-    permission: '/bob/warehouse/reference',
-    title: '引用仓库',
-  },
-  ...(
-    [
       ['query', accMappingQueryRoute, '查询当前会计映射'],
       ['get', accMappingGetRoute, '查看当前会计映射'],
       ['catalog', accMappingCatalogRoute, '会计映射目录'],
+      ['save', accMappingSaveRoute, '保存当前会计映射'],
     ] as const
   ).map(([action, route, title]) => ({
     method: route.method,
@@ -828,12 +481,12 @@ export const targetRouteMetadata = [
     title,
   })),
   ...independentRouteMetadata,
-  ...archiveRouteMetadata,
+  ...bobArchiveRouteMetadata,
 ] as const
 
 export interface TargetRouteHandlers {
   independent: IndependentRouteHandlers
-  archive: ArchiveRouteHandler
+  bobArchive: BobArchiveRouteHandler
   archiveAttachments: ArchiveAttachmentHandlers
   signin: RouteHandler<typeof signinRoute, TargetRouteEnvironment>
   restore: RouteHandler<typeof restoreRoute, TargetRouteEnvironment>
@@ -842,57 +495,12 @@ export interface TargetRouteHandlers {
     typeof queryWorkbenchRoute,
     TargetRouteEnvironment
   >
-  warehouseQuery: RouteHandler<
-    typeof warehouseQueryRoute,
-    TargetRouteEnvironment
-  >
-  warehouseGet: RouteHandler<typeof warehouseGetRoute, TargetRouteEnvironment>
-  warehouseVersions: RouteHandler<
-    typeof warehouseVersionsRoute,
-    TargetRouteEnvironment
-  >
-  warehouseAudit: RouteHandler<
-    typeof warehouseAuditRoute,
-    TargetRouteEnvironment
-  >
-  warehouseManagerReference: RouteHandler<
-    typeof warehouseManagerReferenceRoute,
-    TargetRouteEnvironment
-  >
-  warehouseSubmitNew: RouteHandler<
-    typeof warehouseSubmitNewRoute,
-    TargetRouteEnvironment
-  >
-  warehouseSubmitChange: RouteHandler<
-    typeof warehouseSubmitChangeRoute,
-    TargetRouteEnvironment
-  >
-  warehouseApprove: RouteHandler<
-    typeof warehouseApproveRoute,
-    TargetRouteEnvironment
-  >
-  warehouseReject: RouteHandler<
-    typeof warehouseRejectRoute,
-    TargetRouteEnvironment
-  >
-  warehouseUnreject: RouteHandler<
-    typeof warehouseUnrejectRoute,
-    TargetRouteEnvironment
-  >
-  warehouseUnapprove: RouteHandler<
-    typeof warehouseUnapproveRoute,
-    TargetRouteEnvironment
-  >
-  warehouseDelete: RouteHandler<
-    typeof warehouseDeleteRoute,
-    TargetRouteEnvironment
-  >
-  warehouseReference: RouteHandler<
-    typeof warehouseReferenceRoute,
-    TargetRouteEnvironment
-  >
   accMappingQuery: RouteHandler<
     typeof accMappingQueryRoute,
+    TargetRouteEnvironment
+  >
+  accMappingSave: RouteHandler<
+    typeof accMappingSaveRoute,
     TargetRouteEnvironment
   >
   accMappingGet: RouteHandler<typeof accMappingGetRoute, TargetRouteEnvironment>
@@ -914,39 +522,21 @@ export function registerTargetRoutes<
     { route: restoreRoute, handler: handlers.restore },
     { route: queryUsersRoute, handler: handlers.queryUsers },
     { route: queryWorkbenchRoute, handler: handlers.queryWorkbench },
-    { route: warehouseQueryRoute, handler: handlers.warehouseQuery },
-    { route: warehouseGetRoute, handler: handlers.warehouseGet },
-    { route: warehouseVersionsRoute, handler: handlers.warehouseVersions },
-    { route: warehouseAuditRoute, handler: handlers.warehouseAudit },
-    {
-      route: warehouseManagerReferenceRoute,
-      handler: handlers.warehouseManagerReference,
-    },
-    { route: warehouseSubmitNewRoute, handler: handlers.warehouseSubmitNew },
-    {
-      route: warehouseSubmitChangeRoute,
-      handler: handlers.warehouseSubmitChange,
-    },
-    { route: warehouseApproveRoute, handler: handlers.warehouseApprove },
-    { route: warehouseRejectRoute, handler: handlers.warehouseReject },
-    { route: warehouseUnrejectRoute, handler: handlers.warehouseUnreject },
-    { route: warehouseUnapproveRoute, handler: handlers.warehouseUnapprove },
-    { route: warehouseDeleteRoute, handler: handlers.warehouseDelete },
-    { route: warehouseReferenceRoute, handler: handlers.warehouseReference },
     { route: accMappingQueryRoute, handler: handlers.accMappingQuery },
     { route: accMappingGetRoute, handler: handlers.accMappingGet },
+    { route: accMappingSaveRoute, handler: handlers.accMappingSave },
     { route: accMappingCatalogRoute, handler: handlers.accMappingCatalog },
   ] as const)
   const independent = registerIndependentRoutes(
     new OpenAPIHono<TargetRouteEnvironment>(),
     handlers.independent,
   )
-  const archives = registerArchiveRoutes(
+  const bobArchives = registerBobArchiveRoutes(
     new OpenAPIHono<TargetRouteEnvironment>(),
-    handlers.archive,
+    handlers.bobArchive,
     handlers.archiveAttachments,
   )
-  return base.route('/', independent).route('/', archives)
+  return base.route('/', independent).route('/', bobArchives)
 }
 
 function targetAppType() {
@@ -954,7 +544,14 @@ function targetAppType() {
     new OpenAPIHono<TargetRouteEnvironment>(),
     undefined as unknown as TargetRouteHandlers,
   )
-  const vou = registerVouRoutes(base, undefined as unknown as VouRouteHandler)
+  const opening = registerOpeningRoutes(
+    base,
+    undefined as unknown as OpeningRouteHandler,
+  )
+  const vou = registerVouRoutes(
+    opening,
+    undefined as unknown as VouRouteHandler,
+  )
   const acc = registerAccRoutes(vou, undefined as unknown as AccRouteHandler)
   const wfl = registerWflRoutes(acc, undefined as unknown as WflRouteHandler)
   return registerRptRoutes(wfl, undefined as unknown as RptRouteHandler)

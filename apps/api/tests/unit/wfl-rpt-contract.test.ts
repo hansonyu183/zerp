@@ -133,7 +133,7 @@ test('WFL DCL definition response requires server-authoritative runtime actions'
 test('WFL definition deletion requires deletable state, exact permission and submitter identity', () => {
   const owner = {
     id: 'owner',
-    permissions: ['/dcl/wfl-process-definition/delete'],
+    permissions: ['/wfl/process-definition/delete'],
   }
   assert.equal(
     canDeleteWflDefinition({ status: 'PENDING', submittedBy: 'owner' }, owner),
@@ -157,7 +157,7 @@ test('WFL definition deletion requires deletable state, exact permission and sub
   assert.equal(
     canDeleteWflDefinition(
       { status: 'PENDING', submittedBy: 'owner' },
-      { id: 'owner', permissions: ['/dcl/wfl-process-definition/delete-all'] },
+      { id: 'owner', permissions: ['/wfl/process-definition/delete-all'] },
     ),
     false,
   )
@@ -174,14 +174,14 @@ test('WFL runtime actions require latest approved state and exact permission', (
   assert.deepEqual(
     availableWflDefinitionRuntimeActions(
       { status: 'APPROVED', enabled: false, latestApproved: true },
-      { id: 'actor', permissions: ['/dcl/wfl-process-definition/enable'] },
+      { id: 'actor', permissions: ['/wfl/process-definition/enable'] },
     ),
     ['enable'],
   )
   assert.deepEqual(
     availableWflDefinitionRuntimeActions(
       { status: 'APPROVED', enabled: true, latestApproved: true },
-      { id: 'actor', permissions: ['/dcl/wfl-process-definition/disable'] },
+      { id: 'actor', permissions: ['/wfl/process-definition/disable'] },
     ),
     ['disable'],
   )
@@ -191,8 +191,8 @@ test('WFL runtime actions require latest approved state and exact permission', (
       {
         id: 'actor',
         permissions: [
-          '/dcl/wfl-process-definition/enable',
-          '/dcl/wfl-process-definition/disable',
+          '/wfl/process-definition/enable',
+          '/wfl/process-definition/disable',
         ],
       },
     ),
@@ -201,7 +201,7 @@ test('WFL runtime actions require latest approved state and exact permission', (
   assert.deepEqual(
     availableWflDefinitionRuntimeActions(
       { status: 'APPROVED', enabled: false, latestApproved: false },
-      { id: 'actor', permissions: ['/dcl/wfl-process-definition/enable'] },
+      { id: 'actor', permissions: ['/wfl/process-definition/enable'] },
     ),
     [],
   )
@@ -218,7 +218,7 @@ test('RPT routes validate exact directory, query, export and reference result sh
   }
   const definition = {
     subjectId: '01J00000000000000000000001',
-    approvalEntryId: '01J00000000000000000000002',
+    revision: '1',
     code: 'rpt-000001',
     name: '单据报表',
     parameters: [],
@@ -239,7 +239,7 @@ test('RPT routes validate exact directory, query, export and reference result sh
   assert.equal(
     responseSchema(rptRouteSet.query).safeParse(
       success({
-        approvalEntryId: definition.approvalEntryId,
+        revision: definition.revision,
         columns: [column],
         rows: [{ document_no: 'SO-1' }],
         page: 1,
@@ -252,7 +252,7 @@ test('RPT routes validate exact directory, query, export and reference result sh
   assert.equal(
     responseSchema(rptRouteSet.query).safeParse(
       success({
-        approvalEntryId: definition.approvalEntryId,
+        revision: definition.revision,
         columns: [column],
         rows: [],
         page: 1,
@@ -264,7 +264,7 @@ test('RPT routes validate exact directory, query, export and reference result sh
   assert.equal(
     responseSchema(rptRouteSet.export).safeParse(
       success({
-        approvalEntryId: definition.approvalEntryId,
+        revision: definition.revision,
         columns: [column],
         rows: [{ document_no: 'SO-1' }],
       }),

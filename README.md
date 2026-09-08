@@ -46,14 +46,14 @@ make target-down
 
 API 启动前先同步生成的权限目录，再从 `APP_TEST_ADMIN_PASSWORD_FILE` 和 `APP_TESTER_PASSWORD_FILE` 指向的凭证文件重复校准 `test-admin`、`tester` 两个线上测试用户及其 `superadmin` 角色。数据库首次创建和后续重启都执行同一流程；密码变化会更新哈希并撤销旧会话。`/readyz` 同时验证数据库和全部启用的 RPT definition。Web 构建通过 `TARGET_API_BROWSER_URL` 注入浏览器可访问的 HTTPS API 地址，API 与 Web 使用同一完整 `ZERP_RELEASE_SHA`。
 
-#366 的开发测试环境数据库重建、验收和整体回滚见[切换运行手册](docs/operations/issue-366-cutover-runbook.md)。网络、Cookie 与联调细节见[前端 API 配置](docs/operations/frontend-api-configuration.md)。 菜单模板结构的一次性删除见[菜单结构受控清理](docs/operations/menu-structure-cleanup.md)；既有用户的拼音转换见[用户拼音受控回填](docs/operations/user-pinyin-backfill.md)。
+#366 的开发测试环境数据库重建、验收和整体回滚见[切换运行手册](docs/operations/issue-366-cutover-runbook.md)。网络、Cookie 与联调细节见[前端 API 配置](docs/operations/frontend-api-configuration.md)。菜单模板结构的一次性删除见[菜单结构受控清理](docs/operations/menu-structure-cleanup.md)；既有用户的拼音转换见[用户拼音受控回填](docs/operations/user-pinyin-backfill.md)；经营主体与员工的受控转换见[经营主体与员工一次性迁入 AUX](docs/operations/aux-people-migration.md)。
 
 ## 文档
 
 - [共享术语](CONTEXT.md)
 - [Approval](docs/domains/approval.md)
 - [APP](docs/domains/app.md)
-- [DCL](docs/domains/dcl.md)
+- [DCL 历史归属](docs/domains/dcl.md)
 - [BOB](docs/domains/bob.md)
 - [AUX](docs/domains/aux.md)
 - [VOU](docs/domains/vou.md)
@@ -68,3 +68,21 @@ API 启动前先同步生成的权限目录，再从 `APP_TEST_ADMIN_PASSWORD_FI
 ## License
 
 MIT，见 [LICENSE](LICENSE)。
+
+## 资料一次性转换
+
+从仍有 DCL 人员、资产和三类版本化档案的基线升级时，使用受控环境依次执行 `pnpm --filter @zerp/api migrate:aux-people`、`pnpm --filter @zerp/api migrate:aux-assets`、`pnpm --filter @zerp/api migrate:bob-archives`，再执行 `pnpm --filter @zerp/api migrate:bob-product` 与 `pnpm --filter @zerp/api migrate:bob-customer`；各迁移命令在同一事务完成对应权限转换。前两步保留后续迁移所需的旧授权；BOB 转换保留三类档案的 stable ID、历史与精确授权。普通 catalog sync 会拒绝删除尚未转换的人员、资产或 BOB 档案授权。
+
+完整命令、失败处理和验收见[经营主体与员工一次性迁入 AUX](docs/operations/aux-people-migration.md)及[供应商、其他单位与销售合作方一次性迁入 BOB](docs/operations/bob-archives-migration.md)。转换不包含生产发布，也不使用会重建数据库的聚合命令。领域规则见 [AUX](docs/domains/aux.md#310-仓库资金账户与车辆)、[BOB](docs/domains/bob.md) 和 [ADR-0055](docs/adr/0055-bob-archives-use-shared-approval-and-version.md)。
+
+产品一次性迁移与历史连续性验证见[产品迁入 BOB](docs/operations/bob-product-migration.md)。
+
+客户及全部子单位的受控转换见[客户迁入 BOB](docs/operations/bob-customer-migration.md)。
+
+会计映射的受控转换使用 `pnpm --filter @zerp/api migrate:acc-mapping`，见[会计映射迁入 ACC](docs/operations/acc-mapping-migration.md)。
+
+报表定义的受控转换使用 `pnpm --filter @zerp/api migrate:rpt`，见 [RPT 当前定义一次性转换](docs/operations/rpt-definition-migration.md)。
+
+流程定义的一次性转换使用 `pnpm --filter @zerp/api migrate:wfl`，见[流程定义迁回 WFL](docs/operations/wfl-definition-migration.md)。
+
+会计期初的一次性转换使用 `pnpm --filter @zerp/api migrate:vou-opening`，见[会计期初迁入 VOU](docs/operations/vou-opening-migration.md)。

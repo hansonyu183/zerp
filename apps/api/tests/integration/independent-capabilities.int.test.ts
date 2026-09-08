@@ -31,9 +31,6 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     username: `issue363-${suffix.toLowerCase()}`,
     passwordHash: await hashPassword('Target!Password363'),
   }
-  const bobId = `B${suffix}`.padEnd(26, '0')
-  const bobEntryId = `E${suffix}`.padEnd(26, '0')
-  const bobPreviousEntryId = `V${suffix}`.padEnd(26, '0')
   const customerId = `C${suffix}`.padEnd(26, '0')
   const customerEntryId = `Q${suffix}`.padEnd(26, '0')
   const subunitId = `S${suffix}`.padEnd(26, '0')
@@ -48,6 +45,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   const bootstrap = new TargetBootstrapService(db)
   const config = loadConfig({
     DATABASE_URL: databaseUrl,
+    TARGET_DATABASE_SCOPE: process.env.TARGET_DATABASE_SCOPE,
     APP_SESSION_COOKIE_SECURE: 'false',
   })
 
@@ -59,15 +57,8 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     .execute()
   const approvedAt = new Date()
   await db
-    .insertInto('dcl_subjects')
+    .insertInto('bob_subjects')
     .values([
-      {
-        id: bobId,
-        entity: 'employee',
-        code: `EMP-${codeSuffix}`,
-        created_at: approvedAt,
-        created_by: principal.userId,
-      },
       {
         id: customerId,
         entity: 'customer',
@@ -81,38 +72,8 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     .insertInto('approval_entries')
     .values([
       {
-        id: bobPreviousEntryId,
-        domain: 'dcl',
-        entity: 'employee',
-        subject_id: bobId,
-        version_no: 2,
-        status: 'APPROVED',
-        revision: 1,
-        submitted_by: principal.userId,
-        submitted_at: approvedAt,
-        approved_by: principal.userId,
-        approved_at: approvedAt,
-        updated_by: principal.userId,
-        updated_at: approvedAt,
-      },
-      {
-        id: bobEntryId,
-        domain: 'dcl',
-        entity: 'employee',
-        subject_id: bobId,
-        version_no: 3,
-        status: 'APPROVED',
-        revision: 1,
-        submitted_by: principal.userId,
-        submitted_at: approvedAt,
-        approved_by: principal.userId,
-        approved_at: approvedAt,
-        updated_by: principal.userId,
-        updated_at: approvedAt,
-      },
-      {
         id: customerEntryId,
-        domain: 'dcl',
+        domain: 'bob',
         entity: 'customer',
         subject_id: customerId,
         version_no: 2,
@@ -128,31 +89,15 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     ])
     .execute()
   await db
-    .insertInto('dcl_employee_versions')
-    .values([
-      {
-        approval_entry_id: bobPreviousEntryId,
-        display_name: `Previous Employee ${suffix}`,
-        enabled: true,
-      },
-      {
-        approval_entry_id: bobEntryId,
-        display_name: `Target Employee ${suffix}`,
-        enabled: true,
-      },
-    ])
-    .execute()
-  await db
-    .insertInto('dcl_customer_versions')
+    .insertInto('bob_customer_versions')
     .values({
       approval_entry_id: customerEntryId,
       kind: 'MAINLAND_ENTERPRISE',
       display_name: `Target Customer ${suffix}`,
-      enabled: true,
     })
     .execute()
   await db
-    .insertInto('dcl_customer_subunit_roots')
+    .insertInto('bob_customer_subunit_roots')
     .values({
       subunit_id: subunitId,
       customer_id: customerId,
@@ -160,7 +105,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     })
     .execute()
   await db
-    .insertInto('dcl_customer_version_subunits')
+    .insertInto('bob_customer_version_subunits')
     .values({
       customer_approval_entry_id: customerEntryId,
       subunit_id: subunitId,
@@ -244,20 +189,20 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
         .where('id', 'in', createdAuxIds)
         .execute()
       await db
-        .deleteFrom('dcl_customer_version_subunits')
+        .deleteFrom('bob_customer_version_subunits')
         .where('subunit_id', '=', subunitId)
         .execute()
       await db
-        .deleteFrom('dcl_customer_subunit_roots')
+        .deleteFrom('bob_customer_subunit_roots')
         .where('subunit_id', '=', subunitId)
         .execute()
       await db
         .deleteFrom('approval_entries')
-        .where('id', 'in', [bobPreviousEntryId, bobEntryId, customerEntryId])
+        .where('id', 'in', [customerEntryId])
         .execute()
       await db
-        .deleteFrom('dcl_subjects')
-        .where('id', 'in', [bobId, customerId])
+        .deleteFrom('bob_subjects')
+        .where('id', 'in', [customerId])
         .execute()
       await db
         .deleteFrom('app_audit_events')
@@ -292,7 +237,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   await assert.rejects(
     () =>
       db
-        .insertInto('dcl_subjects')
+        .insertInto('bob_subjects')
         .values({
           id: `X${suffix}`.padEnd(26, '0'),
           entity: 'customer',
@@ -301,7 +246,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
           created_by: principal.userId,
         })
         .execute(),
-    /dcl_subjects_entity_code_ck/,
+    /bob_subjects_customer_code_ck/,
   )
 
   async function postResponse(
@@ -416,7 +361,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     .values({
       id: `F${suffix}`.padEnd(26, '0'),
       aux_object_id: created.data.id,
-      source: 'dcl_employee_versions',
+      source: 'test:independent-capabilities:department',
     })
     .execute()
   const blockedDelete = await post('/aux/department/delete', {
@@ -425,7 +370,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   })
   assert.equal(blockedDelete.errorKey, 'conflict')
   assert.deepEqual(blockedDelete.data.blockers, [
-    { source: 'dcl_employee_versions', count: 1 },
+    { source: 'test:independent-capabilities:department', count: 1 },
   ])
 
   const settlementMethod = {
@@ -577,24 +522,6 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   })
   assert.equal(malformedPaymentReferences.errorKey, 'validation_failed')
 
-  const bobQuery = await post('/bob/employee/query', {
-    page: 1,
-    pageSize: 20,
-    filters: { keyword: suffix, enabled: true },
-    sort: [{ field: 'code', order: 'asc' }],
-  })
-  assert.equal(bobQuery.code, 0)
-  assert.equal(bobQuery.data.items[0].sourceApprovalEntryId, bobEntryId)
-  const bobGet = await post('/bob/employee/get', { objectId: bobId })
-  assert.equal(bobGet.data.sourceVersionNo, 3)
-  await db
-    .updateTable('approval_entries')
-    .set({ status: 'PENDING', updated_at: new Date() })
-    .where('id', '=', bobEntryId)
-    .execute()
-  const rolledBackBob = await post('/bob/employee/get', { objectId: bobId })
-  assert.equal(rolledBackBob.data.sourceApprovalEntryId, bobPreviousEntryId)
-  assert.equal(rolledBackBob.data.sourceVersionNo, 2)
   const customerQueryPermission = await db
     .selectFrom('app_permissions')
     .select('id')

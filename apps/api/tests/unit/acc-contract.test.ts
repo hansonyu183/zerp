@@ -1,3 +1,4 @@
+import { openingRouteSet } from '../../src/vou/opening-contract.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
@@ -23,13 +24,16 @@ test('ACC book create requires the historical template and independent access sc
     operateUserIds: ['01J00000000000000000000003'],
   })
   assert.equal(parsed.success, true)
-  assert.equal(requestSchema('bookCreate').safeParse({
-    id: '01J00000000000000000000001',
-    name: '管理账簿',
-    description: '',
-    startMonth: '2026-09',
-    baseCurrency: 'CNY',
-  }).success, false)
+  assert.equal(
+    requestSchema('bookCreate').safeParse({
+      id: '01J00000000000000000000001',
+      name: '管理账簿',
+      description: '',
+      startMonth: '2026-09',
+      baseCurrency: 'CNY',
+    }).success,
+    false,
+  )
 })
 
 test('ACC subject request accepts only the six current settlement purposes', () => {
@@ -44,9 +48,26 @@ test('ACC subject request accepts only the six current settlement purposes', () 
     requiredDimensions: ['CUSTOMER_SUBUNIT'],
     inventoryQuantity: false,
   }
-  for (const settlementPurpose of ['NONE', 'RECEIVABLE', 'PREPAID', 'PAYABLE', 'ADVANCE_RECEIPT', 'OTHER'])
-    assert.equal(requestSchema('subjectCreate').safeParse({ ...base, settlementPurpose }).success, true)
-  assert.equal(requestSchema('subjectCreate').safeParse({ ...base, settlementPurpose: 'LEGACY' }).success, false)
+  for (const settlementPurpose of [
+    'NONE',
+    'RECEIVABLE',
+    'PREPAID',
+    'PAYABLE',
+    'ADVANCE_RECEIPT',
+    'OTHER',
+  ])
+    assert.equal(
+      requestSchema('subjectCreate').safeParse({ ...base, settlementPurpose })
+        .success,
+      true,
+    )
+  assert.equal(
+    requestSchema('subjectCreate').safeParse({
+      ...base,
+      settlementPurpose: 'LEGACY',
+    }).success,
+    false,
+  )
 })
 
 test('ACC book query response validates the exact successful data shape', () => {
@@ -56,18 +77,20 @@ test('ACC book query response validates the exact successful data shape', () => 
     message: 'ok',
     requestId: 'request-1',
     data: {
-      items: [{
-        id: '01J00000000000000000000001',
-        code: 'ACC-0001',
-        name: '管理账簿',
-        description: '',
-        startMonth: '2026-09',
-        baseCurrency: 'CNY',
-        controlBook: true,
-        revision: '1',
-        queryUserIds: ['01J00000000000000000000002'],
-        operateUserIds: ['01J00000000000000000000003'],
-      }],
+      items: [
+        {
+          id: '01J00000000000000000000001',
+          code: 'ACC-0001',
+          name: '管理账簿',
+          description: '',
+          startMonth: '2026-09',
+          baseCurrency: 'CNY',
+          controlBook: true,
+          revision: '1',
+          queryUserIds: ['01J00000000000000000000002'],
+          operateUserIds: ['01J00000000000000000000003'],
+        },
+      ],
       total: 1,
       page: 1,
       pageSize: 20,
@@ -75,5 +98,75 @@ test('ACC book query response validates the exact successful data shape', () => 
   }
   const parsed = responseSchema('bookQuery').safeParse(response)
   assert.equal(parsed.success, true)
-  assert.equal(responseSchema('bookQuery').safeParse({ ...response, data: { items: [{ arbitrary: true }], total: 1, page: 1, pageSize: 20 } }).success, false)
+  assert.equal(
+    responseSchema('bookQuery').safeParse({
+      ...response,
+      data: { items: [{ arbitrary: true }], total: 1, page: 1, pageSize: 20 },
+    }).success,
+    false,
+  )
+})
+
+test('ACC opening adopts AUX employee and operating-entity counterparties by stable ID', () => {
+  const opening = {
+    bookId: '01J00000000000000000000001',
+    submissionId: '01J00000000000000000000002',
+    idempotencyKey: 'opening-current-person',
+    lines: [],
+    assets: [],
+    containers: [],
+    bills: [
+      {
+        currency: 'CNY',
+        valueAmount: '1.00',
+        originatingCounterparty: {
+          entity: 'employee',
+          objectId: '01J00000000000000000000003',
+        },
+      },
+    ],
+  }
+  assert.equal(
+    openingRouteSet.openingSubmit.request.body.content[
+      'application/json'
+    ].schema.safeParse(opening).success,
+    true,
+  )
+  assert.equal(
+    openingRouteSet.openingSubmit.request.body.content[
+      'application/json'
+    ].schema.safeParse({
+      ...opening,
+      bills: [
+        {
+          ...opening.bills[0],
+          originatingCounterparty: {
+            entity: 'supplier',
+            objectId: '01J00000000000000000000003',
+          },
+        },
+      ],
+    }).success,
+    false,
+  )
+  assert.equal(
+    openingRouteSet.openingSubmit.request.body.content[
+      'application/json'
+    ].schema.safeParse({
+      ...opening,
+      bills: [
+        {
+          ...opening.bills[0],
+          originatingCounterparty: {
+            entity: 'employee',
+            objectId: '01J00000000000000000000003',
+            approvalEntryId: '01J00000000000000000000004',
+            code: 'EMP-0001',
+            name: '历史员工',
+          },
+        },
+      ],
+    }).success,
+    false,
+  )
 })

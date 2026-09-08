@@ -2,15 +2,10 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
-  prepareAccMappingSubmit,
+  prepareAccMappingSave,
   prepareCustomerSubmit,
-  prepareFundAccountSubmit,
-  prepareOperatingEntitySubmit,
   prepareProductSubmit,
-  prepareRptDefinitionSubmit,
   prepareSalesPartnerSubmit,
-  prepareVehicleSubmit,
-  projectRptDefinitionExecutionState,
   type ApprovalActor,
   type ProductSubmitCommand,
   type ProductSubmitFacts,
@@ -19,15 +14,10 @@ import {
 const actor: ApprovalActor = {
   id: 'user-1',
   permissions: [
-    '/dcl/vehicle/submit-new',
-    '/dcl/fund-account/submit-new',
-    '/dcl/operating-entity/submit-new',
-    '/dcl/product/submit-new',
-    '/dcl/product/submit-change',
-    '/dcl/customer/submit-new',
-    '/dcl/sales-partner/submit-new',
-    '/dcl/acc-mapping/submit-new',
-    '/dcl/rpt-definition/submit-new',
+    '/bob/product/submit-new',
+    '/bob/product/submit-change',
+    '/bob/customer/submit-new',
+    '/bob/sales-partner/submit-new',
   ],
 }
 
@@ -46,33 +36,6 @@ function command(action: 'submit-new' | 'submit-change' = 'submit-new') {
 }
 
 const newFacts = { subject: { exists: false, history: [] } } as const
-
-test('freezes the operating entity short name in the canonical submission', () => {
-  const result = prepareOperatingEntitySubmit(
-    {
-      ...command(),
-      data: {
-        legalName: ' 上海测试科技有限公司 ',
-        shortName: ' 测试科技 ',
-        legalIdentifier: '91350211M000100Y46',
-        registeredAddress: '',
-        contactName: '',
-        contactPhone: '',
-        invoiceTitle: '',
-        invoiceAddress: '',
-        invoicePhone: '',
-        invoiceBank: '',
-        invoiceAccount: '',
-        remark: '',
-        enabled: true,
-      },
-    },
-    newFacts,
-  )
-
-  assert.equal(result.ok, true)
-  if (result.ok) assert.equal(result.plan.data.shortName, '测试科技')
-})
 
 test('requires a complete product unit snapshot and confirmed latest fixed formula', () => {
   const data = {
@@ -345,6 +308,38 @@ test('keeps the complete typed customer aggregate and rejects malformed pricing 
     ])
   }
 
+  for (const amount of ['0.01', '0.99', '1.00']) {
+    const positive = prepareCustomerSubmit(
+      {
+        ...command(),
+        data: {
+          ...data,
+          subunits: [
+            {
+              ...data.subunits[0]!,
+              pricingPolicy: {
+                ...data.subunits[0]!.pricingPolicy,
+                costItems: [
+                  {
+                    name: '成本',
+                    calculationBasis: 'UNIT_PRICE',
+                    unitPrice: amount,
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+      facts,
+    )
+    assert.equal(
+      positive.ok,
+      true,
+      `positive two-decimal cost ${amount} is valid`,
+    )
+  }
+
   const malformed = prepareCustomerSubmit(
     {
       ...command(),
@@ -387,74 +382,6 @@ test('keeps the complete typed customer aggregate and rejects malformed pricing 
 })
 
 test('prepares typed archive submissions with canonical payloads and exact permissions', () => {
-  const vehicle = prepareVehicleSubmit(
-    {
-      ...command(),
-      data: {
-        name: ' 配送车 ',
-        plateNumber: ' 沪 A-12345 ',
-        vehicleType: { id: 'vehicle-type-1', code: 'VAN', name: ' 厢货 ' },
-        carrier: {
-          kind: 'INTERNAL',
-          operatingEntityId: 'oe-1',
-          approvalEntryId: 'oe-entry-1',
-        },
-        vin: ' lsv123 ',
-        engineNumber: ' eng-1 ',
-        ratedLoadKg: 1000,
-        bulkWaterCarrier: false,
-        remark: ' 备注 ',
-        enabled: true,
-      },
-    },
-    {
-      ...newFacts,
-      operatingEntity: {
-        objectId: 'oe-1',
-        latestApprovedEntryId: 'oe-entry-1',
-        enabled: true,
-      },
-    },
-  )
-  assert.equal(vehicle.ok, true)
-  if (vehicle.ok) {
-    assert.equal(vehicle.plan.data.plateNumber, '沪A-12345')
-    assert.equal(vehicle.plan.data.vin, 'LSV123')
-  }
-
-  const fundAccount = prepareFundAccountSubmit(
-    {
-      ...command(),
-      data: {
-        name: ' 基本户 ',
-        currency: ' cny ',
-        accountName: ' ZERP ',
-        bank: ' 银行 ',
-        branch: ' 支行 ',
-        accountNumber: ' cn-12 34 ',
-        remark: ' 备注 ',
-        enabled: true,
-        operatingEntity: {
-          objectId: 'oe-1',
-          approvalEntryId: 'oe-entry-1',
-          code: 'OE-1',
-          name: '主体',
-        },
-      },
-    },
-    {
-      ...newFacts,
-      operatingEntity: {
-        objectId: 'oe-1',
-        latestApprovedEntryId: 'oe-entry-1',
-        enabled: true,
-      },
-    },
-  )
-  assert.equal(fundAccount.ok, true)
-  if (fundAccount.ok)
-    assert.equal(fundAccount.plan.data.accountNumber, 'CN1234')
-
   const product = prepareProductSubmit(
     {
       ...command(),
@@ -535,7 +462,6 @@ test('prepares typed archive submissions with canonical payloads and exact permi
           ],
         },
         remark: ' ',
-        enabled: true,
       },
     },
     {
@@ -560,55 +486,7 @@ test('prepares typed archive submissions with canonical payloads and exact permi
   if (product.ok) assert.equal(product.plan.data.barcode, 'AB-12')
 })
 
-test('returns exact stale or unavailable reference blockers', () => {
-  assert.deepEqual(
-    prepareVehicleSubmit(
-      {
-        ...command(),
-        data: {
-          name: '车',
-          plateNumber: '沪A1',
-          vehicleType: { id: 'type', code: 'T', name: '类型' },
-          carrier: {
-            kind: 'EXTERNAL',
-            otherUnitId: 'other-1',
-            approvalEntryId: 'other-old',
-          },
-          vin: '',
-          engineNumber: '',
-          ratedLoadKg: 0,
-          bulkWaterCarrier: false,
-          remark: '',
-          enabled: true,
-        },
-      },
-      {
-        ...newFacts,
-        otherUnit: {
-          objectId: 'other-1',
-          latestApprovedEntryId: 'other-now',
-          enabled: true,
-        },
-      },
-    ),
-    {
-      ok: false,
-      error: {
-        errorKey: 'vehicle_reference_stale',
-        blockers: [
-          {
-            field: 'carrier',
-            objectId: 'other-1',
-            expectedApprovalEntryId: 'other-old',
-            currentApprovalEntryId: 'other-now',
-          },
-        ],
-      },
-    },
-  )
-})
-
-test('rechecks exact submit permission, one open version, latest approval revision, and submission idempotency', () => {
+test('rechecks exact submit permission, one open version, latest approval revision, and independent idempotency key', () => {
   const productCommand: ProductSubmitCommand = {
     ...command('submit-change'),
     expectedLatestApprovedSubmissionId: 'approved-2',
@@ -655,7 +533,6 @@ test('rechecks exact submit permission, one open version, latest approval revisi
       recyclable: false,
       fixedFormula: null,
       remark: '',
-      enabled: true,
     },
   }
   const productFacts: ProductSubmitFacts = {
@@ -687,19 +564,19 @@ test('rechecks exact submit permission, one open version, latest approval revisi
     prepareProductSubmit(
       {
         ...productCommand,
-        actor: { ...actor, permissions: ['/dcl/product/submit-new'] },
+        actor: { ...actor, permissions: ['/bob/product/submit-new'] },
       },
       productFacts,
     ),
     { ok: false, error: { errorKey: 'approval_invalid_action' } },
   )
-  assert.deepEqual(
-    prepareProductSubmit(
-      { ...productCommand, idempotencyKey: 'another' },
-      productFacts,
-    ),
-    { ok: false, error: { errorKey: 'archive_invalid_command' } },
+  const independentKey = prepareProductSubmit(
+    { ...productCommand, idempotencyKey: 'another' },
+    productFacts,
   )
+  assert.equal(independentKey.ok, true)
+  if (independentKey.ok)
+    assert.equal(independentKey.plan.idempotencyKey, 'another')
   assert.deepEqual(
     prepareProductSubmit(productCommand, {
       ...productFacts,
@@ -754,13 +631,33 @@ test('enforces sales partner capabilities, customer subunits, and legal identifi
           defaultOperatingEntityId: null,
           capabilities: [],
           remark: '',
-          enabled: true,
         },
       },
       { ...newFacts, operatingEntities: [] },
     ),
     { ok: false, error: { errorKey: 'sales_partner_invalid_data' } },
   )
+  const partner = prepareSalesPartnerSubmit(
+    {
+      ...command(),
+      data: {
+        identityKind: 'ORGANIZATION',
+        legalName: '销售方',
+        displayName: '销售方',
+        legalIdentifier: '91350211M000100Y46',
+        contactName: '',
+        phone: '',
+        address: '',
+        operatingEntities: [],
+        defaultOperatingEntityId: null,
+        capabilities: ['CHANNEL_PARTNER'],
+        remark: '',
+      },
+    },
+    { ...newFacts, operatingEntities: [] },
+  )
+  assert.equal(partner.ok, true)
+  if (partner.ok) assert.equal('enabled' in partner.plan.data, false)
   const customer = prepareCustomerSubmit(
     {
       ...command(),
@@ -819,7 +716,6 @@ test('enforces sales partner capabilities, customer subunits, and legal identifi
             primarySalesAttribution: {
               type: 'INTERNAL_EMPLOYEE',
               objectId: 'employee-1',
-              approvalEntryId: 'employee-entry-1',
               code: 'EMP-0001',
               name: '业务员',
             },
@@ -829,7 +725,6 @@ test('enforces sales partner capabilities, customer subunits, and legal identifi
             enabled: true,
           },
         ],
-        enabled: true,
       },
     },
     {
@@ -850,158 +745,74 @@ test('enforces sales partner capabilities, customer subunits, and legal identifi
     assert.equal(customer.plan.data.legalIdentifier, '91350211M000100Y46')
 })
 
-test('keeps ACC and RPT payloads typed and frozen in their plans', () => {
-  const mapping = prepareAccMappingSubmit(
+test('keeps ACC mapping configuration typed in its save plan', () => {
+  const mapping = prepareAccMappingSave(
     {
-      ...command(),
-      data: {
-        book: { id: 'book-1', code: 'BOOK', name: '账簿' },
-        vouEntity: { id: 'sale-order', code: 'sale-order', name: '销售订单' },
-        defaultResult: 'UN_POST',
-        definition: {
-          defaultTemplateId: null,
-          rules: [],
-          templates: [],
-          assetConfiguration: null,
-        },
+      book: { id: 'book-1', code: 'BOOK', name: '账簿' },
+      vouEntity: { id: 'sale-order', code: 'sale-order', name: '销售订单' },
+      defaultResult: 'UN_POST',
+      definition: {
+        defaultTemplateId: null,
+        rules: [],
+        templates: [],
+        assetConfiguration: null,
       },
     },
     {
       ...newFacts,
       book: { id: 'book-1', enabled: true },
       vouEntity: { id: 'sale-order', enabled: true },
-      fieldCatalog: { headerFields: ['status'], lineFields: [] },
+      fieldCatalog: {
+        collections: ['lines'],
+        headerFields: ['status'],
+        lineFields: [],
+      },
       accounts: [],
     },
   )
   assert.equal(mapping.ok, true)
-
-  const rpt = prepareRptDefinitionSubmit(
-    {
-      ...command(),
-      data: {
-        name: ' 报表 ',
-        description: ' 描述 ',
-        enabled: true,
-        sql: 'SELECT 1 AS amount',
-        parameters: [
-          { key: 'asOf', name: '截至日', type: 'DATE', required: true },
-          {
-            key: 'status',
-            name: '状态',
-            type: 'ENUM',
-            required: false,
-            defaultValue: 'OPEN',
-            enumValues: ['OPEN', 'CLOSED'],
-          },
-          {
-            key: 'customerId',
-            name: '客户子单位',
-            type: 'REFERENCE',
-            required: false,
-            referenceType: 'CUSTOMER_SUBUNIT',
-          },
-        ],
-        columns: [
-          {
-            alias: 'amount',
-            name: '金额',
-            order: 1,
-            type: 'DECIMAL',
-            width: 120,
-            visible: true,
-            format: 'MONEY',
-          },
-        ],
-      },
-    },
-    newFacts,
-  )
-  assert.equal(rpt.ok, true)
-  if (rpt.ok) {
-    assert.deepEqual(rpt.plan.data.parameters[1], {
-      key: 'status',
-      name: '状态',
-      type: 'ENUM',
-      required: false,
-      defaultValue: 'OPEN',
-      enumValues: ['OPEN', 'CLOSED'],
-    })
-  }
-  const invalidRpt = prepareRptDefinitionSubmit(
-    {
-      ...command(),
-      data: {
-        name: '无效参数',
-        description: '',
-        enabled: true,
-        sql: 'SELECT 1 AS total',
-        parameters: [
-          { key: 'status', name: '状态', type: 'ENUM', required: true },
-        ],
-        columns: [
-          {
-            alias: 'total',
-            name: '总数',
-            order: 1,
-            type: 'INTEGER',
-            width: 120,
-            visible: true,
-          },
-        ],
-      },
-    },
-    newFacts,
-  )
-  assert.deepEqual(invalidRpt, {
-    ok: false,
-    error: { errorKey: 'rpt_definition_invalid_data' },
-  })
 })
 
 test('rejects a fixed mapping subject whose dimensions do not match its required dimensions', () => {
-  const mapping = prepareAccMappingSubmit(
+  const mapping = prepareAccMappingSave(
     {
-      ...command(),
-      data: {
-        book: { id: 'book-1', code: 'BOOK', name: '账簿' },
-        vouEntity: { id: 'vou-1', code: 'SALE', name: '销售订单' },
-        defaultResult: 'UN_POST',
-        definition: {
-          defaultTemplateId: null,
-          rules: [],
-          templates: [
-            {
-              templateId: 'sale-post',
-              collection: null,
-              lines: [
-                {
-                  subjectSource: 'FIXED',
-                  subjectValue: 'account-1',
-                  direction: 'DEBIT',
-                  amountField: 'amount',
-                  currencyField: 'currency',
-                  dimensions: {},
-                  quantityField: null,
-                  costCounterpartSubjectId: null,
-                  costCounterpartDimensions: {},
-                },
-                {
-                  subjectSource: 'FIELD',
-                  subjectValue: 'lineSubject',
-                  direction: 'CREDIT',
-                  amountField: 'amount',
-                  currencyField: 'currency',
-                  dimensions: {},
-                  quantityField: null,
-                  costCounterpartSubjectId: null,
-                  costCounterpartDimensions: {},
-                },
-              ],
-            },
-          ],
-          assetConfiguration: null,
-        },
+      book: { id: 'book-1', code: 'BOOK', name: '账簿' },
+      vouEntity: { id: 'vou-1', code: 'SALE', name: '销售订单' },
+      defaultResult: 'UN_POST',
+      definition: {
+        defaultTemplateId: null,
+        rules: [],
+        templates: [
+          {
+            templateId: 'sale-post',
+            collection: null,
+            lines: [
+              {
+                subjectSource: 'FIXED',
+                subjectValue: 'account-1',
+                direction: 'DEBIT',
+                amountField: 'amount',
+                currencyField: 'currency',
+                dimensions: {},
+                quantityField: null,
+                costCounterpartSubjectId: null,
+                costCounterpartDimensions: {},
+              },
+              {
+                subjectSource: 'FIELD',
+                subjectValue: 'lineSubject',
+                direction: 'CREDIT',
+                amountField: 'amount',
+                currencyField: 'currency',
+                dimensions: {},
+                quantityField: null,
+                costCounterpartSubjectId: null,
+                costCounterpartDimensions: {},
+              },
+            ],
+          },
+        ],
+        assetConfiguration: null,
       },
     },
     {
@@ -1009,6 +820,7 @@ test('rejects a fixed mapping subject whose dimensions do not match its required
       book: { id: 'book-1', enabled: true },
       vouEntity: { id: 'vou-1', enabled: true },
       fieldCatalog: {
+        collections: ['lines'],
         headerFields: ['currency'],
         lineFields: ['amount', 'lineSubject', 'customer'],
       },
@@ -1029,8 +841,7 @@ test('rejects a fixed mapping subject whose dimensions do not match its required
 })
 
 test('rejects ACC counterpart and asset dimensions that differ from their fixed subjects', () => {
-  const input: Parameters<typeof prepareAccMappingSubmit>[0] = {
-    ...command(),
+  const input: { data: Parameters<typeof prepareAccMappingSave>[0] } = {
     data: {
       book: { id: 'book-1', code: 'BOOK', name: '账簿' },
       vouEntity: { id: 'vou-1', code: 'SALE', name: '销售订单' },
@@ -1079,11 +890,12 @@ test('rejects ACC counterpart and asset dimensions that differ from their fixed 
       },
     },
   }
-  const facts: Parameters<typeof prepareAccMappingSubmit>[1] = {
+  const facts: Parameters<typeof prepareAccMappingSave>[1] = {
     ...newFacts,
     book: { id: 'book-1', enabled: true },
     vouEntity: { id: 'vou-1', enabled: true },
     fieldCatalog: {
+      collections: ['lines'],
       headerFields: ['currency'],
       lineFields: ['amount', 'lineSubject', 'customer', 'department'],
     },
@@ -1125,85 +937,85 @@ test('rejects ACC counterpart and asset dimensions that differ from their fixed 
       },
     ],
   }
-  assert.equal(prepareAccMappingSubmit(input, facts).ok, true)
+  assert.equal(prepareAccMappingSave(input.data, facts).ok, true)
 
   const nullCounterpart = structuredClone(input)
   nullCounterpart.data.definition.templates[0]!.lines[1]!.costCounterpartDimensions =
     {
       customer: 'customer',
     }
-  assert.equal(prepareAccMappingSubmit(nullCounterpart, facts).ok, false)
+  assert.equal(prepareAccMappingSave(nullCounterpart.data, facts).ok, false)
 
   const mismatchedCounterpart = structuredClone(input)
   mismatchedCounterpart.data.definition.templates[0]!.lines[0]!.costCounterpartDimensions =
     {
       customer: 'customer',
     }
-  assert.equal(prepareAccMappingSubmit(mismatchedCounterpart, facts).ok, false)
+  assert.equal(
+    prepareAccMappingSave(mismatchedCounterpart.data, facts).ok,
+    false,
+  )
 
   const mismatchedAsset = structuredClone(input)
   mismatchedAsset.data.definition.assetConfiguration!.accumulatedDepreciationDimensions =
     {}
-  assert.equal(prepareAccMappingSubmit(mismatchedAsset, facts).ok, false)
+  assert.equal(prepareAccMappingSave(mismatchedAsset.data, facts).ok, false)
 })
 
-test('validates full MappingDefinition facts and keeps RPT validity separate from Approval', () => {
-  const valid = prepareAccMappingSubmit(
+test('validates full MappingDefinition facts', () => {
+  const valid = prepareAccMappingSave(
     {
-      ...command(),
-      data: {
-        book: { id: 'book-1', code: 'BOOK', name: '账簿' },
-        vouEntity: { id: 'vou-1', code: 'SALE', name: '销售订单' },
-        defaultResult: 'UN_POST',
-        definition: {
-          defaultTemplateId: null,
-          rules: [
-            {
-              conditions: [
-                { field: 'header.status', operator: 'EQ', values: ['READY'] },
-              ],
-              result: 'POST',
-              templateId: 'sale-post',
-            },
-          ],
-          templates: [
-            {
-              templateId: 'sale-post',
-              collection: 'lines',
-              lines: [
-                {
-                  subjectSource: 'FIXED',
-                  subjectValue: 'account-1',
-                  direction: 'DEBIT',
-                  amountField: 'lines.amount',
-                  currencyField: 'header.currency',
-                  dimensions: { customer: 'header.customerId' },
-                  quantityField: 'lines.quantity',
-                  costCounterpartSubjectId: null,
-                  costCounterpartDimensions: {},
-                },
-                {
-                  subjectSource: 'FIELD',
-                  subjectValue: 'lines.subjectId',
-                  direction: 'CREDIT',
-                  amountField: 'lines.amount',
-                  currencyField: 'header.currency',
-                  dimensions: {},
-                  quantityField: null,
-                  costCounterpartSubjectId: null,
-                  costCounterpartDimensions: {},
-                },
-              ],
-            },
-          ],
-          assetConfiguration: {
-            assetSubjectId: 'asset-account',
-            assetDimensions: {},
-            accumulatedDepreciationSubjectId: 'accumulated-account',
-            accumulatedDepreciationDimensions: {},
-            depreciationExpenseSubjectId: 'expense-account',
-            depreciationExpenseDimensions: {},
+      book: { id: 'book-1', code: 'BOOK', name: '账簿' },
+      vouEntity: { id: 'vou-1', code: 'SALE', name: '销售订单' },
+      defaultResult: 'UN_POST',
+      definition: {
+        defaultTemplateId: null,
+        rules: [
+          {
+            conditions: [
+              { field: 'header.status', operator: 'EQ', values: ['READY'] },
+            ],
+            result: 'POST',
+            templateId: 'sale-post',
           },
+        ],
+        templates: [
+          {
+            templateId: 'sale-post',
+            collection: 'lines',
+            lines: [
+              {
+                subjectSource: 'FIXED',
+                subjectValue: 'account-1',
+                direction: 'DEBIT',
+                amountField: 'lines.amount',
+                currencyField: 'header.currency',
+                dimensions: { customer: 'header.customerId' },
+                quantityField: 'lines.quantity',
+                costCounterpartSubjectId: null,
+                costCounterpartDimensions: {},
+              },
+              {
+                subjectSource: 'FIELD',
+                subjectValue: 'lines.subjectId',
+                direction: 'CREDIT',
+                amountField: 'lines.amount',
+                currencyField: 'header.currency',
+                dimensions: {},
+                quantityField: null,
+                costCounterpartSubjectId: null,
+                costCounterpartDimensions: {},
+              },
+            ],
+          },
+        ],
+        assetConfiguration: {
+          assetSubjectId: 'asset-account',
+          assetDimensions: {},
+          accumulatedDepreciationSubjectId: 'accumulated-account',
+          accumulatedDepreciationDimensions: {},
+          depreciationExpenseSubjectId: 'expense-account',
+          depreciationExpenseDimensions: {},
         },
       },
     },
@@ -1212,6 +1024,7 @@ test('validates full MappingDefinition facts and keeps RPT validity separate fro
       book: { id: 'book-1', enabled: true },
       vouEntity: { id: 'vou-1', enabled: true },
       fieldCatalog: {
+        collections: ['lines'],
         headerFields: ['header.status', 'header.currency', 'header.customerId'],
         lineFields: [
           'lines.amount',
@@ -1254,27 +1067,4 @@ test('validates full MappingDefinition facts and keeps RPT validity separate fro
     },
   )
   assert.equal(valid.ok, true)
-  assert.deepEqual(
-    projectRptDefinitionExecutionState(
-      'APPROVED',
-      { enabled: true },
-      {
-        status: 'INVALID',
-        diagnostic: 'schema drift',
-        validatedAt: '2026-09-04T00:00:00Z',
-        validatedBy: 'system',
-      },
-    ),
-    {
-      approvalStatus: 'APPROVED',
-      enabled: true,
-      validity: {
-        status: 'INVALID',
-        diagnostic: 'schema drift',
-        validatedAt: '2026-09-04T00:00:00Z',
-        validatedBy: 'system',
-      },
-      executable: false,
-    },
-  )
 })

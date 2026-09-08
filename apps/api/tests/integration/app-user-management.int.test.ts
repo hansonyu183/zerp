@@ -40,6 +40,11 @@ type Envelope = { code: number; errorKey: string; data: any }
 
 async function createHarness(context: TestContext) {
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
+  const config = loadConfig({
+    DATABASE_URL: databaseUrl,
+    TARGET_DATABASE_SCOPE: process.env.TARGET_DATABASE_SCOPE,
+    APP_SESSION_COOKIE_SECURE: 'false',
+  })
   const db = createDatabase(databaseUrl)
   const suffix = randomBytes(8).toString('hex')
   const password = `Tdd!${suffix}Aa1`
@@ -223,10 +228,6 @@ async function createHarness(context: TestContext) {
     fixtureUserIds.push(systemUserId)
   }
 
-  const config = loadConfig({
-    DATABASE_URL: databaseUrl,
-    APP_SESSION_COOKIE_SECURE: 'false',
-  })
   const sessionService = new SessionService(db, config)
   const management = new ManagementService(db, config)
   const app = createApp({
@@ -1229,11 +1230,7 @@ test('real HTTP rolls back role disable that would remove the final authorizatio
   const permissionRows = await harness.db
     .selectFrom('app_permissions')
     .select(['id', 'path'])
-    .where(
-      'path',
-      'in',
-      [...new Set([...protectedPaths, '/app/role/disable'])],
-    )
+    .where('path', 'in', [...new Set([...protectedPaths, '/app/role/disable'])])
     .execute()
   const permissionId = new Map(permissionRows.map((row) => [row.path, row.id]))
   for (const path of [...protectedPaths, '/app/role/disable'])

@@ -1,3 +1,4 @@
+import { VouOpeningService } from './vou/opening-service.ts'
 import { serve } from '@hono/node-server'
 import pg from 'pg'
 
@@ -11,8 +12,7 @@ import { loadConfig } from './platform/config.ts'
 import { AttachmentStore } from './platform/attachment-store.ts'
 import { jsonLogger } from './platform/logging.ts'
 import { closeRuntime } from './platform/shutdown.ts'
-import { WarehouseService } from './dcl/warehouse.ts'
-import { ArchiveService } from './dcl/archives.ts'
+import { BobArchiveService } from './bob/archives.ts'
 import { AccMappingCatalogService } from './acc/mapping-catalog.ts'
 import { VouService } from './vou/service.ts'
 import { AccService } from './acc/service.ts'
@@ -29,12 +29,8 @@ const rptValidationPool = new pg.Pool({
 })
 const rptValidator = new PgRptDefinitionValidator(rptValidationPool, database)
 const rpt = new RptService(database, rptValidator)
-try {
-  await rpt.assertAllEnabled()
-} catch (error) {
-  await Promise.all([rptValidationPool.end(), database.destroy()])
-  throw error
-}
+// Keep authenticated definition maintenance available for invalid current reports.
+// Readiness below still rejects them, and execution never falls back to history.
 const wflRuntime = await createNodeWflStarlark()
 const acc = new AccService(database)
 let vou!: VouService
@@ -58,11 +54,11 @@ const app = createApp({
   management: new ManagementService(database, config),
   aux: new AuxService(database),
   bob: new BobService(database),
-  warehouse: new WarehouseService(database),
-  archives: new ArchiveService(database, rptValidator, { attachmentStore }),
+  bobArchives: new BobArchiveService(database, { attachmentStore }),
   accMappingCatalog: new AccMappingCatalogService(database),
   vou,
   acc,
+  opening: new VouOpeningService(database, acc),
   wfl,
   rpt,
   workbench: new WorkbenchService(database),

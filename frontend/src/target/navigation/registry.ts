@@ -1,3 +1,17 @@
+import { fundAccountPage } from '../definitions/fund-account.ts'
+import { warehousePage } from '../definitions/warehouse.ts'
+import { operatingEntityPage } from '../definitions/operating-entity.ts'
+import { assetCategoryPage } from '../definitions/asset-category.ts'
+import { paymentMethodPage } from '../definitions/payment-method.ts'
+import { positionPage } from '../definitions/position.ts'
+import { employeeCategoryPage } from '../definitions/employee-category.ts'
+import { rolePage } from '../definitions/role.ts'
+import { vehiclePage } from '../definitions/vehicle.ts'
+import { employeePage } from '../definitions/employee.ts'
+import { userPage } from '../definitions/user.ts'
+import DirectPage from '../components/direct-page/DirectPage.vue'
+import { measurementUnitPage } from '../definitions/measurement-unit.ts'
+import type { DirectDefinition } from '../components/direct-page/definition.ts'
 import OpeningManagement from '../pages/vou/opening/OpeningManagement.vue'
 import OrderManagement from '../pages/vou/orders/OrderManagement.vue'
 import {
@@ -15,47 +29,6 @@ import MappingManagement from '../pages/acc/mapping/MappingManagement.vue'
 import CustomerManagement from '../pages/bob/customer/CustomerManagement.vue'
 import ProductManagement from '../pages/bob/product/ProductManagement.vue'
 import type { Component } from 'vue'
-import {
-  userListPage,
-  roleListPage,
-  employeeCategoryListPage,
-  positionListPage,
-  measurementUnitListPage,
-  paymentMethodListPage,
-  assetCategoryListPage,
-  employeeListPage,
-  operatingEntityListPage,
-  warehouseListPage,
-  fundAccountListPage,
-  vehicleListPage,
-} from './list-pages.ts'
-
-export type RegisteredListPage =
-  | typeof userListPage
-  | typeof roleListPage
-  | typeof employeeCategoryListPage
-  | typeof positionListPage
-  | typeof measurementUnitListPage
-  | typeof paymentMethodListPage
-  | typeof assetCategoryListPage
-  | typeof employeeListPage
-  | typeof operatingEntityListPage
-  | typeof warehouseListPage
-  | typeof fundAccountListPage
-  | typeof vehicleListPage
-
-import UserManagement from '../pages/app/user/UserManagement.vue'
-import RoleManagement from '../pages/app/role/RoleManagement.vue'
-import EmployeeCategoryManagement from '../pages/aux/employee-category/EmployeeCategoryManagement.vue'
-import PositionManagement from '../pages/aux/position/PositionManagement.vue'
-import MeasurementUnitManagement from '../pages/aux/measurement-unit/MeasurementUnitManagement.vue'
-import PaymentMethodManagement from '../pages/aux/payment-method/PaymentMethodManagement.vue'
-import AssetCategoryManagement from '../pages/aux/asset-category/AssetCategoryManagement.vue'
-import EmployeeManagement from '../pages/aux/employee/EmployeeManagement.vue'
-import OperatingEntityManagement from '../pages/aux/operating-entity/OperatingEntityManagement.vue'
-import WarehouseManagement from '../pages/aux/warehouse/WarehouseManagement.vue'
-import FundAccountManagement from '../pages/aux/fund-account/FundAccountManagement.vue'
-import VehicleManagement from '../pages/aux/vehicle/VehicleManagement.vue'
 import OtherUnitManagement from '../pages/bob/other-unit/OtherUnitManagement.vue'
 import SalesPartnerManagement from '../pages/bob/sales-partner/SalesPartnerManagement.vue'
 import SupplierManagement from '../pages/bob/supplier/SupplierManagement.vue'
@@ -68,7 +41,7 @@ export type ResourceRegistration = {
   domain: BusinessTargetDomain
   entity: string
   component: Component
-  definition?: RegisteredListPage | VouPageRegistration<OrderFilters>
+  definition?: DirectDefinition | VouPageRegistration<OrderFilters>
   vouType?: import('@zerp/model').VouType
   useCaseKey?: string
 }
@@ -169,74 +142,74 @@ export const targetResourceRegistry = createResourceRegistry(
     {
       domain: 'app',
       entity: 'user',
-      definition: userListPage,
-      component: UserManagement,
+      definition: userPage,
+      component: DirectPage,
     },
     {
       domain: 'app',
       entity: 'role',
-      definition: roleListPage,
-      component: RoleManagement,
+      definition: rolePage,
+      component: DirectPage,
     },
     {
       domain: 'aux',
       entity: 'employee-category',
-      definition: employeeCategoryListPage,
-      component: EmployeeCategoryManagement,
+      definition: employeeCategoryPage,
+      component: DirectPage,
     },
     {
       domain: 'aux',
       entity: 'position',
-      definition: positionListPage,
-      component: PositionManagement,
+      definition: positionPage,
+      component: DirectPage,
     },
     {
       domain: 'aux',
       entity: 'measurement-unit',
-      definition: measurementUnitListPage,
-      component: MeasurementUnitManagement,
+      definition: measurementUnitPage,
+      component: DirectPage,
     },
     {
       domain: 'aux',
       entity: 'payment-method',
-      definition: paymentMethodListPage,
-      component: PaymentMethodManagement,
+      definition: paymentMethodPage,
+      component: DirectPage,
     },
     {
       domain: 'aux',
       entity: 'asset-category',
-      definition: assetCategoryListPage,
-      component: AssetCategoryManagement,
+      definition: assetCategoryPage,
+      component: DirectPage,
     },
     {
       domain: 'aux',
       entity: 'operating-entity',
-      definition: operatingEntityListPage,
-      component: OperatingEntityManagement,
+      definition: operatingEntityPage,
+      component: DirectPage,
     },
     {
       domain: 'aux',
       entity: 'employee',
-      definition: employeeListPage,
-      component: EmployeeManagement,
+      definition: employeePage,
+      component: DirectPage,
     },
     {
       domain: 'aux',
       entity: 'warehouse',
-      definition: warehouseListPage,
-      component: WarehouseManagement,
+      definition: warehousePage,
+      component: DirectPage,
     },
     {
       domain: 'aux',
       entity: 'fund-account',
-      definition: fundAccountListPage,
-      component: FundAccountManagement,
+      definition: fundAccountPage,
+      component: DirectPage,
     },
     {
       domain: 'aux',
       entity: 'vehicle',
-      definition: vehicleListPage,
-      component: VehicleManagement,
+      definition: vehiclePage,
+      component: DirectPage,
     },
     {
       domain: 'bob',

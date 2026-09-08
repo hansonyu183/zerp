@@ -37,7 +37,7 @@ async function selectOption(
   name: string,
 ) {
   await dialog
-    .locator('.v-select')
+    .locator('.v-select, .v-autocomplete')
     .filter({ hasText: label })
     .locator('.v-field')
     .click()
@@ -208,6 +208,42 @@ test('AUX assets have temporary forms, direct CRUD, enablement, navigation, and 
     .click()
   await expect(vehicleRow).toHaveCount(0)
 
-  for (const path of ['/aux/warehouse', '/aux/fund-account', '/aux/vehicle'])
-    await openFromMenu(page, path, 390)
+  for (const [entity, caption] of [
+    ['warehouse', '仓库'],
+    ['fund-account', '资金账户'],
+    ['vehicle', '车辆'],
+  ] as const) {
+    await openFromMenu(page, `/aux/${entity}`, 390)
+    await page
+      .getByRole('button', { name: `新增${caption}`, exact: true })
+      .click()
+    const dialog = page.getByRole('dialog')
+    const mobileName = `手机${caption}${tag}`
+    await dialog.getByLabel('名称', { exact: true }).fill(mobileName)
+    if (entity === 'fund-account') {
+      await selectOption(page, dialog, '所属经营主体', operatingEntityName)
+      await dialog.getByLabel('币种', { exact: true }).fill('CNY')
+      await dialog.getByLabel('户名', { exact: true }).fill(operatingEntityName)
+      await dialog.getByLabel('开户行', { exact: true }).fill('手机测试银行')
+      await dialog.getByLabel('账号', { exact: true }).fill(`M${tag}`)
+    } else if (entity === 'vehicle') {
+      await dialog
+        .getByLabel('车牌号', { exact: true })
+        .fill(`粤M${tag.slice(0, 5)}`)
+      await selectOption(page, dialog, '车型', vehicleType.code)
+      await selectOption(page, dialog, '所属经营主体', operatingEntityName)
+      await dialog.getByLabel('核定载重（kg）', { exact: true }).fill('0')
+    }
+    await dialog.getByRole('button', { name: '保存', exact: true }).click()
+    await expect(dialog).toHaveCount(0)
+    await search(page, mobileName)
+    const row = page.getByRole('row').filter({ hasText: mobileName })
+    await expect(row).toBeVisible()
+    await row.getByRole('button', { name: '删除', exact: true }).click()
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: '删除', exact: true })
+      .click()
+    await expect(row).toHaveCount(0)
+  }
 })

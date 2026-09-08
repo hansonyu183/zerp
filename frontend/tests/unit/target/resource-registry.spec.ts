@@ -128,21 +128,16 @@ describe('business resource registry', () => {
         domain!,
         entity!,
       )!.definition!
-      expect(
-        definition.columns.slice(0, 3).map((field) => [field.key, field.type]),
-      ).toEqual([
-        ['code', 'text'],
-        ['name', 'text'],
-        ['enabled', 'boolean'],
+      expect(definition).toMatchObject({
+        kind: 'direct',
+        resource: `${domain}/${entity}`,
+      })
+      expect(Object.keys(definition).sort()).toEqual([
+        'adapter',
+        'fields',
+        'kind',
+        'resource',
       ])
-      expect(definition.columns.at(-1)).toMatchObject({
-        key: '$actions',
-        type: 'actions',
-      })
-      expect(definition.filters[0]).toMatchObject({
-        key: 'keyword',
-        type: 'text',
-      })
     }
   })
 })

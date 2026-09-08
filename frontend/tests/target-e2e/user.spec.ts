@@ -98,7 +98,7 @@ async function createRole(
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
   await dialog.getByLabel('名称', { exact: true }).fill(input.name)
-  await dialog.locator('.v-select .v-field').click()
+  await dialog.locator('.v-autocomplete .v-field').click()
   await toggleVirtualOption(page, input.permissionText)
   await closeOpenListbox(page)
   await dialog.getByRole('button', { name: '保存', exact: true }).click()
@@ -123,7 +123,7 @@ async function createUser(
   await expect(dialog).toBeVisible()
   await dialog.getByLabel('用户编码', { exact: true }).fill(input.code)
   await dialog.getByLabel('名称', { exact: true }).fill(input.name)
-  await dialog.locator('.v-select .v-field').click()
+  await dialog.locator('.v-autocomplete .v-field').click()
   const targetE2ERole = page
     .locator('[role="option"]:not(.v-list-item--disabled)')
     .filter({ hasText: targetE2ERoleText })

@@ -2,6 +2,16 @@ import { vouEntityPresentation } from '@zerp/model'
 
 // Presentation of the existing immutable voucher payload, local to its reader.
 export const snapshotCaptions: Readonly<Record<string, string>> = {
+  assetNo: '资产编号',
+  categoryId: '资产类别标识',
+  departmentId: '使用部门标识',
+  acquiredOn: '取得日期',
+  interestDays: '计息天数',
+  interestAmount: '利息金额',
+  customerCostAmount: '客户承担费用',
+  accumulatedDepreciation: '累计折旧',
+  valueAmount: '本账簿价值',
+  originatingCounterparty: '原始相对方',
   snapshot: '采用时完整快照',
   id: '标识',
   legalName: '法定名称',
@@ -234,6 +244,7 @@ export const snapshotCaptions: Readonly<Record<string, string>> = {
   acceptanceFact: '验收事实',
 }
 const party = {
+  'operating-entity': '经营主体',
   'customer-subunit': '客户子单位',
   supplier: '供应商',
   'other-unit': '其他单位',

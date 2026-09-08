@@ -1,3 +1,4 @@
+import { VouOpeningService } from '../../src/vou/opening-service.ts'
 import { withWflDatabase } from './wfl-fixture.ts'
 import { BobArchiveService } from '../../src/bob/archives.ts'
 import assert from 'node:assert/strict'
@@ -600,6 +601,7 @@ test('ACC HTTP routes enforce session, CSRF, permissions, envelope, opening and 
     session: new SessionService(db, config),
     config,
     acc,
+    opening: new VouOpeningService(db, acc),
   })
   let listening: (() => void) | undefined
   const started = new Promise<void>((resolve) => {
@@ -617,8 +619,8 @@ test('ACC HTTP routes enforce session, CSRF, permissions, envelope, opening and 
     '/acc/book/create',
     '/acc/book/query',
     '/acc/subject/create',
-    '/acc/opening/submit-new',
-    '/acc/opening/approve',
+    '/vou/opening/submit-new',
+    '/vou/opening/approve',
     '/acc/period/lock',
     '/acc/period/query',
     '/acc/period/unlock',
@@ -659,16 +661,23 @@ test('ACC HTTP routes enforce session, CSRF, permissions, envelope, opening and 
       }
       await db
         .deleteFrom('approval_events')
-        .where('domain', '=', 'acc')
+        .where('domain', '=', 'vou')
+        .where('subject_id', 'in', books)
         .execute()
       await db
         .deleteFrom('approval_entries')
-        .where('domain', '=', 'acc')
+        .where('domain', '=', 'vou')
+        .where('subject_id', 'in', books)
         .execute()
       if (books.length > 0) {
         await db
           .deleteFrom('acc_subjects')
           .where('book_id', 'in', books)
+          .execute()
+        await db
+          .deleteFrom('vou_idempotency')
+          .where('entity', '=', 'opening')
+          .where('document_id', 'in', books)
           .execute()
         await db.deleteFrom('acc_books').where('id', 'in', books).execute()
       }
@@ -783,7 +792,7 @@ test('ACC HTTP routes enforce session, CSRF, permissions, envelope, opening and 
   const malformedOpening = await post(
     origin,
     submitterSession,
-    '/acc/opening/submit-new',
+    '/vou/opening/submit-new',
     {
       bookId,
       submissionId: ulid(),
@@ -799,7 +808,7 @@ test('ACC HTTP routes enforce session, CSRF, permissions, envelope, opening and 
   const pending = await post(
     origin,
     submitterSession,
-    '/acc/opening/submit-new',
+    '/vou/opening/submit-new',
     {
       bookId,
       submissionId,
@@ -814,7 +823,7 @@ test('ACC HTTP routes enforce session, CSRF, permissions, envelope, opening and 
   const reviewWithoutScope = await post(
     origin,
     reviewerSession,
-    '/acc/opening/approve',
+    '/vou/opening/approve',
     { bookId, submissionId, expectedRevision: pending.data.approval.revision },
   )
   assert.equal(reviewWithoutScope.errorKey, 'acc_book_access_denied')
@@ -822,7 +831,7 @@ test('ACC HTTP routes enforce session, CSRF, permissions, envelope, opening and 
     id: submitter.id,
     permissions: ['/acc/book/save'],
   })
-  const approved = await post(origin, reviewerSession, '/acc/opening/approve', {
+  const approved = await post(origin, reviewerSession, '/vou/opening/approve', {
     bookId,
     submissionId,
     expectedRevision: pending.data.approval.revision,
@@ -875,6 +884,7 @@ test('WFL definition, current, trial, instance and six actions cross the authent
       config,
       vou,
       acc,
+      opening: new VouOpeningService(db, acc),
       wfl,
       bobArchives: new BobArchiveService(db),
       aux,

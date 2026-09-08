@@ -84,3 +84,5 @@ MIT，见 [LICENSE](LICENSE)。
 报表定义的受控转换使用 `pnpm --filter @zerp/api migrate:rpt`，见 [RPT 当前定义一次性转换](docs/operations/rpt-definition-migration.md)。
 
 流程定义的一次性转换使用 `pnpm --filter @zerp/api migrate:wfl`，见[流程定义迁回 WFL](docs/operations/wfl-definition-migration.md)。
+
+会计期初的一次性转换使用 `pnpm --filter @zerp/api migrate:vou-opening`，见[会计期初迁入 VOU](docs/operations/vou-opening-migration.md)。

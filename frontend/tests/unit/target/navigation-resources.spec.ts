@@ -39,7 +39,7 @@ describe('apiPath navigation resources', () => {
       'acc/book': '会计账簿',
       'acc/subject': '会计科目',
       'acc/mapping': '会计映射',
-      'acc/opening': '会计期初',
+      'vou/opening': '会计期初',
       'acc/period': '会计期间',
       'rpt/directory': '报表目录',
       'wfl/process-definition': '流程定义',

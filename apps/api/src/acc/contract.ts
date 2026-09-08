@@ -1,6 +1,5 @@
 import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
 
-import { auxCurrentDataSchemas } from '../app/aux-contract.ts'
 import type { Schema } from 'hono'
 import {
   accBookTemplates,
@@ -71,155 +70,6 @@ const subjectQuery = bookIdentity
     keyword: z.string().trim().max(200).optional(),
   })
   .strict()
-const money = z.string().regex(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/)
-const nonNegativeMoney = money
-const optionalId = z.string().length(26).optional()
-const versionedCounterpartyReference = z
-  .object({
-    entity: z.enum(['customer', 'supplier', 'other-unit', 'sales-partner']),
-    objectId: z.string().length(26),
-    customerId: z.string().length(26).optional(),
-    approvalEntryId: z.string().length(26),
-    code: z.string().min(1).max(64),
-    name: z.string().min(1).max(200),
-  })
-  .strict()
-const auxPeopleCounterpartyReference = z
-  .object({
-    entity: z.enum(['employee', 'operating-entity']),
-    objectId: z.string().length(26),
-    // The submit handler derives these fields. They are present in persisted views.
-    code: z.string().min(1).max(64).optional(),
-    name: z.string().min(1).max(200).optional(),
-    snapshot: z
-      .union([
-        auxCurrentDataSchemas['employee'],
-        auxCurrentDataSchemas['operating-entity'],
-      ])
-      .optional(),
-  })
-  .strict()
-const historicalAuxPeopleCounterpartyReference = z
-  .object({
-    entity: z.enum(['employee', 'operating-entity']),
-    objectId: z.string().length(26),
-    approvalEntryId: z.string().length(26),
-    code: z.string().min(1).max(64),
-    name: z.string().min(1).max(200),
-  })
-  .strict()
-const archiveReference = z.union([
-  versionedCounterpartyReference,
-  auxPeopleCounterpartyReference,
-  // Existing opening snapshots retain their old approved identity on read.
-  historicalAuxPeopleCounterpartyReference,
-])
-const openingSubmitArchiveReference = z.union([
-  versionedCounterpartyReference,
-  auxPeopleCounterpartyReference,
-])
-const openingAsset = z
-  .object({
-    assetId: optionalId,
-    assetNo: z.string().trim().max(64).optional(),
-    name: z.string().trim().max(200).optional(),
-    categoryId: optionalId,
-    departmentId: optionalId,
-    usefulLifeMonths: z.number().int().positive().max(1200).optional(),
-    residualRate: z
-      .string()
-      .regex(/^(?:0|[1-9]\d*)(?:\.\d{1,4})?$/)
-      .optional(),
-    acquiredOn: z.string().date().optional(),
-    currency: z.string().regex(/^[A-Z]{3}$/),
-    originalValue: money,
-    accumulatedDepreciation: nonNegativeMoney,
-  })
-  .strict()
-const openingBill = z
-  .object({
-    billId: optionalId,
-    billNo: z.string().trim().max(200).optional(),
-    billType: z.string().trim().max(64).optional(),
-    positionType: z.enum(['ASSET', 'LIABILITY']).optional(),
-    medium: z.enum(['PAPER', 'ELECTRONIC']).optional(),
-    currency: z.string().regex(/^[A-Z]{3}$/),
-    faceAmount: nonNegativeMoney.optional(),
-    issueDate: z.string().date().optional(),
-    maturityDate: z.string().date().optional(),
-    drawer: z.string().trim().max(200).optional(),
-    acceptor: z.string().trim().max(200).optional(),
-    payee: z.string().trim().max(200).optional(),
-    annualRateBps: z.number().int().nonnegative().max(100000).optional(),
-    interestDays: z.number().int().nonnegative().max(36500).optional(),
-    interestAmount: nonNegativeMoney.optional(),
-    customerCostAmount: nonNegativeMoney.optional(),
-    valueAmount: money,
-    originatingCounterparty: archiveReference.optional(),
-  })
-  .strict()
-const openingSubmitBill = openingBill
-  .extend({
-    originatingCounterparty: openingSubmitArchiveReference.optional(),
-  })
-  .strict()
-const openingContainer = z
-  .object({
-    subunit: z
-      .object({
-        entity: z.literal('customer-subunit'),
-        objectId: z.string().length(26),
-        customerId: z.string().length(26),
-        approvalEntryId: z.string().length(26),
-        code: z.string().min(1).max(64),
-        name: z.string().min(1).max(200),
-      })
-      .strict(),
-    containerType: z.enum(['SOLVENT', 'RESIN']),
-    quantity: z
-      .number()
-      .int()
-      .refine((value) => value !== 0),
-  })
-  .strict()
-const opening = z
-  .object({
-    bookId: z.string().length(26),
-    submissionId: z.string().length(26),
-    idempotencyKey: z.string().min(1).max(128),
-    lines: z.array(
-      z
-        .object({
-          subjectId: z.string().length(26),
-          currency: z.string().regex(/^[A-Z]{3}$/),
-          direction: z.enum(['DEBIT', 'CREDIT']),
-          amount: money,
-          dimensions: z.record(z.string(), z.string().length(26)),
-          quantity: z
-            .string()
-            .regex(/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/)
-            .optional(),
-        })
-        .strict(),
-    ),
-    assets: z.array(openingAsset),
-    bills: z.array(openingBill),
-    containers: z.array(openingContainer),
-  })
-  .strict()
-const openingSubmit = opening
-  .extend({ bills: z.array(openingSubmitBill) })
-  .strict()
-const openingReview = z
-  .object({
-    bookId: z.string().length(26),
-    submissionId: z.string().length(26),
-    expectedRevision: z.string().regex(/^[1-9]\d*$/),
-  })
-  .strict()
-const openingReason = openingReview
-  .extend({ reason: z.string().trim().min(1).max(1000) })
-  .strict()
 const period = z
   .object({
     bookId: z.string().length(26),
@@ -247,54 +97,6 @@ const bookView = z
   })
   .strict()
 const subjectView = subject.extend({ revision }).strict()
-const approvalStatus = z.enum(['PENDING', 'APPROVED', 'REJECTED'])
-const approvalEntry = z
-  .object({
-    id: z.string().length(26),
-    domain: z.literal('acc'),
-    entity: z.literal('opening'),
-    subjectId: z.string().length(26),
-    versionNo: z.null(),
-    status: approvalStatus,
-    revision,
-    metadata: z
-      .object({
-        submitted: z
-          .object({
-            actorId: z.string().length(26),
-            occurredAt: z.string().datetime(),
-          })
-          .strict(),
-        approved: z
-          .object({
-            actorId: z.string().length(26),
-            occurredAt: z.string().datetime(),
-          })
-          .strict()
-          .optional(),
-        rejected: z
-          .object({
-            actorId: z.string().length(26),
-            occurredAt: z.string().datetime(),
-            reason: z.string(),
-          })
-          .strict()
-          .optional(),
-      })
-      .strict(),
-  })
-  .strict()
-const openingView = z
-  .object({
-    bookId: z.string().length(26),
-    submissionId: z.string().length(26),
-    approval: approvalEntry,
-    payload: opening,
-    availableApprovalActions: z.array(
-      z.enum(['reject', 'approve', 'unreject', 'unapprove']),
-    ),
-  })
-  .strict()
 const periodView = z
   .object({
     bookId: z.string().length(26),
@@ -305,9 +107,6 @@ const periodView = z
   .strict()
 const deleted = z
   .object({ id: z.string().length(26), deleted: z.literal(true) })
-  .strict()
-const deletedSubmission = z
-  .object({ submissionId: z.string().length(26), deleted: z.literal(true) })
   .strict()
 const failureEnvelope = z
   .object({
@@ -398,41 +197,6 @@ export const accRouteSet = {
     revisionIdentity,
     envelope(deleted),
   ),
-  openingQuery: route(
-    '/acc/opening/query',
-    bookIdentity,
-    envelope(openingView),
-  ),
-  openingSubmit: route(
-    '/acc/opening/submit-new',
-    openingSubmit,
-    envelope(openingView),
-  ),
-  openingApprove: route(
-    '/acc/opening/approve',
-    openingReview,
-    envelope(openingView),
-  ),
-  openingReject: route(
-    '/acc/opening/reject',
-    openingReason,
-    envelope(openingView),
-  ),
-  openingUnreject: route(
-    '/acc/opening/unreject',
-    openingReview,
-    envelope(openingView),
-  ),
-  openingUnapprove: route(
-    '/acc/opening/unapprove',
-    openingReason,
-    envelope(openingView),
-  ),
-  openingDelete: route(
-    '/acc/opening/delete',
-    openingReview,
-    envelope(deletedSubmission),
-  ),
   periodQuery: route(
     '/acc/period/query',
     bookIdentity,
@@ -501,35 +265,7 @@ export function registerAccRoutes<
     accRouteSet.subjectDelete,
     (c) => handler('subjectDelete', c) as never,
   )
-  const oq = sd.openapi(
-    accRouteSet.openingQuery,
-    (c) => handler('openingQuery', c) as never,
-  )
-  const os = oq.openapi(
-    accRouteSet.openingSubmit,
-    (c) => handler('openingSubmit', c) as never,
-  )
-  const oa = os.openapi(
-    accRouteSet.openingApprove,
-    (c) => handler('openingApprove', c) as never,
-  )
-  const or = oa.openapi(
-    accRouteSet.openingReject,
-    (c) => handler('openingReject', c) as never,
-  )
-  const our = or.openapi(
-    accRouteSet.openingUnreject,
-    (c) => handler('openingUnreject', c) as never,
-  )
-  const oua = our.openapi(
-    accRouteSet.openingUnapprove,
-    (c) => handler('openingUnapprove', c) as never,
-  )
-  const od = oua.openapi(
-    accRouteSet.openingDelete,
-    (c) => handler('openingDelete', c) as never,
-  )
-  const pq = od.openapi(
+  const pq = sd.openapi(
     accRouteSet.periodQuery,
     (c) => handler('periodQuery', c) as never,
   )

@@ -1,4 +1,4 @@
-import { vouEntities, type VouEntity } from '@zerp/model'
+import { vouTypes, type VouType } from '@zerp/model'
 import {
   FieldContractError,
   normalizeFilters,
@@ -10,7 +10,7 @@ import {
 import type { FieldRange } from '../dynamic-fields/types.ts'
 
 export type VouIdentity = {
-  vouType: VouEntity
+  vouType: VouType
   documentId: string
   documentNo: string
   handlerName: string | null
@@ -39,7 +39,7 @@ export type VouPageDefinition<
   Row extends VouIdentity,
   Filters extends VouFilters,
 > = {
-  vouType: VouEntity
+  vouType: VouType
   title: string
   columns: VouColumns<Row>
   filters: VouFilterFields<Filters>
@@ -55,7 +55,7 @@ export function defineVouPage<
     'vouType' | 'title' | 'columns' | 'filters'
   >,
 ): VouPageDefinition<Row, Filters> {
-  if (!vouEntities.includes(input.vouType))
+  if (!vouTypes.includes(input.vouType))
     throw new FieldContractError('未登记的单据类型。')
   const columns = input.columns as unknown as readonly ColumnField<Row>[]
   const filters = input.filters as unknown as readonly FilterField<Filters>[]

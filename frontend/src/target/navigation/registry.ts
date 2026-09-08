@@ -1,3 +1,4 @@
+import OpeningManagement from '../pages/vou/opening/OpeningManagement.vue'
 import OrderManagement from '../pages/vou/orders/OrderManagement.vue'
 import {
   vouPages,
@@ -68,7 +69,7 @@ export type ResourceRegistration = {
   entity: string
   component: Component
   definition?: RegisteredListPage | VouPageRegistration<OrderFilters>
-  vouType?: import('@zerp/model').VouEntity
+  vouType?: import('@zerp/model').VouType
   useCaseKey?: string
 }
 
@@ -124,6 +125,13 @@ export function createResourceRegistry(
 
 export const targetResourceRegistry = createResourceRegistry(
   [
+    {
+      domain: 'vou',
+      entity: 'opening',
+      vouType: 'opening',
+      component: OpeningManagement,
+      useCaseKey: 'vou/opening',
+    },
     {
       domain: 'vou',
       entity: 'sale-order',

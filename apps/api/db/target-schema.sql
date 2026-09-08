@@ -746,11 +746,14 @@ CREATE TABLE acc_mapping_subject_usages (
     PRIMARY KEY (mapping_id, subject_id)
 );
 
+-- Immutable VOU opening input; the historical table name preserves accounting references.
 CREATE TABLE acc_opening_snapshots (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     book_id varchar(26) NOT NULL REFERENCES acc_books(id) ON DELETE RESTRICT,
     payload jsonb NOT NULL CHECK (jsonb_typeof(payload) = 'object')
 );
+
+CREATE UNIQUE INDEX vou_opening_book_unique ON acc_opening_snapshots(book_id);
 
 CREATE TABLE acc_periods (
     book_id varchar(26) NOT NULL REFERENCES acc_books(id) ON DELETE CASCADE,

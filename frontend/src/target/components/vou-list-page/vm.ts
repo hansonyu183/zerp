@@ -1,3 +1,4 @@
+import { openingErrorCaptions } from '../../pages/vou/opening-errors.ts'
 import { computed, ref, shallowRef, toRaw, watch } from 'vue'
 import {
   approvalActions,
@@ -8,9 +9,9 @@ import * as api from '../../api.ts'
 import { useTargetSession } from '../../session/vm.ts'
 import type { VouFilters, VouPageDefinition } from './definition.ts'
 
-export type VouRow = Awaited<
-  ReturnType<typeof api.queryTargetVouchers>
->['items'][number]
+export type VouRow =
+  | Awaited<ReturnType<typeof api.queryTargetVouchers>>['items'][number]
+  | Awaited<ReturnType<typeof api.queryTargetOpenings>>['items'][number]
 export type VouDetail = Awaited<ReturnType<typeof api.getTargetVoucher>>
 export type VouPageRegistration<Filters extends VouFilters> = VouPageDefinition<
   VouRow,
@@ -20,7 +21,7 @@ export type VouPageRegistration<Filters extends VouFilters> = VouPageDefinition<
   search: (
     csrf: string,
     input: Filters & { page: number; pageSize: 20 },
-  ) => ReturnType<typeof api.queryTargetVouchers>
+  ) => Promise<{ items: VouRow[]; total: number; page: number; pageSize: 20 }>
 }
 const errorCaptions: Record<string, string> = {
   forbidden: '没有此操作权限。',
@@ -46,6 +47,7 @@ const errorCaptions: Record<string, string> = {
   vou_source_line_unavailable: '来源单据行不可用。',
   vou_source_line_quantity_exceeded: '数量超过来源可用数量。',
   vou_settlement_insufficient: '结算余额不足。',
+  ...openingErrorCaptions,
   vou_delete_blocked: '单据仍有业务引用，不能删除。',
 }
 const auditActions = {
@@ -53,6 +55,7 @@ const auditActions = {
   reject: 'REJECTED',
   unreject: 'UNREJECTED',
   unapprove: 'UNAPPROVED',
+  delete: 'DELETED',
 } as const
 const clone = <T>(value: T): T => structuredClone(toRaw(value))
 function message(cause: unknown): string {
@@ -97,7 +100,7 @@ export function useVouListViewModel<Filters extends VouFilters>(
   const intents = new Map<
     string,
     {
-      action: ApprovalAction
+      action: ApprovalAction | 'delete'
       submissionId: string
       revision: string
       actorId: string
@@ -322,11 +325,62 @@ export function useVouListViewModel<Filters extends VouFilters>(
       if (current()) pending.value.delete(detail.documentId)
     }
   }
+  const canDelete = computed(() =>
+    Boolean(
+      current() &&
+      selected.value &&
+      can('delete') &&
+      selected.value.status !== 'APPROVED' &&
+      selected.value.submittedBy === session.user?.id &&
+      !pending.value.has(selected.value.documentId) &&
+      !unknown.value.has(selected.value.documentId),
+    ),
+  )
+  async function deleteSelected() {
+    const detail = selected.value
+    if (!detail || !canDelete.value || !session.csrfToken) return
+    pending.value.add(detail.documentId)
+    feedback.value = null
+    try {
+      await api.deleteTargetVoucher(session.csrfToken, definition.vouType, {
+        documentId: detail.documentId,
+        submissionId: detail.submissionId,
+        expectedRevision: detail.revision,
+      })
+      if (!current()) return
+      close()
+      const refreshed = can('query') ? await refresh() : true
+      if (current())
+        feedback.value = refreshed
+          ? '已删除开放提交。'
+          : '已删除开放提交，但列表刷新失败。'
+      return 'changed' as const
+    } catch (cause) {
+      if (!current()) return
+      if (
+        !(cause instanceof api.TargetApiError) ||
+        cause.errorKey === 'internal_error'
+      ) {
+        unknown.value.add(detail.documentId)
+        intents.set(detail.documentId, {
+          action: 'delete',
+          submissionId: detail.submissionId,
+          revision: detail.revision,
+          actorId: session.user?.id ?? '',
+          reason: null,
+        })
+        feedback.value = '删除结果未知，请核实原提交；不会自动重试。'
+      } else feedback.value = message(cause)
+    } finally {
+      if (current()) pending.value.delete(detail.documentId)
+    }
+  }
   async function readAttachment(fileId: string) {
     const detail = selected.value
     if (
       !current() ||
       !detail ||
+      detail.entity === 'opening' ||
       !can('attachment-read') ||
       !session.csrfToken ||
       attachmentPending.value.has(fileId) ||
@@ -338,7 +392,7 @@ export function useVouListViewModel<Filters extends VouFilters>(
     try {
       const result = await api.readTargetVoucherAttachment(
         session.csrfToken,
-        definition.vouType,
+        detail.entity,
         {
           documentId: detail.documentId,
           submissionId: detail.submissionId,
@@ -365,11 +419,21 @@ export function useVouListViewModel<Filters extends VouFilters>(
     try {
       // Read current first, then the atomic audit, so a changed revision cannot
       // be mistaken for a failed write just because the audit read was earlier.
-      const detail = await api.getTargetVoucher(
-        session.csrfToken,
-        definition.vouType,
-        previous.documentId,
-      )
+      const detail = await api
+        .getTargetVoucher(
+          session.csrfToken,
+          definition.vouType,
+          previous.documentId,
+        )
+        .catch((cause) => {
+          if (
+            intent.action === 'delete' &&
+            cause instanceof api.TargetApiError &&
+            ['approval_not_found', 'vou_not_found'].includes(cause.errorKey)
+          )
+            return null
+          throw cause
+        })
       const audit = await api.queryTargetVoucherAudit(
         session.csrfToken,
         definition.vouType,
@@ -384,7 +448,16 @@ export function useVouListViewModel<Filters extends VouFilters>(
           event.reason === intent.reason &&
           event.action === auditActions[intent.action],
       )
-      if (committed) {
+      if (committed && intent.action === 'delete') {
+        unknown.value.delete(previous.documentId)
+        intents.delete(previous.documentId)
+        close()
+        const refreshed = can('query') ? await refresh() : true
+        if (current())
+          feedback.value = refreshed
+            ? '已核实开放提交已删除。'
+            : '已核实删除成功，但列表刷新失败。'
+      } else if (committed) {
         const latest = await api.getTargetVoucher(
           session.csrfToken,
           definition.vouType,
@@ -400,8 +473,9 @@ export function useVouListViewModel<Filters extends VouFilters>(
             ? '已核实操作成功。'
             : '已核实操作成功，但列表刷新失败。'
       } else if (
-        detail.submissionId !== intent.submissionId ||
-        detail.revision !== intent.revision
+        detail &&
+        (detail.submissionId !== intent.submissionId ||
+          detail.revision !== intent.revision)
       ) {
         selected.value = detail
         unknown.value.delete(previous.documentId)
@@ -431,6 +505,8 @@ export function useVouListViewModel<Filters extends VouFilters>(
     { flush: 'sync' },
   )
   return {
+    canDelete,
+    deleteSelected,
     requestedAction,
     reason,
     needsReason,

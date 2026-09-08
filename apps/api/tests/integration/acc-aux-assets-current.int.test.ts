@@ -1,3 +1,4 @@
+import { VouOpeningService } from '../../src/vou/opening-service.ts'
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
 import test from 'node:test'
@@ -38,6 +39,7 @@ test('ACC opening adopts current warehouse and fund-account dimensions and prote
   }
   const aux = new AuxService(db),
     acc = new AccService(db)
+  const openingService = new VouOpeningService(db, acc)
   const bookId = ulid(),
     submissionId = ulid()
   await bootstrap.createE2EPrincipal(principal, false, [
@@ -51,10 +53,13 @@ test('ACC opening adopts current warehouse and fund-account dimensions and prote
       await sql`DELETE FROM approval_events WHERE actor_id=${actor.id}`.execute(
         db,
       )
-      await sql`DELETE FROM approval_entries WHERE domain='acc' AND submitted_by=${actor.id}`.execute(
+      await sql`DELETE FROM approval_entries WHERE domain='vou' AND submitted_by=${actor.id}`.execute(
         db,
       )
       await sql`DELETE FROM acc_subjects WHERE book_id=${bookId}`.execute(db)
+      await sql`DELETE FROM vou_idempotency WHERE entity='opening' AND document_id=${bookId}`.execute(
+        db,
+      )
       await sql`DELETE FROM acc_books WHERE id=${bookId}`.execute(db)
       await bootstrap.deleteE2EPrincipal(principal)
     } finally {
@@ -173,7 +178,7 @@ test('ACC opening adopts current warehouse and fund-account dimensions and prote
     containers: [],
   }
   await assert.rejects(
-    acc.submitOpening(
+    openingService.submitOpening(
       {
         ...input,
         lines: input.lines.map((line) => ({
@@ -191,7 +196,11 @@ test('ACC opening adopts current warehouse and fund-account dimensions and prote
       error instanceof AccApplicationError &&
       error.errorKey === 'acc_opening_dimension_required',
   )
-  const pending = await acc.submitOpening(input, actor, 'current-assets')
+  const pending = await openingService.submitOpening(
+    input,
+    actor,
+    'current-assets',
+  )
   assert.equal(pending.payload.lines[0]!.dimensions.WAREHOUSE, warehouse.id)
   assert.equal(pending.payload.lines[1]!.dimensions.FUND_ACCOUNT, account.id)
   for (const [entity, object] of [
@@ -203,7 +212,7 @@ test('ACC opening adopts current warehouse and fund-account dimensions and prote
       (error) =>
         error instanceof AuxApplicationError && error.errorKey === 'conflict',
     )
-  await acc.deleteOpening(
+  await openingService.deleteOpening(
     { bookId, submissionId, expectedRevision: pending.approval.revision },
     actor,
     'delete-opening',

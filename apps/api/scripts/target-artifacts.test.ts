@@ -599,13 +599,13 @@ test('target OpenAPI exposes executable ACC, WFL and RPT transaction cores', asy
     '/acc/subject/create',
     '/acc/subject/save',
     '/acc/subject/delete',
-    '/acc/opening/query',
-    '/acc/opening/submit-new',
-    '/acc/opening/approve',
-    '/acc/opening/reject',
-    '/acc/opening/unreject',
-    '/acc/opening/unapprove',
-    '/acc/opening/delete',
+    '/vou/opening/query',
+    '/vou/opening/submit-new',
+    '/vou/opening/approve',
+    '/vou/opening/reject',
+    '/vou/opening/unreject',
+    '/vou/opening/unapprove',
+    '/vou/opening/delete',
     '/acc/period/query',
     '/acc/period/lock',
     '/acc/period/unlock',
@@ -625,8 +625,8 @@ test('target OpenAPI exposes executable ACC, WFL and RPT transaction cores', asy
   ]
   for (const path of required) assert.ok(openapi.paths[path], path)
   for (const legacy of [
-    '/acc/opening/save',
-    '/acc/opening/unsubmit',
+    '/vou/opening/save',
+    '/vou/opening/unsubmit',
     '/wfl/process-definition/save',
   ])
     assert.equal(openapi.paths[legacy], undefined, legacy)

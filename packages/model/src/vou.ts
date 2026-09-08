@@ -55,9 +55,14 @@ export const vouEntities = [
 
 export type VouEntity = (typeof vouEntities)[number]
 
+/** All VOU resources. Transaction vouchers and book openings have distinct payloads. */
+export const vouTypes = [...vouEntities, 'opening'] as const
+export type VouType = (typeof vouTypes)[number]
+
 export const vouEntityPresentation: Readonly<
-  Record<VouEntity, { label: string }>
+  Record<VouType, { label: string }>
 > = {
+  opening: { label: '会计期初' },
   'sale-pricing': { label: '销售定价单' },
   'sale-order': { label: '销售订单' },
   'sale-outbound': { label: '销售出库单' },

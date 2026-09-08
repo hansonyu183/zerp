@@ -1,3 +1,4 @@
+import { VouOpeningService } from '../../src/vou/opening-service.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { ulid } from 'ulid'
@@ -30,6 +31,11 @@ test('ACC saves one current identity, enforces book scope and CAS, and rolls bac
       await db
         .deleteFrom('acc_subjects')
         .where('book_id', '=', bookId)
+        .execute()
+      await db
+        .deleteFrom('vou_idempotency')
+        .where('entity', '=', 'opening')
+        .where('document_id', '=', bookId)
         .execute()
       await db.deleteFrom('acc_books').where('id', '=', bookId).execute()
       await db
@@ -211,6 +217,11 @@ test('VOU approval uses saved mapping while historical postings keep their adopt
         .deleteFrom('acc_subjects')
         .where('book_id', '=', bookId)
         .execute()
+      await db
+        .deleteFrom('vou_idempotency')
+        .where('entity', '=', 'opening')
+        .where('document_id', '=', bookId)
+        .execute()
       await db.deleteFrom('acc_books').where('id', '=', bookId).execute()
       await db
         .deleteFrom('app_audit_events')
@@ -279,6 +290,7 @@ test('VOU approval uses saved mapping while historical postings keep their adopt
     })
     .execute()
   const acc = new AccService(db)
+  const openingService = new VouOpeningService(db, acc)
   await acc.createBook(
     {
       id: bookId,
@@ -319,7 +331,7 @@ test('VOU approval uses saved mapping while historical postings keep their adopt
   )
   const openingId = ulid()
   submissionIds.push(openingId)
-  const opening = await acc.submitOpening(
+  const opening = await openingService.submitOpening(
     {
       bookId,
       submissionId: openingId,
@@ -332,7 +344,7 @@ test('VOU approval uses saved mapping while historical postings keep their adopt
     actor,
     'mapping-opening',
   )
-  await acc.reviewOpening(
+  await openingService.reviewOpening(
     'approve',
     {
       bookId,

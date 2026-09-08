@@ -72,62 +72,6 @@
     "title": "保存当前会计映射"
   },
   {
-    "id": "01JDF94E56553FF1D6D559A4BE",
-    "path": "/acc/opening/approve",
-    "domain": "acc",
-    "entity": "opening",
-    "action": "approve",
-    "title": "/acc/opening/approve"
-  },
-  {
-    "id": "01J66EE74FAD0F896F55E1247E",
-    "path": "/acc/opening/delete",
-    "domain": "acc",
-    "entity": "opening",
-    "action": "delete",
-    "title": "/acc/opening/delete"
-  },
-  {
-    "id": "01J1A8D434EEB41DD753A5F47B",
-    "path": "/acc/opening/query",
-    "domain": "acc",
-    "entity": "opening",
-    "action": "query",
-    "title": "/acc/opening/query"
-  },
-  {
-    "id": "01JA86D7710A10BB2A890331B8",
-    "path": "/acc/opening/reject",
-    "domain": "acc",
-    "entity": "opening",
-    "action": "reject",
-    "title": "/acc/opening/reject"
-  },
-  {
-    "id": "01J28188181C4D8066648E3FB9",
-    "path": "/acc/opening/submit-new",
-    "domain": "acc",
-    "entity": "opening",
-    "action": "submit-new",
-    "title": "/acc/opening/submit-new"
-  },
-  {
-    "id": "01J9D0F1E5DD52A73FBFF81C42",
-    "path": "/acc/opening/unapprove",
-    "domain": "acc",
-    "entity": "opening",
-    "action": "unapprove",
-    "title": "/acc/opening/unapprove"
-  },
-  {
-    "id": "01J6C4628A7CD1D3B3141811A9",
-    "path": "/acc/opening/unreject",
-    "domain": "acc",
-    "entity": "opening",
-    "action": "unreject",
-    "title": "/acc/opening/unreject"
-  },
-  {
     "id": "01JCC7951E8055C4F67B211613",
     "path": "/acc/period/lock",
     "domain": "acc",
@@ -3478,6 +3422,78 @@
     "entity": "inventory-count",
     "action": "unreject",
     "title": "inventory-count unreject"
+  },
+  {
+    "id": "01J832FC16965DD22C40F8F868",
+    "path": "/vou/opening/approve",
+    "domain": "vou",
+    "entity": "opening",
+    "action": "approve",
+    "title": "/vou/opening/approve"
+  },
+  {
+    "id": "01JA1AADD56F24222360F78EF7",
+    "path": "/vou/opening/audit-history",
+    "domain": "vou",
+    "entity": "opening",
+    "action": "audit-history",
+    "title": "/vou/opening/audit-history"
+  },
+  {
+    "id": "01J677ACDAC0605E2AA3EAC570",
+    "path": "/vou/opening/delete",
+    "domain": "vou",
+    "entity": "opening",
+    "action": "delete",
+    "title": "/vou/opening/delete"
+  },
+  {
+    "id": "01JBA832191B0EF604C3CE389D",
+    "path": "/vou/opening/get",
+    "domain": "vou",
+    "entity": "opening",
+    "action": "get",
+    "title": "/vou/opening/get"
+  },
+  {
+    "id": "01JCA053E32BFB02D9482E6034",
+    "path": "/vou/opening/query",
+    "domain": "vou",
+    "entity": "opening",
+    "action": "query",
+    "title": "/vou/opening/query"
+  },
+  {
+    "id": "01JC9D17A704470DAEE1A6C1D2",
+    "path": "/vou/opening/reject",
+    "domain": "vou",
+    "entity": "opening",
+    "action": "reject",
+    "title": "/vou/opening/reject"
+  },
+  {
+    "id": "01J0A29C77E0520CACAB4ECB48",
+    "path": "/vou/opening/submit-new",
+    "domain": "vou",
+    "entity": "opening",
+    "action": "submit-new",
+    "title": "/vou/opening/submit-new"
+  },
+  {
+    "id": "01J1E8AF42839E7AE9B5153FF0",
+    "path": "/vou/opening/unapprove",
+    "domain": "vou",
+    "entity": "opening",
+    "action": "unapprove",
+    "title": "/vou/opening/unapprove"
+  },
+  {
+    "id": "01JCD4F3ABE0F57287989E9DC3",
+    "path": "/vou/opening/unreject",
+    "domain": "vou",
+    "entity": "opening",
+    "action": "unreject",
+    "title": "/vou/opening/unreject"
   },
   {
     "id": "01JC7273946C441683F7289D91",

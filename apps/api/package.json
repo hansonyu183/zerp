@@ -33,7 +33,9 @@
     "migrate:wfl": "node scripts/migrate-wfl.ts",
     "migrate:rpt": "node scripts/migrate-rpt.ts",
     "migrate:acc-mapping": "node scripts/migrate-acc-mapping.ts",
-    "e2e:vou-catalog": "node scripts/run-vou-catalog-e2e.mjs"
+    "e2e:vou-catalog": "node scripts/run-vou-catalog-e2e.mjs",
+    "migrate:vou-opening": "node scripts/migrate-vou-opening.ts",
+    "e2e:vou-opening": "node scripts/run-vou-opening-e2e.mjs"
   },
   "dependencies": {
     "@hono/node-server": "2.1.1",

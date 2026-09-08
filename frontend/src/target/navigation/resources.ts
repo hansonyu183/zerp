@@ -74,7 +74,6 @@ const accPresentation: Readonly<Record<string, string>> = {
   book: '会计账簿',
   subject: '会计科目',
   mapping: '会计映射',
-  opening: '会计期初',
   period: '会计期间',
 }
 

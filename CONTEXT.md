@@ -310,9 +310,9 @@ _Authority_: [APP 系统参数](docs/domains/app.md#38-系统参数)
 ## Accounting
 
 **Accounting Opening（会计期初）**:
-一个会计账簿的 Approval-only 期初主体；它没有版本号，本地 Draft submit 后使用中央 `PENDING`、`APPROVED`、`REJECTED` 生命周期。
+VOU 拥有的每账簿唯一 Approval-only 期初主体，ACC 负责同事务的平衡校验与账务事实；它没有版本号，临时表单 submit 后使用中央 `PENDING`、`APPROVED`、`REJECTED` 生命周期。
 _Avoid_: `state`、局部批准人/时间字段、期初版本
-_Authority_: [ACC 账簿期初](docs/domains/acc.md#6-账簿期初)
+_Authority_: [VOU 会计期初](docs/domains/vou.md#会计期初)、[ACC 账簿期初](docs/domains/acc.md#6-账簿期初)
 
 **Accounting Mapping（会计映射）**:
 以 `(bookId, vouEntity)` 为稳定身份的 ACC 当前配置；通过完整校验后直接保存，用对象 revision 控制并发。后续记账采用当前配置，既有分录保持采用时事实。

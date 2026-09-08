@@ -2,7 +2,7 @@
 
 ## 1. 当前范围
 
-ACC 负责 ZERP 的内部会计事实。当前实现 Accounting Book（会计账簿）、人员访问范围、每本账簿独立的 Accounting Subject（会计科目）、Opening（期初）、当前记账映射维护与字段目录、批准/反批准驱动的自动记账、库存数量账、会计期间，以及固定资产、票据和空桶登记。会计映射由 ACC 直接保存，无审批候选或业务版本。
+ACC 负责 ZERP 的内部会计事实。当前实现 Accounting Book（会计账簿）、人员访问范围、每本账簿独立的 Accounting Subject（会计科目）、Opening（期初）的账务校验与事实、当前记账映射维护与字段目录、批准/反批准驱动的自动记账、库存数量账、会计期间，以及固定资产、票据和空桶登记。会计映射由 ACC 直接保存，无审批候选或业务版本。
 
 ACC 不作为法定会计软件，也不提供面向用户的查询报表。科目流水、科目余额、应收预收、应付预付、库存、票据、空桶和员工借款报表统一记录为 RPT 领域待办，由 RPT 直接查询 ACC 及其他领域的投影数据并单独授权。
 
@@ -59,17 +59,17 @@ ACC 的动作、路径和数据结构由 `apps/api/` 的可执行 Hono/Zod 路�
 
 ## 6. 账簿期初
 
-账簿开始接收 VOU 会计事实前必须明确批准期初；没有任何期初余额时也必须批准零期初。每个 `bookId` 的 Opening 是一个 Approval-only stable subject，中央条目的 `versionNo` 永远为 `NULL`，持久化生命周期唯一为 `PENDING | APPROVED | REJECTED`。期初编辑只存在本地 Draft，submit 直接创建 `PENDING` Submission。接口响应通过 `ApprovalMeta` 暴露正式状态和元数据，并在根级通过必填 `availableApprovalActions` 返回当前操作者的 Approval Action Availability；期初不维护第二个业务 `state`。前端只渲染 shared TypeScript model 的 View State，不根据状态、提交人或本地权限推断生命周期动作。
+账簿开始接收 VOU 会计事实前必须明确批准期初；没有任何期初余额时也必须批准零期初。每个 `bookId` 的 Opening 是一个 Approval-only stable subject，中央条目的 `versionNo` 永远为 `NULL`，持久化生命周期唯一为 `PENDING | APPROVED | REJECTED`。期初稳定主体、不可变提交和审批入口归 VOU；ACC 在 VOU 持有的同一事务内校验并持久化账务事实，不提供第二审批入口。期初编辑只存在页面实例内临时表单，刷新或关闭即销毁，submit 直接创建 `PENDING` Submission。接口响应通过 `ApprovalMeta` 暴露正式状态和元数据，并在根级通过必填 `availableApprovalActions` 返回当前操作者的 Approval Action Availability；期初不维护第二个业务 `state`。前端只渲染 shared TypeScript model 的 View State，不根据状态、提交人或本地权限推断生命周期动作。
 
-新账簿创建时只保留初始化所需事实，不创建服务器草稿或 Submission；零期初由用户从本地 Draft 显式 submit，批准仍必须由具备权限、且不同于提交人的人工用户明确执行。系统身份只负责初始化事实与消费已批准业务事件，不能绕过 Approval 的职责分离和审计。
+新账簿创建时只保留初始化所需事实，不创建服务器草稿或 Submission；零期初由用户从 VOU 临时表单显式 submit，批准仍必须由具备权限、且不同于提交人的人工用户明确执行。系统身份只负责初始化事实与消费已批准业务事件，不能绕过 Approval 的职责分离和审计。
 
-本地 Draft 期初可以保存尚未平衡的明细，但 submit 与批准时必须按原币逐币种试算借贷相等，并再次校验科目、辅助核算和库存数量金额。persisted Submission 不可编辑；开放 Submission 删除替代 `unsubmit`，`reject`、`approve`、`unreject` 和 `unapprove` 完全遵循 Approval 生命周期，`reject` 与 `unapprove` 的非空 reason 只进入 Approval 审计。批准人与提交人必须不同。
+页面临时期初输入可以保留尚未平衡的明细，但 submit 与批准时必须按原币逐币种试算借贷相等，并再次校验科目、辅助核算和库存数量金额。persisted Submission 不可编辑；开放 Submission 删除替代 `unsubmit`，`reject`、`approve`、`unreject` 和 `unapprove` 完全遵循 Approval 生命周期，`reject` 与 `unapprove` 的非空 reason 只进入 Approval 审计。批准人与提交人必须不同。
 
 期初明细使用启用的末级科目，金额精确到分。科目要求的辅助核算维度必须逐项且仅填写一次；库存数量科目同时要求产品、仓库、正数量和借方金额。期初可以创建全局固定资产、票据和空桶事实，或关联已经存在的全局资产、票据并只登记本账簿价值；资产和票据价值必须与对应辅助核算科目明细一致。期初空桶必须选择当前有效客户子单位，并保存 stable ID、所属 Customer、精确 Customer Approval Entry、编码和名称快照。批准在同一事务内生成 `OPENING` 系统凭证、登记全局对象及科目引用，随后账簿才可接收自动记账事实。
 
 期初票据的 Employee 或 Operating Entity 对手方，以及期初明细的 `EMPLOYEE` 维度，都只能在 submit 时选择当前启用的 AUX stable ID。票据同时冻结完整人员或主体快照；人员维度保留 stable ID 作为余额键。两种采用都在同一事务登记 AUX 引用事实，人员的后续改名、停用和期初批准都不重读当前 AUX；物理删除则由该期初存在期间的引用事实阻止。反批准只撤销会计事实，删除期初才释放这些引用；既有历史期初仍按其已保存的版本快照解释。
 
-批准后期初只读。账簿尚无其他系统凭证时可以反批准：ACC 同一事务内删除期初系统凭证、释放期初科目引用并将 entry 转为 `PENDING`；已有 VOU、成本结算或折旧等后续会计事实时返回 blocker 并拒绝反批准。查询时动作快照不运行这些 blocker 检查；每个期初动作仍在执行时重新校验独立权限、账簿范围、状态、revision、职责分离和 ACC blocker。快照失效时客户端刷新当前期初且不得自动重试。
+批准后期初只读。账簿尚无其他系统凭证时可以反批准：VOU 调用 ACC 在同一事务内删除期初系统凭证、释放期初科目引用，由公共 Approval 将 entry 转为 `PENDING`；已有 VOU、成本结算或折旧等后续会计事实时返回 blocker 并拒绝反批准。查询时动作快照不运行这些 blocker 检查；每个期初动作仍在执行时重新校验独立权限、账簿范围、状态、revision、职责分离和 ACC blocker。快照失效时客户端刷新当前期初且不得自动重试。
 
 ## 7. 当前记账映射
 
@@ -133,7 +133,7 @@ VOU 批准事件携带完整的强类型单据副本。ACC 以系统身份在同
 - 企业会计准则和小企业会计准则模板各自复制为账簿私有科目，空白模板不创建科目；
 - 只有末级科目可以登记引用，父级、维度、库存及结算用途约束在领域服务与数据库边界一致成立；
 - 查询、操作与范围外用户分别只能执行其动作权限和账簿范围共同允许的科目操作。
-- 草稿期初允许暂存，批准时逐币种试算平衡并生成可追溯的期初系统凭证；
+- 期初临时表单允许未完成输入，关闭或刷新即销毁；提交和批准时逐币种试算平衡并生成可追溯的期初系统凭证；
 - 零期初需要明确批准，反批准只有在账簿没有后续会计事实时成功。
 - 当前映射只读返回最新 `APPROVED` entry，字段目录稳定供 DCL 编辑和 ACC 记账共同使用；
 - 每个版本明确选择 `POST` 或 `UN_POST` 默认结果，批准后固定并供后续会计事实引用；

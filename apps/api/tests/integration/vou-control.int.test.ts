@@ -1,3 +1,4 @@
+import { VouOpeningService } from '../../src/vou/opening-service.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { sql } from 'kysely'
@@ -17,6 +18,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
   const db = createDatabase(databaseUrl)
   const acc = new AccService(db)
+  const openingService = new VouOpeningService(db, acc)
   const vou = new VouService(db, { acc, wfl: { async apply() {} } })
   const actorId = ulid(),
     reviewerId = ulid(),
@@ -113,6 +115,11 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
       await db
         .deleteFrom('acc_subjects')
         .where('book_id', '=', bookId)
+        .execute()
+      await db
+        .deleteFrom('vou_idempotency')
+        .where('entity', '=', 'opening')
+        .where('document_id', '=', bookId)
         .execute()
       await db.deleteFrom('acc_books').where('id', '=', bookId).execute()
       await db
@@ -411,7 +418,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     actor,
   )
   const openingId = ulid()
-  const opening = await acc.submitOpening(
+  const opening = await openingService.submitOpening(
     {
       bookId: book.id,
       submissionId: openingId,
@@ -424,7 +431,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     actor,
     'control-opening',
   )
-  await acc.reviewOpening(
+  await openingService.reviewOpening(
     'approve',
     {
       bookId: book.id,

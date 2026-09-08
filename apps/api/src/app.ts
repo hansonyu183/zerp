@@ -1,3 +1,4 @@
+import type { VouOpeningService } from './vou/opening-service.ts'
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { bodyLimit } from 'hono/body-limit'
 import { HTTPException } from 'hono/http-exception'
@@ -37,6 +38,7 @@ export interface CreateAppOptions {
   bobArchives?: BobArchiveService
   accMappingCatalog?: AccMappingCatalogService
   vou?: VouService
+  opening?: VouOpeningService
   acc?: AccService
   wfl?: WflService
   rpt?: RptService
@@ -155,6 +157,7 @@ export function createApp(options: CreateAppOptions = {}) {
       options.wfl,
       options.rpt,
       options.workbench,
+      options.opening,
     )
   options.registerRoutes?.(app)
   app.onError((error, context) => {

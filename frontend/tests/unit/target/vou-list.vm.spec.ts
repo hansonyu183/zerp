@@ -1,3 +1,4 @@
+import { openingPage } from '@/target/pages/vou/opening/vm.ts'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, expect, it, vi } from 'vitest'
 import * as api from '@/target/api.ts'
@@ -11,6 +12,7 @@ vi.mock('@/target/api.ts', async (original) => ({
   getTargetVoucher: vi.fn(),
   reviewTargetVoucher: vi.fn(),
   queryTargetVoucherAudit: vi.fn(),
+  deleteTargetVoucher: vi.fn(),
 }))
 const id = '01J00000000000000000000001'
 const row = {
@@ -233,4 +235,63 @@ it('does not attribute another rejection reason to an unknown command', async ()
   await vm.verifyOutcome()
   expect(vm.feedback.value).toBe('已核实原修订已变化，此次操作未写入。')
   expect(api.reviewTargetVoucher).toHaveBeenCalledTimes(1)
+})
+
+it('opening deletion stays locked after a lost response until the exact deletion audit is verified', async () => {
+  const session = useTargetSession()
+  session.csrfToken = 'csrf'
+  session.apiPaths = ['get', 'query', 'delete', 'audit-history'].map(
+    (action) => `/vou/opening/${action}`,
+  )
+  session.user = { id: 'submitter', code: 'submitter', name: '提交人' }
+  const detail = {
+    documentId: id,
+    entity: 'opening',
+    submissionId: 'submission',
+    revision: '1',
+    status: 'PENDING',
+    submittedBy: 'submitter',
+    availableApprovalActions: [],
+  } as Awaited<ReturnType<typeof api.getTargetVoucher>>
+  vi.mocked(api.getTargetVoucher).mockResolvedValue(detail)
+  vi.mocked(api.deleteTargetVoucher).mockRejectedValue(
+    new TypeError('lost response'),
+  )
+  const registration = {
+    ...openingPage,
+    search: vi
+      .fn()
+      .mockResolvedValue({ items: [], page: 1, pageSize: 20, total: 0 }),
+  }
+  const vm = useVouListViewModel(registration)
+  await vm.open({
+    ...row,
+    vouType: 'opening',
+    bookName: '账簿',
+    counterpartyName: null,
+    amount: null,
+  })
+  expect(vm.canDelete.value).toBe(true)
+  await vm.deleteSelected()
+  await vm.deleteSelected()
+  await vm.refresh()
+  expect(api.deleteTargetVoucher).toHaveBeenCalledTimes(1)
+  expect(vm.unknown.value.has(id)).toBe(true)
+  vi.mocked(api.getTargetVoucher).mockRejectedValue(
+    new api.TargetApiError('approval_not_found', 'not found', 'req'),
+  )
+  vi.mocked(api.queryTargetVoucherAudit).mockResolvedValue([
+    {
+      submissionId: 'submission',
+      action: 'DELETED',
+      fromRevision: '1',
+      actorId: 'submitter',
+      reason: null,
+    },
+  ] as never)
+  await vm.verifyOutcome()
+  expect(vm.selected.value).toBeNull()
+  expect(vm.unknown.value.has(id)).toBe(false)
+  expect(api.deleteTargetVoucher).toHaveBeenCalledTimes(1)
+  vm.dispose()
 })

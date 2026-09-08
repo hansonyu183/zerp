@@ -1,3 +1,4 @@
+import { VouOpeningService } from '../src/vou/opening-service.ts'
 import pg from 'pg'
 import { RptService, PgRptDefinitionValidator } from '../src/rpt/service.ts'
 import { createRptBrowserFixture } from '../tests/fixtures/rpt-browser.ts'
@@ -70,6 +71,7 @@ const rpt = new RptService(
 )
 const bobArchives = new BobArchiveService(database)
 const acc = new AccService(database)
+const openingService = new VouOpeningService(database, acc)
 const aux = new AuxService(database)
 const vou = new VouService(database, {
   acc,
@@ -448,7 +450,7 @@ async function deleteAccFixtureBooks(bookIds: readonly string[]) {
     const entries = await transaction
       .selectFrom('approval_entries')
       .select('id')
-      .where('domain', '=', 'acc')
+      .where('domain', '=', 'vou')
       .where('entity', '=', 'opening')
       .where('subject_id', 'in', bookIds)
       .execute()
@@ -477,7 +479,7 @@ async function deleteAccFixtureBooks(bookIds: readonly string[]) {
     }
     await transaction
       .deleteFrom('approval_events')
-      .where('domain', '=', 'acc')
+      .where('domain', '=', 'vou')
       .where('entity', '=', 'opening')
       .where('subject_id', 'in', bookIds)
       .execute()
@@ -956,14 +958,14 @@ async function seedAccFacts(acc: AccService) {
 async function seedApprovedOpeningAndMappings() {
   const submitterActor = {
     id: submitter.userId,
-    permissions: ['/acc/opening/submit-new', '/acc/mapping/save'],
+    permissions: ['/vou/opening/submit-new', '/acc/mapping/save'],
   }
   const reviewerActor = {
     id: reviewer.userId,
-    permissions: ['/acc/opening/approve'],
+    permissions: ['/vou/opening/approve'],
   }
   const submissionId = fixtureId('O', 1)
-  const pending = await acc.submitOpening(
+  const pending = await openingService.submitOpening(
     {
       bookId: archiveFacts.accounting.book.id,
       submissionId,
@@ -976,7 +978,7 @@ async function seedApprovedOpeningAndMappings() {
     submitterActor,
     'e2e-acc-opening-submit',
   )
-  await acc.reviewOpening(
+  await openingService.reviewOpening(
     'approve',
     {
       bookId: archiveFacts.accounting.book.id,
@@ -1697,12 +1699,12 @@ try {
     )
   `.execute(database)
   try {
-    let opening = await acc.getOpening(
+    let opening = await openingService.getOpening(
       accUiFacts.book.id,
       serviceActor(submitter.userId),
     )
     if (opening.approval.status === 'APPROVED')
-      opening = await acc.reviewOpening(
+      opening = await openingService.reviewOpening(
         'unapprove',
         {
           bookId: opening.bookId,
@@ -1714,7 +1716,7 @@ try {
         'e2e-acc-opening-cleanup-unapprove',
       )
     if (opening.approval.status === 'REJECTED')
-      opening = await acc.reviewOpening(
+      opening = await openingService.reviewOpening(
         'unreject',
         {
           bookId: opening.bookId,
@@ -1724,7 +1726,7 @@ try {
         serviceActor(reviewer.userId),
         'e2e-acc-opening-cleanup-unreject',
       )
-    await acc.deleteOpening(
+    await openingService.deleteOpening(
       {
         bookId: opening.bookId,
         submissionId: opening.submissionId,

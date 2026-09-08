@@ -312,6 +312,25 @@ export class TargetBootstrapService {
     catalog: readonly TargetPermissionCatalogEntry[],
     pathMappings: readonly PermissionPathMapping[] = [],
   ): Promise<PermissionCatalogMigrationReport> {
+    if (
+      !pathMappings.some((mapping) => mapping.from.startsWith('/acc/opening/'))
+    ) {
+      const unmigrated = await transaction
+        .selectFrom('app_permissions as p')
+        .innerJoin(
+          'app_role_permissions as grant',
+          'grant.permission_id',
+          'p.id',
+        )
+        .select('p.path')
+        .where('p.domain', '=', 'acc')
+        .where('p.entity', '=', 'opening')
+        .executeTakeFirst()
+      if (unmigrated)
+        throw new Error(
+          'Run migrate:vou-opening before retiring ACC opening grants',
+        )
+    }
     const reportPermissions = await transaction
       .selectFrom('app_permissions')
       .selectAll()

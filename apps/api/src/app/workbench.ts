@@ -7,7 +7,7 @@ import {
 import { sql, type Kysely } from 'kysely'
 
 import type { DB } from '../db/generated.ts'
-import { vouEntities } from '@zerp/model'
+import { vouTypes } from '@zerp/model'
 
 const wflApprovalEntities = ['process-definition'] as const
 const bobApprovalEntities = [
@@ -59,6 +59,7 @@ type WorkbenchRow = {
   code: string
   name: string
   updated_at: Date
+  can_operate?: boolean
 }
 
 function visibleEntities(
@@ -117,19 +118,21 @@ export class WorkbenchService {
   async query(input: WorkbenchQueryInput, actor: ApprovalActor) {
     const wflEntities = visibleEntities(actor, 'wfl', wflApprovalEntities)
     const bobEntities = visibleEntities(actor, 'bob', bobApprovalEntities)
-    const vouVisibleEntities = visibleEntities(actor, 'vou', vouEntities)
+    const vouVisibleEntities = visibleEntities(actor, 'vou', vouTypes)
     const rows = await Promise.all([
       this.queryWfl(wflEntities),
       this.queryBob(bobEntities),
       this.queryVou(vouVisibleEntities),
+      this.queryOpening(vouVisibleEntities, actor),
     ])
     const keyword = input.filters?.keyword?.trim().toLocaleLowerCase()
     const items = rows
       .flat()
       .flatMap((row): WorkbenchItem[] => {
-        const lifecycleActions = availableApprovalActions(
-          entryFromRow(row),
-          actor,
+        const lifecycleActions = (
+          row.can_operate === false
+            ? []
+            : availableApprovalActions(entryFromRow(row), actor)
         ).filter(
           (action): action is 'reject' | 'approve' | 'unreject' =>
             action !== 'unapprove',
@@ -156,6 +159,7 @@ export class WorkbenchService {
           resourceActions.push('view')
         }
         if (
+          row.can_operate !== false &&
           row.submitted_by === actor.id &&
           actor.permissions.includes(`/${row.domain}/${row.entity}/delete`)
         )
@@ -204,6 +208,24 @@ export class WorkbenchService {
       WHERE e.domain = 'wfl'
         AND e.status IN ('PENDING', 'REJECTED')
         AND e.entity IN (${sql.join(entities)})
+    `.execute(this.db)
+    return result.rows
+  }
+
+  private async queryOpening(
+    entities: readonly string[],
+    actor: ApprovalActor,
+  ): Promise<WorkbenchRow[]> {
+    if (!entities.includes('opening')) return []
+    const result = await sql<WorkbenchRow>`
+      SELECT e.id,e.domain,e.entity,e.subject_id,e.status,e.revision,e.submitted_by,e.submitted_at,
+        e.rejected_by,e.rejected_at,e.rejection_reason,e.updated_at,
+        'OPN-' || book.code AS code,book.name,access.can_operate
+      FROM approval_entries e
+      JOIN acc_books book ON book.id=e.subject_id
+      JOIN acc_opening_snapshots snapshot ON snapshot.approval_entry_id=e.id
+      JOIN acc_book_access access ON access.book_id=book.id AND access.user_id=${actor.id} AND access.can_query
+      WHERE e.domain='vou' AND e.entity='opening' AND e.status IN ('PENDING','REJECTED')
     `.execute(this.db)
     return result.rows
   }

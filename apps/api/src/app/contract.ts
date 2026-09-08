@@ -1,4 +1,8 @@
 import {
+  registerOpeningRoutes,
+  type OpeningRouteHandler,
+} from '../vou/opening-contract.ts'
+import {
   createRoute,
   OpenAPIHono,
   type RouteHandler,
@@ -540,7 +544,14 @@ function targetAppType() {
     new OpenAPIHono<TargetRouteEnvironment>(),
     undefined as unknown as TargetRouteHandlers,
   )
-  const vou = registerVouRoutes(base, undefined as unknown as VouRouteHandler)
+  const opening = registerOpeningRoutes(
+    base,
+    undefined as unknown as OpeningRouteHandler,
+  )
+  const vou = registerVouRoutes(
+    opening,
+    undefined as unknown as VouRouteHandler,
+  )
   const acc = registerAccRoutes(vou, undefined as unknown as AccRouteHandler)
   const wfl = registerWflRoutes(acc, undefined as unknown as WflRouteHandler)
   return registerRptRoutes(wfl, undefined as unknown as RptRouteHandler)

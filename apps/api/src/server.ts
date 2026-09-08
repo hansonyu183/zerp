@@ -1,3 +1,4 @@
+import { VouOpeningService } from './vou/opening-service.ts'
 import { serve } from '@hono/node-server'
 import pg from 'pg'
 
@@ -57,6 +58,7 @@ const app = createApp({
   accMappingCatalog: new AccMappingCatalogService(database),
   vou,
   acc,
+  opening: new VouOpeningService(database, acc),
   wfl,
   rpt,
   workbench: new WorkbenchService(database),

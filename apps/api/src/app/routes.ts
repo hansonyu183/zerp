@@ -1,3 +1,8 @@
+import type { VouOpeningService } from '../vou/opening-service.ts'
+import {
+  registerOpeningRoutes,
+  openingRouteMetadata,
+} from '../vou/opening-contract.ts'
 import { ApprovalPersistenceError } from '../platform/approval.ts'
 import { VersionedArchiveError } from '../platform/versioned-archives.ts'
 import type { OpenAPIHono } from '@hono/zod-openapi'
@@ -71,6 +76,7 @@ export const targetRouteMetadata = [
   ...baseTargetRouteMetadata,
   ...vouRouteMetadata,
   ...accRouteMetadata,
+  ...openingRouteMetadata,
   ...wflRouteMetadata,
   ...rptRouteMetadata,
 ]
@@ -131,6 +137,7 @@ export function registerAppRoutes(
   wfl?: WflService,
   rpt?: RptService,
   workbench?: WorkbenchService,
+  opening?: VouOpeningService,
 ) {
   async function executeArchive<T>(
     context: {
@@ -541,8 +548,51 @@ export function registerAppRoutes(
       }
     },
   })
+  const withOpening = registerOpeningRoutes(target, async (action, context) => {
+    if (!opening) throw new Error('VOU opening service is unavailable')
+    const input = context.req.valid('json')
+    const response = await executeCore<unknown>(context, (actor) => {
+      if (action === 'openingQuery') return opening.queryOpenings(input, actor)
+      if (action === 'openingAudit')
+        return opening.auditOpening(input.bookId, actor)
+      if (action === 'openingGet')
+        return opening.getOpening(input.bookId, actor)
+      if (action === 'openingSubmit')
+        return opening.submitOpening(input, actor, currentRequestId(context))
+      if (action === 'openingDelete')
+        return opening.deleteOpening(input, actor, currentRequestId(context))
+      if (action === 'openingApprove')
+        return opening.reviewOpening(
+          'approve',
+          input,
+          actor,
+          currentRequestId(context),
+        )
+      if (action === 'openingReject')
+        return opening.reviewOpening(
+          'reject',
+          input,
+          actor,
+          currentRequestId(context),
+        )
+      if (action === 'openingUnreject')
+        return opening.reviewOpening(
+          'unreject',
+          input,
+          actor,
+          currentRequestId(context),
+        )
+      return opening.reviewOpening(
+        'unapprove',
+        input,
+        actor,
+        currentRequestId(context),
+      )
+    })
+    return context.json(response as never, 200)
+  })
   const withVou = registerVouRoutes(
-    target,
+    withOpening,
     async (action: VouRouteAction, context: any) => {
       if (action === 'attachment-download') {
         try {
@@ -646,40 +696,6 @@ export function registerAppRoutes(
         if (action === 'subjectSave') return acc.saveSubject(input, actor)
         if (action === 'subjectDelete')
           return acc.deleteSubject(input.id, input.expectedRevision, actor)
-        if (action === 'openingQuery')
-          return acc.getOpening(input.bookId, actor)
-        if (action === 'openingSubmit')
-          return acc.submitOpening(input, actor, currentRequestId(context))
-        if (action === 'openingDelete')
-          return acc.deleteOpening(input, actor, currentRequestId(context))
-        if (action === 'openingApprove')
-          return acc.reviewOpening(
-            'approve',
-            input,
-            actor,
-            currentRequestId(context),
-          )
-        if (action === 'openingReject')
-          return acc.reviewOpening(
-            'reject',
-            input,
-            actor,
-            currentRequestId(context),
-          )
-        if (action === 'openingUnreject')
-          return acc.reviewOpening(
-            'unreject',
-            input,
-            actor,
-            currentRequestId(context),
-          )
-        if (action === 'openingUnapprove')
-          return acc.reviewOpening(
-            'unapprove',
-            input,
-            actor,
-            currentRequestId(context),
-          )
         if (action === 'periodQuery')
           return acc.queryPeriods(input.bookId, actor)
         return acc.setPeriod(input, action === 'periodLock', actor)

@@ -1,9 +1,9 @@
 <script setup lang="ts" generic="Filters extends VouFilters">
-import { onBeforeUnmount, onMounted, reactive } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import {
   approvalActionPresentation,
   approvalStatusPresentation,
-  type VouEntity,
+  type VouType,
 } from '@zerp/model'
 import ManagementPageFrame from '../ManagementPageFrame.vue'
 import {
@@ -21,11 +21,22 @@ defineSlots<{
 }>()
 
 const props = defineProps<{
-  vouType: VouEntity
+  vouType: VouType
   definition: VouPageRegistration<Filters>
+  editorAvailable?: boolean
 }>()
 if (props.vouType !== props.definition.vouType)
   throw new FieldContractError('单据类型与登记不一致。')
+const emit = defineEmits<{
+  create: []
+  clone: [document: import('./vm.ts').VouDetail]
+}>()
+function cloneSelected() {
+  if (!vm.selected) return
+  emit('clone', vm.selected)
+  vm.close()
+}
+const deleting = ref(false)
 const vm = reactive(useVouListViewModel(props.definition))
 const references = reactive(useReferenceOptionsViewModel())
 onMounted(() => {
@@ -34,6 +45,7 @@ onMounted(() => {
   for (const field of props.definition.filters as readonly FilterField[])
     if (field.type === 'reference') void references.load(field.source)
 })
+defineExpose({ refresh: vm.refresh, close: vm.close })
 onBeforeUnmount(() => {
   vm.dispose()
   references.dispose()
@@ -41,6 +53,14 @@ onBeforeUnmount(() => {
 </script>
 <template>
   <ManagementPageFrame :title="definition.title" data-testid="vou-list-page">
+    <template #actions
+      ><v-btn
+        v-if="editorAvailable && vm.can('submit-new')"
+        color="primary"
+        @click="emit('create')"
+        >新建</v-btn
+      ></template
+    >
     <template #alerts>
       <v-alert
         v-if="vm.feedback && !vm.selected && !vm.requestedAction"
@@ -51,7 +71,7 @@ onBeforeUnmount(() => {
         @click:close="vm.dismissFeedback"
         >{{ vm.feedback }}</v-alert
       >
-      <v-alert type="info" class="mb-4"
+      <v-alert v-if="!editorAvailable" type="info" class="mb-4"
         >专用单据编辑器尚未实施；已提交内容只读，可打开详情及执行已支持的审批。</v-alert
       >
       <v-alert v-if="!vm.searchable" type="info" class="mb-4"
@@ -159,7 +179,7 @@ onBeforeUnmount(() => {
             ></v-alert
           >
           <slot name="detail" :document="vm.selected" />
-          <section>
+          <section v-if="vm.selected.entity !== 'opening'">
             <h3 class="text-subtitle-1">附件</h3>
             <p v-if="!vm.selected.payload.attachments.length">无附件。</p>
             <ul v-else>
@@ -188,6 +208,21 @@ onBeforeUnmount(() => {
       </v-card-text>
       <v-card-actions class="flex-wrap">
         <RowActions :actions="vm.reviewActions" @action="vm.requestReview" />
+        <v-btn
+          v-if="editorAvailable && vm.can('submit-new') && vm.selected"
+          :disabled="
+            vm.pending.has(vm.selected.documentId) ||
+            vm.unknown.has(vm.selected.documentId)
+          "
+          @click="cloneSelected"
+          >复制到临时表单</v-btn
+        >
+        <v-btn
+          v-if="editorAvailable && vm.canDelete"
+          color="error"
+          @click="deleting = true"
+          >删除开放提交</v-btn
+        >
         <v-spacer /><v-btn
           :disabled="
             Boolean(vm.selected && vm.pending.has(vm.selected.documentId))
@@ -196,6 +231,31 @@ onBeforeUnmount(() => {
           >关闭</v-btn
         >
       </v-card-actions>
+    </v-card>
+  </v-dialog>
+  <v-dialog v-model="deleting" max-width="480" persistent>
+    <v-card title="删除开放提交"
+      ><v-card-text
+        >确认删除此开放提交？已提交的审计记录会保留。修改内容可先复制到临时表单，再显式删除原提交。<v-alert
+          v-if="vm.feedback"
+          type="info"
+          >{{ vm.feedback }}</v-alert
+        ></v-card-text
+      >
+      <v-card-actions
+        ><v-btn
+          :disabled="
+            Boolean(vm.selected && vm.pending.has(vm.selected.documentId))
+          "
+          @click="deleting = false"
+          >取消</v-btn
+        ><v-btn
+          color="error"
+          :disabled="!vm.canDelete"
+          @click="vm.deleteSelected().then(() => (deleting = false))"
+          >确定删除</v-btn
+        ></v-card-actions
+      >
     </v-card>
   </v-dialog>
   <v-dialog

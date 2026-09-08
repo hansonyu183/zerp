@@ -2036,7 +2036,7 @@ export class AuxService {
                   ), 0)))
           OR EXISTS (SELECT 1 FROM approval_entries entry
             WHERE entry.id = split_part(fact.source, ':', 3)
-              AND entry.domain = 'acc' AND entry.status IN ('PENDING', 'REJECTED')))
+              AND entry.domain = 'vou' AND entry.entity = 'opening' AND entry.status IN ('PENDING', 'REJECTED')))
     `.execute(transaction)
     retained.references.push(
       ...currentReferences.rows.map((row) => ({ source: row.source })),

@@ -6,9 +6,9 @@
 
 统计口径：每个带 `meta.title` 的正式 target 路由必须声明 `meta.useCaseKey`；动态 Resource Host 的已实现资源以 Registry 显式 `useCaseKey` 计入。layout 与重定向不单独计数。
 
-- 页面入口：17
-- 已覆盖入口：17
-- 已登记用例：17
+- 页面入口：18
+- 已覆盖入口：18
+- 已登记用例：18
 - 缺少用例：0
 - 孤儿用例：0
 
@@ -26,6 +26,7 @@
 
 | 页面               | 路由                  | 来源                                                         | 状态                              |
 | ------------------ | --------------------- | ------------------------------------------------------------ | --------------------------------- |
+| vou/opening        | `/vou/opening`        | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](vou/opening.md)        |
 | vou/sale-order     | `/vou/sale-order`     | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](vou/sale-order.md)     |
 | vou/purchase-order | `/vou/purchase-order` | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](vou/purchase-order.md) |
 | vou/:entity        | `/vou/:entity`        | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](vou/catalog.md)        |

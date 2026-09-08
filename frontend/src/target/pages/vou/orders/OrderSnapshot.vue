@@ -25,7 +25,7 @@ const selectionCaptions = {
 } as const
 const currencyName = computed(() =>
   new Intl.DisplayNames(['zh-CN'], { type: 'currency' }).of(
-    props.payload.currency,
+    'currency' in props.payload ? props.payload.currency : 'CNY',
   ),
 )
 </script>

@@ -1,13 +1,8 @@
 import {
-  availableApprovalActions,
-  decideApproval,
   vouEntities,
   vouEntityInputDescriptors,
   vouEntityPresentation,
-  type ApprovalAction,
   type ApprovalActor,
-  type ApprovalEntry,
-  type ApprovalStatus,
   type AccBookTemplate,
   type AccSettlementPurpose,
   type AccSubjectDimension,
@@ -531,57 +526,6 @@ function billOutgoingStatus(
   return 'MATURED'
 }
 
-function entryFromRow(row: {
-  id: string
-  subject_id: string
-  status: string
-  revision: string | number | bigint
-  submitted_by: string
-  submitted_at: Date
-  approved_by: string | null
-  approved_at: Date | null
-  rejected_by: string | null
-  rejected_at: Date | null
-  rejection_reason: string | null
-}): ApprovalEntry {
-  const status = row.status as ApprovalStatus
-  return {
-    id: row.id,
-    domain: 'acc',
-    entity: 'opening',
-    subjectId: row.subject_id,
-    versionNo: null,
-    status,
-    revision: String(row.revision),
-    metadata: {
-      submitted: {
-        actorId: row.submitted_by,
-        occurredAt: row.submitted_at.toISOString(),
-      },
-      ...(status === 'APPROVED' && row.approved_by && row.approved_at
-        ? {
-            approved: {
-              actorId: row.approved_by,
-              occurredAt: row.approved_at.toISOString(),
-            },
-          }
-        : {}),
-      ...(status === 'REJECTED' &&
-      row.rejected_by &&
-      row.rejected_at &&
-      row.rejection_reason
-        ? {
-            rejected: {
-              actorId: row.rejected_by,
-              occurredAt: row.rejected_at.toISOString(),
-              reason: row.rejection_reason,
-            },
-          }
-        : {}),
-    },
-  }
-}
-
 export class AccService
   implements PlanExecutor<AccApplicationPlan>, AccControlBalancePort
 {
@@ -683,13 +627,14 @@ export class AccService
       .innerJoin('approval_entries as opening', (join) =>
         join
           .onRef('opening.subject_id', '=', 'b.id')
-          .on('opening.domain', '=', 'acc')
+          .on('opening.domain', '=', 'vou')
           .on('opening.entity', '=', 'opening')
           .on('opening.status', '=', 'APPROVED'),
       )
       .select(['b.id', 'b.start_month', 'b.control_book'])
       .where('b.start_month', '<=', plan.payload.businessDate.slice(0, 7))
       .orderBy('b.code', 'asc')
+      .forShare('opening')
       .execute()
     await this.applyGlobalRegistrations(tx, plan, books)
     for (const book of books) {
@@ -944,10 +889,11 @@ export class AccService
       SELECT book.id
       FROM acc_books book
       JOIN approval_entries opening
-        ON opening.subject_id = book.id AND opening.domain = 'acc'
+        ON opening.subject_id = book.id AND opening.domain = 'vou'
         AND opening.entity = 'opening' AND opening.status = 'APPROVED'
       WHERE book.control_book
       FOR UPDATE OF book
+      FOR SHARE OF opening
     `.execute(tx)
     const bookId = controlBook.rows[0]?.id
     if (!bookId) throw new AccApplicationError('acc_control_book_unavailable')
@@ -1985,198 +1931,6 @@ export class AccService
     })
   }
 
-  async submitOpening(
-    input: AccOpeningInput,
-    actor: ApprovalActor,
-    requestId: string,
-  ) {
-    requirePermission(actor, '/acc/opening/submit-new')
-    return this.db.transaction().execute(async (tx) => {
-      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`acc:opening:${input.bookId}`}, 0))`.execute(
-        tx,
-      )
-      await this.requireBookAccess(tx, input.bookId, actor, true)
-      const prior = await tx
-        .selectFrom('approval_entries')
-        .select('id')
-        .where('domain', '=', 'acc')
-        .where('entity', '=', 'opening')
-        .where('subject_id', '=', input.bookId)
-        .executeTakeFirst()
-      if (prior) {
-        if (prior.id === input.submissionId)
-          return this.readOpening(tx, input.bookId, actor)
-        throw new AccApplicationError('approval_open_version_exists')
-      }
-      const opening = await this.normalizeOpening(tx, input)
-      await this.validateOpening(tx, opening)
-      const now = new Date()
-      await tx
-        .insertInto('approval_entries')
-        .values({
-          id: opening.submissionId,
-          domain: 'acc',
-          entity: 'opening',
-          subject_id: opening.bookId,
-          version_no: null,
-          status: 'PENDING',
-          revision: 1,
-          submitted_by: actor.id,
-          submitted_at: now,
-          updated_by: actor.id,
-          updated_at: now,
-        })
-        .execute()
-      await tx
-        .insertInto('acc_opening_snapshots')
-        .values({
-          approval_entry_id: opening.submissionId,
-          book_id: opening.bookId,
-          payload: asJson(opening),
-        })
-        .execute()
-      await this.writeOpeningAuxReferenceFacts(tx, opening)
-      await tx
-        .insertInto('approval_events')
-        .values({
-          id: ulid(),
-          entry_id: opening.submissionId,
-          domain: 'acc',
-          entity: 'opening',
-          subject_id: opening.bookId,
-          version_no: null,
-          action: 'SUBMITTED',
-          from_status: null,
-          to_status: 'PENDING',
-          from_revision: null,
-          to_revision: 1,
-          actor_id: actor.id,
-          reason: null,
-          request_id: requestId,
-          created_at: now,
-        })
-        .execute()
-      return this.readOpening(tx, opening.bookId, actor)
-    })
-  }
-
-  async reviewOpening(
-    action: ApprovalAction,
-    input: AccOpeningReviewInput,
-    actor: ApprovalActor,
-    requestId: string,
-  ) {
-    requirePermission(actor, `/acc/opening/${action}`)
-    return this.db.transaction().execute(async (tx) => {
-      const row = await tx
-        .selectFrom('approval_entries')
-        .selectAll()
-        .where('id', '=', input.submissionId)
-        .where('domain', '=', 'acc')
-        .where('entity', '=', 'opening')
-        .where('subject_id', '=', input.bookId)
-        .forUpdate()
-        .executeTakeFirst()
-      if (!row) throw new AccApplicationError('approval_not_found')
-      await this.requireBookAccess(tx, input.bookId, actor, true)
-      const occurredAt = new Date()
-      const decision = decideApproval({
-        action,
-        entry: entryFromRow(row),
-        actor,
-        expectedRevision: input.expectedRevision,
-        occurredAt: occurredAt.toISOString(),
-        requestId,
-        ...(input.reason === undefined ? {} : { reason: input.reason }),
-      })
-      if (!decision.ok) throw new AccApplicationError(decision.error.errorKey)
-      const plan = decision.plan
-      if (action === 'approve') {
-        const snapshot = await tx
-          .selectFrom('acc_opening_snapshots')
-          .select('payload')
-          .where('approval_entry_id', '=', row.id)
-          .executeTakeFirstOrThrow()
-        await this.validateOpening(
-          tx,
-          snapshot.payload as unknown as AccOpeningInput,
-        )
-        await this.persistOpeningFacts(
-          tx,
-          row.id,
-          snapshot.payload as unknown as AccOpeningInput,
-          occurredAt,
-        )
-      }
-      if (action === 'unapprove') {
-        const laterJournal = await sql<{ id: string }>`
-          SELECT id
-          FROM acc_journal_entries
-          WHERE book_id = ${input.bookId}
-            AND NOT (source_kind = 'OPENING' AND opening_approval_entry_id = ${row.id})
-          LIMIT 1
-        `.execute(tx)
-        const lockedPeriod = await tx
-          .selectFrom('acc_periods')
-          .select('period_month')
-          .where('book_id', '=', input.bookId)
-          .where('locked', '=', true)
-          .executeTakeFirst()
-        if (laterJournal.rows[0] || lockedPeriod)
-          throw new AccApplicationError('acc_opening_unapprove_blocked', [
-            ...(laterJournal.rows[0]
-              ? [{ kind: 'JOURNAL', id: laterJournal.rows[0].id }]
-              : []),
-            ...(lockedPeriod
-              ? [{ kind: 'PERIOD', id: lockedPeriod.period_month }]
-              : []),
-          ])
-        await this.deleteOpeningFacts(tx, row.id)
-      }
-      await tx
-        .updateTable('approval_entries')
-        .set({
-          status: plan.toStatus,
-          revision: BigInt(plan.toRevision),
-          updated_by: actor.id,
-          updated_at: occurredAt,
-          approved_by: plan.metadata.approved?.actorId ?? null,
-          approved_at: plan.metadata.approved
-            ? new Date(plan.metadata.approved.occurredAt)
-            : null,
-          rejected_by: plan.metadata.rejected?.actorId ?? null,
-          rejected_at: plan.metadata.rejected
-            ? new Date(plan.metadata.rejected.occurredAt)
-            : null,
-          rejection_reason: plan.metadata.rejected?.reason ?? null,
-        })
-        .where('id', '=', row.id)
-        .where('revision', '=', plan.fromRevision)
-        .executeTakeFirstOrThrow()
-      await tx
-        .insertInto('approval_events')
-        .values({
-          id: ulid(),
-          entry_id: row.id,
-          domain: 'acc',
-          entity: 'opening',
-          subject_id: input.bookId,
-          version_no: null,
-          action: plan.event.action,
-          from_status: plan.fromStatus,
-          to_status: plan.toStatus,
-          from_revision: BigInt(plan.fromRevision),
-          to_revision: BigInt(plan.toRevision),
-          actor_id: actor.id,
-          reason: plan.reason ?? null,
-          request_id: requestId,
-          created_at: occurredAt,
-        })
-        .execute()
-      return this.readOpening(tx, input.bookId, actor)
-    })
-  }
-
   async setPeriod(
     input: { bookId: string; month: string; expectedRevision: string | null },
     locked: boolean,
@@ -2312,10 +2066,11 @@ export class AccService
     const opening = await tx
       .selectFrom('approval_entries')
       .select('id')
-      .where('domain', '=', 'acc')
+      .where('domain', '=', 'vou')
       .where('entity', '=', 'opening')
       .where('subject_id', '=', bookId)
       .where('status', '=', 'APPROVED')
+      .forShare()
       .executeTakeFirst()
     if (!opening)
       throw new AccApplicationError('acc_period_opening_not_approved')
@@ -2324,6 +2079,7 @@ export class AccService
       .selectFrom('approval_entries')
       .select(['id', 'entity', 'status'])
       .where('domain', '=', 'vou')
+      .where('entity', 'in', vouEntities)
       .execute()
     const monthEntries: typeof vouEntries = []
     const approvedThroughMonthEntryIds: string[] = []
@@ -2481,7 +2237,7 @@ export class AccService
     )
   }
 
-  private async persistOpeningFacts(
+  async persistOpeningFacts(
     tx: Transaction<DB>,
     openingApprovalEntryId: string,
     input: AccOpeningInput,
@@ -2691,10 +2447,38 @@ export class AccService
     }
   }
 
-  private async deleteOpeningFacts(
+  async deleteOpeningFacts(
     tx: Transaction<DB>,
     openingApprovalEntryId: string,
   ): Promise<void> {
+    const entry = await tx
+      .selectFrom('approval_entries')
+      .select('subject_id')
+      .where('id', '=', openingApprovalEntryId)
+      .executeTakeFirstOrThrow()
+    const bookId = entry.subject_id
+    const laterJournal = await sql<{ id: string }>`
+          SELECT id
+          FROM acc_journal_entries
+          WHERE book_id = ${bookId}
+            AND NOT (source_kind = 'OPENING' AND opening_approval_entry_id = ${openingApprovalEntryId})
+          LIMIT 1
+        `.execute(tx)
+    const lockedPeriod = await tx
+      .selectFrom('acc_periods')
+      .select('period_month')
+      .where('book_id', '=', bookId)
+      .where('locked', '=', true)
+      .executeTakeFirst()
+    if (laterJournal.rows[0] || lockedPeriod)
+      throw new AccApplicationError('acc_opening_unapprove_blocked', [
+        ...(laterJournal.rows[0]
+          ? [{ kind: 'JOURNAL', id: laterJournal.rows[0].id }]
+          : []),
+        ...(lockedPeriod
+          ? [{ kind: 'PERIOD', id: lockedPeriod.period_month }]
+          : []),
+      ])
     const otherBook = await sql<{ id: string }>`
       SELECT asset_id AS id FROM acc_asset_book_values
       JOIN acc_asset_registers asset ON asset.id = acc_asset_book_values.asset_id
@@ -2742,7 +2526,7 @@ export class AccService
     )
   }
 
-  private async requireBookAccess(
+  async requireBookAccess(
     executor: Executor,
     bookId: string,
     actor: ApprovalActor,
@@ -2765,7 +2549,7 @@ export class AccService
       throw new AccApplicationError('acc_book_access_denied')
   }
 
-  private async normalizeOpening(
+  async normalizeOpening(
     transaction: Transaction<DB>,
     input: AccOpeningInput,
   ): Promise<AccOpeningInput> {
@@ -2855,7 +2639,7 @@ export class AccService
     }
   }
 
-  private async writeOpeningAuxReferenceFacts(
+  async writeOpeningAuxReferenceFacts(
     transaction: Transaction<DB>,
     opening: AccOpeningInput,
   ): Promise<void> {
@@ -3025,22 +2809,38 @@ export class AccService
       throw new AccApplicationError('acc_opening_bill_reconciliation_invalid')
   }
 
-  private async validateOpening(executor: Executor, input: AccOpeningInput) {
+  async validateOpening(executor: Executor, input: AccOpeningInput) {
     const subjects = await executor
       .selectFrom('acc_subjects')
-      .select(['id', 'enabled', 'required_dimensions', 'inventory_quantity'])
+      .select([
+        'id',
+        'parent_id',
+        'enabled',
+        'required_dimensions',
+        'inventory_quantity',
+      ])
       .where('book_id', '=', input.bookId)
       .execute()
     const byId = new Map(subjects.map((subject) => [subject.id, subject]))
+    const parents = new Set(
+      subjects.map((subject) => subject.parent_id).filter(Boolean),
+    )
     const totals = new Map<string, { debit: bigint; credit: bigint }>()
     for (const line of input.lines) {
       const subject = byId.get(line.subjectId)
-      if (!subject?.enabled)
+      if (!subject?.enabled || parents.has(subject.id))
         throw new AccApplicationError('acc_opening_subject_invalid')
       const required = subject.required_dimensions as unknown as string[]
-      if (required.some((dimension) => !line.dimensions[dimension]))
+      if (
+        required.some((dimension) => !line.dimensions[dimension]) ||
+        Object.keys(line.dimensions).some(
+          (dimension) => !required.includes(dimension),
+        )
+      )
         throw new AccApplicationError('acc_opening_dimension_required')
       if (subject.inventory_quantity) {
+        if (line.direction !== 'DEBIT' || decimalUnits(line.amount) <= 0n)
+          throw new AccApplicationError('acc_inventory_quantity_invalid')
         if (!line.quantity)
           throw new AccApplicationError('acc_inventory_quantity_required')
         if (decimalUnits(line.quantity) <= 0n)
@@ -3227,105 +3027,6 @@ export class AccService
           'acc_opening_container_current_snapshot_invalid',
         )
     }
-  }
-
-  private async readOpening(
-    executor: Executor,
-    bookId: string,
-    actor: ApprovalActor,
-  ) {
-    const row = await executor
-      .selectFrom('approval_entries as e')
-      .innerJoin('acc_opening_snapshots as s', 's.approval_entry_id', 'e.id')
-      .select([
-        'e.id',
-        'e.subject_id',
-        'e.status',
-        'e.revision',
-        'e.submitted_by',
-        'e.submitted_at',
-        'e.approved_by',
-        'e.approved_at',
-        'e.rejected_by',
-        'e.rejected_at',
-        'e.rejection_reason',
-        's.payload',
-      ])
-      .where('e.domain', '=', 'acc')
-      .where('e.entity', '=', 'opening')
-      .where('e.subject_id', '=', bookId)
-      .executeTakeFirst()
-    if (!row) throw new AccApplicationError('approval_not_found')
-    const entry = entryFromRow(row)
-    return {
-      bookId,
-      submissionId: row.id,
-      approval: entry,
-      payload: row.payload as unknown as AccOpeningInput,
-      availableApprovalActions: availableApprovalActions(entry, actor),
-    }
-  }
-
-  async getOpening(bookId: string, actor: ApprovalActor) {
-    requirePermission(actor, '/acc/opening/query')
-    await this.requireBookAccess(this.db, bookId, actor, false)
-    return this.readOpening(this.db, bookId, actor)
-  }
-
-  async deleteOpening(
-    input: AccOpeningReviewInput,
-    actor: ApprovalActor,
-    requestId: string,
-  ) {
-    requirePermission(actor, '/acc/opening/delete')
-    return this.db.transaction().execute(async (tx) => {
-      const row = await tx
-        .selectFrom('approval_entries')
-        .selectAll()
-        .where('id', '=', input.submissionId)
-        .where('domain', '=', 'acc')
-        .where('entity', '=', 'opening')
-        .where('subject_id', '=', input.bookId)
-        .forUpdate()
-        .executeTakeFirst()
-      if (!row) throw new AccApplicationError('approval_not_found')
-      await this.requireBookAccess(tx, input.bookId, actor, true)
-      if (String(row.revision) !== input.expectedRevision)
-        throw new AccApplicationError('approval_stale_revision')
-      if (row.status === 'APPROVED')
-        throw new AccApplicationError('acc_opening_delete_blocked')
-      if (actor.trusted !== true && row.submitted_by !== actor.id)
-        throw new AccApplicationError('approval_invalid_action')
-      await tx
-        .insertInto('approval_events')
-        .values({
-          id: ulid(),
-          entry_id: row.id,
-          domain: 'acc',
-          entity: 'opening',
-          subject_id: input.bookId,
-          version_no: null,
-          action: 'DELETED',
-          from_status: row.status,
-          to_status: null,
-          from_revision: row.revision,
-          to_revision: null,
-          actor_id: actor.id,
-          reason: null,
-          request_id: requestId,
-          created_at: new Date(),
-        })
-        .execute()
-      await tx
-        .deleteFrom('aux_reference_facts')
-        .where('source', 'like', `acc:opening:${row.id}:%`)
-        .execute()
-      await tx
-        .deleteFrom('approval_entries')
-        .where('id', '=', row.id)
-        .executeTakeFirstOrThrow()
-      return { submissionId: row.id, deleted: true as const }
-    })
   }
 
   private bookView(row: {

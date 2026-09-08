@@ -52,19 +52,8 @@ test('all authorized resources have one menu entry and unregistered pages send n
       elements.map((element) => element.getAttribute('href')!).sort(),
     )
   expect(links).toEqual(expected)
-  for (const path of ['/acc/opening']) {
-    const closedGroups = drawer.locator(
-      '.v-list-group:not(.v-list-group--open) > .v-list-group__header',
-    )
-    while (await closedGroups.count()) await closedGroups.first().click()
-    await drawer.locator(`a[href="${path}"]`).click()
-    await expect(page.getByTestId('business-unimplemented')).toBeVisible()
-    await expect(page.getByTestId('business-unimplemented')).toContainText(
-      '功能尚未实现',
-    )
-    await page.reload()
-    await expect(page.getByTestId('business-unimplemented')).toBeVisible()
-  }
+  expect(links).not.toContain('/acc/opening')
+  expect(links).toContain('/vou/opening')
   await page.goto('/app/no-such-resource')
   await expect(page.getByText('无权访问', { exact: true })).toBeVisible()
   expect(businessRequests).toEqual([])

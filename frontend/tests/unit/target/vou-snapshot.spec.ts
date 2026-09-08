@@ -117,3 +117,55 @@ it('shows legal foreign currencies and the complete adopted AUX reference facts'
   expect(view.text()).toContain('历史主体')
   expect(view.text()).not.toContain('未登记字段')
 })
+
+it('renders complete opening asset and operating-entity bill snapshots without unknown fields', () => {
+  const view = mount(SnapshotValue, {
+    props: {
+      value: [
+        {
+          assetId: 'asset-id',
+          assetNo: 'A-01',
+          name: '期初设备',
+          categoryId: 'category-id',
+          departmentId: 'department-id',
+          usefulLifeMonths: 12,
+          residualRate: '0.05',
+          acquiredOn: '2026-08-01',
+          currency: 'CNY',
+          originalValue: '100.00',
+          accumulatedDepreciation: '10.00',
+        },
+        {
+          billId: 'bill-id',
+          billNo: 'B-01',
+          billType: 'BANK_ACCEPTANCE',
+          positionType: 'ASSET',
+          medium: 'ELECTRONIC',
+          currency: 'CNY',
+          faceAmount: '100.00',
+          issueDate: '2026-08-01',
+          maturityDate: '2026-12-01',
+          drawer: '出票人',
+          acceptor: '承兑人',
+          payee: '收款人',
+          annualRateBps: 0,
+          interestDays: 0,
+          interestAmount: '0.00',
+          customerCostAmount: '0.00',
+          valueAmount: '100.00',
+          originatingCounterparty: {
+            entity: 'operating-entity',
+            objectId: 'entity-id',
+            code: 'ENT',
+            name: '经营主体',
+          },
+        },
+      ],
+    },
+  })
+  expect(view.text()).not.toContain('未登记字段')
+  expect(view.text()).not.toContain('未知选项')
+  expect(view.text()).toContain('资产编号')
+  expect(view.text()).toContain('取得日期')
+  expect(view.text()).toContain('经营主体')
+})

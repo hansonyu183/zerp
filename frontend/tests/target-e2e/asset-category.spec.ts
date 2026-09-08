@@ -119,8 +119,8 @@ test('asset categories preserve typed defaults through menu on desktop and 390px
       ).toBeVisible()
     }
 
-    const name = `机器设备${tag}-1440-20`
-    for (const keyword of [name, `jiqishebei${tag}-1440-20`]) {
+    const name = `机器设备${tag}-${width}-${width === 1440 ? 20 : 0}`
+    for (const keyword of [name, name.replace('机器设备', 'jiqishebei')]) {
       await page.getByLabel('编码、拼音或名称', { exact: true }).fill(keyword)
       await page.getByRole('button', { name: '查询', exact: true }).click()
       await expect(

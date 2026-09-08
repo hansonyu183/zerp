@@ -146,7 +146,11 @@ export function useArchiveSubmissionEditor<Snapshot>(options: {
       error.value = invalid
       return
     }
-    const pending = command.value ?? buildCommand()
+    // An absent lookup permits an explicit retry, but does not prove that
+    // the original request cannot still commit. Keep its idempotency identity.
+    const pending = command.value
+      ? { ...command.value, snapshot: structuredClone(toRaw(draft.value)) }
+      : buildCommand()
     command.value = pending
     const requestGeneration = generation
     saving.value = true

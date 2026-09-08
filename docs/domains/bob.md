@@ -372,6 +372,8 @@ Customer 是唯一 Approval subject 和聚合根。客户 stable ID 与 `CUS-*` 
 
 Customer 附件先随临时表单以 Blob 保留，submit 时经 `/bob/customer/attachment-stage` 暂存并在同一事务随 Customer Version 最终入库；失败或过期暂存由 `/bob/customer/attachment-cleanup` 清理，不产生第二事实源。开放 Submission 删除及暂存过期清理在业务事务中登记物理删除任务，提交后幂等删除 Blob；物理删除失败保留任务供后续清理重试，不回滚或伪造业务事实。
 
+附件正文读取使用 `/bob/customer/attachment-read`，不通过存储路径或任意文件 ID 直接访问。读取者必须拥有附件读取权限，并同时拥有所读来源的正式资料 `get` 或精确提交 `submission-get` 权限：current 来源解析该客户当前有效版本；submission 来源校验客户主体与提交归属。只返回该真实版本所采用的附件，不把候选附件混入正式资料。历史附件继续读取原版本保存的文件名、类型、内容及校验信息。不存在或不属于所读版本的附件返回 `customer_attachment_not_found`（附件不存在或不属于此版本），正文校验失败沿用 `customer_attachment_invalid_content`（附件内容校验失败）；权限不足沿用已有授权错误。
+
 客户整体 `enabled` 与 object revision 由 `bob_subjects` 独立持有，使用 `/bob/customer/enable|disable` 即时变更，不写入 Customer Version。批准、反批准及版本回落不覆盖该事实；启用与批准均在同一事务检查至少一个启用子单位。法定识别号仅由该类型 latest approved 与开放 candidate 共同占用，历史版本不继续占用；反批准恢复旧正式版本时重新检查唯一性。
 
 主要业务归属 wire value 为 `INTERNAL_EMPLOYEE`（内部员工）、`EXTERNAL_PART_TIME`（外部兼职）与 `CHANNEL_PARTNER`（渠道商）：员工从 AUX current 采用，后两者从 BOB Sales Partner highest approved 且启用并具备对应能力的版本采用。结算、收款和其他 AUX 资料保持各自类型化 current 边界及采用快照规则。新建必须拥有 `/bob/customer/submit-new` 与 `/bob/customer/save-subunits`；变更子单位内容也要求后者，根资料变更保留完整子单位集合。

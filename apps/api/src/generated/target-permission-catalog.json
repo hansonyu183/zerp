@@ -1248,6 +1248,14 @@
     "title": "清理客户附件暂存"
   },
   {
+    "id": "01JD8B0050A1FE9ECA77E01B90",
+    "path": "/bob/customer/attachment-read",
+    "domain": "bob",
+    "entity": "customer",
+    "action": "attachment-read",
+    "title": "读取客户附件"
+  },
+  {
     "id": "01J60E1D41D3B0B9AFFDA60193",
     "path": "/bob/customer/attachment-stage",
     "domain": "bob",

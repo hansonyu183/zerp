@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { useTargetSession } from '../../session/vm.ts'
-import { loadEditReferences, referencePermissions } from './references.ts'
-import type { EditOption, EditReferenceSource } from './definition.ts'
+import { loadEditReferences, referencePermission } from './references.ts'
+import type { EditOption, EditReference } from './definition.ts'
 const props = defineProps<{
-  source: EditReferenceSource
+  source: EditReference
   caption: string
   modelValue: string | string[] | null
   existing: readonly EditOption[]
@@ -58,7 +58,7 @@ function token() {
   if (
     !active ||
     session.generation !== generation ||
-    !session.can(referencePermissions[props.source]) ||
+    !session.can(referencePermission(props.source)) ||
     !session.csrfToken
   )
     throw new Error(`缺少${props.caption}查询权限，无法加载候选。`)

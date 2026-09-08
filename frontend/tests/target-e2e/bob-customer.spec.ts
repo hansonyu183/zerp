@@ -27,7 +27,7 @@ async function select(
   option: string,
 ) {
   await scope
-    .locator('.v-select')
+    .locator('.v-select, .v-autocomplete')
     .filter({ has: page.getByLabel(label, { exact: true }) })
     .locator('.v-field')
     .click()
@@ -37,18 +37,18 @@ async function approve(page: Page, name: string, compare = false) {
   await page.goto('/bob/customer')
   await page.getByRole('button', { name: '提交记录', exact: true }).click()
   const dialog = page.getByRole('dialog')
-  await dialog.getByLabel('搜索编码或名称', { exact: true }).fill(name)
+  await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
   const queried = page.waitForResponse(
     (response) =>
       response.url().endsWith('/bob/customer/submission-query') &&
       response.request().postDataJSON()?.filters?.keyword === name,
   )
-  await dialog.getByRole('button', { name: '搜索', exact: true }).click()
+  await page.getByRole('button', { name: '查询', exact: true }).click()
   await queried
   const detailResponse = page.waitForResponse((response) =>
     response.url().endsWith('/bob/customer/submission-get'),
   )
-  await dialog
+  await page
     .getByRole('row')
     .filter({ hasText: '待批准' })
     .getByRole('button', { name: '查看', exact: true })
@@ -57,7 +57,7 @@ async function approve(page: Page, name: string, compare = false) {
   expect(detail.data.availableApprovalActions).toContain('approve')
   await expect(dialog).toContainText('汇款识别')
   if (compare) {
-    await expect(dialog).toContainText('与上一版本的定价差异')
+    await expect(dialog).toContainText('客户定价差异')
     await expect(dialog).toContainText('金额变化')
   }
   await dialog.getByRole('button', { name: '批准', exact: true }).click()
@@ -129,7 +129,7 @@ test('customer full temporary form, two subunits, history and independent enable
       .getByRole('button', { name: '添加子单位', exact: true })
       .click()
     const subunits = dialog
-      .locator('fieldset > .v-card')
+      .locator('[aria-label="客户子单位"] > .v-card')
       .filter({ has: page.getByLabel('子单位名称', { exact: true }) })
     await expect(subunits).toHaveCount(2)
     for (let i = 0; i < 2; i++) {
@@ -155,10 +155,12 @@ test('customer full temporary form, two subunits, history and independent enable
       await sub
         .getByRole('button', { name: '添加信用额度', exact: true })
         .click()
-      await sub.getByLabel('信用额度', { exact: true }).fill('10000.00')
+      await sub
+        .getByRole('textbox', { name: '信用额度', exact: true })
+        .fill('10000.00')
       await sub.getByRole('button', { name: '添加成本项', exact: true }).click()
       await sub.getByLabel('成本名称', { exact: true }).fill('装卸')
-      await sub.getByLabel('成本单价', { exact: true }).fill('0.20')
+      await sub.getByLabel('成本单价或每单金额', { exact: true }).fill('0.20')
     }
     await dialog.getByRole('button', { name: '提交', exact: true }).click()
     await expect
@@ -209,6 +211,19 @@ test('customer full temporary form, two subunits, history and independent enable
     await page.setViewportSize({ width: 390, height: 844 })
     await row.getByRole('button', { name: '查看', exact: true }).click()
     await expect(page.getByRole('dialog')).toContainText('SUB-0002')
+    const downloading = page.waitForEvent('download')
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: '下载附件', exact: true })
+      .click()
+    const download = await downloading
+    expect(download.suggestedFilename()).toBe('税务.pdf')
+    expect(await download.failure()).toBeNull()
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true)
     await page
       .getByRole('dialog')
       .getByRole('button', { name: '关闭', exact: true })

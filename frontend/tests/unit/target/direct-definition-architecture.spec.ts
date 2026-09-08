@@ -49,7 +49,11 @@ describe('the actual direct definitions stay stateless and reach one runtime', (
     expect(targetResourceRegistry.resolve('aux', 'department')).toBeNull()
   })
   it('rejects state, templates, arbitrary imports and requests in every registered definition source', () => {
-    const files = readdirSync(definitionRoot)
+    const files = readdirSync(definitionRoot).filter((filename) =>
+      readFileSync(resolve(definitionRoot, filename), 'utf8').includes(
+        'defineDirectPage',
+      ),
+    )
     expect(files.length).toBe(resources.length)
     for (const filename of files) {
       expect(filename.endsWith('.ts')).toBe(true)

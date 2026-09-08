@@ -21,6 +21,7 @@ test('Customer exposes BOB current, submission, lifecycle and attachment actions
     'enable',
     'disable',
     'attachment-stage',
+    'attachment-read',
     'attachment-cleanup',
   ]) {
     assert.ok(paths.includes(`/bob/customer/${action}`), action)

@@ -1,3 +1,11 @@
+import { processDefinitionPage } from '../definitions/process-definition.ts'
+import { productPage } from '../definitions/product.ts'
+import { customerPage } from '../definitions/customer.ts'
+import { salesPartnerPage } from '../definitions/sales-partner.ts'
+import { otherUnitPage } from '../definitions/other-unit.ts'
+import VersionPage from '../components/version-page/VersionPage.vue'
+import type { VersionDefinition } from '../components/version-page/definition.ts'
+import { supplierPage } from '../definitions/supplier.ts'
 import { fundAccountPage } from '../definitions/fund-account.ts'
 import { warehousePage } from '../definitions/warehouse.ts'
 import { operatingEntityPage } from '../definitions/operating-entity.ts'
@@ -23,15 +31,10 @@ import {
 import { vouEntities } from '@zerp/model'
 import VoucherManagement from '../pages/vou/VoucherManagement.vue'
 import type { VouPageRegistration } from '../components/vou-list-page/vm.ts'
-import DefinitionManagement from '../pages/wfl/definition/DefinitionManagement.vue'
+import InstanceManagement from '../pages/wfl/instance/InstanceManagement.vue'
 import ReportPage from '../pages/rpt/ReportPage.vue'
 import MappingManagement from '../pages/acc/mapping/MappingManagement.vue'
-import CustomerManagement from '../pages/bob/customer/CustomerManagement.vue'
-import ProductManagement from '../pages/bob/product/ProductManagement.vue'
 import type { Component } from 'vue'
-import OtherUnitManagement from '../pages/bob/other-unit/OtherUnitManagement.vue'
-import SalesPartnerManagement from '../pages/bob/sales-partner/SalesPartnerManagement.vue'
-import SupplierManagement from '../pages/bob/supplier/SupplierManagement.vue'
 import {
   targetDomainCapabilities,
   type BusinessTargetDomain,
@@ -41,7 +44,8 @@ export type ResourceRegistration = {
   domain: BusinessTargetDomain
   entity: string
   component: Component
-  definition?: DirectDefinition | VouPageRegistration<OrderFilters>
+  definition?:
+    VersionDefinition | DirectDefinition | VouPageRegistration<OrderFilters>
   vouType?: import('@zerp/model').VouType
   useCaseKey?: string
 }
@@ -124,13 +128,14 @@ export const targetResourceRegistry = createResourceRegistry(
     {
       domain: 'wfl',
       entity: 'process-instance',
-      component: DefinitionManagement,
+      component: InstanceManagement,
       useCaseKey: 'wfl/process-instance',
     },
     {
       domain: 'wfl',
       entity: 'process-definition',
-      component: DefinitionManagement,
+      definition: processDefinitionPage,
+      component: VersionPage,
       useCaseKey: 'wfl/process-definition',
     },
     {
@@ -214,31 +219,36 @@ export const targetResourceRegistry = createResourceRegistry(
     {
       domain: 'bob',
       entity: 'customer',
-      component: CustomerManagement,
+      definition: customerPage,
+      component: VersionPage,
       useCaseKey: 'bob/customer-management',
     },
     {
       domain: 'bob',
       entity: 'product',
-      component: ProductManagement,
+      definition: productPage,
+      component: VersionPage,
       useCaseKey: 'bob/product-management',
     },
     {
       domain: 'bob',
       entity: 'supplier',
-      component: SupplierManagement,
+      definition: supplierPage,
+      component: VersionPage,
       useCaseKey: 'bob/supplier-management',
     },
     {
       domain: 'bob',
       entity: 'other-unit',
-      component: OtherUnitManagement,
+      definition: otherUnitPage,
+      component: VersionPage,
       useCaseKey: 'bob/other-unit-management',
     },
     {
       domain: 'bob',
       entity: 'sales-partner',
-      component: SalesPartnerManagement,
+      definition: salesPartnerPage,
+      component: VersionPage,
       useCaseKey: 'bob/sales-partner-management',
     },
   ],

@@ -23,22 +23,19 @@ async function signin(page: Page, reviewer = false) {
 }
 async function select(page: Page, scope: Locator, label: string, name: string) {
   await scope
-    .locator('.v-select')
+    .locator('.v-select, .v-autocomplete')
     .filter({ has: page.getByLabel(label, { exact: true }) })
     .locator('.v-field')
     .click()
-  await page.getByRole('option', { name, exact: true }).click()
+  await page.getByRole('option').filter({ hasText: name }).click()
 }
 async function approve(page: Page, name: string) {
   await page.goto('/bob/product')
   await page.getByRole('button', { name: '提交记录', exact: true }).click()
   const dialog = page.getByRole('dialog')
-  await dialog.getByLabel('搜索编码或名称', { exact: true }).fill(name)
-  await dialog.getByRole('button', { name: '搜索', exact: true }).click()
-  await dialog
-    .getByRole('button', { name: '查看', exact: true })
-    .first()
-    .click()
+  await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  await page.getByRole('button', { name: '查看', exact: true }).first().click()
   await dialog.getByRole('button', { name: '批准', exact: true }).click()
   await expect(
     dialog.getByRole('button', { name: '反批准', exact: true }),
@@ -117,7 +114,9 @@ test('product temporary form, exact quantity trial, approval and independent ena
     await dialog
       .getByLabel('默认包装规格（基准数量）', { exact: true })
       .fill('1.000001')
-    await dialog.getByRole('button', { name: '添加换算', exact: true }).click()
+    await dialog
+      .getByRole('button', { name: '添加单位换算', exact: true })
+      .click()
     await select(page, dialog, '录入单位', unitName)
     await dialog.getByLabel('换算系数', { exact: true }).fill('2.5')
     await select(page, dialog, '试算单位', unitName)
@@ -163,14 +162,16 @@ test('product temporary form, exact quantity trial, approval and independent ena
     await dialog.getByRole('button', { name: '确认切换', exact: true }).click()
     await dialog.getByRole('button', { name: '填写配方', exact: true }).click()
     await dialog
-      .getByLabel('产量基准数量', { exact: true })
+      .getByLabel('配方产量基准数量', { exact: true })
       .fill('9007199254740993.000001')
-    await dialog.getByRole('button', { name: '添加原料', exact: true }).click()
+    await dialog
+      .getByRole('button', { name: '添加配方原料', exact: true })
+      .click()
     await expect(
-      dialog.getByLabel('用量基准数量', { exact: true }),
+      dialog.getByLabel('原料基准用量', { exact: true }),
     ).toBeVisible()
     await expect(
-      dialog.getByLabel('产量基准数量', { exact: true }),
+      dialog.getByLabel('配方产量基准数量', { exact: true }),
     ).toHaveValue('9007199254740993.000001')
     await dialog.getByRole('button', { name: '取消', exact: true }).click()
   } finally {

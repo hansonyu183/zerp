@@ -715,6 +715,70 @@ const attachmentCleanupEnvelope = z.union([
   failureEnvelope,
 ])
 
+const customerAttachmentReadRequest = z.discriminatedUnion('source', [
+  z
+    .object({
+      source: z.literal('current'),
+      objectId: z.string().length(26),
+      fileId: z.string().length(26),
+    })
+    .strict(),
+  z
+    .object({
+      source: z.literal('submission'),
+      subjectId: z.string().length(26),
+      submissionId: z.string().length(26),
+      fileId: z.string().length(26),
+    })
+    .strict(),
+])
+export type CustomerAttachmentReadInput = z.infer<
+  typeof customerAttachmentReadRequest
+>
+export const customerAttachmentReadRoute = createRoute({
+  method: 'post',
+  path: '/bob/customer/attachment-read',
+  request: {
+    body: {
+      content: {
+        'application/json': { schema: customerAttachmentReadRequest },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description:
+        'Read an attachment adopted by the authorized customer version',
+      content: {
+        'application/json': {
+          schema: z.union([
+            z.object({
+              code: z.literal(0),
+              errorKey: z.literal(''),
+              message: z.literal('ok'),
+              requestId: z.string(),
+              data: z
+                .object({
+                  fileName: z.string(),
+                  mimeType: z.enum([
+                    'application/pdf',
+                    'image/jpeg',
+                    'image/png',
+                  ]),
+                  size: z.number().int().positive(),
+                  digest: z.string(),
+                  contentBase64: z.string(),
+                })
+                .strict(),
+            }),
+            failureEnvelope,
+          ]),
+        },
+      },
+    },
+  },
+})
+
 export const customerAttachmentStageRoute = createRoute({
   method: 'post',
   path: '/bob/customer/attachment-stage',
@@ -750,6 +814,12 @@ export const customerAttachmentCleanupRoute = createRoute({
 
 bobArchiveRouteMetadata.push(
   {
+    method: customerAttachmentReadRoute.method,
+    path: customerAttachmentReadRoute.path,
+    permission: customerAttachmentReadRoute.path,
+    title: '读取客户附件',
+  },
+  {
     method: customerAttachmentStageRoute.method,
     path: customerAttachmentStageRoute.path,
     permission: customerAttachmentStageRoute.path,
@@ -780,6 +850,8 @@ export type BobArchiveRouteHandler = (
 >
 
 export interface ArchiveAttachmentHandlers {
+  read: RouteHandler<typeof customerAttachmentReadRoute, TargetRouteEnvironment>
+
   stage: RouteHandler<
     typeof customerAttachmentStageRoute,
     TargetRouteEnvironment
@@ -849,6 +921,7 @@ export function registerBobArchiveRoutes(
       handler: archiveHandler(handler, 'customer', 'delete'),
     },
 
+    { route: customerAttachmentReadRoute, handler: attachments.read },
     { route: customerAttachmentStageRoute, handler: attachments.stage },
     { route: customerAttachmentCleanupRoute, handler: attachments.cleanup },
     {

@@ -945,6 +945,70 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       .execute()
   }
   const customer = await submitAndApprove('customer', customerSnapshot)
+  const attachmentReader = {
+    id: reviewerId,
+    permissions: [
+      '/bob/customer/attachment-read',
+      '/bob/customer/submission-get',
+      '/bob/customer/get',
+    ],
+  }
+  const exactRead = {
+    source: 'submission' as const,
+    subjectId: customer.subjectId,
+    submissionId: customer.submissionId,
+    fileId: attachmentId,
+  }
+  assert.deepEqual(
+    await bobArchives.readCustomerAttachment(exactRead, attachmentReader),
+    {
+      fileName: 'identity.pdf',
+      mimeType: 'application/pdf',
+      size: attachment.length,
+      digest,
+      contentBase64: attachment.toString('base64'),
+    },
+  )
+  assert.deepEqual(
+    await bobArchives.readCustomerAttachment(
+      { source: 'current', objectId: customer.subjectId, fileId: attachmentId },
+      attachmentReader,
+    ),
+    await bobArchives.readCustomerAttachment(exactRead, attachmentReader),
+  )
+  await assert.rejects(
+    () =>
+      bobArchives.readCustomerAttachment(exactRead, {
+        id: reviewerId,
+        permissions: ['/bob/customer/submission-get'],
+      }),
+    { errorKey: 'forbidden' },
+  )
+  await assert.rejects(
+    () =>
+      bobArchives.readCustomerAttachment(exactRead, {
+        id: reviewerId,
+        permissions: ['/bob/customer/attachment-read'],
+      }),
+    { errorKey: 'forbidden' },
+  )
+  await assert.rejects(
+    () =>
+      bobArchives.readCustomerAttachment(
+        { ...exactRead, fileId: ulid() },
+        attachmentReader,
+      ),
+    { errorKey: 'customer_attachment_not_found' },
+  )
+  await assert.rejects(
+    () =>
+      bobArchives.readCustomerAttachment(
+        { ...exactRead, subjectId: ulid() },
+        attachmentReader,
+      ),
+    { errorKey: 'customer_attachment_not_found' },
+  )
+
   const customerSubunit = (
     customer.snapshot.subunits as Array<Record<string, unknown>>
   )[0]!

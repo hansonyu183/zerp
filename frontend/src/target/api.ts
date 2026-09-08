@@ -2301,6 +2301,22 @@ export async function deleteTargetCustomer(
   )
 }
 
+export type TargetCustomerAttachmentReadInput = PostJson<
+  (typeof client.bob.customer)['attachment-read']['$post']
+>
+export async function readTargetCustomerAttachment(
+  csrfToken: string,
+  input: TargetCustomerAttachmentReadInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob.customer['attachment-read'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
 export type TargetCustomerAttachmentStageInput = PostJson<
   (typeof client)['bob']['customer']['attachment-stage']['$post']
 >

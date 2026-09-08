@@ -28,6 +28,18 @@ export type EditReferenceSource =
   | 'employees'
   | 'vehicle-types'
   | 'other-units'
+  | 'archive-operating-entities'
+  | 'archive-employees'
+  | 'settlement-rules'
+  | 'sales-settlement-methods'
+  | 'sales-payment-methods'
+  | 'customer-types'
+  | 'product-types'
+  | 'product-categories'
+  | 'product-units'
+  | 'formula-materials'
+  | 'external-salespeople'
+  | 'channel-partners'
 export type EditValue = string | number | boolean | null | string[]
 export type EditValues = Record<string, EditValue>
 export type EditOption = {
@@ -35,6 +47,7 @@ export type EditOption = {
   name: string
   disabled?: boolean
   unavailable?: boolean
+  snapshot?: object
   approvalEntryId?: string
 }
 export type EditField = {
@@ -138,3 +151,7 @@ export function defineDirectPage<T extends object>(definition: {
 export function hasAction(row: DirectRow, action: ListAction): boolean {
   return row.availableActions.some((value) => value.toLowerCase() === action)
 }
+
+export type EditReference =
+  | EditReferenceSource
+  | { kind: 'voucher'; entity: import('@zerp/model').VouEntity }

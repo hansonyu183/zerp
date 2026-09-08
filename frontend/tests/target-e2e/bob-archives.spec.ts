@@ -36,15 +36,15 @@ async function open(page: Page, path: string, width: number) {
 }
 
 async function records(page: Page, name: string) {
-  await page.getByRole('button', { name: '提交记录', exact: true }).click()
-  const dialog = page.getByRole('dialog')
-  await dialog.getByLabel('搜索编码或名称', { exact: true }).fill(name)
-  await dialog.getByRole('button', { name: '搜索', exact: true }).click()
+  const tab = page.getByRole('button', { name: '提交记录', exact: true })
+  if (await tab.isEnabled()) await tab.click()
+  await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
   await expect(
-    dialog.getByRole('button', { name: '查看', exact: true }),
+    page.getByRole('button', { name: '查看', exact: true }),
   ).toHaveCount(1)
-  await dialog.getByRole('button', { name: '查看', exact: true }).click()
-  return dialog
+  await page.getByRole('button', { name: '查看', exact: true }).click()
+  return page.getByRole('dialog')
 }
 
 for (const [entity, title] of [
@@ -154,11 +154,10 @@ for (const [entity, title] of [
       await dialog.getByRole('button', { name: '取消', exact: true }).click()
       const history = await records(page, name)
       await expect(
-        history.getByRole('button', { name: '查看此版本', exact: true }),
+        history.getByRole('button', { name: /^查看版本 / }),
       ).toHaveCount(2)
       await history
-        .getByRole('button', { name: '查看此版本', exact: true })
-        .last()
+        .getByRole('button', { name: '查看版本 1', exact: true })
         .click()
       await expect(history).toContainText('首个版本')
       await history.getByRole('button', { name: '关闭', exact: true }).click()

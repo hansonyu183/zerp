@@ -378,6 +378,16 @@ export function registerAppRoutes(
     }),
     bobArchive: bobArchiveHandler,
     archiveAttachments: {
+      read: async (context) =>
+        context.json(
+          (await executeArchive(context, currentRequestId(context), (actor) =>
+            bobArchives!.readCustomerAttachment(
+              context.req.valid('json'),
+              actor,
+            ),
+          )) as never,
+          200,
+        ),
       stage: async (context) =>
         context.json(
           (await executeArchive(context, currentRequestId(context), (actor) =>

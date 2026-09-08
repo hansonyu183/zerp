@@ -1,4 +1,6 @@
-import { execFileSync, spawn } from 'node:child_process'
+import { spawn } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
+import { gunzipSync } from 'node:zlib'
 import { randomBytes } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { sql } from 'kysely'
@@ -15,7 +17,6 @@ const cases = [
 const url = new URL(process.env.TARGET_TEST_DATABASE_URL ?? '')
 if (!url.pathname.endsWith('_test'))
   throw new Error('migration tests require a disposable *_test database')
-const root = fileURLToPath(new URL('../../../', import.meta.url))
 const admin = createDatabase(url.href)
 try {
   for (const [name, baseline] of cases) {
@@ -25,18 +26,19 @@ try {
     scopedUrl.searchParams.set('options', `-c search_path=${schema}`)
     const db = createDatabase(scopedUrl.href)
     try {
-      const source = (path: string) =>
-        execFileSync('git', ['show', `${baseline}:${path}`], {
-          cwd: root,
-          encoding: 'utf8',
-          maxBuffer: 8 * 1024 * 1024,
-        })
-      await sql.raw(source('apps/api/db/target-schema.sql')).execute(db)
+      const source = async (extension: 'sql' | 'json') =>
+        gunzipSync(
+          await readFile(
+            new URL(
+              `../tests/migrations/baselines/${baseline}.${extension}.gz`,
+              import.meta.url,
+            ),
+          ),
+        ).toString('utf8')
+      await sql.raw(await source('sql')).execute(db)
       if (name.startsWith('bob'))
         await new TargetBootstrapService(db).migratePermissionCatalog(
-          JSON.parse(
-            source('apps/api/src/generated/target-permission-catalog.json'),
-          ),
+          JSON.parse(await source('json')),
         )
       console.log(`Migration ${name}: pinned baseline ${baseline}`)
       const child = spawn(

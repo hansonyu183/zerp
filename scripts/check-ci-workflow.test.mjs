@@ -107,14 +107,12 @@ test('local complete validation remains while CI behavior tests cover both workf
 })
 
 test('complete target gate includes dedicated browser fixtures and pinned migration tests', async () => {
-  const [makefile, apiText, workflow] = await Promise.all([
+  const [makefile, apiText] = await Promise.all([
     readFile(makefilePath, 'utf8'),
     readFile(new URL('../apps/api/package.json', import.meta.url), 'utf8'),
-    readFile(targetPath, 'utf8'),
   ])
   for (const command of ['e2e:wfl', 'e2e:vou-catalog', 'e2e:vou-opening'])
     assert.ok(makefile.includes(`pnpm --filter @zerp/api ${command}`))
   const api = JSON.parse(apiText)
   assert.ok(api.scripts.test.includes('pnpm test:migrations'))
-  assert.match(workflow, /fetch-depth: 0/)
 })

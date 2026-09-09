@@ -4,6 +4,9 @@ import { snapshotCaptions } from './snapshot-presentation.ts'
 const errorCaptions: Record<string, string> = {
   forbidden: '没有此操作权限。',
   validation_failed: '输入格式不正确。',
+  vou_invalid_payload: '请检查必填内容、金额及数量。',
+  vou_allocation_total_mismatch: '分摊合计必须等于来款金额。',
+  funds_insufficient: '资金余额不足，或反批准会使历史资金余额为负。',
   vou_not_found: '单据不存在。',
   approval_invalid_actor: '提交人与审批人必须分离。',
   approval_invalid_action: '没有此审批权限。',

@@ -45,6 +45,15 @@ import {
 } from './order-data.ts'
 import OrderSnapshot from './OrderSnapshot.vue'
 import SnapshotValue from './SnapshotValue.vue'
+import FinancialBlock from './FinancialBlock.vue'
+import {
+  financialEntities,
+  emptyFinancial,
+  financialPayload,
+  cloneFinancial,
+  type FinancialDraft,
+  type FinancialEntity,
+} from './financial-data.ts'
 import ProductionBlock from './ProductionBlock.vue'
 import {
   cloneProduction,
@@ -88,6 +97,7 @@ const editorAvailable = [
   ...fulfillmentEntities,
   ...productFactsEntities,
   ...productionEntities,
+  ...financialEntities,
 ].includes(definition.vouType)
 const session = useTargetSession(),
   generation = session.generation
@@ -113,6 +123,7 @@ const saving = ref(false),
   editError = ref(''),
   blockPending = ref(false)
 type EditorDraft =
+  | { kind: 'financial'; value: FinancialDraft }
   | { kind: 'order'; value: OrderDraft }
   | { kind: 'fulfillment'; value: FulfillmentDraft }
   | { kind: 'product-facts'; value: ProductFactsDraft }
@@ -130,6 +141,7 @@ function editorModel<K extends EditorDraft['kind']>(kind: K) {
     },
   })
 }
+const financialDraft = editorModel('financial')
 const draft = editorModel('order')
 const fulfillmentDraft = editorModel('fulfillment')
 const productFactsDraft = editorModel('product-facts')
@@ -175,6 +187,10 @@ function create() {
   attachments.reset()
   openingSource.value = null
   if (definition.vouType === 'opening') openingDraft.value = emptyOpening()
+  else if (
+    (financialEntities as readonly string[]).includes(definition.vouType)
+  )
+    financialDraft.value = emptyFinancial(definition.vouType as FinancialEntity)
   else if (productionEntities.includes(definition.vouType))
     productionDraft.value = emptyProduction(
       definition.vouType as ProductionEntity,
@@ -205,6 +221,25 @@ function cloneSelected() {
       JSON.stringify(original.payload),
     ) as OpeningDraft
     openingSource.value = original
+  } else if (
+    (financialEntities as readonly string[]).includes(original.entity)
+  ) {
+    const payload =
+      original.payload as import('@zerp/model').VouPayloadFor<FinancialEntity>
+    const count =
+      'expenseLines' in payload
+        ? payload.expenseLines.length
+        : 'subunitAllocations' in payload
+          ? payload.subunitAllocations.length
+          : 0
+    financialDraft.value = cloneFinancial(
+      original.entity as FinancialEntity,
+      payload,
+      Array.from({ length: count }, () => ulid()),
+    )
+    editError.value = original.payload.attachments.length
+      ? '附件不随复制继承，请重新上传需要的文件。'
+      : ''
   } else if (
     (original.entity === 'order-production' ||
       original.entity === 'self-production') &&
@@ -293,6 +328,11 @@ async function submit() {
       }
     | { kind: 'opening'; input: api.TargetOpeningInput }
     | {
+        kind: 'financial'
+        entity: FinancialEntity
+        input: api.TargetVoucherInput<FinancialEntity>
+      }
+    | {
         kind: 'production'
         entity: ProductionEntity
         input: api.TargetVoucherInput<ProductionEntity>
@@ -319,7 +359,17 @@ async function submit() {
           idempotencyKey: identity.idempotencyKey,
         },
       }
-    } else if (productionDraft.value)
+    } else if (financialDraft.value)
+      command = {
+        kind: 'financial',
+        entity: financialDraft.value.entity,
+        input: {
+          ...identity,
+          expectedRevision: null,
+          payload: financialPayload(financialDraft.value),
+        },
+      }
+    else if (productionDraft.value)
       command = {
         kind: 'production',
         entity: productionDraft.value.entity,
@@ -387,11 +437,7 @@ async function submit() {
   try {
     if (command.kind === 'opening')
       await api.submitTargetOpening(session.csrfToken, command.input)
-    else if (
-      command.kind === 'fulfillment' ||
-      command.kind === 'product-facts' ||
-      command.kind === 'production'
-    )
+    else if (command.kind !== 'order')
       await api.submitTargetVoucher(
         session.csrfToken,
         command.entity,
@@ -848,6 +894,11 @@ onBeforeUnmount(() => {
           :key="identity.submissionId"
           v-model="openingDraft"
           :disabled="saving || uncertain || Boolean(openingSource)"
+        />
+        <FinancialBlock
+          v-if="financialDraft"
+          v-model="financialDraft"
+          :disabled="saving || uncertain"
         />
         <ProductionBlock
           v-if="productionDraft"

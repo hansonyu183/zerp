@@ -52,6 +52,17 @@ test('all 36 real menus query their own summaries and open readable snapshots', 
         'order-production',
         'self-production',
         'inventory-count',
+        'sales-receipt',
+        'purchase-refund',
+        'other-receipt',
+        'sales-refund',
+        'purchase-payment',
+        'other-payment',
+        'employee-loan',
+        'employee-repayment',
+        'employee-loan-writeoff',
+        'expense-reimbursement',
+        'other-income',
       ].includes(entity)
     ) {
       await expect(list).not.toContainText('专用单据编辑器尚未实施')

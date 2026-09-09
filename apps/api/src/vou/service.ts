@@ -926,7 +926,11 @@ export class VouService implements WflVouPort {
           throw new VouApplicationError('vou_reference_unavailable')
       }
     }
-    const referenceValidation = await this.validateReferences(tx, input.payload)
+    const referenceValidation = await this.validateReferences(
+      tx,
+      entity,
+      input.payload,
+    )
     if (!referenceValidation.ok)
       throw new VouApplicationError('vou_reference_unavailable', [
         ...referenceValidation.blockers,
@@ -937,6 +941,35 @@ export class VouService implements WflVouPort {
       input.documentId,
       input.payload,
     )
+    if (entity === 'sales-receipt' && 'subunitAllocations' in input.payload) {
+      const receipt = input.payload
+      const amount = decimalToFixed(receipt.amount, 2)
+      let sum = 0n
+      for (const [index, line] of receipt.subunitAllocations.entries()) {
+        const value = decimalToFixed(line.amount, 2)
+        if (value === null || value < 0n)
+          throw new VouApplicationError('vou_invalid_payload')
+        sum += value
+        const root = await tx
+          .selectFrom('bob_customer_subunit_roots')
+          .select('customer_id')
+          .where('subunit_id', '=', line.subunit.objectId)
+          .forUpdate()
+          .executeTakeFirst()
+        if (root?.customer_id !== receipt.customer.objectId)
+          throw new VouApplicationError('vou_reference_unavailable', [
+            {
+              kind: 'REFERENCE',
+              field: `subunitAllocations[${index}].subunit`,
+              entity: 'customer-subunit',
+              objectId: line.subunit.objectId,
+              approvalEntryId: line.subunit.approvalEntryId,
+            },
+          ])
+      }
+      if (sum !== amount)
+        throw new VouApplicationError('vou_allocation_total_mismatch')
+    }
     const now = new Date()
     let documentNo = document?.document_no
     if (!document) {
@@ -2324,10 +2357,11 @@ export class VouService implements WflVouPort {
 
   private async validateReferences(
     transaction: Transaction<DB>,
+    entity: VouEntity,
     payload: VouPayload,
   ): Promise<VouReferenceValidation> {
     const blockers: VouReferenceBlocker[] = []
-    const referenceFacts = vouPayloadReferences(payload)
+    const referenceFacts = vouPayloadReferences(entity, payload)
     const productIds = [
       ...new Set(
         referenceFacts
@@ -3430,6 +3464,7 @@ export class VouService implements WflVouPort {
     payload: VouPayload,
   ) {
     for (const { field, candidateEntity, reference } of vouPayloadReferences(
+      entity,
       payload,
     ))
       await this.writeReferenceSnapshot(

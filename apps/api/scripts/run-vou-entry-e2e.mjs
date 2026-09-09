@@ -85,7 +85,38 @@ try {
     ])
     .execute()
   const codes = Object.fromEntries(productRows.map((row) => [row.id, row.code]))
+  const financial = fixture.documents['sales-receipt'].payload
+  const financialIds = [
+    financial.customer.objectId,
+    financial.operatingEntity.objectId,
+    financial.fundAccount.objectId,
+    financial.handler.objectId,
+  ]
+  const financialCodes = Object.fromEntries(
+    [
+      ...(await db
+        .selectFrom('bob_subjects')
+        .select(['id', 'code'])
+        .where('id', 'in', financialIds)
+        .execute()),
+      ...(await db
+        .selectFrom('aux_objects')
+        .select(['id', 'code'])
+        .where('id', 'in', financialIds)
+        .execute()),
+    ].map((row) => [row.id, row.code]),
+  )
+  const subunit = await db
+    .selectFrom('bob_customer_subunit_roots')
+    .select('code')
+    .where('subunit_id', '=', financial.subunitAllocations[0].subunit.objectId)
+    .executeTakeFirstOrThrow()
   const entryFacts = {
+    customer: financialCodes[financial.customer.objectId],
+    operatingEntity: financialCodes[financial.operatingEntity.objectId],
+    fundAccount: financialCodes[financial.fundAccount.objectId],
+    employee: financialCodes[financial.handler.objectId],
+    subunit: subunit.code,
     warehouse: fixture.references.warehouseCode,
     supplier: codes[fixture.supplierId],
     product: codes[fixture.references.archiveSubjectIds[1]],
@@ -108,6 +139,7 @@ try {
       '--config',
       'playwright.target.config.ts',
       'vou-entry.spec.ts',
+      ...process.argv.slice(2),
     ],
     {
       stdio: 'inherit',

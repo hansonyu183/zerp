@@ -1,6 +1,11 @@
 import { expect, test } from '@playwright/test'
 
 const facts = JSON.parse(process.env.TARGET_E2E_VOU_ENTRY_JSON ?? '{}') as {
+  customer: string
+  operatingEntity: string
+  fundAccount: string
+  employee: string
+  subunit: string
   warehouse: string
   supplier: string
   product: string
@@ -15,6 +20,17 @@ const entities = [
   'order-production',
   'self-production',
   'inventory-count',
+  'sales-receipt',
+  'purchase-refund',
+  'other-receipt',
+  'sales-refund',
+  'purchase-payment',
+  'other-payment',
+  'employee-loan',
+  'employee-repayment',
+  'employee-loan-writeoff',
+  'expense-reimbursement',
+  'other-income',
 ] as const
 for (const width of [1280, 390])
   for (const entity of entities) {
@@ -51,7 +67,71 @@ for (const width of [1280, 390])
       await editor
         .getByLabel('备注', { exact: true })
         .fill(`录入验证 ${entity} ${width}`)
-      if (entity === 'order-production' || entity === 'self-production') {
+      if (
+        [
+          'sales-receipt',
+          'purchase-refund',
+          'other-receipt',
+          'sales-refund',
+          'purchase-payment',
+          'other-payment',
+          'employee-loan',
+          'employee-repayment',
+          'employee-loan-writeoff',
+          'expense-reimbursement',
+          'other-income',
+        ].includes(entity)
+      ) {
+        const expenses =
+          entity === 'employee-loan-writeoff' ||
+          entity === 'expense-reimbursement'
+        if (entity.startsWith('employee-') || expenses)
+          await choose('员工', facts.employee)
+        else if (entity === 'sales-receipt') {
+          await choose('客户', facts.customer)
+          await choose('经营主体', facts.operatingEntity)
+          await editor
+            .getByRole('button', { name: '添加分摊行', exact: true })
+            .click()
+          await choose('客户子单位', facts.subunit)
+          await editor.getByLabel('分摊金额', { exact: true }).fill('12.34')
+        } else if (entity === 'sales-refund')
+          await choose('客户子单位', facts.subunit)
+        else if (entity.startsWith('purchase-'))
+          await choose('供应商', facts.supplier)
+        else if (entity === 'other-income')
+          await editor
+            .getByLabel('来源名称', { exact: true })
+            .fill('其他业务收入')
+        else if (entity === 'other-payment') {
+          await editor
+            .getByLabel('相对方类型', { exact: true })
+            .press('ArrowDown')
+          await page.getByRole('option', { name: '员工', exact: true }).click()
+          await choose('相对方', facts.employee)
+          await editor
+            .getByLabel('其他类别', { exact: true })
+            .press('ArrowDown')
+          await page
+            .getByRole('option', { name: '居间费', exact: true })
+            .click()
+        } else await choose('相对方', facts.subunit)
+        if (expenses) {
+          await editor
+            .getByRole('button', { name: '添加费用行', exact: true })
+            .click()
+          await editor.getByLabel('费用类别', { exact: true }).fill('差旅')
+          await editor.getByLabel('费用说明', { exact: true }).fill('现场服务')
+          await editor.getByLabel('费用金额', { exact: true }).fill('12.34')
+        } else {
+          await choose('资金账户', facts.fundAccount)
+          await choose('经办人', facts.employee)
+          await editor.getByLabel('金额', { exact: true }).fill('12.34')
+        }
+      } else if (
+        entity === 'order-production' ||
+        entity === 'self-production'
+      ) {
         await choose('材料仓库', facts.warehouse)
         await choose('成品仓库', facts.warehouse)
         await editor

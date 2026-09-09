@@ -825,6 +825,7 @@ export interface VouPayloadReferenceFact {
  * approved version is normalized to `HISTORICAL` for the shared validator.
  */
 export function vouPayloadReferences(
+  entity: VouEntity,
   payload: VouPayload,
 ): readonly VouPayloadReferenceFact[] {
   const result: VouPayloadReferenceFact[] = []
@@ -833,6 +834,7 @@ export function vouPayloadReferences(
       result.push({
         field: path,
         candidateEntity: versionedReferenceCandidateEntity(
+          entity,
           field,
           path,
           payload,
@@ -932,6 +934,7 @@ export function vouAuxCurrentReferences(payload: VouPayload): readonly {
 }
 
 function versionedReferenceCandidateEntity(
+  entity: VouEntity,
   field: string,
   path: string,
   payload: VouPayload,
@@ -950,7 +953,9 @@ function versionedReferenceCandidateEntity(
     )
   }
   const candidates =
-    headerReferenceCandidates[field] ?? lineReferenceCandidates[field]
+    field in headerReferenceCandidates
+      ? headerReferenceCandidatesForEntity(entity, field)
+      : lineReferenceCandidates[field]
   if (candidates?.length === 1) return candidates[0]
   throw new Error(
     `Cannot derive VOU reference candidate at ${path}: field ${field} is not uniquely typed`,
@@ -1448,6 +1453,8 @@ function headerReferenceCandidatesForEntity(
   entity: VouEntity,
   key: string,
 ): readonly VouReferenceCandidateEntity[] {
+  if (key === 'customer' && entity === 'sales-refund')
+    return ['customer-subunit']
   if (key === 'counterparty' && entity === 'bill-discount')
     return ['other-unit']
   if (key === 'counterparty' && entity === 'asset-sale')

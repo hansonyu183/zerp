@@ -293,7 +293,7 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
       operatingEntity,
       subunitAllocations: [{ subunit: customerSubunit, amount: '12.30' }],
     },
-    'sales-refund': { ...base, ...amount, customer },
+    'sales-refund': { ...base, ...amount, customer: customerSubunit },
     'purchase-refund': { ...base, ...amount, supplier },
     'purchase-payment': { ...base, ...amount, supplier },
     'other-receipt': {

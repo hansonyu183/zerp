@@ -1256,3 +1256,163 @@ it('adds a book-balance product as a candidate while requiring an explicit actua
   expect(api.submitTargetVoucher).not.toHaveBeenCalled()
   wrapper.unmount()
 })
+
+it.each([
+  'sales-receipt',
+  'purchase-refund',
+  'other-receipt',
+  'sales-refund',
+  'purchase-payment',
+  'other-payment',
+  'employee-loan',
+  'employee-repayment',
+  'employee-loan-writeoff',
+  'expense-reimbursement',
+  'other-income',
+] as const)(
+  'submits %s from money and expense candidates without losing decimal strings',
+  async (entity) => {
+    useTargetSession().apiPaths = [
+      `/vou/${entity}/submit-new`,
+      '/vou/reference/query',
+    ]
+    vi.mocked(api.queryTargetVouReferences).mockImplementation(
+      async (_token, input) =>
+        ({
+          items: [
+            {
+              entity: input.entity,
+              objectId: referenceId,
+              approvalEntryId: entryId,
+              code: '01',
+              name: '可用资料',
+              customerId: referenceId,
+            },
+          ],
+        }) as Awaited<ReturnType<typeof api.queryTargetVouReferences>>,
+    )
+    vi.mocked(api.submitTargetVoucher).mockResolvedValue({
+      documentId: productId,
+    } as Awaited<ReturnType<typeof api.submitTargetVoucher>>)
+    const wrapper = mount(ResourceHost, {
+      props: { domain: 'vou', entity },
+      global: { stubs },
+    })
+    await flushPromises()
+    await click(wrapper, '新建')
+    const choose = async (caption: string) => {
+      await wrapper.get(`[aria-label="${caption}"]`).setValue(referenceId)
+      await flushPromises()
+    }
+    const expenses =
+      entity === 'employee-loan-writeoff' || entity === 'expense-reimbursement'
+    if (entity.startsWith('employee-') || expenses) await choose('员工')
+    else if (entity === 'sales-receipt') {
+      await choose('客户')
+      await choose('经营主体')
+      await click(wrapper, '添加分摊行')
+      await choose('客户子单位')
+      await wrapper.get('[aria-label="分摊金额"]').setValue('1234567890123.45')
+    } else if (entity === 'sales-refund') await choose('客户子单位')
+    else if (entity.startsWith('purchase-')) await choose('供应商')
+    else if (entity === 'other-income')
+      await wrapper.get('[aria-label="来源名称"]').setValue('其他业务收入')
+    else await choose('相对方')
+    if (expenses) {
+      expect(wrapper.find('[aria-label="资金账户"]').exists()).toBe(false)
+      expect(wrapper.find('[aria-label="经办人"]').exists()).toBe(false)
+      await click(wrapper, '添加费用行')
+      await wrapper.get('[aria-label="费用类别"]').setValue('差旅')
+      await wrapper.get('[aria-label="费用说明"]').setValue('客户现场服务')
+      await wrapper.get('[aria-label="费用金额"]').setValue('1234567890123.45')
+    } else {
+      await choose('资金账户')
+      await choose('经办人')
+      await wrapper.get('[aria-label="金额"]').setValue('1234567890123.45')
+    }
+    await click(wrapper, '提交')
+    expect(api.submitTargetVoucher, wrapper.text()).toHaveBeenCalledTimes(1)
+    const [token, actualEntity, input] = vi.mocked(api.submitTargetVoucher).mock
+      .calls[0]!
+    expect(token).toBe('test-csrf')
+    expect(actualEntity).toBe(entity)
+    expect(input.expectedRevision).toBeNull()
+    expect(input.payload).toMatchObject(
+      expenses
+        ? {
+            expenseLines: [
+              {
+                category: '差旅',
+                description: '客户现场服务',
+                amount: '1234567890123.45',
+              },
+            ],
+          }
+        : {
+            amount: '1234567890123.45',
+            fundAccount: { objectId: referenceId },
+            handler: { objectId: referenceId },
+          },
+    )
+    expect(wrapper.text()).toContain('提交成功')
+    wrapper.unmount()
+  },
+)
+
+it.each(['supplier', 'employee', 'other-unit', 'sales-partner'] as const)(
+  'changes other-payment candidates to %s before adopting the new counterparty',
+  async (party) => {
+    useTargetSession().apiPaths = [
+      '/vou/other-payment/submit-new',
+      '/vou/reference/query',
+    ]
+    vi.mocked(api.queryTargetVouReferences).mockImplementation(
+      async (_token, input) =>
+        ({
+          items: [
+            {
+              entity: input.entity,
+              objectId: referenceId,
+              approvalEntryId: entryId,
+              code: '01',
+              name: '候选',
+            },
+          ],
+        }) as Awaited<ReturnType<typeof api.queryTargetVouReferences>>,
+    )
+    vi.mocked(api.submitTargetVoucher).mockResolvedValue({
+      documentId: productId,
+    } as Awaited<ReturnType<typeof api.submitTargetVoucher>>)
+    const wrapper = mount(ResourceHost, {
+      props: { domain: 'vou', entity: 'other-payment' },
+      global: { stubs },
+    })
+    await flushPromises()
+    await click(wrapper, '新建')
+    await wrapper.get('[aria-label="相对方类型"]').setValue(party)
+    await flushPromises()
+    expect(api.queryTargetVouReferences).toHaveBeenCalledWith('test-csrf', {
+      entity: party,
+    })
+    for (const caption of ['相对方', '资金账户', '经办人'])
+      await wrapper.get(`[aria-label="${caption}"]`).setValue(referenceId)
+    await wrapper.get('[aria-label="金额"]').setValue('0.00')
+    await click(wrapper, '提交')
+    expect(api.submitTargetVoucher, wrapper.text()).toHaveBeenCalledTimes(1)
+    expect(
+      vi.mocked(api.submitTargetVoucher).mock.calls[0]![2].payload,
+    ).toMatchObject({
+      counterpartyType: party,
+      amount: '0.00',
+      counterparty:
+        party === 'employee'
+          ? { objectId: referenceId }
+          : {
+              objectId: referenceId,
+              approvalEntryId: entryId,
+              selectionOrigin: 'CURRENT',
+            },
+    })
+    wrapper.unmount()
+  },
+)

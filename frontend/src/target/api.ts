@@ -3162,3 +3162,45 @@ export async function queryTargetInventoryBookBalance(
     ).json(),
   )
 }
+
+export async function getTargetIntermediaryScript(csrfToken: string) {
+  return unwrapTarget(
+    await (
+      await client.vou['intermediary-calculation']['script-get'].$post(
+        { json: {} },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export type TargetIntermediaryScriptSaveInput = PostJson<
+  (typeof client.vou)['intermediary-calculation']['script-save']['$post']
+>
+export async function saveTargetIntermediaryScript(
+  csrfToken: string,
+  input: TargetIntermediaryScriptSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou['intermediary-calculation']['script-save'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function getTargetIntermediarySource(
+  csrfToken: string,
+  input: PostJson<
+    (typeof client.vou)['intermediary-calculation']['source']['$post']
+  >,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou['intermediary-calculation'].source.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}

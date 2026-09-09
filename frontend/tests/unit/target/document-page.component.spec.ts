@@ -8,6 +8,9 @@ import { archiveStubs as stubs } from './helpers/archive-stubs.ts'
 
 vi.mock('@/target/api.ts', async (original) => ({
   ...(await original<typeof import('@/target/api.ts')>()),
+  getTargetIntermediaryScript: vi.fn(),
+  saveTargetIntermediaryScript: vi.fn(),
+  getTargetIntermediarySource: vi.fn(),
   queryTargetVouchers: vi.fn(),
   queryTargetVouReferences: vi.fn(),
   getTargetProduct: vi.fn(),
@@ -1675,6 +1678,104 @@ it.each(['service-contract', 'service-acceptance'] as const)(
             },
           },
     )
+    wrapper.unmount()
+  },
+)
+
+it.each([false, true])(
+  'maintains a persisted intermediary script and verifies an unknown save (%s) before recalculation',
+  async (unknownSave) => {
+    useTargetSession().apiPaths = [
+      'submit-new',
+      'script-get',
+      'script-save',
+      'source',
+    ].map((action) => `/vou/intermediary-calculation/${action}`)
+    const source = {
+      periodStart: '2026-09-01',
+      periodEnd: '2026-09-30',
+      currency: 'CNY' as const,
+      lines: [],
+      bills: [],
+    }
+    const script = {
+      scriptId: 'GLOBAL',
+      revision: 1,
+      name: '月度脚本',
+      source: 'globalThis.calculate = () => ({lines:[], summaries:[]})',
+      hash: 'a'.repeat(64),
+    }
+    vi.mocked(api.getTargetIntermediaryScript).mockResolvedValue(null)
+    vi.mocked(api.getTargetIntermediarySource).mockResolvedValue({
+      source,
+      sourceHash: 'b'.repeat(64),
+    })
+    vi.mocked(api.saveTargetIntermediaryScript).mockResolvedValue(script)
+    vi.mocked(api.submitTargetVoucher).mockResolvedValue({
+      documentId: referenceId,
+    } as Awaited<ReturnType<typeof api.submitTargetVoucher>>)
+    const wrapper = mount(ResourceHost, {
+      props: { domain: 'vou', entity: 'intermediary-calculation' },
+      global: { stubs },
+    })
+    await flushPromises()
+    await click(wrapper, '新建')
+    await wrapper.get('[aria-label="计算月末日期"]').setValue('2026-09-30')
+    await click(wrapper, '提交')
+    expect(api.submitTargetVoucher).not.toHaveBeenCalled()
+    await wrapper.get('[aria-label="脚本名称"]').setValue(script.name)
+    await wrapper.get('[aria-label="计算脚本"]').setValue(script.source)
+    await click(wrapper, '试运行脚本')
+    await vi.waitFor(() =>
+      expect(wrapper.text()).toContain('当前脚本试运行成功'),
+    )
+    if (unknownSave)
+      vi.mocked(api.saveTargetIntermediaryScript).mockRejectedValueOnce(
+        new Error('network timeout'),
+      )
+    await click(wrapper, '保存计算脚本')
+    if (unknownSave) {
+      await click(wrapper, '读取计算脚本')
+      expect(wrapper.text()).toContain('尚未读取到本次脚本保存结果')
+      expect(
+        (wrapper.get('[aria-label="计算脚本"]').element as HTMLTextAreaElement)
+          .value,
+      ).toBe(script.source)
+      expect(
+        wrapper.get('[aria-label="计算脚本"]').attributes('disabled'),
+      ).toBeDefined()
+      vi.mocked(api.getTargetIntermediaryScript).mockResolvedValue(script)
+      await click(wrapper, '读取计算脚本')
+      expect(
+        wrapper.get('[aria-label="计算脚本"]').attributes('disabled'),
+      ).toBeUndefined()
+      expect(wrapper.text()).not.toContain('尚未读取到本次脚本保存结果')
+    }
+    expect(api.saveTargetIntermediaryScript).toHaveBeenCalledWith('test-csrf', {
+      name: script.name,
+      source: script.source,
+      expectedRevision: null,
+    })
+    await click(wrapper, '提交')
+    expect(api.submitTargetVoucher).not.toHaveBeenCalled()
+    vi.mocked(api.getTargetIntermediaryScript).mockResolvedValue(script)
+    await click(wrapper, '重新计算')
+    await vi.waitFor(() =>
+      expect(wrapper.text()).toContain('采用脚本：月度脚本'),
+    )
+    await click(wrapper, '提交')
+    expect(api.submitTargetVoucher).toHaveBeenCalledTimes(1)
+    expect(
+      vi.mocked(api.submitTargetVoucher).mock.calls[0]![2].payload,
+    ).toMatchObject({
+      businessDate: '2026-09-30',
+      intermediaryCalculation: {
+        source,
+        sourceHash: 'b'.repeat(64),
+        script,
+        result: { lines: [], summaries: [] },
+      },
+    })
     wrapper.unmount()
   },
 )

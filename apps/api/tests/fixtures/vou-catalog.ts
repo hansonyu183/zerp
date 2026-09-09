@@ -408,7 +408,7 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
         },
         result: { lines: [], summaries: [] },
       },
-    },
+    } as VouPayloadShapes['intermediary-calculation'],
     'service-contract': {
       ...base,
       counterparty,
@@ -599,6 +599,24 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
       payloads['bill-payment'].billLines[0]!.billId = register.id
       payloads['bill-discount'].billLines[0]!.billId = register.id
     }
+  }
+  const calculationScript = await vou.saveIntermediaryScript(
+    {
+      expectedRevision: null,
+      name: '目录验收脚本',
+      source: 'globalThis.calculate = () => ({lines: [], summaries: []})',
+    },
+    actor,
+  )
+  const calculationSource = await vou.getIntermediarySource('2026-09-30', actor)
+  payloads['intermediary-calculation'] = {
+    ...base,
+    businessDate: '2026-09-30',
+    intermediaryCalculation: {
+      ...calculationSource,
+      script: calculationScript,
+      result: { lines: [], summaries: [] },
+    },
   }
   for (const [entity, payload] of Object.entries(payloads)) {
     if (entity === 'service-acceptance') {

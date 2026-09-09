@@ -1,4 +1,8 @@
+import { VouApplicationError } from '../vou/service.ts'
+import { validateIntermediaryClosing } from '../vou/intermediary-validation.ts'
 import {
+  intermediaryUnits,
+  intermediaryDecimal,
   vouEntities,
   vouEntityInputDescriptors,
   vouEntityPresentation,
@@ -548,6 +552,21 @@ function billOutgoingStatus(
   return 'MATURED'
 }
 
+export const intermediaryCollections = [
+  'commissions',
+  'partTimeEarnings',
+  'channelEarnings',
+  'employeeIntermediaryCosts',
+  'partnerIntermediaryCosts',
+]
+export const intermediaryLineFields = [
+  'line.payeeId',
+  'line.customerId',
+  'line.accrualAmount',
+  'line.reversalAmount',
+  'line.currency',
+]
+
 export const quantityMovementEntities: readonly string[] = [
   'order-production',
   'self-production',
@@ -628,6 +647,8 @@ export class AccService
           headerFields.push(...billMovementHeaderFields)
           lineFields.push(...billMovementLineFields)
         }
+        if (entity === 'intermediary-calculation')
+          lineFields.push(...intermediaryLineFields)
         if (entity === 'asset-acquisition') lineFields.push('line.assetId')
         await tx
           .insertInto('acc_mapping_vou_entities')
@@ -1056,6 +1077,39 @@ export class AccService
     payload: VouPayload,
     currency: string,
   ) {
+    if ('intermediaryCalculation' in payload) {
+      const collections: Record<
+        string,
+        Array<{
+          payeeId: string
+          customerId: string
+          accrualAmount: string
+          reversalAmount: string
+          currency: string
+        }>
+      > = Object.fromEntries(intermediaryCollections.map((key) => [key, []]))
+      for (const summary of payload.intermediaryCalculation.result.summaries) {
+        const key =
+          summary.category === 'COMMISSION'
+            ? 'commissions'
+            : summary.category === 'EXTERNAL_PART_TIME'
+              ? 'partTimeEarnings'
+              : summary.category === 'CHANNEL_PARTNER'
+                ? 'channelEarnings'
+                : summary.payee.entity === 'employee'
+                  ? 'employeeIntermediaryCosts'
+                  : 'partnerIntermediaryCosts'
+        const amount = intermediaryUnits(summary.amount)
+        collections[key]!.push({
+          payeeId: summary.payee.objectId,
+          customerId: summary.customer?.objectId ?? '',
+          accrualAmount: intermediaryDecimal(amount > 0n ? amount : 0n),
+          reversalAmount: intermediaryDecimal(amount < 0n ? -amount : 0n),
+          currency: payload.currency,
+        })
+      }
+      return { ...payload, ...collections }
+    }
     const movement = (
       productId: string,
       warehouseId: string,
@@ -2245,8 +2299,8 @@ export class AccService
   ) {
     requirePermission(actor, `/acc/period/${locked ? 'lock' : 'unlock'}`)
     return this.db.transaction().execute(async (tx) => {
-      await this.requireBookAccess(tx, input.bookId, actor, true)
       await lockAccountingPeriod(tx, input.month)
+      await this.requireBookAccess(tx, input.bookId, actor, true)
       const book = await tx
         .selectFrom('acc_books')
         .select('start_month')
@@ -2406,6 +2460,16 @@ export class AccService
       throw new AccApplicationError('acc_period_open_vou', [
         { kind: 'VOU', id: openDocument.id, entity: openDocument.entity },
       ])
+
+    try {
+      await validateIntermediaryClosing(tx, month)
+    } catch (cause) {
+      if (cause instanceof VouApplicationError)
+        throw new AccApplicationError('acc_period_intermediary_invalid', [
+          { kind: 'INTERMEDIARY', month, errorKey: cause.errorKey },
+        ])
+      throw cause
+    }
 
     const mappedEntities = await sql<{
       entity: string

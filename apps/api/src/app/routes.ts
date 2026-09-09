@@ -631,6 +631,22 @@ export function registerAppRoutes(
         )
         return context.json(response as never, 200)
       }
+      if (action === 'source') {
+        const body = context.req.valid('json')
+        const response = await executeVou<unknown>(context, (actor) =>
+          vou!.getIntermediarySource(body.businessDate, actor),
+        )
+        return context.json(response as never, 200)
+      }
+      if (action === 'script-get' || action === 'script-save') {
+        const body = context.req.valid('json')
+        const response = await executeVou<unknown>(context, (actor) =>
+          action === 'script-get'
+            ? vou!.getIntermediaryScript(actor)
+            : vou!.saveIntermediaryScript(body, actor),
+        )
+        return context.json(response as never, 200)
+      }
       if (action === 'book-balance') {
         const body = context.req.valid('json')
         const response = await executeVou<unknown>(context, (actor) =>

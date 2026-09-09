@@ -329,3 +329,98 @@ for (const width of [1280, 390])
       await expect(editor).toHaveCount(0)
     })
   }
+
+for (const [width, month, cloneMonth] of [
+  [1280, '2026-10-31', '2026-11-30'],
+  [390, '2026-12-31', '2027-01-31'],
+] as const)
+  test(`intermediary-calculation script maintenance, calculation, persistence and clone at ${width}px`, async ({
+    page,
+  }) => {
+    test.setTimeout(90000)
+    await page.goto('/signin')
+    await page
+      .getByLabel('用户编码', { exact: true })
+      .fill(process.env.TARGET_E2E_USERNAME!)
+    await page
+      .getByLabel('密码', { exact: true })
+      .fill(process.env.TARGET_E2E_PASSWORD!)
+    await page.getByRole('button', { name: '登录', exact: true }).click()
+    await expect(page.getByLabel('用户编码', { exact: true })).toHaveCount(0)
+    const drawer = page.locator('.v-navigation-drawer')
+    const group = drawer
+      .locator('.v-list-group')
+      .filter({ hasText: '业务单据' })
+    if (!(await group.getAttribute('class'))?.includes('v-list-group--open'))
+      await group.locator('.v-list-group__header').click()
+    await drawer.locator('a[href="/vou/intermediary-calculation"]').click()
+    await expect(page.getByTestId('vou-list-page')).toBeVisible()
+    await page
+      .getByLabel('期间起', { exact: true })
+      .fill(`${month.slice(0, 7)}-01`)
+    await page.getByLabel('期间止', { exact: true }).fill(cloneMonth)
+    await page.getByTestId('list-search').click()
+    await page.getByRole('button', { name: '新建', exact: true }).click()
+    const editor = page.getByTestId('document-editor')
+    await editor.getByLabel('计算月末日期', { exact: true }).fill(month)
+    await editor
+      .getByLabel('脚本名称', { exact: true })
+      .fill(`月度计算 ${width}`)
+    await editor
+      .getByLabel('计算脚本', { exact: true })
+      .fill('globalThis.calculate = () => ({lines:[], summaries:[]})')
+    await editor
+      .getByRole('button', { name: '试运行脚本', exact: true })
+      .click()
+    await expect(editor).toContainText('当前脚本试运行成功')
+    const save = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+        '/vou/intermediary-calculation/script-save',
+    )
+    await editor
+      .getByRole('button', { name: '保存计算脚本', exact: true })
+      .click()
+    expect((await (await save).json()).code).toBe(0)
+    await editor.getByRole('button', { name: '重新计算', exact: true }).click()
+    await expect(editor).toContainText(`采用脚本：月度计算 ${width}`)
+    await page.setViewportSize({ width, height: 900 })
+    expect(
+      await editor.evaluate(
+        (element) => element.scrollWidth > element.clientWidth,
+      ),
+    ).toBe(false)
+    const submit = async () => {
+      const response = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname ===
+          '/vou/intermediary-calculation/submit-new',
+      )
+      await editor.getByRole('button', { name: '提交', exact: true }).click()
+      const envelope = await (await response).json()
+      expect(envelope.code, JSON.stringify(envelope)).toBe(0)
+      await expect(editor).toHaveCount(0)
+      return envelope.data
+    }
+    const first = await submit()
+    const get = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+        '/vou/intermediary-calculation/get',
+    )
+    await page
+      .getByTestId(`vou-row-${first.documentId}`)
+      .getByRole('button', { name: '打开', exact: true })
+      .click()
+    expect((await (await get).json()).data.payload).toEqual(first.payload)
+    await page
+      .getByTestId('vou-detail')
+      .getByRole('button', { name: '复制到临时表单', exact: true })
+      .click()
+    await editor.getByLabel('计算月末日期', { exact: true }).fill(cloneMonth)
+    await editor.getByRole('button', { name: '重新计算', exact: true }).click()
+    await expect(editor).toContainText(`采用脚本：月度计算 ${width}`)
+    const cloned = await submit()
+    expect(cloned.documentId).not.toBe(first.documentId)
+    expect(cloned.payload.businessDate).toBe(cloneMonth)
+  })

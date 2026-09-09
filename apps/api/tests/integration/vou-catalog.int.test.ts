@@ -119,7 +119,7 @@ test('every catalog type has real HTTP summaries, immutable get and strict per-t
       const summary = query.data.items[0]
       assert.equal(summary.vouType, entity)
       assert.equal(summary.documentId, document.documentId)
-      assert.equal(summary.businessDate, '2026-09-04')
+      assert.equal(summary.businessDate, document.payload.businessDate)
       assert.equal(summary.status, document.status)
       if (
         [

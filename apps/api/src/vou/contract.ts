@@ -426,7 +426,6 @@ const intermediarySourceLine = z
       })
       .strict()
       .optional(),
-    intermediary: intermediaryReference.optional(),
     product: intermediaryReference,
     behaviorProfile: z.enum([
       'RAW_MATERIAL',
@@ -440,6 +439,31 @@ const intermediarySourceLine = z
     unitPrice: money,
     referenceUnitPrice: money,
     settlementSurcharge: money,
+    customerTypeCode: z.string().min(1),
+    paymentSurcharge: money,
+    transportSurcharge: money,
+    defaultPremiumUnitPrice: money,
+    defaultDiscountUnitPrice: money,
+    thirdPartyIntermediaryFixedUnitCost: money,
+    thirdPartyIntermediaryVariableUnitCost: money,
+    costItems: z.array(
+      z.discriminatedUnion('calculationBasis', [
+        z
+          .object({
+            name: z.string().min(1),
+            calculationBasis: z.literal('UNIT_PRICE'),
+            unitPrice: money,
+          })
+          .strict(),
+        z
+          .object({
+            name: z.string().min(1),
+            calculationBasis: z.literal('ORDER_AMOUNT'),
+            orderAmount: money,
+          })
+          .strict(),
+      ]),
+    ),
     lineAmount: money,
     settlementTermCode: z.string(),
     specialApproval: z.boolean(),
@@ -484,7 +508,7 @@ const intermediaryResultLine = z
     note: z.string().max(1000).optional(),
   })
   .strict()
-const intermediaryCalculation = z
+export const intermediaryCalculation = z
   .object({
     source: z
       .object({
@@ -512,6 +536,7 @@ const intermediaryCalculation = z
           z
             .object({
               payee: intermediaryReference,
+              customer: intermediaryReference.optional(),
               category: z.enum([
                 'COMMISSION',
                 'EXTERNAL_PART_TIME',
@@ -537,6 +562,7 @@ export const vouPayloadSchemaByEntity = {
     paymentMethod: paymentMethodSelection.nullable(),
     productLines: z.array(productLine).min(1).max(200),
     creditOverrideReason: z.string().trim().min(1).max(1000).optional(),
+    specialApproval: z.boolean().optional(),
   }),
   'sale-outbound': payload({
     sourceLines: z.array(sourceLine).min(1).max(200),
@@ -1062,7 +1088,51 @@ function route<
   })
 }
 
+function intermediaryRoute<
+  Action extends string,
+  Input extends z.ZodType,
+  Output extends z.ZodType,
+>(action: Action, input: Input, output: Output) {
+  return createRoute({
+    method: 'post',
+    path: `/vou/intermediary-calculation/${action}` as const,
+    request: { body: { content: { 'application/json': { schema: input } } } },
+    responses: {
+      200: {
+        description: `Intermediary ${action}`,
+        content: { 'application/json': { schema: envelope(output) } },
+      },
+    },
+  })
+}
+
 export const vouRouteSet = {
+  source: intermediaryRoute(
+    'source',
+    z.object({ businessDate: z.string().date() }).strict(),
+    z
+      .object({
+        source: intermediaryCalculation.shape.source,
+        sourceHash: z.string(),
+      })
+      .strict(),
+  ),
+  'script-get': intermediaryRoute(
+    'script-get',
+    z.object({}).strict(),
+    intermediaryCalculation.shape.script.nullable(),
+  ),
+  'script-save': intermediaryRoute(
+    'script-save',
+    z
+      .object({
+        expectedRevision: z.number().int().positive().nullable(),
+        name: z.string().trim().min(1).max(200),
+        source: z.string().min(1).max(200000),
+      })
+      .strict(),
+    intermediaryCalculation.shape.script,
+  ),
   reference: createRoute({
     method: 'post',
     path: '/vou/reference/query',
@@ -1189,13 +1259,15 @@ export const vouRouteMetadata = [
   ...Object.keys(vouRouteSet).map((action) => ({
     method: 'post',
     path:
-      action === 'reference'
-        ? '/vou/reference/query'
-        : action === 'book-balance'
-          ? '/vou/inventory-count/book-balance'
-          : action === 'source-line'
-            ? '/vou/source-line/query'
-            : `/vou/{entity}/${action}`,
+      action === 'source' || action === 'script-get' || action === 'script-save'
+        ? `/vou/intermediary-calculation/${action}`
+        : action === 'reference'
+          ? '/vou/reference/query'
+          : action === 'book-balance'
+            ? '/vou/inventory-count/book-balance'
+            : action === 'source-line'
+              ? '/vou/source-line/query'
+              : `/vou/{entity}/${action}`,
     title: `VOU ${action}`,
   })),
   {
@@ -1219,6 +1291,18 @@ const publicActions = [
   'attachment-cleanup',
 ] as const
 export const vouCapabilityPermissionMetadata = [
+  {
+    permission: '/vou/intermediary-calculation/source',
+    title: '生成居间计算来源',
+  },
+  {
+    permission: '/vou/intermediary-calculation/script-get',
+    title: '读取居间计算脚本',
+  },
+  {
+    permission: '/vou/intermediary-calculation/script-save',
+    title: '维护居间计算脚本',
+  },
   {
     permission: '/vou/inventory-count/book-balance',
     title: '库存盘点账面预览',
@@ -1259,7 +1343,19 @@ export function registerVouRoutes<
   app: OpenAPIHono<TargetRouteEnvironment, AppSchema, BasePath>,
   handler: VouRouteHandler,
 ) {
-  const reference = app.openapi(
+  const source = app.openapi(
+    vouRouteSet.source,
+    (c) => handler('source', c) as never,
+  )
+  const scriptGet = source.openapi(
+    vouRouteSet['script-get'],
+    (c) => handler('script-get', c) as never,
+  )
+  const scriptSave = scriptGet.openapi(
+    vouRouteSet['script-save'],
+    (c) => handler('script-save', c) as never,
+  )
+  const reference = scriptSave.openapi(
     vouRouteSet.reference,
     (c) => handler('reference', c) as never,
   )

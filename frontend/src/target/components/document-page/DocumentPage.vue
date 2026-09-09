@@ -8,6 +8,7 @@ import {
   computed,
 } from 'vue'
 import {
+  checkIntermediaryResult,
   approvalActionPresentation,
   approvalStatusPresentation,
   userCreatableVouEntities,
@@ -105,6 +106,13 @@ import {
   type ServiceEntity,
   type ServiceDraft,
 } from './service-data.ts'
+import IntermediaryBlock from './IntermediaryBlock.vue'
+import {
+  emptyIntermediary,
+  intermediaryPayload,
+  type IntermediaryDraft,
+  type IntermediaryScriptEditor,
+} from './intermediary-data.ts'
 const props = defineProps<{ definition: DocumentDefinition }>()
 const definition =
   props.definition.vouType === 'opening'
@@ -122,6 +130,7 @@ const fulfillmentEntities = [
   'purchase-return',
 ]
 const editorAvailable = [
+  'intermediary-calculation',
   'sale-order',
   'purchase-order',
   'opening',
@@ -157,6 +166,7 @@ const saving = ref(false),
   editError = ref(''),
   blockPending = ref(false)
 type EditorDraft =
+  | { kind: 'intermediary'; value: IntermediaryDraft }
   | { kind: 'service'; value: ServiceDraft }
   | { kind: 'bill'; value: BillDraft }
   | { kind: 'asset'; value: AssetDraft }
@@ -178,6 +188,7 @@ function editorModel<K extends EditorDraft['kind']>(kind: K) {
     },
   })
 }
+const intermediaryDraft = editorModel('intermediary')
 const serviceDraft = editorModel('service')
 const billDraft = editorModel('bill')
 const assetDraft = editorModel('asset')
@@ -209,6 +220,153 @@ const zeroOpening = computed(
     ),
 )
 let identity = { documentId: '', submissionId: '', idempotencyKey: '' }
+const intermediaryScript = ref<IntermediaryScriptEditor>({
+  name: '',
+  source: '',
+})
+const savedIntermediaryScript =
+  ref<Awaited<ReturnType<typeof api.getTargetIntermediaryScript>>>(null)
+const testedIntermediarySource = ref('')
+const intermediaryScriptUnknown = ref(false)
+const pendingIntermediaryScript = ref<
+  (IntermediaryScriptEditor & { expectedRevision: number | null }) | null
+>(null)
+const intermediaryScriptTested = computed(
+  () =>
+    Boolean(testedIntermediarySource.value) &&
+    testedIntermediarySource.value === intermediaryScript.value.source,
+)
+async function loadIntermediaryScript() {
+  if (saving.value || !vm.can('script-get') || !session.csrfToken) return
+  saving.value = true
+  const submissionId = identity.submissionId
+  try {
+    const script = await api.getTargetIntermediaryScript(session.csrfToken)
+    if (
+      !active ||
+      session.generation !== generation ||
+      identity.submissionId !== submissionId
+    )
+      return
+    if (intermediaryScriptUnknown.value && pendingIntermediaryScript.value) {
+      const pending = pendingIntermediaryScript.value
+      if (
+        !script ||
+        script.revision !== (pending.expectedRevision ?? 0) + 1 ||
+        script.name !== pending.name ||
+        script.source !== pending.source
+      ) {
+        editError.value = '尚未读取到本次脚本保存结果，请稍后重新读取核实。'
+        return
+      }
+      pendingIntermediaryScript.value = null
+    }
+    savedIntermediaryScript.value = script
+    intermediaryScript.value = {
+      name: script?.name ?? '',
+      source: script?.source ?? '',
+    }
+    testedIntermediarySource.value = ''
+    intermediaryScriptUnknown.value = false
+    editError.value = ''
+  } catch (cause) {
+    if (active && session.generation === generation)
+      editError.value = documentError(cause)
+  } finally {
+    if (active && session.generation === generation) saving.value = false
+  }
+}
+async function calculateIntermediary(testOnly = false) {
+  const draft = intermediaryDraft.value
+  if (
+    !draft ||
+    saving.value ||
+    uncertain.value ||
+    !vm.can('source') ||
+    !session.csrfToken ||
+    (testOnly ? !vm.can('script-save') : !vm.can('script-get'))
+  )
+    return
+  saving.value = true
+  editError.value = ''
+  try {
+    const source = await api.getTargetIntermediarySource(session.csrfToken, {
+      businessDate: draft.businessDate,
+    })
+    const script = testOnly
+      ? null
+      : await api.getTargetIntermediaryScript(session.csrfToken)
+    if (!testOnly && !script) throw new Error('请先维护并保存可用的计算脚本。')
+    const sourceText = testOnly
+      ? intermediaryScript.value.source
+      : script!.source
+    const { runIntermediaryScript } = await import('./intermediary-script.ts')
+    const result = await runIntermediaryScript(sourceText, source.source)
+    if (!checkIntermediaryResult(source.source, result).ok)
+      throw new Error('脚本结果的明细、金额或收款方汇总不符合来源事实。')
+    if (
+      !active ||
+      session.generation !== generation ||
+      intermediaryDraft.value !== draft
+    )
+      return
+    if (testOnly) testedIntermediarySource.value = sourceText
+    else {
+      savedIntermediaryScript.value = script
+      intermediaryDraft.value = {
+        ...draft,
+        calculation: { ...source, script: script!, result },
+      }
+    }
+  } catch (cause) {
+    if (active && session.generation === generation)
+      editError.value = documentError(cause)
+  } finally {
+    if (active && session.generation === generation) saving.value = false
+  }
+}
+async function saveIntermediaryScript() {
+  if (
+    saving.value ||
+    uncertain.value ||
+    intermediaryScriptUnknown.value ||
+    !intermediaryScriptTested.value ||
+    !vm.can('script-save') ||
+    !session.csrfToken
+  )
+    return
+  saving.value = true
+  try {
+    pendingIntermediaryScript.value = {
+      ...intermediaryScript.value,
+      name: intermediaryScript.value.name.trim(),
+      expectedRevision: savedIntermediaryScript.value?.revision ?? null,
+    }
+    const script = await api.saveTargetIntermediaryScript(
+      session.csrfToken,
+      pendingIntermediaryScript.value,
+    )
+    if (!active || session.generation !== generation) return
+    pendingIntermediaryScript.value = null
+    savedIntermediaryScript.value = script
+    testedIntermediarySource.value = ''
+    if (intermediaryDraft.value)
+      intermediaryDraft.value = {
+        ...intermediaryDraft.value,
+        calculation: null,
+      }
+    editError.value = ''
+  } catch (cause) {
+    if (active && session.generation === generation) {
+      intermediaryScriptUnknown.value = !(cause instanceof api.TargetApiError)
+      if (!intermediaryScriptUnknown.value)
+        pendingIntermediaryScript.value = null
+      editError.value = documentError(cause)
+    }
+  } finally {
+    if (active && session.generation === generation) saving.value = false
+  }
+}
 function create() {
   if (
     !vm.can('submit-new') ||
@@ -226,7 +384,11 @@ function create() {
   editError.value = ''
   attachments.reset()
   openingSource.value = null
-  if (definition.vouType === 'opening') openingDraft.value = emptyOpening()
+  if (definition.vouType === 'intermediary-calculation') {
+    intermediaryDraft.value = emptyIntermediary()
+    if (vm.can('script-get')) void loadIntermediaryScript()
+  } else if (definition.vouType === 'opening')
+    openingDraft.value = emptyOpening()
   else if ((serviceEntities as readonly string[]).includes(definition.vouType))
     serviceDraft.value = emptyService(definition.vouType as ServiceEntity)
   else if ((billEntities as readonly string[]).includes(definition.vouType))
@@ -262,7 +424,13 @@ function cloneSelected() {
   const original = vm.selected
   if (!original || saving.value || uncertain.value) return
   create()
-  if (original.entity === 'opening') {
+  if (original.entity === 'intermediary-calculation') {
+    intermediaryDraft.value = {
+      ...emptyIntermediary(),
+      businessDate: original.payload.businessDate,
+      remark: original.payload.remark ?? '',
+    }
+  } else if (original.entity === 'opening') {
     openingDraft.value = JSON.parse(
       JSON.stringify(original.payload),
     ) as OpeningDraft
@@ -403,6 +571,11 @@ async function submit() {
   editError.value = ''
   let command:
     | {
+        kind: 'intermediary'
+        entity: 'intermediary-calculation'
+        input: api.TargetVoucherInput<'intermediary-calculation'>
+      }
+    | {
         kind: 'service'
         entity: ServiceEntity
         input: api.TargetVoucherInput<ServiceEntity>
@@ -444,7 +617,17 @@ async function submit() {
         input: api.TargetVoucherInput<FulfillmentEntity>
       }
   try {
-    if (openingDraft.value) {
+    if (intermediaryDraft.value) {
+      command = {
+        kind: 'intermediary',
+        entity: 'intermediary-calculation',
+        input: {
+          ...identity,
+          expectedRevision: null,
+          payload: intermediaryPayload(intermediaryDraft.value),
+        },
+      }
+    } else if (openingDraft.value) {
       if (!openingDraft.value.bookId) throw new Error('请选择账簿。')
       identity.documentId = openingDraft.value.bookId
       command = {
@@ -1020,6 +1203,22 @@ onBeforeUnmount(() => {
           :key="identity.submissionId"
           v-model="openingDraft"
           :disabled="saving || uncertain || Boolean(openingSource)"
+        />
+        <IntermediaryBlock
+          v-if="intermediaryDraft"
+          v-model="intermediaryDraft"
+          v-model:script="intermediaryScript"
+          :disabled="saving || uncertain"
+          :script-configured="Boolean(savedIntermediaryScript)"
+          :can-read-script="vm.can('script-get')"
+          :can-save-script="vm.can('script-save')"
+          :can-source="vm.can('source')"
+          :tested="intermediaryScriptTested"
+          :script-unknown="intermediaryScriptUnknown"
+          @load-script="loadIntermediaryScript"
+          @test-script="calculateIntermediary(true)"
+          @calculate="calculateIntermediary(false)"
+          @save-script="saveIntermediaryScript"
         />
         <ServiceBlock
           v-if="serviceDraft"

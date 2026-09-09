@@ -7,7 +7,10 @@ import {
 
 const facts = JSON.parse(
   process.env.TARGET_E2E_VOU_CATALOG_JSON ?? '{}',
-) as Record<string, { documentId: string; documentNo: string }>
+) as Record<
+  string,
+  { documentId: string; documentNo: string; businessDate: string }
+>
 if (!process.env.TARGET_E2E_VOU_CATALOG_JSON)
   throw new Error('TARGET_E2E_VOU_CATALOG_JSON fixture is required')
 async function signIn(page: Page, code: string, password: string) {
@@ -43,6 +46,7 @@ test('all 36 real menus query their own summaries and open readable snapshots', 
     await expect(page.getByTestId('list-create')).toHaveCount(0)
     if (
       [
+        'intermediary-calculation',
         'sale-order',
         'purchase-order',
         'sale-return',
@@ -90,8 +94,8 @@ test('all 36 real menus query their own summaries and open readable snapshots', 
       await expect(
         page.getByText('此类型由系统生成，不支持人工新建。'),
       ).toBeVisible()
-    await page.getByLabel('期间起', { exact: true }).fill('2026-09-04')
-    await page.getByLabel('期间止', { exact: true }).fill('2026-09-04')
+    await page.getByLabel('期间起', { exact: true }).fill(fact.businessDate)
+    await page.getByLabel('期间止', { exact: true }).fill(fact.businessDate)
     await page.getByLabel('单号', { exact: true }).fill(fact.documentNo)
     const response = page.waitForResponse(
       (r) =>

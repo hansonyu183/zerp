@@ -3296,6 +3296,30 @@
     "title": "intermediary-calculation reject"
   },
   {
+    "id": "01J5CFF14A8A7D1B9145124F05",
+    "path": "/vou/intermediary-calculation/script-get",
+    "domain": "vou",
+    "entity": "intermediary-calculation",
+    "action": "script-get",
+    "title": "读取居间计算脚本"
+  },
+  {
+    "id": "01J6C66A790A80657F9E41B667",
+    "path": "/vou/intermediary-calculation/script-save",
+    "domain": "vou",
+    "entity": "intermediary-calculation",
+    "action": "script-save",
+    "title": "维护居间计算脚本"
+  },
+  {
+    "id": "01JC3542D94504F8FF1424244F",
+    "path": "/vou/intermediary-calculation/source",
+    "domain": "vou",
+    "entity": "intermediary-calculation",
+    "action": "source",
+    "title": "生成居间计算来源"
+  },
+  {
     "id": "01J60361CCE30F83C2350F5E36",
     "path": "/vou/intermediary-calculation/submit-change",
     "domain": "vou",

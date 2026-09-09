@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { intermediaryCategoryLabels } from './intermediary-data.ts'
 import { snapshotCaptions, snapshotEnums } from './snapshot-presentation.ts'
 const props = defineProps<{ value: unknown; field?: string }>()
 const entries = computed(() => {
@@ -24,12 +25,9 @@ const scalar = computed(() => {
       : '币种格式错误'
   if (props.field === 'category' && typeof props.value === 'string') {
     return (
-      {
-        COMMISSION: '佣金',
-        INTERMEDIARY: '居间费',
-        EXTERNAL_PART_TIME: '外部兼职',
-        CHANNEL_PARTNER: '渠道合作方',
-      }[props.value] ?? props.value
+      intermediaryCategoryLabels[
+        props.value as keyof typeof intermediaryCategoryLabels
+      ] ?? props.value
     )
   }
   const captions = snapshotEnums[props.field ?? '']

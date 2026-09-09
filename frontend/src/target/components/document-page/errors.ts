@@ -2,6 +2,21 @@ import { TargetApiError } from '../../api.ts'
 import { openingErrorCaptions } from './opening-errors.ts'
 import { snapshotCaptions } from './snapshot-presentation.ts'
 const errorCaptions: Record<string, string> = {
+  vou_intermediary_month_required: '该月缺少已批准的居间计算单。',
+  vou_intermediary_month_end_required: '业务日期必须为自然月最后一天。',
+  vou_intermediary_before_book_start: '计算月份不能早于控制账簿启用月。',
+  vou_intermediary_source_basis_missing:
+    '来源订单缺少必要的计算快照，请检查来源单据。',
+  vou_intermediary_source_invalid: '来源事实存在冲突，请检查签收与退货单据。',
+  vou_intermediary_source_changed: '计算来源已变化，请重新计算。',
+  vou_intermediary_script_required: '请先维护并保存可用的计算脚本。',
+  vou_intermediary_script_changed: '计算脚本已变化，请重新计算。',
+  vou_intermediary_month_exists: '该月已有居间计算单，请处理现有单据。',
+  vou_intermediary_result_invalid:
+    '脚本结果的明细、金额或收款方汇总不符合来源事实。',
+  vou_script_stale_revision: '脚本已被修改，请重新读取后再保存。',
+  acc_period_intermediary_invalid:
+    '结账需要各月已批准且来源仍有效的居间计算单。',
   forbidden: '没有此操作权限。',
   validation_failed: '输入格式不正确。',
   vou_invalid_payload: '请检查必填内容、金额及数量。',

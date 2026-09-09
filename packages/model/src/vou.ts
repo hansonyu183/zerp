@@ -469,7 +469,6 @@ export interface VouIntermediaryCalculationInput {
         applicableTo?: string
         terms: string
       }
-      intermediary?: VouIntermediaryReference
       product: VouIntermediaryReference
       behaviorProfile:
         'RAW_MATERIAL' | 'STANDARD_FINISHED' | 'CUSTOM_FINISHED' | 'PACKAGING'
@@ -479,6 +478,14 @@ export interface VouIntermediaryCalculationInput {
       unitPrice: string
       referenceUnitPrice: string
       settlementSurcharge: string
+      customerTypeCode: string
+      paymentSurcharge: string
+      transportSurcharge: string
+      defaultPremiumUnitPrice: string
+      defaultDiscountUnitPrice: string
+      thirdPartyIntermediaryFixedUnitCost: string
+      thirdPartyIntermediaryVariableUnitCost: string
+      costItems: readonly import('./archives.ts').CustomerPricingCostItem[]
       lineAmount: string
       settlementTermCode: string
       specialApproval: boolean
@@ -525,6 +532,7 @@ export interface VouIntermediaryCalculationInput {
     }[]
     summaries: readonly {
       payee: VouIntermediaryReference
+      customer?: VouIntermediaryReference
       category:
         'COMMISSION' | 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER' | 'INTERMEDIARY'
       amount: string
@@ -542,6 +550,7 @@ export interface VouPayloadShapes {
     warehouse: VouAuxCurrentReferenceInput
     paymentMethod: VouPaymentMethodSelectionInput | null
     creditOverrideReason?: string
+    specialApproval?: boolean
   }
   'sale-outbound': SourcePayload
   'sale-delivery': SourcePayload & {
@@ -1211,6 +1220,7 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
     'paymentMethod',
     'productLines',
     'creditOverrideReason',
+    'specialApproval',
   ],
   'sale-outbound': ['sourceLines'],
   'sale-delivery': ['sourceLines', 'carrier', 'vehicle'],
@@ -1339,6 +1349,7 @@ const payloadRequiredFields: Readonly<Record<VouEntity, readonly string[]>> =
               'withRecourse',
               'containerDifferenceReason',
               'creditOverrideReason',
+              'specialApproval',
             ].includes(field) ||
             (field === 'counterparty' && entity === 'service-acceptance') ||
             (field === 'billCashLines' && entity !== 'bill-maturity') ||
@@ -2240,7 +2251,6 @@ const intermediarySourceLineFields: readonly VouInputFieldDescriptor[] =
         scalarDescriptor('terms', true),
       ],
     },
-    intermediaryReferenceDescriptor('intermediary', false, ['other-unit']),
     intermediaryReferenceDescriptor('product', true, ['product']),
     scalarDescriptor('behaviorProfile', true),
     scalarDescriptor('signedBaseQuantity', true),
@@ -2249,6 +2259,31 @@ const intermediarySourceLineFields: readonly VouInputFieldDescriptor[] =
     scalarDescriptor('unitPrice', true),
     scalarDescriptor('referenceUnitPrice', true),
     scalarDescriptor('settlementSurcharge', true),
+    scalarDescriptor('customerTypeCode', true),
+    ...[
+      'paymentSurcharge',
+      'transportSurcharge',
+      'defaultPremiumUnitPrice',
+      'defaultDiscountUnitPrice',
+      'thirdPartyIntermediaryFixedUnitCost',
+      'thirdPartyIntermediaryVariableUnitCost',
+    ].map((key) => ({ key, kind: 'decimal' as const, required: true })),
+    {
+      key: 'costItems',
+      kind: 'array',
+      required: true,
+      item: [
+        scalarDescriptor('name', true),
+        {
+          key: 'calculationBasis',
+          kind: 'enum',
+          required: true,
+          enumValues: ['UNIT_PRICE', 'ORDER_AMOUNT'],
+        },
+        { key: 'unitPrice', kind: 'decimal', required: false },
+        { key: 'orderAmount', kind: 'decimal', required: false },
+      ],
+    },
     scalarDescriptor('lineAmount', true),
     scalarDescriptor('settlementTermCode', true),
     scalarDescriptor('specialApproval', true),
@@ -2292,6 +2327,7 @@ const intermediarySummaryFields: readonly VouInputFieldDescriptor[] =
       'sales-partner',
       'other-unit',
     ]),
+    intermediaryReferenceDescriptor('customer', false, ['customer-subunit']),
     {
       key: 'category',
       kind: 'enum',

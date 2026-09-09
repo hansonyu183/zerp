@@ -37,6 +37,7 @@ try {
               {
                 documentId: document.documentId,
                 documentNo: document.documentNo,
+                businessDate: document.payload.businessDate,
               },
             ]),
           ),

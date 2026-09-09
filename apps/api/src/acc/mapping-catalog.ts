@@ -1,5 +1,6 @@
 import { ulid } from 'ulid'
 import {
+  intermediaryCollections,
   quantityMovementEntities,
   billMovementEntities,
   billMovementCollections,
@@ -433,6 +434,7 @@ export async function syncMappingSubjectUsages(
 }
 
 function mappingCollections(code: string): string[] {
+  if (code === 'intermediary-calculation') return intermediaryCollections
   if (billMovementEntities.includes(code)) return billMovementCollections
   if (quantityMovementEntities.includes(code)) return ['inventoryMovements']
   const entity = vouEntities.find((entity) => entity === code)

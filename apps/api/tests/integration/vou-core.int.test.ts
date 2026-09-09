@@ -19,7 +19,6 @@ import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { loadConfig } from '../../src/platform/config.ts'
 import { AttachmentStore } from '../../src/platform/attachment-store.ts'
-import { vouPayloadSchemaByEntity } from '../../src/vou/contract.ts'
 import {
   readVouPersistence,
   VouApplicationError,
@@ -923,24 +922,7 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     departmentId: department.id,
     positionId: position.id,
   }
-  const employee = await aux.create('employee', employeeData, auxActor)
-  const employeeDetail = await aux.get(
-    'employee',
-    { id: employee.id },
-    auxActor,
-  )
-  const {
-    id: _employeeId,
-    code: _employeeCode,
-    py: _employeePy,
-    name: _employeeName,
-    enabled: _employeeEnabled,
-    revision: _employeeRevision,
-    availableActions: _employeeAvailableActions,
-    updatedAt: _employeeUpdatedAt,
-    updatedBy: _employeeUpdatedBy,
-    ...employeeSnapshot
-  } = employeeDetail
+  await aux.create('employee', employeeData, auxActor)
   await db
     .insertInto('approval_entries')
     .values({
@@ -1411,166 +1393,45 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     bill.payload,
   )
 
-  const intermediaryReference = (
-    entity: 'customer-subunit' | 'employee' | 'product',
-  ) => {
-    if (entity === 'customer-subunit')
-      return {
-        objectId: customerSubunitId,
-        approvalEntryId: customerApprovalId,
-        entity,
-        code: 'SNAP-1',
-        name: '历史子单位',
-      }
-    if (entity === 'employee')
-      return {
-        objectId: employee.id,
-        entity,
-        code: employeeDetail.code,
-        name: '历史员工',
-      }
-    return {
-      objectId: productId,
-      approvalEntryId: productApprovalId,
-      entity,
-      code: productCode,
-      name: '历史产品',
-    }
-  }
   const intermediarySubmissionId = ulid()
-  const intermediary = await service.submit(
-    'intermediary-calculation',
-    'submit-new',
-    {
-      documentId: ulid(),
-      submissionId: intermediarySubmissionId,
-      idempotencyKey: intermediarySubmissionId,
-      expectedRevision: null,
-      payload: {
-        businessDate: '2026-09-04',
-        currency: 'CNY',
-        attachments: [],
-        intermediaryCalculation: {
-          source: {
-            periodStart: '2026-09-01',
-            periodEnd: '2026-09-30',
-            currency: 'CNY',
-            bills: [],
-            lines: [
-              {
-                sourceSignoffLineId: 'signoff-1',
-                sourceKind: 'SALE',
-                signoffDocumentId: ulid(),
-                signoffDocumentNo: 'SSF-1',
-                signoffDate: '2026-09-04',
-                orderDocumentId: ulid(),
-                orderDocumentNo: 'SOR-1',
-                orderDate: '2026-09-01',
-                dueDate: '2026-09-04',
-                collectionDate: '2026-09-04',
-                collectionDelayDays: 0,
-                customer: intermediaryReference('customer-subunit'),
-                salesperson: intermediaryReference('employee'),
-                salesAttributionType: 'INTERNAL_EMPLOYEE',
-                salesContractStatus: 'NOT_REQUIRED',
-                product: intermediaryReference('product'),
-                behaviorProfile: 'RAW_MATERIAL',
-                signedBaseQuantity: '1.000000',
-                pricingQuantity: '1.000000',
-                standardPieceQuantity: '1.000000',
-                unitPrice: '10.00',
-                referenceUnitPrice: '10.00',
-                settlementSurcharge: '0.00',
-                lineAmount: '10.00',
-                settlementTermCode: 'NOW',
-                specialApproval: false,
-                adjustmentEmployeeAmount: '0.00',
-                adjustmentIntermediaryAmount: '0.00',
-              },
-            ],
-          },
-          sourceHash: 'a'.repeat(64),
-          script: {
-            scriptId: 'script-1',
-            revision: 1,
-            name: '佣金',
-            source: 'return 1',
-            hash: 'b'.repeat(64),
-          },
-          result: {
-            lines: [
-              {
-                sourceSignoffLineId: 'signoff-1',
-                premiumUnitPrice: '0.00',
-                standardPieceQuantity: '1.000000',
-                baseCommission: '0.00',
-                premiumCommission: '0.00',
-                lowPriceCommission: '0.00',
-                marketMaintenanceSubsidy: '0.00',
-                marketDevelopmentSubsidy: '0.00',
-                billCost: '0.00',
-                billLineIds: [],
-                employeeAmount: '0.00',
-                intermediaryAmount: '0.00',
-              },
-            ],
-            summaries: [],
+  await assert.rejects(
+    service.submit(
+      'intermediary-calculation',
+      'submit-new',
+      {
+        documentId: ulid(),
+        submissionId: intermediarySubmissionId,
+        idempotencyKey: intermediarySubmissionId,
+        expectedRevision: null,
+        payload: {
+          businessDate: '2026-09-04',
+          currency: 'CNY',
+          attachments: [],
+          intermediaryCalculation: {
+            source: {
+              periodStart: '2026-09-01',
+              periodEnd: '2026-09-30',
+              currency: 'CNY',
+              lines: [],
+              bills: [],
+            },
+            sourceHash: 'a'.repeat(64),
+            script: {
+              scriptId: 'GLOBAL',
+              revision: 1,
+              name: '未采用来源',
+              source: '',
+              hash: 'b'.repeat(64),
+            },
+            result: { lines: [], summaries: [] },
           },
         },
       },
-    },
-    actor,
-    'intermediary-roundtrip',
+      actor,
+      'intermediary-invalid-month',
+    ),
+    /vou_intermediary_month_end_required/,
   )
-  const readIntermediary = await service.get(
-    'intermediary-calculation',
-    intermediary.documentId,
-    actor,
-  )
-  const parsedIntermediary = vouPayloadSchemaByEntity[
-    'intermediary-calculation'
-  ].safeParse(readIntermediary.payload)
-  assert.equal(
-    parsedIntermediary.success,
-    true,
-    JSON.stringify(parsedIntermediary.error?.issues),
-  )
-  const adoptedSalesperson = (
-    readIntermediary.payload as VouPayloadFor<'intermediary-calculation'>
-  ).intermediaryCalculation.source.lines[0]!.salesperson
-  assert.deepEqual(adoptedSalesperson, {
-    objectId: employee.id,
-    entity: 'employee',
-    code: employeeDetail.code,
-    name: employeeData.displayName,
-    snapshot: employeeSnapshot,
-  })
-  const renamedEmployee = await aux.save(
-    'employee',
-    {
-      id: employee.id,
-      revision: employeeDetail.revision,
-      ...employeeData,
-      displayName: '采用后改名',
-    },
-    auxActor,
-  )
-  await aux.disable(
-    'employee',
-    { id: employee.id, revision: renamedEmployee.revision },
-    auxActor,
-    'disable-adopted-intermediary-employee',
-  )
-  const frozenSalesperson = (
-    (
-      await service.get(
-        'intermediary-calculation',
-        intermediary.documentId,
-        actor,
-      )
-    ).payload as VouPayloadFor<'intermediary-calculation'>
-  ).intermediaryCalculation.source.lines[0]!.salesperson
-  assert.deepEqual(frozenSalesperson, adoptedSalesperson)
 
   const tooLongRequestId = 'forced-rollback-'.padEnd(129, 'x')
   const failedDocumentId = ulid(),

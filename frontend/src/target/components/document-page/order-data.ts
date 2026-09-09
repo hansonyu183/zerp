@@ -41,6 +41,7 @@ export type OrderDraft = {
   lines: OrderLine[]
   attachments: import('@zerp/model').VouAttachmentMetadata[]
   creditOverrideReason: string
+  specialApproval: boolean
 }
 export function emptyOrder(entity: TargetOrderEntity): OrderDraft {
   return {
@@ -57,6 +58,7 @@ export function emptyOrder(entity: TargetOrderEntity): OrderDraft {
     lines: [],
     attachments: [],
     creditOverrideReason: '',
+    specialApproval: false,
   }
 }
 export function unitSnapshot(
@@ -156,6 +158,7 @@ export function orderPayload(
   return {
     ...common,
     customerSubunit: reference,
+    ...(draft.specialApproval ? { specialApproval: true } : {}),
     operatingEntity: { objectId: draft.operatingEntity.objectId },
     paymentMethod: draft.paymentMethod,
     ...(draft.employee
@@ -235,6 +238,7 @@ export function cloneOrder(
       : null,
     paymentMethod: sales ? payload.paymentMethod : null,
     creditOverrideReason: sales ? (payload.creditOverrideReason ?? '') : '',
+    specialApproval: sales ? (payload.specialApproval ?? false) : false,
     lines: payload.productLines.map((line, index) => ({
       lineId: lineIds[index]!,
       product: {

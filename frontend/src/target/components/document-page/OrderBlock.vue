@@ -505,6 +505,19 @@ onBeforeUnmount(() => {
 })
 </script>
 <template>
+  <v-checkbox
+    v-if="modelValue.entity === 'sale-order'"
+    label="特批销售"
+    :model-value="modelValue.specialApproval"
+    :disabled="disabled"
+    @update:model-value="
+      !disabled &&
+      emit('update:modelValue', {
+        ...modelValue,
+        specialApproval: Boolean($event),
+      })
+    "
+  />
   <section aria-label="订单录入">
     <v-alert v-if="error" type="error">{{ error }}</v-alert>
     <FormBlock

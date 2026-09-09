@@ -1,3 +1,4 @@
+import { approveEmptyIntermediaryMonth } from '../fixtures/vou-intermediary.ts'
 import { VouOpeningService } from '../../src/vou/opening-service.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
@@ -103,6 +104,10 @@ test('ACC opening freezes AUX bill and employee-dimension adoptions until its su
       await db
         .deleteFrom('app_audit_events')
         .where('actor_user_id', 'in', [submitterId, reviewerId])
+        .execute()
+      await db
+        .deleteFrom('vou_intermediary_scripts')
+        .where('updated_by', 'in', [submitterId, reviewerId])
         .execute()
       await db
         .deleteFrom('app_users')
@@ -1212,6 +1217,10 @@ test('ACC book, subjects, Opening and periods keep one transactional fact bounda
         .where('actor_user_id', 'in', [submitterId, reviewerId])
         .execute()
       await db
+        .deleteFrom('vou_intermediary_scripts')
+        .where('updated_by', 'in', [submitterId, reviewerId])
+        .execute()
+      await db
         .deleteFrom('app_users')
         .where('id', 'in', [submitterId, reviewerId])
         .execute()
@@ -1697,6 +1706,21 @@ test('ACC book, subjects, Opening and periods keep one transactional fact bounda
           typeof blocker === 'object' &&
           (blocker as { kind?: unknown }).kind === 'JOURNAL',
       ),
+  )
+  await assert.rejects(
+    service.setPeriod(
+      { bookId: book.id, month: '2026-08', expectedRevision: null },
+      true,
+      reviewer,
+    ),
+    /acc_period_intermediary_invalid/,
+  )
+  await approveEmptyIntermediaryMonth(
+    db,
+    vou,
+    '2026-08-31',
+    submitter,
+    reviewer,
   )
   const period = await service.setPeriod(
     { bookId: book.id, month: '2026-08', expectedRevision: null },

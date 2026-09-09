@@ -1,3 +1,9 @@
+import { intermediarySource } from './intermediary-source.ts'
+import { validateIntermediaryCalculation } from './intermediary-validation.ts'
+import {
+  IntermediaryScriptService,
+  type IntermediaryScriptSave,
+} from './intermediary-script-service.ts'
 import {
   AuxApplicationError,
   resolveAuxCurrentReference,
@@ -412,6 +418,11 @@ function fixedDecimal(value: bigint, scale = 8): string {
 }
 
 function payloadAmountMinor(payload: VouPayload): bigint {
+  if ('intermediaryCalculation' in payload)
+    return payload.intermediaryCalculation.result.summaries.reduce(
+      (sum, row) => sum + (decimalToFixed(row.amount, 2) ?? 0n),
+      0n,
+    )
   return 'amount' in payload ? (decimalToFixed(payload.amount, 2) ?? 0n) : 0n
 }
 
@@ -723,6 +734,25 @@ export class VouService implements WflVouPort {
     return expired.count
   }
 
+  async getIntermediarySource(businessDate: string, actor: ApprovalActor) {
+    requirePermission(actor, '/vou/intermediary-calculation/source')
+    return this.db.transaction().execute(async (tx) => {
+      const { source, sourceHash } = await intermediarySource(tx, businessDate)
+      return { source, sourceHash }
+    })
+  }
+
+  async getIntermediaryScript(actor: ApprovalActor) {
+    return new IntermediaryScriptService(this.db).get(actor)
+  }
+
+  async saveIntermediaryScript(
+    input: IntermediaryScriptSave,
+    actor: ApprovalActor,
+  ) {
+    return new IntermediaryScriptService(this.db).save(input, actor)
+  }
+
   async submit(
     entity: VouEntity,
     action: 'submit-new' | 'submit-change',
@@ -784,6 +814,9 @@ export class VouService implements WflVouPort {
     }
     const periodMonth = input.payload.businessDate.slice(0, 7)
     await lockAccountingPeriod(tx, periodMonth)
+    await sql`SELECT id FROM acc_books WHERE control_book FOR UPDATE`.execute(
+      tx,
+    )
     const locked = await tx
       .selectFrom('acc_periods')
       .select('book_id')
@@ -843,13 +876,30 @@ export class VouService implements WflVouPort {
     if (!preflight.ok) throw new VouApplicationError(preflight.errorKey)
     // Client display values are never authoritative for a new AUX adoption.
     input = { ...input, payload: structuredClone(input.payload) }
+    let intermediaryDependencies: string[] = []
+    if (
+      entity === 'intermediary-calculation' &&
+      'intermediaryCalculation' in input.payload
+    ) {
+      if (input.payload.currency !== 'CNY')
+        throw new VouApplicationError('vou_invalid_payload')
+      intermediaryDependencies = (
+        await validateIntermediaryCalculation(
+          tx,
+          input.documentId,
+          input.payload.businessDate,
+          input.payload.intermediaryCalculation,
+        )
+      ).dependencies
+    }
     await this.adoptService(tx, entity, input.documentId, input.payload)
     await this.adoptProduction(tx, entity, input.documentId, input.payload)
     if (entity === 'inventory-count' && 'inventoryCountLines' in input.payload)
       await this.validateInventoryCount(tx, input.payload)
-    for (const { candidateEntity, reference } of vouAuxCurrentReferences(
-      input.payload,
-    )) {
+    for (const { candidateEntity, reference } of entity ===
+    'intermediary-calculation'
+      ? []
+      : vouAuxCurrentReferences(input.payload)) {
       if ('approvalEntryId' in reference || 'selectionOrigin' in reference)
         throw new VouApplicationError('vou_invalid_payload')
       try {
@@ -1024,6 +1074,10 @@ export class VouService implements WflVouPort {
       input.documentId,
       input.payload,
     )
+    for (const sourceDocumentId of intermediaryDependencies)
+      await sql`INSERT INTO vou_intermediary_dependencies (approval_entry_id, source_document_id) VALUES (${input.submissionId}, ${sourceDocumentId})`.execute(
+        tx,
+      )
     await this.promoteAttachments(
       tx,
       entity,
@@ -1100,6 +1154,9 @@ export class VouService implements WflVouPort {
   ): Promise<VouView> {
     requirePermission(actor, `/vou/${entity}/${action}`)
     await this.lockDocumentPeriod(tx, entity, input.documentId)
+    await sql`SELECT id FROM acc_books WHERE control_book FOR UPDATE`.execute(
+      tx,
+    )
     await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`vou:document:${input.documentId}`}, 0))`.execute(
       tx,
     )
@@ -1125,6 +1182,21 @@ export class VouService implements WflVouPort {
       .where('id', '=', input.documentId)
       .executeTakeFirstOrThrow()
     const persistedPayload = await this.readPayload(tx, entity, row.id)
+    if (action === 'approve' && 'intermediaryCalculation' in persistedPayload)
+      await validateIntermediaryCalculation(
+        tx,
+        input.documentId,
+        persistedPayload.businessDate,
+        persistedPayload.intermediaryCalculation,
+      )
+    if (action === 'unapprove' && entity === 'intermediary-calculation') {
+      const dependents = await this.intermediaryDependents(
+        tx,
+        input.documentId,
+        true,
+      )
+      blockers.push(...dependents)
+    }
     if (action === 'approve')
       await this.validateApprovalControlGates(
         tx,
@@ -2010,6 +2082,9 @@ export class VouService implements WflVouPort {
   ) {
     requirePermission(actor, `/vou/${entity}/delete`)
     await this.lockDocumentPeriod(tx, entity, input.documentId)
+    await sql`SELECT id FROM acc_books WHERE control_book FOR UPDATE`.execute(
+      tx,
+    )
     await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`vou:document:${input.documentId}`}, 0))`.execute(
       tx,
     )
@@ -2029,7 +2104,10 @@ export class VouService implements WflVouPort {
       throw new VouApplicationError('vou_delete_blocked')
     if (actor.trusted !== true && row.submitted_by !== actor.id)
       throw new VouApplicationError('approval_invalid_action')
-    const blockers = await this.downstreamBlockers(tx, input.documentId)
+    const blockers = [
+      ...(await this.downstreamBlockers(tx, input.documentId)),
+      ...(await this.intermediaryDependents(tx, input.documentId, false)),
+    ]
     if (blockers.length > 0)
       throw new VouApplicationError('vou_delete_blocked', blockers)
     if (entity === 'order-production') {
@@ -3816,6 +3894,62 @@ export class VouService implements WflVouPort {
         payload.intermediaryCalculation,
       )
     await this.writeEntityScalars(transaction, entity, approvalEntryId, payload)
+    if (entity === 'sale-order' && 'productLines' in payload)
+      await this.captureSaleCalculationBasis(
+        transaction,
+        approvalEntryId,
+        payload as VouPayloadFor<'sale-order'>,
+      )
+  }
+
+  private async captureSaleCalculationBasis(
+    tx: Transaction<DB>,
+    approvalEntryId: string,
+    payload: VouPayloadFor<'sale-order'>,
+  ) {
+    for (const [index, line] of payload.productLines.entries()) {
+      const price = await sql<{
+        unit_price_minor: string
+        document_no: string
+        business_date: string
+      }>`
+        SELECT price.unit_price_minor::text, document.document_no, detail.business_date::text
+        FROM vou_price_line_snapshots price
+        JOIN approval_entries entry ON entry.id = price.approval_entry_id AND entry.status = 'APPROVED'
+        JOIN vou_sale_pricing_details detail ON detail.approval_entry_id = entry.id
+        JOIN vou_documents document ON document.id = detail.document_id
+        JOIN vou_reference_snapshots ref ON ref.approval_entry_id = entry.id AND ref.field = 'product' AND ref.line_no = price.line_no
+        WHERE ref.object_id = ${line.product.objectId} AND detail.currency = ${payload.currency}
+          AND detail.business_date <= ${payload.businessDate}::date
+        ORDER BY detail.business_date DESC, document.document_no DESC LIMIT 1
+        FOR SHARE OF entry
+      `.execute(tx)
+      const product = await sql<{
+        packaging: string | null
+        behavior_profile: string
+        approval_entry_id: string
+      }>`
+        SELECT product.default_packaging_snapshot->>'defaultPackagingSpec' AS packaging, product.behavior_profile, product.approval_entry_id
+        FROM bob_subjects subject
+        JOIN LATERAL (SELECT id FROM approval_entries WHERE domain = 'bob' AND entity = 'product' AND subject_id = subject.id AND status = 'APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON TRUE
+        JOIN bob_product_versions product ON product.approval_entry_id = approved.id
+        WHERE subject.id = ${line.product.objectId} AND subject.enabled
+        FOR SHARE OF subject
+      `.execute(tx)
+      if (!product.rows[0])
+        throw new VouApplicationError('vou_reference_unavailable')
+      const basis =
+        line.deliverySpecificationType === 'BULK_LIQUID'
+          ? '1000'
+          : product.rows[0]?.packaging
+      const divisor = basis ? decimalToFixed(basis, 6) : null
+      await sql`UPDATE vou_product_line_snapshots SET sales_product_approval_entry_id = ${product.rows[0].approval_entry_id}, sales_reference_unit_price_minor = ${price.rows[0]?.unit_price_minor ?? '0'},
+        sales_reference_document_no = ${price.rows[0]?.document_no ?? null}, sales_reference_date = ${price.rows[0]?.business_date ?? null}::date,
+        standard_piece_base_quantity_micros = ${divisor}
+        WHERE approval_entry_id = ${approvalEntryId} AND line_no = ${index + 1}`.execute(
+        tx,
+      )
+    }
   }
 
   private async writeSourceLines(
@@ -3933,6 +4067,7 @@ export class VouService implements WflVouPort {
           sales_contract_applicable_from, sales_contract_applicable_to, sales_contract_terms,
           behavior_profile, signed_quantity_micros, pricing_quantity_micros,
           standard_piece_quantity_micros, unit_price_minor, reference_unit_price_minor,
+          customer_type_code, payment_surcharge_minor, transport_surcharge_minor, default_premium_unit_price_minor, default_discount_unit_price_minor, third_party_fixed_unit_cost_minor, third_party_variable_unit_cost_minor, cost_items,
           settlement_surcharge_minor, line_amount_minor, settlement_term_code,
           special_approval, return_document_nos, adjustment_employee_amount_minor,
           adjustment_intermediary_amount_minor
@@ -3947,7 +4082,9 @@ export class VouService implements WflVouPort {
           ${line.salesContract?.terms ?? null}, ${line.behaviorProfile},
           ${decimalToFixed(line.signedBaseQuantity, 6)!}, ${decimalToFixed(line.pricingQuantity, 6)!},
           ${decimalToFixed(line.standardPieceQuantity, 6)!}, ${decimalToFixed(line.unitPrice, 2)!},
-          ${decimalToFixed(line.referenceUnitPrice, 2)!}, ${decimalToFixed(line.settlementSurcharge, 2)!},
+          ${decimalToFixed(line.referenceUnitPrice, 2)!},
+          ${line.customerTypeCode}, ${decimalToFixed(line.paymentSurcharge, 2)!}, ${decimalToFixed(line.transportSurcharge, 2)!}, ${decimalToFixed(line.defaultPremiumUnitPrice, 2)!}, ${decimalToFixed(line.defaultDiscountUnitPrice, 2)!}, ${decimalToFixed(line.thirdPartyIntermediaryFixedUnitCost, 2)!}, ${decimalToFixed(line.thirdPartyIntermediaryVariableUnitCost, 2)!}, ${JSON.stringify(line.costItems)}::jsonb,
+          ${decimalToFixed(line.settlementSurcharge, 2)!},
           ${decimalToFixed(line.lineAmount, 2)!}, ${line.settlementTermCode}, ${line.specialApproval},
           ${line.returnDocumentNos ?? []}, ${decimalToFixed(line.adjustmentEmployeeAmount, 2)!},
           ${decimalToFixed(line.adjustmentIntermediaryAmount, 2)!}
@@ -3956,7 +4093,6 @@ export class VouService implements WflVouPort {
       for (const [field, reference] of Object.entries({
         customer: line.customer,
         salesperson: line.salesperson,
-        intermediary: line.intermediary,
         product: line.product,
       }))
         if (reference)
@@ -4010,6 +4146,15 @@ export class VouService implements WflVouPort {
       `.execute(transaction)
     for (const [index, summary] of calculation.result.summaries.entries()) {
       const lineNo = index + 1
+      if (summary.customer)
+        await this.writeReferenceSnapshot(
+          transaction,
+          approvalEntryId,
+          'intermediary.summary.customer',
+          lineNo,
+          0,
+          { ...summary.customer, selectionOrigin: 'HISTORICAL' },
+        )
       await sql`INSERT INTO vou_intermediary_summary_snapshots (approval_entry_id, line_no, category, amount_minor) VALUES (${approvalEntryId}, ${lineNo}, ${summary.category}, ${decimalToFixed(summary.amount, 2)!})`.execute(
         transaction,
       )
@@ -4055,6 +4200,7 @@ export class VouService implements WflVouPort {
         await update(sql`
           UPDATE vou_sale_order_details
           SET credit_override_reason = ${value.creditOverrideReason ?? null},
+            special_approval = ${value.specialApproval ?? false},
             payment_method_id = ${payment?.objectId ?? null},
             payment_method_code = ${payment?.code ?? null},
             payment_method_name = ${payment?.name ?? null},
@@ -4601,6 +4747,7 @@ export class VouService implements WflVouPort {
           ? (
               await sql<{
                 credit_override_reason: string | null
+                special_approval: boolean
                 payment_method_id: string | null
                 payment_method_code: string | null
                 payment_method_name: string | null
@@ -4614,6 +4761,7 @@ export class VouService implements WflVouPort {
       const top =
         entity === 'sale-order'
           ? {
+              ...(detail?.special_approval ? { specialApproval: true } : {}),
               paymentMethod: detail?.payment_method_id
                 ? {
                     objectId: detail.payment_method_id,
@@ -5291,6 +5439,14 @@ export class VouService implements WflVouPort {
         pricing_quantity_micros: string
         standard_piece_quantity_micros: string
         unit_price_minor: string
+        customer_type_code: string
+        payment_surcharge_minor: string
+        transport_surcharge_minor: string
+        default_premium_unit_price_minor: string
+        default_discount_unit_price_minor: string
+        third_party_fixed_unit_cost_minor: string
+        third_party_variable_unit_cost_minor: string
+        cost_items: import('@zerp/model').CustomerPricingCostItem[]
         reference_unit_price_minor: string
         settlement_surcharge_minor: string
         line_amount_minor: string
@@ -5385,14 +5541,6 @@ export class VouService implements WflVouPort {
                     },
                   }
                 : {}),
-              ...(refs.has(`intermediary.intermediary:${line.line_no}:0`)
-                ? {
-                    intermediary: intermediaryReference(
-                      'intermediary.intermediary',
-                      line.line_no,
-                    ),
-                  }
-                : {}),
               product: intermediaryReference(
                 'intermediary.product',
                 line.line_no,
@@ -5406,6 +5554,26 @@ export class VouService implements WflVouPort {
               ),
               unitPrice: fixed(line.unit_price_minor, 2),
               referenceUnitPrice: fixed(line.reference_unit_price_minor, 2),
+              customerTypeCode: line.customer_type_code,
+              paymentSurcharge: fixed(line.payment_surcharge_minor, 2),
+              transportSurcharge: fixed(line.transport_surcharge_minor, 2),
+              defaultPremiumUnitPrice: fixed(
+                line.default_premium_unit_price_minor,
+                2,
+              ),
+              defaultDiscountUnitPrice: fixed(
+                line.default_discount_unit_price_minor,
+                2,
+              ),
+              thirdPartyIntermediaryFixedUnitCost: fixed(
+                line.third_party_fixed_unit_cost_minor,
+                2,
+              ),
+              thirdPartyIntermediaryVariableUnitCost: fixed(
+                line.third_party_variable_unit_cost_minor,
+                2,
+              ),
+              costItems: line.cost_items,
               settlementSurcharge: fixed(line.settlement_surcharge_minor, 2),
               lineAmount: fixed(line.line_amount_minor, 2),
               settlementTermCode: line.settlement_term_code,
@@ -5476,6 +5644,14 @@ export class VouService implements WflVouPort {
                 'intermediary.summary.payee',
                 line.line_no,
               ),
+              ...(refs.has(`intermediary.summary.customer:${line.line_no}:0`)
+                ? {
+                    customer: intermediaryReference(
+                      'intermediary.summary.customer',
+                      line.line_no,
+                    ),
+                  }
+                : {}),
               category: line.category,
               amount: fixed(line.amount_minor, 2),
             })),
@@ -5739,6 +5915,24 @@ export class VouService implements WflVouPort {
         }
       }),
     )
+  }
+
+  private async intermediaryDependents(
+    executor: Executor,
+    documentId: string,
+    approvedOnly: boolean,
+  ) {
+    const result = await sql<{
+      id: string
+    }>`SELECT entry.subject_id AS id FROM vou_intermediary_dependencies dependency
+      JOIN approval_entries entry ON entry.id = dependency.approval_entry_id
+      WHERE dependency.source_document_id = ${documentId} AND (NOT ${approvedOnly} OR entry.status = 'APPROVED')`.execute(
+      executor,
+    )
+    return result.rows.map((row) => ({
+      kind: 'DOWNSTREAM_DOCUMENT' as const,
+      id: row.id,
+    }))
   }
 
   private async downstreamBlockers(executor: Executor, documentId: string) {

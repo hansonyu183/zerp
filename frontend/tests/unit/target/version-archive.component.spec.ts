@@ -747,7 +747,7 @@ it.each([
   },
 )
 
-it('retries corrected input with the original submission identity after an exact absent lookup', async () => {
+it('keeps an unknown submission locked when a lookup cannot see its in-flight transaction', async () => {
   authorizeSupplier('submit-new', 'submission-get')
   vi.mocked(api.submitNewTargetSupplier)
     .mockRejectedValueOnce(new TypeError('network'))
@@ -763,13 +763,20 @@ it('retries corrected input with the original submission identity after an exact
   await click(wrapper, '提交')
   const original = vi.mocked(api.submitNewTargetSupplier).mock.calls[0]![1]
   await click(wrapper, '核实结果')
-  await wrapper.get('[aria-label="法定名称"]').setValue('修正名称')
-  await click(wrapper, '提交')
-  expect(api.submitNewTargetSupplier).toHaveBeenLastCalledWith('test-csrf', {
-    ...original,
-    snapshot: { ...original.snapshot, legalName: '修正名称' },
-  })
-  expect(api.submitNewTargetSupplier).toHaveBeenCalledTimes(2)
+  expect(wrapper.text()).toContain('结果仍未知，保持锁定')
+  expect(
+    wrapper.get('[aria-label="法定名称"]').attributes('disabled'),
+  ).toBeDefined()
+  expect(
+    wrapper
+      .findAll('button')
+      .find((button) => button.text() === '新增供应商')!
+      .attributes('disabled'),
+  ).toBeDefined()
+  expect(api.submitNewTargetSupplier).toHaveBeenCalledTimes(1)
+  expect(vi.mocked(api.submitNewTargetSupplier).mock.calls[0]![1]).toEqual(
+    original,
+  )
   wrapper.unmount()
 })
 

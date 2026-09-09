@@ -29,6 +29,7 @@ export const permissionActionLabels: Readonly<Record<string, string>> = {
   'audit-history': '查看审核历史',
   'cancel-child': '取消子单据',
   catalog: '查看目录',
+  'book-balance': '查询账面库存',
   'create-child': '创建子单据',
   lock: '锁定',
   'open-document': '打开单据',

@@ -1,3 +1,4 @@
+import { businessDate } from './business-date.ts'
 import type {
   TargetOrderEntity,
   TargetOrderInput,
@@ -44,7 +45,7 @@ export type OrderDraft = {
 export function emptyOrder(entity: TargetOrderEntity): OrderDraft {
   return {
     entity,
-    businessDate: new Date().toISOString().slice(0, 10),
+    businessDate: businessDate(),
     currency: 'CNY',
     remark: '',
     counterparty: null,

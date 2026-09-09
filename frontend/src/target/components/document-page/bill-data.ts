@@ -1,3 +1,4 @@
+import { businessDate } from './business-date.ts'
 import type {
   VouAttachmentMetadata,
   VouBillLineInput,
@@ -55,7 +56,7 @@ export function billOptions(key: string) {
 export function emptyBill(entity: BillEntity): BillDraft {
   return {
     entity,
-    businessDate: new Date().toISOString().slice(0, 10),
+    businessDate: businessDate(),
     currency: 'CNY',
     remark: '',
     party: null,

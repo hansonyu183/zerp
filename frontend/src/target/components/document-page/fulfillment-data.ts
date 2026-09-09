@@ -1,3 +1,4 @@
+import { businessDate } from './business-date.ts'
 import type { VouPayloadFor } from '@zerp/model'
 import type { SourceLineChoice } from './SourceLinePicker.vue'
 import type { VouCandidate } from './VouReference.vue'
@@ -29,7 +30,7 @@ export const fulfillmentFields = [
 export function emptyFulfillment(entity: FulfillmentEntity): FulfillmentDraft {
   return {
     entity,
-    businessDate: new Date().toISOString().slice(0, 10),
+    businessDate: businessDate(),
     currency: 'CNY',
     remark: '',
     selectionOrigin: 'CURRENT',

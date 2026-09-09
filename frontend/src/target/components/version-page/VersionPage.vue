@@ -720,19 +720,6 @@ async function verify() {
         }
       } catch (cause) {
         if (
-          identity.kind === 'submit' &&
-          open.value &&
-          intent?.submissionId === identity.command.submissionId &&
-          cause instanceof TargetApiError &&
-          cause.errorKey === 'approval_not_found'
-        ) {
-          if (owns()) {
-            pending.value = null
-            error.value = '未找到此次提交，可修正输入后使用原提交标识重试。'
-          }
-          return
-        }
-        if (
           identity.kind === 'review' &&
           identity.action === 'delete' &&
           cause instanceof TargetApiError &&

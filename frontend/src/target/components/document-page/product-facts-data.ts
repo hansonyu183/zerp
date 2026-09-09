@@ -1,3 +1,4 @@
+import { businessDate } from './business-date.ts'
 import type { VouPayloadFor, VouAttachmentMetadata } from '@zerp/model'
 import type { VouCandidate } from './VouReference.vue'
 import { type OrderProduct } from './order-data.ts'
@@ -29,7 +30,7 @@ export function emptyProductFacts(
 ): ProductFactsDraft {
   return {
     entity,
-    businessDate: new Date().toISOString().slice(0, 10),
+    businessDate: businessDate(),
     currency: 'CNY',
     remark: '',
     supplier: null,

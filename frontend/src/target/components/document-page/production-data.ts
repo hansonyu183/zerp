@@ -1,3 +1,4 @@
+import { businessDate } from './business-date.ts'
 import {
   productionSuggestedQuantity,
   type VouFormulaInput,
@@ -41,7 +42,7 @@ export type ProductionDraft = {
 export function emptyProduction(entity: ProductionEntity): ProductionDraft {
   return {
     entity,
-    businessDate: new Date().toISOString().slice(0, 10),
+    businessDate: businessDate(),
     remark: '',
     materialWarehouse: null,
     finishedWarehouse: null,

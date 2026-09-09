@@ -1,3 +1,4 @@
+import { businessDate } from './business-date.ts'
 import type { VouAttachmentMetadata, VouPayloadFor } from '@zerp/model'
 import type { VouCandidate } from './VouReference.vue'
 import { snapshotEnums } from './snapshot-presentation.ts'
@@ -38,7 +39,7 @@ export const serviceCapabilityOptions = (
   ['EXTERNAL_PART_TIME', 'CHANNEL_PARTNER'] as const
 ).map((value) => ({ value, caption: snapshotEnums.capabilities![value]! }))
 export function emptyService(entity: ServiceEntity): ServiceDraft {
-  const date = new Date().toISOString().slice(0, 10)
+  const date = businessDate()
   return {
     entity,
     businessDate: date,

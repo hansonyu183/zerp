@@ -1,3 +1,4 @@
+import { businessDate } from './business-date.ts'
 import type {
   VouPayloadFor,
   VouAttachmentMetadata,
@@ -91,7 +92,7 @@ export function financialParty(draft: FinancialDraft): {
 export function emptyFinancial(entity: FinancialEntity): FinancialDraft {
   return {
     entity,
-    businessDate: new Date().toISOString().slice(0, 10),
+    businessDate: businessDate(),
     currency: 'CNY',
     remark: '',
     amount: '',

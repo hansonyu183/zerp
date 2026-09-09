@@ -1,3 +1,4 @@
+import { businessDate } from './business-date.ts'
 import type { VouAttachmentMetadata, VouPayloadFor } from '@zerp/model'
 import type { VouCandidate } from './VouReference.vue'
 import { snapshotEnums } from './snapshot-presentation.ts'
@@ -42,7 +43,7 @@ export const assetPartyOptions = (
 export function emptyAsset(entity: AssetEntity): AssetDraft {
   return {
     entity,
-    businessDate: new Date().toISOString().slice(0, 10),
+    businessDate: businessDate(),
     currency: 'CNY',
     remark: '',
     party: null,

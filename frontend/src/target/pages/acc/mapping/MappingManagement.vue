@@ -4,6 +4,7 @@ import ManagementPageFrame from '../../../components/ManagementPageFrame.vue'
 import MappingDimensions from './MappingDimensions.vue'
 import {
   useMappingViewModel,
+  mappingFieldOptions,
   mappingResults,
   mappingOperators,
   mappingDirections,
@@ -145,7 +146,7 @@ onBeforeUnmount(vm.dispose)
                 <v-select
                   v-model="condition.field"
                   label="条件字段"
-                  :items="vm.fields"
+                  :items="mappingFieldOptions(vm.fields)"
                 />
                 <v-select
                   v-model="condition.operator"
@@ -235,17 +236,17 @@ onBeforeUnmount(vm.dispose)
                   <v-select
                     v-model="line.amountField"
                     label="金额字段"
-                    :items="vm.fields"
+                    :items="mappingFieldOptions(vm.fields)"
                   />
                   <v-select
                     v-model="line.currencyField"
                     label="币种字段"
-                    :items="vm.fields"
+                    :items="mappingFieldOptions(vm.fields)"
                   />
                   <v-select
                     v-model="line.quantityField"
                     label="数量字段"
-                    :items="vm.fields"
+                    :items="mappingFieldOptions(vm.fields)"
                     clearable
                   />
                 </div>

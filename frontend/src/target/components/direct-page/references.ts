@@ -83,6 +83,20 @@ export async function loadEditReferences(
   token: () => string,
   can: (path: string) => boolean,
 ): Promise<EditOption[]> {
+  if (typeof source === 'object' && source.kind === 'vou-source-line') {
+    const rows = await allPages((input) =>
+      api.queryTargetVouSourceLines(token(), {
+        targetEntity: source.entity,
+        page: input.page,
+        pageSize: 20,
+      }),
+    )
+    return rows.map((item) => ({
+      id: `${item.sourceDocumentId}:${item.sourceLineId}`,
+      name: `${item.sourceDocumentNo} · ${item.product.code} · ${item.product.name} · 可用 ${item.availableBaseQuantity}`,
+      snapshot: item,
+    }))
+  }
   if (typeof source === 'object' && source.kind === 'vou-reference')
     return (
       await api.queryTargetVouReferences(token(), { entity: source.entity })
@@ -277,8 +291,10 @@ export async function loadEditReferences(
 
 export function referencePermission(source: EditReference): string {
   return typeof source === 'object'
-    ? source.kind === 'vou-reference'
-      ? '/vou/reference/query'
-      : `/vou/${source.entity}/query`
+    ? source.kind === 'vou-source-line'
+      ? '/vou/source-line/query'
+      : source.kind === 'vou-reference'
+        ? '/vou/reference/query'
+        : `/vou/${source.entity}/query`
     : referencePermissions[source]
 }

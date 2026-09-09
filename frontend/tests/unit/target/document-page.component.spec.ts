@@ -20,6 +20,9 @@ vi.mock('@/target/api.ts', async (original) => ({
   queryTargetAccountingSubjects: vi.fn(),
   submitTargetOpening: vi.fn(),
   submitTargetOrder: vi.fn(),
+  submitTargetVoucher: vi.fn(),
+  queryTargetVouSourceLines: vi.fn(),
+  queryTargetInventoryBookBalance: vi.fn(),
 }))
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -670,5 +673,586 @@ it('re-adopts current materials when cloning a manual formula without a source d
   expect(payload.productLines[0]!.formula.components[0]!.material).toEqual({
     objectId: referenceId,
   })
+  wrapper.unmount()
+})
+
+it('submits purchase receipt with the selected exact source and refreshes once', async () => {
+  useTargetSession().apiPaths = [
+    '/vou/purchase-inbound/submit-new',
+    '/vou/purchase-inbound/query',
+    '/vou/reference/query',
+    '/vou/source-line/query',
+  ]
+  vi.mocked(api.queryTargetVouchers).mockResolvedValue({
+    items: [],
+    total: 0,
+    page: 1,
+    pageSize: 20,
+  })
+  vi.mocked(api.queryTargetVouReferences).mockImplementation(
+    async (_token, input) =>
+      ({
+        items: [
+          {
+            entity: input.entity,
+            objectId: referenceId,
+            approvalEntryId: entryId,
+            code: '01',
+            name: '候选资料',
+          },
+        ],
+      }) as Awaited<ReturnType<typeof api.queryTargetVouReferences>>,
+  )
+  vi.mocked(api.queryTargetVouSourceLines).mockResolvedValue({
+    items: [
+      {
+        sourceDocumentId: referenceId,
+        sourceDocumentNo: 'PO-20260909-0001',
+        sourceEntity: 'purchase-order',
+        rootEntity: 'purchase-order',
+        rootDocumentId: referenceId,
+        sourceLineId: 'source-line-1',
+        businessDate: '2026-09-09',
+        product: { objectId: productId, code: 'P01', name: '包装桶' },
+        availableBaseQuantity: '5.000000',
+      },
+    ],
+    total: 1,
+    page: 1,
+    pageSize: 20,
+  })
+  vi.mocked(api.submitTargetVoucher).mockResolvedValue({
+    documentId: referenceId,
+  } as Awaited<ReturnType<typeof api.submitTargetVoucher>>)
+  const wrapper = mount(ResourceHost, {
+    props: { domain: 'vou', entity: 'purchase-inbound' },
+    global: { stubs },
+  })
+  await flushPromises()
+  await click(wrapper, '新建')
+  await wrapper
+    .get('[data-testid="document-editor"] [aria-label="供应商"]')
+    .setValue(referenceId)
+  await wrapper.get('[aria-label="仓库"]').setValue(referenceId)
+  await click(wrapper, '添加来源行')
+  await wrapper
+    .get('[aria-label="来源行"]')
+    .setValue(`${referenceId}:source-line-1`)
+  await flushPromises()
+  await wrapper.get('[aria-label="基准数量"]').setValue('2.123456')
+  await click(wrapper, '提交')
+  expect(api.submitTargetVoucher, wrapper.text()).toHaveBeenCalledTimes(1)
+  expect(
+    vi.mocked(api.submitTargetVoucher).mock.calls[0]?.[2].payload,
+  ).toMatchObject({
+    parentEntity: 'purchase-order',
+    parentDocumentId: referenceId,
+    supplier: {
+      objectId: referenceId,
+      approvalEntryId: entryId,
+      selectionOrigin: 'CURRENT',
+    },
+    warehouse: { objectId: referenceId },
+    sourceLines: [{ sourceLineId: 'source-line-1', baseQuantity: '2.123456' }],
+  })
+  expect(api.queryTargetVouchers).toHaveBeenCalledTimes(2)
+  wrapper.unmount()
+})
+
+it.each(['sale-return', 'purchase-return'] as const)(
+  'requires a reason and exact source document when submitting %s',
+  async (entity) => {
+    useTargetSession().apiPaths = [
+      `/vou/${entity}/submit-new`,
+      '/vou/reference/query',
+      '/vou/source-line/query',
+    ]
+    vi.mocked(api.queryTargetVouReferences).mockImplementation(
+      async (_token, input) =>
+        ({
+          items: [
+            {
+              entity: input.entity,
+              objectId: referenceId,
+              approvalEntryId: entryId,
+              code: '01',
+              name: '候选资料',
+            },
+          ],
+        }) as Awaited<ReturnType<typeof api.queryTargetVouReferences>>,
+    )
+    vi.mocked(api.queryTargetVouSourceLines).mockResolvedValue({
+      items: [
+        {
+          sourceDocumentId: entryId,
+          sourceDocumentNo: 'SOURCE-0001',
+          sourceEntity:
+            entity === 'sale-return' ? 'sale-signoff' : 'purchase-inbound',
+          rootEntity:
+            entity === 'sale-return' ? 'sale-order' : 'purchase-order',
+          rootDocumentId: referenceId,
+          sourceLineId: 'line-1',
+          businessDate: '2026-09-09',
+          product: { objectId: productId, code: 'P01', name: '包装桶' },
+          availableBaseQuantity: '5.000000',
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    })
+    const wrapper = mount(ResourceHost, {
+      props: { domain: 'vou', entity },
+      global: { stubs },
+    })
+    await flushPromises()
+    await click(wrapper, '新建')
+    if (entity === 'purchase-return')
+      await wrapper.get('[aria-label="供应商"]').setValue(referenceId)
+    await wrapper.get('[aria-label="仓库"]').setValue(referenceId)
+    await click(wrapper, '添加来源行')
+    await wrapper.get('[aria-label="来源行"]').setValue(`${entryId}:line-1`)
+    await wrapper.get('[aria-label="基准数量"]').setValue('1.000001')
+    await click(wrapper, '提交')
+    expect(api.submitTargetVoucher).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('请填写退货原因')
+    await wrapper.get('[aria-label="退货原因"]').setValue('质量退货')
+    await click(wrapper, '提交')
+    expect(
+      vi.mocked(api.submitTargetVoucher).mock.calls[0]?.[2].payload,
+    ).toMatchObject({
+      parentDocumentId: referenceId,
+      returnReason: '质量退货',
+      returnLines: [
+        {
+          sourceDocumentId: entryId,
+          sourceLineId: 'line-1',
+          baseQuantity: '1.000001',
+        },
+      ],
+    })
+    expect(wrapper.text()).toContain('提交成功')
+    wrapper.unmount()
+  },
+)
+
+it('clones return facts and exact sources without inheriting submission identity', async () => {
+  const entity = 'purchase-return'
+  useTargetSession().apiPaths = [
+    `/vou/${entity}/query`,
+    `/vou/${entity}/get`,
+    `/vou/${entity}/attachment-read`,
+    `/vou/${entity}/submit-new`,
+  ]
+  const payload = {
+    businessDate: '2026-09-01',
+    currency: 'CNY',
+    remark: '复制备注',
+    attachments: [
+      {
+        id: productId,
+        fileName: '退货凭证.pdf',
+        contentType: 'application/pdf',
+        sizeBytes: 20,
+        sha256: 'a'.repeat(64),
+        stagingId: productId,
+      },
+    ],
+    supplier: {
+      objectId: referenceId,
+      approvalEntryId: entryId,
+      selectionOrigin: 'CURRENT',
+    },
+    warehouse: { objectId: referenceId },
+    parentEntity: 'purchase-order',
+    parentDocumentId: referenceId,
+    returnReason: '质量退货',
+    returnLines: [
+      {
+        sourceDocumentId: productId,
+        sourceLineId: 'original-line',
+        baseQuantity: '1.123456',
+        remark: '保留备注',
+      },
+    ],
+  }
+  vi.mocked(api.queryTargetVouchers).mockResolvedValue({
+    items: [
+      {
+        vouType: entity,
+        documentId: referenceId,
+        documentNo: 'PR01',
+        revision: '1',
+        businessDate: '2026-09-01',
+        submittedDate: '2026-09-01',
+        handlerName: null,
+        counterpartyName: '供应商',
+        status: 'PENDING',
+        amount: '20',
+        currency: 'CNY',
+      },
+    ],
+    total: 1,
+    page: 1,
+    pageSize: 20,
+  })
+  vi.mocked(api.getTargetVoucher).mockResolvedValue({
+    entity,
+    documentId: referenceId,
+    documentNo: 'PR01',
+    revision: '1',
+    submissionId: entryId,
+    status: 'PENDING',
+    availableApprovalActions: [],
+    payload,
+  } as Awaited<ReturnType<typeof api.getTargetVoucher>>)
+  vi.mocked(api.submitTargetVoucher).mockResolvedValue({
+    documentId: productId,
+  } as Awaited<ReturnType<typeof api.submitTargetVoucher>>)
+  const wrapper = mount(ResourceHost, {
+    props: { domain: 'vou', entity },
+    global: { stubs },
+  })
+  await flushPromises()
+  await click(wrapper, '打开')
+  expect(wrapper.get('.attachment-block').text()).toContain('退货凭证.pdf')
+  expect(wrapper.get('.attachment-block').text()).toContain('下载附件')
+  expect(wrapper.get('.attachment-block').text()).not.toContain('移除附件')
+  await click(wrapper, '复制到临时表单')
+  expect(wrapper.get('[data-testid="document-editor"]').text()).not.toContain(
+    '退货凭证.pdf',
+  )
+  await click(wrapper, '提交')
+  expect(api.submitTargetVoucher, wrapper.text()).toHaveBeenCalledTimes(1)
+  const input = vi.mocked(api.submitTargetVoucher).mock.calls[0]![2]
+  expect(input.documentId).not.toBe(referenceId)
+  expect(input.submissionId).not.toBe(entryId)
+  expect(input.payload).toMatchObject({
+    ...payload,
+    attachments: [],
+    supplier: { ...payload.supplier, selectionOrigin: 'HISTORICAL' },
+  })
+  wrapper.unmount()
+})
+
+it.each(['purchase-inquiry', 'inventory-count'] as const)(
+  'submits %s through product candidates with decimal facts',
+  async (entity) => {
+    useTargetSession().apiPaths = [
+      `/vou/${entity}/submit-new`,
+      '/vou/reference/query',
+      '/bob/product/get',
+    ]
+    vi.mocked(api.queryTargetVouReferences).mockImplementation(
+      async (_token, input) =>
+        ({
+          items: [
+            {
+              entity: input.entity,
+              objectId: input.entity === 'product' ? productId : referenceId,
+              approvalEntryId: entryId,
+              code: '01',
+              name: '候选资料',
+            },
+          ],
+        }) as Awaited<ReturnType<typeof api.queryTargetVouReferences>>,
+    )
+    vi.mocked(api.getTargetProduct).mockResolvedValue(
+      productCurrent as Awaited<ReturnType<typeof api.getTargetProduct>>,
+    )
+    vi.mocked(api.submitTargetVoucher).mockResolvedValue({
+      documentId: referenceId,
+    } as Awaited<ReturnType<typeof api.submitTargetVoucher>>)
+    const wrapper = mount(ResourceHost, {
+      props: { domain: 'vou', entity },
+      global: { stubs },
+    })
+    await flushPromises()
+    await click(wrapper, '新建')
+    await wrapper
+      .get(
+        `[aria-label="${entity === 'purchase-inquiry' ? '供应商' : '仓库'}"]`,
+      )
+      .setValue(referenceId)
+    await click(wrapper, '添加商品行')
+    await wrapper.get('[aria-label="产品"]').setValue(productId)
+    await flushPromises()
+    if (entity === 'purchase-inquiry')
+      await wrapper.get('[aria-label="单价"]').setValue('12.34')
+    else {
+      await wrapper.get('[aria-label="实盘数量"]').setValue('0')
+      await wrapper.get('[aria-label="基准数量"]').setValue('0')
+    }
+    await click(wrapper, '提交')
+    expect(api.submitTargetVoucher, wrapper.text()).toHaveBeenCalledTimes(1)
+    expect(
+      vi.mocked(api.submitTargetVoucher).mock.calls[0]![2].payload,
+    ).toMatchObject(
+      entity === 'purchase-inquiry'
+        ? {
+            priceLines: [
+              {
+                product: { objectId: productId, approvalEntryId: entryId },
+                unitPrice: '12.34',
+              },
+            ],
+          }
+        : {
+            inventoryCountLines: [
+              {
+                product: { objectId: productId },
+                enteredQuantity: '0',
+                baseQuantity: '0',
+                enteredUnit: { objectId: unitId },
+              },
+            ],
+          },
+    )
+    if (entity === 'inventory-count') {
+      const payload = vi.mocked(api.submitTargetVoucher).mock.calls[0]![2]
+        .payload
+      expect(
+        'inventoryCountLines' in payload &&
+          payload.inventoryCountLines[0]!.enteredUnit,
+      ).toEqual({ objectId: unitId })
+    }
+    wrapper.unmount()
+  },
+)
+
+it('submits self production from a fixed formula and retains the reason for an adjusted material', async () => {
+  useTargetSession().apiPaths = [
+    '/vou/self-production/submit-new',
+    '/vou/reference/query',
+    '/bob/product/get',
+  ]
+  vi.mocked(api.queryTargetVouReferences).mockImplementation(
+    async (_token, input) =>
+      ({
+        items: [
+          {
+            entity: input.entity,
+            objectId: input.entity === 'product' ? productId : referenceId,
+            approvalEntryId: entryId,
+            code: '01',
+            name: '候选资料',
+          },
+        ],
+      }) as Awaited<ReturnType<typeof api.queryTargetVouReferences>>,
+  )
+  const quantity = {
+    enteredQuantity: '1',
+    enteredUnit: productCurrent.data.defaultInputUnit,
+    baseQuantity: '1',
+  }
+  vi.mocked(api.getTargetProduct).mockResolvedValue({
+    ...productCurrent,
+    data: {
+      ...productCurrent.data,
+      productType: {
+        ...productCurrent.data.productType,
+        behaviorProfile: 'STANDARD_FINISHED',
+      },
+      fixedFormula: {
+        output: quantity,
+        components: [
+          {
+            material: {
+              objectId: referenceId,
+              approvalEntryId: entryId,
+              code: 'R01',
+              name: '原料',
+            },
+            quantity,
+            resolutionStatus: 'CURRENT',
+            requiresConfirmation: false,
+          },
+        ],
+      },
+    },
+  } as Awaited<ReturnType<typeof api.getTargetProduct>>)
+  vi.mocked(api.submitTargetVoucher).mockResolvedValue({
+    documentId: referenceId,
+  } as Awaited<ReturnType<typeof api.submitTargetVoucher>>)
+  const wrapper = mount(ResourceHost, {
+    props: { domain: 'vou', entity: 'self-production' },
+    global: { stubs },
+  })
+  await flushPromises()
+  await click(wrapper, '新建')
+  await wrapper.get('[aria-label="材料仓库"]').setValue(referenceId)
+  await wrapper.get('[aria-label="成品仓库"]').setValue(referenceId)
+  await click(wrapper, '添加成品行')
+  await wrapper.get('[aria-label="成品"]').setValue(productId)
+  await flushPromises()
+  await wrapper.get('[aria-label="成品数量"]').setValue('2')
+  await wrapper.get('[aria-label="成品基准数量"]').setValue('2')
+  await wrapper.get('[aria-label="实际基准领料量"]').setValue('1')
+  await click(wrapper, '提交')
+  expect(api.submitTargetVoucher).not.toHaveBeenCalled()
+  expect(wrapper.text()).toContain('调整原因')
+  await wrapper.get('[aria-label="调整原因"]').setValue('节约材料')
+  await click(wrapper, '提交')
+  expect(
+    vi.mocked(api.submitTargetVoucher).mock.calls[0]?.[2].payload,
+  ).toMatchObject({
+    currency: '',
+    productionLines: [
+      {
+        product: { objectId: productId },
+        baseQuantity: '2',
+        lossRate: '0',
+        materials: [
+          {
+            formulaLineNo: 1,
+            actualMaterial: { objectId: referenceId },
+            actualBaseQuantity: '1',
+            adjustmentReason: '节约材料',
+          },
+        ],
+      },
+    ],
+  })
+  wrapper.unmount()
+})
+
+it('adopts the exact order production source and immutable formula', async () => {
+  useTargetSession().apiPaths = [
+    '/vou/order-production/submit-new',
+    '/vou/reference/query',
+    '/vou/source-line/query',
+    '/vou/sale-order/get',
+  ]
+  vi.mocked(api.queryTargetVouReferences).mockResolvedValue({
+    items: [
+      { entity: 'warehouse', objectId: referenceId, code: 'W01', name: '仓库' },
+    ],
+  })
+  vi.mocked(api.queryTargetVouSourceLines).mockResolvedValue({
+    items: [
+      {
+        sourceDocumentId: entryId,
+        sourceDocumentNo: 'SO01',
+        sourceEntity: 'sale-order',
+        rootEntity: 'sale-order',
+        rootDocumentId: entryId,
+        sourceLineId: 'finished-line',
+        businessDate: '2026-09-09',
+        product: { objectId: productId, code: 'F01', name: '定制成品' },
+        availableBaseQuantity: '5',
+      },
+    ],
+    total: 1,
+    page: 1,
+    pageSize: 20,
+  })
+  const quantity = {
+    enteredQuantity: '1',
+    enteredUnit: {
+      objectId: unitId,
+      code: 'PC',
+      name: '个',
+      symbol: '个',
+      quantityScale: 0,
+    },
+    baseQuantity: '1',
+  }
+  vi.mocked(api.getTargetVoucher).mockResolvedValue({
+    entity: 'sale-order',
+    status: 'APPROVED',
+    payload: {
+      productLines: [
+        {
+          lineId: 'finished-line',
+          product: { objectId: productId },
+          formula: {
+            sourceType: 'MANUAL',
+            output: quantity,
+            components: [{ material: { objectId: referenceId }, quantity }],
+          },
+        },
+      ],
+    },
+  } as Awaited<ReturnType<typeof api.getTargetVoucher>>)
+  vi.mocked(api.submitTargetVoucher).mockResolvedValue({
+    documentId: referenceId,
+  } as Awaited<ReturnType<typeof api.submitTargetVoucher>>)
+  const wrapper = mount(ResourceHost, {
+    props: { domain: 'vou', entity: 'order-production' },
+    global: { stubs },
+  })
+  await flushPromises()
+  await click(wrapper, '新建')
+  await wrapper.get('[aria-label="材料仓库"]').setValue(referenceId)
+  await wrapper.get('[aria-label="成品仓库"]').setValue(referenceId)
+  await click(wrapper, '添加成品行')
+  await wrapper
+    .get('[aria-label="来源行"]')
+    .setValue(`${entryId}:finished-line`)
+  await flushPromises()
+  await click(wrapper, '提交')
+  expect(
+    vi.mocked(api.submitTargetVoucher).mock.calls[0]?.[2].payload,
+  ).toMatchObject({
+    parentEntity: 'sale-order',
+    parentDocumentId: entryId,
+    productionLines: [
+      {
+        sourceOrderLineId: 'finished-line',
+        product: { objectId: productId },
+        baseQuantity: '1',
+        materials: [
+          {
+            actualMaterial: { objectId: referenceId },
+            actualBaseQuantity: '1.000000',
+          },
+        ],
+      },
+    ],
+  })
+  wrapper.unmount()
+})
+
+it('adds a book-balance product as a candidate while requiring an explicit actual count', async () => {
+  useTargetSession().apiPaths = [
+    '/vou/inventory-count/submit-new',
+    '/vou/inventory-count/book-balance',
+    '/vou/reference/query',
+    '/bob/product/get',
+  ]
+  vi.mocked(api.queryTargetVouReferences).mockResolvedValue({
+    items: [
+      { entity: 'warehouse', objectId: referenceId, code: 'W01', name: '仓库' },
+    ],
+  })
+  vi.mocked(api.queryTargetInventoryBookBalance).mockResolvedValue({
+    items: [
+      {
+        product: { objectId: productId, code: 'P01', name: '账面商品' },
+        bookQuantity: '10.00000000',
+      },
+    ],
+    total: 1,
+    page: 1,
+    pageSize: 20,
+  })
+  vi.mocked(api.getTargetProduct).mockResolvedValue(
+    productCurrent as Awaited<ReturnType<typeof api.getTargetProduct>>,
+  )
+  const wrapper = mount(ResourceHost, {
+    props: { domain: 'vou', entity: 'inventory-count' },
+    global: { stubs },
+  })
+  await flushPromises()
+  await click(wrapper, '新建')
+  await wrapper.get('[aria-label="仓库"]').setValue(referenceId)
+  await click(wrapper, '查看账面商品')
+  await click(wrapper, '加入盘点：账面商品')
+  expect(wrapper.get('[aria-label="实盘数量"]').element).toHaveProperty(
+    'value',
+    '',
+  )
+  await click(wrapper, '提交')
+  expect(api.submitTargetVoucher).not.toHaveBeenCalled()
   wrapper.unmount()
 })

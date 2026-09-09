@@ -498,6 +498,28 @@ export function validateAccSubjectAttributes(
 }
 
 export interface AccControlBalancePort {
+  inventoryBookBalance(
+    tx: Transaction<DB>,
+    input: {
+      warehouseId: string
+      asOfDate: string
+      page: number
+      pageSize: 20
+    },
+  ): Promise<{
+    items: { productId: string; quantity: string }[]
+    total: number
+  }>
+
+  inventoryBalances(
+    tx: Transaction<DB>,
+    input: {
+      warehouseId: string
+      productIds: readonly string[]
+      asOfDate: string
+    },
+  ): Promise<readonly { productId: string; quantity: string }[]>
+
   partyBalance(
     tx: Transaction<DB>,
     input: {
@@ -525,6 +547,19 @@ function billOutgoingStatus(
   if (entity === 'bill-discount') return 'DISCOUNTED'
   return 'MATURED'
 }
+
+export const quantityMovementEntities: readonly string[] = [
+  'order-production',
+  'self-production',
+  'inventory-count',
+]
+export const quantityMovementFields = [
+  'line.productId',
+  'line.warehouseId',
+  'line.quantity',
+  'line.amount',
+  'line.currency',
+]
 
 export class AccService
   implements PlanExecutor<AccApplicationPlan>, AccControlBalancePort
@@ -558,6 +593,8 @@ export class AccService
           }
         }
         flatten('', vouEntityInputDescriptors[entity])
+        if (quantityMovementEntities.includes(entity))
+          lineFields.push(...quantityMovementFields)
         await tx
           .insertInto('acc_mapping_vou_entities')
           .values({
@@ -631,13 +668,17 @@ export class AccService
           .on('opening.entity', '=', 'opening')
           .on('opening.status', '=', 'APPROVED'),
       )
-      .select(['b.id', 'b.start_month', 'b.control_book'])
+      .select(['b.id', 'b.start_month', 'b.control_book', 'b.base_currency'])
       .where('b.start_month', '<=', plan.payload.businessDate.slice(0, 7))
       .orderBy('b.code', 'asc')
       .forShare('opening')
       .execute()
     await this.applyGlobalRegistrations(tx, plan, books)
     for (const book of books) {
+      const postingPayload = this.quantityPostingPayload(
+        plan.payload,
+        book.base_currency,
+      )
       const mappingResult = await sql<{
         id: string
         revision: string | bigint
@@ -690,8 +731,8 @@ export class AccService
       if (!template)
         throw new AccApplicationError('acc_mapping_template_not_found')
       const sources = template.collection
-        ? this.field(plan.payload, template.collection)
-        : [plan.payload]
+        ? this.field(postingPayload, template.collection)
+        : [postingPayload]
       if (!Array.isArray(sources))
         throw new AccApplicationError('acc_mapping_collection_invalid')
       const rendered: Array<{
@@ -713,17 +754,19 @@ export class AccService
               ? line.subjectValue
               : String(
                   this.field(
-                    { ...plan.payload, line: source },
+                    { ...postingPayload, line: source },
                     line.subjectValue,
                   ) ?? '',
                 )
           const amount = String(
-            this.field({ ...plan.payload, line: source }, line.amountField) ??
+            this.field({ ...postingPayload, line: source }, line.amountField) ??
               '',
           )
           const currency = String(
-            this.field({ ...plan.payload, line: source }, line.currencyField) ??
-              '',
+            this.field(
+              { ...postingPayload, line: source },
+              line.currencyField,
+            ) ?? '',
           )
           decimalUnits(amount)
           if (!/^[A-Z]{3}$/.test(currency))
@@ -732,7 +775,7 @@ export class AccService
             Object.entries(line.dimensions).map(([dimension, field]) => [
               dimension,
               String(
-                this.field({ ...plan.payload, line: source }, field) ?? '',
+                this.field({ ...postingPayload, line: source }, field) ?? '',
               ),
             ]),
           )
@@ -747,7 +790,7 @@ export class AccService
             quantity: line.quantityField
               ? String(
                   this.field(
-                    { ...plan.payload, line: source },
+                    { ...postingPayload, line: source },
                     line.quantityField,
                   ) ?? '',
                 )
@@ -755,6 +798,7 @@ export class AccService
           })
         }
       }
+      if (!rendered.length) continue
       const currencies = new Set(rendered.map((line) => line.currency))
       if (currencies.size !== 1)
         throw new AccApplicationError('acc_mapping_multi_currency_unsupported')
@@ -844,7 +888,7 @@ export class AccService
           })
           .execute()
         if (subject.inventory_quantity && line.quantity) {
-          decimalUnits(line.quantity)
+          signedDecimalUnits(line.quantity)
           await sql`
             INSERT INTO acc_inventory_entries (
               id, vou_approval_entry_id, document_id, opening_approval_entry_id, book_id, subject_id, journal_entry_id,
@@ -852,7 +896,7 @@ export class AccService
             ) VALUES (
               ${ulid()}, ${plan.approvalEntryId}, ${plan.documentId}, ${null}, ${book.id}, ${subject.id}, ${journalId},
               ${ulid()}, ${line.dimensions.WAREHOUSE}, ${line.dimensions.PRODUCT}, ${plan.payload.businessDate}::date,
-              ${line.direction === 'DEBIT' ? line.quantity : `-${line.quantity}`}, ${new Date(plan.occurredAt)}
+              (${line.quantity}::numeric * ${line.direction === 'DEBIT' ? 1 : -1}), ${new Date(plan.occurredAt)}
             )
           `.execute(tx)
         }
@@ -861,6 +905,142 @@ export class AccService
         await this.assertControlInventoryNonNegative(tx, inventoryFacts)
       if (book.control_book) await this.assertControlFundBalances(tx, fundFacts)
     }
+  }
+
+  async inventoryBookBalance(
+    tx: Transaction<DB>,
+    input: {
+      warehouseId: string
+      asOfDate: string
+      page: number
+      pageSize: 20
+    },
+  ): Promise<{
+    items: { productId: string; quantity: string }[]
+    total: number
+  }> {
+    const book = await tx
+      .selectFrom('acc_books as book')
+      .innerJoin('approval_entries as opening', (join) =>
+        join
+          .onRef('opening.subject_id', '=', 'book.id')
+          .on('opening.domain', '=', 'vou')
+          .on('opening.entity', '=', 'opening')
+          .on('opening.status', '=', 'APPROVED'),
+      )
+      .select('book.id')
+      .where('book.control_book', '=', true)
+      .where('book.start_month', '<=', input.asOfDate.slice(0, 7))
+      .executeTakeFirst()
+    if (!book) throw new AccApplicationError('acc_control_book_unavailable')
+    const balances = sql`SELECT product_id, SUM(quantity) AS quantity FROM acc_inventory_entries WHERE book_id = ${book.id} AND warehouse_id = ${input.warehouseId} AND business_date <= ${input.asOfDate}::date GROUP BY product_id HAVING SUM(quantity) <> 0`
+    const count = await sql<{
+      total: string
+    }>`SELECT COUNT(*)::text AS total FROM (${balances}) balance`.execute(tx)
+    const rows = await sql<{
+      productId: string
+      quantity: string
+    }>`SELECT product_id AS "productId", quantity::text FROM (${balances}) balance ORDER BY product_id LIMIT 20 OFFSET ${(input.page - 1) * 20}`.execute(
+      tx,
+    )
+    return { items: rows.rows, total: Number(count.rows[0]!.total) }
+  }
+
+  async inventoryBalances(
+    tx: Transaction<DB>,
+    input: {
+      warehouseId: string
+      productIds: readonly string[]
+      asOfDate: string
+    },
+  ): Promise<readonly { productId: string; quantity: string }[]> {
+    const book = await tx
+      .selectFrom('acc_books as book')
+      .innerJoin('approval_entries as opening', (join) =>
+        join
+          .onRef('opening.subject_id', '=', 'book.id')
+          .on('opening.domain', '=', 'vou')
+          .on('opening.entity', '=', 'opening')
+          .on('opening.status', '=', 'APPROVED'),
+      )
+      .select('book.id')
+      .where('book.control_book', '=', true)
+      .where('book.start_month', '<=', input.asOfDate.slice(0, 7))
+      .forShare('opening')
+      .executeTakeFirst()
+    if (!book) throw new AccApplicationError('acc_control_book_unavailable')
+    const ids = [...new Set(input.productIds)].sort()
+    await this.lockControlInventory(
+      tx,
+      ids.map((productId) => ({
+        bookId: book.id,
+        subjectId: '',
+        warehouseId: input.warehouseId,
+        productId,
+      })),
+    )
+    if (!ids.length) return []
+    const quantities = await sql<{
+      product_id: string
+      quantity: string
+    }>`SELECT product_id, SUM(quantity)::text AS quantity FROM acc_inventory_entries WHERE book_id = ${book.id} AND warehouse_id = ${input.warehouseId} AND product_id IN (${sql.join(ids)}) AND business_date <= ${input.asOfDate}::date GROUP BY product_id`.execute(
+      tx,
+    )
+    const byId = new Map(
+      quantities.rows.map((row) => [row.product_id, row.quantity]),
+    )
+    return ids.map((productId) => ({
+      productId,
+      quantity: byId.get(productId) ?? '0',
+    }))
+  }
+
+  private quantityPostingPayload(payload: VouPayload, currency: string) {
+    const movement = (
+      productId: string,
+      warehouseId: string,
+      quantity: string,
+    ) => ({ productId, warehouseId, quantity, amount: '0.00', currency })
+    if ('productionLines' in payload)
+      return {
+        ...payload,
+        inventoryMovements: payload.productionLines.flatMap((line) => {
+          if (!line.product)
+            throw new AccApplicationError('acc_inventory_dimension_required')
+          return [
+            movement(
+              line.product.objectId,
+              payload.finishedWarehouse.objectId,
+              line.baseQuantity,
+            ),
+            ...line.materials.map((material) =>
+              movement(
+                material.actualMaterial.objectId,
+                payload.materialWarehouse.objectId,
+                `-${material.actualBaseQuantity}`,
+              ),
+            ),
+          ]
+        }),
+      }
+    if ('inventoryCountLines' in payload)
+      return {
+        ...payload,
+        inventoryMovements: payload.inventoryCountLines.flatMap((line) => {
+          if (!line.countResult)
+            throw new AccApplicationError('acc_inventory_quantity_required')
+          return signedDecimalUnits(line.countResult.differenceQuantity) === 0n
+            ? []
+            : [
+                movement(
+                  line.product.objectId,
+                  payload.warehouse.objectId,
+                  line.countResult.differenceQuantity,
+                ),
+              ]
+        }),
+      }
+    return payload
   }
 
   async partyBalance(
@@ -1384,17 +1564,17 @@ export class AccService
     const unique = [
       ...new Map(
         facts.map((fact) => [
-          `${fact.bookId}:${fact.subjectId}:${fact.warehouseId}:${fact.productId}`,
+          `${fact.bookId}:${fact.warehouseId}:${fact.productId}`,
           fact,
         ]),
       ).values(),
     ].sort((left, right) =>
-      `${left.bookId}:${left.subjectId}:${left.warehouseId}:${left.productId}`.localeCompare(
-        `${right.bookId}:${right.subjectId}:${right.warehouseId}:${right.productId}`,
+      `${left.bookId}:${left.warehouseId}:${left.productId}`.localeCompare(
+        `${right.bookId}:${right.warehouseId}:${right.productId}`,
       ),
     )
     for (const fact of unique)
-      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`acc:inventory:${fact.bookId}:${fact.subjectId}:${fact.warehouseId}:${fact.productId}`}, 0))`.execute(
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`acc:inventory:${fact.bookId}:${fact.warehouseId}:${fact.productId}`}, 0))`.execute(
         tx,
       )
   }

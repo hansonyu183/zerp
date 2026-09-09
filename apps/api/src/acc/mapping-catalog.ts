@@ -1,4 +1,5 @@
 import { ulid } from 'ulid'
+import { quantityMovementEntities } from './service.ts'
 import {
   prepareAccMappingSave,
   vouEntities,
@@ -427,6 +428,7 @@ export async function syncMappingSubjectUsages(
 }
 
 function mappingCollections(code: string): string[] {
+  if (quantityMovementEntities.includes(code)) return ['inventoryMovements']
   const entity = vouEntities.find((entity) => entity === code)
   return entity
     ? vouEntityInputDescriptors[entity]

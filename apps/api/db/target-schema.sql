@@ -930,7 +930,7 @@ CREATE TABLE vou_order_production_details (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
     business_date date NOT NULL,
-    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    currency varchar(3) NOT NULL CHECK (currency = ''),
     total_amount_minor bigint NOT NULL,
     parent_entity varchar(64),
     parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
@@ -941,7 +941,7 @@ CREATE TABLE vou_self_production_details (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
     business_date date NOT NULL,
-    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    currency varchar(3) NOT NULL CHECK (currency = ''),
     total_amount_minor bigint NOT NULL,
     parent_entity varchar(64),
     parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
@@ -1390,6 +1390,9 @@ CREATE TABLE vou_inventory_count_line_snapshots (
     entered_quantity_micros bigint NOT NULL,
     entered_unit_id varchar(26) NOT NULL,
     base_quantity_micros bigint NOT NULL,
+    book_quantity_micros bigint,
+    actual_quantity_micros bigint,
+    difference_quantity_micros bigint,
     remark text,
     PRIMARY KEY (approval_entry_id, line_no)
 );
@@ -1398,6 +1401,7 @@ CREATE TABLE vou_production_line_snapshots (
     approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
     line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
     source_order_line_id varchar(128),
+    formula_snapshot jsonb NOT NULL CHECK (jsonb_typeof(formula_snapshot) = 'object'),
     entered_quantity_micros bigint NOT NULL,
     entered_unit_id varchar(26) NOT NULL,
     base_quantity_micros bigint NOT NULL,
@@ -1415,6 +1419,7 @@ CREATE TABLE vou_production_material_snapshots (
     entered_quantity_micros bigint NOT NULL,
     entered_unit_id varchar(26) NOT NULL,
     base_quantity_micros bigint NOT NULL,
+    suggested_base_quantity_micros bigint NOT NULL,
     adjustment_reason text,
     PRIMARY KEY (approval_entry_id, line_no, material_no),
     FOREIGN KEY (approval_entry_id, line_no) REFERENCES vou_production_line_snapshots(approval_entry_id, line_no) ON DELETE CASCADE

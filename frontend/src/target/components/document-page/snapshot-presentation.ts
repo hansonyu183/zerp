@@ -2,6 +2,12 @@ import { vouEntityPresentation } from '@zerp/model'
 
 // Presentation of the existing immutable voucher payload, local to its reader.
 export const snapshotCaptions: Readonly<Record<string, string>> = {
+  countResult: '批准时盘点结果',
+  bookQuantity: '账面数量',
+  actualQuantity: '实盘数量',
+  differenceQuantity: '差异数量',
+  formulaSnapshot: '原始配方快照',
+  suggestedBaseQuantity: '建议基准领料量',
   assetNo: '资产编号',
   categoryId: '资产类别标识',
   departmentId: '使用部门标识',

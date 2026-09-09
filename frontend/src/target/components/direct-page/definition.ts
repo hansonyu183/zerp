@@ -159,3 +159,7 @@ export type EditReference =
       kind: 'vou-reference'
       entity: import('../../api.ts').TargetVouReferenceQueryInput['entity']
     }
+  | {
+      kind: 'vou-source-line'
+      entity: import('@zerp/model').VouSourceLineTargetEntity
+    }

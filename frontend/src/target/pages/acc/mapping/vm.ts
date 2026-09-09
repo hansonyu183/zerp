@@ -246,11 +246,14 @@ export function useMappingViewModel() {
       ...(entity?.fieldCatalog.lineFields ?? []),
     ]
   })
-  const collections = computed(
-    () =>
+  const collections = computed(() =>
+    (
       catalog.value.vouEntities.find(
         (item) => item.code === draft.value.vouEntity,
-      )?.fieldCatalog.collections ?? [],
+      )?.fieldCatalog.collections ?? []
+    ).map((value) =>
+      value === 'inventoryMovements' ? { title: '库存数量变动', value } : value,
+    ),
   )
   const requiredDimensions = (id: string | null) =>
     subjects.value.find((subject) => subject.id === id)?.requiredDimensions ??
@@ -368,4 +371,15 @@ export function useMappingViewModel() {
     save,
     dispose,
   }
+}
+
+export function mappingFieldOptions(fields: readonly string[]) {
+  const captions: Record<string, string> = {
+    'line.productId': '库存变动产品',
+    'line.warehouseId': '库存变动仓库',
+    'line.quantity': '有符号库存数量',
+    'line.amount': '库存变动金额',
+    'line.currency': '记账币种',
+  }
+  return fields.map((value) => ({ title: captions[value] ?? value, value }))
 }

@@ -251,11 +251,23 @@ const signoffLine = z
   })
   .strict()
 const inventoryLine = quantitySnapshot
-  .extend({ product: objectReference, remark: z.string().max(1000).optional() })
+  .extend({
+    product: objectReference,
+    remark: z.string().max(1000).optional(),
+    countResult: z
+      .object({
+        bookQuantity: z.string().regex(/^-?\d+(?:\.\d{1,6})?$/),
+        actualQuantity: quantity,
+        differenceQuantity: z.string().regex(/^-?\d+(?:\.\d{1,6})?$/),
+      })
+      .strict()
+      .optional(),
+  })
   .strict()
 const productionLine = quantitySnapshot
   .extend({
     sourceOrderLineId: z.string().optional(),
+    formulaSnapshot: formula.optional(),
     product: objectReference.optional(),
     lossRate: quantity,
     remark: z.string().max(1000).optional(),
@@ -268,6 +280,7 @@ const productionLine = quantitySnapshot
             actualEnteredQuantity: quantity,
             actualEnteredUnit: objectReference,
             actualBaseQuantity: quantity,
+            suggestedBaseQuantity: quantity.optional(),
             adjustmentReason: z.string().max(1000).optional(),
           })
           .strict(),
@@ -549,11 +562,13 @@ export const vouPayloadSchemaByEntity = {
     returnLines: z.array(returnLine).min(1).max(200),
   }),
   'order-production': payload({
+    currency: z.literal(''),
     materialWarehouse: warehouseReference,
     finishedWarehouse: warehouseReference,
     productionLines: z.array(productionLine).min(1).max(200),
   }),
   'self-production': payload({
+    currency: z.literal(''),
     materialWarehouse: warehouseReference,
     finishedWarehouse: warehouseReference,
     productionLines: z.array(productionLine).min(1).max(200),
@@ -1047,6 +1062,58 @@ export const vouRouteSet = {
       },
     },
   }),
+  'book-balance': createRoute({
+    method: 'post',
+    path: '/vou/inventory-count/book-balance',
+    request: {
+      body: {
+        content: {
+          'application/json': {
+            schema: z
+              .object({
+                warehouseId: z.string().length(26),
+                businessDate: z.string().date(),
+                page: z.number().int().positive().default(1),
+                pageSize: z.literal(20).default(20),
+              })
+              .strict(),
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: 'Nonzero control-book inventory preview',
+        content: {
+          'application/json': {
+            schema: envelope(
+              z
+                .object({
+                  items: z.array(
+                    z
+                      .object({
+                        product: z
+                          .object({
+                            objectId: z.string(),
+                            code: z.string(),
+                            name: z.string(),
+                          })
+                          .strict(),
+                        bookQuantity: z.string(),
+                      })
+                      .strict(),
+                  ),
+                  total: z.number().int().nonnegative(),
+                  page: z.number().int().positive(),
+                  pageSize: z.literal(20),
+                })
+                .strict(),
+            ),
+          },
+        },
+      },
+    },
+  }),
   'source-line': createRoute({
     method: 'post',
     path: '/vou/source-line/query',
@@ -1102,9 +1169,11 @@ export const vouRouteMetadata = [
     path:
       action === 'reference'
         ? '/vou/reference/query'
-        : action === 'source-line'
-          ? '/vou/source-line/query'
-          : `/vou/{entity}/${action}`,
+        : action === 'book-balance'
+          ? '/vou/inventory-count/book-balance'
+          : action === 'source-line'
+            ? '/vou/source-line/query'
+            : `/vou/{entity}/${action}`,
     title: `VOU ${action}`,
   })),
   {
@@ -1128,6 +1197,10 @@ const publicActions = [
   'attachment-cleanup',
 ] as const
 export const vouCapabilityPermissionMetadata = [
+  {
+    permission: '/vou/inventory-count/book-balance',
+    title: '库存盘点账面预览',
+  },
   { permission: '/vou/reference/query', title: 'VOU reference query' },
   { permission: '/vou/source-line/query', title: 'VOU source-line query' },
   {
@@ -1172,7 +1245,11 @@ export function registerVouRoutes<
     vouRouteSet['source-line'],
     (c) => handler('source-line', c) as never,
   )
-  const query = sourceLine.openapi(
+  const bookBalance = sourceLine.openapi(
+    vouRouteSet['book-balance'],
+    (c) => handler('book-balance', c) as never,
+  )
+  const query = bookBalance.openapi(
     vouRouteSet.query,
     (c) => handler('query', c) as never,
   )

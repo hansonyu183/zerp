@@ -3368,6 +3368,14 @@
     "title": "inventory-count audit-history"
   },
   {
+    "id": "01JE9AA86DA3D044E839AADA96",
+    "path": "/vou/inventory-count/book-balance",
+    "domain": "vou",
+    "entity": "inventory-count",
+    "action": "book-balance",
+    "title": "库存盘点账面预览"
+  },
+  {
     "id": "01J6B3E80A9F0C2BBA6D501D2F",
     "path": "/vou/inventory-count/delete",
     "domain": "vou",

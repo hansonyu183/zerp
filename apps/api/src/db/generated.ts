@@ -1238,8 +1238,11 @@ export interface VouInventoryCountDetails {
 }
 
 export interface VouInventoryCountLineSnapshots {
+  actual_quantity_micros: Int8 | null
   approval_entry_id: string
   base_quantity_micros: Int8
+  book_quantity_micros: Int8 | null
+  difference_quantity_micros: Int8 | null
   entered_quantity_micros: Int8
   entered_unit_id: string
   line_no: number
@@ -1308,6 +1311,7 @@ export interface VouProductionLineSnapshots {
   base_quantity_micros: Int8
   entered_quantity_micros: Int8
   entered_unit_id: string
+  formula_snapshot: Json
   line_no: number
   loss_rate_micros: Int8
   remark: string | null
@@ -1324,6 +1328,7 @@ export interface VouProductionMaterialSnapshots {
   line_no: number
   material_id: string
   material_no: number
+  suggested_base_quantity_micros: Int8
 }
 
 export interface VouProductLineSnapshots {

@@ -3096,6 +3096,22 @@ export async function submitTargetOrder<E extends TargetOrderEntity>(
     ).json(),
   )
 }
+export type TargetVoucherInput<E extends import('@zerp/model').VouEntity> =
+  Omit<TargetVoucherSubmitInput, 'payload'> & {
+    payload: import('@zerp/model').VouPayloadFor<E>
+  }
+export async function submitTargetVoucher<
+  E extends import('@zerp/model').VouEntity,
+>(csrfToken: string, entity: E, input: TargetVoucherInput<E>) {
+  return unwrapTarget(
+    await (
+      await client.vou[':entity']['submit-new'].$post(
+        { param: { entity }, json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
 export type TargetVouSourceLineQueryInput = PostJson<
   (typeof client.vou)['source-line']['query']['$post']
 >
@@ -3117,13 +3133,30 @@ export type TargetVoucherAttachmentStageInput = PostJson<
 >
 export async function stageTargetVoucherAttachment(
   csrfToken: string,
-  entity: TargetOrderEntity,
+  entity: import('@zerp/model').VouEntity,
   input: TargetVoucherAttachmentStageInput,
 ) {
   return unwrapTarget(
     await (
       await client.vou[':entity']['attachment-stage'].$post(
         { param: { entity }, json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export type TargetInventoryBookBalanceInput = PostJson<
+  (typeof client.vou)['inventory-count']['book-balance']['$post']
+>
+export async function queryTargetInventoryBookBalance(
+  csrfToken: string,
+  input: TargetInventoryBookBalanceInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou['inventory-count']['book-balance'].$post(
+        { json: input },
         csrfHeaders(csrfToken),
       )
     ).json(),

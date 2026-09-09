@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { mappingDimensions } from './vm.ts'
+import { mappingDimensions, mappingFieldOptions } from './vm.ts'
 function caption(value: string) {
   if (!(value in mappingDimensions)) throw new Error('未知辅助核算维度')
   return mappingDimensions[value as keyof typeof mappingDimensions]
@@ -26,7 +26,7 @@ function update(key: string, value: string | null) {
     v-for="dimension in visibleDimensions"
     :key="dimension"
     :label="`${caption(dimension)}字段${dimensions.includes(dimension) ? '' : '（当前科目不需要，请清除）'}`"
-    :items="fields"
+    :items="mappingFieldOptions(fields)"
     :model-value="model[dimension] ?? null"
     :disabled="disabled"
     clearable

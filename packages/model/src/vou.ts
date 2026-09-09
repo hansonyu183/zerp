@@ -275,11 +275,18 @@ export interface VouExpenseLineInput {
 }
 
 export interface VouInventoryCountLineInput extends VouQuantitySnapshotInput {
+  countResult?: {
+    bookQuantity: string
+    actualQuantity: string
+    differenceQuantity: string
+  }
   product: VouObjectReferenceInput
   remark?: string
 }
 
 export interface VouProductionOutputInput extends VouQuantitySnapshotInput {
+  /** Recomputed by the service on submission; immutable after adoption. */
+  formulaSnapshot?: VouFormulaInput
   sourceOrderLineId?: string
   product?: VouObjectReferenceInput
   lossRate: string
@@ -290,6 +297,7 @@ export interface VouProductionOutputInput extends VouQuantitySnapshotInput {
     actualEnteredQuantity: string
     actualEnteredUnit: VouObjectReferenceInput
     actualBaseQuantity: string
+    suggestedBaseQuantity?: string
     adjustmentReason?: string
   }[]
 }
@@ -1065,7 +1073,9 @@ function canonicalPayload<Entity extends VouEntity>(
 ): Readonly<VouPayloadShapes[Entity]> | undefined {
   if (
     !/^\d{4}-\d{2}-\d{2}$/.test(value.businessDate) ||
-    !/^[A-Z]{3}$/.test(value.currency) ||
+    (entity === 'order-production' || entity === 'self-production'
+      ? value.currency !== ''
+      : !/^[A-Z]{3}$/.test(value.currency)) ||
     !Array.isArray(value.attachments)
   )
     return undefined
@@ -2650,4 +2660,29 @@ export function prepareVouApproval(
           : [],
     },
   }
+}
+
+/** Suggested base material quantity, rounded half up to six decimal places. */
+export function productionSuggestedQuantity(
+  materialQuantity: string,
+  formulaOutput: string,
+  outputQuantity: string,
+  lossRate: string,
+): string {
+  const micros = (value: string) => {
+    if (!/^\d+(?:\.\d{1,6})?$/.test(value))
+      throw new RangeError('invalid production quantity')
+    const [whole, fraction = ''] = value.split('.')
+    return BigInt(whole!) * 1000000n + BigInt(fraction.padEnd(6, '0'))
+  }
+  const material = micros(materialQuantity),
+    output = micros(formulaOutput),
+    quantity = micros(outputQuantity),
+    loss = micros(lossRate)
+  if (output <= 0n || quantity <= 0n || loss > 100000000n)
+    throw new RangeError('invalid production quantity')
+  const denominator = output * 100000000n
+  const result =
+    (material * quantity * (100000000n + loss) + denominator / 2n) / denominator
+  return `${result / 1000000n}.${String(result % 1000000n).padStart(6, '0')}`
 }

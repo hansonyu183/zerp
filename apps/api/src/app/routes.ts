@@ -631,6 +631,13 @@ export function registerAppRoutes(
         )
         return context.json(response as never, 200)
       }
+      if (action === 'book-balance') {
+        const body = context.req.valid('json')
+        const response = await executeVou<unknown>(context, (actor) =>
+          vou!.queryInventoryBookBalance(body, actor),
+        )
+        return context.json(response as never, 200)
+      }
       if (action === 'source-line') {
         const body = context.req.valid('json')
         const response = await executeVou<unknown>(context, (actor) =>

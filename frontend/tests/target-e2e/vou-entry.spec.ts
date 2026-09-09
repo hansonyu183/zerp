@@ -1,0 +1,141 @@
+import { expect, test } from '@playwright/test'
+
+const facts = JSON.parse(process.env.TARGET_E2E_VOU_ENTRY_JSON ?? '{}') as {
+  warehouse: string
+  supplier: string
+  product: string
+  finished: string
+  sources: Record<string, string>
+}
+const entities = [
+  'sale-return',
+  'purchase-inbound',
+  'purchase-return',
+  'purchase-inquiry',
+  'order-production',
+  'self-production',
+  'inventory-count',
+] as const
+for (const width of [1280, 390])
+  for (const entity of entities) {
+    test(`${entity} menu candidates, input, persistence, readback and clone at ${width}px`, async ({
+      page,
+    }) => {
+      test.setTimeout(90000)
+      await page.setViewportSize({ width: 1280, height: 900 })
+      await page.goto('/signin')
+      await page
+        .getByLabel('用户编码', { exact: true })
+        .fill(process.env.TARGET_E2E_USERNAME!)
+      await page
+        .getByLabel('密码', { exact: true })
+        .fill(process.env.TARGET_E2E_PASSWORD!)
+      await page.getByRole('button', { name: '登录', exact: true }).click()
+      await expect(page.getByLabel('用户编码', { exact: true })).toHaveCount(0)
+      const drawer = page.locator('.v-navigation-drawer'),
+        group = drawer.locator('.v-list-group').filter({ hasText: '业务单据' })
+      if (!(await group.getAttribute('class'))?.includes('v-list-group--open'))
+        await group.locator('.v-list-group__header').click()
+      await drawer.locator(`a[href="/vou/${entity}"]`).click()
+      await expect(page.getByTestId('vou-list-page')).toBeVisible()
+      await page.getByRole('button', { name: '新建', exact: true }).click()
+      const editor = page.getByTestId('document-editor')
+      await expect(editor).toBeVisible()
+      const choose = async (label: string, code: string) => {
+        const field = editor.getByLabel(label, { exact: true })
+        await expect(field).toBeEnabled()
+        await field.fill(code)
+        await page.getByRole('option').filter({ hasText: code }).first().click()
+      }
+      await editor.getByLabel('业务日期', { exact: true }).fill('2026-09-09')
+      await editor
+        .getByLabel('备注', { exact: true })
+        .fill(`录入验证 ${entity} ${width}`)
+      if (entity === 'order-production' || entity === 'self-production') {
+        await choose('材料仓库', facts.warehouse)
+        await choose('成品仓库', facts.warehouse)
+        await editor
+          .getByRole('button', { name: '添加成品行', exact: true })
+          .click()
+        if (entity === 'order-production')
+          await choose('来源行', facts.sources[entity]!)
+        else await choose('成品', facts.finished)
+        await expect(
+          editor.getByLabel('实际基准领料量', { exact: true }),
+        ).toHaveValue('1.000000')
+      } else {
+        if (entity !== 'sale-return' && entity !== 'inventory-count')
+          await choose('供应商', facts.supplier)
+        if (entity !== 'purchase-inquiry') await choose('仓库', facts.warehouse)
+        if (entity === 'purchase-inquiry' || entity === 'inventory-count') {
+          await editor
+            .getByRole('button', { name: '添加商品行', exact: true })
+            .click()
+          await choose('产品', facts.product)
+          if (entity === 'purchase-inquiry')
+            await editor.getByLabel('单价', { exact: true }).fill('12.34')
+          else {
+            await editor.getByLabel('实盘数量', { exact: true }).fill('0')
+            await editor.getByLabel('基准数量', { exact: true }).fill('0')
+          }
+        } else {
+          await editor
+            .getByRole('button', { name: '添加来源行', exact: true })
+            .click()
+          await choose('来源行', facts.sources[entity]!)
+          await editor.getByLabel('基准数量', { exact: true }).fill('0.123456')
+          if (entity !== 'purchase-inbound')
+            await editor
+              .getByLabel('退货原因', { exact: true })
+              .fill('验收退货')
+        }
+      }
+      await page.setViewportSize({ width, height: 900 })
+      expect(
+        await editor.evaluate(
+          (element) => element.scrollWidth > element.clientWidth,
+        ),
+      ).toBe(false)
+      const submitted = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === `/vou/${entity}/submit-new`,
+      )
+      await editor.getByRole('button', { name: '提交', exact: true }).click()
+      const envelope = await (await submitted).json()
+      expect(envelope.code, JSON.stringify(envelope)).toBe(0)
+      await expect(editor).toHaveCount(0)
+      const id = envelope.data.documentId
+      const get = page.waitForResponse(
+        (response) => new URL(response.url()).pathname === `/vou/${entity}/get`,
+      )
+      await page
+        .getByTestId(`vou-row-${id}`)
+        .getByRole('button', { name: '打开', exact: true })
+        .click()
+      const persisted = await (await get).json()
+      expect(persisted.code, JSON.stringify(persisted)).toBe(0)
+      expect(persisted.data.payload).toEqual(envelope.data.payload)
+      const detail = page.getByTestId('vou-detail')
+      await expect(detail).toContainText(`录入验证 ${entity} ${width}`)
+      await detail
+        .getByRole('button', { name: '复制到临时表单', exact: true })
+        .click()
+      await expect(editor).toBeVisible()
+      await editor
+        .getByLabel('备注', { exact: true })
+        .fill(`复制验证 ${entity} ${width}`)
+      const cloned = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === `/vou/${entity}/submit-new`,
+      )
+      await expect(
+        editor.getByRole('button', { name: '提交', exact: true }),
+      ).toBeEnabled()
+      await editor.getByRole('button', { name: '提交', exact: true }).click()
+      const clone = await (await cloned).json()
+      expect(clone.code, JSON.stringify(clone)).toBe(0)
+      expect(clone.data.documentId).not.toBe(id)
+      expect(clone.data.submissionId).not.toBe(envelope.data.submissionId)
+      await expect(editor).toHaveCount(0)
+    })
+  }

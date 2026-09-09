@@ -12,11 +12,11 @@ import type { VouView } from '../../src/vou/service.ts'
 import { AuxService } from '../../src/aux/service.ts'
 import { BobArchiveService } from '../../src/bob/archives.ts'
 import { vouPayloadSchemaByEntity } from '../../src/vou/contract.ts'
-import { seedOrderListFixture } from './vou-orders.ts'
+import { seedProductionFixture } from './vou-production.ts'
 
 /** Existing public domain commands inside the caller's rollback transaction. */
 export async function seedVouCatalogFixture(db: Kysely<DB>) {
-  const fixture = await seedOrderListFixture(db, 1, vouEntities)
+  const fixture = await seedProductionFixture(db, 1, vouEntities)
   const { vou, references } = fixture
   const actor = {
     id: fixture.submitter.userId,
@@ -156,22 +156,46 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
       baseQuantity: '1.000000',
     },
   ]
-  const productionLines = [
+  const productionLines = fixture.productionPayload.productionLines
+  const productionOrderId = ulid(),
+    productionEntryId = ulid(),
+    productionSourceLineId = ulid()
+  const productionOrder = await vou.submit(
+    'sale-order',
+    'submit-new',
     {
-      ...quantity,
-      product: { objectId: product.objectId },
-      lossRate: '0.000000',
-      materials: [
-        {
-          formulaLineNo: 1,
-          actualMaterial: { objectId: product.objectId },
-          actualEnteredQuantity: '1.000000',
-          actualEnteredUnit: quantity.enteredUnit,
-          actualBaseQuantity: '1.000000',
-        },
-      ],
+      documentId: productionOrderId,
+      submissionId: productionEntryId,
+      idempotencyKey: productionEntryId,
+      expectedRevision: null,
+      payload: {
+        ...fixture.salePayload,
+        productLines: [
+          {
+            ...fixture.salePayload.productLines[0]!,
+            lineId: productionSourceLineId,
+            product: { objectId: fixture.productId },
+            enteredQuantity: '10',
+            baseQuantity: '10',
+            formula: fixture.formula,
+          },
+        ],
+      },
     },
-  ]
+    actor,
+    'catalog-production-source',
+  )
+  await vou.review(
+    'sale-order',
+    'approve',
+    {
+      documentId: productionOrderId,
+      submissionId: productionEntryId,
+      expectedRevision: productionOrder.revision,
+    },
+    reviewer,
+    'catalog-production-source',
+  )
   const bill = {
     positionType: 'ASSET',
     direction: 'IN',
@@ -238,12 +262,19 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
     },
     'order-production': {
       ...base,
+      currency: '',
+      parentEntity: 'sale-order',
+      parentDocumentId: productionOrderId,
       materialWarehouse: warehouse,
       finishedWarehouse: warehouse,
-      productionLines,
+      productionLines: productionLines.map((line) => ({
+        ...line,
+        sourceOrderLineId: productionSourceLineId,
+      })),
     },
     'self-production': {
       ...base,
+      currency: '',
       materialWarehouse: warehouse,
       finishedWarehouse: warehouse,
       productionLines,
@@ -475,6 +506,7 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
   return {
     ...fixture,
     documents: documents as Record<VouEntity, VouView>,
+    productionOrder,
     actor,
     reviewerActor: reviewer,
     aux,

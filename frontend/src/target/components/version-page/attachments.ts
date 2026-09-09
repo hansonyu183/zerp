@@ -1,9 +1,9 @@
+import type { VouEntity } from '@zerp/model'
 import { shallowRef, type InjectionKey } from 'vue'
 import { ulid } from 'ulid'
 import {
   stageTargetCustomerAttachment,
   stageTargetVoucherAttachment,
-  type TargetOrderEntity,
   type TargetCustomerAttachmentStageInput,
 } from '../../api.ts'
 import type { CustomerSnapshot } from './customer-data.ts'
@@ -16,7 +16,7 @@ type LocalFile = {
   staged: boolean
 }
 export type AttachmentScope = {
-  resource: 'bob/customer' | `vou/${TargetOrderEntity}`
+  resource: 'bob/customer' | `vou/${VouEntity}`
   add: (file: File) => Promise<Attachment>
   status: (id: string) => string
 }
@@ -24,7 +24,7 @@ export const attachmentScope: InjectionKey<AttachmentScope> = Symbol(
   'customer-attachments',
 )
 export function createAttachments(
-  resource: 'bob/customer' | `vou/${TargetOrderEntity}`,
+  resource: 'bob/customer' | `vou/${VouEntity}`,
   token: () => string,
   owns: () => boolean,
 ) {
@@ -95,7 +95,7 @@ export function createAttachments(
           else
             await stageTargetVoucherAttachment(
               token(),
-              resource === 'vou/sale-order' ? 'sale-order' : 'purchase-order',
+              resource.slice(4) as VouEntity,
               input,
             )
           if (!owns() || version !== generation)

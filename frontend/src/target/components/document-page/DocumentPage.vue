@@ -45,34 +45,99 @@ import {
 } from './order-data.ts'
 import OrderSnapshot from './OrderSnapshot.vue'
 import SnapshotValue from './SnapshotValue.vue'
+import ProductionBlock from './ProductionBlock.vue'
+import {
+  cloneProduction,
+  emptyProduction,
+  productionPayload,
+  type ProductionDraft,
+  type ProductionEntity,
+} from './production-data.ts'
+import ProductFactsBlock from './ProductFactsBlock.vue'
+import {
+  cloneProductFacts,
+  emptyProductFacts,
+  productFactsPayload,
+  type ProductFactsDraft,
+  type ProductFactsEntity,
+} from './product-facts-data.ts'
+import FulfillmentBlock from './FulfillmentBlock.vue'
+import {
+  cloneFulfillment,
+  emptyFulfillment,
+  fulfillmentPayload,
+  type FulfillmentDraft,
+  type FulfillmentEntity,
+} from './fulfillment-data.ts'
 const props = defineProps<{ definition: DocumentDefinition }>()
 const definition =
   props.definition.vouType === 'opening'
     ? openingPage
     : vouPages[props.definition.vouType]
-const editorAvailable = ['sale-order', 'purchase-order', 'opening'].includes(
-  definition.vouType,
-)
+const productionEntities = ['order-production', 'self-production']
+const productFactsEntities = ['purchase-inquiry', 'inventory-count']
+const fulfillmentEntities = [
+  'purchase-inbound',
+  'sale-return',
+  'purchase-return',
+]
+const editorAvailable = [
+  'sale-order',
+  'purchase-order',
+  'opening',
+  ...fulfillmentEntities,
+  ...productFactsEntities,
+  ...productionEntities,
+].includes(definition.vouType)
 const session = useTargetSession(),
   generation = session.generation
 let active = true
 const attachments = createAttachments(
-  definition.vouType === 'sale-order' ? 'vou/sale-order' : 'vou/purchase-order',
+  definition.vouType === 'opening'
+    ? 'vou/purchase-order'
+    : `vou/${definition.vouType}`,
   () => {
     if (!vm.can('attachment-stage') || !session.csrfToken)
       throw new Error('没有附件上传权限。')
     return session.csrfToken
   },
-  () => active && session.generation === generation && Boolean(draft.value),
+  () =>
+    active &&
+    session.generation === generation &&
+    Boolean(attachmentDraft.value),
 )
 provide(attachmentScope, attachments.scope)
 const attachmentPending = ref(false)
-const draft = ref<OrderDraft | null>(null),
-  saving = ref(false),
+const saving = ref(false),
   uncertain = ref(false),
   editError = ref(''),
   blockPending = ref(false)
-const openingDraft = ref<OpeningDraft | null>(null)
+type EditorDraft =
+  | { kind: 'order'; value: OrderDraft }
+  | { kind: 'fulfillment'; value: FulfillmentDraft }
+  | { kind: 'product-facts'; value: ProductFactsDraft }
+  | { kind: 'production'; value: ProductionDraft }
+  | { kind: 'opening'; value: OpeningDraft }
+const editor = ref<EditorDraft | null>(null)
+function editorModel<K extends EditorDraft['kind']>(kind: K) {
+  type Value = Extract<EditorDraft, { kind: K }>['value']
+  return computed<Value | null>({
+    get: () =>
+      editor.value?.kind === kind ? (editor.value.value as Value) : null,
+    set: (value) => {
+      if (value) editor.value = { kind, value } as EditorDraft
+      else if (editor.value?.kind === kind) editor.value = null
+    },
+  })
+}
+const draft = editorModel('order')
+const fulfillmentDraft = editorModel('fulfillment')
+const productFactsDraft = editorModel('product-facts')
+const productionDraft = editorModel('production')
+const openingDraft = editorModel('opening')
+const attachmentDraft = computed(() =>
+  editor.value?.kind !== 'opening' ? editor.value?.value : null,
+)
 const openingSource = ref<Awaited<
   ReturnType<typeof api.getTargetOpening>
 > | null>(null)
@@ -83,7 +148,7 @@ const pendingOpeningDelete = ref<Awaited<
 const canVerifySubmission = computed(() =>
   pendingOpeningDelete.value ? vm.can('audit-history') : vm.can('get'),
 )
-const editorOpen = computed(() => Boolean(draft.value || openingDraft.value))
+const editorOpen = computed(() => editor.value !== null)
 const zeroOpening = computed(
   () =>
     openingDraft.value &&
@@ -110,12 +175,23 @@ function create() {
   attachments.reset()
   openingSource.value = null
   if (definition.vouType === 'opening') openingDraft.value = emptyOpening()
+  else if (productionEntities.includes(definition.vouType))
+    productionDraft.value = emptyProduction(
+      definition.vouType as ProductionEntity,
+    )
+  else if (productFactsEntities.includes(definition.vouType))
+    productFactsDraft.value = emptyProductFacts(
+      definition.vouType as ProductFactsEntity,
+    )
+  else if (fulfillmentEntities.includes(definition.vouType))
+    fulfillmentDraft.value = emptyFulfillment(
+      definition.vouType as FulfillmentEntity,
+    )
   else draft.value = emptyOrder(definition.vouType as api.TargetOrderEntity)
 }
 function closeDraft() {
   if (!saving.value) {
-    draft.value = null
-    openingDraft.value = null
+    editor.value = null
     openingSource.value = null
     attachments.reset()
   }
@@ -129,6 +205,56 @@ function cloneSelected() {
       JSON.stringify(original.payload),
     ) as OpeningDraft
     openingSource.value = original
+  } else if (
+    (original.entity === 'order-production' ||
+      original.entity === 'self-production') &&
+    'productionLines' in original.payload
+  ) {
+    productionDraft.value = cloneProduction(
+      original.entity,
+      original.payload,
+      original.payload.productionLines.map(() => ulid()),
+    )
+    editError.value = original.payload.attachments.length
+      ? '附件不随复制继承，请重新上传需要的文件。'
+      : ''
+  } else if (
+    (original.entity === 'purchase-inquiry' ||
+      original.entity === 'inventory-count') &&
+    ('priceLines' in original.payload ||
+      'inventoryCountLines' in original.payload)
+  ) {
+    const payload =
+      original.payload as import('@zerp/model').VouPayloadFor<ProductFactsEntity>
+    const lines =
+      'priceLines' in payload ? payload.priceLines : payload.inventoryCountLines
+    productFactsDraft.value = cloneProductFacts(
+      original.entity,
+      payload,
+      lines.map(() => ulid()),
+    )
+    editError.value = original.payload.attachments.length
+      ? '附件不随复制继承，请重新上传需要的文件。'
+      : ''
+  } else if (
+    (original.entity === 'purchase-inbound' ||
+      original.entity === 'sale-return' ||
+      original.entity === 'purchase-return') &&
+    'warehouse' in original.payload &&
+    ('sourceLines' in original.payload || 'returnLines' in original.payload)
+  ) {
+    const lines =
+      'sourceLines' in original.payload
+        ? original.payload.sourceLines
+        : original.payload.returnLines
+    fulfillmentDraft.value = cloneFulfillment(
+      original.entity,
+      original.payload,
+      lines.map(() => ulid()),
+    )
+    editError.value = original.payload.attachments.length
+      ? '附件不随复制继承，请重新上传需要的文件。'
+      : ''
   } else if (
     (original.entity === 'sale-order' ||
       original.entity === 'purchase-order') &&
@@ -166,6 +292,21 @@ async function submit() {
         input: api.TargetOrderInput<api.TargetOrderEntity>
       }
     | { kind: 'opening'; input: api.TargetOpeningInput }
+    | {
+        kind: 'production'
+        entity: ProductionEntity
+        input: api.TargetVoucherInput<ProductionEntity>
+      }
+    | {
+        kind: 'product-facts'
+        entity: ProductFactsEntity
+        input: api.TargetVoucherInput<ProductFactsEntity>
+      }
+    | {
+        kind: 'fulfillment'
+        entity: FulfillmentEntity
+        input: api.TargetVoucherInput<FulfillmentEntity>
+      }
   try {
     if (openingDraft.value) {
       if (!openingDraft.value.bookId) throw new Error('请选择账簿。')
@@ -178,7 +319,41 @@ async function submit() {
           idempotencyKey: identity.idempotencyKey,
         },
       }
-    } else if (draft.value)
+    } else if (productionDraft.value)
+      command = {
+        kind: 'production',
+        entity: productionDraft.value.entity,
+        input: {
+          ...identity,
+          expectedRevision: null,
+          payload: productionPayload(productionDraft.value),
+        },
+      }
+    else if (productFactsDraft.value)
+      command = {
+        kind: 'product-facts',
+        entity: productFactsDraft.value.entity,
+        input: {
+          ...identity,
+          expectedRevision: null,
+          payload: productFactsPayload(productFactsDraft.value),
+        },
+      }
+    else if (fulfillmentDraft.value)
+      command = {
+        kind: 'fulfillment',
+        entity: fulfillmentDraft.value.entity,
+        input: {
+          ...identity,
+          expectedRevision: null,
+          payload: fulfillmentPayload(
+            JSON.parse(
+              JSON.stringify(fulfillmentDraft.value),
+            ) as FulfillmentDraft,
+          ),
+        },
+      }
+    else if (draft.value)
       command = {
         kind: 'order',
         entity: draft.value.entity,
@@ -196,7 +371,7 @@ async function submit() {
     return
   }
   saving.value = true
-  if (command.kind === 'order') {
+  if (command.kind !== 'opening') {
     try {
       await attachments.prepare(command.input.payload.attachments)
     } catch (cause) {
@@ -212,6 +387,16 @@ async function submit() {
   try {
     if (command.kind === 'opening')
       await api.submitTargetOpening(session.csrfToken, command.input)
+    else if (
+      command.kind === 'fulfillment' ||
+      command.kind === 'product-facts' ||
+      command.kind === 'production'
+    )
+      await api.submitTargetVoucher(
+        session.csrfToken,
+        command.entity,
+        command.input,
+      )
     else
       await api.submitTargetOrder(
         session.csrfToken,
@@ -219,8 +404,7 @@ async function submit() {
         command.input,
       )
     if (!active || session.generation !== generation) return
-    draft.value = null
-    openingDraft.value = null
+    editor.value = null
     attachments.reset()
     const refreshed = await vm.refresh()
     if (active && session.generation === generation)
@@ -290,8 +474,7 @@ async function verifySubmission() {
       return
     }
     uncertain.value = false
-    draft.value = null
-    openingDraft.value = null
+    editor.value = null
     attachments.reset()
     const refreshed = await vm.refresh()
     if (active && session.generation === generation) {
@@ -666,6 +849,23 @@ onBeforeUnmount(() => {
           v-model="openingDraft"
           :disabled="saving || uncertain || Boolean(openingSource)"
         />
+        <ProductionBlock
+          v-if="productionDraft"
+          v-model="productionDraft"
+          :disabled="saving || uncertain"
+          @pending="blockPending = $event"
+        />
+        <ProductFactsBlock
+          v-if="productFactsDraft"
+          v-model="productFactsDraft"
+          :disabled="saving || uncertain"
+          @pending="blockPending = $event"
+        />
+        <FulfillmentBlock
+          v-if="fulfillmentDraft"
+          v-model="fulfillmentDraft"
+          :disabled="saving || uncertain"
+        />
         <OrderBlock
           v-if="draft"
           v-model="draft"
@@ -673,14 +873,14 @@ onBeforeUnmount(() => {
           @pending="blockPending = $event"
         />
         <AttachmentBlock
-          v-if="draft"
+          v-if="attachmentDraft"
           caption="附件"
-          :model-value="draft.attachments"
+          :model-value="attachmentDraft.attachments"
           mode="edit"
           :disabled="saving || uncertain"
           @pending="attachmentPending = $event"
           @update:model-value="
-            draft.attachments = $event as OrderDraft['attachments']
+            attachmentDraft.attachments = $event as OrderDraft['attachments']
           "
         /> </v-card-text
       ><v-card-actions

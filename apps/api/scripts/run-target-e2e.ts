@@ -110,6 +110,11 @@ function vouPostingSource(entity: VouEntity): {
   amountField: string
   fieldCatalog: { headerFields: string[]; lineFields: string[] }
 } | null {
+  // This fixture has monetary subjects only; stock effects have their own real-book suite.
+  if (
+    ['order-production', 'self-production', 'inventory-count'].includes(entity)
+  )
+    return null
   const fields = vouEntityInputDescriptors[entity]
   const headerAmount = fields.find(
     (field) =>

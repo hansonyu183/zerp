@@ -1416,3 +1416,195 @@ it.each(['supplier', 'employee', 'other-unit', 'sales-partner'] as const)(
     wrapper.unmount()
   },
 )
+
+it.each(['asset-acquisition', 'asset-sale', 'asset-liquidation'] as const)(
+  'submits %s from asset and category candidates',
+  async (entity) => {
+    useTargetSession().apiPaths = [
+      `/vou/${entity}/submit-new`,
+      '/vou/reference/query',
+    ]
+    vi.mocked(api.queryTargetVouReferences).mockImplementation(
+      async (_token, input) =>
+        ({
+          items: [
+            {
+              entity: input.entity,
+              objectId: referenceId,
+              approvalEntryId: entryId,
+              code: '01',
+              name: '资产资料',
+              defaultUsefulLifeMonths: 24,
+              defaultResidualRate: '5.00',
+            },
+          ],
+        }) as Awaited<ReturnType<typeof api.queryTargetVouReferences>>,
+    )
+    vi.mocked(api.submitTargetVoucher).mockResolvedValue({
+      documentId: productId,
+    } as Awaited<ReturnType<typeof api.submitTargetVoucher>>)
+    const wrapper = mount(ResourceHost, {
+      props: { domain: 'vou', entity },
+      global: { stubs },
+    })
+    await flushPromises()
+    await click(wrapper, '新建')
+    const choose = async (caption: string) => {
+      await wrapper.get(`[aria-label="${caption}"]`).setValue(referenceId)
+      await flushPromises()
+    }
+    if (entity === 'asset-acquisition') await choose('供应商')
+    if (entity === 'asset-sale') await choose('相对方')
+    await click(wrapper, '添加资产行')
+    if (entity === 'asset-acquisition') {
+      await wrapper.get('[aria-label="资产名称"]').setValue('打印设备')
+      await choose('资产类别')
+      await choose('使用部门')
+      expect(wrapper.get('[aria-label="使用月数"]').element).toHaveProperty(
+        'value',
+        '24',
+      )
+      expect(wrapper.get('[aria-label="残值率"]').element).toHaveProperty(
+        'value',
+        '5.00',
+      )
+      await wrapper.get('[aria-label="原值"]').setValue('10000.01')
+      await wrapper.get('[aria-label="使用月数"]').setValue('36')
+    } else {
+      await choose('在用资产')
+      if (entity === 'asset-sale')
+        await wrapper.get('[aria-label="出让金额"]').setValue('10000.01')
+      else {
+        await wrapper.get('[aria-label="清理原因"]').setValue('使用寿命结束')
+        await wrapper.get('[aria-label="残值收入"]').setValue('100.01')
+        await wrapper.get('[aria-label="处置费用"]').setValue('0.01')
+      }
+    }
+    await click(wrapper, '提交')
+    expect(api.submitTargetVoucher, wrapper.text()).toHaveBeenCalledTimes(1)
+    const payload = vi.mocked(api.submitTargetVoucher).mock.calls[0]![2].payload
+    expect(payload).toMatchObject(
+      entity === 'asset-acquisition'
+        ? {
+            assetAcquisitionLines: [
+              {
+                assetName: '打印设备',
+                originalValue: '10000.01',
+                usefulLifeMonths: 36,
+                residualRate: '5.00',
+                category: {
+                  objectId: referenceId,
+                  defaultUsefulLifeMonths: 24,
+                  defaultResidualRate: '5.00',
+                },
+              },
+            ],
+          }
+        : entity === 'asset-sale'
+          ? {
+              assetSaleLines: [
+                { assetId: referenceId, saleAmount: '10000.01' },
+              ],
+            }
+          : {
+              assetLiquidationLines: [
+                {
+                  assetId: referenceId,
+                  reason: '使用寿命结束',
+                  salvageIncome: '100.01',
+                  disposalExpense: '0.01',
+                },
+              ],
+            },
+    )
+    wrapper.unmount()
+  },
+)
+
+it.each([
+  'bill-receipt',
+  'bill-payment',
+  'bill-issue',
+  'bill-discount',
+  'bill-maturity',
+] as const)(
+  'submits %s through finite bill and cash fields',
+  async (entity) => {
+    useTargetSession().apiPaths = [
+      `/vou/${entity}/submit-new`,
+      '/vou/reference/query',
+    ]
+    vi.mocked(api.queryTargetVouReferences).mockImplementation(
+      async (_token, input) =>
+        ({
+          items: [
+            {
+              entity: input.entity,
+              objectId: referenceId,
+              approvalEntryId: entryId,
+              code: '01',
+              name: '票据候选',
+            },
+          ],
+        }) as Awaited<ReturnType<typeof api.queryTargetVouReferences>>,
+    )
+    vi.mocked(api.submitTargetVoucher).mockResolvedValue({
+      documentId: productId,
+    } as Awaited<ReturnType<typeof api.submitTargetVoucher>>)
+    const wrapper = mount(ResourceHost, {
+      props: { domain: 'vou', entity },
+      global: { stubs },
+    })
+    await flushPromises()
+    await click(wrapper, '新建')
+    const choose = async (caption: string) => {
+      await wrapper.get(`[aria-label="${caption}"]`).setValue(referenceId)
+      await flushPromises()
+    }
+    if (entity === 'bill-receipt') {
+      await choose('客户子单位')
+      await choose('经办人')
+    }
+    if (entity === 'bill-payment') {
+      await choose('供应商')
+      await choose('经办人')
+    }
+    if (entity === 'bill-issue') await choose('供应商')
+    if (entity === 'bill-discount') await choose('贴现相对方')
+    await click(wrapper, '添加票据行')
+    if (entity === 'bill-receipt' || entity === 'bill-issue') {
+      await wrapper.get('[aria-label="票据号码"]').setValue('TEST-00001')
+      await wrapper.get('[aria-label="票面金额"]').setValue('10000.01')
+      await wrapper.get('[aria-label="出票日期"]').setValue('2026-09-01')
+      await wrapper.get('[aria-label="到期日期"]').setValue('2027-03-01')
+      for (const label of ['出票人', '承兑人', '收款人'])
+        await wrapper.get(`[aria-label="${label}"]`).setValue('测试单位')
+    } else await choose('可用票据')
+    await click(wrapper, '添加现金行')
+    await choose('现金资金账户')
+    await wrapper.get('[aria-label="现金金额"]').setValue('9999.99')
+    await click(wrapper, '提交')
+    expect(api.submitTargetVoucher, wrapper.text()).toHaveBeenCalledTimes(1)
+    const payload = vi.mocked(api.submitTargetVoucher).mock.calls[0]![2].payload
+    if (entity === 'bill-receipt') {
+      expect(payload).toHaveProperty('customerSubunit.objectId', referenceId)
+      expect(payload).not.toHaveProperty('customer')
+    }
+    expect(payload).toMatchObject({
+      billLines: [
+        entity === 'bill-receipt' || entity === 'bill-issue'
+          ? {
+              billNo: 'TEST-00001',
+              faceAmount: '10000.01',
+              positionType: entity === 'bill-receipt' ? 'ASSET' : 'LIABILITY',
+              purpose: 'PRIMARY',
+            }
+          : { billId: referenceId, purpose: 'PRIMARY' },
+      ],
+      billCashLines: [
+        { fundAccount: { objectId: referenceId }, amount: '9999.99' },
+      ],
+    })
+    wrapper.unmount()
+  },
+)

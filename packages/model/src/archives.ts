@@ -1326,6 +1326,7 @@ export interface MappingRule {
   templateId: string | null
 }
 export interface MappingVoucherTemplateLine {
+  collection?: string | null
   subjectSource: 'FIXED' | 'FIELD'
   subjectValue: string
   direction: MappingDirection
@@ -1511,6 +1512,12 @@ function normalizeVoucherTemplate(
     return undefined
   const lines: MappingVoucherTemplateLine[] = []
   for (const line of template.lines) {
+    if (
+      line.collection !== undefined &&
+      line.collection !== null &&
+      !facts.fieldCatalog.collections.includes(trim(line.collection))
+    )
+      return undefined
     const subjectValue = trim(line.subjectValue)
     const amountField = trim(line.amountField)
     const currencyField = trim(line.currencyField)
@@ -1552,6 +1559,11 @@ function normalizeVoucherTemplate(
     )
       return undefined
     lines.push({
+      ...(line.collection === undefined
+        ? {}
+        : {
+            collection: line.collection === null ? null : trim(line.collection),
+          }),
       subjectSource: line.subjectSource,
       subjectValue,
       direction: line.direction,

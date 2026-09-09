@@ -11,6 +11,7 @@ import { createTargetApiClient } from '../../../../packages/api-client/src/index
 import { sql } from 'kysely'
 import { ulid } from 'ulid'
 
+import { AccService } from '../../src/acc/service.ts'
 import { createApp } from '../../src/app.ts'
 import { hashPassword, SessionService } from '../../src/app/session.ts'
 import { AuxApplicationError, AuxService } from '../../src/aux/service.ts'
@@ -776,7 +777,25 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     .toString()
     .padStart(4, '0')}`
 
+  const accountingVou = new VouService(db, {
+    acc: new AccService(db),
+    wfl: { async apply() {} },
+  })
+  let registeredAsset: Awaited<ReturnType<VouService['review']>> | undefined
   context.after(async () => {
+    if (registeredAsset)
+      await accountingVou.review(
+        'asset-acquisition',
+        'unapprove',
+        {
+          documentId: registeredAsset.documentId,
+          submissionId: registeredAsset.submissionId,
+          expectedRevision: registeredAsset.revision,
+          reason: '测试清理',
+        },
+        reviewer,
+        'asset-cleanup',
+      )
     await sql`DELETE FROM approval_events WHERE entry_id = ${submissionId} OR actor_id IN (${actorId}, ${reviewerId})`.execute(
       db,
     )
@@ -1243,7 +1262,9 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     })
     .execute()
   const assetSubmissionId = ulid()
-  const assetDepartmentId = ulid()
+  const assetDepartmentId = (
+    await aux.create('department', { name: '资产部门' }, auxActor)
+  ).id
   const asset = await service.submit(
     'asset-acquisition',
     'submit-new',
@@ -1360,11 +1381,11 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
         businessDate: '2026-09-04',
         currency: 'CNY',
         attachments: [],
-        supplier: { objectId: ulid() },
+        supplier: { objectId: supplierId },
         interestMode: 'BANK_DEDUCTED',
         billLines: [
           {
-            positionType: 'ASSET',
+            positionType: 'LIABILITY',
             direction: 'IN',
             purpose: 'PRIMARY',
             billType: 'CHECK',
@@ -1771,6 +1792,24 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     false,
   )
 
+  registeredAsset = await accountingVou.review(
+    'asset-acquisition',
+    'approve',
+    {
+      documentId: asset.documentId,
+      submissionId: asset.submissionId,
+      expectedRevision: asset.revision,
+    },
+    reviewer,
+    'asset-register',
+  )
+  const registeredAssetId = (
+    await db
+      .selectFrom('acc_asset_registers')
+      .select('id')
+      .where('acquisition_vou_approval_entry_id', '=', asset.submissionId)
+      .executeTakeFirstOrThrow()
+  ).id
   const assetDocuments = await Promise.all(
     Array.from({ length: 21 }, async (_, index) => {
       const assetDocumentId = ulid()
@@ -1785,7 +1824,9 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
           selectionOrigin: 'CURRENT' as const,
         },
         counterpartyType: 'customer-subunit' as const,
-        assetSaleLines: [{ assetId: ulid(), saleAmount: `${index + 1}.00` }],
+        assetSaleLines: [
+          { assetId: registeredAssetId, saleAmount: `${index + 1}.00` },
+        ],
       }
       const pending = await service.submit(
         'asset-sale',

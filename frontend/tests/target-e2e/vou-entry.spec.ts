@@ -1,6 +1,12 @@
 import { expect, test } from '@playwright/test'
 
 const facts = JSON.parse(process.env.TARGET_E2E_VOU_ENTRY_JSON ?? '{}') as {
+  asset: string
+  category: string
+  department: string
+  otherUnit: string
+  bill: string
+  maturedBill: string
   customer: string
   operatingEntity: string
   fundAccount: string
@@ -31,6 +37,14 @@ const entities = [
   'employee-loan-writeoff',
   'expense-reimbursement',
   'other-income',
+  'asset-acquisition',
+  'asset-sale',
+  'asset-liquidation',
+  'bill-receipt',
+  'bill-payment',
+  'bill-issue',
+  'bill-discount',
+  'bill-maturity',
 ] as const
 for (const width of [1280, 390])
   for (const entity of entities) {
@@ -68,6 +82,65 @@ for (const width of [1280, 390])
         .getByLabel('备注', { exact: true })
         .fill(`录入验证 ${entity} ${width}`)
       if (
+        entity === 'asset-acquisition' ||
+        entity === 'asset-sale' ||
+        entity === 'asset-liquidation'
+      ) {
+        if (entity === 'asset-acquisition')
+          await choose('供应商', facts.supplier)
+        if (entity === 'asset-sale') await choose('相对方', facts.subunit)
+        await editor
+          .getByRole('button', { name: '添加资产行', exact: true })
+          .click()
+        if (entity === 'asset-acquisition') {
+          await editor.getByLabel('资产名称', { exact: true }).fill('录入设备')
+          await choose('资产类别', facts.category)
+          await choose('使用部门', facts.department)
+          await editor.getByLabel('原值', { exact: true }).fill('12345.67')
+        } else {
+          await choose('在用资产', facts.asset)
+          if (entity === 'asset-sale')
+            await editor.getByLabel('出让金额', { exact: true }).fill('12.34')
+          else
+            await editor
+              .getByLabel('清理原因', { exact: true })
+              .fill('设备报废')
+        }
+      } else if (entity.startsWith('bill-')) {
+        if (entity === 'bill-receipt') await choose('客户子单位', facts.subunit)
+        if (entity === 'bill-issue' || entity === 'bill-payment')
+          await choose('供应商', facts.supplier)
+        if (entity === 'bill-receipt' || entity === 'bill-payment')
+          await choose('经办人', facts.employee)
+        if (entity === 'bill-discount')
+          await choose('贴现相对方', facts.otherUnit)
+        await editor
+          .getByRole('button', { name: '添加票据行', exact: true })
+          .click()
+        if (entity === 'bill-receipt' || entity === 'bill-issue') {
+          await editor
+            .getByLabel('票据号码', { exact: true })
+            .fill(`BROWSER-${entity}-${width}-${Date.now()}`)
+          await editor.getByLabel('票面金额', { exact: true }).fill('10000.01')
+          await editor
+            .getByLabel('出票日期', { exact: true })
+            .fill('2026-09-01')
+          await editor
+            .getByLabel('到期日期', { exact: true })
+            .fill('2026-12-01')
+          for (const label of ['出票人', '承兑人', '收款人'])
+            await editor.getByLabel(label, { exact: true }).fill('录入测试单位')
+        } else
+          await choose(
+            '可用票据',
+            entity === 'bill-maturity' ? facts.maturedBill : facts.bill,
+          )
+        await editor
+          .getByRole('button', { name: '添加现金行', exact: true })
+          .click()
+        await choose('现金资金账户', facts.fundAccount)
+        await editor.getByLabel('现金金额', { exact: true }).fill('999.99')
+      } else if (
         [
           'sales-receipt',
           'purchase-refund',

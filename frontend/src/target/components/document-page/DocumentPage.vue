@@ -45,6 +45,24 @@ import {
 } from './order-data.ts'
 import OrderSnapshot from './OrderSnapshot.vue'
 import SnapshotValue from './SnapshotValue.vue'
+import AssetBlock from './AssetBlock.vue'
+import BillBlock from './BillBlock.vue'
+import {
+  billEntities,
+  emptyBill,
+  billPayload,
+  cloneBill,
+  type BillEntity,
+  type BillDraft,
+} from './bill-data.ts'
+import {
+  assetEntities,
+  emptyAsset,
+  assetPayload,
+  cloneAsset,
+  type AssetDraft,
+  type AssetEntity,
+} from './asset-data.ts'
 import FinancialBlock from './FinancialBlock.vue'
 import {
   financialEntities,
@@ -98,6 +116,8 @@ const editorAvailable = [
   ...productFactsEntities,
   ...productionEntities,
   ...financialEntities,
+  ...assetEntities,
+  ...billEntities,
 ].includes(definition.vouType)
 const session = useTargetSession(),
   generation = session.generation
@@ -123,6 +143,8 @@ const saving = ref(false),
   editError = ref(''),
   blockPending = ref(false)
 type EditorDraft =
+  | { kind: 'bill'; value: BillDraft }
+  | { kind: 'asset'; value: AssetDraft }
   | { kind: 'financial'; value: FinancialDraft }
   | { kind: 'order'; value: OrderDraft }
   | { kind: 'fulfillment'; value: FulfillmentDraft }
@@ -141,6 +163,8 @@ function editorModel<K extends EditorDraft['kind']>(kind: K) {
     },
   })
 }
+const billDraft = editorModel('bill')
+const assetDraft = editorModel('asset')
 const financialDraft = editorModel('financial')
 const draft = editorModel('order')
 const fulfillmentDraft = editorModel('fulfillment')
@@ -187,6 +211,10 @@ function create() {
   attachments.reset()
   openingSource.value = null
   if (definition.vouType === 'opening') openingDraft.value = emptyOpening()
+  else if ((billEntities as readonly string[]).includes(definition.vouType))
+    billDraft.value = emptyBill(definition.vouType as BillEntity)
+  else if ((assetEntities as readonly string[]).includes(definition.vouType))
+    assetDraft.value = emptyAsset(definition.vouType as AssetEntity)
   else if (
     (financialEntities as readonly string[]).includes(definition.vouType)
   )
@@ -221,6 +249,32 @@ function cloneSelected() {
       JSON.stringify(original.payload),
     ) as OpeningDraft
     openingSource.value = original
+  } else if ((billEntities as readonly string[]).includes(original.entity)) {
+    billDraft.value = cloneBill(
+      original.entity as BillEntity,
+      original.payload as import('@zerp/model').VouPayloadFor<BillEntity>,
+      ulid,
+    )
+    editError.value = original.payload.attachments.length
+      ? '附件不随复制继承，请重新上传需要的文件。'
+      : ''
+  } else if ((assetEntities as readonly string[]).includes(original.entity)) {
+    const payload =
+      original.payload as import('@zerp/model').VouPayloadFor<AssetEntity>
+    const count =
+      'assetAcquisitionLines' in payload
+        ? payload.assetAcquisitionLines.length
+        : 'assetSaleLines' in payload
+          ? payload.assetSaleLines.length
+          : payload.assetLiquidationLines.length
+    assetDraft.value = cloneAsset(
+      original.entity as AssetEntity,
+      payload,
+      Array.from({ length: count }, () => ulid()),
+    )
+    editError.value = original.payload.attachments.length
+      ? '附件不随复制继承，请重新上传需要的文件。'
+      : ''
   } else if (
     (financialEntities as readonly string[]).includes(original.entity)
   ) {
@@ -328,6 +382,16 @@ async function submit() {
       }
     | { kind: 'opening'; input: api.TargetOpeningInput }
     | {
+        kind: 'bill'
+        entity: BillEntity
+        input: api.TargetVoucherInput<BillEntity>
+      }
+    | {
+        kind: 'asset'
+        entity: AssetEntity
+        input: api.TargetVoucherInput<AssetEntity>
+      }
+    | {
         kind: 'financial'
         entity: FinancialEntity
         input: api.TargetVoucherInput<FinancialEntity>
@@ -359,7 +423,27 @@ async function submit() {
           idempotencyKey: identity.idempotencyKey,
         },
       }
-    } else if (financialDraft.value)
+    } else if (billDraft.value)
+      command = {
+        kind: 'bill',
+        entity: billDraft.value.entity,
+        input: {
+          ...identity,
+          expectedRevision: null,
+          payload: billPayload(billDraft.value),
+        },
+      }
+    else if (assetDraft.value)
+      command = {
+        kind: 'asset',
+        entity: assetDraft.value.entity,
+        input: {
+          ...identity,
+          expectedRevision: null,
+          payload: assetPayload(assetDraft.value),
+        },
+      }
+    else if (financialDraft.value)
       command = {
         kind: 'financial',
         entity: financialDraft.value.entity,
@@ -894,6 +978,16 @@ onBeforeUnmount(() => {
           :key="identity.submissionId"
           v-model="openingDraft"
           :disabled="saving || uncertain || Boolean(openingSource)"
+        />
+        <BillBlock
+          v-if="billDraft"
+          v-model="billDraft"
+          :disabled="saving || uncertain"
+        />
+        <AssetBlock
+          v-if="assetDraft"
+          v-model="assetDraft"
+          :disabled="saving || uncertain"
         />
         <FinancialBlock
           v-if="financialDraft"

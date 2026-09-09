@@ -1,5 +1,9 @@
 import { ulid } from 'ulid'
-import { quantityMovementEntities } from './service.ts'
+import {
+  quantityMovementEntities,
+  billMovementEntities,
+  billMovementCollections,
+} from './service.ts'
 import {
   prepareAccMappingSave,
   vouEntities,
@@ -67,6 +71,7 @@ export type AccMappingDefinition = {
     templateId: string
     collection: string | null
     lines: Array<{
+      collection?: string | null
       subjectSource: 'FIXED' | 'FIELD'
       subjectValue: string
       direction: 'DEBIT' | 'CREDIT'
@@ -428,6 +433,7 @@ export async function syncMappingSubjectUsages(
 }
 
 function mappingCollections(code: string): string[] {
+  if (billMovementEntities.includes(code)) return billMovementCollections
   if (quantityMovementEntities.includes(code)) return ['inventoryMovements']
   const entity = vouEntities.find((entity) => entity === code)
   return entity

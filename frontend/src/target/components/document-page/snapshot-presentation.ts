@@ -158,6 +158,7 @@ export const snapshotCaptions: Readonly<Record<string, string>> = {
   salvageIncome: '残值收入',
   disposalExpense: '处置费用',
   internalCostRateBps: '内部成本率（基点）',
+  calculation: '票据计算结果',
   billLines: '票据明细',
   positionType: '头寸类型',
   direction: '方向',

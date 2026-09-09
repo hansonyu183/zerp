@@ -103,7 +103,6 @@ test('financial approval posts funds through Hono and blocks reversing a receipt
     const [
       { AccService },
       { AccMappingCatalogService },
-      { VouOpeningService },
       { VouService },
       { createApp },
       { SessionService },
@@ -112,7 +111,6 @@ test('financial approval posts funds through Hono and blocks reversing a receipt
     ] = await Promise.all([
       import('../../src/acc/service.ts'),
       import('../../src/acc/mapping-catalog.ts'),
-      import('../../src/vou/opening-service.ts'),
       import('../../src/vou/service.ts'),
       import('../../src/app.ts'),
       import('../../src/app/session.ts'),
@@ -123,19 +121,7 @@ test('financial approval posts funds through Hono and blocks reversing a receipt
     const acc = new AccService(db),
       mappings = new AccMappingCatalogService(db)
     await acc.syncVouEntityCatalog()
-    const book = await acc.createBook(
-      {
-        id: ulid(),
-        name: '资金费用控制账簿',
-        description: '',
-        startMonth: '2026-09',
-        baseCurrency: 'CNY',
-        subjectTemplate: 'EMPTY',
-        queryUserIds: [fixture.reviewer.userId],
-        operateUserIds: [fixture.reviewer.userId],
-      },
-      fixture.actor,
-    )
+    const book = fixture.book
     const fund = await acc.createSubject(
       {
         id: ulid(),
@@ -166,38 +152,18 @@ test('financial approval posts funds through Hono and blocks reversing a receipt
       },
       fixture.actor,
     )
-    const openingService = new VouOpeningService(db, acc),
-      openingId = ulid()
-    const opening = await openingService.submitOpening(
-      {
-        bookId: book.id,
-        submissionId: openingId,
-        idempotencyKey: openingId,
-        lines: [],
-        assets: [],
-        bills: [],
-        containers: [],
-      },
-      fixture.actor,
-      'financial-opening',
-    )
-    await openingService.reviewOpening(
-      'approve',
-      {
-        bookId: book.id,
-        submissionId: openingId,
-        expectedRevision: opening.approval.revision,
-      },
-      fixture.reviewerActor,
-      'financial-opening',
-    )
     for (const entity of ['other-income', 'employee-loan'] as const) {
       const incoming = entity === 'other-income'
       await mappings.save(
         {
           bookId: book.id,
           vouEntity: entity,
-          expectedRevision: null,
+          expectedRevision: (
+            await mappings.get(book.id, entity, {
+              ...fixture.actor,
+              permissions: ['/acc/mapping/get'],
+            })
+          ).revision,
           defaultResult: 'POST',
           definition: {
             defaultTemplateId: 'fund',

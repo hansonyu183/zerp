@@ -1470,6 +1470,9 @@ CREATE TABLE vou_bill_line_snapshots (
     acceptor varchar(200),
     payee varchar(200),
     annual_rate_bps integer,
+    interest_days integer NOT NULL,
+    interest_amount_minor bigint NOT NULL,
+    customer_cost_amount_minor bigint NOT NULL,
     remark text,
     PRIMARY KEY (approval_entry_id, line_no)
 );
@@ -1758,7 +1761,9 @@ CREATE UNIQUE INDEX acc_bill_registers_identity_unique
 CREATE TABLE acc_bill_book_values (
     bill_id varchar(26) NOT NULL REFERENCES acc_bill_registers(id) ON DELETE CASCADE,
     book_id varchar(26) NOT NULL REFERENCES acc_books(id) ON DELETE RESTRICT,
-    opening_approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    opening_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    created_vou_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    CHECK ((opening_approval_entry_id IS NOT NULL) <> (created_vou_approval_entry_id IS NOT NULL)),
     value_amount numeric(24, 8) NOT NULL CHECK (value_amount > 0),
     created_at timestamptz NOT NULL,
     PRIMARY KEY (bill_id, book_id)

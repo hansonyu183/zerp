@@ -63,6 +63,14 @@ test('all 36 real menus query their own summaries and open readable snapshots', 
         'employee-loan-writeoff',
         'expense-reimbursement',
         'other-income',
+        'asset-acquisition',
+        'asset-sale',
+        'asset-liquidation',
+        'bill-receipt',
+        'bill-payment',
+        'bill-issue',
+        'bill-discount',
+        'bill-maturity',
       ].includes(entity)
     ) {
       await expect(list).not.toContainText('专用单据编辑器尚未实施')

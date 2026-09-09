@@ -110,9 +110,18 @@ function vouPostingSource(entity: VouEntity): {
   amountField: string
   fieldCatalog: { headerFields: string[]; lineFields: string[] }
 } | null {
-  // This fixture has monetary subjects only; stock effects have their own real-book suite.
+  // Stock and mixed-direction bill effects use dedicated real-book suites.
   if (
-    ['order-production', 'self-production', 'inventory-count'].includes(entity)
+    [
+      'order-production',
+      'self-production',
+      'inventory-count',
+      'bill-receipt',
+      'bill-payment',
+      'bill-issue',
+      'bill-discount',
+      'bill-maturity',
+    ].includes(entity)
   )
     return null
   const fields = vouEntityInputDescriptors[entity]
@@ -1286,7 +1295,7 @@ async function verifyTrustedSystemVouLifecycle() {
         employee: currentReference('employee'),
         fundAccount: currentReference('fundAccount'),
         handler: currentReference('employee'),
-        amount: '0.00',
+        amount: '1.00',
       } satisfies VouPayloadFor<'expense-payment'>,
     },
   ]
@@ -1576,7 +1585,7 @@ async function seedVouAccObjects() {
         interestMode: 'BANK_DEDUCTED',
         billLines: [
           {
-            positionType: 'ASSET',
+            positionType: 'LIABILITY',
             direction: 'IN',
             purpose: 'PRIMARY',
             billType: 'CHECK',
@@ -1620,7 +1629,7 @@ async function seedVouAccObjects() {
   ])
   if (assets.items.length !== 1 || bills.items.length !== 1)
     throw new Error(
-      'E2E VOU register fixture did not create exactly one asset and bill',
+      `E2E VOU register fixture expected one asset and bill; got ${assets.items.length} assets and ${bills.items.length} bills`,
     )
   vouAccObjectFacts.asset.objectId = assets.items[0]!.objectId
   vouAccObjectFacts.bill.objectId = bills.items[0]!.objectId
@@ -1644,8 +1653,8 @@ try {
   await seedAuxFacts(aux)
   await seedAccFacts(acc)
   await seedVouReferences(aux)
-  await seedVouAccObjects()
   await seedApprovedOpeningAndMappings()
+  await seedVouAccObjects()
   await seedApprovedSourceOrders()
   const orderPageFacts = await seedPendingOrderPages()
   await verifyTrustedSystemVouLifecycle()

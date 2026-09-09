@@ -210,6 +210,27 @@ onBeforeUnmount(vm.dispose)
                 variant="tonal"
                 class="pa-3 mb-3"
               >
+                <v-select
+                  :model-value="
+                    line.collection === undefined
+                      ? 'INHERIT'
+                      : (line.collection ?? 'HEADER')
+                  "
+                  label="本分录来源"
+                  :items="[
+                    { title: '跟随模板', value: 'INHERIT' },
+                    { title: '单头', value: 'HEADER' },
+                    ...vm.collections,
+                  ]"
+                  @update:model-value="
+                    line.collection =
+                      $event === 'INHERIT'
+                        ? undefined
+                        : $event === 'HEADER'
+                          ? null
+                          : $event
+                  "
+                />
                 <div class="mapping-rule">
                   <v-select
                     v-model="line.subjectSource"

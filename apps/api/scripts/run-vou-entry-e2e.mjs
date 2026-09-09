@@ -111,7 +111,58 @@ try {
     .select('code')
     .where('subunit_id', '=', financial.subunitAllocations[0].subunit.objectId)
     .executeTakeFirstOrThrow()
+  const assetPayload = fixture.documents['asset-acquisition'].payload
+  const assetId =
+    fixture.documents['asset-sale'].payload.assetSaleLines[0].assetId
+  const asset = await db
+    .selectFrom('acc_asset_registers')
+    .select('asset_no')
+    .where('id', '=', assetId)
+    .executeTakeFirstOrThrow()
+  const category = await db
+    .selectFrom('aux_objects')
+    .select('code')
+    .where('id', '=', assetPayload.assetAcquisitionLines[0].category.objectId)
+    .executeTakeFirstOrThrow()
+  const department = await db
+    .selectFrom('aux_objects')
+    .select('code')
+    .where('id', '=', assetPayload.assetAcquisitionLines[0].department.objectId)
+    .executeTakeFirstOrThrow()
+  const otherUnit = await db
+    .selectFrom('bob_subjects')
+    .select('code')
+    .where(
+      'id',
+      '=',
+      fixture.documents['bill-discount'].payload.counterparty.objectId,
+    )
+    .executeTakeFirstOrThrow()
+  const bill = await db
+    .selectFrom('acc_bill_registers')
+    .select('bill_no')
+    .where(
+      'id',
+      '=',
+      fixture.documents['bill-payment'].payload.billLines[0].billId,
+    )
+    .executeTakeFirstOrThrow()
+  const maturedBill = await db
+    .selectFrom('acc_bill_registers')
+    .select('bill_no')
+    .where(
+      'id',
+      '=',
+      fixture.documents['bill-maturity'].payload.billLines[0].billId,
+    )
+    .executeTakeFirstOrThrow()
   const entryFacts = {
+    asset: asset.asset_no,
+    category: category.code,
+    department: department.code,
+    otherUnit: otherUnit.code,
+    bill: bill.bill_no,
+    maturedBill: maturedBill.bill_no,
     customer: financialCodes[financial.customer.objectId],
     operatingEntity: financialCodes[financial.operatingEntity.objectId],
     fundAccount: financialCodes[financial.fundAccount.objectId],

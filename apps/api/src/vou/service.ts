@@ -15,6 +15,8 @@ import {
   type ApprovalEntry,
   type ApprovalStatus,
   type VouEntity,
+  type VouBillReferenceSnapshot,
+  type VouBillCalculation,
   type VouMeasurementUnitSnapshotInput,
   type VouPaymentMethodSnapshotInput,
   type VouPayload,
@@ -970,6 +972,7 @@ export class VouService implements WflVouPort {
       if (sum !== amount)
         throw new VouApplicationError('vou_allocation_total_mismatch')
     }
+    await this.adoptBills(tx, entity, input.payload, true)
     const now = new Date()
     let documentNo = document?.document_no
     if (!document) {
@@ -1129,6 +1132,8 @@ export class VouService implements WflVouPort {
         persistedPayload,
         actor,
       )
+    if (action === 'approve')
+      await this.adoptBills(tx, entity, persistedPayload)
     const effectAction =
       action === 'approve'
         ? 'approve'
@@ -1939,7 +1944,7 @@ export class VouService implements WflVouPort {
       case 'asset':
         return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, asset_no AS code, name FROM acc_asset_registers WHERE status = 'ACTIVE'`
       case 'bill':
-        return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, bill_no AS code, bill_no AS name FROM acc_bill_registers WHERE status = 'AVAILABLE'`
+        return `SELECT r.id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, r.bill_no AS code, r.bill_no AS name FROM acc_bill_registers r WHERE r.status = 'AVAILABLE' AND EXISTS (SELECT 1 FROM acc_bill_book_values v JOIN acc_books b ON b.id = v.book_id JOIN approval_entries a ON a.subject_id = b.id AND a.domain = 'vou' AND a.entity = 'opening' AND a.status = 'APPROVED' WHERE v.bill_id = r.id AND b.control_book)`
       case 'service-contract':
         return `SELECT document.id AS object_id, approval.id AS approval_entry_id, NULL::varchar AS customer_id, document.document_no AS code, document.document_no AS name FROM vou_documents document JOIN approval_entries approval ON approval.subject_id = document.id AND approval.domain = 'vou' AND approval.entity = 'service-contract' AND approval.status = 'APPROVED'`
     }
@@ -2355,6 +2360,278 @@ export class VouService implements WflVouPort {
     if (locked) throw new VouApplicationError('vou_period_locked')
   }
 
+  private calculateBill(
+    faceAmount: string,
+    annualRateBps: number,
+    businessDate: string,
+    maturityDate: string,
+    costRateBps: number,
+  ): VouBillCalculation {
+    const interestDays = Math.max(
+      0,
+      Math.round(
+        (Date.parse(maturityDate) - Date.parse(businessDate)) / 86_400_000,
+      ),
+    )
+    const face = decimalToFixed(faceAmount, 2)!
+    const round = (numerator: bigint, denominator: bigint) =>
+      (numerator + denominator / 2n) / denominator
+    const money = (amount: bigint) =>
+      `${amount / 100n}.${String(amount % 100n).padStart(2, '0')}`
+    return {
+      interestDays,
+      interestAmount: money(
+        round(face * BigInt(annualRateBps) * BigInt(interestDays), 3_650_000n),
+      ),
+      customerCostAmount: money(round(face * BigInt(costRateBps), 10_000n)),
+    }
+  }
+
+  private async adoptBills(
+    tx: Transaction<DB>,
+    entity: VouEntity,
+    payload: VouPayload,
+    newAdoption = false,
+  ): Promise<void> {
+    if (!('billLines' in payload)) return
+    const billIdentities = payload.billLines
+      .flatMap((line) =>
+        !('positionType' in line)
+          ? []
+          : [
+              JSON.stringify([
+                line.billType,
+                line.billNo,
+                line.acceptor,
+                decimalToFixed(line.faceAmount, 2)?.toString(),
+                line.maturityDate,
+              ]),
+            ],
+      )
+      .sort()
+    for (const identity of billIdentities)
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`vou:bill:${identity}`}, 0))`.execute(
+        tx,
+      )
+    const ids = [
+      ...new Set(
+        payload.billLines.flatMap((line) =>
+          !('positionType' in line) ? [line.billId] : [],
+        ),
+      ),
+    ].sort()
+    const registers = ids.length
+      ? await tx
+          .selectFrom('acc_bill_registers')
+          .select([
+            'id',
+            'status',
+            'position_type',
+            'payload',
+            'created_opening_approval_entry_id',
+          ])
+          .where('id', 'in', ids)
+          .orderBy('id')
+          .forUpdate()
+          .execute()
+      : []
+    const carried = ids.length
+      ? await tx
+          .selectFrom('acc_bill_book_values as value')
+          .innerJoin('acc_books as book', 'book.id', 'value.book_id')
+          .innerJoin('approval_entries as opening', (join) =>
+            join
+              .onRef('opening.subject_id', '=', 'book.id')
+              .on('opening.domain', '=', 'vou')
+              .on('opening.entity', '=', 'opening')
+              .on('opening.status', '=', 'APPROVED'),
+          )
+          .select('value.bill_id')
+          .where('value.bill_id', 'in', ids)
+          .where('book.control_book', '=', true)
+          .where('book.start_month', '<=', payload.businessDate.slice(0, 7))
+          .forShare('opening')
+          .execute()
+      : []
+    const seen = new Set<string>()
+    let net = 0n
+    for (const [index, line] of payload.billLines.entries()) {
+      const unavailable = () =>
+        new VouApplicationError('vou_reference_unavailable', [
+          {
+            kind: 'REFERENCE',
+            field: `billLines[${index}]`,
+            entity: 'bill',
+            objectId: !('positionType' in line) ? line.billId : line.billNo,
+            approvalEntryId: null,
+          },
+        ])
+      if (!('positionType' in line)) {
+        const current = registers.find((row) => row.id === line.billId)
+        const expectedPosition =
+          entity === 'bill-maturity' &&
+          'maturityType' in payload &&
+          payload.maturityType === 'PAYMENT'
+            ? 'LIABILITY'
+            : 'ASSET'
+        if (
+          entity === 'bill-issue' ||
+          !current ||
+          current.status !== 'AVAILABLE' ||
+          !carried.some((value) => value.bill_id === line.billId) ||
+          current.position_type !== expectedPosition ||
+          seen.has(line.billId) ||
+          line.purpose !== (entity === 'bill-receipt' ? 'CHANGE' : 'PRIMARY')
+        )
+          throw unavailable()
+        seen.add(line.billId)
+        // Opening and VOU registrations have distinct, existing source payloads.
+        const facts = (
+          current.created_opening_approval_entry_id
+            ? current.payload
+            : (current.payload as { bill: unknown }).bill
+        ) as VouBillReferenceSnapshot
+        if (
+          facts.currency !== payload.currency ||
+          (entity === 'bill-discount' &&
+            facts.maturityDate <= payload.businessDate) ||
+          (entity === 'bill-maturity' &&
+            facts.maturityDate > payload.businessDate)
+        )
+          throw unavailable()
+        line.snapshot = {
+          positionType: current.position_type as 'ASSET' | 'LIABILITY',
+          direction: 'OUT',
+          billType: facts.billType,
+          billNo: facts.billNo,
+          medium: facts.medium,
+          currency: facts.currency,
+          faceAmount: facts.faceAmount,
+          issueDate: facts.issueDate,
+          maturityDate: facts.maturityDate,
+          drawer: facts.drawer,
+          acceptor: facts.acceptor,
+          payee: facts.payee,
+          annualRateBps:
+            entity === 'bill-discount' && 'annualRateBps' in line
+              ? (line.annualRateBps ?? 0)
+              : facts.annualRateBps,
+        }
+        if (entity === 'bill-discount')
+          line.calculation = this.calculateBill(
+            facts.faceAmount,
+            'annualRateBps' in line ? (line.annualRateBps ?? 0) : 0,
+            payload.businessDate,
+            facts.maturityDate,
+            0,
+          )
+        else if (current.created_opening_approval_entry_id) {
+          const opening = current.payload as unknown as VouBillCalculation
+          line.calculation = {
+            interestDays: opening.interestDays,
+            interestAmount: opening.interestAmount,
+            customerCostAmount: opening.customerCostAmount,
+          }
+        } else {
+          const source = (
+            current.payload as unknown as {
+              bill: { calculation: VouBillCalculation }
+            }
+          ).bill
+          line.calculation = { ...source.calculation }
+        }
+        net -= decimalToFixed(facts.faceAmount, 2)!
+      } else {
+        if (newAdoption) line.billId = ulid()
+        if (!line.billId) throw new VouApplicationError('vou_invalid_payload')
+        if (
+          (entity !== 'bill-receipt' && entity !== 'bill-issue') ||
+          line.purpose !== 'PRIMARY' ||
+          line.direction !== 'IN' ||
+          line.positionType !==
+            (entity === 'bill-issue' ? 'LIABILITY' : 'ASSET') ||
+          line.currency !== payload.currency ||
+          line.maturityDate < line.issueDate ||
+          decimalToFixed(line.faceAmount, 2)! <= 0n
+        )
+          throw new VouApplicationError('vou_invalid_payload')
+        const identity = JSON.stringify([
+          line.billType,
+          line.billNo,
+          line.acceptor,
+          decimalToFixed(line.faceAmount, 2)!.toString(),
+          line.maturityDate,
+        ])
+        if (seen.has(identity))
+          throw new VouApplicationError('vou_invalid_payload')
+        seen.add(identity)
+        const duplicate = await sql<{ id: string }>`
+          SELECT id FROM acc_bill_registers
+          WHERE bill_no = ${line.billNo}
+            AND (CASE WHEN created_opening_approval_entry_id IS NOT NULL THEN payload ELSE payload->'bill' END)->>'billType' = ${line.billType}
+            AND (CASE WHEN created_opening_approval_entry_id IS NOT NULL THEN payload ELSE payload->'bill' END)->>'acceptor' = ${line.acceptor}
+            AND ((CASE WHEN created_opening_approval_entry_id IS NOT NULL THEN payload ELSE payload->'bill' END)->>'faceAmount')::numeric = ${line.faceAmount}::numeric
+            AND (CASE WHEN created_opening_approval_entry_id IS NOT NULL THEN payload ELSE payload->'bill' END)->>'maturityDate' = ${line.maturityDate}
+          LIMIT 1
+        `.execute(tx)
+        if (duplicate.rows.length)
+          throw new VouApplicationError('vou_reference_unavailable', [
+            {
+              kind: 'REFERENCE',
+              field: `billLines[${index}]`,
+              entity: 'bill',
+              objectId: duplicate.rows[0]!.id,
+              approvalEntryId: null,
+            },
+          ])
+        line.calculation = this.calculateBill(
+          line.faceAmount,
+          line.annualRateBps,
+          payload.businessDate,
+          line.maturityDate,
+          entity === 'bill-receipt' && 'internalCostRateBps' in payload
+            ? (payload.internalCostRateBps ?? 0)
+            : 0,
+        )
+        net += decimalToFixed(line.faceAmount, 2)!
+      }
+    }
+    let cashNet = 0n
+    for (const line of payload.billCashLines ?? []) {
+      if (line.billLineId) throw new VouApplicationError('vou_invalid_payload')
+      if (
+        entity === 'bill-maturity' &&
+        'maturityType' in payload &&
+        line.direction !== (payload.maturityType === 'RECEIPT' ? 'IN' : 'OUT')
+      )
+        throw new VouApplicationError('vou_invalid_payload')
+      cashNet +=
+        decimalToFixed(line.amount, 2)! * (line.direction === 'IN' ? 1n : -1n)
+    }
+    if (
+      (entity === 'bill-receipt' && net + cashNet <= 0n) ||
+      (entity === 'bill-discount' && cashNet <= 0n)
+    )
+      throw new VouApplicationError('vou_invalid_payload')
+    if (
+      'interestMode' in payload &&
+      payload.interestMode === 'THIRD_PARTY_PAYABLE' &&
+      !payload.interestParty
+    )
+      throw new VouApplicationError('vou_reference_unavailable')
+    if (newAdoption && entity === 'bill-issue' && 'supplier' in payload) {
+      const supplier = await tx
+        .selectFrom('bob_subjects')
+        .select('id')
+        .where('id', '=', payload.supplier.objectId)
+        .where('entity', '=', 'supplier')
+        .where('enabled', '=', true)
+        .forShare()
+        .executeTakeFirst()
+      if (!supplier) throw new VouApplicationError('vou_reference_unavailable')
+    }
+  }
+
   private async validateReferences(
     transaction: Transaction<DB>,
     entity: VouEntity,
@@ -2407,6 +2684,41 @@ export class VouService implements WflVouPort {
         if (!current) blockers.push(blocker)
       }
     }
+    const disposalLines =
+      'assetSaleLines' in payload
+        ? payload.assetSaleLines
+        : 'assetLiquidationLines' in payload
+          ? payload.assetLiquidationLines
+          : []
+    const assetIds = [
+      ...new Set(disposalLines.map((line) => line.assetId)),
+    ].sort()
+    const assets = assetIds.length
+      ? await transaction
+          .selectFrom('acc_asset_registers')
+          .select(['id', 'status'])
+          .where('id', 'in', assetIds)
+          .orderBy('id')
+          .forUpdate()
+          .execute()
+      : []
+    const seenAssets = new Set<string>()
+    for (const [index, line] of disposalLines.entries()) {
+      if (
+        seenAssets.has(line.assetId) ||
+        !assets.some(
+          (asset) => asset.id === line.assetId && asset.status === 'ACTIVE',
+        )
+      )
+        blockers.push({
+          kind: 'REFERENCE',
+          field: `${entity === 'asset-sale' ? 'assetSaleLines' : 'assetLiquidationLines'}[${index}].assetId`,
+          entity: 'asset',
+          objectId: line.assetId,
+          approvalEntryId: null,
+        })
+      seenAssets.add(line.assetId)
+    }
     if ('assetAcquisitionLines' in payload)
       for (const [index, line] of payload.assetAcquisitionLines.entries()) {
         const current = await sql<{
@@ -2424,6 +2736,22 @@ export class VouService implements WflVouPort {
             AND enabled
           FOR UPDATE
         `.execute(transaction)
+        const department = await transaction
+          .selectFrom('aux_objects')
+          .select('id')
+          .where('id', '=', line.department.objectId)
+          .where('entity', '=', 'department')
+          .where('enabled', '=', true)
+          .forShare()
+          .executeTakeFirst()
+        if (!department)
+          blockers.push({
+            kind: 'REFERENCE',
+            field: `assetAcquisitionLines[${index}].department`,
+            entity: 'department',
+            objectId: line.department.objectId,
+            approvalEntryId: null,
+          })
         const category = current.rows[0]
         if (
           !category ||
@@ -3381,12 +3709,14 @@ export class VouService implements WflVouPort {
     if ('billLines' in payload)
       for (const [index, line] of payload.billLines.entries()) {
         const lineNo = index + 1
-        const value = line as Record<string, unknown>
+        const value = (
+          !('positionType' in line) ? { ...line, ...line.snapshot } : line
+        ) as Record<string, unknown>
         await sql`
           INSERT INTO vou_bill_line_snapshots (
             approval_entry_id, line_no, bill_id, position_type, direction, purpose, bill_type,
             bill_no, medium, currency, face_amount_minor, issue_date, maturity_date, drawer,
-            acceptor, payee, annual_rate_bps, remark
+            acceptor, payee, annual_rate_bps, interest_days, interest_amount_minor, customer_cost_amount_minor, remark
           ) VALUES (
             ${approvalEntryId}, ${lineNo}, ${typeof value.billId === 'string' ? value.billId : null},
             ${typeof value.positionType === 'string' ? value.positionType : null}, ${typeof value.direction === 'string' ? value.direction : null},
@@ -3395,7 +3725,7 @@ export class VouService implements WflVouPort {
             ${typeof value.currency === 'string' ? value.currency : null}, ${typeof value.faceAmount === 'string' ? decimalToFixed(value.faceAmount, 2) : null},
             ${typeof value.issueDate === 'string' ? value.issueDate : null}::date, ${typeof value.maturityDate === 'string' ? value.maturityDate : null}::date,
             ${typeof value.drawer === 'string' ? value.drawer : null}, ${typeof value.acceptor === 'string' ? value.acceptor : null},
-            ${typeof value.payee === 'string' ? value.payee : null}, ${typeof value.annualRateBps === 'number' ? value.annualRateBps : null}, ${typeof value.remark === 'string' ? value.remark : null}
+            ${typeof value.payee === 'string' ? value.payee : null}, ${typeof value.annualRateBps === 'number' ? value.annualRateBps : null}, ${line.calculation!.interestDays}, ${decimalToFixed(line.calculation!.interestAmount, 2)!}, ${decimalToFixed(line.calculation!.customerCostAmount, 2)!}, ${typeof value.remark === 'string' ? value.remark : null}
           )
         `.execute(transaction)
       }
@@ -4717,22 +5047,51 @@ export class VouService implements WflVouPort {
           acceptor: string | null
           payee: string | null
           annual_rate_bps: number | null
+          interest_days: number
+          interest_amount_minor: string
+          customer_cost_amount_minor: string
           remark: string | null
         }>('vou_bill_line_snapshots', ['issue_date', 'maturity_date'])
       ).map((line) =>
-        line.bill_id && !line.position_type
+        line.direction === 'OUT'
           ? {
               billId: line.bill_id,
               purpose: line.purpose,
+              calculation: {
+                interestDays: line.interest_days,
+                interestAmount: fixed(line.interest_amount_minor, 2),
+                customerCostAmount: fixed(line.customer_cost_amount_minor, 2),
+              },
+              snapshot: {
+                positionType: line.position_type,
+                direction: line.direction,
+                billType: line.bill_type,
+                billNo: line.bill_no,
+                medium: line.medium,
+                currency: line.currency,
+                faceAmount: fixed(line.face_amount_minor!, 2),
+                issueDate: line.issue_date,
+                maturityDate: line.maturity_date,
+                drawer: line.drawer,
+                acceptor: line.acceptor,
+                payee: line.payee,
+                annualRateBps: line.annual_rate_bps,
+              },
               ...(line.annual_rate_bps === null
                 ? {}
                 : { annualRateBps: line.annual_rate_bps }),
               ...(line.remark ? { remark: line.remark } : {}),
             }
           : {
+              billId: line.bill_id,
               positionType: line.position_type,
               direction: line.direction,
               purpose: line.purpose,
+              calculation: {
+                interestDays: line.interest_days,
+                interestAmount: fixed(line.interest_amount_minor, 2),
+                customerCostAmount: fixed(line.customer_cost_amount_minor, 2),
+              },
               billType: line.bill_type,
               billNo: line.bill_no,
               medium: line.medium,
@@ -4766,7 +5125,7 @@ export class VouService implements WflVouPort {
       if (entity === 'bill-receipt')
         return {
           ...base,
-          customer: reference('customer'),
+          customerSubunit: reference('customerSubunit'),
           handler: reference('handler'),
           ...(detail.internal_cost_rate_bps === null
             ? {}

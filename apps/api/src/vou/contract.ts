@@ -289,8 +289,17 @@ const productionLine = quantitySnapshot
       .max(200),
   })
   .strict()
+const billCalculation = z
+  .object({
+    interestDays: z.number().int().nonnegative(),
+    interestAmount: money,
+    customerCostAmount: money,
+  })
+  .strict()
 const billPrimary = z
   .object({
+    calculation: billCalculation.optional(),
+    billId: z.string().length(26).optional(),
     positionType: z.literal('ASSET'),
     direction: z.literal('IN'),
     purpose: z.literal('PRIMARY'),
@@ -316,12 +325,21 @@ const billPrimary = z
 const billLiability = billPrimary
   .extend({ positionType: z.literal('LIABILITY') })
   .strict()
+const billReferenceSnapshot = billPrimary
+  .omit({ purpose: true, remark: true, calculation: true, billId: true })
+  .extend({
+    positionType: z.enum(['ASSET', 'LIABILITY']),
+    direction: z.literal('OUT'),
+  })
+  .strict()
 const billLine = z.union([
   billPrimary,
   billLiability,
   z
     .object({
       billId: z.string().min(1),
+      snapshot: billReferenceSnapshot.optional(),
+      calculation: billCalculation.optional(),
       purpose: z.literal('CHANGE'),
       remark: z.string().max(1000).optional(),
     })
@@ -329,6 +347,8 @@ const billLine = z.union([
   z
     .object({
       billId: z.string().min(1),
+      snapshot: billReferenceSnapshot.optional(),
+      calculation: billCalculation.optional(),
       purpose: z.literal('PRIMARY'),
       annualRateBps: z.number().int().min(0).max(100000).optional(),
       remark: z.string().max(1000).optional(),
@@ -702,7 +722,7 @@ export const vouPayloadSchemaByEntity = {
       .max(200),
   }),
   'bill-receipt': payload({
-    customer: versionedReference,
+    customerSubunit: versionedReference,
     handler: employeeReference,
     internalCostRateBps: z.number().int().min(0).max(100000).optional(),
     billLines: z.array(billLine).min(1).max(20),

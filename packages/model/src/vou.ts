@@ -302,8 +302,31 @@ export interface VouProductionOutputInput extends VouQuantitySnapshotInput {
   }[]
 }
 
-export type VouBillLineInput =
+export interface VouBillReferenceSnapshot {
+  positionType: 'ASSET' | 'LIABILITY'
+  direction: 'OUT'
+  billType: 'BANK_ACCEPTANCE' | 'COMMERCIAL_ACCEPTANCE' | 'CHECK' | 'OTHER'
+  billNo: string
+  medium: 'PAPER' | 'ELECTRONIC'
+  currency: string
+  faceAmount: string
+  issueDate: string
+  maturityDate: string
+  drawer: string
+  acceptor: string
+  payee: string
+  annualRateBps: number
+}
+
+export interface VouBillCalculation {
+  interestDays: number
+  interestAmount: string
+  customerCostAmount: string
+}
+
+export type VouBillLineInput = (
   | {
+      billId?: string
       positionType: 'ASSET'
       direction: 'IN'
       purpose: 'PRIMARY'
@@ -320,14 +343,21 @@ export type VouBillLineInput =
       annualRateBps: number
       remark?: string
     }
-  | { billId: string; purpose: 'CHANGE'; remark?: string }
   | {
       billId: string
+      purpose: 'CHANGE'
+      snapshot?: VouBillReferenceSnapshot
+      remark?: string
+    }
+  | {
+      billId: string
+      snapshot?: VouBillReferenceSnapshot
       purpose: 'PRIMARY'
       annualRateBps?: number
       remark?: string
     }
   | {
+      billId?: string
       positionType: 'LIABILITY'
       direction: 'IN'
       purpose: 'PRIMARY'
@@ -344,6 +374,7 @@ export type VouBillLineInput =
       annualRateBps: number
       remark?: string
     }
+) & { calculation?: VouBillCalculation }
 
 export interface VouBillCashLineInput {
   billLineId?: string
@@ -652,7 +683,7 @@ export interface VouPayloadShapes {
     }[]
   }
   'bill-receipt': BillPayload & {
-    customer: VouVersionedReferenceInput
+    customerSubunit: VouVersionedReferenceInput
     handler: VouAuxCurrentReferenceInput
     internalCostRateBps?: number
   }
@@ -1248,7 +1279,7 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
   'asset-sale': ['counterparty', 'counterpartyType', 'assetSaleLines'],
   'asset-liquidation': ['assetLiquidationLines'],
   'bill-receipt': [
-    'customer',
+    'customerSubunit',
     'handler',
     'internalCostRateBps',
     'billLines',

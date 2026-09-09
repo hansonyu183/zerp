@@ -58,7 +58,8 @@ export interface AccBillBookValues {
   bill_id: string
   book_id: string
   created_at: Timestamp
-  opening_approval_entry_id: string
+  created_vou_approval_entry_id: string | null
+  opening_approval_entry_id: string | null
   value_amount: Numeric
 }
 
@@ -981,9 +982,12 @@ export interface VouBillLineSnapshots {
   bill_no: string | null
   bill_type: string | null
   currency: string | null
+  customer_cost_amount_minor: Int8
   direction: string | null
   drawer: string | null
   face_amount_minor: Int8 | null
+  interest_amount_minor: Int8
+  interest_days: number
   issue_date: Timestamp | null
   line_no: number
   maturity_date: Timestamp | null

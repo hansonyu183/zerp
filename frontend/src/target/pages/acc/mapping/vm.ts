@@ -247,12 +247,10 @@ export function useMappingViewModel() {
     ]
   })
   const collections = computed(() =>
-    (
+    mappingFieldOptions(
       catalog.value.vouEntities.find(
         (item) => item.code === draft.value.vouEntity,
-      )?.fieldCatalog.collections ?? []
-    ).map((value) =>
-      value === 'inventoryMovements' ? { title: '库存数量变动', value } : value,
+      )?.fieldCatalog.collections ?? [],
     ),
   )
   const requiredDimensions = (id: string | null) =>
@@ -378,7 +376,22 @@ export function mappingFieldOptions(fields: readonly string[]) {
     'line.productId': '库存变动产品',
     'line.warehouseId': '库存变动仓库',
     'line.quantity': '有符号库存数量',
-    'line.amount': '库存变动金额',
+    'line.amount': '明细金额',
+    inventoryMovements: '库存数量变动',
+    incomingBills: '流入票据',
+    outgoingBills: '流出票据',
+    incomingBillCash: '资金流入',
+    outgoingBillCash: '资金流出',
+    'line.billId': '票据',
+    'line.assetId': '资产',
+    'line.faceAmount': '票面金额',
+    'line.fundAccount.objectId': '资金账户',
+    'billTotals.primaryAmount': '主票金额合计',
+    'billTotals.changeAmount': '找零票金额合计',
+    'billTotals.netSettlementAmount': '净结算金额',
+    'billTotals.interestAmount': '第三方应付利息',
+    'billTotals.discountExpenseAmount': '贴现费用',
+    'billTotals.discountIncomeAmount': '贴现收益',
     'line.currency': '记账币种',
   }
   return fields.map((value) => ({ title: captions[value] ?? value, value }))

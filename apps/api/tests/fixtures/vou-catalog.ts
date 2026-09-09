@@ -9,6 +9,10 @@ import {
 } from '@zerp/model'
 import type { DB } from '../../src/db/generated.ts'
 import type { VouView } from '../../src/vou/service.ts'
+import { AccService } from '../../src/acc/service.ts'
+import { AccMappingCatalogService } from '../../src/acc/mapping-catalog.ts'
+import { VouOpeningService } from '../../src/vou/opening-service.ts'
+import { VouService } from '../../src/vou/service.ts'
 import { AuxService } from '../../src/aux/service.ts'
 import { BobArchiveService } from '../../src/bob/archives.ts'
 import { vouPayloadSchemaByEntity } from '../../src/vou/contract.ts'
@@ -351,7 +355,12 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
         },
       ],
     },
-    'bill-receipt': { ...base, customer, handler: employee, billLines: [bill] },
+    'bill-receipt': {
+      ...base,
+      customerSubunit,
+      handler: employee,
+      billLines: [bill],
+    },
     'bill-payment': {
       ...base,
       supplier,
@@ -370,6 +379,7 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
       counterpartyType: 'other-unit',
       interestMode: 'BANK_DEDUCTED',
       withRecourse: false,
+      billCashLines,
       billLines: [{ billId: ulid(), purpose: 'PRIMARY' }],
     },
     'bill-maturity': {
@@ -450,6 +460,145 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
     documents[entity] = document
     return document
   }
+  const acc = new AccService(db),
+    mappings = new AccMappingCatalogService(db)
+  await acc.syncVouEntityCatalog()
+  const book = await acc.createBook(
+    {
+      id: ulid(),
+      name: '目录控制账簿',
+      description: '',
+      startMonth: '2026-09',
+      baseCurrency: 'CNY',
+      subjectTemplate: 'EMPTY',
+      queryUserIds: [actor.id, reviewer.id],
+      operateUserIds: [actor.id, reviewer.id],
+    },
+    actor,
+  )
+  const openings = new VouOpeningService(db, acc),
+    openingId = ulid()
+  const opening = await openings.submitOpening(
+    {
+      bookId: book.id,
+      submissionId: openingId,
+      idempotencyKey: openingId,
+      lines: [],
+      assets: [],
+      bills: [],
+      containers: [],
+    },
+    actor,
+    'catalog-opening',
+  )
+  await openings.reviewOpening(
+    'approve',
+    {
+      bookId: book.id,
+      submissionId: openingId,
+      expectedRevision: opening.approval.revision,
+    },
+    reviewer,
+    'catalog-opening',
+  )
+  for (const entity of vouEntities)
+    await mappings.save(
+      {
+        bookId: book.id,
+        vouEntity: entity,
+        expectedRevision: null,
+        defaultResult: 'UN_POST',
+        definition: {
+          defaultTemplateId: null,
+          rules: [],
+          templates: [],
+          assetConfiguration: null,
+        },
+      },
+      { ...actor, permissions: [...actor.permissions, '/acc/mapping/save'] },
+    )
+  const registers = new VouService(db, {
+    acc: new AccService(db),
+    wfl: { async apply() {} },
+  })
+  const assetSourceId = ulid()
+  const assetSource = await registers.submit(
+    'asset-acquisition',
+    'submit-new',
+    {
+      documentId: ulid(),
+      submissionId: assetSourceId,
+      idempotencyKey: assetSourceId,
+      expectedRevision: null,
+      payload: payloads['asset-acquisition'],
+    },
+    actor,
+    'catalog-source',
+  )
+  await registers.review(
+    'asset-acquisition',
+    'approve',
+    {
+      documentId: assetSource.documentId,
+      submissionId: assetSource.submissionId,
+      expectedRevision: assetSource.revision,
+    },
+    reviewer,
+    'catalog-source',
+  )
+  const asset = await db
+    .selectFrom('acc_asset_registers')
+    .select('id')
+    .where('acquisition_vou_approval_entry_id', '=', assetSourceId)
+    .executeTakeFirstOrThrow()
+  payloads['asset-sale'].assetSaleLines[0]!.assetId = asset.id
+  payloads['asset-liquidation'].assetLiquidationLines[0]!.assetId = asset.id
+  for (const matured of [false, true]) {
+    const id = ulid()
+    const source = await registers.submit(
+      'bill-receipt',
+      'submit-new',
+      {
+        documentId: ulid(),
+        submissionId: id,
+        idempotencyKey: id,
+        expectedRevision: null,
+        payload: {
+          ...payloads['bill-receipt'],
+          billLines: [
+            {
+              ...bill,
+              billNo: ulid(),
+              maturityDate: matured ? base.businessDate : bill.maturityDate,
+            },
+          ],
+        },
+      },
+      actor,
+      'catalog-bill-source',
+    )
+    await registers.review(
+      'bill-receipt',
+      'approve',
+      {
+        documentId: source.documentId,
+        submissionId: source.submissionId,
+        expectedRevision: source.revision,
+      },
+      reviewer,
+      'catalog-bill-source',
+    )
+    const register = await db
+      .selectFrom('acc_bill_registers')
+      .select('id')
+      .where('created_vou_approval_entry_id', '=', id)
+      .executeTakeFirstOrThrow()
+    if (matured) payloads['bill-maturity'].billLines[0]!.billId = register.id
+    else {
+      payloads['bill-payment'].billLines[0]!.billId = register.id
+      payloads['bill-discount'].billLines[0]!.billId = register.id
+    }
+  }
   for (const [entity, payload] of Object.entries(payloads))
     await submit(entity as VouEntity, payload)
   for (const entity of [
@@ -507,6 +656,8 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
     ...fixture,
     documents: documents as Record<VouEntity, VouView>,
     productionOrder,
+    book,
+    mappings,
     actor,
     reviewerActor: reviewer,
     aux,

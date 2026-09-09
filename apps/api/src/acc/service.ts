@@ -561,6 +561,35 @@ export const quantityMovementFields = [
   'line.currency',
 ]
 
+export const billMovementEntities: readonly string[] = [
+  'bill-receipt',
+  'bill-payment',
+  'bill-issue',
+  'bill-discount',
+  'bill-maturity',
+]
+export const billMovementCollections = [
+  'incomingBills',
+  'outgoingBills',
+  'incomingBillCash',
+  'outgoingBillCash',
+]
+export const billMovementHeaderFields = [
+  'billTotals.primaryAmount',
+  'billTotals.changeAmount',
+  'billTotals.netSettlementAmount',
+  'billTotals.interestAmount',
+  'billTotals.discountExpenseAmount',
+  'billTotals.discountIncomeAmount',
+]
+export const billMovementLineFields = [
+  'line.billId',
+  'line.faceAmount',
+  'line.amount',
+  'line.currency',
+  'line.fundAccount.objectId',
+]
+
 export class AccService
   implements PlanExecutor<AccApplicationPlan>, AccControlBalancePort
 {
@@ -595,6 +624,11 @@ export class AccService
         flatten('', vouEntityInputDescriptors[entity])
         if (quantityMovementEntities.includes(entity))
           lineFields.push(...quantityMovementFields)
+        if (billMovementEntities.includes(entity)) {
+          headerFields.push(...billMovementHeaderFields)
+          lineFields.push(...billMovementLineFields)
+        }
+        if (entity === 'asset-acquisition') lineFields.push('line.assetId')
         await tx
           .insertInto('acc_mapping_vou_entities')
           .values({
@@ -674,9 +708,27 @@ export class AccService
       .forShare('opening')
       .execute()
     await this.applyGlobalRegistrations(tx, plan, books)
+    let accountingPayload = plan.payload
+    if ('assetAcquisitionLines' in plan.payload) {
+      const assets = await tx
+        .selectFrom('acc_asset_registers')
+        .select('id')
+        .where('acquisition_vou_approval_entry_id', '=', plan.approvalEntryId)
+        .orderBy('asset_no')
+        .execute()
+      if (assets.length !== plan.payload.assetAcquisitionLines.length)
+        throw new AccApplicationError('acc_asset_not_active')
+      accountingPayload = {
+        ...plan.payload,
+        assetAcquisitionLines: plan.payload.assetAcquisitionLines.map(
+          (line, index) => ({ ...line, assetId: assets[index]!.id }),
+        ),
+      }
+    }
     for (const book of books) {
-      const postingPayload = this.quantityPostingPayload(
-        plan.payload,
+      const postingPayload = this.postingPayload(
+        plan.entity,
+        accountingPayload,
         book.base_currency,
       )
       const mappingResult = await sql<{
@@ -705,6 +757,7 @@ export class AccService
           templateId: string
           collection: string | null
           lines: Array<{
+            collection?: string | null
             subjectSource: 'FIXED' | 'FIELD'
             subjectValue: string
             direction: 'DEBIT' | 'CREDIT'
@@ -717,7 +770,7 @@ export class AccService
       }
       const matching = definition.rules.filter((rule) =>
         rule.conditions.every((condition) =>
-          this.mappingCondition(plan.payload!, condition),
+          this.mappingCondition(postingPayload, condition),
         ),
       )
       if (matching.length > 1)
@@ -730,11 +783,6 @@ export class AccService
       )
       if (!template)
         throw new AccApplicationError('acc_mapping_template_not_found')
-      const sources = template.collection
-        ? this.field(postingPayload, template.collection)
-        : [postingPayload]
-      if (!Array.isArray(sources))
-        throw new AccApplicationError('acc_mapping_collection_invalid')
       const rendered: Array<{
         subjectId: string
         direction: 'DEBIT' | 'CREDIT'
@@ -743,12 +791,19 @@ export class AccService
         dimensions: Record<string, string>
         quantity: string | null
       }> = []
-      for (const sourceValue of sources) {
-        const source =
-          typeof sourceValue === 'object' && sourceValue !== null
-            ? (sourceValue as Record<string, unknown>)
-            : {}
-        for (const line of template.lines) {
+      for (const line of template.lines) {
+        const collection =
+          line.collection === undefined ? template.collection : line.collection
+        const sources = collection
+          ? this.field(postingPayload, collection)
+          : [postingPayload]
+        if (!Array.isArray(sources))
+          throw new AccApplicationError('acc_mapping_collection_invalid')
+        for (const sourceValue of sources) {
+          const source =
+            typeof sourceValue === 'object' && sourceValue !== null
+              ? (sourceValue as Record<string, unknown>)
+              : {}
           const subjectId =
             line.subjectSource === 'FIXED'
               ? line.subjectValue
@@ -768,7 +823,8 @@ export class AccService
               line.currencyField,
             ) ?? '',
           )
-          decimalUnits(amount)
+          const amountUnits = decimalUnits(amount)
+          if (amountUnits === 0n && !line.quantityField) continue
           if (!/^[A-Z]{3}$/.test(currency))
             throw new AccApplicationError('acc_mapping_currency_invalid')
           const dimensions = Object.fromEntries(
@@ -995,7 +1051,11 @@ export class AccService
     }))
   }
 
-  private quantityPostingPayload(payload: VouPayload, currency: string) {
+  private postingPayload(
+    entity: string,
+    payload: VouPayload,
+    currency: string,
+  ) {
     const movement = (
       productId: string,
       warehouseId: string,
@@ -1040,6 +1100,71 @@ export class AccService
               ]
         }),
       }
+    if ('billLines' in payload) {
+      const money = (amount: bigint) =>
+        `${amount / 100_000_000n}.${String(amount % 100_000_000n)
+          .padStart(8, '0')
+          .slice(0, 2)}`
+      const incomingBills = [],
+        outgoingBills = []
+      let primary = 0n,
+        change = 0n,
+        interest = 0n
+      for (const line of payload.billLines) {
+        const facts = 'positionType' in line ? line : line.snapshot
+        if (!facts || !line.billId || !line.calculation)
+          throw new AccApplicationError('acc_bill_line_invalid')
+        const fact = { ...facts, billId: line.billId }
+        if (facts.direction === 'IN') incomingBills.push(fact)
+        else outgoingBills.push(fact)
+        if (line.purpose === 'CHANGE') change += decimalUnits(facts.faceAmount)
+        else primary += decimalUnits(facts.faceAmount)
+        interest += decimalUnits(line.calculation.interestAmount)
+      }
+      const incomingBillCash = (payload.billCashLines ?? [])
+        .filter((line) => line.direction === 'IN')
+        .map((line) => ({ ...line, currency: payload.currency }))
+      const outgoingBillCash = (payload.billCashLines ?? [])
+        .filter((line) => line.direction === 'OUT')
+        .map((line) => ({ ...line, currency: payload.currency }))
+      const cash =
+        incomingBillCash.reduce(
+          (sum, line) => sum + decimalUnits(line.amount),
+          0n,
+        ) -
+        outgoingBillCash.reduce(
+          (sum, line) => sum + decimalUnits(line.amount),
+          0n,
+        )
+      const payableInterest =
+        'interestMode' in payload &&
+        payload.interestMode === 'THIRD_PARTY_PAYABLE'
+          ? interest
+          : 0n
+      const discountCost =
+        entity === 'bill-discount' ? primary - cash + payableInterest : 0n
+      return {
+        ...payload,
+        incomingBills,
+        outgoingBills,
+        incomingBillCash,
+        outgoingBillCash,
+        billTotals: {
+          primaryAmount: money(primary),
+          changeAmount: money(change),
+          netSettlementAmount: money(
+            entity === 'bill-receipt'
+              ? primary - change + cash
+              : entity === 'bill-discount'
+                ? cash
+                : primary,
+          ),
+          interestAmount: money(payableInterest),
+          discountExpenseAmount: money(discountCost > 0n ? discountCost : 0n),
+          discountIncomeAmount: money(discountCost < 0n ? -discountCost : 0n),
+        },
+      }
+    }
     return payload
   }
 
@@ -1168,16 +1293,16 @@ export class AccService
           SELECT journal.business_date,
             journal.created_at,
             journal.id AS journal_id,
-            line.id AS line_id,
-            CASE WHEN line.direction = 'DEBIT' THEN line.amount ELSE -line.amount END AS amount
+            SUM(CASE WHEN line.direction = 'DEBIT' THEN line.amount ELSE -line.amount END) AS amount
           FROM acc_journal_entries journal
           JOIN acc_journal_lines line ON line.journal_entry_id = journal.id
           WHERE journal.book_id = ${fact.bookId}
             AND journal.currency = ${fact.currency}
             AND line.dimensions->>'FUND_ACCOUNT' = ${fact.fundAccountId}
+          GROUP BY journal.business_date, journal.created_at, journal.id
         ), balances AS (
           SELECT business_date,
-            SUM(amount) OVER (ORDER BY business_date, created_at, journal_id, line_id
+            SUM(amount) OVER (ORDER BY business_date, created_at, journal_id
               ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS balance
           FROM movements
         )
@@ -1317,7 +1442,7 @@ export class AccService
         | VouPayloadFor<'bill-discount'>
         | VouPayloadFor<'bill-maturity'>
       for (const line of payload.billLines) {
-        if ('billId' in line) {
+        if (!('positionType' in line)) {
           if (plan.entity === 'bill-issue')
             throw new AccApplicationError('acc_bill_line_invalid')
           await this.changeBillStatus(
@@ -1334,7 +1459,8 @@ export class AccService
           plan.entity === 'bill-maturity'
         )
           throw new AccApplicationError('acc_bill_line_invalid')
-        const billId = ulid()
+        const billId = line.billId
+        if (!billId) throw new AccApplicationError('acc_bill_line_invalid')
         const registerPayload = {
           billId,
           billNo: line.billNo,
@@ -1350,6 +1476,11 @@ export class AccService
             ${billId}, ${line.billNo}, ${line.positionType}, 'AVAILABLE', ${plan.approvalEntryId},
             ${plan.approvalEntryId}, ${JSON.stringify(registerPayload)}::jsonb, ${new Date(plan.occurredAt)}
           )
+        `.execute(tx)
+        for (const book of books)
+          await sql`
+          INSERT INTO acc_bill_book_values (bill_id, book_id, created_vou_approval_entry_id, value_amount, created_at)
+          VALUES (${billId}, ${book.id}, ${plan.approvalEntryId}, ${line.faceAmount}, ${new Date(plan.occurredAt)})
         `.execute(tx)
         await this.insertRegisterEntry(
           tx,
@@ -1372,10 +1503,11 @@ export class AccService
   ): Promise<void> {
     const asset = await sql<{
       id: string
-      acquisition_vou_approval_entry_id: string
+      acquisition_vou_approval_entry_id: string | null
+      acquisition_opening_approval_entry_id: string | null
       status: AssetStatus
     }>`
-      SELECT id, acquisition_vou_approval_entry_id, status
+      SELECT id, acquisition_vou_approval_entry_id, acquisition_opening_approval_entry_id, status
       FROM acc_asset_registers WHERE id = ${assetId} FOR UPDATE
     `.execute(tx)
     const current = asset.rows[0]
@@ -1383,13 +1515,13 @@ export class AccService
       throw new AccApplicationError('acc_asset_not_active')
     await sql`
       UPDATE acc_asset_registers
-      SET status = ${status}, state_vou_approval_entry_id = ${plan.approvalEntryId}
+      SET status = ${status}, state_vou_approval_entry_id = ${plan.approvalEntryId}, state_opening_approval_entry_id = NULL
       WHERE id = ${assetId}
     `.execute(tx)
     await sql`
       UPDATE acc_register_entries SET reversed_at = ${new Date(plan.occurredAt)}
       WHERE register_kind = 'ASSET' AND object_id = ${assetId}
-        AND vou_approval_entry_id = ${current.acquisition_vou_approval_entry_id}
+        AND (vou_approval_entry_id = ${current.acquisition_vou_approval_entry_id} OR opening_approval_entry_id = ${current.acquisition_opening_approval_entry_id})
     `.execute(tx)
     await this.insertRegisterEntry(
       tx,
@@ -1410,10 +1542,11 @@ export class AccService
   ): Promise<void> {
     const bill = await sql<{
       id: string
-      created_vou_approval_entry_id: string
+      created_vou_approval_entry_id: string | null
+      created_opening_approval_entry_id: string | null
       status: BillStatus
     }>`
-      SELECT id, created_vou_approval_entry_id, status
+      SELECT id, created_vou_approval_entry_id, created_opening_approval_entry_id, status
       FROM acc_bill_registers WHERE id = ${billId} FOR UPDATE
     `.execute(tx)
     const current = bill.rows[0]
@@ -1421,13 +1554,13 @@ export class AccService
       throw new AccApplicationError('acc_bill_not_available')
     await sql`
       UPDATE acc_bill_registers
-      SET status = ${status}, state_vou_approval_entry_id = ${plan.approvalEntryId}
+      SET status = ${status}, state_vou_approval_entry_id = ${plan.approvalEntryId}, state_opening_approval_entry_id = NULL
       WHERE id = ${billId}
     `.execute(tx)
     await sql`
       UPDATE acc_register_entries SET reversed_at = ${new Date(plan.occurredAt)}
       WHERE register_kind = 'BILL' AND object_id = ${billId}
-        AND vou_approval_entry_id = ${current.created_vou_approval_entry_id}
+        AND (vou_approval_entry_id = ${current.created_vou_approval_entry_id} OR opening_approval_entry_id = ${current.created_opening_approval_entry_id})
     `.execute(tx)
     await this.insertRegisterEntry(
       tx,
@@ -1492,36 +1625,30 @@ export class AccService
     `.execute(tx)
 
     await sql`
-      UPDATE acc_register_entries SET reversed_at = NULL
-      WHERE (register_kind = 'ASSET' AND vou_approval_entry_id IN (
-        SELECT acquisition_vou_approval_entry_id FROM acc_asset_registers
-        WHERE state_vou_approval_entry_id = ${plan.approvalEntryId}
-          AND acquisition_vou_approval_entry_id <> ${plan.approvalEntryId}
-      ) AND object_id IN (
-        SELECT id FROM acc_asset_registers
-        WHERE state_vou_approval_entry_id = ${plan.approvalEntryId}
-          AND acquisition_vou_approval_entry_id <> ${plan.approvalEntryId}
-      )) OR (register_kind = 'BILL' AND vou_approval_entry_id IN (
-        SELECT created_vou_approval_entry_id FROM acc_bill_registers
-        WHERE state_vou_approval_entry_id = ${plan.approvalEntryId}
-          AND created_vou_approval_entry_id <> ${plan.approvalEntryId}
-      ) AND object_id IN (
-        SELECT id FROM acc_bill_registers
-        WHERE state_vou_approval_entry_id = ${plan.approvalEntryId}
-          AND created_vou_approval_entry_id <> ${plan.approvalEntryId}
+      UPDATE acc_register_entries entry SET reversed_at = NULL
+      WHERE (entry.register_kind = 'ASSET' AND EXISTS (
+        SELECT 1 FROM acc_asset_registers asset
+        WHERE asset.id = entry.object_id AND asset.state_vou_approval_entry_id = ${plan.approvalEntryId}
+          AND asset.acquisition_vou_approval_entry_id IS DISTINCT FROM ${plan.approvalEntryId}
+          AND (entry.vou_approval_entry_id = asset.acquisition_vou_approval_entry_id OR entry.opening_approval_entry_id = asset.acquisition_opening_approval_entry_id)
+      )) OR (entry.register_kind = 'BILL' AND EXISTS (
+        SELECT 1 FROM acc_bill_registers bill
+        WHERE bill.id = entry.object_id AND bill.state_vou_approval_entry_id = ${plan.approvalEntryId}
+          AND bill.created_vou_approval_entry_id IS DISTINCT FROM ${plan.approvalEntryId}
+          AND (entry.vou_approval_entry_id = bill.created_vou_approval_entry_id OR entry.opening_approval_entry_id = bill.created_opening_approval_entry_id)
       ))
     `.execute(tx)
     await sql`
       UPDATE acc_asset_registers
-      SET status = 'ACTIVE', state_vou_approval_entry_id = acquisition_vou_approval_entry_id
+      SET status = 'ACTIVE', state_vou_approval_entry_id = acquisition_vou_approval_entry_id, state_opening_approval_entry_id = acquisition_opening_approval_entry_id
       WHERE state_vou_approval_entry_id = ${plan.approvalEntryId}
-        AND acquisition_vou_approval_entry_id <> ${plan.approvalEntryId}
+        AND acquisition_vou_approval_entry_id IS DISTINCT FROM ${plan.approvalEntryId}
     `.execute(tx)
     await sql`
       UPDATE acc_bill_registers
-      SET status = 'AVAILABLE', state_vou_approval_entry_id = created_vou_approval_entry_id
+      SET status = 'AVAILABLE', state_vou_approval_entry_id = created_vou_approval_entry_id, state_opening_approval_entry_id = created_opening_approval_entry_id
       WHERE state_vou_approval_entry_id = ${plan.approvalEntryId}
-        AND created_vou_approval_entry_id <> ${plan.approvalEntryId}
+        AND created_vou_approval_entry_id IS DISTINCT FROM ${plan.approvalEntryId}
     `.execute(tx)
     await sql`DELETE FROM acc_asset_book_values WHERE acquisition_vou_approval_entry_id = ${plan.approvalEntryId}`.execute(
       tx,
@@ -2937,6 +3064,22 @@ export class AccService
     configuration: Awaited<ReturnType<AccService['openingAssetConfiguration']>>,
     asset: AccOpeningAsset,
   ): void {
+    const assetFacts: Record<string, unknown> = {
+      ...asset,
+      line: {
+        assetId: asset.assetId,
+        category: { objectId: asset.categoryId },
+        department: { objectId: asset.departmentId },
+      },
+    }
+    const dimensionValue = (path: string): unknown => {
+      let value: unknown = assetFacts
+      for (const key of path.split('.')) {
+        if (typeof value !== 'object' || value === null) return undefined
+        value = (value as Record<string, unknown>)[key]
+      }
+      return value
+    }
     const matches = (
       subjectId: string,
       dimensions: Record<string, string>,
@@ -2951,7 +3094,7 @@ export class AccService
           decimalUnits(line.amount) === decimalUnits(amount) &&
           line.dimensions.ASSET === asset.assetId &&
           Object.entries(dimensions).every(
-            ([key, value]) => line.dimensions[key] === value,
+            ([key, path]) => line.dimensions[key] === dimensionValue(path),
           ),
       )
     if (

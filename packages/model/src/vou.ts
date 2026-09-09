@@ -722,6 +722,8 @@ export interface VouPayloadShapes {
     }
   }
   'service-acceptance': VouPayloadBase & {
+    amount: string
+    counterparty?: VouVersionedReferenceInput
     employee: VouAuxCurrentReferenceInput
     serviceAcceptance: {
       contractDocumentId: string
@@ -970,6 +972,8 @@ function versionedReferenceCandidateEntity(
   path: string,
   payload: VouPayload,
 ): VouReferenceCandidateEntity {
+  if (field === 'counterparty' && entity === 'service-acceptance')
+    return 'other-unit'
   if (field === 'counterparty') {
     const counterpartyType = (payload as unknown as Record<string, unknown>)[
       'counterpartyType'
@@ -1310,7 +1314,12 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
     'employee',
     'serviceContract',
   ],
-  'service-acceptance': ['employee', 'serviceAcceptance'],
+  'service-acceptance': [
+    'amount',
+    'counterparty',
+    'employee',
+    'serviceAcceptance',
+  ],
 }
 const payloadRequiredFields: Readonly<Record<VouEntity, readonly string[]>> =
   Object.fromEntries(
@@ -1331,6 +1340,7 @@ const payloadRequiredFields: Readonly<Record<VouEntity, readonly string[]>> =
               'containerDifferenceReason',
               'creditOverrideReason',
             ].includes(field) ||
+            (field === 'counterparty' && entity === 'service-acceptance') ||
             (field === 'billCashLines' && entity !== 'bill-maturity') ||
             ((field === 'counterparty' || field === 'counterpartyType') &&
               entity === 'other-income')
@@ -1490,6 +1500,8 @@ function headerReferenceCandidatesForEntity(
     return ['other-unit']
   if (key === 'counterparty' && entity === 'asset-sale')
     return ['customer-subunit', 'other-unit']
+  if (key === 'counterparty' && entity === 'service-acceptance')
+    return ['other-unit']
   if (key === 'counterparty' && entity === 'service-contract')
     return ['other-unit', 'sales-partner']
   return headerReferenceCandidates[key] ?? []

@@ -1,7 +1,8 @@
 import type { VouPayloadFor, VouAttachmentMetadata } from '@zerp/model'
 import type { VouCandidate } from './VouReference.vue'
 import { type OrderProduct } from './order-data.ts'
-export type ProductFactsEntity = 'purchase-inquiry' | 'inventory-count'
+export type ProductFactsEntity =
+  'purchase-inquiry' | 'inventory-count' | 'sale-pricing'
 export type ProductFactLine = {
   id: string
   product: VouCandidate | null
@@ -54,21 +55,28 @@ export function productFactsPayload(
     remark: draft.remark,
     attachments: draft.attachments,
   }
-  if (draft.entity === 'purchase-inquiry') {
+  if (draft.entity !== 'inventory-count') {
     const supplier = draft.supplier
     if (
-      !supplier ||
-      !('approvalEntryId' in supplier) ||
-      !supplier.approvalEntryId
+      draft.entity === 'purchase-inquiry' &&
+      (!supplier ||
+        !('approvalEntryId' in supplier) ||
+        !supplier.approvalEntryId)
     )
       throw new Error('请选择供应商。')
     return {
       ...base,
-      supplier: {
-        objectId: supplier.objectId,
-        approvalEntryId: supplier.approvalEntryId,
-        selectionOrigin: draft.selectionOrigin,
-      },
+      ...(draft.entity === 'purchase-inquiry' &&
+      supplier &&
+      'approvalEntryId' in supplier
+        ? {
+            supplier: {
+              objectId: supplier.objectId,
+              approvalEntryId: supplier.approvalEntryId!,
+              selectionOrigin: draft.selectionOrigin,
+            },
+          }
+        : {}),
       priceLines: draft.lines.map((line) => {
         const product = line.product
         if (

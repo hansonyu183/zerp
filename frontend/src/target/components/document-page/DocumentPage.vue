@@ -96,13 +96,26 @@ import {
   type FulfillmentDraft,
   type FulfillmentEntity,
 } from './fulfillment-data.ts'
+import ServiceBlock from './ServiceBlock.vue'
+import {
+  serviceEntities,
+  emptyService,
+  cloneService,
+  servicePayload,
+  type ServiceEntity,
+  type ServiceDraft,
+} from './service-data.ts'
 const props = defineProps<{ definition: DocumentDefinition }>()
 const definition =
   props.definition.vouType === 'opening'
     ? openingPage
     : vouPages[props.definition.vouType]
 const productionEntities = ['order-production', 'self-production']
-const productFactsEntities = ['purchase-inquiry', 'inventory-count']
+const productFactsEntities = [
+  'purchase-inquiry',
+  'inventory-count',
+  'sale-pricing',
+]
 const fulfillmentEntities = [
   'purchase-inbound',
   'sale-return',
@@ -118,6 +131,7 @@ const editorAvailable = [
   ...financialEntities,
   ...assetEntities,
   ...billEntities,
+  ...serviceEntities,
 ].includes(definition.vouType)
 const session = useTargetSession(),
   generation = session.generation
@@ -143,6 +157,7 @@ const saving = ref(false),
   editError = ref(''),
   blockPending = ref(false)
 type EditorDraft =
+  | { kind: 'service'; value: ServiceDraft }
   | { kind: 'bill'; value: BillDraft }
   | { kind: 'asset'; value: AssetDraft }
   | { kind: 'financial'; value: FinancialDraft }
@@ -163,6 +178,7 @@ function editorModel<K extends EditorDraft['kind']>(kind: K) {
     },
   })
 }
+const serviceDraft = editorModel('service')
 const billDraft = editorModel('bill')
 const assetDraft = editorModel('asset')
 const financialDraft = editorModel('financial')
@@ -211,6 +227,8 @@ function create() {
   attachments.reset()
   openingSource.value = null
   if (definition.vouType === 'opening') openingDraft.value = emptyOpening()
+  else if ((serviceEntities as readonly string[]).includes(definition.vouType))
+    serviceDraft.value = emptyService(definition.vouType as ServiceEntity)
   else if ((billEntities as readonly string[]).includes(definition.vouType))
     billDraft.value = emptyBill(definition.vouType as BillEntity)
   else if ((assetEntities as readonly string[]).includes(definition.vouType))
@@ -249,6 +267,14 @@ function cloneSelected() {
       JSON.stringify(original.payload),
     ) as OpeningDraft
     openingSource.value = original
+  } else if ((serviceEntities as readonly string[]).includes(original.entity)) {
+    serviceDraft.value = cloneService(
+      original.entity as ServiceEntity,
+      original.payload as import('@zerp/model').VouPayloadFor<ServiceEntity>,
+    )
+    editError.value = original.payload.attachments.length
+      ? '附件不随复制继承，请重新上传需要的文件。'
+      : ''
   } else if ((billEntities as readonly string[]).includes(original.entity)) {
     billDraft.value = cloneBill(
       original.entity as BillEntity,
@@ -308,7 +334,8 @@ function cloneSelected() {
       ? '附件不随复制继承，请重新上传需要的文件。'
       : ''
   } else if (
-    (original.entity === 'purchase-inquiry' ||
+    (original.entity === 'sale-pricing' ||
+      original.entity === 'purchase-inquiry' ||
       original.entity === 'inventory-count') &&
     ('priceLines' in original.payload ||
       'inventoryCountLines' in original.payload)
@@ -376,6 +403,11 @@ async function submit() {
   editError.value = ''
   let command:
     | {
+        kind: 'service'
+        entity: ServiceEntity
+        input: api.TargetVoucherInput<ServiceEntity>
+      }
+    | {
         kind: 'order'
         entity: api.TargetOrderEntity
         input: api.TargetOrderInput<api.TargetOrderEntity>
@@ -423,7 +455,17 @@ async function submit() {
           idempotencyKey: identity.idempotencyKey,
         },
       }
-    } else if (billDraft.value)
+    } else if (serviceDraft.value)
+      command = {
+        kind: 'service',
+        entity: serviceDraft.value.entity,
+        input: {
+          ...identity,
+          expectedRevision: null,
+          payload: servicePayload(serviceDraft.value),
+        },
+      }
+    else if (billDraft.value)
       command = {
         kind: 'bill',
         entity: billDraft.value.entity,
@@ -978,6 +1020,11 @@ onBeforeUnmount(() => {
           :key="identity.submissionId"
           v-model="openingDraft"
           :disabled="saving || uncertain || Boolean(openingSource)"
+        />
+        <ServiceBlock
+          v-if="serviceDraft"
+          v-model="serviceDraft"
+          :disabled="saving || uncertain"
         />
         <BillBlock
           v-if="billDraft"

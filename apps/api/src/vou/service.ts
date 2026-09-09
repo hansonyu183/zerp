@@ -843,6 +843,7 @@ export class VouService implements WflVouPort {
     if (!preflight.ok) throw new VouApplicationError(preflight.errorKey)
     // Client display values are never authoritative for a new AUX adoption.
     input = { ...input, payload: structuredClone(input.payload) }
+    await this.adoptService(tx, entity, input.documentId, input.payload)
     await this.adoptProduction(tx, entity, input.documentId, input.payload)
     if (entity === 'inventory-count' && 'inventoryCountLines' in input.payload)
       await this.validateInventoryCount(tx, input.payload)
@@ -1132,6 +1133,8 @@ export class VouService implements WflVouPort {
         persistedPayload,
         actor,
       )
+    if (action === 'approve')
+      await this.adoptService(tx, entity, input.documentId, persistedPayload)
     if (action === 'approve')
       await this.adoptBills(tx, entity, persistedPayload)
     const effectAction =
@@ -1946,7 +1949,7 @@ export class VouService implements WflVouPort {
       case 'bill':
         return `SELECT r.id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, r.bill_no AS code, r.bill_no AS name FROM acc_bill_registers r WHERE r.status = 'AVAILABLE' AND EXISTS (SELECT 1 FROM acc_bill_book_values v JOIN acc_books b ON b.id = v.book_id JOIN approval_entries a ON a.subject_id = b.id AND a.domain = 'vou' AND a.entity = 'opening' AND a.status = 'APPROVED' WHERE v.bill_id = r.id AND b.control_book)`
       case 'service-contract':
-        return `SELECT document.id AS object_id, approval.id AS approval_entry_id, NULL::varchar AS customer_id, document.document_no AS code, document.document_no AS name FROM vou_documents document JOIN approval_entries approval ON approval.subject_id = document.id AND approval.domain = 'vou' AND approval.entity = 'service-contract' AND approval.status = 'APPROVED'`
+        return `SELECT document.id AS object_id, approval.id AS approval_entry_id, NULL::varchar AS customer_id, document.document_no AS code, document.document_no AS name FROM vou_documents document JOIN approval_entries approval ON approval.subject_id = document.id AND approval.domain = 'vou' AND approval.entity = 'service-contract' AND approval.status = 'APPROVED' JOIN vou_reference_snapshots party ON party.approval_entry_id = approval.id AND party.field = 'counterparty' AND party.reference_entity = 'other-unit'`
     }
   }
 
@@ -2384,6 +2387,67 @@ export class VouService implements WflVouPort {
         round(face * BigInt(annualRateBps) * BigInt(interestDays), 3_650_000n),
       ),
       customerCostAmount: money(round(face * BigInt(costRateBps), 10_000n)),
+    }
+  }
+
+  private async adoptService(
+    tx: Transaction<DB>,
+    entity: VouEntity,
+    documentId: string,
+    payload: VouPayload,
+  ) {
+    if (entity === 'service-contract' && 'serviceContract' in payload) {
+      const contract = payload.serviceContract
+      if (
+        contract.applicableFrom &&
+        contract.applicableTo &&
+        contract.applicableFrom > contract.applicableTo
+      )
+        throw new VouApplicationError('vou_invalid_payload')
+      return
+    }
+    if (entity !== 'service-acceptance' || !('serviceAcceptance' in payload))
+      return
+    const acceptance = payload.serviceAcceptance
+    if (acceptance.contractDocumentId === documentId)
+      throw new VouApplicationError('vou_reference_unavailable')
+    await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`vou:document:${acceptance.contractDocumentId}`}, 0))`.execute(
+      tx,
+    )
+    const entry = await tx
+      .selectFrom('approval_entries')
+      .select('id')
+      .where('domain', '=', 'vou')
+      .where('entity', '=', 'service-contract')
+      .where('subject_id', '=', acceptance.contractDocumentId)
+      .where('status', '=', 'APPROVED')
+      .forUpdate()
+      .executeTakeFirst()
+    if (!entry) throw new VouApplicationError('vou_reference_unavailable')
+    const contract = (await this.readPayload(
+      tx,
+      'service-contract',
+      entry.id,
+    )) as VouPayloadFor<'service-contract'>
+    if (contract.counterpartyType !== 'other-unit')
+      throw new VouApplicationError('vou_reference_unavailable')
+    const amount = decimalToFixed(payload.amount, 2)
+    if (
+      amount === null ||
+      amount <= 0n ||
+      payload.currency !== contract.currency ||
+      acceptance.serviceDate > acceptance.acceptanceDate ||
+      (contract.serviceContract.applicableFrom &&
+        acceptance.serviceDate < contract.serviceContract.applicableFrom) ||
+      (contract.serviceContract.applicableTo &&
+        acceptance.serviceDate > contract.serviceContract.applicableTo)
+    )
+      throw new VouApplicationError('vou_invalid_payload')
+    payload.parentEntity = 'service-contract'
+    payload.parentDocumentId = acceptance.contractDocumentId
+    payload.counterparty = {
+      ...contract.counterparty,
+      selectionOrigin: 'HISTORICAL',
     }
   }
 
@@ -4928,6 +4992,8 @@ export class VouService implements WflVouPort {
       ).rows[0]!
       return {
         ...base,
+        amount: amount(),
+        counterparty: reference('counterparty'),
         employee: reference('employee'),
         serviceAcceptance: {
           contractDocumentId: detail.contract_document_id,
@@ -5682,7 +5748,7 @@ export class VouService implements WflVouPort {
           SELECT detail.document_id
           FROM ${sql.raw(table)} AS detail
           INNER JOIN approval_entries AS entry ON entry.id = detail.approval_entry_id
-          WHERE detail.parent_document_id = ${documentId} AND (entry.status = 'APPROVED' OR ${entity === 'order-production'})
+          WHERE detail.parent_document_id = ${documentId} AND (entry.status = 'APPROVED' OR ${entity === 'order-production' || entity === 'service-acceptance'})
         `.execute(executor)
         return result.rows.map((row) => ({ entity, ...row }))
       }),

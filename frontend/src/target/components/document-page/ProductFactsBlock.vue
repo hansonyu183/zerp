@@ -129,7 +129,7 @@ async function product(
   pending.delete(id)
   line(id, { product: choice, current: null, unitId: '' })
   emit('pending', pending.size > 0)
-  if (!choice || props.modelValue.entity === 'purchase-inquiry') return
+  if (!choice || props.modelValue.entity !== 'inventory-count') return
   if (!session.csrfToken || !session.can('/bob/product/get')) {
     error.value = '没有产品读取权限，无法采用产品单位。'
     return
@@ -181,7 +181,7 @@ onBeforeUnmount(() => {
         caption: '业务日期',
         required: true,
       },
-      ...(modelValue.entity === 'purchase-inquiry'
+      ...(modelValue.entity !== 'inventory-count'
         ? [
             {
               key: 'currency' as const,
@@ -208,7 +208,7 @@ onBeforeUnmount(() => {
     "
   />
   <VouReference
-    v-else
+    v-else-if="modelValue.entity === 'inventory-count'"
     entity="warehouse"
     caption="仓库"
     :model-value="modelValue.warehouse"
@@ -270,7 +270,7 @@ onBeforeUnmount(() => {
         @update:model-value="product(row.id, $event)"
       />
       <FormBlock
-        v-if="modelValue.entity === 'purchase-inquiry'"
+        v-if="modelValue.entity !== 'inventory-count'"
         :fields="[
           {
             key: 'unitPrice',

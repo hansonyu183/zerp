@@ -422,6 +422,7 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
     },
     'service-acceptance': {
       ...base,
+      amount: '12.30',
       employee,
       serviceAcceptance: {
         contractDocumentId: ulid(),
@@ -599,8 +600,25 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
       payloads['bill-discount'].billLines[0]!.billId = register.id
     }
   }
-  for (const [entity, payload] of Object.entries(payloads))
+  for (const [entity, payload] of Object.entries(payloads)) {
+    if (entity === 'service-acceptance') {
+      const contract = documents['service-contract']!
+      documents['service-contract'] = await vou.review(
+        'service-contract',
+        'approve',
+        {
+          documentId: contract.documentId,
+          submissionId: contract.submissionId,
+          expectedRevision: contract.revision,
+        },
+        reviewer,
+        'catalog-contract',
+      )
+      payloads['service-acceptance'].serviceAcceptance.contractDocumentId =
+        contract.documentId
+    }
     await submit(entity as VouEntity, payload)
+  }
   for (const entity of [
     'sale-order',
     'purchase-order',

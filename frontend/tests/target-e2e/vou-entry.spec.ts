@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 const facts = JSON.parse(process.env.TARGET_E2E_VOU_ENTRY_JSON ?? '{}') as {
+  serviceContract: string
   asset: string
   category: string
   department: string
@@ -19,6 +20,9 @@ const facts = JSON.parse(process.env.TARGET_E2E_VOU_ENTRY_JSON ?? '{}') as {
   sources: Record<string, string>
 }
 const entities = [
+  'sale-pricing',
+  'service-contract',
+  'service-acceptance',
   'sale-return',
   'purchase-inbound',
   'purchase-return',
@@ -105,6 +109,30 @@ for (const width of [1280, 390])
             await editor
               .getByLabel('清理原因', { exact: true })
               .fill('设备报废')
+        }
+      } else if (
+        entity === 'service-contract' ||
+        entity === 'service-acceptance'
+      ) {
+        await choose('经办员工', facts.employee)
+        if (entity === 'service-contract') {
+          await choose('相对方', facts.otherUnit)
+          await editor
+            .getByLabel('合同条款', { exact: true })
+            .fill('真实录入服务条款')
+        } else {
+          await choose('服务合同', facts.serviceContract)
+          await editor
+            .getByLabel('履约日期', { exact: true })
+            .fill('2026-09-09')
+          await editor
+            .getByLabel('验收日期', { exact: true })
+            .fill('2026-09-09')
+          await editor.getByLabel('结算金额', { exact: true }).fill('12.34')
+          await editor
+            .getByLabel('履约事实', { exact: true })
+            .fill('完成现场服务')
+          await editor.getByLabel('验收事实', { exact: true }).fill('验收合格')
         }
       } else if (entity.startsWith('bill-')) {
         if (entity === 'bill-receipt') await choose('客户子单位', facts.subunit)
@@ -217,15 +245,24 @@ for (const width of [1280, 390])
           editor.getByLabel('实际基准领料量', { exact: true }),
         ).toHaveValue('1.000000')
       } else {
-        if (entity !== 'sale-return' && entity !== 'inventory-count')
+        if (
+          entity !== 'sale-return' &&
+          entity !== 'inventory-count' &&
+          entity !== 'sale-pricing'
+        )
           await choose('供应商', facts.supplier)
-        if (entity !== 'purchase-inquiry') await choose('仓库', facts.warehouse)
-        if (entity === 'purchase-inquiry' || entity === 'inventory-count') {
+        if (entity !== 'purchase-inquiry' && entity !== 'sale-pricing')
+          await choose('仓库', facts.warehouse)
+        if (
+          entity === 'purchase-inquiry' ||
+          entity === 'inventory-count' ||
+          entity === 'sale-pricing'
+        ) {
           await editor
             .getByRole('button', { name: '添加商品行', exact: true })
             .click()
           await choose('产品', facts.product)
-          if (entity === 'purchase-inquiry')
+          if (entity !== 'inventory-count')
             await editor.getByLabel('单价', { exact: true }).fill('12.34')
           else {
             await editor.getByLabel('实盘数量', { exact: true }).fill('0')

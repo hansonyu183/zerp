@@ -157,6 +157,7 @@ try {
     )
     .executeTakeFirstOrThrow()
   const entryFacts = {
+    serviceContract: fixture.documents['service-contract'].documentNo,
     asset: asset.asset_no,
     category: category.code,
     department: department.code,

@@ -935,7 +935,7 @@ it('clones return facts and exact sources without inheriting submission identity
   wrapper.unmount()
 })
 
-it.each(['purchase-inquiry', 'inventory-count'] as const)(
+it.each(['purchase-inquiry', 'inventory-count', 'sale-pricing'] as const)(
   'submits %s through product candidates with decimal facts',
   async (entity) => {
     useTargetSession().apiPaths = [
@@ -969,15 +969,16 @@ it.each(['purchase-inquiry', 'inventory-count'] as const)(
     })
     await flushPromises()
     await click(wrapper, '新建')
-    await wrapper
-      .get(
-        `[aria-label="${entity === 'purchase-inquiry' ? '供应商' : '仓库'}"]`,
-      )
-      .setValue(referenceId)
+    if (entity !== 'sale-pricing')
+      await wrapper
+        .get(
+          `[aria-label="${entity === 'purchase-inquiry' ? '供应商' : '仓库'}"]`,
+        )
+        .setValue(referenceId)
     await click(wrapper, '添加商品行')
     await wrapper.get('[aria-label="产品"]').setValue(productId)
     await flushPromises()
-    if (entity === 'purchase-inquiry')
+    if (entity !== 'inventory-count')
       await wrapper.get('[aria-label="单价"]').setValue('12.34')
     else {
       await wrapper.get('[aria-label="实盘数量"]').setValue('0')
@@ -988,7 +989,7 @@ it.each(['purchase-inquiry', 'inventory-count'] as const)(
     expect(
       vi.mocked(api.submitTargetVoucher).mock.calls[0]![2].payload,
     ).toMatchObject(
-      entity === 'purchase-inquiry'
+      entity !== 'inventory-count'
         ? {
             priceLines: [
               {
@@ -1605,6 +1606,75 @@ it.each([
         { fundAccount: { objectId: referenceId }, amount: '9999.99' },
       ],
     })
+    wrapper.unmount()
+  },
+)
+
+it.each(['service-contract', 'service-acceptance'] as const)(
+  'submits %s through selected service references and typed facts',
+  async (entity) => {
+    useTargetSession().apiPaths = [
+      `/vou/${entity}/submit-new`,
+      '/vou/reference/query',
+    ]
+    vi.mocked(api.queryTargetVouReferences).mockImplementation(
+      async (_token, input) =>
+        ({
+          items: [
+            {
+              entity: input.entity,
+              objectId: referenceId,
+              approvalEntryId: entryId,
+              code: '01',
+              name: '服务候选',
+            },
+          ],
+        }) as Awaited<ReturnType<typeof api.queryTargetVouReferences>>,
+    )
+    vi.mocked(api.submitTargetVoucher).mockResolvedValue({
+      documentId: referenceId,
+    } as Awaited<ReturnType<typeof api.submitTargetVoucher>>)
+    const wrapper = mount(ResourceHost, {
+      props: { domain: 'vou', entity },
+      global: { stubs },
+    })
+    await flushPromises()
+    await click(wrapper, '新建')
+    await wrapper.get('[aria-label="经办员工"]').setValue(referenceId)
+    if (entity === 'service-contract') {
+      await wrapper.get('[aria-label="相对方"]').setValue(referenceId)
+      await wrapper.get('[aria-label="合同条款"]').setValue('按合同交付')
+      await wrapper.get('[aria-label="相对方类型"]').setValue('sales-partner')
+      await click(wrapper, '提交')
+      expect(api.submitTargetVoucher).not.toHaveBeenCalled()
+      expect(wrapper.text()).toContain('请选择合同相对方。')
+      await wrapper.get('[aria-label="相对方类型"]').setValue('other-unit')
+    } else {
+      await wrapper.get('[aria-label="服务合同"]').setValue(referenceId)
+      await wrapper.get('[aria-label="结算金额"]').setValue('12.34')
+      await wrapper.get('[aria-label="履约事实"]').setValue('已交付')
+      await wrapper.get('[aria-label="验收事实"]').setValue('合格')
+    }
+    await click(wrapper, '提交')
+    expect(api.submitTargetVoucher, wrapper.text()).toHaveBeenCalledTimes(1)
+    expect(
+      vi.mocked(api.submitTargetVoucher).mock.calls[0]![2].payload,
+    ).toMatchObject(
+      entity === 'service-contract'
+        ? {
+            counterparty: { objectId: referenceId, approvalEntryId: entryId },
+            serviceContract: { terms: '按合同交付' },
+          }
+        : {
+            amount: '12.34',
+            serviceAcceptance: {
+              contractDocumentId: referenceId,
+              fulfillmentFact: '已交付',
+              acceptanceFact: '合格',
+              settlementDirection: 'PAYABLE',
+            },
+          },
+    )
     wrapper.unmount()
   },
 )

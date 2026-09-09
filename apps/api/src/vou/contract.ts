@@ -772,6 +772,8 @@ export const vouPayloadSchemaByEntity = {
       .strict(),
   }),
   'service-acceptance': payload({
+    amount: money,
+    counterparty: versionedReference.optional(),
     employee: employeeReference,
     serviceAcceptance: z
       .object({

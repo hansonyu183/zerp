@@ -109415,6 +109415,38 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "amount": {
+                                      "type": "string",
+                                      "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                                    },
+                                    "counterparty": {
+                                      "type": "object",
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "approvalEntryId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "selectionOrigin": {
+                                          "type": "string",
+                                          "enum": [
+                                            "CURRENT",
+                                            "HISTORICAL"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId",
+                                        "approvalEntryId",
+                                        "selectionOrigin"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "employee": {
                                       "type": "object",
                                       "properties": {
@@ -109652,6 +109684,7 @@
                                     "businessDate",
                                     "currency",
                                     "attachments",
+                                    "amount",
                                     "employee",
                                     "serviceAcceptance"
                                   ],
@@ -129909,6 +129942,38 @@
                             "minLength": 26,
                             "maxLength": 26
                           },
+                          "amount": {
+                            "type": "string",
+                            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                          },
+                          "counterparty": {
+                            "type": "object",
+                            "properties": {
+                              "objectId": {
+                                "type": "string",
+                                "minLength": 26,
+                                "maxLength": 26
+                              },
+                              "approvalEntryId": {
+                                "type": "string",
+                                "minLength": 26,
+                                "maxLength": 26
+                              },
+                              "selectionOrigin": {
+                                "type": "string",
+                                "enum": [
+                                  "CURRENT",
+                                  "HISTORICAL"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "objectId",
+                              "approvalEntryId",
+                              "selectionOrigin"
+                            ],
+                            "additionalProperties": false
+                          },
                           "employee": {
                             "type": "object",
                             "properties": {
@@ -130146,6 +130211,7 @@
                           "businessDate",
                           "currency",
                           "attachments",
+                          "amount",
                           "employee",
                           "serviceAcceptance"
                         ],
@@ -150157,6 +150223,38 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "amount": {
+                                      "type": "string",
+                                      "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                                    },
+                                    "counterparty": {
+                                      "type": "object",
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "approvalEntryId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "selectionOrigin": {
+                                          "type": "string",
+                                          "enum": [
+                                            "CURRENT",
+                                            "HISTORICAL"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId",
+                                        "approvalEntryId",
+                                        "selectionOrigin"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "employee": {
                                       "type": "object",
                                       "properties": {
@@ -150394,6 +150492,7 @@
                                     "businessDate",
                                     "currency",
                                     "attachments",
+                                    "amount",
                                     "employee",
                                     "serviceAcceptance"
                                   ],
@@ -170418,6 +170517,38 @@
                             "minLength": 26,
                             "maxLength": 26
                           },
+                          "amount": {
+                            "type": "string",
+                            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                          },
+                          "counterparty": {
+                            "type": "object",
+                            "properties": {
+                              "objectId": {
+                                "type": "string",
+                                "minLength": 26,
+                                "maxLength": 26
+                              },
+                              "approvalEntryId": {
+                                "type": "string",
+                                "minLength": 26,
+                                "maxLength": 26
+                              },
+                              "selectionOrigin": {
+                                "type": "string",
+                                "enum": [
+                                  "CURRENT",
+                                  "HISTORICAL"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "objectId",
+                              "approvalEntryId",
+                              "selectionOrigin"
+                            ],
+                            "additionalProperties": false
+                          },
                           "employee": {
                             "type": "object",
                             "properties": {
@@ -170655,6 +170786,7 @@
                           "businessDate",
                           "currency",
                           "attachments",
+                          "amount",
                           "employee",
                           "serviceAcceptance"
                         ],
@@ -190666,6 +190798,38 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "amount": {
+                                      "type": "string",
+                                      "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                                    },
+                                    "counterparty": {
+                                      "type": "object",
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "approvalEntryId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "selectionOrigin": {
+                                          "type": "string",
+                                          "enum": [
+                                            "CURRENT",
+                                            "HISTORICAL"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId",
+                                        "approvalEntryId",
+                                        "selectionOrigin"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "employee": {
                                       "type": "object",
                                       "properties": {
@@ -190903,6 +191067,7 @@
                                     "businessDate",
                                     "currency",
                                     "attachments",
+                                    "amount",
                                     "employee",
                                     "serviceAcceptance"
                                   ],
@@ -211069,6 +211234,38 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "amount": {
+                                      "type": "string",
+                                      "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                                    },
+                                    "counterparty": {
+                                      "type": "object",
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "approvalEntryId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "selectionOrigin": {
+                                          "type": "string",
+                                          "enum": [
+                                            "CURRENT",
+                                            "HISTORICAL"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId",
+                                        "approvalEntryId",
+                                        "selectionOrigin"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "employee": {
                                       "type": "object",
                                       "properties": {
@@ -211306,6 +211503,7 @@
                                     "businessDate",
                                     "currency",
                                     "attachments",
+                                    "amount",
                                     "employee",
                                     "serviceAcceptance"
                                   ],
@@ -231478,6 +231676,38 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "amount": {
+                                      "type": "string",
+                                      "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                                    },
+                                    "counterparty": {
+                                      "type": "object",
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "approvalEntryId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "selectionOrigin": {
+                                          "type": "string",
+                                          "enum": [
+                                            "CURRENT",
+                                            "HISTORICAL"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId",
+                                        "approvalEntryId",
+                                        "selectionOrigin"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "employee": {
                                       "type": "object",
                                       "properties": {
@@ -231715,6 +231945,7 @@
                                     "businessDate",
                                     "currency",
                                     "attachments",
+                                    "amount",
                                     "employee",
                                     "serviceAcceptance"
                                   ],
@@ -251881,6 +252112,38 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "amount": {
+                                      "type": "string",
+                                      "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                                    },
+                                    "counterparty": {
+                                      "type": "object",
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "approvalEntryId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "selectionOrigin": {
+                                          "type": "string",
+                                          "enum": [
+                                            "CURRENT",
+                                            "HISTORICAL"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId",
+                                        "approvalEntryId",
+                                        "selectionOrigin"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "employee": {
                                       "type": "object",
                                       "properties": {
@@ -252118,6 +252381,7 @@
                                     "businessDate",
                                     "currency",
                                     "attachments",
+                                    "amount",
                                     "employee",
                                     "serviceAcceptance"
                                   ],
@@ -272290,6 +272554,38 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "amount": {
+                                      "type": "string",
+                                      "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                                    },
+                                    "counterparty": {
+                                      "type": "object",
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "approvalEntryId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "selectionOrigin": {
+                                          "type": "string",
+                                          "enum": [
+                                            "CURRENT",
+                                            "HISTORICAL"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId",
+                                        "approvalEntryId",
+                                        "selectionOrigin"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "employee": {
                                       "type": "object",
                                       "properties": {
@@ -272527,6 +272823,7 @@
                                     "businessDate",
                                     "currency",
                                     "attachments",
+                                    "amount",
                                     "employee",
                                     "serviceAcceptance"
                                   ],

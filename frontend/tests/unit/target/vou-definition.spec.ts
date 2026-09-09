@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   defineVouPage,
   naturalMonth,
-} from '@/target/components/vou-list-page/definition.ts'
+} from '@/target/components/document-page/list-contract.ts'
 
 const input = {
   vouType: 'sale-order' as const,

@@ -25,6 +25,9 @@ const authorized = computed(() =>
 const registration = computed(() =>
   authorized.value ? props.registry.resolve(props.domain, props.entity) : null,
 )
+const pageProps = computed(() => ({
+  definition: registration.value?.definition,
+}))
 const instanceKey = computed(() => `${session.generation}:${resourceKey.value}`)
 </script>
 
@@ -37,9 +40,7 @@ const instanceKey = computed(() => `${session.generation}:${resourceKey.value}`)
     :is="registration.component"
     v-else-if="registration"
     :key="instanceKey"
-    :definition="registration.definition"
-    :vou-type="registration.vouType"
-    :entity="entity"
+    v-bind="pageProps"
   />
   <ManagementPageFrame
     v-else

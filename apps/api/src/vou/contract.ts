@@ -251,11 +251,23 @@ const signoffLine = z
   })
   .strict()
 const inventoryLine = quantitySnapshot
-  .extend({ product: objectReference, remark: z.string().max(1000).optional() })
+  .extend({
+    product: objectReference,
+    remark: z.string().max(1000).optional(),
+    countResult: z
+      .object({
+        bookQuantity: z.string().regex(/^-?\d+(?:\.\d{1,6})?$/),
+        actualQuantity: quantity,
+        differenceQuantity: z.string().regex(/^-?\d+(?:\.\d{1,6})?$/),
+      })
+      .strict()
+      .optional(),
+  })
   .strict()
 const productionLine = quantitySnapshot
   .extend({
     sourceOrderLineId: z.string().optional(),
+    formulaSnapshot: formula.optional(),
     product: objectReference.optional(),
     lossRate: quantity,
     remark: z.string().max(1000).optional(),
@@ -268,6 +280,7 @@ const productionLine = quantitySnapshot
             actualEnteredQuantity: quantity,
             actualEnteredUnit: objectReference,
             actualBaseQuantity: quantity,
+            suggestedBaseQuantity: quantity.optional(),
             adjustmentReason: z.string().max(1000).optional(),
           })
           .strict(),
@@ -276,8 +289,17 @@ const productionLine = quantitySnapshot
       .max(200),
   })
   .strict()
+const billCalculation = z
+  .object({
+    interestDays: z.number().int().nonnegative(),
+    interestAmount: money,
+    customerCostAmount: money,
+  })
+  .strict()
 const billPrimary = z
   .object({
+    calculation: billCalculation.optional(),
+    billId: z.string().length(26).optional(),
     positionType: z.literal('ASSET'),
     direction: z.literal('IN'),
     purpose: z.literal('PRIMARY'),
@@ -303,12 +325,21 @@ const billPrimary = z
 const billLiability = billPrimary
   .extend({ positionType: z.literal('LIABILITY') })
   .strict()
+const billReferenceSnapshot = billPrimary
+  .omit({ purpose: true, remark: true, calculation: true, billId: true })
+  .extend({
+    positionType: z.enum(['ASSET', 'LIABILITY']),
+    direction: z.literal('OUT'),
+  })
+  .strict()
 const billLine = z.union([
   billPrimary,
   billLiability,
   z
     .object({
       billId: z.string().min(1),
+      snapshot: billReferenceSnapshot.optional(),
+      calculation: billCalculation.optional(),
       purpose: z.literal('CHANGE'),
       remark: z.string().max(1000).optional(),
     })
@@ -316,6 +347,8 @@ const billLine = z.union([
   z
     .object({
       billId: z.string().min(1),
+      snapshot: billReferenceSnapshot.optional(),
+      calculation: billCalculation.optional(),
       purpose: z.literal('PRIMARY'),
       annualRateBps: z.number().int().min(0).max(100000).optional(),
       remark: z.string().max(1000).optional(),
@@ -393,7 +426,6 @@ const intermediarySourceLine = z
       })
       .strict()
       .optional(),
-    intermediary: intermediaryReference.optional(),
     product: intermediaryReference,
     behaviorProfile: z.enum([
       'RAW_MATERIAL',
@@ -407,6 +439,31 @@ const intermediarySourceLine = z
     unitPrice: money,
     referenceUnitPrice: money,
     settlementSurcharge: money,
+    customerTypeCode: z.string().min(1),
+    paymentSurcharge: money,
+    transportSurcharge: money,
+    defaultPremiumUnitPrice: money,
+    defaultDiscountUnitPrice: money,
+    thirdPartyIntermediaryFixedUnitCost: money,
+    thirdPartyIntermediaryVariableUnitCost: money,
+    costItems: z.array(
+      z.discriminatedUnion('calculationBasis', [
+        z
+          .object({
+            name: z.string().min(1),
+            calculationBasis: z.literal('UNIT_PRICE'),
+            unitPrice: money,
+          })
+          .strict(),
+        z
+          .object({
+            name: z.string().min(1),
+            calculationBasis: z.literal('ORDER_AMOUNT'),
+            orderAmount: money,
+          })
+          .strict(),
+      ]),
+    ),
     lineAmount: money,
     settlementTermCode: z.string(),
     specialApproval: z.boolean(),
@@ -451,7 +508,7 @@ const intermediaryResultLine = z
     note: z.string().max(1000).optional(),
   })
   .strict()
-const intermediaryCalculation = z
+export const intermediaryCalculation = z
   .object({
     source: z
       .object({
@@ -479,6 +536,7 @@ const intermediaryCalculation = z
           z
             .object({
               payee: intermediaryReference,
+              customer: intermediaryReference.optional(),
               category: z.enum([
                 'COMMISSION',
                 'EXTERNAL_PART_TIME',
@@ -504,6 +562,7 @@ export const vouPayloadSchemaByEntity = {
     paymentMethod: paymentMethodSelection.nullable(),
     productLines: z.array(productLine).min(1).max(200),
     creditOverrideReason: z.string().trim().min(1).max(1000).optional(),
+    specialApproval: z.boolean().optional(),
   }),
   'sale-outbound': payload({
     sourceLines: z.array(sourceLine).min(1).max(200),
@@ -549,11 +608,13 @@ export const vouPayloadSchemaByEntity = {
     returnLines: z.array(returnLine).min(1).max(200),
   }),
   'order-production': payload({
+    currency: z.literal(''),
     materialWarehouse: warehouseReference,
     finishedWarehouse: warehouseReference,
     productionLines: z.array(productionLine).min(1).max(200),
   }),
   'self-production': payload({
+    currency: z.literal(''),
     materialWarehouse: warehouseReference,
     finishedWarehouse: warehouseReference,
     productionLines: z.array(productionLine).min(1).max(200),
@@ -687,7 +748,7 @@ export const vouPayloadSchemaByEntity = {
       .max(200),
   }),
   'bill-receipt': payload({
-    customer: versionedReference,
+    customerSubunit: versionedReference,
     handler: employeeReference,
     internalCostRateBps: z.number().int().min(0).max(100000).optional(),
     billLines: z.array(billLine).min(1).max(20),
@@ -737,6 +798,8 @@ export const vouPayloadSchemaByEntity = {
       .strict(),
   }),
   'service-acceptance': payload({
+    amount: money,
+    counterparty: versionedReference.optional(),
     employee: employeeReference,
     serviceAcceptance: z
       .object({
@@ -1025,7 +1088,51 @@ function route<
   })
 }
 
+function intermediaryRoute<
+  Action extends string,
+  Input extends z.ZodType,
+  Output extends z.ZodType,
+>(action: Action, input: Input, output: Output) {
+  return createRoute({
+    method: 'post',
+    path: `/vou/intermediary-calculation/${action}` as const,
+    request: { body: { content: { 'application/json': { schema: input } } } },
+    responses: {
+      200: {
+        description: `Intermediary ${action}`,
+        content: { 'application/json': { schema: envelope(output) } },
+      },
+    },
+  })
+}
+
 export const vouRouteSet = {
+  source: intermediaryRoute(
+    'source',
+    z.object({ businessDate: z.string().date() }).strict(),
+    z
+      .object({
+        source: intermediaryCalculation.shape.source,
+        sourceHash: z.string(),
+      })
+      .strict(),
+  ),
+  'script-get': intermediaryRoute(
+    'script-get',
+    z.object({}).strict(),
+    intermediaryCalculation.shape.script.nullable(),
+  ),
+  'script-save': intermediaryRoute(
+    'script-save',
+    z
+      .object({
+        expectedRevision: z.number().int().positive().nullable(),
+        name: z.string().trim().min(1).max(200),
+        source: z.string().min(1).max(200000),
+      })
+      .strict(),
+    intermediaryCalculation.shape.script,
+  ),
   reference: createRoute({
     method: 'post',
     path: '/vou/reference/query',
@@ -1041,6 +1148,58 @@ export const vouRouteSet = {
               z.object({
                 items: z.array(referenceCandidate),
               }),
+            ),
+          },
+        },
+      },
+    },
+  }),
+  'book-balance': createRoute({
+    method: 'post',
+    path: '/vou/inventory-count/book-balance',
+    request: {
+      body: {
+        content: {
+          'application/json': {
+            schema: z
+              .object({
+                warehouseId: z.string().length(26),
+                businessDate: z.string().date(),
+                page: z.number().int().positive().default(1),
+                pageSize: z.literal(20).default(20),
+              })
+              .strict(),
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: 'Nonzero control-book inventory preview',
+        content: {
+          'application/json': {
+            schema: envelope(
+              z
+                .object({
+                  items: z.array(
+                    z
+                      .object({
+                        product: z
+                          .object({
+                            objectId: z.string(),
+                            code: z.string(),
+                            name: z.string(),
+                          })
+                          .strict(),
+                        bookQuantity: z.string(),
+                      })
+                      .strict(),
+                  ),
+                  total: z.number().int().nonnegative(),
+                  page: z.number().int().positive(),
+                  pageSize: z.literal(20),
+                })
+                .strict(),
             ),
           },
         },
@@ -1100,11 +1259,15 @@ export const vouRouteMetadata = [
   ...Object.keys(vouRouteSet).map((action) => ({
     method: 'post',
     path:
-      action === 'reference'
-        ? '/vou/reference/query'
-        : action === 'source-line'
-          ? '/vou/source-line/query'
-          : `/vou/{entity}/${action}`,
+      action === 'source' || action === 'script-get' || action === 'script-save'
+        ? `/vou/intermediary-calculation/${action}`
+        : action === 'reference'
+          ? '/vou/reference/query'
+          : action === 'book-balance'
+            ? '/vou/inventory-count/book-balance'
+            : action === 'source-line'
+              ? '/vou/source-line/query'
+              : `/vou/{entity}/${action}`,
     title: `VOU ${action}`,
   })),
   {
@@ -1128,6 +1291,22 @@ const publicActions = [
   'attachment-cleanup',
 ] as const
 export const vouCapabilityPermissionMetadata = [
+  {
+    permission: '/vou/intermediary-calculation/source',
+    title: '生成居间计算来源',
+  },
+  {
+    permission: '/vou/intermediary-calculation/script-get',
+    title: '读取居间计算脚本',
+  },
+  {
+    permission: '/vou/intermediary-calculation/script-save',
+    title: '维护居间计算脚本',
+  },
+  {
+    permission: '/vou/inventory-count/book-balance',
+    title: '库存盘点账面预览',
+  },
   { permission: '/vou/reference/query', title: 'VOU reference query' },
   { permission: '/vou/source-line/query', title: 'VOU source-line query' },
   {
@@ -1164,7 +1343,19 @@ export function registerVouRoutes<
   app: OpenAPIHono<TargetRouteEnvironment, AppSchema, BasePath>,
   handler: VouRouteHandler,
 ) {
-  const reference = app.openapi(
+  const source = app.openapi(
+    vouRouteSet.source,
+    (c) => handler('source', c) as never,
+  )
+  const scriptGet = source.openapi(
+    vouRouteSet['script-get'],
+    (c) => handler('script-get', c) as never,
+  )
+  const scriptSave = scriptGet.openapi(
+    vouRouteSet['script-save'],
+    (c) => handler('script-save', c) as never,
+  )
+  const reference = scriptSave.openapi(
     vouRouteSet.reference,
     (c) => handler('reference', c) as never,
   )
@@ -1172,7 +1363,11 @@ export function registerVouRoutes<
     vouRouteSet['source-line'],
     (c) => handler('source-line', c) as never,
   )
-  const query = sourceLine.openapi(
+  const bookBalance = sourceLine.openapi(
+    vouRouteSet['book-balance'],
+    (c) => handler('book-balance', c) as never,
+  )
+  const query = bookBalance.openapi(
     vouRouteSet.query,
     (c) => handler('query', c) as never,
   )

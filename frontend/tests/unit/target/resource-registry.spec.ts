@@ -128,21 +128,16 @@ describe('business resource registry', () => {
         domain!,
         entity!,
       )!.definition!
-      expect(
-        definition.columns.slice(0, 3).map((field) => [field.key, field.type]),
-      ).toEqual([
-        ['code', 'text'],
-        ['name', 'text'],
-        ['enabled', 'boolean'],
+      expect(definition).toMatchObject({
+        kind: 'direct',
+        resource: `${domain}/${entity}`,
+      })
+      expect(Object.keys(definition).sort()).toEqual([
+        'adapter',
+        'fields',
+        'kind',
+        'resource',
       ])
-      expect(definition.columns.at(-1)).toMatchObject({
-        key: '$actions',
-        type: 'actions',
-      })
-      expect(definition.filters[0]).toMatchObject({
-        key: 'keyword',
-        type: 'text',
-      })
     }
   })
 })
@@ -152,15 +147,7 @@ it('opens every shared voucher type through the real registry with independent d
     const page = targetResourceRegistry.resolve('vou', entity)
     expect(page, entity).not.toBeNull()
     expect(page?.vouType).toBe(entity)
-    expect(page?.definition?.columns.map((field) => field.key)).toEqual([
-      'documentNo',
-      'handlerName',
-      'businessDate',
-      'counterpartyName',
-      'status',
-      'amount',
-      '$actions',
-    ])
+    expect(page?.definition).toEqual({ kind: 'document', vouType: entity })
     expect(page?.capabilities).toEqual({
       approval: true,
       businessVersion: false,

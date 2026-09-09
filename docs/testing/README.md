@@ -21,3 +21,5 @@
 - [2026-09-07 #393 动态字段与七页切换验收](dynamic-fields-issue-393-2026-09-07.md)
 
 - [2026-09-08 #405 第三批最终集成验收](third-batch-integration-issue-405-2026-09-08.md)
+
+- [2026-09-09 #413 ACC/RPT/WFL 动态页面与集成验证](dynamic-pages-issue-413-2026-09-09.md)

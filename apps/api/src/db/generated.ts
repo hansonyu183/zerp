@@ -58,7 +58,8 @@ export interface AccBillBookValues {
   bill_id: string
   book_id: string
   created_at: Timestamp
-  opening_approval_entry_id: string
+  created_vou_approval_entry_id: string | null
+  opening_approval_entry_id: string | null
   value_amount: Numeric
 }
 
@@ -981,9 +982,12 @@ export interface VouBillLineSnapshots {
   bill_no: string | null
   bill_type: string | null
   currency: string | null
+  customer_cost_amount_minor: Int8
   direction: string | null
   drawer: string | null
   face_amount_minor: Int8 | null
+  interest_amount_minor: Int8
+  interest_days: number
   issue_date: Timestamp | null
   line_no: number
   maturity_date: Timestamp | null
@@ -1165,6 +1169,11 @@ export interface VouIntermediaryCalculationDetails {
   total_amount_minor: Int8
 }
 
+export interface VouIntermediaryDependencies {
+  approval_entry_id: string
+  source_document_id: string
+}
+
 export interface VouIntermediaryResultLineSnapshots {
   approval_entry_id: string
   base_commission_minor: Int8
@@ -1183,6 +1192,16 @@ export interface VouIntermediaryResultLineSnapshots {
   standard_piece_quantity_micros: Int8
 }
 
+export interface VouIntermediaryScripts {
+  hash: string
+  name: string
+  revision: number
+  script_id: string
+  source: string
+  updated_at: Timestamp
+  updated_by: string
+}
+
 export interface VouIntermediarySourceLineSnapshots {
   adjustment_employee_amount_minor: Int8
   adjustment_intermediary_amount_minor: Int8
@@ -1190,12 +1209,17 @@ export interface VouIntermediarySourceLineSnapshots {
   behavior_profile: string
   collection_date: Timestamp
   collection_delay_days: number
+  cost_items: Json
+  customer_type_code: string
+  default_discount_unit_price_minor: Int8
+  default_premium_unit_price_minor: Int8
   due_date: Timestamp
   line_amount_minor: Int8
   line_no: number
   order_date: Timestamp
   order_document_id: string
   order_document_no: string
+  payment_surcharge_minor: Int8
   pricing_quantity_micros: Int8
   reference_unit_price_minor: Int8
   return_document_nos: Generated<string[]>
@@ -1216,6 +1240,9 @@ export interface VouIntermediarySourceLineSnapshots {
   source_signoff_line_id: string
   special_approval: boolean
   standard_piece_quantity_micros: Int8
+  third_party_fixed_unit_cost_minor: Int8
+  third_party_variable_unit_cost_minor: Int8
+  transport_surcharge_minor: Int8
   unit_price_minor: Int8
 }
 
@@ -1238,8 +1265,11 @@ export interface VouInventoryCountDetails {
 }
 
 export interface VouInventoryCountLineSnapshots {
+  actual_quantity_micros: Int8 | null
   approval_entry_id: string
   base_quantity_micros: Int8
+  book_quantity_micros: Int8 | null
+  difference_quantity_micros: Int8 | null
   entered_quantity_micros: Int8
   entered_unit_id: string
   line_no: number
@@ -1308,6 +1338,7 @@ export interface VouProductionLineSnapshots {
   base_quantity_micros: Int8
   entered_quantity_micros: Int8
   entered_unit_id: string
+  formula_snapshot: Json
   line_no: number
   loss_rate_micros: Int8
   remark: string | null
@@ -1324,6 +1355,7 @@ export interface VouProductionMaterialSnapshots {
   line_no: number
   material_id: string
   material_no: number
+  suggested_base_quantity_micros: Int8
 }
 
 export interface VouProductLineSnapshots {
@@ -1352,7 +1384,12 @@ export interface VouProductLineSnapshots {
   purchase_unit_price_minor: Int8 | null
   quantity_per_container_micros: Int8 | null
   remark: string | null
+  sales_product_approval_entry_id: string | null
+  sales_reference_date: Timestamp | null
+  sales_reference_document_no: string | null
+  sales_reference_unit_price_minor: Int8 | null
   settlement_surcharge_minor: Int8 | null
+  standard_piece_base_quantity_micros: Int8 | null
   unit_price_minor: Int8
 }
 
@@ -1781,7 +1818,9 @@ export interface DB {
   vou_idempotency: VouIdempotency
   vou_intermediary_bill_snapshots: VouIntermediaryBillSnapshots
   vou_intermediary_calculation_details: VouIntermediaryCalculationDetails
+  vou_intermediary_dependencies: VouIntermediaryDependencies
   vou_intermediary_result_line_snapshots: VouIntermediaryResultLineSnapshots
+  vou_intermediary_scripts: VouIntermediaryScripts
   vou_intermediary_source_line_snapshots: VouIntermediarySourceLineSnapshots
   vou_intermediary_summary_snapshots: VouIntermediarySummarySnapshots
   vou_inventory_count_details: VouInventoryCountDetails

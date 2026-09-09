@@ -399,7 +399,7 @@ test('recursive VOU reference facts preserve nested paths and strict reference s
     code: 'P-001',
     name: 'Product',
   }
-  const facts = vouPayloadReferences({
+  const facts = vouPayloadReferences('purchase-inquiry', {
     businessDate: '2026-09-04',
     currency: 'CNY',
     attachments: [],
@@ -456,20 +456,20 @@ test('recursive VOU reference facts preserve nested paths and strict reference s
 
   assert.throws(
     () =>
-      vouPayloadReferences({
+      vouPayloadReferences('purchase-inquiry', {
         unknown: reference,
       } as unknown as import('../src/index.ts').VouPayload),
     /not uniquely typed/,
   )
   assert.throws(
     () =>
-      vouPayloadReferences({
+      vouPayloadReferences('purchase-inquiry', {
         counterparty: reference,
       } as unknown as import('../src/index.ts').VouPayload),
     /counterpartyType is required/,
   )
   assert.deepEqual(
-    vouPayloadReferences({
+    vouPayloadReferences('purchase-inquiry', {
       businessDate: '2026-09-04',
       currency: 'CNY',
       attachments: [],
@@ -524,7 +524,7 @@ test('traverses only stable AUX people in intermediary snapshots', () => {
     ],
   )
   assert.deepEqual(
-    vouPayloadReferences(payload).map((fact) => [
+    vouPayloadReferences('intermediary-calculation', payload).map((fact) => [
       fact.field,
       fact.candidateEntity,
     ]),
@@ -765,7 +765,7 @@ test('sale signoff owns an exact customer-subunit container fact', () => {
     vouPayloadSchemaByEntity['sale-signoff'].safeParse(payload).success,
     true,
   )
-  assert.deepEqual(vouPayloadReferences(payload), [
+  assert.deepEqual(vouPayloadReferences('sale-signoff', payload), [
     {
       field: 'customerSubunit',
       candidateEntity: 'customer-subunit',
@@ -868,4 +868,24 @@ test('approve and unapprove retain typed transactional effects', () => {
       { kind: 'DOWNSTREAM_DOCUMENT', id: '01J30000000000000000000021' },
     ],
   })
+})
+
+test('sales refunds resolve the exact customer-subunit while receipts resolve the customer aggregate', () => {
+  const payload = {
+    businessDate: '2026-09-09',
+    currency: 'CNY',
+    attachments: [],
+    customer: reference,
+    fundAccount: { objectId: reference.objectId },
+    handler: { objectId: reference.objectId },
+    amount: '1.00',
+  }
+  assert.equal(
+    vouPayloadReferences('sales-refund', payload)[0]?.candidateEntity,
+    'customer-subunit',
+  )
+  assert.equal(
+    vouPayloadReferences('sales-receipt', payload)[0]?.candidateEntity,
+    'customer',
+  )
 })

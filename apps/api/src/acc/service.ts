@@ -1,4 +1,8 @@
+import { VouApplicationError } from '../vou/service.ts'
+import { validateIntermediaryClosing } from '../vou/intermediary-validation.ts'
 import {
+  intermediaryUnits,
+  intermediaryDecimal,
   vouEntities,
   vouEntityInputDescriptors,
   vouEntityPresentation,
@@ -498,6 +502,28 @@ export function validateAccSubjectAttributes(
 }
 
 export interface AccControlBalancePort {
+  inventoryBookBalance(
+    tx: Transaction<DB>,
+    input: {
+      warehouseId: string
+      asOfDate: string
+      page: number
+      pageSize: 20
+    },
+  ): Promise<{
+    items: { productId: string; quantity: string }[]
+    total: number
+  }>
+
+  inventoryBalances(
+    tx: Transaction<DB>,
+    input: {
+      warehouseId: string
+      productIds: readonly string[]
+      asOfDate: string
+    },
+  ): Promise<readonly { productId: string; quantity: string }[]>
+
   partyBalance(
     tx: Transaction<DB>,
     input: {
@@ -525,6 +551,63 @@ function billOutgoingStatus(
   if (entity === 'bill-discount') return 'DISCOUNTED'
   return 'MATURED'
 }
+
+export const intermediaryCollections = [
+  'commissions',
+  'partTimeEarnings',
+  'channelEarnings',
+  'employeeIntermediaryCosts',
+  'partnerIntermediaryCosts',
+]
+export const intermediaryLineFields = [
+  'line.payeeId',
+  'line.customerId',
+  'line.accrualAmount',
+  'line.reversalAmount',
+  'line.currency',
+]
+
+export const quantityMovementEntities: readonly string[] = [
+  'order-production',
+  'self-production',
+  'inventory-count',
+]
+export const quantityMovementFields = [
+  'line.productId',
+  'line.warehouseId',
+  'line.quantity',
+  'line.amount',
+  'line.currency',
+]
+
+export const billMovementEntities: readonly string[] = [
+  'bill-receipt',
+  'bill-payment',
+  'bill-issue',
+  'bill-discount',
+  'bill-maturity',
+]
+export const billMovementCollections = [
+  'incomingBills',
+  'outgoingBills',
+  'incomingBillCash',
+  'outgoingBillCash',
+]
+export const billMovementHeaderFields = [
+  'billTotals.primaryAmount',
+  'billTotals.changeAmount',
+  'billTotals.netSettlementAmount',
+  'billTotals.interestAmount',
+  'billTotals.discountExpenseAmount',
+  'billTotals.discountIncomeAmount',
+]
+export const billMovementLineFields = [
+  'line.billId',
+  'line.faceAmount',
+  'line.amount',
+  'line.currency',
+  'line.fundAccount.objectId',
+]
 
 export class AccService
   implements PlanExecutor<AccApplicationPlan>, AccControlBalancePort
@@ -558,6 +641,15 @@ export class AccService
           }
         }
         flatten('', vouEntityInputDescriptors[entity])
+        if (quantityMovementEntities.includes(entity))
+          lineFields.push(...quantityMovementFields)
+        if (billMovementEntities.includes(entity)) {
+          headerFields.push(...billMovementHeaderFields)
+          lineFields.push(...billMovementLineFields)
+        }
+        if (entity === 'intermediary-calculation')
+          lineFields.push(...intermediaryLineFields)
+        if (entity === 'asset-acquisition') lineFields.push('line.assetId')
         await tx
           .insertInto('acc_mapping_vou_entities')
           .values({
@@ -631,13 +723,35 @@ export class AccService
           .on('opening.entity', '=', 'opening')
           .on('opening.status', '=', 'APPROVED'),
       )
-      .select(['b.id', 'b.start_month', 'b.control_book'])
+      .select(['b.id', 'b.start_month', 'b.control_book', 'b.base_currency'])
       .where('b.start_month', '<=', plan.payload.businessDate.slice(0, 7))
       .orderBy('b.code', 'asc')
       .forShare('opening')
       .execute()
     await this.applyGlobalRegistrations(tx, plan, books)
+    let accountingPayload = plan.payload
+    if ('assetAcquisitionLines' in plan.payload) {
+      const assets = await tx
+        .selectFrom('acc_asset_registers')
+        .select('id')
+        .where('acquisition_vou_approval_entry_id', '=', plan.approvalEntryId)
+        .orderBy('asset_no')
+        .execute()
+      if (assets.length !== plan.payload.assetAcquisitionLines.length)
+        throw new AccApplicationError('acc_asset_not_active')
+      accountingPayload = {
+        ...plan.payload,
+        assetAcquisitionLines: plan.payload.assetAcquisitionLines.map(
+          (line, index) => ({ ...line, assetId: assets[index]!.id }),
+        ),
+      }
+    }
     for (const book of books) {
+      const postingPayload = this.postingPayload(
+        plan.entity,
+        accountingPayload,
+        book.base_currency,
+      )
       const mappingResult = await sql<{
         id: string
         revision: string | bigint
@@ -664,6 +778,7 @@ export class AccService
           templateId: string
           collection: string | null
           lines: Array<{
+            collection?: string | null
             subjectSource: 'FIXED' | 'FIELD'
             subjectValue: string
             direction: 'DEBIT' | 'CREDIT'
@@ -676,7 +791,7 @@ export class AccService
       }
       const matching = definition.rules.filter((rule) =>
         rule.conditions.every((condition) =>
-          this.mappingCondition(plan.payload!, condition),
+          this.mappingCondition(postingPayload, condition),
         ),
       )
       if (matching.length > 1)
@@ -689,11 +804,6 @@ export class AccService
       )
       if (!template)
         throw new AccApplicationError('acc_mapping_template_not_found')
-      const sources = template.collection
-        ? this.field(plan.payload, template.collection)
-        : [plan.payload]
-      if (!Array.isArray(sources))
-        throw new AccApplicationError('acc_mapping_collection_invalid')
       const rendered: Array<{
         subjectId: string
         direction: 'DEBIT' | 'CREDIT'
@@ -702,37 +812,47 @@ export class AccService
         dimensions: Record<string, string>
         quantity: string | null
       }> = []
-      for (const sourceValue of sources) {
-        const source =
-          typeof sourceValue === 'object' && sourceValue !== null
-            ? (sourceValue as Record<string, unknown>)
-            : {}
-        for (const line of template.lines) {
+      for (const line of template.lines) {
+        const collection =
+          line.collection === undefined ? template.collection : line.collection
+        const sources = collection
+          ? this.field(postingPayload, collection)
+          : [postingPayload]
+        if (!Array.isArray(sources))
+          throw new AccApplicationError('acc_mapping_collection_invalid')
+        for (const sourceValue of sources) {
+          const source =
+            typeof sourceValue === 'object' && sourceValue !== null
+              ? (sourceValue as Record<string, unknown>)
+              : {}
           const subjectId =
             line.subjectSource === 'FIXED'
               ? line.subjectValue
               : String(
                   this.field(
-                    { ...plan.payload, line: source },
+                    { ...postingPayload, line: source },
                     line.subjectValue,
                   ) ?? '',
                 )
           const amount = String(
-            this.field({ ...plan.payload, line: source }, line.amountField) ??
+            this.field({ ...postingPayload, line: source }, line.amountField) ??
               '',
           )
           const currency = String(
-            this.field({ ...plan.payload, line: source }, line.currencyField) ??
-              '',
+            this.field(
+              { ...postingPayload, line: source },
+              line.currencyField,
+            ) ?? '',
           )
-          decimalUnits(amount)
+          const amountUnits = decimalUnits(amount)
+          if (amountUnits === 0n && !line.quantityField) continue
           if (!/^[A-Z]{3}$/.test(currency))
             throw new AccApplicationError('acc_mapping_currency_invalid')
           const dimensions = Object.fromEntries(
             Object.entries(line.dimensions).map(([dimension, field]) => [
               dimension,
               String(
-                this.field({ ...plan.payload, line: source }, field) ?? '',
+                this.field({ ...postingPayload, line: source }, field) ?? '',
               ),
             ]),
           )
@@ -747,7 +867,7 @@ export class AccService
             quantity: line.quantityField
               ? String(
                   this.field(
-                    { ...plan.payload, line: source },
+                    { ...postingPayload, line: source },
                     line.quantityField,
                   ) ?? '',
                 )
@@ -755,6 +875,7 @@ export class AccService
           })
         }
       }
+      if (!rendered.length) continue
       const currencies = new Set(rendered.map((line) => line.currency))
       if (currencies.size !== 1)
         throw new AccApplicationError('acc_mapping_multi_currency_unsupported')
@@ -844,7 +965,7 @@ export class AccService
           })
           .execute()
         if (subject.inventory_quantity && line.quantity) {
-          decimalUnits(line.quantity)
+          signedDecimalUnits(line.quantity)
           await sql`
             INSERT INTO acc_inventory_entries (
               id, vou_approval_entry_id, document_id, opening_approval_entry_id, book_id, subject_id, journal_entry_id,
@@ -852,7 +973,7 @@ export class AccService
             ) VALUES (
               ${ulid()}, ${plan.approvalEntryId}, ${plan.documentId}, ${null}, ${book.id}, ${subject.id}, ${journalId},
               ${ulid()}, ${line.dimensions.WAREHOUSE}, ${line.dimensions.PRODUCT}, ${plan.payload.businessDate}::date,
-              ${line.direction === 'DEBIT' ? line.quantity : `-${line.quantity}`}, ${new Date(plan.occurredAt)}
+              (${line.quantity}::numeric * ${line.direction === 'DEBIT' ? 1 : -1}), ${new Date(plan.occurredAt)}
             )
           `.execute(tx)
         }
@@ -861,6 +982,244 @@ export class AccService
         await this.assertControlInventoryNonNegative(tx, inventoryFacts)
       if (book.control_book) await this.assertControlFundBalances(tx, fundFacts)
     }
+  }
+
+  async inventoryBookBalance(
+    tx: Transaction<DB>,
+    input: {
+      warehouseId: string
+      asOfDate: string
+      page: number
+      pageSize: 20
+    },
+  ): Promise<{
+    items: { productId: string; quantity: string }[]
+    total: number
+  }> {
+    const book = await tx
+      .selectFrom('acc_books as book')
+      .innerJoin('approval_entries as opening', (join) =>
+        join
+          .onRef('opening.subject_id', '=', 'book.id')
+          .on('opening.domain', '=', 'vou')
+          .on('opening.entity', '=', 'opening')
+          .on('opening.status', '=', 'APPROVED'),
+      )
+      .select('book.id')
+      .where('book.control_book', '=', true)
+      .where('book.start_month', '<=', input.asOfDate.slice(0, 7))
+      .executeTakeFirst()
+    if (!book) throw new AccApplicationError('acc_control_book_unavailable')
+    const balances = sql`SELECT product_id, SUM(quantity) AS quantity FROM acc_inventory_entries WHERE book_id = ${book.id} AND warehouse_id = ${input.warehouseId} AND business_date <= ${input.asOfDate}::date GROUP BY product_id HAVING SUM(quantity) <> 0`
+    const count = await sql<{
+      total: string
+    }>`SELECT COUNT(*)::text AS total FROM (${balances}) balance`.execute(tx)
+    const rows = await sql<{
+      productId: string
+      quantity: string
+    }>`SELECT product_id AS "productId", quantity::text FROM (${balances}) balance ORDER BY product_id LIMIT 20 OFFSET ${(input.page - 1) * 20}`.execute(
+      tx,
+    )
+    return { items: rows.rows, total: Number(count.rows[0]!.total) }
+  }
+
+  async inventoryBalances(
+    tx: Transaction<DB>,
+    input: {
+      warehouseId: string
+      productIds: readonly string[]
+      asOfDate: string
+    },
+  ): Promise<readonly { productId: string; quantity: string }[]> {
+    const book = await tx
+      .selectFrom('acc_books as book')
+      .innerJoin('approval_entries as opening', (join) =>
+        join
+          .onRef('opening.subject_id', '=', 'book.id')
+          .on('opening.domain', '=', 'vou')
+          .on('opening.entity', '=', 'opening')
+          .on('opening.status', '=', 'APPROVED'),
+      )
+      .select('book.id')
+      .where('book.control_book', '=', true)
+      .where('book.start_month', '<=', input.asOfDate.slice(0, 7))
+      .forShare('opening')
+      .executeTakeFirst()
+    if (!book) throw new AccApplicationError('acc_control_book_unavailable')
+    const ids = [...new Set(input.productIds)].sort()
+    await this.lockControlInventory(
+      tx,
+      ids.map((productId) => ({
+        bookId: book.id,
+        subjectId: '',
+        warehouseId: input.warehouseId,
+        productId,
+      })),
+    )
+    if (!ids.length) return []
+    const quantities = await sql<{
+      product_id: string
+      quantity: string
+    }>`SELECT product_id, SUM(quantity)::text AS quantity FROM acc_inventory_entries WHERE book_id = ${book.id} AND warehouse_id = ${input.warehouseId} AND product_id IN (${sql.join(ids)}) AND business_date <= ${input.asOfDate}::date GROUP BY product_id`.execute(
+      tx,
+    )
+    const byId = new Map(
+      quantities.rows.map((row) => [row.product_id, row.quantity]),
+    )
+    return ids.map((productId) => ({
+      productId,
+      quantity: byId.get(productId) ?? '0',
+    }))
+  }
+
+  private postingPayload(
+    entity: string,
+    payload: VouPayload,
+    currency: string,
+  ) {
+    if ('intermediaryCalculation' in payload) {
+      const collections: Record<
+        string,
+        Array<{
+          payeeId: string
+          customerId: string
+          accrualAmount: string
+          reversalAmount: string
+          currency: string
+        }>
+      > = Object.fromEntries(intermediaryCollections.map((key) => [key, []]))
+      for (const summary of payload.intermediaryCalculation.result.summaries) {
+        const key =
+          summary.category === 'COMMISSION'
+            ? 'commissions'
+            : summary.category === 'EXTERNAL_PART_TIME'
+              ? 'partTimeEarnings'
+              : summary.category === 'CHANNEL_PARTNER'
+                ? 'channelEarnings'
+                : summary.payee.entity === 'employee'
+                  ? 'employeeIntermediaryCosts'
+                  : 'partnerIntermediaryCosts'
+        const amount = intermediaryUnits(summary.amount)
+        collections[key]!.push({
+          payeeId: summary.payee.objectId,
+          customerId: summary.customer?.objectId ?? '',
+          accrualAmount: intermediaryDecimal(amount > 0n ? amount : 0n),
+          reversalAmount: intermediaryDecimal(amount < 0n ? -amount : 0n),
+          currency: payload.currency,
+        })
+      }
+      return { ...payload, ...collections }
+    }
+    const movement = (
+      productId: string,
+      warehouseId: string,
+      quantity: string,
+    ) => ({ productId, warehouseId, quantity, amount: '0.00', currency })
+    if ('productionLines' in payload)
+      return {
+        ...payload,
+        inventoryMovements: payload.productionLines.flatMap((line) => {
+          if (!line.product)
+            throw new AccApplicationError('acc_inventory_dimension_required')
+          return [
+            movement(
+              line.product.objectId,
+              payload.finishedWarehouse.objectId,
+              line.baseQuantity,
+            ),
+            ...line.materials.map((material) =>
+              movement(
+                material.actualMaterial.objectId,
+                payload.materialWarehouse.objectId,
+                `-${material.actualBaseQuantity}`,
+              ),
+            ),
+          ]
+        }),
+      }
+    if ('inventoryCountLines' in payload)
+      return {
+        ...payload,
+        inventoryMovements: payload.inventoryCountLines.flatMap((line) => {
+          if (!line.countResult)
+            throw new AccApplicationError('acc_inventory_quantity_required')
+          return signedDecimalUnits(line.countResult.differenceQuantity) === 0n
+            ? []
+            : [
+                movement(
+                  line.product.objectId,
+                  payload.warehouse.objectId,
+                  line.countResult.differenceQuantity,
+                ),
+              ]
+        }),
+      }
+    if ('billLines' in payload) {
+      const money = (amount: bigint) =>
+        `${amount / 100_000_000n}.${String(amount % 100_000_000n)
+          .padStart(8, '0')
+          .slice(0, 2)}`
+      const incomingBills = [],
+        outgoingBills = []
+      let primary = 0n,
+        change = 0n,
+        interest = 0n
+      for (const line of payload.billLines) {
+        const facts = 'positionType' in line ? line : line.snapshot
+        if (!facts || !line.billId || !line.calculation)
+          throw new AccApplicationError('acc_bill_line_invalid')
+        const fact = { ...facts, billId: line.billId }
+        if (facts.direction === 'IN') incomingBills.push(fact)
+        else outgoingBills.push(fact)
+        if (line.purpose === 'CHANGE') change += decimalUnits(facts.faceAmount)
+        else primary += decimalUnits(facts.faceAmount)
+        interest += decimalUnits(line.calculation.interestAmount)
+      }
+      const incomingBillCash = (payload.billCashLines ?? [])
+        .filter((line) => line.direction === 'IN')
+        .map((line) => ({ ...line, currency: payload.currency }))
+      const outgoingBillCash = (payload.billCashLines ?? [])
+        .filter((line) => line.direction === 'OUT')
+        .map((line) => ({ ...line, currency: payload.currency }))
+      const cash =
+        incomingBillCash.reduce(
+          (sum, line) => sum + decimalUnits(line.amount),
+          0n,
+        ) -
+        outgoingBillCash.reduce(
+          (sum, line) => sum + decimalUnits(line.amount),
+          0n,
+        )
+      const payableInterest =
+        'interestMode' in payload &&
+        payload.interestMode === 'THIRD_PARTY_PAYABLE'
+          ? interest
+          : 0n
+      const discountCost =
+        entity === 'bill-discount' ? primary - cash + payableInterest : 0n
+      return {
+        ...payload,
+        incomingBills,
+        outgoingBills,
+        incomingBillCash,
+        outgoingBillCash,
+        billTotals: {
+          primaryAmount: money(primary),
+          changeAmount: money(change),
+          netSettlementAmount: money(
+            entity === 'bill-receipt'
+              ? primary - change + cash
+              : entity === 'bill-discount'
+                ? cash
+                : primary,
+          ),
+          interestAmount: money(payableInterest),
+          discountExpenseAmount: money(discountCost > 0n ? discountCost : 0n),
+          discountIncomeAmount: money(discountCost < 0n ? -discountCost : 0n),
+        },
+      }
+    }
+    return payload
   }
 
   async partyBalance(
@@ -988,16 +1347,16 @@ export class AccService
           SELECT journal.business_date,
             journal.created_at,
             journal.id AS journal_id,
-            line.id AS line_id,
-            CASE WHEN line.direction = 'DEBIT' THEN line.amount ELSE -line.amount END AS amount
+            SUM(CASE WHEN line.direction = 'DEBIT' THEN line.amount ELSE -line.amount END) AS amount
           FROM acc_journal_entries journal
           JOIN acc_journal_lines line ON line.journal_entry_id = journal.id
           WHERE journal.book_id = ${fact.bookId}
             AND journal.currency = ${fact.currency}
             AND line.dimensions->>'FUND_ACCOUNT' = ${fact.fundAccountId}
+          GROUP BY journal.business_date, journal.created_at, journal.id
         ), balances AS (
           SELECT business_date,
-            SUM(amount) OVER (ORDER BY business_date, created_at, journal_id, line_id
+            SUM(amount) OVER (ORDER BY business_date, created_at, journal_id
               ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS balance
           FROM movements
         )
@@ -1137,7 +1496,7 @@ export class AccService
         | VouPayloadFor<'bill-discount'>
         | VouPayloadFor<'bill-maturity'>
       for (const line of payload.billLines) {
-        if ('billId' in line) {
+        if (!('positionType' in line)) {
           if (plan.entity === 'bill-issue')
             throw new AccApplicationError('acc_bill_line_invalid')
           await this.changeBillStatus(
@@ -1154,7 +1513,8 @@ export class AccService
           plan.entity === 'bill-maturity'
         )
           throw new AccApplicationError('acc_bill_line_invalid')
-        const billId = ulid()
+        const billId = line.billId
+        if (!billId) throw new AccApplicationError('acc_bill_line_invalid')
         const registerPayload = {
           billId,
           billNo: line.billNo,
@@ -1170,6 +1530,11 @@ export class AccService
             ${billId}, ${line.billNo}, ${line.positionType}, 'AVAILABLE', ${plan.approvalEntryId},
             ${plan.approvalEntryId}, ${JSON.stringify(registerPayload)}::jsonb, ${new Date(plan.occurredAt)}
           )
+        `.execute(tx)
+        for (const book of books)
+          await sql`
+          INSERT INTO acc_bill_book_values (bill_id, book_id, created_vou_approval_entry_id, value_amount, created_at)
+          VALUES (${billId}, ${book.id}, ${plan.approvalEntryId}, ${line.faceAmount}, ${new Date(plan.occurredAt)})
         `.execute(tx)
         await this.insertRegisterEntry(
           tx,
@@ -1192,10 +1557,11 @@ export class AccService
   ): Promise<void> {
     const asset = await sql<{
       id: string
-      acquisition_vou_approval_entry_id: string
+      acquisition_vou_approval_entry_id: string | null
+      acquisition_opening_approval_entry_id: string | null
       status: AssetStatus
     }>`
-      SELECT id, acquisition_vou_approval_entry_id, status
+      SELECT id, acquisition_vou_approval_entry_id, acquisition_opening_approval_entry_id, status
       FROM acc_asset_registers WHERE id = ${assetId} FOR UPDATE
     `.execute(tx)
     const current = asset.rows[0]
@@ -1203,13 +1569,13 @@ export class AccService
       throw new AccApplicationError('acc_asset_not_active')
     await sql`
       UPDATE acc_asset_registers
-      SET status = ${status}, state_vou_approval_entry_id = ${plan.approvalEntryId}
+      SET status = ${status}, state_vou_approval_entry_id = ${plan.approvalEntryId}, state_opening_approval_entry_id = NULL
       WHERE id = ${assetId}
     `.execute(tx)
     await sql`
       UPDATE acc_register_entries SET reversed_at = ${new Date(plan.occurredAt)}
       WHERE register_kind = 'ASSET' AND object_id = ${assetId}
-        AND vou_approval_entry_id = ${current.acquisition_vou_approval_entry_id}
+        AND (vou_approval_entry_id = ${current.acquisition_vou_approval_entry_id} OR opening_approval_entry_id = ${current.acquisition_opening_approval_entry_id})
     `.execute(tx)
     await this.insertRegisterEntry(
       tx,
@@ -1230,10 +1596,11 @@ export class AccService
   ): Promise<void> {
     const bill = await sql<{
       id: string
-      created_vou_approval_entry_id: string
+      created_vou_approval_entry_id: string | null
+      created_opening_approval_entry_id: string | null
       status: BillStatus
     }>`
-      SELECT id, created_vou_approval_entry_id, status
+      SELECT id, created_vou_approval_entry_id, created_opening_approval_entry_id, status
       FROM acc_bill_registers WHERE id = ${billId} FOR UPDATE
     `.execute(tx)
     const current = bill.rows[0]
@@ -1241,13 +1608,13 @@ export class AccService
       throw new AccApplicationError('acc_bill_not_available')
     await sql`
       UPDATE acc_bill_registers
-      SET status = ${status}, state_vou_approval_entry_id = ${plan.approvalEntryId}
+      SET status = ${status}, state_vou_approval_entry_id = ${plan.approvalEntryId}, state_opening_approval_entry_id = NULL
       WHERE id = ${billId}
     `.execute(tx)
     await sql`
       UPDATE acc_register_entries SET reversed_at = ${new Date(plan.occurredAt)}
       WHERE register_kind = 'BILL' AND object_id = ${billId}
-        AND vou_approval_entry_id = ${current.created_vou_approval_entry_id}
+        AND (vou_approval_entry_id = ${current.created_vou_approval_entry_id} OR opening_approval_entry_id = ${current.created_opening_approval_entry_id})
     `.execute(tx)
     await this.insertRegisterEntry(
       tx,
@@ -1312,36 +1679,30 @@ export class AccService
     `.execute(tx)
 
     await sql`
-      UPDATE acc_register_entries SET reversed_at = NULL
-      WHERE (register_kind = 'ASSET' AND vou_approval_entry_id IN (
-        SELECT acquisition_vou_approval_entry_id FROM acc_asset_registers
-        WHERE state_vou_approval_entry_id = ${plan.approvalEntryId}
-          AND acquisition_vou_approval_entry_id <> ${plan.approvalEntryId}
-      ) AND object_id IN (
-        SELECT id FROM acc_asset_registers
-        WHERE state_vou_approval_entry_id = ${plan.approvalEntryId}
-          AND acquisition_vou_approval_entry_id <> ${plan.approvalEntryId}
-      )) OR (register_kind = 'BILL' AND vou_approval_entry_id IN (
-        SELECT created_vou_approval_entry_id FROM acc_bill_registers
-        WHERE state_vou_approval_entry_id = ${plan.approvalEntryId}
-          AND created_vou_approval_entry_id <> ${plan.approvalEntryId}
-      ) AND object_id IN (
-        SELECT id FROM acc_bill_registers
-        WHERE state_vou_approval_entry_id = ${plan.approvalEntryId}
-          AND created_vou_approval_entry_id <> ${plan.approvalEntryId}
+      UPDATE acc_register_entries entry SET reversed_at = NULL
+      WHERE (entry.register_kind = 'ASSET' AND EXISTS (
+        SELECT 1 FROM acc_asset_registers asset
+        WHERE asset.id = entry.object_id AND asset.state_vou_approval_entry_id = ${plan.approvalEntryId}
+          AND asset.acquisition_vou_approval_entry_id IS DISTINCT FROM ${plan.approvalEntryId}
+          AND (entry.vou_approval_entry_id = asset.acquisition_vou_approval_entry_id OR entry.opening_approval_entry_id = asset.acquisition_opening_approval_entry_id)
+      )) OR (entry.register_kind = 'BILL' AND EXISTS (
+        SELECT 1 FROM acc_bill_registers bill
+        WHERE bill.id = entry.object_id AND bill.state_vou_approval_entry_id = ${plan.approvalEntryId}
+          AND bill.created_vou_approval_entry_id IS DISTINCT FROM ${plan.approvalEntryId}
+          AND (entry.vou_approval_entry_id = bill.created_vou_approval_entry_id OR entry.opening_approval_entry_id = bill.created_opening_approval_entry_id)
       ))
     `.execute(tx)
     await sql`
       UPDATE acc_asset_registers
-      SET status = 'ACTIVE', state_vou_approval_entry_id = acquisition_vou_approval_entry_id
+      SET status = 'ACTIVE', state_vou_approval_entry_id = acquisition_vou_approval_entry_id, state_opening_approval_entry_id = acquisition_opening_approval_entry_id
       WHERE state_vou_approval_entry_id = ${plan.approvalEntryId}
-        AND acquisition_vou_approval_entry_id <> ${plan.approvalEntryId}
+        AND acquisition_vou_approval_entry_id IS DISTINCT FROM ${plan.approvalEntryId}
     `.execute(tx)
     await sql`
       UPDATE acc_bill_registers
-      SET status = 'AVAILABLE', state_vou_approval_entry_id = created_vou_approval_entry_id
+      SET status = 'AVAILABLE', state_vou_approval_entry_id = created_vou_approval_entry_id, state_opening_approval_entry_id = created_opening_approval_entry_id
       WHERE state_vou_approval_entry_id = ${plan.approvalEntryId}
-        AND created_vou_approval_entry_id <> ${plan.approvalEntryId}
+        AND created_vou_approval_entry_id IS DISTINCT FROM ${plan.approvalEntryId}
     `.execute(tx)
     await sql`DELETE FROM acc_asset_book_values WHERE acquisition_vou_approval_entry_id = ${plan.approvalEntryId}`.execute(
       tx,
@@ -1384,17 +1745,17 @@ export class AccService
     const unique = [
       ...new Map(
         facts.map((fact) => [
-          `${fact.bookId}:${fact.subjectId}:${fact.warehouseId}:${fact.productId}`,
+          `${fact.bookId}:${fact.warehouseId}:${fact.productId}`,
           fact,
         ]),
       ).values(),
     ].sort((left, right) =>
-      `${left.bookId}:${left.subjectId}:${left.warehouseId}:${left.productId}`.localeCompare(
-        `${right.bookId}:${right.subjectId}:${right.warehouseId}:${right.productId}`,
+      `${left.bookId}:${left.warehouseId}:${left.productId}`.localeCompare(
+        `${right.bookId}:${right.warehouseId}:${right.productId}`,
       ),
     )
     for (const fact of unique)
-      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`acc:inventory:${fact.bookId}:${fact.subjectId}:${fact.warehouseId}:${fact.productId}`}, 0))`.execute(
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`acc:inventory:${fact.bookId}:${fact.warehouseId}:${fact.productId}`}, 0))`.execute(
         tx,
       )
   }
@@ -1938,8 +2299,8 @@ export class AccService
   ) {
     requirePermission(actor, `/acc/period/${locked ? 'lock' : 'unlock'}`)
     return this.db.transaction().execute(async (tx) => {
-      await this.requireBookAccess(tx, input.bookId, actor, true)
       await lockAccountingPeriod(tx, input.month)
+      await this.requireBookAccess(tx, input.bookId, actor, true)
       const book = await tx
         .selectFrom('acc_books')
         .select('start_month')
@@ -2099,6 +2460,16 @@ export class AccService
       throw new AccApplicationError('acc_period_open_vou', [
         { kind: 'VOU', id: openDocument.id, entity: openDocument.entity },
       ])
+
+    try {
+      await validateIntermediaryClosing(tx, month)
+    } catch (cause) {
+      if (cause instanceof VouApplicationError)
+        throw new AccApplicationError('acc_period_intermediary_invalid', [
+          { kind: 'INTERMEDIARY', month, errorKey: cause.errorKey },
+        ])
+      throw cause
+    }
 
     const mappedEntities = await sql<{
       entity: string
@@ -2757,6 +3128,22 @@ export class AccService
     configuration: Awaited<ReturnType<AccService['openingAssetConfiguration']>>,
     asset: AccOpeningAsset,
   ): void {
+    const assetFacts: Record<string, unknown> = {
+      ...asset,
+      line: {
+        assetId: asset.assetId,
+        category: { objectId: asset.categoryId },
+        department: { objectId: asset.departmentId },
+      },
+    }
+    const dimensionValue = (path: string): unknown => {
+      let value: unknown = assetFacts
+      for (const key of path.split('.')) {
+        if (typeof value !== 'object' || value === null) return undefined
+        value = (value as Record<string, unknown>)[key]
+      }
+      return value
+    }
     const matches = (
       subjectId: string,
       dimensions: Record<string, string>,
@@ -2771,7 +3158,7 @@ export class AccService
           decimalUnits(line.amount) === decimalUnits(amount) &&
           line.dimensions.ASSET === asset.assetId &&
           Object.entries(dimensions).every(
-            ([key, value]) => line.dimensions[key] === value,
+            ([key, path]) => line.dimensions[key] === dimensionValue(path),
           ),
       )
     if (

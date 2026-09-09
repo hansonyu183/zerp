@@ -129,9 +129,7 @@ test('payment methods use typed fields through menu on desktop and 390px', async
       .getByLabel('默认销售加价（元/kg）', { exact: true })
       .fill('-0.01')
     await dialog.getByRole('button', { name: '保存', exact: true }).click()
-    await expect(
-      dialog.getByText('请输入有效的销售加价（非负，最多两位小数）。'),
-    ).toBeVisible()
+    await expect(dialog.getByText(/非负数.*2位小数/)).toBeVisible()
     await dialog.getByRole('button', { name: '取消', exact: true }).click()
     await expect(dialog).toHaveCount(0)
     await row.getByRole('button', { name: '编辑', exact: true }).click()

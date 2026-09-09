@@ -110,6 +110,20 @@ function vouPostingSource(entity: VouEntity): {
   amountField: string
   fieldCatalog: { headerFields: string[]; lineFields: string[] }
 } | null {
+  // Stock and mixed-direction bill effects use dedicated real-book suites.
+  if (
+    [
+      'order-production',
+      'self-production',
+      'inventory-count',
+      'bill-receipt',
+      'bill-payment',
+      'bill-issue',
+      'bill-discount',
+      'bill-maturity',
+    ].includes(entity)
+  )
+    return null
   const fields = vouEntityInputDescriptors[entity]
   const headerAmount = fields.find(
     (field) =>
@@ -156,6 +170,7 @@ const vouReferenceFacts = {
     ['product', 'product', 'PRD', '目标产品'],
     ['otherUnit', 'other-unit', 'OTU', '目标其他单位'],
     ['fundAccount', 'fund-account', 'FAC', '目标资金账户'],
+    ['rawMaterial', 'product', 'PRD', '目标配方原料'],
   ]
     .map(([key, entity, prefix, name], index) => ({
       key,
@@ -268,6 +283,12 @@ const archiveFacts = {
         defaultSalesSurcharge: '0.00',
         description: '',
       },
+    },
+    {
+      id: fixtureId('X', 9),
+      entity: 'product-type' as const,
+      code: auxCode('PTY'),
+      data: { name: '目标原材料', behaviorProfile: 'RAW_MATERIAL' },
     },
   ],
   accounting: {
@@ -856,7 +877,7 @@ async function seedVouReferences(aux: AuxService) {
     objectId: account.id,
     code: accountDetail.code,
   })
-  await seedArchiveReference('product', reference('product'), {
+  const productSnapshot = {
     name: '目标产品',
     barcode: `PRD-${suffix}`,
     specification: '',
@@ -888,6 +909,21 @@ async function seedVouReferences(aux: AuxService) {
     fixedFormula: null,
     remark: '',
     enabled: true,
+  } satisfies ArchiveSnapshot
+  await seedArchiveReference('product', reference('product'), productSnapshot)
+  const rawType = archiveFacts.auxObjects.find(
+    (item) => item.data.name === '目标原材料',
+  )!
+  await seedArchiveReference('product', reference('rawMaterial'), {
+    ...productSnapshot,
+    name: '目标配方原料',
+    barcode: `RAW-${suffix}`,
+    productType: {
+      id: rawType.id,
+      code: rawType.code,
+      name: rawType.data.name,
+      behaviorProfile: 'RAW_MATERIAL',
+    },
   })
 }
 
@@ -1110,7 +1146,11 @@ async function seedApprovedSourceOrders() {
       },
       components: [
         {
-          material: { objectId: product.objectId },
+          material: {
+            objectId: vouReferenceFacts.references.find(
+              (reference) => reference.key === 'rawMaterial',
+            )!.objectId,
+          },
           quantity: {
             enteredQuantity: '1',
             enteredUnit: unitSnapshot,
@@ -1255,7 +1295,7 @@ async function verifyTrustedSystemVouLifecycle() {
         employee: currentReference('employee'),
         fundAccount: currentReference('fundAccount'),
         handler: currentReference('employee'),
-        amount: '0.00',
+        amount: '1.00',
       } satisfies VouPayloadFor<'expense-payment'>,
     },
   ]
@@ -1545,7 +1585,7 @@ async function seedVouAccObjects() {
         interestMode: 'BANK_DEDUCTED',
         billLines: [
           {
-            positionType: 'ASSET',
+            positionType: 'LIABILITY',
             direction: 'IN',
             purpose: 'PRIMARY',
             billType: 'CHECK',
@@ -1589,7 +1629,7 @@ async function seedVouAccObjects() {
   ])
   if (assets.items.length !== 1 || bills.items.length !== 1)
     throw new Error(
-      'E2E VOU register fixture did not create exactly one asset and bill',
+      `E2E VOU register fixture expected one asset and bill; got ${assets.items.length} assets and ${bills.items.length} bills`,
     )
   vouAccObjectFacts.asset.objectId = assets.items[0]!.objectId
   vouAccObjectFacts.bill.objectId = bills.items[0]!.objectId
@@ -1613,8 +1653,8 @@ try {
   await seedAuxFacts(aux)
   await seedAccFacts(acc)
   await seedVouReferences(aux)
-  await seedVouAccObjects()
   await seedApprovedOpeningAndMappings()
+  await seedVouAccObjects()
   await seedApprovedSourceOrders()
   const orderPageFacts = await seedPendingOrderPages()
   await verifyTrustedSystemVouLifecycle()

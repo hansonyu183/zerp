@@ -28,7 +28,7 @@ make e2e
 make target-down
 ```
 
-`make dev` 启动可丢弃 target 数据库与 Hono API，再以前台 Vite 启动 SPA。`make generate` 从 Hono/Zod 路由和 target schema 生成 OpenAPI、权限目录与 Kysely 类型；`packages/api-client/` 在编译期直接从同一 Hono route type 推导客户端类型。生成物不得手工修改。`make e2e` 重建隔离数据库并运行生成、类型、单元、真实 PostgreSQL 与浏览器门禁。
+`make dev` 启动可丢弃 target 数据库与 Hono API，再以前台 Vite 启动 SPA。`make generate` 从 Hono/Zod 路由和 target schema 生成 OpenAPI、权限目录与 Kysely 类型；`packages/api-client/` 在编译期直接从同一 Hono route type 推导客户端类型。生成物不得手工修改。`make e2e` 重建隔离数据库并运行生成、类型、单元、真实 PostgreSQL 与浏览器门禁。各浏览器专项分别重建可丢弃库并连接同一独占 Compose API/Web；专项脚本不再启动内嵌 API 或 Vite。
 
 ## Pull Request 检查
 

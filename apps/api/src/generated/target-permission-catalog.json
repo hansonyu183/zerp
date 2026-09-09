@@ -1248,6 +1248,14 @@
     "title": "清理客户附件暂存"
   },
   {
+    "id": "01JD8B0050A1FE9ECA77E01B90",
+    "path": "/bob/customer/attachment-read",
+    "domain": "bob",
+    "entity": "customer",
+    "action": "attachment-read",
+    "title": "读取客户附件"
+  },
+  {
     "id": "01J60E1D41D3B0B9AFFDA60193",
     "path": "/bob/customer/attachment-stage",
     "domain": "bob",
@@ -3288,6 +3296,30 @@
     "title": "intermediary-calculation reject"
   },
   {
+    "id": "01J5CFF14A8A7D1B9145124F05",
+    "path": "/vou/intermediary-calculation/script-get",
+    "domain": "vou",
+    "entity": "intermediary-calculation",
+    "action": "script-get",
+    "title": "读取居间计算脚本"
+  },
+  {
+    "id": "01J6C66A790A80657F9E41B667",
+    "path": "/vou/intermediary-calculation/script-save",
+    "domain": "vou",
+    "entity": "intermediary-calculation",
+    "action": "script-save",
+    "title": "维护居间计算脚本"
+  },
+  {
+    "id": "01JC3542D94504F8FF1424244F",
+    "path": "/vou/intermediary-calculation/source",
+    "domain": "vou",
+    "entity": "intermediary-calculation",
+    "action": "source",
+    "title": "生成居间计算来源"
+  },
+  {
     "id": "01J60361CCE30F83C2350F5E36",
     "path": "/vou/intermediary-calculation/submit-change",
     "domain": "vou",
@@ -3358,6 +3390,14 @@
     "entity": "inventory-count",
     "action": "audit-history",
     "title": "inventory-count audit-history"
+  },
+  {
+    "id": "01JE9AA86DA3D044E839AADA96",
+    "path": "/vou/inventory-count/book-balance",
+    "domain": "vou",
+    "entity": "inventory-count",
+    "action": "book-balance",
+    "title": "库存盘点账面预览"
   },
   {
     "id": "01J6B3E80A9F0C2BBA6D501D2F",

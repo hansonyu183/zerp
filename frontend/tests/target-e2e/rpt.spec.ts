@@ -31,6 +31,7 @@ test('RPT resource queries multiple parameters, paginates a submitted snapshot a
   const code = process.env.TARGET_E2E_RPT_CODE!
   await signin(page)
   await page.goto(`/rpt/${code}`)
+  await page.locator(`.v-navigation-drawer a[href="/rpt/${code}"]`).click()
   await expect(page.getByTestId('report-page')).toBeVisible()
   await expect(page.getByTestId('report-page')).toContainText('参数查询与导出')
   await page.getByLabel('客户名称 *', { exact: true }).fill('历史子单位名称')
@@ -64,6 +65,8 @@ test('RPT resource queries multiple parameters, paginates a submitted snapshot a
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  await expect(page.locator('tbody tr')).toHaveCount(20)
   await page.reload()
   await expect(page.getByLabel('客户名称 *', { exact: true })).toHaveValue('')
 })
@@ -79,6 +82,7 @@ test('RPT export-only resource does not issue a result query or expose definitio
   })
   await signin(page, true)
   await page.goto(`/rpt/${code}`)
+  await page.locator(`.v-navigation-drawer a[href="/rpt/${code}"]`).click()
   await expect(page.getByTestId('report-page')).toBeVisible()
   await expect(
     page.getByRole('button', { name: '查询', exact: true }),

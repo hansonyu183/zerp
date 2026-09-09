@@ -930,7 +930,7 @@ CREATE TABLE vou_order_production_details (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
     business_date date NOT NULL,
-    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    currency varchar(3) NOT NULL CHECK (currency = ''),
     total_amount_minor bigint NOT NULL,
     parent_entity varchar(64),
     parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
@@ -941,7 +941,7 @@ CREATE TABLE vou_self_production_details (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
     business_date date NOT NULL,
-    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+    currency varchar(3) NOT NULL CHECK (currency = ''),
     total_amount_minor bigint NOT NULL,
     parent_entity varchar(64),
     parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
@@ -1179,6 +1179,22 @@ CREATE TABLE vou_bill_maturity_details (
     CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
 );
 
+CREATE TABLE vou_intermediary_dependencies (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    source_document_id varchar(26) NOT NULL REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    PRIMARY KEY (approval_entry_id, source_document_id)
+);
+
+CREATE TABLE vou_intermediary_scripts (
+    script_id varchar(128) PRIMARY KEY,
+    revision integer NOT NULL,
+    name varchar(200) NOT NULL,
+    source text NOT NULL,
+    hash varchar(64) NOT NULL,
+    updated_by varchar(26) NOT NULL REFERENCES app_users(id),
+    updated_at timestamptz NOT NULL
+);
+
 CREATE TABLE vou_intermediary_calculation_details (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
@@ -1252,7 +1268,7 @@ ALTER TABLE vou_service_acceptance_details ADD COLUMN remark text, ADD COLUMN co
 CREATE TABLE vou_reference_snapshots (
     approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
     field varchar(64) NOT NULL,
-    line_no integer NOT NULL DEFAULT 0 CHECK (line_no BETWEEN 0 AND 200),
+    line_no integer NOT NULL DEFAULT 0 CHECK (line_no >= 0),
     item_no integer NOT NULL DEFAULT 0 CHECK (item_no BETWEEN 0 AND 200),
     object_id varchar(26) NOT NULL,
     approval_reference_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
@@ -1287,6 +1303,11 @@ CREATE TABLE vou_product_line_snapshots (
     unit_price_minor bigint NOT NULL,
     settlement_surcharge_minor bigint,
     purchase_unit_price_minor bigint,
+    sales_product_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    sales_reference_unit_price_minor bigint,
+    sales_reference_document_no varchar(32),
+    sales_reference_date date,
+    standard_piece_base_quantity_micros bigint,
     remark text,
     delivery_specification_type varchar(32),
     container_type text,
@@ -1390,6 +1411,9 @@ CREATE TABLE vou_inventory_count_line_snapshots (
     entered_quantity_micros bigint NOT NULL,
     entered_unit_id varchar(26) NOT NULL,
     base_quantity_micros bigint NOT NULL,
+    book_quantity_micros bigint,
+    actual_quantity_micros bigint,
+    difference_quantity_micros bigint,
     remark text,
     PRIMARY KEY (approval_entry_id, line_no)
 );
@@ -1398,6 +1422,7 @@ CREATE TABLE vou_production_line_snapshots (
     approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
     line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
     source_order_line_id varchar(128),
+    formula_snapshot jsonb NOT NULL CHECK (jsonb_typeof(formula_snapshot) = 'object'),
     entered_quantity_micros bigint NOT NULL,
     entered_unit_id varchar(26) NOT NULL,
     base_quantity_micros bigint NOT NULL,
@@ -1415,6 +1440,7 @@ CREATE TABLE vou_production_material_snapshots (
     entered_quantity_micros bigint NOT NULL,
     entered_unit_id varchar(26) NOT NULL,
     base_quantity_micros bigint NOT NULL,
+    suggested_base_quantity_micros bigint NOT NULL,
     adjustment_reason text,
     PRIMARY KEY (approval_entry_id, line_no, material_no),
     FOREIGN KEY (approval_entry_id, line_no) REFERENCES vou_production_line_snapshots(approval_entry_id, line_no) ON DELETE CASCADE
@@ -1465,6 +1491,9 @@ CREATE TABLE vou_bill_line_snapshots (
     acceptor varchar(200),
     payee varchar(200),
     annual_rate_bps integer,
+    interest_days integer NOT NULL,
+    interest_amount_minor bigint NOT NULL,
+    customer_cost_amount_minor bigint NOT NULL,
     remark text,
     PRIMARY KEY (approval_entry_id, line_no)
 );
@@ -1482,7 +1511,7 @@ CREATE TABLE vou_bill_cash_line_snapshots (
 
 CREATE TABLE vou_intermediary_source_line_snapshots (
     approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
-    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    line_no integer NOT NULL CHECK (line_no >= 1),
     source_signoff_line_id varchar(128) NOT NULL,
     source_kind varchar(32) NOT NULL,
     signoff_document_id varchar(26) NOT NULL,
@@ -1508,6 +1537,14 @@ CREATE TABLE vou_intermediary_source_line_snapshots (
     unit_price_minor bigint NOT NULL,
     reference_unit_price_minor bigint NOT NULL,
     settlement_surcharge_minor bigint NOT NULL,
+    customer_type_code varchar(64) NOT NULL,
+    payment_surcharge_minor bigint NOT NULL,
+    transport_surcharge_minor bigint NOT NULL,
+    default_premium_unit_price_minor bigint NOT NULL,
+    default_discount_unit_price_minor bigint NOT NULL,
+    third_party_fixed_unit_cost_minor bigint NOT NULL,
+    third_party_variable_unit_cost_minor bigint NOT NULL,
+    cost_items jsonb NOT NULL,
     line_amount_minor bigint NOT NULL,
     settlement_term_code varchar(64) NOT NULL,
     special_approval boolean NOT NULL,
@@ -1519,7 +1556,7 @@ CREATE TABLE vou_intermediary_source_line_snapshots (
 
 CREATE TABLE vou_intermediary_result_line_snapshots (
     approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
-    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    line_no integer NOT NULL CHECK (line_no >= 1),
     source_signoff_line_id varchar(128) NOT NULL,
     premium_unit_price_minor bigint NOT NULL,
     standard_piece_quantity_micros bigint NOT NULL,
@@ -1538,7 +1575,7 @@ CREATE TABLE vou_intermediary_result_line_snapshots (
 
 CREATE TABLE vou_intermediary_bill_snapshots (
     approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
-    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    line_no integer NOT NULL CHECK (line_no >= 1),
     bill_line_id varchar(128) NOT NULL,
     receipt_document_id varchar(26) NOT NULL,
     receipt_document_no varchar(32) NOT NULL,
@@ -1553,7 +1590,7 @@ CREATE TABLE vou_intermediary_bill_snapshots (
 
 CREATE TABLE vou_intermediary_summary_snapshots (
     approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
-    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    line_no integer NOT NULL CHECK (line_no >= 1),
     category varchar(32) NOT NULL,
     amount_minor bigint NOT NULL,
     PRIMARY KEY (approval_entry_id, line_no)
@@ -1753,7 +1790,9 @@ CREATE UNIQUE INDEX acc_bill_registers_identity_unique
 CREATE TABLE acc_bill_book_values (
     bill_id varchar(26) NOT NULL REFERENCES acc_bill_registers(id) ON DELETE CASCADE,
     book_id varchar(26) NOT NULL REFERENCES acc_books(id) ON DELETE RESTRICT,
-    opening_approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    opening_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    created_vou_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    CHECK ((opening_approval_entry_id IS NOT NULL) <> (created_vou_approval_entry_id IS NOT NULL)),
     value_amount numeric(24, 8) NOT NULL CHECK (value_amount > 0),
     created_at timestamptz NOT NULL,
     PRIMARY KEY (bill_id, book_id)

@@ -9,14 +9,18 @@ import {
 } from '@zerp/model'
 import type { DB } from '../../src/db/generated.ts'
 import type { VouView } from '../../src/vou/service.ts'
+import { AccService } from '../../src/acc/service.ts'
+import { AccMappingCatalogService } from '../../src/acc/mapping-catalog.ts'
+import { VouOpeningService } from '../../src/vou/opening-service.ts'
+import { VouService } from '../../src/vou/service.ts'
 import { AuxService } from '../../src/aux/service.ts'
 import { BobArchiveService } from '../../src/bob/archives.ts'
 import { vouPayloadSchemaByEntity } from '../../src/vou/contract.ts'
-import { seedOrderListFixture } from './vou-orders.ts'
+import { seedProductionFixture } from './vou-production.ts'
 
 /** Existing public domain commands inside the caller's rollback transaction. */
 export async function seedVouCatalogFixture(db: Kysely<DB>) {
-  const fixture = await seedOrderListFixture(db, 1, vouEntities)
+  const fixture = await seedProductionFixture(db, 1, vouEntities)
   const { vou, references } = fixture
   const actor = {
     id: fixture.submitter.userId,
@@ -156,22 +160,46 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
       baseQuantity: '1.000000',
     },
   ]
-  const productionLines = [
+  const productionLines = fixture.productionPayload.productionLines
+  const productionOrderId = ulid(),
+    productionEntryId = ulid(),
+    productionSourceLineId = ulid()
+  const productionOrder = await vou.submit(
+    'sale-order',
+    'submit-new',
     {
-      ...quantity,
-      product: { objectId: product.objectId },
-      lossRate: '0.000000',
-      materials: [
-        {
-          formulaLineNo: 1,
-          actualMaterial: { objectId: product.objectId },
-          actualEnteredQuantity: '1.000000',
-          actualEnteredUnit: quantity.enteredUnit,
-          actualBaseQuantity: '1.000000',
-        },
-      ],
+      documentId: productionOrderId,
+      submissionId: productionEntryId,
+      idempotencyKey: productionEntryId,
+      expectedRevision: null,
+      payload: {
+        ...fixture.salePayload,
+        productLines: [
+          {
+            ...fixture.salePayload.productLines[0]!,
+            lineId: productionSourceLineId,
+            product: { objectId: fixture.productId },
+            enteredQuantity: '10',
+            baseQuantity: '10',
+            formula: fixture.formula,
+          },
+        ],
+      },
     },
-  ]
+    actor,
+    'catalog-production-source',
+  )
+  await vou.review(
+    'sale-order',
+    'approve',
+    {
+      documentId: productionOrderId,
+      submissionId: productionEntryId,
+      expectedRevision: productionOrder.revision,
+    },
+    reviewer,
+    'catalog-production-source',
+  )
   const bill = {
     positionType: 'ASSET',
     direction: 'IN',
@@ -238,12 +266,19 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
     },
     'order-production': {
       ...base,
+      currency: '',
+      parentEntity: 'sale-order',
+      parentDocumentId: productionOrderId,
       materialWarehouse: warehouse,
       finishedWarehouse: warehouse,
-      productionLines,
+      productionLines: productionLines.map((line) => ({
+        ...line,
+        sourceOrderLineId: productionSourceLineId,
+      })),
     },
     'self-production': {
       ...base,
+      currency: '',
       materialWarehouse: warehouse,
       finishedWarehouse: warehouse,
       productionLines,
@@ -262,7 +297,7 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
       operatingEntity,
       subunitAllocations: [{ subunit: customerSubunit, amount: '12.30' }],
     },
-    'sales-refund': { ...base, ...amount, customer },
+    'sales-refund': { ...base, ...amount, customer: customerSubunit },
     'purchase-refund': { ...base, ...amount, supplier },
     'purchase-payment': { ...base, ...amount, supplier },
     'other-receipt': {
@@ -320,7 +355,12 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
         },
       ],
     },
-    'bill-receipt': { ...base, customer, handler: employee, billLines: [bill] },
+    'bill-receipt': {
+      ...base,
+      customerSubunit,
+      handler: employee,
+      billLines: [bill],
+    },
     'bill-payment': {
       ...base,
       supplier,
@@ -339,6 +379,7 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
       counterpartyType: 'other-unit',
       interestMode: 'BANK_DEDUCTED',
       withRecourse: false,
+      billCashLines,
       billLines: [{ billId: ulid(), purpose: 'PRIMARY' }],
     },
     'bill-maturity': {
@@ -367,7 +408,7 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
         },
         result: { lines: [], summaries: [] },
       },
-    },
+    } as VouPayloadShapes['intermediary-calculation'],
     'service-contract': {
       ...base,
       counterparty,
@@ -381,6 +422,7 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
     },
     'service-acceptance': {
       ...base,
+      amount: '12.30',
       employee,
       serviceAcceptance: {
         contractDocumentId: ulid(),
@@ -419,8 +461,182 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
     documents[entity] = document
     return document
   }
-  for (const [entity, payload] of Object.entries(payloads))
+  const acc = new AccService(db),
+    mappings = new AccMappingCatalogService(db)
+  await acc.syncVouEntityCatalog()
+  const book = await acc.createBook(
+    {
+      id: ulid(),
+      name: '目录控制账簿',
+      description: '',
+      startMonth: '2026-09',
+      baseCurrency: 'CNY',
+      subjectTemplate: 'EMPTY',
+      queryUserIds: [actor.id, reviewer.id],
+      operateUserIds: [actor.id, reviewer.id],
+    },
+    actor,
+  )
+  const openings = new VouOpeningService(db, acc),
+    openingId = ulid()
+  const opening = await openings.submitOpening(
+    {
+      bookId: book.id,
+      submissionId: openingId,
+      idempotencyKey: openingId,
+      lines: [],
+      assets: [],
+      bills: [],
+      containers: [],
+    },
+    actor,
+    'catalog-opening',
+  )
+  await openings.reviewOpening(
+    'approve',
+    {
+      bookId: book.id,
+      submissionId: openingId,
+      expectedRevision: opening.approval.revision,
+    },
+    reviewer,
+    'catalog-opening',
+  )
+  for (const entity of vouEntities)
+    await mappings.save(
+      {
+        bookId: book.id,
+        vouEntity: entity,
+        expectedRevision: null,
+        defaultResult: 'UN_POST',
+        definition: {
+          defaultTemplateId: null,
+          rules: [],
+          templates: [],
+          assetConfiguration: null,
+        },
+      },
+      { ...actor, permissions: [...actor.permissions, '/acc/mapping/save'] },
+    )
+  const registers = new VouService(db, {
+    acc: new AccService(db),
+    wfl: { async apply() {} },
+  })
+  const assetSourceId = ulid()
+  const assetSource = await registers.submit(
+    'asset-acquisition',
+    'submit-new',
+    {
+      documentId: ulid(),
+      submissionId: assetSourceId,
+      idempotencyKey: assetSourceId,
+      expectedRevision: null,
+      payload: payloads['asset-acquisition'],
+    },
+    actor,
+    'catalog-source',
+  )
+  await registers.review(
+    'asset-acquisition',
+    'approve',
+    {
+      documentId: assetSource.documentId,
+      submissionId: assetSource.submissionId,
+      expectedRevision: assetSource.revision,
+    },
+    reviewer,
+    'catalog-source',
+  )
+  const asset = await db
+    .selectFrom('acc_asset_registers')
+    .select('id')
+    .where('acquisition_vou_approval_entry_id', '=', assetSourceId)
+    .executeTakeFirstOrThrow()
+  payloads['asset-sale'].assetSaleLines[0]!.assetId = asset.id
+  payloads['asset-liquidation'].assetLiquidationLines[0]!.assetId = asset.id
+  for (const matured of [false, true]) {
+    const id = ulid()
+    const source = await registers.submit(
+      'bill-receipt',
+      'submit-new',
+      {
+        documentId: ulid(),
+        submissionId: id,
+        idempotencyKey: id,
+        expectedRevision: null,
+        payload: {
+          ...payloads['bill-receipt'],
+          billLines: [
+            {
+              ...bill,
+              billNo: ulid(),
+              maturityDate: matured ? base.businessDate : bill.maturityDate,
+            },
+          ],
+        },
+      },
+      actor,
+      'catalog-bill-source',
+    )
+    await registers.review(
+      'bill-receipt',
+      'approve',
+      {
+        documentId: source.documentId,
+        submissionId: source.submissionId,
+        expectedRevision: source.revision,
+      },
+      reviewer,
+      'catalog-bill-source',
+    )
+    const register = await db
+      .selectFrom('acc_bill_registers')
+      .select('id')
+      .where('created_vou_approval_entry_id', '=', id)
+      .executeTakeFirstOrThrow()
+    if (matured) payloads['bill-maturity'].billLines[0]!.billId = register.id
+    else {
+      payloads['bill-payment'].billLines[0]!.billId = register.id
+      payloads['bill-discount'].billLines[0]!.billId = register.id
+    }
+  }
+  const calculationScript = await vou.saveIntermediaryScript(
+    {
+      expectedRevision: null,
+      name: '目录验收脚本',
+      source: 'globalThis.calculate = () => ({lines: [], summaries: []})',
+    },
+    actor,
+  )
+  const calculationSource = await vou.getIntermediarySource('2026-09-30', actor)
+  payloads['intermediary-calculation'] = {
+    ...base,
+    businessDate: '2026-09-30',
+    intermediaryCalculation: {
+      ...calculationSource,
+      script: calculationScript,
+      result: { lines: [], summaries: [] },
+    },
+  }
+  for (const [entity, payload] of Object.entries(payloads)) {
+    if (entity === 'service-acceptance') {
+      const contract = documents['service-contract']!
+      documents['service-contract'] = await vou.review(
+        'service-contract',
+        'approve',
+        {
+          documentId: contract.documentId,
+          submissionId: contract.submissionId,
+          expectedRevision: contract.revision,
+        },
+        reviewer,
+        'catalog-contract',
+      )
+      payloads['service-acceptance'].serviceAcceptance.contractDocumentId =
+        contract.documentId
+    }
     await submit(entity as VouEntity, payload)
+  }
   for (const entity of [
     'sale-order',
     'purchase-order',
@@ -475,6 +691,9 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
   return {
     ...fixture,
     documents: documents as Record<VouEntity, VouView>,
+    productionOrder,
+    book,
+    mappings,
     actor,
     reviewerActor: reviewer,
     aux,

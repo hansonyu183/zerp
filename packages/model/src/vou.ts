@@ -275,11 +275,18 @@ export interface VouExpenseLineInput {
 }
 
 export interface VouInventoryCountLineInput extends VouQuantitySnapshotInput {
+  countResult?: {
+    bookQuantity: string
+    actualQuantity: string
+    differenceQuantity: string
+  }
   product: VouObjectReferenceInput
   remark?: string
 }
 
 export interface VouProductionOutputInput extends VouQuantitySnapshotInput {
+  /** Recomputed by the service on submission; immutable after adoption. */
+  formulaSnapshot?: VouFormulaInput
   sourceOrderLineId?: string
   product?: VouObjectReferenceInput
   lossRate: string
@@ -290,12 +297,36 @@ export interface VouProductionOutputInput extends VouQuantitySnapshotInput {
     actualEnteredQuantity: string
     actualEnteredUnit: VouObjectReferenceInput
     actualBaseQuantity: string
+    suggestedBaseQuantity?: string
     adjustmentReason?: string
   }[]
 }
 
-export type VouBillLineInput =
+export interface VouBillReferenceSnapshot {
+  positionType: 'ASSET' | 'LIABILITY'
+  direction: 'OUT'
+  billType: 'BANK_ACCEPTANCE' | 'COMMERCIAL_ACCEPTANCE' | 'CHECK' | 'OTHER'
+  billNo: string
+  medium: 'PAPER' | 'ELECTRONIC'
+  currency: string
+  faceAmount: string
+  issueDate: string
+  maturityDate: string
+  drawer: string
+  acceptor: string
+  payee: string
+  annualRateBps: number
+}
+
+export interface VouBillCalculation {
+  interestDays: number
+  interestAmount: string
+  customerCostAmount: string
+}
+
+export type VouBillLineInput = (
   | {
+      billId?: string
       positionType: 'ASSET'
       direction: 'IN'
       purpose: 'PRIMARY'
@@ -312,14 +343,21 @@ export type VouBillLineInput =
       annualRateBps: number
       remark?: string
     }
-  | { billId: string; purpose: 'CHANGE'; remark?: string }
   | {
       billId: string
+      purpose: 'CHANGE'
+      snapshot?: VouBillReferenceSnapshot
+      remark?: string
+    }
+  | {
+      billId: string
+      snapshot?: VouBillReferenceSnapshot
       purpose: 'PRIMARY'
       annualRateBps?: number
       remark?: string
     }
   | {
+      billId?: string
       positionType: 'LIABILITY'
       direction: 'IN'
       purpose: 'PRIMARY'
@@ -336,6 +374,7 @@ export type VouBillLineInput =
       annualRateBps: number
       remark?: string
     }
+) & { calculation?: VouBillCalculation }
 
 export interface VouBillCashLineInput {
   billLineId?: string
@@ -430,7 +469,6 @@ export interface VouIntermediaryCalculationInput {
         applicableTo?: string
         terms: string
       }
-      intermediary?: VouIntermediaryReference
       product: VouIntermediaryReference
       behaviorProfile:
         'RAW_MATERIAL' | 'STANDARD_FINISHED' | 'CUSTOM_FINISHED' | 'PACKAGING'
@@ -440,6 +478,14 @@ export interface VouIntermediaryCalculationInput {
       unitPrice: string
       referenceUnitPrice: string
       settlementSurcharge: string
+      customerTypeCode: string
+      paymentSurcharge: string
+      transportSurcharge: string
+      defaultPremiumUnitPrice: string
+      defaultDiscountUnitPrice: string
+      thirdPartyIntermediaryFixedUnitCost: string
+      thirdPartyIntermediaryVariableUnitCost: string
+      costItems: readonly import('./archives.ts').CustomerPricingCostItem[]
       lineAmount: string
       settlementTermCode: string
       specialApproval: boolean
@@ -486,6 +532,7 @@ export interface VouIntermediaryCalculationInput {
     }[]
     summaries: readonly {
       payee: VouIntermediaryReference
+      customer?: VouIntermediaryReference
       category:
         'COMMISSION' | 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER' | 'INTERMEDIARY'
       amount: string
@@ -503,6 +550,7 @@ export interface VouPayloadShapes {
     warehouse: VouAuxCurrentReferenceInput
     paymentMethod: VouPaymentMethodSelectionInput | null
     creditOverrideReason?: string
+    specialApproval?: boolean
   }
   'sale-outbound': SourcePayload
   'sale-delivery': SourcePayload & {
@@ -644,7 +692,7 @@ export interface VouPayloadShapes {
     }[]
   }
   'bill-receipt': BillPayload & {
-    customer: VouVersionedReferenceInput
+    customerSubunit: VouVersionedReferenceInput
     handler: VouAuxCurrentReferenceInput
     internalCostRateBps?: number
   }
@@ -683,6 +731,8 @@ export interface VouPayloadShapes {
     }
   }
   'service-acceptance': VouPayloadBase & {
+    amount: string
+    counterparty?: VouVersionedReferenceInput
     employee: VouAuxCurrentReferenceInput
     serviceAcceptance: {
       contractDocumentId: string
@@ -817,6 +867,7 @@ export interface VouPayloadReferenceFact {
  * approved version is normalized to `HISTORICAL` for the shared validator.
  */
 export function vouPayloadReferences(
+  entity: VouEntity,
   payload: VouPayload,
 ): readonly VouPayloadReferenceFact[] {
   const result: VouPayloadReferenceFact[] = []
@@ -825,6 +876,7 @@ export function vouPayloadReferences(
       result.push({
         field: path,
         candidateEntity: versionedReferenceCandidateEntity(
+          entity,
           field,
           path,
           payload,
@@ -924,10 +976,13 @@ export function vouAuxCurrentReferences(payload: VouPayload): readonly {
 }
 
 function versionedReferenceCandidateEntity(
+  entity: VouEntity,
   field: string,
   path: string,
   payload: VouPayload,
 ): VouReferenceCandidateEntity {
+  if (field === 'counterparty' && entity === 'service-acceptance')
+    return 'other-unit'
   if (field === 'counterparty') {
     const counterpartyType = (payload as unknown as Record<string, unknown>)[
       'counterpartyType'
@@ -942,7 +997,9 @@ function versionedReferenceCandidateEntity(
     )
   }
   const candidates =
-    headerReferenceCandidates[field] ?? lineReferenceCandidates[field]
+    field in headerReferenceCandidates
+      ? headerReferenceCandidatesForEntity(entity, field)
+      : lineReferenceCandidates[field]
   if (candidates?.length === 1) return candidates[0]
   throw new Error(
     `Cannot derive VOU reference candidate at ${path}: field ${field} is not uniquely typed`,
@@ -1065,7 +1122,9 @@ function canonicalPayload<Entity extends VouEntity>(
 ): Readonly<VouPayloadShapes[Entity]> | undefined {
   if (
     !/^\d{4}-\d{2}-\d{2}$/.test(value.businessDate) ||
-    !/^[A-Z]{3}$/.test(value.currency) ||
+    (entity === 'order-production' || entity === 'self-production'
+      ? value.currency !== ''
+      : !/^[A-Z]{3}$/.test(value.currency)) ||
     !Array.isArray(value.attachments)
   )
     return undefined
@@ -1161,6 +1220,7 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
     'paymentMethod',
     'productLines',
     'creditOverrideReason',
+    'specialApproval',
   ],
   'sale-outbound': ['sourceLines'],
   'sale-delivery': ['sourceLines', 'carrier', 'vehicle'],
@@ -1233,7 +1293,7 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
   'asset-sale': ['counterparty', 'counterpartyType', 'assetSaleLines'],
   'asset-liquidation': ['assetLiquidationLines'],
   'bill-receipt': [
-    'customer',
+    'customerSubunit',
     'handler',
     'internalCostRateBps',
     'billLines',
@@ -1264,7 +1324,12 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
     'employee',
     'serviceContract',
   ],
-  'service-acceptance': ['employee', 'serviceAcceptance'],
+  'service-acceptance': [
+    'amount',
+    'counterparty',
+    'employee',
+    'serviceAcceptance',
+  ],
 }
 const payloadRequiredFields: Readonly<Record<VouEntity, readonly string[]>> =
   Object.fromEntries(
@@ -1284,7 +1349,9 @@ const payloadRequiredFields: Readonly<Record<VouEntity, readonly string[]>> =
               'withRecourse',
               'containerDifferenceReason',
               'creditOverrideReason',
+              'specialApproval',
             ].includes(field) ||
+            (field === 'counterparty' && entity === 'service-acceptance') ||
             (field === 'billCashLines' && entity !== 'bill-maturity') ||
             ((field === 'counterparty' || field === 'counterpartyType') &&
               entity === 'other-income')
@@ -1438,10 +1505,14 @@ function headerReferenceCandidatesForEntity(
   entity: VouEntity,
   key: string,
 ): readonly VouReferenceCandidateEntity[] {
+  if (key === 'customer' && entity === 'sales-refund')
+    return ['customer-subunit']
   if (key === 'counterparty' && entity === 'bill-discount')
     return ['other-unit']
   if (key === 'counterparty' && entity === 'asset-sale')
     return ['customer-subunit', 'other-unit']
+  if (key === 'counterparty' && entity === 'service-acceptance')
+    return ['other-unit']
   if (key === 'counterparty' && entity === 'service-contract')
     return ['other-unit', 'sales-partner']
   return headerReferenceCandidates[key] ?? []
@@ -2180,7 +2251,6 @@ const intermediarySourceLineFields: readonly VouInputFieldDescriptor[] =
         scalarDescriptor('terms', true),
       ],
     },
-    intermediaryReferenceDescriptor('intermediary', false, ['other-unit']),
     intermediaryReferenceDescriptor('product', true, ['product']),
     scalarDescriptor('behaviorProfile', true),
     scalarDescriptor('signedBaseQuantity', true),
@@ -2189,6 +2259,31 @@ const intermediarySourceLineFields: readonly VouInputFieldDescriptor[] =
     scalarDescriptor('unitPrice', true),
     scalarDescriptor('referenceUnitPrice', true),
     scalarDescriptor('settlementSurcharge', true),
+    scalarDescriptor('customerTypeCode', true),
+    ...[
+      'paymentSurcharge',
+      'transportSurcharge',
+      'defaultPremiumUnitPrice',
+      'defaultDiscountUnitPrice',
+      'thirdPartyIntermediaryFixedUnitCost',
+      'thirdPartyIntermediaryVariableUnitCost',
+    ].map((key) => ({ key, kind: 'decimal' as const, required: true })),
+    {
+      key: 'costItems',
+      kind: 'array',
+      required: true,
+      item: [
+        scalarDescriptor('name', true),
+        {
+          key: 'calculationBasis',
+          kind: 'enum',
+          required: true,
+          enumValues: ['UNIT_PRICE', 'ORDER_AMOUNT'],
+        },
+        { key: 'unitPrice', kind: 'decimal', required: false },
+        { key: 'orderAmount', kind: 'decimal', required: false },
+      ],
+    },
     scalarDescriptor('lineAmount', true),
     scalarDescriptor('settlementTermCode', true),
     scalarDescriptor('specialApproval', true),
@@ -2232,6 +2327,7 @@ const intermediarySummaryFields: readonly VouInputFieldDescriptor[] =
       'sales-partner',
       'other-unit',
     ]),
+    intermediaryReferenceDescriptor('customer', false, ['customer-subunit']),
     {
       key: 'category',
       kind: 'enum',
@@ -2650,4 +2746,29 @@ export function prepareVouApproval(
           : [],
     },
   }
+}
+
+/** Suggested base material quantity, rounded half up to six decimal places. */
+export function productionSuggestedQuantity(
+  materialQuantity: string,
+  formulaOutput: string,
+  outputQuantity: string,
+  lossRate: string,
+): string {
+  const micros = (value: string) => {
+    if (!/^\d+(?:\.\d{1,6})?$/.test(value))
+      throw new RangeError('invalid production quantity')
+    const [whole, fraction = ''] = value.split('.')
+    return BigInt(whole!) * 1000000n + BigInt(fraction.padEnd(6, '0'))
+  }
+  const material = micros(materialQuantity),
+    output = micros(formulaOutput),
+    quantity = micros(outputQuantity),
+    loss = micros(lossRate)
+  if (output <= 0n || quantity <= 0n || loss > 100000000n)
+    throw new RangeError('invalid production quantity')
+  const denominator = output * 100000000n
+  const result =
+    (material * quantity * (100000000n + loss) + denominator / 2n) / denominator
+  return `${result / 1000000n}.${String(result % 1000000n).padStart(6, '0')}`
 }

@@ -54,8 +54,10 @@ test('sales and purchases open from menus, share date range fields, show immutab
     await openMenu(page, `/vou/${entity}`)
     await expect(
       page.getByText('专用单据编辑器尚未实施', { exact: false }),
+    ).toHaveCount(0)
+    await expect(
+      page.getByRole('button', { name: '新建', exact: true }),
     ).toBeVisible()
-    await expect(page.getByTestId('list-create')).toHaveCount(0)
     await page.setViewportSize({ width: 390, height: 844 })
     await page.getByLabel('期间起', { exact: true }).fill(row.businessDate)
     await page.getByLabel('期间止', { exact: true }).fill(row.businessDate)
@@ -152,4 +154,111 @@ test('approval-only order resource does not request lists or current reference o
   ).toBeVisible()
   await expect(page.getByTestId('list-search')).toBeDisabled()
   expect(requests).toEqual([])
+})
+
+test('creates and clones sales and purchase orders from real menu candidates, including attachments at 390px', async ({
+  page,
+}) => {
+  test.setTimeout(180000)
+  const references = JSON.parse(
+    process.env.TARGET_E2E_VOU_REFERENCE_FACTS_JSON ?? '{}',
+  ) as Record<string, { name: string; code: string }>
+  await signIn(
+    page,
+    process.env.TARGET_E2E_USERNAME!,
+    process.env.TARGET_E2E_PASSWORD!,
+  )
+  for (const entity of ['purchase-order', 'sale-order'] as const) {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await openMenu(page, `/vou/${entity}`)
+    await page.getByRole('button', { name: '新建', exact: true }).click()
+    const editor = page.getByTestId('document-editor')
+    await expect(editor).toBeVisible()
+    const choose = async (label: string, name: string) => {
+      const field = editor.getByLabel(label, { exact: true })
+      await expect(field).toBeEnabled()
+      await field.fill(name)
+      await page.getByRole('option').filter({ hasText: name }).first().click()
+    }
+    await choose(
+      entity === 'sale-order' ? '客户子单位' : '供应商',
+      references[entity === 'sale-order' ? 'customerSubunit' : 'supplier']!
+        .name,
+    )
+    await choose('仓库', references.warehouse!.name)
+    if (entity === 'sale-order')
+      await choose('经营主体', references.operatingEntity!.code)
+    await editor.getByLabel('业务日期', { exact: true }).fill('2026-09-09')
+    await editor.getByLabel('备注', { exact: true }).fill(`动态录入${entity}`)
+    await editor
+      .getByRole('button', { name: '添加商品行', exact: true })
+      .click()
+    await choose('产品', references.product!.name)
+    await expect(editor.getByLabel('录入数量', { exact: true })).toBeEnabled()
+    await editor.getByLabel('录入数量', { exact: true }).fill('2')
+    await editor.getByLabel('基准数量', { exact: true }).fill('2')
+    await editor.getByLabel('基础单价', { exact: true }).fill('12.50')
+    await editor.getByLabel('添加附件', { exact: true }).setInputFiles({
+      name: 'order.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4\norder fixture\n%%EOF'),
+    })
+    await expect(editor).toContainText('待提交时上传')
+    await page.setViewportSize({ width: 390, height: 844 })
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > innerWidth,
+      ),
+    ).toBe(false)
+    const submitted = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/vou/${entity}/submit-new`,
+    )
+    await editor.getByRole('button', { name: '提交', exact: true }).click()
+    const envelope = await (
+      await submitted.catch(async () => {
+        throw new Error(await editor.innerText())
+      })
+    ).json()
+    expect(envelope.code, JSON.stringify(envelope)).toBe(0)
+    await expect(editor).toHaveCount(0)
+    const id = envelope.data.documentId as string
+    await page
+      .getByTestId(`vou-row-${id}`)
+      .getByRole('button', { name: '打开', exact: true })
+      .click()
+    const detail = page.getByTestId('vou-detail')
+    await expect(detail).toContainText(`动态录入${entity}`)
+    await expect(detail).toContainText('order.pdf')
+    await expect(detail).toContainText('12.50')
+    await expect(detail).toContainText('已提交内容只读')
+    await detail
+      .getByRole('button', { name: '复制到临时表单', exact: true })
+      .click()
+    await expect(editor).toBeVisible()
+    await expect(editor).toContainText('请重新上传')
+    await expect(editor.getByLabel('录入数量', { exact: true })).toHaveValue(
+      envelope.data.payload.productLines[0].enteredQuantity,
+    )
+    await expect(
+      editor.getByRole('button', { name: '提交', exact: true }),
+    ).toBeEnabled()
+    await editor.getByLabel('备注', { exact: true }).fill('克隆重新提交')
+    const cloned = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/vou/${entity}/submit-new`,
+    )
+    await editor.getByRole('button', { name: '提交', exact: true }).click()
+    const cloneEnvelope = await (await cloned).json()
+    expect(cloneEnvelope.code, JSON.stringify(cloneEnvelope)).toBe(0)
+    expect(cloneEnvelope.data.documentId).not.toBe(id)
+    expect(cloneEnvelope.data.payload.attachments).toEqual([])
+    await expect(editor).toHaveCount(0)
+    await page
+      .getByTestId(`vou-row-${id}`)
+      .getByRole('button', { name: '打开', exact: true })
+      .click()
+    await expect(detail).toContainText(`动态录入${entity}`)
+    await detail.getByRole('button', { name: '关闭', exact: true }).click()
+  }
 })

@@ -44,7 +44,7 @@ async function selectOption(
   name: string,
 ): Promise<void> {
   await dialog
-    .locator('.v-select')
+    .locator('.v-select, .v-autocomplete')
     .filter({ hasText: label })
     .locator('.v-field')
     .click()

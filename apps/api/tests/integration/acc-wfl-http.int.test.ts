@@ -1,3 +1,4 @@
+import { approveEmptyIntermediaryMonth } from '../fixtures/vou-intermediary.ts'
 import { VouOpeningService } from '../../src/vou/opening-service.ts'
 import { withWflDatabase } from './wfl-fixture.ts'
 import { BobArchiveService } from '../../src/bob/archives.ts'
@@ -679,8 +680,29 @@ test('ACC HTTP routes enforce session, CSRF, permissions, envelope, opening and 
           .where('entity', '=', 'opening')
           .where('document_id', 'in', books)
           .execute()
+        await db
+          .deleteFrom('acc_mappings')
+          .where('book_id', 'in', books)
+          .execute()
         await db.deleteFrom('acc_books').where('id', 'in', books).execute()
       }
+      await db.deleteFrom('vou_documents').where('id', 'in', books).execute()
+      await db
+        .deleteFrom('vou_intermediary_scripts')
+        .where(
+          'updated_by',
+          'in',
+          users.map((user) => user.id),
+        )
+        .execute()
+      await db
+        .deleteFrom('app_audit_events')
+        .where(
+          'actor_user_id',
+          'in',
+          users.map((user) => user.id),
+        )
+        .execute()
       if (users.length > 0) {
         await db
           .deleteFrom('app_sessions')
@@ -837,6 +859,15 @@ test('ACC HTTP routes enforce session, CSRF, permissions, envelope, opening and 
     expectedRevision: pending.data.approval.revision,
   })
   assert.equal(approved.data.approval.status, 'APPROVED')
+  const vou = new VouService(db, { acc, wfl: { async apply() {} } })
+  const intermediary = await approveEmptyIntermediaryMonth(
+    db,
+    vou,
+    '2026-08-31',
+    { id: submitter.id, permissions: [], trusted: true },
+    { id: reviewer.id, permissions: [], trusted: true },
+  )
+  books.push(intermediary.documentId)
   const locked = await post(origin, reviewerSession, '/acc/period/lock', {
     bookId,
     month: '2026-08',

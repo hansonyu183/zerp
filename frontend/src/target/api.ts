@@ -2301,6 +2301,22 @@ export async function deleteTargetCustomer(
   )
 }
 
+export type TargetCustomerAttachmentReadInput = PostJson<
+  (typeof client.bob.customer)['attachment-read']['$post']
+>
+export async function readTargetCustomerAttachment(
+  csrfToken: string,
+  input: TargetCustomerAttachmentReadInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.bob.customer['attachment-read'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
 export type TargetCustomerAttachmentStageInput = PostJson<
   (typeof client)['bob']['customer']['attachment-stage']['$post']
 >
@@ -3050,6 +3066,139 @@ export async function queryTargetAccountingSubjects(
     await (
       await client.acc.subject.query.$post(
         { json: { bookId, page, pageSize: 200 } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export type TargetVoucherSubmitInput = PostJson<
+  (typeof client.vou)[':entity']['submit-new']['$post']
+>
+export type TargetOrderEntity = 'sale-order' | 'purchase-order'
+export type TargetOrderInput<E extends TargetOrderEntity> = Omit<
+  TargetVoucherSubmitInput,
+  'payload'
+> & {
+  payload: import('@zerp/model').VouPayloadFor<E>
+}
+export async function submitTargetOrder<E extends TargetOrderEntity>(
+  csrfToken: string,
+  entity: E,
+  input: TargetOrderInput<E>,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou[':entity']['submit-new'].$post(
+        { param: { entity }, json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export type TargetVoucherInput<E extends import('@zerp/model').VouEntity> =
+  Omit<TargetVoucherSubmitInput, 'payload'> & {
+    payload: import('@zerp/model').VouPayloadFor<E>
+  }
+export async function submitTargetVoucher<
+  E extends import('@zerp/model').VouEntity,
+>(csrfToken: string, entity: E, input: TargetVoucherInput<E>) {
+  return unwrapTarget(
+    await (
+      await client.vou[':entity']['submit-new'].$post(
+        { param: { entity }, json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export type TargetVouSourceLineQueryInput = PostJson<
+  (typeof client.vou)['source-line']['query']['$post']
+>
+export async function queryTargetVouSourceLines(
+  csrfToken: string,
+  input: TargetVouSourceLineQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou['source-line'].query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export type TargetVoucherAttachmentStageInput = PostJson<
+  (typeof client.vou)[':entity']['attachment-stage']['$post']
+>
+export async function stageTargetVoucherAttachment(
+  csrfToken: string,
+  entity: import('@zerp/model').VouEntity,
+  input: TargetVoucherAttachmentStageInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou[':entity']['attachment-stage'].$post(
+        { param: { entity }, json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export type TargetInventoryBookBalanceInput = PostJson<
+  (typeof client.vou)['inventory-count']['book-balance']['$post']
+>
+export async function queryTargetInventoryBookBalance(
+  csrfToken: string,
+  input: TargetInventoryBookBalanceInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou['inventory-count']['book-balance'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function getTargetIntermediaryScript(csrfToken: string) {
+  return unwrapTarget(
+    await (
+      await client.vou['intermediary-calculation']['script-get'].$post(
+        { json: {} },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export type TargetIntermediaryScriptSaveInput = PostJson<
+  (typeof client.vou)['intermediary-calculation']['script-save']['$post']
+>
+export async function saveTargetIntermediaryScript(
+  csrfToken: string,
+  input: TargetIntermediaryScriptSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou['intermediary-calculation']['script-save'].$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function getTargetIntermediarySource(
+  csrfToken: string,
+  input: PostJson<
+    (typeof client.vou)['intermediary-calculation']['source']['$post']
+  >,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou['intermediary-calculation'].source.$post(
+        { json: input },
         csrfHeaders(csrfToken),
       )
     ).json(),

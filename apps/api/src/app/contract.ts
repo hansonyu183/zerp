@@ -318,6 +318,7 @@ const accMappingDefinition = z
             .array(
               z
                 .object({
+                  collection: z.string().min(1).max(128).nullable().optional(),
                   subjectSource: z.enum(['FIXED', 'FIELD']),
                   subjectValue: z.string().min(1).max(128),
                   direction: z.enum(['DEBIT', 'CREDIT']),

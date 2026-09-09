@@ -18,7 +18,10 @@ import {
 import { sql, type Kysely, type Transaction } from 'kysely'
 import { ulid } from 'ulid'
 
-import type { BobArchiveEntity } from './archive-contract.ts'
+import type {
+  BobArchiveEntity,
+  CustomerAttachmentReadInput,
+} from './archive-contract.ts'
 import type { DB, JsonValue } from '../db/generated.ts'
 
 import { AttachmentStore } from '../platform/attachment-store.ts'
@@ -1081,6 +1084,61 @@ export class BobArchiveService {
       outcome.storageKeys,
     )
     return outcome.result
+  }
+
+  async readCustomerAttachment(
+    input: CustomerAttachmentReadInput,
+    actor: ApprovalActor,
+  ) {
+    requirePermission(actor, '/bob/customer/attachment-read')
+    requirePermission(
+      actor,
+      input.source === 'current'
+        ? '/bob/customer/get'
+        : '/bob/customer/submission-get',
+    )
+    try {
+      return await this.db.transaction().execute(async (tx) => {
+        const scope = archiveScope(
+          'customer',
+          input.source === 'current' ? input.objectId : input.subjectId,
+        )
+        const entry =
+          input.source === 'current'
+            ? await this.versioning.latestApproved(tx, scope)
+            : await this.versioning.exact(tx, scope, input.submissionId)
+        if (!entry)
+          throw new BobArchiveApplicationError('customer_attachment_not_found')
+        const file = await tx
+          .selectFrom('bob_customer_attachments')
+          .selectAll()
+          .where('approval_entry_id', '=', entry.id)
+          .where('file_id', '=', input.fileId)
+          .executeTakeFirst()
+        if (!file)
+          throw new BobArchiveApplicationError('customer_attachment_not_found')
+        await lockAttachmentStorageKey(tx, file.storage_key)
+        const content = await this.attachmentStore.read(file.storage_key)
+        if (
+          content.length !== file.size_bytes ||
+          createHash('sha256').update(content).digest('hex') !== file.digest
+        )
+          throw new BobArchiveApplicationError(
+            'customer_attachment_invalid_content',
+          )
+        return {
+          fileName: file.file_name,
+          mimeType: file.mime_type,
+          size: file.size_bytes,
+          digest: file.digest,
+          contentBase64: content.toString('base64'),
+        }
+      })
+    } catch (error) {
+      if (error instanceof VersionedArchiveError)
+        throw new BobArchiveApplicationError(error.errorKey)
+      throw error
+    }
   }
 
   async stageCustomerAttachment(

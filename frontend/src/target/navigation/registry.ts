@@ -1,64 +1,39 @@
-import OpeningManagement from '../pages/vou/opening/OpeningManagement.vue'
-import OrderManagement from '../pages/vou/orders/OrderManagement.vue'
-import {
-  vouPages,
-  saleOrderPage,
-  purchaseOrderPage,
-  type OrderFilters,
-} from './vou-pages.ts'
+import { processDefinitionPage } from '../definitions/process-definition.ts'
+import { productPage } from '../definitions/product.ts'
+import { customerPage } from '../definitions/customer.ts'
+import { salesPartnerPage } from '../definitions/sales-partner.ts'
+import { otherUnitPage } from '../definitions/other-unit.ts'
+import VersionPage from '../components/version-page/VersionPage.vue'
+import type { VersionDefinition } from '../components/version-page/definition.ts'
+import { supplierPage } from '../definitions/supplier.ts'
+import { fundAccountPage } from '../definitions/fund-account.ts'
+import { warehousePage } from '../definitions/warehouse.ts'
+import { operatingEntityPage } from '../definitions/operating-entity.ts'
+import { assetCategoryPage } from '../definitions/asset-category.ts'
+import { paymentMethodPage } from '../definitions/payment-method.ts'
+import { positionPage } from '../definitions/position.ts'
+import { employeeCategoryPage } from '../definitions/employee-category.ts'
+import { rolePage } from '../definitions/role.ts'
+import { vehiclePage } from '../definitions/vehicle.ts'
+import { employeePage } from '../definitions/employee.ts'
+import { userPage } from '../definitions/user.ts'
+import DirectPage from '../components/direct-page/DirectPage.vue'
+import { measurementUnitPage } from '../definitions/measurement-unit.ts'
+import type { DirectDefinition } from '../components/direct-page/definition.ts'
+import DocumentPage from '../components/document-page/DocumentPage.vue'
+import type { DocumentDefinition } from '../components/document-page/definition.ts'
+import { voucherDefinitions } from '../definitions/vouchers.ts'
 import { vouEntities } from '@zerp/model'
-import VoucherManagement from '../pages/vou/VoucherManagement.vue'
-import type { VouPageRegistration } from '../components/vou-list-page/vm.ts'
-import DefinitionManagement from '../pages/wfl/definition/DefinitionManagement.vue'
-import ReportPage from '../pages/rpt/ReportPage.vue'
-import MappingManagement from '../pages/acc/mapping/MappingManagement.vue'
-import CustomerManagement from '../pages/bob/customer/CustomerManagement.vue'
-import ProductManagement from '../pages/bob/product/ProductManagement.vue'
+import ProcessPage from '../components/process-page/ProcessPage.vue'
+import type { ProcessDefinition } from '../components/process-page/definition.ts'
+import { processInstancePage } from '../definitions/process-instance.ts'
+import ReportPage from '../components/report-page/ReportPage.vue'
+import type { ReportDefinition } from '../components/report-page/definition.ts'
+import { reportPage as defineReport } from '../definitions/report.ts'
+import ConfigurationPage from '../components/configuration-page/ConfigurationPage.vue'
+import type { ConfigurationDefinition } from '../components/configuration-page/definition.ts'
+import { mappingPage } from '../definitions/mapping.ts'
 import type { Component } from 'vue'
-import {
-  userListPage,
-  roleListPage,
-  employeeCategoryListPage,
-  positionListPage,
-  measurementUnitListPage,
-  paymentMethodListPage,
-  assetCategoryListPage,
-  employeeListPage,
-  operatingEntityListPage,
-  warehouseListPage,
-  fundAccountListPage,
-  vehicleListPage,
-} from './list-pages.ts'
-
-export type RegisteredListPage =
-  | typeof userListPage
-  | typeof roleListPage
-  | typeof employeeCategoryListPage
-  | typeof positionListPage
-  | typeof measurementUnitListPage
-  | typeof paymentMethodListPage
-  | typeof assetCategoryListPage
-  | typeof employeeListPage
-  | typeof operatingEntityListPage
-  | typeof warehouseListPage
-  | typeof fundAccountListPage
-  | typeof vehicleListPage
-
-import UserManagement from '../pages/app/user/UserManagement.vue'
-import RoleManagement from '../pages/app/role/RoleManagement.vue'
-import EmployeeCategoryManagement from '../pages/aux/employee-category/EmployeeCategoryManagement.vue'
-import PositionManagement from '../pages/aux/position/PositionManagement.vue'
-import MeasurementUnitManagement from '../pages/aux/measurement-unit/MeasurementUnitManagement.vue'
-import PaymentMethodManagement from '../pages/aux/payment-method/PaymentMethodManagement.vue'
-import AssetCategoryManagement from '../pages/aux/asset-category/AssetCategoryManagement.vue'
-import EmployeeManagement from '../pages/aux/employee/EmployeeManagement.vue'
-import OperatingEntityManagement from '../pages/aux/operating-entity/OperatingEntityManagement.vue'
-import WarehouseManagement from '../pages/aux/warehouse/WarehouseManagement.vue'
-import FundAccountManagement from '../pages/aux/fund-account/FundAccountManagement.vue'
-import VehicleManagement from '../pages/aux/vehicle/VehicleManagement.vue'
-import OtherUnitManagement from '../pages/bob/other-unit/OtherUnitManagement.vue'
-import SalesPartnerManagement from '../pages/bob/sales-partner/SalesPartnerManagement.vue'
-import SupplierManagement from '../pages/bob/supplier/SupplierManagement.vue'
 import {
   targetDomainCapabilities,
   type BusinessTargetDomain,
@@ -68,7 +43,13 @@ export type ResourceRegistration = {
   domain: BusinessTargetDomain
   entity: string
   component: Component
-  definition?: RegisteredListPage | VouPageRegistration<OrderFilters>
+  definition?:
+    | VersionDefinition
+    | DirectDefinition
+    | DocumentDefinition
+    | ConfigurationDefinition
+    | ProcessDefinition
+    | ReportDefinition
   vouType?: import('@zerp/model').VouType
   useCaseKey?: string
 }
@@ -101,6 +82,7 @@ export function createResourceRegistry(
         return {
           ...reportPage,
           entity,
+          definition: defineReport(entity as ReportDefinition['code']),
           capabilities: targetDomainCapabilities.rpt,
         }
 
@@ -115,7 +97,7 @@ export function createResourceRegistry(
           ...voucherPage,
           entity: vouType,
           vouType,
-          definition: vouPages[vouType],
+          definition: voucherDefinitions[vouType],
           capabilities: targetDomainCapabilities.vou,
         }
       return null
@@ -129,143 +111,152 @@ export const targetResourceRegistry = createResourceRegistry(
       domain: 'vou',
       entity: 'opening',
       vouType: 'opening',
-      component: OpeningManagement,
+      component: DocumentPage,
+      definition: voucherDefinitions.opening,
       useCaseKey: 'vou/opening',
     },
     {
       domain: 'vou',
       entity: 'sale-order',
       vouType: 'sale-order',
-      definition: saleOrderPage,
-      component: OrderManagement,
+      definition: voucherDefinitions['sale-order'],
+      component: DocumentPage,
       useCaseKey: 'vou/sale-order',
     },
     {
       domain: 'vou',
       entity: 'purchase-order',
       vouType: 'purchase-order',
-      definition: purchaseOrderPage,
-      component: OrderManagement,
+      definition: voucherDefinitions['purchase-order'],
+      component: DocumentPage,
       useCaseKey: 'vou/purchase-order',
     },
     {
       domain: 'wfl',
       entity: 'process-instance',
-      component: DefinitionManagement,
+      component: ProcessPage,
+      definition: processInstancePage,
       useCaseKey: 'wfl/process-instance',
     },
     {
       domain: 'wfl',
       entity: 'process-definition',
-      component: DefinitionManagement,
+      definition: processDefinitionPage,
+      component: VersionPage,
       useCaseKey: 'wfl/process-definition',
     },
     {
       domain: 'acc',
       entity: 'mapping',
-      component: MappingManagement,
+      component: ConfigurationPage,
+      definition: mappingPage,
       useCaseKey: 'acc/mapping-management',
     },
     {
       domain: 'app',
       entity: 'user',
-      definition: userListPage,
-      component: UserManagement,
+      definition: userPage,
+      component: DirectPage,
     },
     {
       domain: 'app',
       entity: 'role',
-      definition: roleListPage,
-      component: RoleManagement,
+      definition: rolePage,
+      component: DirectPage,
     },
     {
       domain: 'aux',
       entity: 'employee-category',
-      definition: employeeCategoryListPage,
-      component: EmployeeCategoryManagement,
+      definition: employeeCategoryPage,
+      component: DirectPage,
     },
     {
       domain: 'aux',
       entity: 'position',
-      definition: positionListPage,
-      component: PositionManagement,
+      definition: positionPage,
+      component: DirectPage,
     },
     {
       domain: 'aux',
       entity: 'measurement-unit',
-      definition: measurementUnitListPage,
-      component: MeasurementUnitManagement,
+      definition: measurementUnitPage,
+      component: DirectPage,
     },
     {
       domain: 'aux',
       entity: 'payment-method',
-      definition: paymentMethodListPage,
-      component: PaymentMethodManagement,
+      definition: paymentMethodPage,
+      component: DirectPage,
     },
     {
       domain: 'aux',
       entity: 'asset-category',
-      definition: assetCategoryListPage,
-      component: AssetCategoryManagement,
+      definition: assetCategoryPage,
+      component: DirectPage,
     },
     {
       domain: 'aux',
       entity: 'operating-entity',
-      definition: operatingEntityListPage,
-      component: OperatingEntityManagement,
+      definition: operatingEntityPage,
+      component: DirectPage,
     },
     {
       domain: 'aux',
       entity: 'employee',
-      definition: employeeListPage,
-      component: EmployeeManagement,
+      definition: employeePage,
+      component: DirectPage,
     },
     {
       domain: 'aux',
       entity: 'warehouse',
-      definition: warehouseListPage,
-      component: WarehouseManagement,
+      definition: warehousePage,
+      component: DirectPage,
     },
     {
       domain: 'aux',
       entity: 'fund-account',
-      definition: fundAccountListPage,
-      component: FundAccountManagement,
+      definition: fundAccountPage,
+      component: DirectPage,
     },
     {
       domain: 'aux',
       entity: 'vehicle',
-      definition: vehicleListPage,
-      component: VehicleManagement,
+      definition: vehiclePage,
+      component: DirectPage,
     },
     {
       domain: 'bob',
       entity: 'customer',
-      component: CustomerManagement,
+      definition: customerPage,
+      component: VersionPage,
       useCaseKey: 'bob/customer-management',
     },
     {
       domain: 'bob',
       entity: 'product',
-      component: ProductManagement,
+      definition: productPage,
+      component: VersionPage,
       useCaseKey: 'bob/product-management',
     },
     {
       domain: 'bob',
       entity: 'supplier',
-      component: SupplierManagement,
+      definition: supplierPage,
+      component: VersionPage,
       useCaseKey: 'bob/supplier-management',
     },
     {
       domain: 'bob',
       entity: 'other-unit',
-      component: OtherUnitManagement,
+      definition: otherUnitPage,
+      component: VersionPage,
       useCaseKey: 'bob/other-unit-management',
     },
     {
       domain: 'bob',
       entity: 'sales-partner',
-      component: SalesPartnerManagement,
+      definition: salesPartnerPage,
+      component: VersionPage,
       useCaseKey: 'bob/sales-partner-management',
     },
   ],
@@ -278,7 +269,7 @@ export const targetResourceRegistry = createResourceRegistry(
   {
     domain: 'vou',
     entity: ':entity',
-    component: VoucherManagement,
+    component: DocumentPage,
     useCaseKey: 'vou/catalog',
   },
 )

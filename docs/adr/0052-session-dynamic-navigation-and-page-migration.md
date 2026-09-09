@@ -3,7 +3,7 @@ id: ADR-0052
 date: 2026-09-06
 status: accepted
 partially_supersedes: ADR-0051
-partially_superseded_by: ADR-0055, ADR-0056, ADR-0058, ADR-0059
+partially_superseded_by: ADR-0055, ADR-0056, ADR-0058, ADR-0059, ADR-0060
 ---
 
 # 独立 Session、权限驱动导航与动态业务页面的分片迁移
@@ -124,3 +124,7 @@ Registry 当前为原 user 加 role、employee-category、position、measurement
 ## VOU catalog slice: #403
 
 以共享 `vouEntities` 及其字段目录装配所有既有类型的 Registry 登记，复用独立 VouListPage 与 RowActions。列表摘要和各类型合法筛选由服务端投影历史事实并在分页前匹配；公共字段与 VM 不增加类型业务分支。人工新建资格来自共享系统生成目录，缺失编辑器明确提示；保留精确权限和服务端审批资格。范围不含期初与全部专用编辑器重建，业务规则见 [VOU](../domains/vou.md#单据列表与详情)。
+
+## 动态页面运行时（#409）
+
+[ADR-0060](0060-dynamic-page-runtime.md) 部分替代本 ADR 中 APP/AUX 逐页 VM、专有编辑器和由页面提供交互回调的条款。Session、强字段契约、查询快照、异步隔离与临时 Draft 的保证继续有效。后续领域按各自切片沿用新决定。

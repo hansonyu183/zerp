@@ -87,7 +87,7 @@ test('real create-only permissions expose the user page without unauthorized que
   await expect(dialog).toContainText('角色查询权限')
   await expect(
     dialog.getByRole('button', { name: '保存', exact: true }),
-  ).toHaveCount(0)
+  ).toBeDisabled()
   await dialog.getByRole('button', { name: '取消', exact: true }).click()
   expect(businessRequests).toEqual([])
 

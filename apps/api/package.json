@@ -37,7 +37,8 @@
     "migrate:vou-opening": "node scripts/migrate-vou-opening.ts",
     "e2e:vou-opening": "node scripts/run-vou-opening-e2e.mjs",
     "e2e:wfl": "node scripts/run-wfl-e2e.ts",
-    "test:migrations": "node scripts/run-migration-tests.ts"
+    "test:migrations": "node scripts/run-migration-tests.ts",
+    "e2e:vou-entry": "node scripts/run-vou-entry-e2e.mjs"
   },
   "dependencies": {
     "@hono/node-server": "2.1.1",

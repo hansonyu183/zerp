@@ -1,8 +1,8 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import { vouEntities, vouEntityInputDescriptors } from '@zerp/model'
-import SnapshotValue from '@/target/pages/vou/SnapshotValue.vue'
-import { vouPages } from '@/target/navigation/vou-pages.ts'
+import SnapshotValue from '@/target/components/document-page/SnapshotValue.vue'
+import { vouPages } from '@/target/components/document-page/catalog-list.ts'
 
 describe('voucher catalog consumers', () => {
   it('initializes only registered filters for every type and preserves nullable summaries', () => {

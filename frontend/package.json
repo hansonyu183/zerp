@@ -28,6 +28,7 @@
     "@zerp/api-client": "workspace:*",
     "@zerp/model": "workspace:*",
     "pinia": "^3.0.4",
+    "quickjs-emscripten": "^0.32.0",
     "ulid": "3.0.2",
     "vue": "^3.5.40",
     "vue-router": "^5.2.0",

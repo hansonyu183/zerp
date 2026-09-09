@@ -1,5 +1,11 @@
 import { ulid } from 'ulid'
 import {
+  intermediaryCollections,
+  quantityMovementEntities,
+  billMovementEntities,
+  billMovementCollections,
+} from './service.ts'
+import {
   prepareAccMappingSave,
   vouEntities,
   vouEntityInputDescriptors,
@@ -66,6 +72,7 @@ export type AccMappingDefinition = {
     templateId: string
     collection: string | null
     lines: Array<{
+      collection?: string | null
       subjectSource: 'FIXED' | 'FIELD'
       subjectValue: string
       direction: 'DEBIT' | 'CREDIT'
@@ -427,6 +434,9 @@ export async function syncMappingSubjectUsages(
 }
 
 function mappingCollections(code: string): string[] {
+  if (code === 'intermediary-calculation') return intermediaryCollections
+  if (billMovementEntities.includes(code)) return billMovementCollections
+  if (quantityMovementEntities.includes(code)) return ['inventoryMovements']
   const entity = vouEntities.find((entity) => entity === code)
   return entity
     ? vouEntityInputDescriptors[entity]

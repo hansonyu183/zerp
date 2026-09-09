@@ -22,3 +22,7 @@
 1. 其他单位的身份和合作资格随 BOB typed Submission snapshot 保存，服务合同和履约事实由 VOU 保存。
 2. 新服务合同只采用当前启用、具有正式版本的其他单位；历史合同继续验证精确 Approval Entry。
 3. 页面不调用旧 DCL 其他单位入口，也不将启停编排为版本提交。
+
+## 动态版本档案交互（#410）
+
+本资源从强类型 definition 经 Registry/Resource Host 装配统一版本档案页；页面生命周期、明细/详情/附件/历史区块及公开验收边界采用 [ADR-0060](../../adr/0060-dynamic-page-runtime.md)。上述业务用例在此真实入口验收，桌面和 390px 均覆盖，取消、未知写入、资源/Session 切换与迟到请求沿用全站规则。

@@ -15,10 +15,7 @@ import { useTargetSession } from '../../session/vm.ts'
 import { resourceDisplayName } from '../../navigation/resources.ts'
 import ManagementPageFrame from '../ManagementPageFrame.vue'
 import { DynamicForm } from '../dynamic-fields/index.ts'
-import {
-  createCustomerAttachments,
-  customerAttachmentScope,
-} from './customer-attachments.ts'
+import { createAttachments, attachmentScope } from './attachments.ts'
 import WflScriptBlock from './WflScriptBlock.vue'
 import WflGraphBlock from './WflGraphBlock.vue'
 import { wflErrors, type WflData } from './wfl-data.ts'
@@ -155,11 +152,12 @@ type Pending =
   | { kind: 'version-toggle'; submission: Submission; enabled: boolean }
 const pending = shallowRef<Pending | null>(null)
 const locked = computed(() => busy.value || pending.value !== null)
-const attachments = createCustomerAttachments(
+const attachments = createAttachments(
+  'bob/customer',
   () => token('attachment-stage'),
   owns,
 )
-provide(customerAttachmentScope, attachments.scope)
+provide(attachmentScope, attachments.scope)
 const attachmentReading = ref(false)
 const canCreate = computed(
   () =>
@@ -550,7 +548,11 @@ async function submit() {
     const request = editorRequest
     busy.value = true
     try {
-      await attachments.prepare(command.snapshot as unknown as CustomerSnapshot)
+      const customer = command.snapshot as unknown as CustomerSnapshot
+      await attachments.prepare([
+        ...customer.identityAttachments,
+        ...customer.subunits.flatMap((item) => item.attachments),
+      ])
     } catch (cause) {
       if (owns()) error.value = message(cause)
       return

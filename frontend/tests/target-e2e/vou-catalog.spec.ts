@@ -41,7 +41,17 @@ test('all 36 real menus query their own summaries and open readable snapshots', 
       fact = facts[entity]!
     await expect(list).toContainText(vouEntityPresentation[entity].label)
     await expect(page.getByTestId('list-create')).toHaveCount(0)
-    await expect(list).toContainText('专用单据编辑器尚未实施')
+    if (entity === 'sale-order' || entity === 'purchase-order') {
+      await expect(list).not.toContainText('专用单据编辑器尚未实施')
+      await expect(
+        page.getByRole('button', { name: '新建', exact: true }),
+      ).toHaveCount(0)
+    } else {
+      await expect(list).toContainText('专用单据编辑器尚未实施')
+      await expect(
+        page.getByRole('button', { name: '新建', exact: true }),
+      ).toHaveCount(0)
+    }
     if (systemGeneratedVouEntities.some((value) => value === entity))
       await expect(
         page.getByText('此类型由系统生成，不支持人工新建。'),

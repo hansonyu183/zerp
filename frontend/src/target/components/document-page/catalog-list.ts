@@ -6,23 +6,17 @@ import {
   type VouEntity,
   type ApprovalStatus,
 } from '@zerp/model'
-import { queryTargetVouchers } from '../api.ts'
+import { queryTargetVouchers } from '../../api.ts'
 import {
   defineVouPage,
   naturalMonth,
   type VouFilters,
-} from '../components/vou-list-page/definition.ts'
-import {
-  type VouRow,
-  type VouPageRegistration,
-} from '../components/vou-list-page/vm.ts'
-import type {
-  FieldRange,
-  ReferenceSource,
-} from '../components/dynamic-fields/types.ts'
+} from './list-contract.ts'
+import { type VouRow, type VouPageRegistration } from './list-runtime.ts'
+import type { FieldRange, ReferenceSource } from '../dynamic-fields/types.ts'
 
 export type OrderFilters = VouFilters & {
-  submittedDate: FieldRange<string>
+  submittedDate?: FieldRange<string>
   status: ApprovalStatus | null
   counterpartyId?: string | null
   counterpartyName?: string
@@ -43,6 +37,7 @@ function voucherPage(
     }),
   )
   return {
+    kind: 'document',
     ...defineVouPage<VouRow, OrderFilters>({
       vouType,
       title,
@@ -140,8 +135,8 @@ function voucherPage(
           documentNo: input.documentNo || undefined,
           dateFrom: input.businessDate.from ?? undefined,
           dateTo: input.businessDate.to ?? undefined,
-          submittedFrom: input.submittedDate.from ?? undefined,
-          submittedTo: input.submittedDate.to ?? undefined,
+          submittedFrom: input.submittedDate?.from ?? undefined,
+          submittedTo: input.submittedDate?.to ?? undefined,
           status: input.status ? [input.status] : undefined,
           counterpartyObjectId: input.counterpartyId ?? undefined,
           counterpartyName: input.counterpartyName || undefined,

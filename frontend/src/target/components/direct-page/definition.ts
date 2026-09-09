@@ -155,3 +155,7 @@ export function hasAction(row: DirectRow, action: ListAction): boolean {
 export type EditReference =
   | EditReferenceSource
   | { kind: 'voucher'; entity: import('@zerp/model').VouEntity }
+  | {
+      kind: 'vou-reference'
+      entity: import('../../api.ts').TargetVouReferenceQueryInput['entity']
+    }

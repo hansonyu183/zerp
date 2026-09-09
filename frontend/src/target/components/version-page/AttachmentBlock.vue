@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, inject, onBeforeUnmount, ref } from 'vue'
-import { customerAttachmentScope } from './customer-attachments.ts'
+import { attachmentScope } from './attachments.ts'
 import type { CustomerSnapshot } from './customer-data.ts'
 import {
   readTargetCustomerAttachment,
+  readTargetVoucherAttachment,
   type TargetCustomerAttachmentReadInput,
   TargetApiError,
 } from '../../api.ts'
@@ -18,18 +19,24 @@ type Source =
       Extract<TargetCustomerAttachmentReadInput, { source: 'submission' }>,
       'fileId'
     >
+type VoucherSource = {
+  source: 'voucher'
+  entity: import('@zerp/model').VouEntity
+  documentId: string
+  submissionId: string
+}
 const props = defineProps<{
   caption: string
   modelValue: readonly Attachment[]
   mode: 'edit' | 'read'
   disabled?: boolean
-  source?: Source
+  source?: Source | VoucherSource
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: Attachment[]]
   pending: [value: boolean]
 }>()
-const scope = inject(customerAttachmentScope, null),
+const scope = inject(attachmentScope, null),
   session = useTargetSession()
 const generation = session.generation
 let active = true
@@ -37,16 +44,21 @@ const reading = ref(false),
   error = ref(''),
   downloading = ref('')
 const owns = () => active && session.generation === generation
-const canStage = computed(() => session.can('/bob/customer/attachment-stage'))
+const canStage = computed(() =>
+  Boolean(scope && session.can(`/${scope.resource}/attachment-stage`)),
+)
 const canRead = computed(
   () =>
     props.source &&
-    session.can('/bob/customer/attachment-read') &&
-    session.can(
-      props.source.source === 'current'
-        ? '/bob/customer/get'
-        : '/bob/customer/submission-get',
-    ),
+    (props.source.source === 'voucher'
+      ? session.can(`/vou/${props.source.entity}/attachment-read`) &&
+        session.can(`/vou/${props.source.entity}/get`)
+      : session.can('/bob/customer/attachment-read') &&
+        session.can(
+          props.source.source === 'current'
+            ? '/bob/customer/get'
+            : '/bob/customer/submission-get',
+        )),
 )
 async function add(value: File | readonly File[] | null) {
   const file = Array.isArray(value) ? value[0] : value
@@ -85,6 +97,23 @@ async function download(file: Attachment) {
   downloading.value = file.id
   error.value = ''
   try {
+    if (props.source.source === 'voucher') {
+      const result = await readTargetVoucherAttachment(
+        session.csrfToken,
+        props.source.entity,
+        {
+          documentId: props.source.documentId,
+          submissionId: props.source.submissionId,
+          fileId: file.id,
+        },
+      )
+      if (!owns()) return
+      const link = document.createElement('a')
+      link.href = result.downloadUrl
+      link.download = file.fileName
+      link.click()
+      return
+    }
     const result = await readTargetCustomerAttachment(session.csrfToken, {
       ...props.source,
       fileId: file.id,

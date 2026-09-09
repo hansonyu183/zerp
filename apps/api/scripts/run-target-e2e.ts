@@ -156,6 +156,7 @@ const vouReferenceFacts = {
     ['product', 'product', 'PRD', '目标产品'],
     ['otherUnit', 'other-unit', 'OTU', '目标其他单位'],
     ['fundAccount', 'fund-account', 'FAC', '目标资金账户'],
+    ['rawMaterial', 'product', 'PRD', '目标配方原料'],
   ]
     .map(([key, entity, prefix, name], index) => ({
       key,
@@ -268,6 +269,12 @@ const archiveFacts = {
         defaultSalesSurcharge: '0.00',
         description: '',
       },
+    },
+    {
+      id: fixtureId('X', 9),
+      entity: 'product-type' as const,
+      code: auxCode('PTY'),
+      data: { name: '目标原材料', behaviorProfile: 'RAW_MATERIAL' },
     },
   ],
   accounting: {
@@ -856,7 +863,7 @@ async function seedVouReferences(aux: AuxService) {
     objectId: account.id,
     code: accountDetail.code,
   })
-  await seedArchiveReference('product', reference('product'), {
+  const productSnapshot = {
     name: '目标产品',
     barcode: `PRD-${suffix}`,
     specification: '',
@@ -888,6 +895,21 @@ async function seedVouReferences(aux: AuxService) {
     fixedFormula: null,
     remark: '',
     enabled: true,
+  } satisfies ArchiveSnapshot
+  await seedArchiveReference('product', reference('product'), productSnapshot)
+  const rawType = archiveFacts.auxObjects.find(
+    (item) => item.data.name === '目标原材料',
+  )!
+  await seedArchiveReference('product', reference('rawMaterial'), {
+    ...productSnapshot,
+    name: '目标配方原料',
+    barcode: `RAW-${suffix}`,
+    productType: {
+      id: rawType.id,
+      code: rawType.code,
+      name: rawType.data.name,
+      behaviorProfile: 'RAW_MATERIAL',
+    },
   })
 }
 
@@ -1110,7 +1132,11 @@ async function seedApprovedSourceOrders() {
       },
       components: [
         {
-          material: { objectId: product.objectId },
+          material: {
+            objectId: vouReferenceFacts.references.find(
+              (reference) => reference.key === 'rawMaterial',
+            )!.objectId,
+          },
           quantity: {
             enteredQuantity: '1',
             enteredUnit: unitSnapshot,

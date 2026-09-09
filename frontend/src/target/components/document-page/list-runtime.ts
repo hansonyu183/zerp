@@ -1,4 +1,4 @@
-import { openingErrorCaptions } from '../../pages/vou/opening-errors.ts'
+import { documentError as message } from './errors.ts'
 import { computed, ref, shallowRef, toRaw, watch } from 'vue'
 import {
   approvalActions,
@@ -7,7 +7,7 @@ import {
 } from '@zerp/model'
 import * as api from '../../api.ts'
 import { useTargetSession } from '../../session/vm.ts'
-import type { VouFilters, VouPageDefinition } from './definition.ts'
+import type { VouFilters, VouPageDefinition } from './list-contract.ts'
 
 export type VouRow =
   | Awaited<ReturnType<typeof api.queryTargetVouchers>>['items'][number]
@@ -17,38 +17,12 @@ export type VouPageRegistration<Filters extends VouFilters> = VouPageDefinition<
   VouRow,
   Filters
 > & {
+  kind?: 'document'
   initialFilters: () => Filters
   search: (
     csrf: string,
     input: Filters & { page: number; pageSize: 20 },
   ) => Promise<{ items: VouRow[]; total: number; page: number; pageSize: 20 }>
-}
-const errorCaptions: Record<string, string> = {
-  forbidden: '没有此操作权限。',
-  validation_failed: '输入格式不正确。',
-  vou_not_found: '单据不存在。',
-  approval_invalid_actor: '提交人与审批人必须分离。',
-  approval_invalid_action: '没有此审批权限。',
-  approval_invalid_transition: '当前状态不允许此操作。',
-  approval_stale_revision: '单据已变化，请重新打开。',
-  approval_reason_required: '请填写操作原因。',
-  approval_self_review_forbidden: '不能审批自己提交的单据。',
-  approval_invalid_request: '审批请求不完整，请重新打开单据。',
-  approval_invalid_preparation: '审批准备失败，请重新打开单据。',
-  approval_reason_not_allowed: '此审批动作不接受原因。',
-  approval_not_found: '提交记录不存在。',
-  vou_reference_unavailable: '采用的业务引用不可用，请先处理相关资料。',
-  vou_period_locked: '会计期间已锁定，不能执行此操作。',
-  vou_credit_limit_exceeded: '超过客户信用限额。',
-  acc_control_book_unavailable: '控制账簿不可用，请检查会计配置。',
-  vou_document_entity_mismatch: '单据类型与请求不一致。',
-  vou_attachment_not_found: '附件不存在。',
-  vou_attachment_download_not_found: '附件下载链接已失效，请重新获取。',
-  vou_source_line_unavailable: '来源单据行不可用。',
-  vou_source_line_quantity_exceeded: '数量超过来源可用数量。',
-  vou_settlement_insufficient: '结算余额不足。',
-  ...openingErrorCaptions,
-  vou_delete_blocked: '单据仍有业务引用，不能删除。',
 }
 const auditActions = {
   approve: 'APPROVED',
@@ -58,15 +32,6 @@ const auditActions = {
   delete: 'DELETED',
 } as const
 const clone = <T>(value: T): T => structuredClone(toRaw(value))
-function message(cause: unknown): string {
-  return cause instanceof api.TargetApiError
-    ? (errorCaptions[cause.errorKey] ??
-        '操作未完成，请检查单据状态与相关业务限制。')
-    : cause instanceof Error
-      ? cause.message
-      : '操作失败。'
-}
-
 export function useVouListViewModel<Filters extends VouFilters>(
   definition: VouPageRegistration<Filters>,
 ) {
@@ -93,8 +58,6 @@ export function useVouListViewModel<Filters extends VouFilters>(
   const selected = shallowRef<VouDetail | null>(null),
     detailLoading = ref(false),
     detailError = ref<string | null>(null)
-  const attachmentLinks = ref(new Map<string, string>()),
-    attachmentPending = ref(new Set<string>())
   const pending = ref(new Set<string>()),
     unknown = ref(new Set<string>())
   const intents = new Map<
@@ -226,8 +189,6 @@ export function useVouListViewModel<Filters extends VouFilters>(
       return
     const request = ++detailVersion
     selected.value = null
-    attachmentLinks.value.clear()
-    attachmentPending.value.clear()
     detailLoading.value = true
     detailError.value = null
     try {
@@ -253,8 +214,6 @@ export function useVouListViewModel<Filters extends VouFilters>(
     cancelReview()
     detailVersion++
     selected.value = null
-    attachmentLinks.value.clear()
-    attachmentPending.value.clear()
     detailLoading.value = false
     detailError.value = null
   }
@@ -305,7 +264,7 @@ export function useVouListViewModel<Filters extends VouFilters>(
       if (!current()) return
       if (
         !(cause instanceof api.TargetApiError) ||
-        cause.errorKey === 'internal_error'
+        ['internal_error', 'invalid_response'].includes(cause.errorKey)
       ) {
         unknown.value.add(detail.documentId)
         intents.set(detail.documentId, {
@@ -359,7 +318,7 @@ export function useVouListViewModel<Filters extends VouFilters>(
       if (!current()) return
       if (
         !(cause instanceof api.TargetApiError) ||
-        cause.errorKey === 'internal_error'
+        ['internal_error', 'invalid_response'].includes(cause.errorKey)
       ) {
         unknown.value.add(detail.documentId)
         intents.set(detail.documentId, {
@@ -373,40 +332,6 @@ export function useVouListViewModel<Filters extends VouFilters>(
       } else feedback.value = message(cause)
     } finally {
       if (current()) pending.value.delete(detail.documentId)
-    }
-  }
-  async function readAttachment(fileId: string) {
-    const detail = selected.value
-    if (
-      !current() ||
-      !detail ||
-      detail.entity === 'opening' ||
-      !can('attachment-read') ||
-      !session.csrfToken ||
-      attachmentPending.value.has(fileId) ||
-      !detail.payload.attachments.some((file) => file.id === fileId)
-    )
-      return
-    const request = detailVersion
-    attachmentPending.value.add(fileId)
-    try {
-      const result = await api.readTargetVoucherAttachment(
-        session.csrfToken,
-        detail.entity,
-        {
-          documentId: detail.documentId,
-          submissionId: detail.submissionId,
-          fileId,
-        },
-      )
-      if (current() && request === detailVersion)
-        attachmentLinks.value.set(fileId, result.downloadUrl)
-    } catch (cause) {
-      if (current() && request === detailVersion)
-        detailError.value = message(cause)
-    } finally {
-      if (current() && request === detailVersion)
-        attachmentPending.value.delete(fileId)
     }
   }
   async function verifyOutcome() {
@@ -529,9 +454,6 @@ export function useVouListViewModel<Filters extends VouFilters>(
     detailError,
     pending,
     unknown,
-    attachmentLinks,
-    attachmentPending,
-    readAttachment,
     searchable,
     can,
     canReview,

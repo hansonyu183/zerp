@@ -147,15 +147,7 @@ it('opens every shared voucher type through the real registry with independent d
     const page = targetResourceRegistry.resolve('vou', entity)
     expect(page, entity).not.toBeNull()
     expect(page?.vouType).toBe(entity)
-    expect(page?.definition?.columns.map((field) => field.key)).toEqual([
-      'documentNo',
-      'handlerName',
-      'businessDate',
-      'counterpartyName',
-      'status',
-      'amount',
-      '$actions',
-    ])
+    expect(page?.definition).toEqual({ kind: 'document', vouType: entity })
     expect(page?.capabilities).toEqual({
       approval: true,
       businessVersion: false,

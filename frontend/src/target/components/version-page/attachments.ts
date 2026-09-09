@@ -2,6 +2,8 @@ import { shallowRef, type InjectionKey } from 'vue'
 import { ulid } from 'ulid'
 import {
   stageTargetCustomerAttachment,
+  stageTargetVoucherAttachment,
+  type TargetOrderEntity,
   type TargetCustomerAttachmentStageInput,
 } from '../../api.ts'
 import type { CustomerSnapshot } from './customer-data.ts'
@@ -13,13 +15,16 @@ type LocalFile = {
   status: string
   staged: boolean
 }
-export type CustomerAttachmentScope = {
+export type AttachmentScope = {
+  resource: 'bob/customer' | `vou/${TargetOrderEntity}`
   add: (file: File) => Promise<Attachment>
   status: (id: string) => string
 }
-export const customerAttachmentScope: InjectionKey<CustomerAttachmentScope> =
-  Symbol('customer-attachments')
-export function createCustomerAttachments(
+export const attachmentScope: InjectionKey<AttachmentScope> = Symbol(
+  'customer-attachments',
+)
+export function createAttachments(
+  resource: 'bob/customer' | `vou/${TargetOrderEntity}`,
   token: () => string,
   owns: () => boolean,
 ) {
@@ -60,12 +65,9 @@ export function createCustomerAttachments(
     })
     return metadata
   }
-  async function prepare(snapshot: CustomerSnapshot) {
+  async function prepare(attachments: readonly Attachment[]) {
     const version = generation
-    for (const attachment of [
-      ...snapshot.identityAttachments,
-      ...snapshot.subunits.flatMap((sub) => sub.attachments),
-    ]) {
+    for (const attachment of attachments) {
       const local = files.value.get(attachment.id)
       if (!local) continue
       if (!owns() || version !== generation) throw new Error('编辑会话已关闭。')
@@ -78,7 +80,7 @@ export function createCustomerAttachments(
             binary += String.fromCharCode(...bytes.subarray(i, i + 8192))
           if (!owns() || version !== generation)
             throw new Error('编辑会话已关闭。')
-          await stageTargetCustomerAttachment(token(), {
+          const input = {
             stagingId: local.stagingId,
             fileId: attachment.id,
             fileName: attachment.fileName,
@@ -87,7 +89,15 @@ export function createCustomerAttachments(
             size: attachment.sizeBytes,
             digest: attachment.sha256,
             contentBase64: btoa(binary),
-          })
+          }
+          if (resource === 'bob/customer')
+            await stageTargetCustomerAttachment(token(), input)
+          else
+            await stageTargetVoucherAttachment(
+              token(),
+              resource === 'vou/sale-order' ? 'sale-order' : 'purchase-order',
+              input,
+            )
           if (!owns() || version !== generation)
             throw new Error('编辑会话已关闭。')
           files.value = new Map(files.value).set(attachment.id, {
@@ -110,9 +120,10 @@ export function createCustomerAttachments(
   }
   return {
     scope: {
+      resource,
       add,
       status: (id: string) => files.value.get(id)?.status ?? '已采用附件',
-    } satisfies CustomerAttachmentScope,
+    } satisfies AttachmentScope,
     prepare,
     reset,
   }

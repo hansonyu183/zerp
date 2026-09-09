@@ -83,6 +83,14 @@ export async function loadEditReferences(
   token: () => string,
   can: (path: string) => boolean,
 ): Promise<EditOption[]> {
+  if (typeof source === 'object' && source.kind === 'vou-reference')
+    return (
+      await api.queryTargetVouReferences(token(), { entity: source.entity })
+    ).items.map((item) => ({
+      id: item.objectId,
+      name: `${item.code} · ${item.name}`,
+      snapshot: item,
+    }))
   if (typeof source === 'object')
     return (
       await allPages((input) =>
@@ -269,6 +277,8 @@ export async function loadEditReferences(
 
 export function referencePermission(source: EditReference): string {
   return typeof source === 'object'
-    ? `/vou/${source.entity}/query`
+    ? source.kind === 'vou-reference'
+      ? '/vou/reference/query'
+      : `/vou/${source.entity}/query`
     : referencePermissions[source]
 }

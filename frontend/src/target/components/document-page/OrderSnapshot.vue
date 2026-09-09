@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import DetailsBlock from '../version-page/DetailsBlock.vue'
 import { computed } from 'vue'
 import {
   vouEntityPresentation,
   vouPaymentMethodSelectionOriginPresentation,
 } from '@zerp/model'
-import type { VouDetail } from '../../../components/vou-list-page/vm.ts'
+import type { VouDetail } from './list-runtime.ts'
 const props = defineProps<{ payload: VouDetail['payload'] }>()
 const order = computed(() =>
   'productLines' in props.payload ? props.payload : null,
@@ -32,11 +33,14 @@ const currencyName = computed(() =>
 
 <template>
   <section v-if="order" class="order-snapshot" data-testid="vou-order-snapshot">
+    <DetailsBlock
+      :fields="[
+        { key: 'businessDate', type: 'date', caption: '业务日期' },
+        { key: 'currency', type: 'text', caption: '币种' },
+      ]"
+      :value="{ businessDate: order.businessDate, currency: currencyName }"
+    />
     <dl>
-      <dt>业务日期</dt>
-      <dd>{{ order.businessDate }}</dd>
-      <dt>币种</dt>
-      <dd>{{ currencyName }}</dd>
       <dt>仓库</dt>
       <dd>
         {{ order.warehouse.name ?? '—' }}

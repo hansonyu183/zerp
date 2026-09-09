@@ -3071,3 +3071,61 @@ export async function queryTargetAccountingSubjects(
     ).json(),
   )
 }
+
+export type TargetVoucherSubmitInput = PostJson<
+  (typeof client.vou)[':entity']['submit-new']['$post']
+>
+export type TargetOrderEntity = 'sale-order' | 'purchase-order'
+export type TargetOrderInput<E extends TargetOrderEntity> = Omit<
+  TargetVoucherSubmitInput,
+  'payload'
+> & {
+  payload: import('@zerp/model').VouPayloadFor<E>
+}
+export async function submitTargetOrder<E extends TargetOrderEntity>(
+  csrfToken: string,
+  entity: E,
+  input: TargetOrderInput<E>,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou[':entity']['submit-new'].$post(
+        { param: { entity }, json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export type TargetVouSourceLineQueryInput = PostJson<
+  (typeof client.vou)['source-line']['query']['$post']
+>
+export async function queryTargetVouSourceLines(
+  csrfToken: string,
+  input: TargetVouSourceLineQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou['source-line'].query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export type TargetVoucherAttachmentStageInput = PostJson<
+  (typeof client.vou)[':entity']['attachment-stage']['$post']
+>
+export async function stageTargetVoucherAttachment(
+  csrfToken: string,
+  entity: TargetOrderEntity,
+  input: TargetVoucherAttachmentStageInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou[':entity']['attachment-stage'].$post(
+        { param: { entity }, json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}

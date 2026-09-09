@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { getTargetOpening } from '../../../api.ts'
+import type { getTargetOpening } from '../../api.ts'
 import type { AccSubjectDimension } from '@zerp/model'
-import SnapshotValue from '../SnapshotValue.vue'
-import { directions, dimensions, containerTypes } from './vm.ts'
+import SnapshotValue from './SnapshotValue.vue'
+import { directions, dimensions, containerTypes } from './opening-data.ts'
 defineProps<{ document: Awaited<ReturnType<typeof getTargetOpening>> }>()
 </script>
 <template>

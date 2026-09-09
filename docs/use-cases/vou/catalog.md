@@ -2,7 +2,7 @@
 
 ## 页面与依据
 
-共享单据目录中销售、采购订单之外的既有类型由 [Registry](../../../frontend/src/target/navigation/registry.ts) 装配独立 VouListPage；销售与采购沿用各自页面用例。业务依据为 [VOU](../../domains/vou.md#单据列表与详情)、[Approval](../../domains/approval.md) 和 [ADR-0052](../../adr/0052-session-dynamic-navigation-and-page-migration.md)。输入、摘要及完整详情以[可执行 VOU 路由](../../../apps/api/src/vou/contract.ts)为准，不另建单据类型枚举或协议。
+共享单据目录中销售、采购订单之外的既有类型由 [Registry](../../../frontend/src/target/navigation/registry.ts) 直接装配统一动态单据页；销售与采购沿用各自页面用例。业务依据为 [VOU](../../domains/vou.md#单据列表与详情)、[Approval](../../domains/approval.md) 和 [ADR-0052](../../adr/0052-session-dynamic-navigation-and-page-migration.md)。输入、摘要及完整详情以[可执行 VOU 路由](../../../apps/api/src/vou/contract.ts)为准，不另建单据类型枚举或协议。
 
 ## VOU-CATALOG-01 从真实菜单查询
 
@@ -10,7 +10,7 @@
 
 ## VOU-CATALOG-02 打开与审批
 
-默认“打开”读取完整提交，显示表头、引用采用标识和姓名、明细、原币金额与数量、日期、备注及附件。系统生成类型明确提示不能人工新建；其余类型也明确提示专用编辑器尚未实施，没有虚假编辑或克隆回调。已提交内容只读。审批复用公共 RowActions 和服务端资格，与账号精确授权相交；取消无写入，成功写入刷新一次，未知结果锁定并支持有权核实。
+默认“打开”读取完整提交，显示表头、引用采用标识和姓名、明细、原币金额与数量、日期、备注及附件。系统生成类型明确提示不能人工新建；订单以外的其余 30 类明确提示录入尚未实施，没有虚假编辑或克隆回调。已提交内容只读。审批复用公共 RowActions 和服务端资格，与账号精确授权相交；取消无写入，成功写入刷新一次，未知结果锁定并支持有权核实。
 
 ## VOU-CATALOG-03 权限与页面隔离
 

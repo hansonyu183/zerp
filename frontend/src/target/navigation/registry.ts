@@ -20,17 +20,10 @@ import { userPage } from '../definitions/user.ts'
 import DirectPage from '../components/direct-page/DirectPage.vue'
 import { measurementUnitPage } from '../definitions/measurement-unit.ts'
 import type { DirectDefinition } from '../components/direct-page/definition.ts'
-import OpeningManagement from '../pages/vou/opening/OpeningManagement.vue'
-import OrderManagement from '../pages/vou/orders/OrderManagement.vue'
-import {
-  vouPages,
-  saleOrderPage,
-  purchaseOrderPage,
-  type OrderFilters,
-} from './vou-pages.ts'
+import DocumentPage from '../components/document-page/DocumentPage.vue'
+import type { DocumentDefinition } from '../components/document-page/definition.ts'
+import { voucherDefinitions } from '../definitions/vouchers.ts'
 import { vouEntities } from '@zerp/model'
-import VoucherManagement from '../pages/vou/VoucherManagement.vue'
-import type { VouPageRegistration } from '../components/vou-list-page/vm.ts'
 import InstanceManagement from '../pages/wfl/instance/InstanceManagement.vue'
 import ReportPage from '../pages/rpt/ReportPage.vue'
 import MappingManagement from '../pages/acc/mapping/MappingManagement.vue'
@@ -44,8 +37,7 @@ export type ResourceRegistration = {
   domain: BusinessTargetDomain
   entity: string
   component: Component
-  definition?:
-    VersionDefinition | DirectDefinition | VouPageRegistration<OrderFilters>
+  definition?: VersionDefinition | DirectDefinition | DocumentDefinition
   vouType?: import('@zerp/model').VouType
   useCaseKey?: string
 }
@@ -92,7 +84,7 @@ export function createResourceRegistry(
           ...voucherPage,
           entity: vouType,
           vouType,
-          definition: vouPages[vouType],
+          definition: voucherDefinitions[vouType],
           capabilities: targetDomainCapabilities.vou,
         }
       return null
@@ -106,23 +98,24 @@ export const targetResourceRegistry = createResourceRegistry(
       domain: 'vou',
       entity: 'opening',
       vouType: 'opening',
-      component: OpeningManagement,
+      component: DocumentPage,
+      definition: voucherDefinitions.opening,
       useCaseKey: 'vou/opening',
     },
     {
       domain: 'vou',
       entity: 'sale-order',
       vouType: 'sale-order',
-      definition: saleOrderPage,
-      component: OrderManagement,
+      definition: voucherDefinitions['sale-order'],
+      component: DocumentPage,
       useCaseKey: 'vou/sale-order',
     },
     {
       domain: 'vou',
       entity: 'purchase-order',
       vouType: 'purchase-order',
-      definition: purchaseOrderPage,
-      component: OrderManagement,
+      definition: voucherDefinitions['purchase-order'],
+      component: DocumentPage,
       useCaseKey: 'vou/purchase-order',
     },
     {
@@ -261,7 +254,7 @@ export const targetResourceRegistry = createResourceRegistry(
   {
     domain: 'vou',
     entity: ':entity',
-    component: VoucherManagement,
+    component: DocumentPage,
     useCaseKey: 'vou/catalog',
   },
 )

@@ -94,7 +94,9 @@ test('all 36 real menus query their own summaries and open readable snapshots', 
     await page.getByLabel('期间止', { exact: true }).fill('2026-09-04')
     await page.getByLabel('单号', { exact: true }).fill(fact.documentNo)
     const response = page.waitForResponse(
-      (r) => new URL(r.url()).pathname === `/vou/${entity}/query`,
+      (r) =>
+        new URL(r.url()).pathname === `/vou/${entity}/query` &&
+        r.request().postDataJSON()?.filters?.documentNo === fact.documentNo,
     )
     await page.getByTestId('list-search').click()
     const result = await (await response).json()

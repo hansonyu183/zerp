@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { mappingDimensions, mappingFieldOptions } from './vm.ts'
+import { mappingDimensions, mappingFieldOptions } from './mapping-data.ts'
 function caption(value: string) {
   if (!(value in mappingDimensions)) throw new Error('未知辅助核算维度')
   return mappingDimensions[value as keyof typeof mappingDimensions]

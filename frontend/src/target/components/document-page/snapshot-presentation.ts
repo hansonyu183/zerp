@@ -1,6 +1,6 @@
 import { vouEntityPresentation } from '@zerp/model'
 
-// Presentation of the existing immutable voucher payload, local to its reader.
+// Shared captions for immutable voucher facts and ACC mapping field selection.
 export const snapshotCaptions: Readonly<Record<string, string>> = {
   countResult: '批准时盘点结果',
   bookQuantity: '账面数量',

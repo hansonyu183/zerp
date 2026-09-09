@@ -69,6 +69,8 @@ test('ACC current mapping saves through the real resource page and discards temp
   await expect(
     dialog.getByRole('button', { name: '保存', exact: true }),
   ).toBeVisible()
+  await dialog.getByRole('button', { name: '保存', exact: true }).click()
+  await expect(dialog).toContainText('已保存，后续记账使用此配置。')
   await dialog.getByRole('button', { name: '关闭', exact: true }).click()
   const width = await page.evaluate(() => ({
     content: document.documentElement.scrollWidth,

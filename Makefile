@@ -89,9 +89,17 @@ target-e2e: target-test
 	$(TARGET_COMPOSE) up -d --build --wait target-api target-web
 	TARGET_DATABASE_URL='$(TARGET_DATABASE_URL)' TARGET_API_BASE_URL='http://127.0.0.1:$(TARGET_API_PORT)' TARGET_WEB_BASE_URL='http://127.0.0.1:$(TARGET_WEB_PORT)' pnpm --filter @zerp/api e2e
 
-	TARGET_TEST_DATABASE_URL='$(TARGET_DATABASE_URL)' TARGET_DATABASE_SCOPE=isolated pnpm --filter @zerp/api e2e:wfl
-	TARGET_TEST_DATABASE_URL='$(TARGET_DATABASE_URL)' TARGET_DATABASE_SCOPE=isolated pnpm --filter @zerp/api e2e:vou-catalog
-	TARGET_TEST_DATABASE_URL='$(TARGET_DATABASE_URL)' TARGET_DATABASE_SCOPE=isolated pnpm --filter @zerp/api e2e:vou-opening
+	$(MAKE) target-db
+	$(TARGET_COMPOSE) up -d --wait target-api target-web
+	TARGET_TEST_DATABASE_URL='$(TARGET_DATABASE_URL)' TARGET_DATABASE_SCOPE=isolated TARGET_API_BASE_URL='http://127.0.0.1:$(TARGET_API_PORT)' TARGET_WEB_BASE_URL='http://127.0.0.1:$(TARGET_WEB_PORT)' pnpm --filter @zerp/api e2e:wfl
+	$(MAKE) target-db
+	$(TARGET_COMPOSE) up -d --wait target-api target-web
+	TARGET_TEST_DATABASE_URL='$(TARGET_DATABASE_URL)' TARGET_DATABASE_SCOPE=isolated TARGET_API_BASE_URL='http://127.0.0.1:$(TARGET_API_PORT)' TARGET_WEB_BASE_URL='http://127.0.0.1:$(TARGET_WEB_PORT)' pnpm --filter @zerp/api e2e:vou-catalog
+	$(MAKE) target-db
+	$(TARGET_COMPOSE) up -d --wait target-api target-web
+	TARGET_TEST_DATABASE_URL='$(TARGET_DATABASE_URL)' TARGET_DATABASE_SCOPE=isolated TARGET_API_BASE_URL='http://127.0.0.1:$(TARGET_API_PORT)' TARGET_WEB_BASE_URL='http://127.0.0.1:$(TARGET_WEB_PORT)' pnpm --filter @zerp/api e2e:vou-opening
+	$(MAKE) target-db
+	$(TARGET_COMPOSE) up -d --wait target-api target-web
 	TARGET_TEST_DATABASE_URL='$(TARGET_DATABASE_URL)' TARGET_DATABASE_SCOPE=isolated TARGET_API_BASE_URL='http://127.0.0.1:$(TARGET_API_PORT)' TARGET_WEB_BASE_URL='http://127.0.0.1:$(TARGET_WEB_PORT)' pnpm --filter @zerp/api e2e:vou-entry
 
 target-down:

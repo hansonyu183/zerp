@@ -128,12 +128,37 @@ test('WFL definition page edits, trials, submits, approves and preserves an old 
     await approve()
     await reviewer.getByRole('button', { name: '停用', exact: true }).click()
     await reviewer.goto('/wfl/process-instance')
+    await reviewer
+      .locator('.v-navigation-drawer a[href="/wfl/process-instance"]')
+      .click()
+    await reviewer.setViewportSize({ width: 390, height: 844 })
     await reviewer.getByText(/浏览器初版 · /).click()
     await expect(reviewer.locator('main')).toContainText(v1.submissionId)
     await reviewer
       .getByRole('button', { name: '创建 出库', exact: true })
       .click()
     await expect(reviewer.locator('main')).toContainText('待批准')
+    await expect(
+      reviewer.getByRole('region', { name: '运行审计' }),
+    ).toContainText('创建下级')
+    expect(
+      await reviewer.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true)
+    await reviewer
+      .getByRole('button', { name: '打开单据', exact: true })
+      .first()
+      .click()
+    await expect(reviewer.getByRole('dialog')).toContainText('销售订单')
+    await reviewer
+      .getByRole('dialog')
+      .getByRole('button', { name: '关闭', exact: true })
+      .click()
+    await reviewer.setViewportSize({ width: 1280, height: 900 })
+    await expect(
+      reviewer.getByRole('region', { name: '运行审计' }),
+    ).toContainText('打开单据')
     await expect(reviewer.locator('main')).toContainText('浏览器初版')
     await page
       .getByRole('button', { name: '新增流程定义', exact: true })

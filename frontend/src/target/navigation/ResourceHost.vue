@@ -25,15 +25,9 @@ const authorized = computed(() =>
 const registration = computed(() =>
   authorized.value ? props.registry.resolve(props.domain, props.entity) : null,
 )
-const pageProps = computed(() =>
-  registration.value?.definition && 'kind' in registration.value.definition
-    ? { definition: registration.value.definition }
-    : {
-        definition: registration.value?.definition,
-        'vou-type': registration.value?.vouType,
-        entity: props.entity,
-      },
-)
+const pageProps = computed(() => ({
+  definition: registration.value?.definition,
+}))
 const instanceKey = computed(() => `${session.generation}:${resourceKey.value}`)
 </script>
 

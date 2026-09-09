@@ -1,7 +1,7 @@
 import { shallowMount } from '@vue/test-utils'
 import { expect, it } from 'vitest'
 import { defineComponent } from 'vue'
-import MappingDimensions from '@/target/pages/acc/mapping/MappingDimensions.vue'
+import MappingDimensions from '@/target/components/configuration-page/MappingDimensions.vue'
 it('retains visible removable dimension inputs when a selected subject no longer requires them', async () => {
   const select = defineComponent({
     props: ['label', 'modelValue'],

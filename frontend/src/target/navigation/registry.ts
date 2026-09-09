@@ -24,9 +24,15 @@ import DocumentPage from '../components/document-page/DocumentPage.vue'
 import type { DocumentDefinition } from '../components/document-page/definition.ts'
 import { voucherDefinitions } from '../definitions/vouchers.ts'
 import { vouEntities } from '@zerp/model'
-import InstanceManagement from '../pages/wfl/instance/InstanceManagement.vue'
-import ReportPage from '../pages/rpt/ReportPage.vue'
-import MappingManagement from '../pages/acc/mapping/MappingManagement.vue'
+import ProcessPage from '../components/process-page/ProcessPage.vue'
+import type { ProcessDefinition } from '../components/process-page/definition.ts'
+import { processInstancePage } from '../definitions/process-instance.ts'
+import ReportPage from '../components/report-page/ReportPage.vue'
+import type { ReportDefinition } from '../components/report-page/definition.ts'
+import { reportPage as defineReport } from '../definitions/report.ts'
+import ConfigurationPage from '../components/configuration-page/ConfigurationPage.vue'
+import type { ConfigurationDefinition } from '../components/configuration-page/definition.ts'
+import { mappingPage } from '../definitions/mapping.ts'
 import type { Component } from 'vue'
 import {
   targetDomainCapabilities,
@@ -37,7 +43,13 @@ export type ResourceRegistration = {
   domain: BusinessTargetDomain
   entity: string
   component: Component
-  definition?: VersionDefinition | DirectDefinition | DocumentDefinition
+  definition?:
+    | VersionDefinition
+    | DirectDefinition
+    | DocumentDefinition
+    | ConfigurationDefinition
+    | ProcessDefinition
+    | ReportDefinition
   vouType?: import('@zerp/model').VouType
   useCaseKey?: string
 }
@@ -70,6 +82,7 @@ export function createResourceRegistry(
         return {
           ...reportPage,
           entity,
+          definition: defineReport(entity as ReportDefinition['code']),
           capabilities: targetDomainCapabilities.rpt,
         }
 
@@ -121,7 +134,8 @@ export const targetResourceRegistry = createResourceRegistry(
     {
       domain: 'wfl',
       entity: 'process-instance',
-      component: InstanceManagement,
+      component: ProcessPage,
+      definition: processInstancePage,
       useCaseKey: 'wfl/process-instance',
     },
     {
@@ -134,7 +148,8 @@ export const targetResourceRegistry = createResourceRegistry(
     {
       domain: 'acc',
       entity: 'mapping',
-      component: MappingManagement,
+      component: ConfigurationPage,
+      definition: mappingPage,
       useCaseKey: 'acc/mapping-management',
     },
     {

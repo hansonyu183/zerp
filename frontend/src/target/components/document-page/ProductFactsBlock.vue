@@ -225,6 +225,7 @@ onBeforeUnmount(() => {
   >
     <v-btn
       :disabled="disabled || previewLoading || !modelValue.warehouse"
+      :prepend-icon="actionIcons.view"
       @click="loadPreview()"
       >查看账面商品</v-btn
     >
@@ -250,6 +251,7 @@ onBeforeUnmount(() => {
     <template v-if="preview">
       <v-btn
         :disabled="disabled || previewLoading || preview.page <= 1"
+        :prepend-icon="actionIcons.previous"
         @click="loadPreview(preview.page - 1)"
         >账面上一页</v-btn
       >
@@ -257,6 +259,7 @@ onBeforeUnmount(() => {
         :disabled="
           disabled || previewLoading || preview.page * 20 >= preview.total
         "
+        :prepend-icon="actionIcons.next"
         @click="loadPreview(preview.page + 1)"
         >账面下一页</v-btn
       >

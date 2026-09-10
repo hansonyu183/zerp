@@ -121,3 +121,35 @@ it('paginates hasMore without inventing a total', async () => {
   expect(wrapper.emitted('page')).toEqual([[1], [3]])
   wrapper.unmount()
 })
+
+it('keeps opposite approval intents distinct and emits the exact permitted action', async () => {
+  const wrapper = mount(RowActions, {
+    props: {
+      actions: [
+        { key: 'approve', caption: '批准' },
+        { key: 'reject', caption: '驳回' },
+        { key: 'unreject', caption: '恢复审核' },
+        { key: 'unapprove', caption: '反批准', disabled: true },
+      ],
+    },
+    global: { plugins: [createVuetify()] },
+  })
+  for (const [key, icon] of [
+    ['approve', 'mdi-check-decagram-outline'],
+    ['reject', 'mdi-close-circle-outline'],
+    ['unreject', 'mdi-backup-restore'],
+    ['unapprove', 'mdi-undo-variant'],
+  ]) {
+    expect(
+      wrapper
+        .get(`[data-testid="row-action-${key}"] .${icon}`)
+        .attributes('aria-hidden'),
+    ).toBe('true')
+  }
+  await wrapper.get('[data-testid="row-action-unreject"]').trigger('click')
+  expect(wrapper.emitted('action')).toEqual([['unreject']])
+  expect(
+    wrapper.get('[data-testid="row-action-unapprove"]').attributes('disabled'),
+  ).toBeDefined()
+  wrapper.unmount()
+})

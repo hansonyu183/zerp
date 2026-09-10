@@ -3,7 +3,7 @@ import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { computed, ref } from 'vue'
 import { emptyUnit, type ProductSnapshot } from './product-data.ts'
 import FormBlock from '../dynamic-fields/FormBlock.vue'
-import DetailBlock from './DetailBlock.vue'
+import DetailBlock from '../dynamic-fields/DetailBlock.vue'
 import type {
   DetailDefinition,
   FormFields,

@@ -6,6 +6,10 @@ const props = defineProps<{
   fields: readonly DetailField[]
   value: Record<string, unknown>
   previous?: Record<string, unknown>
+  display?: {
+    value: Record<string, unknown>
+    previous?: Record<string, unknown>
+  }
   source?: AttachmentSource
   previousSource?: AttachmentSource
 }>()
@@ -17,21 +21,6 @@ const differences = computed(() =>
         JSON.stringify(props.value[field.key]),
   ),
 )
-function valueFor(field: DetailField, snapshot: Record<string, unknown>) {
-  const value = snapshot[field.key]
-  if (field.key === 'defaultOperatingEntityId' && value) {
-    const entities = snapshot.operatingEntities as {
-      objectId: string
-      code: string
-      name: string
-    }[]
-    const entity = entities?.find((item) => item.objectId === value)
-    return entity
-      ? `${entity.code} · ${entity.name}`
-      : '已采用默认主体（不在适用集合）'
-  }
-  return value
-}
 </script>
 <template>
   <div class="archive-detail-scroll">
@@ -42,7 +31,7 @@ function valueFor(field: DetailField, snapshot: Record<string, unknown>) {
           <td>
             <DetailValue
               :field="field"
-              :value="valueFor(field, value)"
+              :value="(display?.value ?? value)[field.key]"
               :source="source"
             />
           </td>
@@ -64,14 +53,14 @@ function valueFor(field: DetailField, snapshot: Record<string, unknown>) {
             <td>
               <DetailValue
                 :field="field"
-                :value="valueFor(field, previous)"
+                :value="(display?.previous ?? previous)[field.key]"
                 :source="previousSource"
               />
             </td>
             <td>
               <DetailValue
                 :field="field"
-                :value="valueFor(field, value)"
+                :value="(display?.value ?? value)[field.key]"
                 :source="source"
               />
             </td>

@@ -31,120 +31,34 @@ import { useVouListViewModel } from './list-runtime.ts'
 import { ulid } from 'ulid'
 import * as api from '../../api.ts'
 import { useTargetSession } from '../../session/vm.ts'
-import AttachmentBlock from '../version-page/AttachmentBlock.vue'
+import AttachmentBlock from '../attachments/AttachmentBlock.vue'
 import {
   createAttachments,
   attachmentScope,
-} from '../version-page/attachments.ts'
-import OpeningBlock from './OpeningBlock.vue'
-import OpeningSnapshot from './OpeningSnapshot.vue'
-import { emptyOpening, type OpeningDraft } from './opening-data.ts'
+} from '../attachments/attachments.ts'
+import DocumentFields from './DocumentFields.vue'
+import IntermediaryInput from './IntermediaryInput.vue'
+import IntermediaryScript from './IntermediaryScript.vue'
+import IntermediaryResult from './IntermediaryResult.vue'
+import DocumentSnapshot from './DocumentSnapshot.vue'
 import { documentError } from './errors.ts'
-import OrderBlock from './OrderBlock.vue'
 import {
-  emptyOrder,
-  orderPayload,
-  cloneOrder,
-  type OrderDraft,
-} from './order-data.ts'
-import OrderSnapshot from './OrderSnapshot.vue'
-import SnapshotValue from './SnapshotValue.vue'
-import AssetBlock from './AssetBlock.vue'
-import BillBlock from './BillBlock.vue'
-import {
-  billEntities,
-  emptyBill,
-  billPayload,
-  cloneBill,
-  type BillEntity,
-  type BillDraft,
-} from './bill-data.ts'
-import {
-  assetEntities,
-  emptyAsset,
-  assetPayload,
-  cloneAsset,
-  type AssetDraft,
-  type AssetEntity,
-} from './asset-data.ts'
-import FinancialBlock from './FinancialBlock.vue'
-import {
-  financialEntities,
-  emptyFinancial,
-  financialPayload,
-  cloneFinancial,
-  type FinancialDraft,
-  type FinancialEntity,
-} from './financial-data.ts'
-import ProductionBlock from './ProductionBlock.vue'
-import {
-  cloneProduction,
-  emptyProduction,
-  productionPayload,
-  type ProductionDraft,
-  type ProductionEntity,
-} from './production-data.ts'
-import ProductFactsBlock from './ProductFactsBlock.vue'
-import {
-  cloneProductFacts,
-  emptyProductFacts,
-  productFactsPayload,
-  type ProductFactsDraft,
-  type ProductFactsEntity,
-} from './product-facts-data.ts'
-import FulfillmentBlock from './FulfillmentBlock.vue'
-import {
-  cloneFulfillment,
-  emptyFulfillment,
-  fulfillmentPayload,
-  type FulfillmentDraft,
-  type FulfillmentEntity,
-} from './fulfillment-data.ts'
-import ServiceBlock from './ServiceBlock.vue'
-import {
-  serviceEntities,
-  emptyService,
-  cloneService,
-  servicePayload,
-  type ServiceEntity,
-  type ServiceDraft,
-} from './service-data.ts'
-import IntermediaryBlock from './IntermediaryBlock.vue'
-import {
-  emptyIntermediary,
-  intermediaryPayload,
-  type IntermediaryDraft,
-  type IntermediaryScriptEditor,
-} from './intermediary-data.ts'
+  createDocumentDraft,
+  cloneDocumentDraft,
+  documentCommand,
+  type EditorDraft,
+  type DocumentCommand,
+} from './draft.ts'
+import type { IntermediaryScriptEditor } from './intermediary-data.ts'
+import type { OrderDraft } from './order-data.ts'
 const props = defineProps<{ definition: DocumentDefinition }>()
 const definition =
   props.definition.vouType === 'opening'
     ? openingPage
     : vouPages[props.definition.vouType]
-const productionEntities = ['order-production', 'self-production']
-const productFactsEntities = [
-  'purchase-inquiry',
-  'inventory-count',
-  'sale-pricing',
-]
-const fulfillmentEntities = [
-  'purchase-inbound',
-  'sale-return',
-  'purchase-return',
-]
-const editorAvailable = [
-  'intermediary-calculation',
-  'sale-order',
-  'purchase-order',
-  'opening',
-  ...fulfillmentEntities,
-  ...productFactsEntities,
-  ...productionEntities,
-  ...financialEntities,
-  ...assetEntities,
-  ...billEntities,
-  ...serviceEntities,
-].includes(definition.vouType)
+const editorAvailable =
+  definition.vouType === 'opening' ||
+  userCreatableVouEntities.includes(definition.vouType)
 const session = useTargetSession(),
   generation = session.generation
 let active = true
@@ -168,39 +82,17 @@ const saving = ref(false),
   uncertain = ref(false),
   editError = ref(''),
   blockPending = ref(false)
-type EditorDraft =
-  | { kind: 'intermediary'; value: IntermediaryDraft }
-  | { kind: 'service'; value: ServiceDraft }
-  | { kind: 'bill'; value: BillDraft }
-  | { kind: 'asset'; value: AssetDraft }
-  | { kind: 'financial'; value: FinancialDraft }
-  | { kind: 'order'; value: OrderDraft }
-  | { kind: 'fulfillment'; value: FulfillmentDraft }
-  | { kind: 'product-facts'; value: ProductFactsDraft }
-  | { kind: 'production'; value: ProductionDraft }
-  | { kind: 'opening'; value: OpeningDraft }
 const editor = ref<EditorDraft | null>(null)
-function editorModel<K extends EditorDraft['kind']>(kind: K) {
-  type Value = Extract<EditorDraft, { kind: K }>['value']
-  return computed<Value | null>({
-    get: () =>
-      editor.value?.kind === kind ? (editor.value.value as Value) : null,
-    set: (value) => {
-      if (value) editor.value = { kind, value } as EditorDraft
-      else if (editor.value?.kind === kind) editor.value = null
-    },
-  })
-}
-const intermediaryDraft = editorModel('intermediary')
-const serviceDraft = editorModel('service')
-const billDraft = editorModel('bill')
-const assetDraft = editorModel('asset')
-const financialDraft = editorModel('financial')
-const draft = editorModel('order')
-const fulfillmentDraft = editorModel('fulfillment')
-const productFactsDraft = editorModel('product-facts')
-const productionDraft = editorModel('production')
-const openingDraft = editorModel('opening')
+const intermediaryDraft = computed({
+  get: () =>
+    editor.value?.kind === 'intermediary' ? editor.value.value : null,
+  set: (value) => {
+    if (value) editor.value = { kind: 'intermediary', value }
+  },
+})
+const openingDraft = computed(() =>
+  editor.value?.kind === 'opening' ? editor.value.value : null,
+)
 const attachmentDraft = computed(() =>
   editor.value?.kind !== 'opening' ? editor.value?.value : null,
 )
@@ -263,6 +155,11 @@ async function loadIntermediaryScript() {
         return
       }
       pendingIntermediaryScript.value = null
+      if (intermediaryDraft.value)
+        intermediaryDraft.value = {
+          ...intermediaryDraft.value,
+          calculation: null,
+        }
     }
     savedIntermediaryScript.value = script
     intermediaryScript.value = {
@@ -361,7 +258,9 @@ async function saveIntermediaryScript() {
     editError.value = ''
   } catch (cause) {
     if (active && session.generation === generation) {
-      intermediaryScriptUnknown.value = !(cause instanceof api.TargetApiError)
+      intermediaryScriptUnknown.value =
+        !(cause instanceof api.TargetApiError) ||
+        ['internal_error', 'invalid_response'].includes(cause.errorKey)
       if (!intermediaryScriptUnknown.value)
         pendingIntermediaryScript.value = null
       editError.value = documentError(cause)
@@ -375,6 +274,7 @@ function create() {
     !vm.can('submit-new') ||
     saving.value ||
     uncertain.value ||
+    intermediaryScriptUnknown.value ||
     !editorAvailable
   )
     return
@@ -387,34 +287,9 @@ function create() {
   editError.value = ''
   attachments.reset()
   openingSource.value = null
-  if (definition.vouType === 'intermediary-calculation') {
-    intermediaryDraft.value = emptyIntermediary()
-    if (vm.can('script-get')) void loadIntermediaryScript()
-  } else if (definition.vouType === 'opening')
-    openingDraft.value = emptyOpening()
-  else if ((serviceEntities as readonly string[]).includes(definition.vouType))
-    serviceDraft.value = emptyService(definition.vouType as ServiceEntity)
-  else if ((billEntities as readonly string[]).includes(definition.vouType))
-    billDraft.value = emptyBill(definition.vouType as BillEntity)
-  else if ((assetEntities as readonly string[]).includes(definition.vouType))
-    assetDraft.value = emptyAsset(definition.vouType as AssetEntity)
-  else if (
-    (financialEntities as readonly string[]).includes(definition.vouType)
-  )
-    financialDraft.value = emptyFinancial(definition.vouType as FinancialEntity)
-  else if (productionEntities.includes(definition.vouType))
-    productionDraft.value = emptyProduction(
-      definition.vouType as ProductionEntity,
-    )
-  else if (productFactsEntities.includes(definition.vouType))
-    productFactsDraft.value = emptyProductFacts(
-      definition.vouType as ProductFactsEntity,
-    )
-  else if (fulfillmentEntities.includes(definition.vouType))
-    fulfillmentDraft.value = emptyFulfillment(
-      definition.vouType as FulfillmentEntity,
-    )
-  else draft.value = emptyOrder(definition.vouType as api.TargetOrderEntity)
+  editor.value = createDocumentDraft(definition.vouType)
+  if (editor.value?.kind === 'intermediary' && vm.can('script-get'))
+    void loadIntermediaryScript()
 }
 function closeDraft() {
   if (!saving.value) {
@@ -425,138 +300,21 @@ function closeDraft() {
 }
 function cloneSelected() {
   const original = vm.selected
-  if (!original || saving.value || uncertain.value) return
+  if (
+    !original ||
+    saving.value ||
+    uncertain.value ||
+    intermediaryScriptUnknown.value ||
+    !vm.can('submit-new')
+  )
+    return
   create()
-  if (original.entity === 'intermediary-calculation') {
-    intermediaryDraft.value = {
-      ...emptyIntermediary(),
-      businessDate: original.payload.businessDate,
-      remark: original.payload.remark ?? '',
-    }
-  } else if (original.entity === 'opening') {
-    openingDraft.value = JSON.parse(
-      JSON.stringify(original.payload),
-    ) as OpeningDraft
-    openingSource.value = original
-  } else if ((serviceEntities as readonly string[]).includes(original.entity)) {
-    serviceDraft.value = cloneService(
-      original.entity as ServiceEntity,
-      original.payload as import('@zerp/model').VouPayloadFor<ServiceEntity>,
-    )
+  editor.value = cloneDocumentDraft(original)
+  if (original.entity === 'opening') openingSource.value = original
+  else
     editError.value = original.payload.attachments.length
       ? '附件不随复制继承，请重新上传需要的文件。'
       : ''
-  } else if ((billEntities as readonly string[]).includes(original.entity)) {
-    billDraft.value = cloneBill(
-      original.entity as BillEntity,
-      original.payload as import('@zerp/model').VouPayloadFor<BillEntity>,
-      ulid,
-    )
-    editError.value = original.payload.attachments.length
-      ? '附件不随复制继承，请重新上传需要的文件。'
-      : ''
-  } else if ((assetEntities as readonly string[]).includes(original.entity)) {
-    const payload =
-      original.payload as import('@zerp/model').VouPayloadFor<AssetEntity>
-    const count =
-      'assetAcquisitionLines' in payload
-        ? payload.assetAcquisitionLines.length
-        : 'assetSaleLines' in payload
-          ? payload.assetSaleLines.length
-          : payload.assetLiquidationLines.length
-    assetDraft.value = cloneAsset(
-      original.entity as AssetEntity,
-      payload,
-      Array.from({ length: count }, () => ulid()),
-    )
-    editError.value = original.payload.attachments.length
-      ? '附件不随复制继承，请重新上传需要的文件。'
-      : ''
-  } else if (
-    (financialEntities as readonly string[]).includes(original.entity)
-  ) {
-    const payload =
-      original.payload as import('@zerp/model').VouPayloadFor<FinancialEntity>
-    const count =
-      'expenseLines' in payload
-        ? payload.expenseLines.length
-        : 'subunitAllocations' in payload
-          ? payload.subunitAllocations.length
-          : 0
-    financialDraft.value = cloneFinancial(
-      original.entity as FinancialEntity,
-      payload,
-      Array.from({ length: count }, () => ulid()),
-    )
-    editError.value = original.payload.attachments.length
-      ? '附件不随复制继承，请重新上传需要的文件。'
-      : ''
-  } else if (
-    (original.entity === 'order-production' ||
-      original.entity === 'self-production') &&
-    'productionLines' in original.payload
-  ) {
-    productionDraft.value = cloneProduction(
-      original.entity,
-      original.payload,
-      original.payload.productionLines.map(() => ulid()),
-    )
-    editError.value = original.payload.attachments.length
-      ? '附件不随复制继承，请重新上传需要的文件。'
-      : ''
-  } else if (
-    (original.entity === 'sale-pricing' ||
-      original.entity === 'purchase-inquiry' ||
-      original.entity === 'inventory-count') &&
-    ('priceLines' in original.payload ||
-      'inventoryCountLines' in original.payload)
-  ) {
-    const payload =
-      original.payload as import('@zerp/model').VouPayloadFor<ProductFactsEntity>
-    const lines =
-      'priceLines' in payload ? payload.priceLines : payload.inventoryCountLines
-    productFactsDraft.value = cloneProductFacts(
-      original.entity,
-      payload,
-      lines.map(() => ulid()),
-    )
-    editError.value = original.payload.attachments.length
-      ? '附件不随复制继承，请重新上传需要的文件。'
-      : ''
-  } else if (
-    (original.entity === 'purchase-inbound' ||
-      original.entity === 'sale-return' ||
-      original.entity === 'purchase-return') &&
-    'warehouse' in original.payload &&
-    ('sourceLines' in original.payload || 'returnLines' in original.payload)
-  ) {
-    const lines =
-      'sourceLines' in original.payload
-        ? original.payload.sourceLines
-        : original.payload.returnLines
-    fulfillmentDraft.value = cloneFulfillment(
-      original.entity,
-      original.payload,
-      lines.map(() => ulid()),
-    )
-    editError.value = original.payload.attachments.length
-      ? '附件不随复制继承，请重新上传需要的文件。'
-      : ''
-  } else if (
-    (original.entity === 'sale-order' ||
-      original.entity === 'purchase-order') &&
-    'productLines' in original.payload &&
-    ('customerSubunit' in original.payload || 'supplier' in original.payload)
-  ) {
-    draft.value = cloneOrder(
-      original.entity,
-      original.payload,
-      original.payload.productLines.map(() => ulid()),
-    )
-    editError.value = original.payload.attachments.length
-      ? '附件不随复制继承，请重新上传需要的文件。'
-      : ''
-  }
   vm.close()
 }
 async function submit() {
@@ -564,6 +322,7 @@ async function submit() {
     !editorOpen.value ||
     saving.value ||
     uncertain.value ||
+    intermediaryScriptUnknown.value ||
     blockPending.value ||
     attachmentPending.value ||
     openingSource.value ||
@@ -572,162 +331,12 @@ async function submit() {
   )
     return
   editError.value = ''
-  let command:
-    | {
-        kind: 'intermediary'
-        entity: 'intermediary-calculation'
-        input: api.TargetVoucherInput<'intermediary-calculation'>
-      }
-    | {
-        kind: 'service'
-        entity: ServiceEntity
-        input: api.TargetVoucherInput<ServiceEntity>
-      }
-    | {
-        kind: 'order'
-        entity: api.TargetOrderEntity
-        input: api.TargetOrderInput<api.TargetOrderEntity>
-      }
-    | { kind: 'opening'; input: api.TargetOpeningInput }
-    | {
-        kind: 'bill'
-        entity: BillEntity
-        input: api.TargetVoucherInput<BillEntity>
-      }
-    | {
-        kind: 'asset'
-        entity: AssetEntity
-        input: api.TargetVoucherInput<AssetEntity>
-      }
-    | {
-        kind: 'financial'
-        entity: FinancialEntity
-        input: api.TargetVoucherInput<FinancialEntity>
-      }
-    | {
-        kind: 'production'
-        entity: ProductionEntity
-        input: api.TargetVoucherInput<ProductionEntity>
-      }
-    | {
-        kind: 'product-facts'
-        entity: ProductFactsEntity
-        input: api.TargetVoucherInput<ProductFactsEntity>
-      }
-    | {
-        kind: 'fulfillment'
-        entity: FulfillmentEntity
-        input: api.TargetVoucherInput<FulfillmentEntity>
-      }
+  let command: DocumentCommand
   try {
-    if (intermediaryDraft.value) {
-      command = {
-        kind: 'intermediary',
-        entity: 'intermediary-calculation',
-        input: {
-          ...identity,
-          expectedRevision: null,
-          payload: intermediaryPayload(intermediaryDraft.value),
-        },
-      }
-    } else if (openingDraft.value) {
-      if (!openingDraft.value.bookId) throw new Error('请选择账簿。')
-      identity.documentId = openingDraft.value.bookId
-      command = {
-        kind: 'opening',
-        input: {
-          ...(JSON.parse(JSON.stringify(openingDraft.value)) as OpeningDraft),
-          submissionId: identity.submissionId,
-          idempotencyKey: identity.idempotencyKey,
-        },
-      }
-    } else if (serviceDraft.value)
-      command = {
-        kind: 'service',
-        entity: serviceDraft.value.entity,
-        input: {
-          ...identity,
-          expectedRevision: null,
-          payload: servicePayload(serviceDraft.value),
-        },
-      }
-    else if (billDraft.value)
-      command = {
-        kind: 'bill',
-        entity: billDraft.value.entity,
-        input: {
-          ...identity,
-          expectedRevision: null,
-          payload: billPayload(billDraft.value),
-        },
-      }
-    else if (assetDraft.value)
-      command = {
-        kind: 'asset',
-        entity: assetDraft.value.entity,
-        input: {
-          ...identity,
-          expectedRevision: null,
-          payload: assetPayload(assetDraft.value),
-        },
-      }
-    else if (financialDraft.value)
-      command = {
-        kind: 'financial',
-        entity: financialDraft.value.entity,
-        input: {
-          ...identity,
-          expectedRevision: null,
-          payload: financialPayload(financialDraft.value),
-        },
-      }
-    else if (productionDraft.value)
-      command = {
-        kind: 'production',
-        entity: productionDraft.value.entity,
-        input: {
-          ...identity,
-          expectedRevision: null,
-          payload: productionPayload(productionDraft.value),
-        },
-      }
-    else if (productFactsDraft.value)
-      command = {
-        kind: 'product-facts',
-        entity: productFactsDraft.value.entity,
-        input: {
-          ...identity,
-          expectedRevision: null,
-          payload: productFactsPayload(productFactsDraft.value),
-        },
-      }
-    else if (fulfillmentDraft.value)
-      command = {
-        kind: 'fulfillment',
-        entity: fulfillmentDraft.value.entity,
-        input: {
-          ...identity,
-          expectedRevision: null,
-          payload: fulfillmentPayload(
-            JSON.parse(
-              JSON.stringify(fulfillmentDraft.value),
-            ) as FulfillmentDraft,
-          ),
-        },
-      }
-    else if (draft.value)
-      command = {
-        kind: 'order',
-        entity: draft.value.entity,
-        input: {
-          ...identity,
-          expectedRevision: null,
-          payload: orderPayload(
-            JSON.parse(JSON.stringify(draft.value)) as OrderDraft,
-          ),
-        },
-      }
-    else return
+    if (!editor.value) return
+    command = documentCommand(editor.value, identity)
+    if (editor.value.kind === 'opening')
+      identity.documentId = editor.value.value.bookId
   } catch (cause) {
     editError.value = cause instanceof Error ? cause.message : '输入不完整。'
     return
@@ -917,13 +526,23 @@ onBeforeUnmount(() => {
       ><v-btn
         :prepend-icon="actionIcons.create"
         v-if="editorAvailable && vm.can('submit-new')"
-        :disabled="saving || uncertain"
+        :disabled="saving || uncertain || intermediaryScriptUnknown"
         color="primary"
         @click="create"
         >新建</v-btn
       ></template
     >
     <template #alerts>
+      <v-alert v-if="intermediaryScriptUnknown" type="warning">
+        脚本保存结果未知，关闭表单不会解除锁定。
+        <v-btn
+          v-if="vm.can('script-get')"
+          :prepend-icon="actionIcons.resolve"
+          :disabled="saving"
+          @click="loadIntermediaryScript"
+          >核实脚本保存</v-btn
+        >
+      </v-alert>
       <v-alert v-if="uncertain" type="warning"
         >提交结果未知，普通查询或关闭表单不会解除锁定。<v-btn
           :prepend-icon="actionIcons.resolve"
@@ -1062,32 +681,7 @@ onBeforeUnmount(() => {
               >核实操作结果</v-btn
             ></v-alert
           >
-          <OpeningSnapshot
-            v-if="vm.selected.entity === 'opening'"
-            :document="vm.selected"
-          />
-          <OrderSnapshot
-            v-else-if="
-              definition.vouType === 'sale-order' ||
-              definition.vouType === 'purchase-order'
-            "
-            :payload="vm.selected.payload"
-          />
-          <section v-else data-testid="vou-catalog-snapshot">
-            <SnapshotValue :value="vm.selected.payload" />
-          </section>
-          <AttachmentBlock
-            v-if="vm.selected.entity !== 'opening'"
-            caption="附件"
-            :model-value="vm.selected.payload.attachments"
-            mode="read"
-            :source="{
-              source: 'voucher',
-              entity: vm.selected.entity,
-              documentId: vm.selected.documentId,
-              submissionId: vm.selected.submissionId,
-            }"
-          />
+          <DocumentSnapshot :document="vm.selected" />
         </template>
       </v-card-text>
       <v-card-actions class="flex-wrap">
@@ -1098,6 +692,7 @@ onBeforeUnmount(() => {
             vm.pending.has(vm.selected.documentId) ||
             vm.unknown.has(vm.selected.documentId)
           "
+          :prepend-icon="actionIcons.clone"
           @click="cloneSelected"
           >复制到临时表单</v-btn
         >
@@ -1112,6 +707,7 @@ onBeforeUnmount(() => {
           :disabled="
             Boolean(vm.selected && vm.pending.has(vm.selected.documentId))
           "
+          :prepend-icon="actionIcons.cancel"
           @click="vm.close"
           >关闭</v-btn
         >
@@ -1192,6 +788,11 @@ onBeforeUnmount(() => {
             Boolean(vm.selected && vm.pending.has(vm.selected.documentId))
           "
           :disabled="vm.needsReason && !vm.reason.trim()"
+          :prepend-icon="
+            vm.requestedAction
+              ? actionIcons[vm.requestedAction]
+              : actionIcons.confirm
+          "
           @click="vm.confirmReview"
           >确定</v-btn
         >
@@ -1217,73 +818,43 @@ onBeforeUnmount(() => {
             >删除原开放提交</v-btn
           ></v-alert
         >
-        <OpeningBlock
-          v-if="openingDraft"
+        <DocumentFields
+          v-if="editor && editor.kind !== 'intermediary'"
           :key="identity.submissionId"
-          v-model="openingDraft"
+          :model-value="editor"
           :disabled="saving || uncertain || Boolean(openingSource)"
-        />
-        <IntermediaryBlock
-          v-if="intermediaryDraft"
-          v-model="intermediaryDraft"
-          v-model:script="intermediaryScript"
-          :disabled="saving || uncertain"
-          :script-configured="Boolean(savedIntermediaryScript)"
-          :can-read-script="vm.can('script-get')"
-          :can-save-script="vm.can('script-save')"
-          :can-source="vm.can('source')"
-          :tested="intermediaryScriptTested"
-          :script-unknown="intermediaryScriptUnknown"
-          @load-script="loadIntermediaryScript"
-          @test-script="calculateIntermediary(true)"
-          @calculate="calculateIntermediary(false)"
-          @save-script="saveIntermediaryScript"
-        />
-        <ServiceBlock
-          v-if="serviceDraft"
-          v-model="serviceDraft"
-          :disabled="saving || uncertain"
-        />
-        <BillBlock
-          v-if="billDraft"
-          v-model="billDraft"
-          :disabled="saving || uncertain"
-        />
-        <AssetBlock
-          v-if="assetDraft"
-          v-model="assetDraft"
-          :disabled="saving || uncertain"
-        />
-        <FinancialBlock
-          v-if="financialDraft"
-          v-model="financialDraft"
-          :disabled="saving || uncertain"
-        />
-        <ProductionBlock
-          v-if="productionDraft"
-          v-model="productionDraft"
-          :disabled="saving || uncertain"
+          @update:model-value="editor = $event"
           @pending="blockPending = $event"
         />
-        <ProductFactsBlock
-          v-if="productFactsDraft"
-          v-model="productFactsDraft"
-          :disabled="saving || uncertain"
-          @pending="blockPending = $event"
-        />
-        <FulfillmentBlock
-          v-if="fulfillmentDraft"
-          v-model="fulfillmentDraft"
-          :disabled="saving || uncertain"
-        />
-        <OrderBlock
-          v-if="draft"
-          v-model="draft"
-          :disabled="saving || uncertain"
-          @pending="blockPending = $event"
-        />
+        <template v-if="intermediaryDraft">
+          <IntermediaryInput
+            v-model="intermediaryDraft"
+            :disabled="saving || uncertain || intermediaryScriptUnknown"
+            :script-configured="Boolean(savedIntermediaryScript)"
+            :can-read-script="vm.can('script-get')"
+            :can-source="vm.can('source')"
+            @calculate="calculateIntermediary(false)"
+          />
+          <IntermediaryScript
+            v-model="intermediaryScript"
+            :disabled="saving || uncertain"
+            :can-read-script="vm.can('script-get')"
+            :can-save-script="vm.can('script-save')"
+            :can-source="vm.can('source')"
+            :tested="intermediaryScriptTested"
+            :script-unknown="intermediaryScriptUnknown"
+            @load-script="loadIntermediaryScript"
+            @test-script="calculateIntermediary(true)"
+            @save-script="saveIntermediaryScript"
+          />
+          <IntermediaryResult
+            v-if="intermediaryDraft.calculation"
+            :calculation="intermediaryDraft.calculation"
+          />
+        </template>
         <AttachmentBlock
           v-if="attachmentDraft"
+          :key="identity.submissionId"
           caption="附件"
           :model-value="attachmentDraft.attachments"
           mode="edit"
@@ -1304,6 +875,7 @@ onBeforeUnmount(() => {
           :disabled="
             saving ||
             uncertain ||
+            intermediaryScriptUnknown ||
             blockPending ||
             attachmentPending ||
             Boolean(openingSource)

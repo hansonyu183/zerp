@@ -8,7 +8,7 @@ import type {
   VersionSnapshots,
 } from './definition.ts'
 import type { FormFields } from '../dynamic-fields/form-fields.ts'
-import type { DetailFields } from './detail-fields.ts'
+import type { DetailFields } from '../details/detail-fields.ts'
 type Customer = VersionSnapshots['bob/customer']
 const nested: EditFields<Customer> = [
   // @ts-expect-error Top-level fields cannot reach into customer subunits.

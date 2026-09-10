@@ -1,5 +1,13 @@
 // Fixed user intents choose their icon here; icons never determine action eligibility.
 export const actionIcons = {
+  approve: 'mdi-check-decagram-outline',
+  reject: 'mdi-close-circle-outline',
+  unreject: 'mdi-backup-restore',
+  unapprove: 'mdi-undo-variant',
+  upload: 'mdi-upload-outline',
+  download: 'mdi-download-outline',
+  history: 'mdi-history',
+  audit: 'mdi-clipboard-text-clock-outline',
   edit: 'mdi-pencil-outline',
   clone: 'mdi-content-copy',
   enable: 'mdi-check-circle-outline',

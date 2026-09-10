@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import CandidateFields from './CandidateFields.vue'
+import VersionSnapshot from './VersionSnapshot.vue'
 import { actionIcons } from '../../presentation/action-icons.ts'
-import RowActions from '../dynamic-fields/RowActions.vue'
 import type { RowAction } from '../dynamic-fields/types.ts'
-import DynamicCols from '../dynamic-fields/DynamicCols.vue'
+import VersionLists from './VersionLists.vue'
 import ListPagination from '../list-page/ListPagination.vue'
 import FieldInput from '../dynamic-fields/FieldInput.vue'
 import {
@@ -21,22 +22,14 @@ import { useTargetSession } from '../../session/vm.ts'
 import { resourceDisplayName } from '../../navigation/resources.ts'
 import ManagementPageFrame from '../ManagementPageFrame.vue'
 import { DynamicForm } from '../dynamic-fields/index.ts'
-import { createAttachments, attachmentScope } from './attachments.ts'
-import WflScriptBlock from './WflScriptBlock.vue'
-import WflGraphBlock from './WflGraphBlock.vue'
-import { wflErrors, type WflData } from './wfl-data.ts'
-import ProductDetailsEditor from './ProductDetailsEditor.vue'
-import type { ProductSnapshot } from './product-data.ts'
-import CustomerPricingDifference from './CustomerPricingDifference.vue'
-import CustomerDetailsEditor from './CustomerDetailsEditor.vue'
+import {
+  createAttachments,
+  attachmentScope,
+} from '../attachments/attachments.ts'
+import { wflErrors } from './wfl-data.ts'
 import type { CustomerSnapshot } from './customer-data.ts'
-import IdentityAssociations from './IdentityAssociations.vue'
-import type { SupplierData, OtherUnitData, SalesPartnerData } from '@zerp/model'
-import EditForm from '../dynamic-fields/EditForm.vue'
 import { extraSnapshotDetails } from './snapshot-details.ts'
-import DetailsBlock from './DetailsBlock.vue'
 import HistoryBlock from './HistoryBlock.vue'
-import type { EditValues } from '../dynamic-fields/edit-fields.ts'
 import type {
   VersionDefinition,
   VersionCurrent,
@@ -107,18 +100,44 @@ function runCurrentAction(key: string, item: Current) {
   else if (key === 'submit') void change(item)
   else if (key === 'enable' || key === 'disable') void toggle(item)
 }
-const submissionRows = computed(() =>
-  candidates.value.map((item) => ({
-    ...item,
-    code: item.code ?? '待编',
-    candidateStatus: item.openCandidate
-      ? approvalStatusPresentation[item.openCandidate.status].label
-      : '无',
-    approvedVersion: item.latestApproved
-      ? String(item.latestApproved.versionNo)
-      : '无',
-  })),
+const listRows = computed(() =>
+  tab.value === 'current'
+    ? {
+        kind: 'current' as const,
+        items: rows.value.map((item) => ({
+          objectId: item.objectId,
+          code: item.code,
+          name: item.name,
+          enabled: item.enabled,
+          actions: currentActions(item),
+        })),
+      }
+    : {
+        kind: 'submissions' as const,
+        items: candidates.value.map((item) => ({
+          subjectId: item.subjectId,
+          code: item.code ?? '待编',
+          candidateStatus: item.openCandidate
+            ? approvalStatusPresentation[item.openCandidate.status].label
+            : '无',
+          approvedVersion: item.latestApproved
+            ? String(item.latestApproved.versionNo)
+            : '无',
+          actions:
+            can('submission-get') || can('versions')
+              ? [{ key: 'view', caption: '查看' }]
+              : [],
+        })),
+      },
 )
+function currentListAction(key: string, objectId: string) {
+  const item = rows.value.find((item) => item.objectId === objectId)
+  if (item) runCurrentAction(key, item)
+}
+function candidateListAction(subjectId: string) {
+  const item = candidates.value.find((item) => item.subjectId === subjectId)
+  if (item) void openCandidate(item)
+}
 const total = ref(0),
   querying = ref(false),
   queryError = ref('')
@@ -129,58 +148,6 @@ const open = ref(false),
   feedback = ref('')
 const draft = shallowRef<Snapshot>({})
 const mode = ref<'create' | 'change'>('create')
-const customerEditor = computed(() => {
-  const {
-    defaultOperatingEntity,
-    remittanceProfiles,
-    identityAttachments,
-    subunits,
-  } = draft.value as unknown as CustomerSnapshot
-  return {
-    defaultOperatingEntity,
-    remittanceProfiles,
-    identityAttachments,
-    subunits,
-  }
-})
-const productEditor = computed(() => {
-  const {
-    productType,
-    productCategory,
-    pricingUnit,
-    defaultInputUnit,
-    unitConversions,
-    defaultPackagingSpec,
-    recyclable,
-    fixedFormula,
-  } = draft.value as unknown as ProductSnapshot
-  return {
-    productType,
-    productCategory,
-    pricingUnit,
-    defaultInputUnit,
-    unitConversions,
-    defaultPackagingSpec,
-    recyclable,
-    fixedFormula,
-  }
-})
-const identityEditor = computed(() => {
-  const value = draft.value as unknown as
-    SupplierData | OtherUnitData | SalesPartnerData
-  return {
-    operatingEntities: value.operatingEntities,
-    defaultOperatingEntityId: value.defaultOperatingEntityId,
-    ...('settlementMethod' in value
-      ? { settlementMethod: value.settlementMethod }
-      : {}),
-    ...('defaultPurchaser' in value
-      ? { defaultPurchaser: value.defaultPurchaser }
-      : {}),
-    ...('capabilities' in value ? { capabilities: value.capabilities } : {}),
-  }
-})
-
 const detailOpen = ref(false),
   detailLoading = ref(false),
   detailError = ref('')
@@ -245,26 +212,6 @@ const historyVersions = computed(() =>
       submittedAt,
     }),
   ),
-)
-function pricingSubunits(snapshot: Snapshot | undefined) {
-  return (
-    (snapshot as unknown as CustomerSnapshot | undefined)?.subunits.map(
-      ({ id, code, name, pricingPolicy }) => ({
-        id,
-        code,
-        name,
-        pricingPolicy,
-      }),
-    ) ?? []
-  )
-}
-const customerPricingBefore = computed(() =>
-  definition.resource === 'bob/customer' ? pricingSubunits(previous.value) : [],
-)
-const customerPricingAfter = computed(() =>
-  definition.resource === 'bob/customer'
-    ? pricingSubunits(selected.value?.snapshot)
-    : [],
 )
 const detailFields = [
   ...definition.fields,
@@ -820,11 +767,13 @@ onBeforeUnmount(() => {
       ><v-btn
         v-if="can('query')"
         :disabled="tab === 'current'"
+        :prepend-icon="actionIcons.view"
         @click="switchTab('current')"
         >正式资料</v-btn
       ><v-btn
         v-if="can('submission-query')"
         :disabled="tab === 'submissions'"
+        :prepend-icon="actionIcons.history"
         @click="switchTab('submissions')"
         >提交记录</v-btn
       ></template
@@ -856,48 +805,12 @@ onBeforeUnmount(() => {
         :disabled="!can(tab === 'current' ? 'query' : 'submission-query')"
         @search="search"
     /></template>
-    <DynamicCols
-      v-if="tab === 'current'"
-      identity-key="objectId"
-      :items="rows"
+    <VersionLists
+      :rows="listRows"
       :loading="querying"
-      :fields="[
-        { key: 'code', type: 'text', caption: '编码' },
-        { key: 'name', type: 'text', caption: '名称' },
-        {
-          key: 'enabled',
-          type: 'boolean',
-          caption: '状态',
-          trueCaption: '启用',
-          falseCaption: '停用',
-        },
-        { key: '$actions', type: 'actions', caption: '操作' },
-      ]"
-      ><template #actions="{ item }">
-        <RowActions
-          :actions="currentActions(item)"
-          @action="runCurrentAction($event, item)" /></template
-    ></DynamicCols>
-    <DynamicCols
-      v-else
-      identity-key="subjectId"
-      :items="submissionRows"
-      :loading="querying"
-      :fields="[
-        { key: 'code', type: 'text', caption: '编码' },
-        { key: 'candidateStatus', type: 'text', caption: '候选版本' },
-        { key: 'approvedVersion', type: 'text', caption: '最新批准' },
-        { key: '$actions', type: 'actions', caption: '操作' },
-      ]"
-      ><template #actions="{ item }"
-        ><RowActions
-          :actions="
-            can('submission-get') || can('versions')
-              ? [{ key: 'view', caption: '查看' }]
-              : []
-          "
-          @action="openCandidate(item)" /></template
-    ></DynamicCols>
+      @current-action="currentListAction"
+      @candidate="candidateListAction"
+    />
     <template #footer
       ><ListPagination
         :pagination="{
@@ -914,52 +827,15 @@ onBeforeUnmount(() => {
     ><v-card :title="`${title}提交`"
       ><v-card-text
         ><v-alert v-if="error" type="error">{{ error }}</v-alert
-        ><v-progress-linear v-if="loading" indeterminate /><EditForm
+        ><v-progress-linear v-if="loading" indeterminate /><CandidateFields
           v-if="open && !loading && intent"
+          :key="editorRequest"
+          :resource="definition.resource"
           :fields="definition.fields"
-          :model-value="draft as EditValues"
+          v-model="draft"
           :disabled="locked"
-          @update:model-value="draft = $event"
-          @submit="submit" /><WflScriptBlock
-          v-if="
-            open &&
-            !loading &&
-            intent &&
-            definition.resource === 'wfl/process-definition'
-          "
-          :model-value="draft as unknown as WflData"
-          :disabled="locked"
-          @update:model-value="draft = { ...draft, ...$event }"
-          @pending="attachmentReading = $event" /><ProductDetailsEditor
-          @pending="attachmentReading = $event"
-          v-if="
-            open && !loading && intent && definition.resource === 'bob/product'
-          "
-          :model-value="productEditor"
-          :disabled="locked"
-          @update:model-value="
-            draft = { ...draft, ...$event }
-          " /><CustomerDetailsEditor
-          @pending="attachmentReading = $event"
-          v-if="
-            open && !loading && intent && definition.resource === 'bob/customer'
-          "
-          :model-value="customerEditor"
-          :disabled="locked"
-          @update:model-value="
-            draft = { ...draft, ...$event }
-          " /><IdentityAssociations
-          v-if="
-            open &&
-            !loading &&
-            intent &&
-            ['bob/supplier', 'bob/other-unit', 'bob/sales-partner'].includes(
-              definition.resource,
-            )
-          "
-          :model-value="identityEditor"
-          :disabled="locked"
-          @update:model-value="draft = { ...draft, ...$event }" /></v-card-text
+          @submit="submit"
+          @pending="attachmentReading = $event" /></v-card-text
       ><v-card-actions
         ><v-spacer /><v-btn
           :prepend-icon="actionIcons.cancel"
@@ -1010,13 +886,18 @@ onBeforeUnmount(() => {
           <div class="version-actions">
             <v-btn
               v-for="action in reviewActions"
+              :prepend-icon="actionIcons[action]"
               :key="action"
               :disabled="locked"
               @click="
                 action === 'delete' ? (confirmDelete = true) : review(action)
               "
               >{{ reviewLabels[action] }}</v-btn
-            ><v-btn v-if="canCreate" :disabled="locked" @click="cloneSelected"
+            ><v-btn
+              v-if="canCreate"
+              :disabled="locked"
+              :prepend-icon="actionIcons.clone"
+              @click="cloneSelected"
               >克隆为新档案</v-btn
             >
           </div>
@@ -1026,21 +907,11 @@ onBeforeUnmount(() => {
             ) ?? []"
             :key="action"
             :disabled="locked"
+            :prepend-icon="actionIcons[action]"
             @click="toggleVersion(action === 'enable')"
             >{{ action === 'enable' ? '启用' : '停用' }}</v-btn
-          ><template v-if="definition.resource === 'wfl/process-definition'"
-            ><DetailsBlock
-              :fields="[
-                { key: 'script', type: 'textarea', caption: 'Starlark 脚本' },
-              ]"
-              :value="selected.snapshot"
-              :previous="previous" /><WflGraphBlock
-              v-if="selected.snapshot.compiledGraph"
-              :graph="
-                (selected.snapshot as unknown as WflData).compiledGraph!
-              " /></template
-          ><DetailsBlock
-            v-else
+          ><VersionSnapshot
+            :resource="definition.resource"
             :fields="detailFields"
             :value="selected.snapshot"
             :previous="previous"
@@ -1049,20 +920,22 @@ onBeforeUnmount(() => {
               source: 'submission',
               subjectId: selected.subjectId,
               submissionId: selected.submissionId,
-            }" /><CustomerPricingDifference
-            v-if="definition.resource === 'bob/customer' && previous"
-            :before="customerPricingBefore"
-            :after="customerPricingAfter"
+            }"
         /></template>
-        <template
-          v-if="
-            currentDetail && definition.resource === 'wfl/process-definition'
-          "
-          ><WflGraphBlock
-            v-if="currentDetail.data.compiledGraph"
-            :graph="(currentDetail.data as unknown as WflData).compiledGraph!"
-          /><v-btn
-            v-if="can('submission-get') && currentDetail.sourceApprovalEntryId"
+        <template v-if="currentDetail"
+          ><VersionSnapshot
+            :resource="definition.resource"
+            :fields="detailFields"
+            :value="currentDetail.data"
+            :source="{ source: 'current', objectId: currentDetail.objectId }"
+          />
+          <v-btn
+            :prepend-icon="actionIcons.view"
+            v-if="
+              definition.resource === 'wfl/process-definition' &&
+              can('submission-get') &&
+              currentDetail.sourceApprovalEntryId
+            "
             @click="
               select(
                 {
@@ -1074,14 +947,13 @@ onBeforeUnmount(() => {
             "
             >查看提交与维护</v-btn
           ></template
-        ><DetailsBlock
-          v-else-if="currentDetail"
-          :fields="detailFields"
-          :value="currentDetail.data"
-          :source="{ source: 'current', objectId: currentDetail.objectId }"
-        /> </v-card-text
+        > </v-card-text
       ><v-card-actions
-        ><v-spacer /><v-btn @click="closeDetail">关闭</v-btn></v-card-actions
+        ><v-spacer /><v-btn
+          :prepend-icon="actionIcons.cancel"
+          @click="closeDetail"
+          >关闭</v-btn
+        ></v-card-actions
       ></v-card
     ></v-dialog
   >

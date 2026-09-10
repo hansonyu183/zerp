@@ -8,9 +8,9 @@ import {
   customerAttributionLabels,
   type CustomerSnapshot,
 } from './customer-data.ts'
-import AttachmentBlock from './AttachmentBlock.vue'
+import AttachmentBlock from '../attachments/AttachmentBlock.vue'
 import FormBlock from '../dynamic-fields/FormBlock.vue'
-import DetailBlock from './DetailBlock.vue'
+import DetailBlock from '../dynamic-fields/DetailBlock.vue'
 import SnapshotReference from '../dynamic-fields/SnapshotReference.vue'
 import CustomerPricingBlock from './CustomerPricingBlock.vue'
 import type { EditFields } from '../dynamic-fields/edit-fields.ts'

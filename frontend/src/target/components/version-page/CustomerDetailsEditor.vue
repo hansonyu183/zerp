@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { CustomerSnapshot } from './customer-data.ts'
-import AttachmentBlock from './AttachmentBlock.vue'
-import DetailBlock from './DetailBlock.vue'
+import AttachmentBlock from '../attachments/AttachmentBlock.vue'
+import DetailBlock from '../dynamic-fields/DetailBlock.vue'
 import SnapshotReference from '../dynamic-fields/SnapshotReference.vue'
 import CustomerSubunits from './CustomerSubunits.vue'
 import type { EditFields } from '../dynamic-fields/edit-fields.ts'

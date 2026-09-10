@@ -119,7 +119,7 @@ test('real create-only permissions expose the user page without unauthorized que
 test('navigation and Host retain the shell at desktop and 390px in both themes', async ({
   browser,
 }) => {
-  const directory = resolve(process.cwd(), '..', '.scratch', 'issue-417')
+  const directory = resolve(process.cwd(), '..', '.scratch', 'issue-418')
   mkdirSync(directory, { recursive: true })
   for (const width of [1280, 390]) {
     const context = await browser.newContext({
@@ -180,6 +180,47 @@ test('navigation and Host retain the shell at desktop and 390px in both themes',
           path: resolve(directory, `${width}-${theme}-navigation.png`),
         })
         if (width === 390) await page.getByLabel('切换导航').click()
+        await page
+          .getByRole('button', { name: '新增客户', exact: true })
+          .click()
+        const candidate = page.getByRole('dialog')
+        const submit = candidate.getByRole('button', {
+          name: '提交',
+          exact: true,
+        })
+        await submit.scrollIntoViewIfNeeded()
+        await expect(submit).toBeInViewport({ ratio: 1 })
+        await expect(submit.locator('.mdi-send-outline')).toBeVisible()
+        await page.screenshot({
+          animations: 'disabled',
+          path: resolve(directory, `${width}-${theme}-candidate.png`),
+        })
+        await candidate
+          .getByRole('button', { name: '取消', exact: true })
+          .click()
+        await page.goto('/vou/intermediary-calculation')
+        await page.getByRole('button', { name: '新建', exact: true }).click()
+        const editor = page.getByRole('dialog')
+        await expect(
+          editor
+            .getByRole('button', { name: '读取计算脚本', exact: true })
+            .locator('.v-icon'),
+        ).toBeVisible()
+        await editor
+          .getByRole('button', { name: '试运行脚本', exact: true })
+          .scrollIntoViewIfNeeded()
+        await expect(
+          editor.getByRole('button', { name: '保存计算脚本', exact: true }),
+        ).toBeInViewport({ ratio: 1 })
+        await page.screenshot({
+          animations: 'disabled',
+          path: resolve(directory, `${width}-${theme}-intermediary.png`),
+        })
+        await editor.getByRole('button', { name: '取消', exact: true }).click()
+        await page.goto('/bob/customer')
+        await expect(
+          page.getByRole('button', { name: '新增客户', exact: true }),
+        ).toBeVisible()
       }
     } finally {
       await context.close()

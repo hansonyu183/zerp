@@ -5,7 +5,7 @@ import { useTargetSession } from '../../session/vm.ts'
 import { queryTargetBobReferences } from '../../api.ts'
 import { emptyUnit, type ProductSnapshot } from './product-data.ts'
 import FormBlock from '../dynamic-fields/FormBlock.vue'
-import DetailBlock from './DetailBlock.vue'
+import DetailBlock from '../dynamic-fields/DetailBlock.vue'
 import type {
   DetailDefinition,
   FormFields,

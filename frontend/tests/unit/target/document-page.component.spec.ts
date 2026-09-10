@@ -1682,7 +1682,7 @@ it.each(['service-contract', 'service-acceptance'] as const)(
   },
 )
 
-it.each([false, true])(
+it.each([null, 'network', 'internal_error', 'invalid_response'])(
   'maintains a persisted intermediary script and verifies an unknown save (%s) before recalculation',
   async (unknownSave) => {
     useTargetSession().apiPaths = [
@@ -1698,7 +1698,7 @@ it.each([false, true])(
       lines: [],
       bills: [],
     }
-    const script = {
+    let script = {
       scriptId: 'GLOBAL',
       revision: 1,
       name: '月度脚本',
@@ -1731,25 +1731,28 @@ it.each([false, true])(
     )
     if (unknownSave)
       vi.mocked(api.saveTargetIntermediaryScript).mockRejectedValueOnce(
-        new Error('network timeout'),
+        unknownSave === 'network'
+          ? new Error('network timeout')
+          : new api.TargetApiError(unknownSave!, '', 'script-request'),
       )
     await click(wrapper, '保存计算脚本')
     if (unknownSave) {
-      await click(wrapper, '读取计算脚本')
-      expect(wrapper.text()).toContain('尚未读取到本次脚本保存结果')
-      expect(
-        (wrapper.get('[aria-label="计算脚本"]').element as HTMLTextAreaElement)
-          .value,
-      ).toBe(script.source)
-      expect(
-        wrapper.get('[aria-label="计算脚本"]').attributes('disabled'),
-      ).toBeDefined()
+      await click(wrapper, '取消')
+      expect(wrapper.text()).toContain('脚本保存结果未知')
+      const createButton = wrapper
+        .findAll('button')
+        .find((button) => button.text() === '新建')!
+      expect(createButton.attributes('disabled')).toBeDefined()
+      await click(wrapper, '核实脚本保存')
+      expect(api.saveTargetIntermediaryScript).toHaveBeenCalledTimes(1)
+      expect(createButton.attributes('disabled')).toBeDefined()
       vi.mocked(api.getTargetIntermediaryScript).mockResolvedValue(script)
-      await click(wrapper, '读取计算脚本')
+      await click(wrapper, '核实脚本保存')
+      await click(wrapper, '新建')
+      await wrapper.get('[aria-label="计算月末日期"]').setValue('2026-09-30')
       expect(
         wrapper.get('[aria-label="计算脚本"]').attributes('disabled'),
       ).toBeUndefined()
-      expect(wrapper.text()).not.toContain('尚未读取到本次脚本保存结果')
     }
     expect(api.saveTargetIntermediaryScript).toHaveBeenCalledWith('test-csrf', {
       name: script.name,
@@ -1763,6 +1766,32 @@ it.each([false, true])(
     await vi.waitFor(() =>
       expect(wrapper.text()).toContain('采用脚本：月度脚本'),
     )
+    if (unknownSave) {
+      const nextScript = {
+        ...script,
+        revision: 2,
+        source: script.source + '\n// next revision',
+      }
+      await wrapper.get('[aria-label="计算脚本"]').setValue(nextScript.source)
+      await click(wrapper, '试运行脚本')
+      await vi.waitFor(() =>
+        expect(wrapper.text()).toContain('当前脚本试运行成功'),
+      )
+      vi.mocked(api.saveTargetIntermediaryScript).mockRejectedValueOnce(
+        new Error('lost response'),
+      )
+      await click(wrapper, '保存计算脚本')
+      vi.mocked(api.getTargetIntermediaryScript).mockResolvedValue(nextScript)
+      await click(wrapper, '核实脚本保存')
+      expect(wrapper.find('[aria-label="计算结果"]').exists()).toBe(false)
+      await click(wrapper, '提交')
+      expect(api.submitTargetVoucher).not.toHaveBeenCalled()
+      await click(wrapper, '重新计算')
+      await vi.waitFor(() =>
+        expect(wrapper.find('[aria-label="计算结果"]').exists()).toBe(true),
+      )
+      script = nextScript
+    }
     await click(wrapper, '提交')
     expect(api.submitTargetVoucher).toHaveBeenCalledTimes(1)
     expect(

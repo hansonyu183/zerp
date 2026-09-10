@@ -362,7 +362,12 @@ onBeforeUnmount(dispose)
           </fieldset>
         </v-card-text>
         <v-card-actions>
-          <v-btn :disabled="saving" @click="close">关闭</v-btn>
+          <v-btn
+            :disabled="saving"
+            :prepend-icon="actionIcons.cancel"
+            @click="close"
+            >关闭</v-btn
+          >
           <v-btn
             :prepend-icon="actionIcons.resolve"
             v-if="unknown && can('get')"

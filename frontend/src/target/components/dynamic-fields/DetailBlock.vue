@@ -1,10 +1,10 @@
 <script setup lang="ts" generic="T extends object">
 import { actionIcons } from '../../presentation/action-icons.ts'
 import { toRaw } from 'vue'
-import FormBlock from '../dynamic-fields/FormBlock.vue'
-import DetailsBlock from './DetailsBlock.vue'
-import type { EditField } from '../dynamic-fields/edit-fields.ts'
-import type { DetailDefinition } from '../dynamic-fields/form-fields.ts'
+import FormBlock from './FormBlock.vue'
+import DetailsBlock from '../details/DetailsBlock.vue'
+import type { EditField } from './edit-fields.ts'
+import type { DetailDefinition } from './form-fields.ts'
 const props = defineProps<{
   definition: DetailDefinition<T>
   modelValue: readonly T[]

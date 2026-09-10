@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { wflInstance, WflInstanceActionInput } from '../../api.ts'
-import { statuses, nodeActions } from './node-data.ts'
+import { statuses, nodeActions, nodeActionIcons } from './node-data.ts'
 type Instance = Awaited<ReturnType<typeof wflInstance>>
 defineProps<{
   nodes: Instance['nodes']
@@ -24,6 +24,7 @@ const emit = defineEmits<{
     <template v-for="action in node.availableActions" :key="action">
       <template v-if="action === 'CREATE_CHILD'"
         ><v-btn
+          :prepend-icon="nodeActionIcons[action]"
           v-for="target in targets.filter(
             (item) => item.parentNodeId === node.nodeId,
           )"
@@ -34,6 +35,7 @@ const emit = defineEmits<{
         ></template
       >
       <v-btn
+        :prepend-icon="nodeActionIcons[action]"
         v-else
         :disabled="disabled"
         @click="emit('action', node, action)"

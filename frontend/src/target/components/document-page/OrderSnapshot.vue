@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import DetailsBlock from '../version-page/DetailsBlock.vue'
+import DetailsBlock from '../details/DetailsBlock.vue'
 import { computed } from 'vue'
 import {
   vouEntityPresentation,

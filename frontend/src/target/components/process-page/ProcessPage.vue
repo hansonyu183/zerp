@@ -444,7 +444,9 @@ onBeforeUnmount(dispose)
             金额：{{ document.payload.amount }}
           </p> </v-card-text
         ><v-card-actions
-          ><v-btn @click="document = null">关闭</v-btn></v-card-actions
+          ><v-btn :prepend-icon="actionIcons.cancel" @click="document = null"
+            >关闭</v-btn
+          ></v-card-actions
         ></v-card
       ></v-dialog
     >
@@ -468,7 +470,10 @@ onBeforeUnmount(dispose)
         />
         <section v-if="canInstance('audit-history')" aria-label="运行审计">
           <h3>运行审计</h3>
-          <v-btn :disabled="busy" @click="readAudit(instance.processId)"
+          <v-btn
+            :disabled="busy"
+            :prepend-icon="actionIcons.audit"
+            @click="readAudit(instance.processId)"
             >刷新审计</v-btn
           >
           <v-alert v-if="auditError" type="error">{{ auditError }}</v-alert>

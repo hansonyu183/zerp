@@ -4,8 +4,8 @@ import type {
   VouSourceLineCandidate,
   VouSourceLineTargetEntity,
 } from '@zerp/model'
-import ReferencePicker from '../direct-page/ReferencePicker.vue'
-import type { EditOption } from '../direct-page/definition.ts'
+import ReferencePicker from '../dynamic-fields/ReferencePicker.vue'
+import type { EditOption } from '../dynamic-fields/edit-fields.ts'
 export type SourceLineChoice = Pick<
   VouSourceLineCandidate,
   'sourceDocumentId' | 'sourceLineId' | 'rootEntity' | 'rootDocumentId'

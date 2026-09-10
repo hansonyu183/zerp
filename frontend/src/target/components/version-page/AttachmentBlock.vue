@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
 import { computed, inject, onBeforeUnmount, ref } from 'vue'
 import { attachmentScope } from './attachments.ts'
 import type { CustomerSnapshot } from './customer-data.ts'
@@ -173,7 +174,10 @@ onBeforeUnmount(() => {
         ><v-progress-linear
           v-if="scope?.status(file.id) === '正在上传'"
           indeterminate
-        /><v-btn :disabled="disabled" @click="remove(file.id)"
+        /><v-btn
+          :prepend-icon="actionIcons.remove"
+          :disabled="disabled"
+          @click="remove(file.id)"
           >移除附件</v-btn
         ></template
       ><v-btn

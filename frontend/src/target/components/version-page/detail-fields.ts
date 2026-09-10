@@ -1,4 +1,4 @@
-import type { EditField, EditFields } from '../direct-page/definition.ts'
+import type { EditField, EditFields } from '../dynamic-fields/edit-fields.ts'
 import type { EnumOption } from '../dynamic-fields/types.ts'
 export type DetailField =
   | EditField

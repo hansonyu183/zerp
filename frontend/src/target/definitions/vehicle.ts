@@ -1,9 +1,7 @@
 import * as api from '../api.ts'
-import {
-  defineDirectPage,
-  type EditOption,
-} from '../components/direct-page/definition.ts'
-import { summaryOption } from '../components/direct-page/references.ts'
+import type { EditOption } from '../components/dynamic-fields/edit-fields.ts'
+import { defineDirectPage } from '../components/direct-page/definition.ts'
+import { summaryOption } from '../components/dynamic-fields/references.ts'
 type VehicleInput = Omit<
   api.TargetVehicleCreateInput,
   'carrier' | 'ratedLoadKg'

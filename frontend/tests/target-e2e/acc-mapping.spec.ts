@@ -59,12 +59,12 @@ test('ACC current mapping saves through the real resource page and discards temp
   await page.setViewportSize({ width: 390, height: 844 })
   await dialog.getByRole('button', { name: '添加规则', exact: true }).click()
   await expect(
-    dialog.getByRole('button', { name: '删除规则', exact: true }),
+    dialog.getByRole('button', { name: '移除规则', exact: true }),
   ).toBeVisible()
   await dialog.getByRole('button', { name: '关闭', exact: true }).click()
   await row.getByRole('button', { name: '打开', exact: true }).click()
   await expect(
-    dialog.getByRole('button', { name: '删除规则', exact: true }),
+    dialog.getByRole('button', { name: '移除规则', exact: true }),
   ).toHaveCount(0)
   await expect(
     dialog.getByRole('button', { name: '保存', exact: true }),

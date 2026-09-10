@@ -1,0 +1,20 @@
+// Fixed user intents choose their icon here; icons never determine action eligibility.
+export const actionIcons = {
+  create: 'mdi-plus',
+  search: 'mdi-magnify',
+  save: 'mdi-content-save-outline',
+  submit: 'mdi-send-outline',
+  add: 'mdi-plus-circle-outline',
+  remove: 'mdi-minus-circle-outline',
+  delete: 'mdi-delete-outline',
+  cancel: 'mdi-close',
+  confirm: 'mdi-check',
+  resolve: 'mdi-clipboard-check-outline',
+  calculate: 'mdi-calculator',
+  trial: 'mdi-play-outline',
+  retry: 'mdi-refresh',
+  previous: 'mdi-chevron-left',
+  next: 'mdi-chevron-right',
+  export: 'mdi-file-export-outline',
+  link: 'mdi-link-plus',
+} as const

@@ -1,4 +1,4 @@
-import { shallowMount } from '@vue/test-utils'
+import { mount } from '@vue/test-utils'
 import { expect, it } from 'vitest'
 import { defineComponent } from 'vue'
 import MappingDimensions from '@/target/components/configuration-page/MappingDimensions.vue'
@@ -9,7 +9,7 @@ it('retains visible removable dimension inputs when a selected subject no longer
     template:
       '<button @click="$emit(\'update:modelValue\', null)">{{ label }}</button>',
   })
-  const wrapper = shallowMount(MappingDimensions, {
+  const wrapper = mount(MappingDimensions, {
     props: {
       fields: ['customer'],
       dimensions: ['CUSTOMER_SUBUNIT'],

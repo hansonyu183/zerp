@@ -24,7 +24,8 @@ const resources = [
 const allowedImports = new Set([
   '../api.ts',
   '../components/direct-page/definition.ts',
-  '../components/direct-page/references.ts',
+  '../components/dynamic-fields/references.ts',
+  '../components/dynamic-fields/edit-fields.ts',
 ])
 
 describe('the actual direct definitions stay stateless and reach one runtime', () => {

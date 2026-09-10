@@ -2,9 +2,9 @@
 import { computed } from 'vue'
 import type { CustomerSnapshot } from './customer-data.ts'
 import { customerCostBasisLabels } from './customer-data.ts'
-import FormBlock from './FormBlock.vue'
+import FormBlock from '../dynamic-fields/FormBlock.vue'
 import DetailBlock from './DetailBlock.vue'
-import type { EditFields } from '../direct-page/definition.ts'
+import type { EditFields } from '../dynamic-fields/edit-fields.ts'
 type Pricing = CustomerSnapshot['subunits'][number]['pricingPolicy']
 type CostInput = {
   name: string

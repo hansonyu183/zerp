@@ -1,6 +1,6 @@
 import * as api from '../api.ts'
 import { defineDirectPage } from '../components/direct-page/definition.ts'
-import { summaryOption } from '../components/direct-page/references.ts'
+import { summaryOption } from '../components/dynamic-fields/references.ts'
 export const fundAccountPage =
   defineDirectPage<api.TargetFundAccountCreateInput>({
     resource: 'aux/fund-account',

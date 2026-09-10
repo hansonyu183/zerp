@@ -1,9 +1,10 @@
 <script setup lang="ts" generic="T extends object">
+import { actionIcons } from '../../presentation/action-icons.ts'
 import { toRaw } from 'vue'
-import FormBlock from './FormBlock.vue'
+import FormBlock from '../dynamic-fields/FormBlock.vue'
 import DetailsBlock from './DetailsBlock.vue'
-import type { EditField } from '../direct-page/definition.ts'
-import type { DetailDefinition } from './form-fields.ts'
+import type { EditField } from '../dynamic-fields/edit-fields.ts'
+import type { DetailDefinition } from '../dynamic-fields/form-fields.ts'
 const props = defineProps<{
   definition: DetailDefinition<T>
   modelValue: readonly T[]
@@ -52,12 +53,17 @@ function remove(index: number) {
         :fields="definition.fields as readonly EditField[]"
         :value="row as Record<string, unknown>"
       /><v-btn
+        :prepend-icon="actionIcons.remove"
         v-if="mode === 'edit'"
         :disabled="disabled"
         @click="remove(index)"
         >移除{{ definition.caption }}第 {{ index + 1 }} 行</v-btn
       ></v-card
-    ><v-btn v-if="mode === 'edit'" :disabled="disabled" @click="add"
+    ><v-btn
+      :prepend-icon="actionIcons.add"
+      v-if="mode === 'edit'"
+      :disabled="disabled"
+      @click="add"
       >添加{{ definition.caption }}</v-btn
     >
   </section>

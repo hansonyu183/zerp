@@ -151,7 +151,7 @@ const stubs = {
   VAutocomplete: {
     props: ['modelValue', 'items', 'label', 'multiple', 'disabled'],
     emits: ['update:modelValue'],
-    template: `<label>{{label}}<select :aria-label="label" :multiple="multiple" :disabled="disabled" @change="$emit('update:modelValue',multiple ? [...$event.target.selectedOptions].map(o=>o.value) : $event.target.value)"><option v-for="item in items" :key="item.id" :value="item.id" :selected="Array.isArray(modelValue) ? modelValue.includes(item.id) : modelValue === item.id" :disabled="item.props?.disabled">{{item.name}}</option></select></label>`,
+    template: `<label>{{label}}<select :aria-label="label" :multiple="multiple" :disabled="disabled" @change="$emit('update:modelValue',multiple ? [...$event.target.selectedOptions].map(o=>o.value) : $event.target.value)"><option v-for="item in items" :key="item.value" :value="item.value" :selected="Array.isArray(modelValue) ? modelValue.includes(item.value) : modelValue === item.value" :disabled="item.props?.disabled">{{item.title}}</option></select></label>`,
   },
   VSpacer: { template: '<span />' },
   VTextField: {

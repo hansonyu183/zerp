@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
+import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { ulid } from 'ulid'
 import VouReference, { type VouCandidate } from './VouReference.vue'
 import {
@@ -24,25 +26,30 @@ function category(line: AssetLine, value: VouCandidate | null) {
 }
 </script>
 <template>
-  <v-text-field
-    label="业务日期"
-    type="date"
+  <FieldInput
+    usage="edit"
+    :field="{ key: 'businessDate', type: 'date', caption: '业务日期' }"
     :model-value="modelValue.businessDate"
     :disabled="disabled"
     @update:model-value="patch({ businessDate: $event })"
   />
-  <v-text-field
-    label="币种"
+  <FieldInput
+    usage="edit"
+    :field="{ key: 'currency', type: 'text', caption: '币种', maxLength: 3 }"
     :model-value="modelValue.currency"
     :disabled="disabled"
-    maxlength="3"
     @update:model-value="patch({ currency: $event })"
   />
-  <v-textarea
-    label="备注"
+  <FieldInput
+    usage="edit"
+    :field="{
+      key: 'remark',
+      type: 'textarea',
+      caption: '备注',
+      maxLength: 1000,
+    }"
     :model-value="modelValue.remark"
     :disabled="disabled"
-    maxlength="1000"
     @update:model-value="patch({ remark: $event })"
   />
   <VouReference
@@ -54,9 +61,17 @@ function category(line: AssetLine, value: VouCandidate | null) {
     @update:model-value="patch({ party: $event, origin: 'CURRENT' })"
   />
   <template v-if="modelValue.entity === 'asset-sale'">
-    <v-select
-      label="相对方类型"
-      :items="assetPartyOptions"
+    <FieldInput
+      usage="edit"
+      :field="{
+        key: 'counterpartyType',
+        type: 'choice',
+        caption: '相对方类型',
+        options: assetPartyOptions.map((option) => ({
+          value: option.value,
+          caption: option.title,
+        })),
+      }"
       :model-value="modelValue.counterpartyType"
       :disabled="disabled"
       @update:model-value="patch({ counterpartyType: $event })"
@@ -72,16 +87,26 @@ function category(line: AssetLine, value: VouCandidate | null) {
   </template>
   <section v-for="line in modelValue.lines" :key="line.id" class="asset-line">
     <template v-if="modelValue.entity === 'asset-acquisition'">
-      <v-text-field
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'assetName',
+          type: 'text',
+          caption: '资产名称',
+          maxLength: 200,
+        }"
         v-model="line.assetName"
-        label="资产名称"
-        maxlength="200"
         :disabled="disabled"
       />
-      <v-text-field
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'specification',
+          type: 'text',
+          caption: '规格',
+          maxLength: 200,
+        }"
         v-model="line.specification"
-        label="规格"
-        maxlength="200"
         :disabled="disabled"
       />
       <VouReference
@@ -91,23 +116,38 @@ function category(line: AssetLine, value: VouCandidate | null) {
         :disabled="disabled"
         @update:model-value="category(line, $event)"
       />
-      <v-text-field
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'originalValue',
+          type: 'text',
+          caption: '原值',
+          inputMode: 'decimal',
+        }"
         v-model="line.originalValue"
-        label="原值"
-        inputmode="decimal"
         :disabled="disabled"
       />
-      <v-text-field
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'usefulLifeMonths',
+          type: 'text',
+          caption: '使用月数',
+          inputMode: 'numeric',
+        }"
         v-model="line.usefulLifeMonths"
-        label="使用月数"
-        inputmode="numeric"
         :disabled="disabled"
       />
-      <v-text-field
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'residualRate',
+          type: 'text',
+          caption: '残值率',
+          suffix: '%',
+          inputMode: 'decimal',
+        }"
         v-model="line.residualRate"
-        label="残值率"
-        suffix="%"
-        inputmode="decimal"
         :disabled="disabled"
       />
       <VouReference
@@ -124,10 +164,15 @@ function category(line: AssetLine, value: VouCandidate | null) {
         :disabled="disabled"
         @update:model-value="line.custodian = $event"
       />
-      <v-text-field
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'location',
+          type: 'text',
+          caption: '地点',
+          maxLength: 200,
+        }"
         v-model="line.location"
-        label="地点"
-        maxlength="200"
         :disabled="disabled"
       />
     </template>
@@ -139,49 +184,76 @@ function category(line: AssetLine, value: VouCandidate | null) {
         :disabled="disabled"
         @update:model-value="line.asset = $event"
       />
-      <v-text-field
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'saleAmount',
+          type: 'text',
+          caption: '出让金额',
+          inputMode: 'decimal',
+        }"
         v-if="modelValue.entity === 'asset-sale'"
         v-model="line.saleAmount"
-        label="出让金额"
-        inputmode="decimal"
         :disabled="disabled"
       />
       <template v-else>
-        <v-textarea
+        <FieldInput
+          usage="edit"
+          :field="{
+            key: 'reason',
+            type: 'textarea',
+            caption: '清理原因',
+            maxLength: 1000,
+          }"
           v-model="line.reason"
-          label="清理原因"
-          maxlength="1000"
           :disabled="disabled"
         />
-        <v-text-field
+        <FieldInput
+          usage="edit"
+          :field="{
+            key: 'salvageIncome',
+            type: 'text',
+            caption: '残值收入',
+            inputMode: 'decimal',
+          }"
           v-model="line.salvageIncome"
-          label="残值收入"
-          inputmode="decimal"
           :disabled="disabled"
         />
-        <v-text-field
+        <FieldInput
+          usage="edit"
+          :field="{
+            key: 'disposalExpense',
+            type: 'text',
+            caption: '处置费用',
+            inputMode: 'decimal',
+          }"
           v-model="line.disposalExpense"
-          label="处置费用"
-          inputmode="decimal"
           :disabled="disabled"
         />
       </template>
     </template>
-    <v-textarea
+    <FieldInput
+      usage="edit"
+      :field="{
+        key: 'remark',
+        type: 'textarea',
+        caption: '行备注',
+        maxLength: 1000,
+      }"
       v-model="line.remark"
-      label="行备注"
-      maxlength="1000"
       :disabled="disabled"
     />
     <v-btn
+      :prepend-icon="actionIcons.remove"
       :disabled="disabled"
       @click="
         patch({ lines: modelValue.lines.filter((item) => item.id !== line.id) })
       "
-      >删除资产行</v-btn
+      >移除资产行</v-btn
     >
   </section>
   <v-btn
+    :prepend-icon="actionIcons.add"
     :disabled="disabled || modelValue.lines.length >= 200"
     @click="patch({ lines: [...modelValue.lines, emptyAssetLine(ulid())] })"
     >添加资产行</v-btn

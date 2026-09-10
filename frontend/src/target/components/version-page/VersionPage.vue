@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
+import FieldInput from '../dynamic-fields/FieldInput.vue'
 import {
   computed,
   provide,
@@ -26,11 +28,11 @@ import CustomerDetailsEditor from './CustomerDetailsEditor.vue'
 import type { CustomerSnapshot } from './customer-data.ts'
 import IdentityAssociations from './IdentityAssociations.vue'
 import type { SupplierData, OtherUnitData, SalesPartnerData } from '@zerp/model'
-import EditForm from '../direct-page/EditForm.vue'
+import EditForm from '../dynamic-fields/EditForm.vue'
 import { extraSnapshotDetails } from './snapshot-details.ts'
 import DetailsBlock from './DetailsBlock.vue'
 import HistoryBlock from './HistoryBlock.vue'
-import type { EditValues } from '../direct-page/definition.ts'
+import type { EditValues } from '../dynamic-fields/edit-fields.ts'
 import type {
   VersionDefinition,
   VersionCurrent,
@@ -764,7 +766,11 @@ onBeforeUnmount(() => {
 <template>
   <ManagementPageFrame :title="title">
     <template #actions
-      ><v-btn v-if="canCreate" :disabled="locked" @click="create()"
+      ><v-btn
+        :prepend-icon="actionIcons.create"
+        v-if="canCreate"
+        :disabled="locked"
+        @click="create()"
         >新增{{ title }}</v-btn
       ><v-btn
         v-if="can('query')"
@@ -782,6 +788,7 @@ onBeforeUnmount(() => {
       ><v-alert v-if="error" type="error">{{ error }}</v-alert
       ><v-alert v-if="pending" type="warning"
         >操作结果未知，保持写入锁定。<v-btn
+          :prepend-icon="actionIcons.resolve"
           v-if="canVerify"
           :disabled="busy"
           @click="verify"
@@ -942,8 +949,13 @@ onBeforeUnmount(() => {
           :disabled="locked"
           @update:model-value="draft = { ...draft, ...$event }" /></v-card-text
       ><v-card-actions
-        ><v-spacer /><v-btn :disabled="busy" @click="close">取消</v-btn
+        ><v-spacer /><v-btn
+          :prepend-icon="actionIcons.cancel"
+          :disabled="busy"
+          @click="close"
+          >取消</v-btn
         ><v-btn
+          :prepend-icon="actionIcons.submit"
           :disabled="locked || loading || attachmentReading || !intent"
           @click="submit"
           >提交</v-btn
@@ -973,10 +985,15 @@ onBeforeUnmount(() => {
             }}
             · 修订：{{ selected.revision }}
           </p>
-          <v-textarea
+          <FieldInput
+            usage="edit"
+            :field="{
+              key: 'reason',
+              type: 'textarea',
+              caption: '驳回或反批准原因',
+            }"
             v-if="needsReason"
             v-model="reason"
-            label="驳回或反批准原因"
             :disabled="locked" />
           <div class="version-actions">
             <v-btn
@@ -1060,8 +1077,14 @@ onBeforeUnmount(() => {
     ><v-card title="确认删除候选版本"
       ><v-card-text>删除后无法恢复，确定继续吗？</v-card-text
       ><v-card-actions
-        ><v-btn @click="confirmDelete = false">取消</v-btn
-        ><v-btn :disabled="locked" @click="review('delete')"
+        ><v-btn
+          :prepend-icon="actionIcons.cancel"
+          @click="confirmDelete = false"
+          >取消</v-btn
+        ><v-btn
+          :prepend-icon="actionIcons.delete"
+          :disabled="locked"
+          @click="review('delete')"
           >确认删除</v-btn
         ></v-card-actions
       ></v-card

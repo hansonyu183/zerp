@@ -1,6 +1,6 @@
 import * as api from '../api.ts'
 import { defineDirectPage } from '../components/direct-page/definition.ts'
-import { roleOption } from '../components/direct-page/references.ts'
+import { roleOption } from '../components/dynamic-fields/references.ts'
 export const userPage = defineDirectPage<api.TargetUserCreateInput>({
   resource: 'app/user',
   fields: [

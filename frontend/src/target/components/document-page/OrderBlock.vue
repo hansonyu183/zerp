@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
+import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { ref, onBeforeUnmount, onMounted, nextTick } from 'vue'
 import { ulid } from 'ulid'
 import {
@@ -12,8 +14,8 @@ import { useTargetSession } from '../../session/vm.ts'
 import ProductFormulaBlock from '../version-page/ProductFormulaBlock.vue'
 import type { ProductSnapshot } from '../version-page/product-data.ts'
 import { vouPaymentMethodSelectionOriginPresentation } from '@zerp/model'
-import FormBlock from '../version-page/FormBlock.vue'
-import type { FormFields } from '../version-page/form-fields.ts'
+import FormBlock from '../dynamic-fields/FormBlock.vue'
+import type { FormFields } from '../dynamic-fields/form-fields.ts'
 import VouReference, { type VouCandidate } from './VouReference.vue'
 import {
   unitSnapshot,
@@ -505,9 +507,10 @@ onBeforeUnmount(() => {
 })
 </script>
 <template>
-  <v-checkbox
+  <FieldInput
+    usage="edit"
+    :field="{ key: 'specialApproval', type: 'boolean', caption: '特批销售' }"
     v-if="modelValue.entity === 'sale-order'"
-    label="特批销售"
     :model-value="modelValue.specialApproval"
     :disabled="disabled"
     @update:model-value="
@@ -636,10 +639,15 @@ onBeforeUnmount(() => {
           @pending="formulaPending(line.lineId, $event)"
         />
       </template>
-      <v-btn :disabled="disabled" @click="removeLine(line.lineId)"
+      <v-btn
+        :prepend-icon="actionIcons.remove"
+        :disabled="disabled"
+        @click="removeLine(line.lineId)"
         >移除商品行第 {{ index + 1 }} 行</v-btn
       >
     </v-card>
-    <v-btn :disabled="disabled" @click="addLine">添加商品行</v-btn>
+    <v-btn :prepend-icon="actionIcons.add" :disabled="disabled" @click="addLine"
+      >添加商品行</v-btn
+    >
   </section>
 </template>

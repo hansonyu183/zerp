@@ -1,10 +1,7 @@
 <script setup lang="ts" generic="T extends object">
 import { computed, shallowRef, toRaw } from 'vue'
-import ReferencePicker from '../direct-page/ReferencePicker.vue'
-import type {
-  EditOption,
-  EditReferenceSource,
-} from '../direct-page/definition.ts'
+import ReferencePicker from './ReferencePicker.vue'
+import type { EditOption, EditReferenceSource } from './edit-fields.ts'
 const props = defineProps<{
   source: EditReferenceSource
   caption: string

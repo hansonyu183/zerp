@@ -2,7 +2,7 @@ import { businessDate } from './business-date.ts'
 import type { VouPayloadFor } from '@zerp/model'
 import type { SourceLineChoice } from './SourceLinePicker.vue'
 import type { VouCandidate } from './VouReference.vue'
-import type { FormFields } from '../version-page/form-fields.ts'
+import type { FormFields } from '../dynamic-fields/form-fields.ts'
 export type FulfillmentEntity =
   'purchase-inbound' | 'sale-return' | 'purchase-return'
 export type FulfillmentDraft = {

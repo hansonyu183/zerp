@@ -1,9 +1,13 @@
 <script setup lang="ts">
+import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { computed, ref } from 'vue'
 import { emptyUnit, type ProductSnapshot } from './product-data.ts'
-import FormBlock from './FormBlock.vue'
+import FormBlock from '../dynamic-fields/FormBlock.vue'
 import DetailBlock from './DetailBlock.vue'
-import type { DetailDefinition, FormFields } from './form-fields.ts'
+import type {
+  DetailDefinition,
+  FormFields,
+} from '../dynamic-fields/form-fields.ts'
 type Units = Pick<
   ProductSnapshot,
   'pricingUnit' | 'defaultInputUnit' | 'unitConversions'
@@ -15,6 +19,7 @@ const fields = [
     key: 'pricingUnit',
     type: 'snapshot-reference',
     source: 'product-units',
+    emptyValue: emptyUnit(),
     caption: '计价单位',
     required: true,
   },
@@ -22,6 +27,7 @@ const fields = [
     key: 'defaultInputUnit',
     type: 'snapshot-reference',
     source: 'product-units',
+    emptyValue: emptyUnit(),
     caption: '默认录入单位',
     required: true,
   },
@@ -33,6 +39,7 @@ const conversions = {
       key: 'unit',
       type: 'snapshot-reference',
       source: 'product-units',
+      emptyValue: emptyUnit(),
       caption: '录入单位',
       required: true,
     },
@@ -84,15 +91,19 @@ const suggested = computed(() => {
       @update:model-value="
         emit('update:modelValue', { ...modelValue, unitConversions: $event })
       "
-    /><v-select
-      v-model="trial.unitId"
-      label="试算单位"
-      :disabled="disabled"
-      :items="
-        modelValue.unitConversions
+    /><FieldInput
+      usage="edit"
+      :field="{
+        key: 'unitId',
+        type: 'choice',
+        caption: '试算单位',
+        options: modelValue.unitConversions
           .filter((item) => item.unit?.id)
           .map((item) => ({ value: item.unit.id, title: item.unit.name }))
-      "
+          .map((option) => ({ value: option.value, caption: option.title })),
+      }"
+      v-model="trial.unitId"
+      :disabled="disabled"
     /><FormBlock
       :fields="[
         {

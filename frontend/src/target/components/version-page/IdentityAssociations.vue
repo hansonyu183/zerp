@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { salesPartnerCapabilityOptions } from './identity-data.ts'
 import { computed } from 'vue'
 import type { SupplierData, OtherUnitData, SalesPartnerData } from '@zerp/model'
-import SnapshotReference from './SnapshotReference.vue'
+import SnapshotReference from '../dynamic-fields/SnapshotReference.vue'
 type Identity = SupplierData | OtherUnitData | SalesPartnerData
 type Associations = Pick<
   Identity,
@@ -39,10 +40,18 @@ const defaults = computed(() => {
       update('operatingEntities', Array.isArray($event) ? $event : [])
     "
   />
-  <v-select
-    label="默认经营主体"
+  <FieldInput
+    usage="edit"
+    :field="{
+      key: 'defaultOperatingEntityId',
+      type: 'choice',
+      caption: '默认经营主体',
+      options: defaults.map((option) => ({
+        value: option.value,
+        caption: option.title,
+      })),
+    }"
     :model-value="modelValue.defaultOperatingEntityId"
-    :items="defaults"
     :disabled="disabled"
     clearable
     @update:model-value="update('defaultOperatingEntityId', $event)"
@@ -67,14 +76,20 @@ const defaults = computed(() => {
       update('defaultPurchaser', Array.isArray($event) ? null : $event)
     "
   />
-  <v-select
+  <FieldInput
+    usage="edit"
+    :field="{
+      key: 'capabilities',
+      type: 'choice',
+      caption: '合作能力',
+      options: salesPartnerCapabilityOptions.map((option) => ({
+        value: option.value,
+        caption: option.caption,
+      })),
+      multiple: true,
+    }"
     v-if="'capabilities' in modelValue"
-    label="合作能力"
     :model-value="modelValue.capabilities"
-    :items="salesPartnerCapabilityOptions"
-    item-title="caption"
-    item-value="value"
-    multiple
     :disabled="disabled"
     @update:model-value="update('capabilities', $event)"
   />

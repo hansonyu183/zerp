@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import FormBlock from '../version-page/FormBlock.vue'
+import { actionIcons } from '../../presentation/action-icons.ts'
+import FormBlock from '../dynamic-fields/FormBlock.vue'
 import {
   intermediaryCategoryLabels,
   type IntermediaryDraft,
@@ -64,6 +65,7 @@ function patch(value: Partial<IntermediaryDraft>) {
     >读取计算脚本</v-btn
   >
   <v-btn
+    :prepend-icon="actionIcons.calculate"
     v-if="canReadScript && canSource"
     :disabled="disabled || !scriptConfigured || scriptUnknown"
     @click="emit('calculate')"
@@ -89,12 +91,14 @@ function patch(value: Partial<IntermediaryDraft>) {
       summaries。脚本只接收本月来源数据。
     </p>
     <v-btn
+      :prepend-icon="actionIcons.trial"
       v-if="canSource"
       :disabled="disabled || scriptUnknown || !script.source.trim()"
       @click="emit('testScript')"
       >试运行脚本</v-btn
     >
     <v-btn
+      :prepend-icon="actionIcons.save"
       :disabled="disabled || scriptUnknown || !tested || !script.name.trim()"
       @click="emit('saveScript')"
       >保存计算脚本</v-btn

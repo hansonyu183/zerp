@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
+import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { computed } from 'vue'
 import { useTargetSession } from '../../session/vm.ts'
 import {
@@ -7,11 +9,11 @@ import {
   type CustomerSnapshot,
 } from './customer-data.ts'
 import AttachmentBlock from './AttachmentBlock.vue'
-import FormBlock from './FormBlock.vue'
+import FormBlock from '../dynamic-fields/FormBlock.vue'
 import DetailBlock from './DetailBlock.vue'
-import SnapshotReference from './SnapshotReference.vue'
+import SnapshotReference from '../dynamic-fields/SnapshotReference.vue'
 import CustomerPricingBlock from './CustomerPricingBlock.vue'
-import type { EditFields } from '../direct-page/definition.ts'
+import type { EditFields } from '../dynamic-fields/edit-fields.ts'
 type Subunit = CustomerSnapshot['subunits'][number]
 const props = defineProps<{
   modelValue: readonly Subunit[]
@@ -174,15 +176,20 @@ function attribution(index: number, value: object | readonly object[] | null) {
         :disabled="readonly"
         @update:model-value="patch(index, { transportPolicy: $event })"
       />
-      <v-select
-        label="业务归属类型"
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'type',
+          type: 'choice',
+          caption: '业务归属类型',
+          options: Object.entries(customerAttributionLabels)
+            .map(([value, title]) => ({
+              value,
+              title,
+            }))
+            .map((option) => ({ value: option.value, caption: option.title })),
+        }"
         :model-value="sub.primarySalesAttribution.type"
-        :items="
-          Object.entries(customerAttributionLabels).map(([value, title]) => ({
-            value,
-            title,
-          }))
-        "
         :disabled="readonly"
         @update:model-value="attributionType(index, $event)"
       />
@@ -220,10 +227,13 @@ function attribution(index: number, value: object | readonly object[] | null) {
         @pending="pending(sub.id, $event)"
       />
       <v-btn
+        :prepend-icon="actionIcons.remove"
         :disabled="readonly || modelValue.length <= 1"
         @click="remove(index)"
         >从本次版本移除子单位</v-btn
       > </v-card
-    ><v-btn :disabled="readonly" @click="add">添加子单位</v-btn>
+    ><v-btn :prepend-icon="actionIcons.add" :disabled="readonly" @click="add"
+      >添加子单位</v-btn
+    >
   </section>
 </template>

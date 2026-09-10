@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
 import {
   computed,
   onBeforeUnmount,
@@ -19,15 +20,14 @@ import {
   ListActionRefreshRequiredError,
   type ListAction,
 } from '../list-page/vm.ts'
+import type { EditValues, EditOption } from '../dynamic-fields/edit-fields.ts'
 import {
   hasAction,
   type DirectDefinition,
   type DirectRow,
-  type EditValues,
   type EditDetail,
-  type EditOption,
 } from './definition.ts'
-import EditForm from './EditForm.vue'
+import EditForm from '../dynamic-fields/EditForm.vue'
 import { formatDecimal, compareDecimal } from '../dynamic-fields/decimal.ts'
 import { roleTypeOptions } from './role-presentation.ts'
 const props = defineProps<{ definition: DirectDefinition }>()
@@ -440,7 +440,11 @@ onBeforeUnmount(() => {
 <template>
   <v-alert v-if="!open && verificationTarget" type="info"
     >{{ verificationNotice || '请求结果未知，已保持锁定。'
-    }}<v-btn v-if="canVerify" :disabled="verifying" @click="verify"
+    }}<v-btn
+      :prepend-icon="actionIcons.resolve"
+      v-if="canVerify"
+      :disabled="verifying"
+      @click="verify"
       >核实当前资料</v-btn
     ></v-alert
   >
@@ -462,7 +466,11 @@ onBeforeUnmount(() => {
         <v-alert v-if="verificationNotice" type="info">{{
           verificationNotice
         }}</v-alert>
-        <v-btn v-if="blocked && canVerify" :disabled="verifying" @click="verify"
+        <v-btn
+          :prepend-icon="actionIcons.resolve"
+          v-if="blocked && canVerify"
+          :disabled="verifying"
+          @click="verify"
           >核实当前资料</v-btn
         >
         <EditForm
@@ -479,8 +487,16 @@ onBeforeUnmount(() => {
         />
       </v-card-text>
       <v-card-actions
-        ><v-spacer /><v-btn :disabled="saving" @click="finish()">取消</v-btn
-        ><v-btn :disabled="!canSave" :loading="saving" @click="save"
+        ><v-spacer /><v-btn
+          :prepend-icon="actionIcons.cancel"
+          :disabled="saving"
+          @click="finish()"
+          >取消</v-btn
+        ><v-btn
+          :prepend-icon="actionIcons.save"
+          :disabled="!canSave"
+          :loading="saving"
+          @click="save"
           >保存</v-btn
         ></v-card-actions
       >

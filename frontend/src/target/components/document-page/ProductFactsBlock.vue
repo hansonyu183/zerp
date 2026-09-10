@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
 import { onBeforeUnmount, onMounted, ref, watch, nextTick } from 'vue'
 import { ulid } from 'ulid'
-import FormBlock from '../version-page/FormBlock.vue'
+import FormBlock from '../dynamic-fields/FormBlock.vue'
 import VouReference, { type VouCandidate } from './VouReference.vue'
 import type {
   ProductFactsDraft,
@@ -235,6 +236,7 @@ onBeforeUnmount(() => {
         }}</span
       >
       <v-btn
+        :prepend-icon="actionIcons.add"
         :disabled="
           disabled ||
           modelValue.lines.some(
@@ -323,9 +325,15 @@ onBeforeUnmount(() => {
         :disabled="disabled"
         @update:model-value="line(row.id, $event)"
       />
-      <v-btn :disabled="disabled" @click="remove(row.id)">移除商品行</v-btn>
+      <v-btn
+        :prepend-icon="actionIcons.remove"
+        :disabled="disabled"
+        @click="remove(row.id)"
+        >移除商品行</v-btn
+      >
     </v-card>
     <v-btn
+      :prepend-icon="actionIcons.add"
       :disabled="disabled"
       @click="
         update({

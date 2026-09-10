@@ -13,7 +13,10 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    include: ['tests/unit/target/app-layout.component.spec.ts'],
+    include: [
+      'tests/unit/target/app-layout.component.spec.ts',
+      'tests/unit/target/*.vuetify.spec.ts',
+    ],
     server: { deps: { inline: ['vuetify'] } },
   },
 })

@@ -4,8 +4,8 @@ import type {
   TargetVouReferenceQueryInput,
   queryTargetVouReferences,
 } from '../../api.ts'
-import ReferencePicker from '../direct-page/ReferencePicker.vue'
-import type { EditOption } from '../direct-page/definition.ts'
+import ReferencePicker from '../dynamic-fields/ReferencePicker.vue'
+import type { EditOption } from '../dynamic-fields/edit-fields.ts'
 export type VouCandidate = Awaited<
   ReturnType<typeof queryTargetVouReferences>
 >['items'][number]

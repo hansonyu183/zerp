@@ -3,6 +3,7 @@
   lang="ts"
   generic="Row extends EnabledListItem, Filters extends { keyword: string }"
 >
+import { actionIcons } from '../../presentation/action-icons.ts'
 import {
   computed,
   onBeforeUnmount,
@@ -86,10 +87,10 @@ function confirmDelete() {
   <ManagementPageFrame :title="definition.title" data-testid="list-page-shell">
     <template #actions>
       <v-btn
+        :prepend-icon="actionIcons.create"
         v-if="vm.canAction('create')"
         data-testid="list-create"
         color="primary"
-        prepend-icon="mdi-plus"
         :loading="vm.actionPending"
         :disabled="vm.actionPending || vm.actionBlocked"
         @click="vm.create"
@@ -162,8 +163,15 @@ function confirmDelete() {
       </v-card-text>
       <v-card-actions>
         <v-spacer />
-        <v-btn @click="cancelDelete">取消</v-btn>
-        <v-btn color="error" @click="confirmDelete">删除</v-btn>
+        <v-btn :prepend-icon="actionIcons.cancel" @click="cancelDelete"
+          >取消</v-btn
+        >
+        <v-btn
+          :prepend-icon="actionIcons.delete"
+          color="error"
+          @click="confirmDelete"
+          >删除</v-btn
+        >
       </v-card-actions>
     </v-card>
   </v-dialog>

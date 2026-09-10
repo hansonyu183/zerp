@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
+import FieldInput from './FieldInput.vue'
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { useTargetSession } from '../../session/vm.ts'
 import { loadEditReferences, referencePermission } from './references.ts'
-import type { EditOption, EditReference } from './definition.ts'
+import type { EditOption, EditReference } from './edit-fields.ts'
 const props = defineProps<{
   source: EditReference
   caption: string
@@ -108,20 +110,28 @@ onBeforeUnmount(() => {
 })
 </script>
 <template>
-  <v-autocomplete
-    :label="caption"
+  <FieldInput
+    usage="edit"
+    :field="{
+      key: 'reference',
+      type: 'choice',
+      caption,
+      options: items.map((item) => ({
+        value: item.id,
+        caption: item.name,
+        disabled: item.props.disabled,
+      })),
+      multiple,
+      searchable: true,
+    }"
     :model-value="modelValue"
-    :items="items"
-    item-title="name"
-    item-value="id"
-    :multiple="multiple"
-    :chips="multiple"
-    :clearable="true"
+    clearable
     :disabled="disabled || loading || Boolean(error)"
     :loading="loading"
     @update:model-value="select"
   />
   <v-alert v-if="error" type="error"
-    >{{ error }} <v-btn @click="load">重试</v-btn></v-alert
+    >{{ error }}
+    <v-btn :prepend-icon="actionIcons.retry" @click="load">重试</v-btn></v-alert
   >
 </template>

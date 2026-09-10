@@ -92,3 +92,34 @@ it('has exactly six runtime families for the entire registered business set', ()
   for (const path of files(resolve(root, 'pages')))
     expect(path).toMatch(/\/pages\/(auth|system)\//)
 })
+
+it('keeps ordinary controls in the public scalar input and local blocks free of submit forms', () => {
+  const families = [
+    'direct-page',
+    'version-page',
+    'document-page',
+    'configuration-page',
+    'report-page',
+    'process-page',
+  ]
+  for (const family of families) {
+    for (const name of readdirSync(resolve(root, 'components', family)).filter(
+      (name) => name.endsWith('.vue'),
+    )) {
+      const source = readFileSync(
+        resolve(root, 'components', family, name),
+        'utf8',
+      )
+      expect(source, `${family}/${name}`).not.toMatch(
+        /<v-(?:text-field|textarea|select|autocomplete|checkbox|switch)\b/,
+      )
+    }
+  }
+  const block = readFileSync(
+    resolve(root, 'components/dynamic-fields/FormBlock.vue'),
+    'utf8',
+  )
+  expect(block).not.toMatch(
+    /<(?:v-form|form|EditForm)\b|product-data|customer-data/,
+  )
+})

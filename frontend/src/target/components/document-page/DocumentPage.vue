@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
+import FieldInput from '../dynamic-fields/FieldInput.vue'
 import {
   onBeforeUnmount,
   onMounted,
@@ -912,6 +914,7 @@ onBeforeUnmount(() => {
   <ManagementPageFrame :title="definition.title" data-testid="vou-list-page">
     <template #actions
       ><v-btn
+        :prepend-icon="actionIcons.create"
         v-if="editorAvailable && vm.can('submit-new')"
         :disabled="saving || uncertain"
         color="primary"
@@ -922,6 +925,7 @@ onBeforeUnmount(() => {
     <template #alerts>
       <v-alert v-if="uncertain" type="warning"
         >提交结果未知，普通查询或关闭表单不会解除锁定。<v-btn
+          :prepend-icon="actionIcons.resolve"
           v-if="canVerifySubmission"
           :loading="saving"
           @click="verifySubmission"
@@ -1048,6 +1052,7 @@ onBeforeUnmount(() => {
           </p>
           <v-alert v-if="vm.unknown.has(vm.selected.documentId)" type="warning"
             >该单据操作结果未知，普通查询不会解除审批锁定。<v-btn
+              :prepend-icon="actionIcons.resolve"
               v-if="vm.canVerify"
               @click="vm.verifyOutcome"
               >核实操作结果</v-btn
@@ -1093,6 +1098,7 @@ onBeforeUnmount(() => {
           >复制到临时表单</v-btn
         >
         <v-btn
+          :prepend-icon="actionIcons.delete"
           v-if="editorAvailable && vm.canDelete"
           color="error"
           @click="deleting = true"
@@ -1119,12 +1125,14 @@ onBeforeUnmount(() => {
       >
       <v-card-actions
         ><v-btn
+          :prepend-icon="actionIcons.cancel"
           :disabled="
             Boolean(vm.selected && vm.pending.has(vm.selected.documentId))
           "
           @click="deleting = false"
           >取消</v-btn
         ><v-btn
+          :prepend-icon="actionIcons.delete"
           color="error"
           :disabled="!vm.canDelete"
           @click="vm.deleteSelected().then(() => (deleting = false))"
@@ -1150,11 +1158,16 @@ onBeforeUnmount(() => {
           vm.feedback
         }}</v-alert>
         <p>确认对 {{ vm.selected?.documentNo }} 执行此操作？</p>
-        <v-textarea
+        <FieldInput
+          usage="edit"
+          :field="{
+            key: 'reason',
+            type: 'textarea',
+            caption: '操作原因',
+            maxLength: 1000,
+          }"
           v-if="vm.needsReason"
           v-model="vm.reason"
-          label="操作原因"
-          maxlength="1000"
           :disabled="
             Boolean(vm.selected && vm.pending.has(vm.selected.documentId))
           "
@@ -1162,6 +1175,7 @@ onBeforeUnmount(() => {
       </v-card-text>
       <v-card-actions>
         <v-btn
+          :prepend-icon="actionIcons.cancel"
           :disabled="
             Boolean(vm.selected && vm.pending.has(vm.selected.documentId))
           "
@@ -1193,6 +1207,7 @@ onBeforeUnmount(() => {
         <v-alert v-if="editError" type="error">{{ editError }}</v-alert>
         <v-alert v-if="openingSource" type="warning"
           >重新提交前必须显式删除原开放提交；批准的期初须先在原单据反批准。<v-btn
+            :prepend-icon="actionIcons.delete"
             v-if="canDeleteSource"
             @click="deletingSource = true"
             >删除原开放提交</v-btn
@@ -1275,8 +1290,13 @@ onBeforeUnmount(() => {
           "
         /> </v-card-text
       ><v-card-actions
-        ><v-btn :disabled="saving" @click="closeDraft">取消</v-btn
         ><v-btn
+          :prepend-icon="actionIcons.cancel"
+          :disabled="saving"
+          @click="closeDraft"
+          >取消</v-btn
+        ><v-btn
+          :prepend-icon="actionIcons.submit"
           :disabled="
             saving ||
             uncertain ||
@@ -1298,8 +1318,13 @@ onBeforeUnmount(() => {
       ><v-card-text
         >确认删除原开放提交？临时表单和原审计记录会保留。</v-card-text
       ><v-card-actions
-        ><v-btn :disabled="saving" @click="deletingSource = false">取消</v-btn
         ><v-btn
+          :prepend-icon="actionIcons.cancel"
+          :disabled="saving"
+          @click="deletingSource = false"
+          >取消</v-btn
+        ><v-btn
+          :prepend-icon="actionIcons.delete"
           :disabled="!canDeleteSource"
           :loading="saving"
           @click="deleteOpeningSource"

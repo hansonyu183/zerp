@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
+import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import {
   getTargetMappingCatalog,
@@ -267,22 +269,35 @@ onBeforeUnmount(dispose)
       feedback
     }}</v-alert>
     <div class="mapping-toolbar">
-      <v-select
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'bookId',
+          type: 'choice',
+          caption: '账簿',
+          options: catalog.books.map((option) => ({
+            value: option.id,
+            caption: option.name,
+          })),
+        }"
         v-model="bookId"
-        label="账簿"
-        :items="catalog.books"
-        item-title="name"
-        item-value="id"
         :disabled="!can('catalog')"
         hide-details
       />
       <v-btn
+        :prepend-icon="actionIcons.search"
         :disabled="!can('query') || !bookId"
         :loading="loading"
         @click="search"
         >查询</v-btn
       >
-      <v-btn v-if="can('save')" color="primary" @click="create">新增映射</v-btn>
+      <v-btn
+        :prepend-icon="actionIcons.create"
+        v-if="can('save')"
+        color="primary"
+        @click="create"
+        >新增映射</v-btn
+      >
     </div>
     <v-alert v-if="!can('catalog')" type="info" class="mt-3"
       >缺少映射目录权限，无法选择账簿、单据类型与科目。</v-alert
@@ -347,11 +362,15 @@ onBeforeUnmount(dispose)
         </v-card-text>
         <v-card-actions>
           <v-btn :disabled="saving" @click="close">关闭</v-btn>
-          <v-btn v-if="unknown && can('get')" @click="verify"
+          <v-btn
+            :prepend-icon="actionIcons.resolve"
+            v-if="unknown && can('get')"
+            @click="verify"
             >读取当前配置核实</v-btn
           >
           <v-spacer />
           <v-btn
+            :prepend-icon="actionIcons.save"
             v-if="can('save')"
             color="primary"
             :disabled="unknown || !draft.bookId || !draft.vouEntity"

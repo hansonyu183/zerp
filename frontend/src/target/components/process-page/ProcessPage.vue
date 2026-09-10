@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
+import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { ref, shallowRef, watch, onMounted, onBeforeUnmount } from 'vue'
 import { ulid } from 'ulid'
 import { vouEntityPresentation } from '@zerp/model'
@@ -339,6 +341,7 @@ onBeforeUnmount(dispose)
     ><v-alert v-if="feedback" type="success">{{ feedback }}</v-alert
     ><v-alert v-if="unknown" type="warning"
       >写入结果待核实，请勿重复提交。<v-btn
+        :prepend-icon="actionIcons.resolve"
         v-if="canInstance('audit-history')"
         :disabled="busy"
         @click="verify"
@@ -346,11 +349,13 @@ onBeforeUnmount(dispose)
       ></v-alert
     >
     <div class="d-flex flex-wrap ga-3 align-center">
-      <v-text-field
+      <FieldInput
+        usage="edit"
+        :field="{ key: 'keyword', type: 'text', caption: '流程代码或名称' }"
         v-model="keyword"
-        label="流程代码或名称"
         @keydown.enter="!$event.isComposing && search()"
       /><v-btn
+        :prepend-icon="actionIcons.search"
         :loading="loading"
         :disabled="!canInstance('query') || busy"
         @click="search"
@@ -363,7 +368,12 @@ onBeforeUnmount(dispose)
       :disabled="loading || busy"
       @update:model-value="read"
     />
-    <v-text-field v-if="instance" v-model="reason" label="实例操作原因" />
+    <FieldInput
+      usage="edit"
+      :field="{ key: 'reason', type: 'text', caption: '实例操作原因' }"
+      v-if="instance"
+      v-model="reason"
+    />
     <v-list
       ><v-list-item
         v-for="item in instances"

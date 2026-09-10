@@ -1119,8 +1119,12 @@ export function parseTargetRegisteredResourcePages(source) {
       )
       continue
     }
-    if (!hasDirectProperty(source, start, end, 'component')) {
-      failures.push(`Registry ${domain}/${entity} 缺少 component`)
+    if (!hasDirectProperty(source, start, end, 'definition')) {
+      failures.push(`Registry ${domain}/${entity} 缺少 definition`)
+      continue
+    }
+    if (hasDirectProperty(source, start, end, 'component')) {
+      failures.push(`Registry ${domain}/${entity} 不得登记 component`)
       continue
     }
     if (seenUseCaseKeys.has(useCaseKey)) {

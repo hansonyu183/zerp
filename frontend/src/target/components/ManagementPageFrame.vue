@@ -5,7 +5,7 @@ defineProps<{ title: string }>()
 <template>
   <v-container fluid class="management-page">
     <v-card>
-      <v-card-title class="d-flex align-center">
+      <v-card-title class="d-flex flex-wrap align-center ga-2">
         {{ title }}
         <v-spacer />
         <slot name="actions" />

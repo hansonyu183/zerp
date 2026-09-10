@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { actionIcons } from '../../presentation/action-icons.ts'
+import RowActions from '../dynamic-fields/RowActions.vue'
+import DynamicCols from '../dynamic-fields/DynamicCols.vue'
+import ListPagination from '../list-page/ListPagination.vue'
 import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { ref, shallowRef, watch, onMounted, onBeforeUnmount } from 'vue'
 import { ulid } from 'ulid'
@@ -332,6 +335,10 @@ async function readAudit(processId: string) {
       auditError.value = '运行审计读取失败，请重试。'
   }
 }
+function turnPage(value: number) {
+  page.value = value
+  void read()
+}
 onMounted(read)
 onBeforeUnmount(dispose)
 </script>
@@ -362,11 +369,10 @@ onBeforeUnmount(dispose)
         >查询</v-btn
       >
     </div>
-    <v-pagination
-      v-model="page"
-      :length="Math.max(1, Math.ceil(total / 20))"
+    <ListPagination
+      :pagination="{ mode: 'total', page, pageSize: 20, total }"
       :disabled="loading || busy"
-      @update:model-value="read"
+      @page="turnPage"
     />
     <FieldInput
       usage="edit"
@@ -374,14 +380,22 @@ onBeforeUnmount(dispose)
       v-if="instance"
       v-model="reason"
     />
-    <v-list
-      ><v-list-item
-        v-for="item in instances"
-        :key="item.processId"
-        :title="`${item.definitionName} · ${item.rootDocumentNo}`"
-        :disabled="!canInstance('get')"
-        @click="openInstance(item.processId)"
-    /></v-list>
+    <DynamicCols
+      identity-key="processId"
+      :items="instances"
+      :loading="loading"
+      :fields="[
+        { key: 'definitionName', type: 'text', caption: '流程名称' },
+        { key: 'rootDocumentNo', type: 'text', caption: '单据编号' },
+        { key: '$actions', type: 'actions', caption: '操作' },
+      ]"
+      ><template #actions="{ item }"
+        ><RowActions
+          :actions="[
+            { key: 'open', caption: '打开', disabled: !canInstance('get') },
+          ]"
+          @action="openInstance(item.processId)" /></template
+    ></DynamicCols>
     <v-dialog
       :model-value="document !== null"
       max-width="850"

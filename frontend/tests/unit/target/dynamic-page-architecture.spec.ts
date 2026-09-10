@@ -17,9 +17,7 @@ it('routes the remaining resources to closed page definitions with no VM or arbi
         ? { kind, code: entity }
         : { kind, resource: `${domain}/${entity}` },
     )
-    expect((registration.component as { props?: object }).props).toHaveProperty(
-      'definition',
-    )
+    expect(registration).not.toHaveProperty('component')
   }
   expect(targetResourceRegistry.resolve('rpt', 'rpt-invalid')).toBeNull()
   for (const name of ['mapping', 'report', 'process-instance']) {
@@ -69,8 +67,7 @@ it('has exactly six runtime families for the entire registered business set', ()
     const definition = r.definition!
     expect(definition).toBeDefined()
     const kind = definition.kind
-    if (kinds.has(kind)) expect(r.component).toBe(kinds.get(kind))
-    else kinds.set(kind, r.component)
+    kinds.set(kind, true)
   }
   expect([...kinds.keys()].sort()).toEqual([
     'configuration',

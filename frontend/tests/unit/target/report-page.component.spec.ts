@@ -210,3 +210,23 @@ it('keeps two report reference sources independent when their responses arrive i
   expect(api.queryTargetReport).not.toHaveBeenCalled()
   w.unmount()
 })
+
+it('keeps empty text distinct from null in the visible report result', async () => {
+  const textColumn = { ...column, type: 'TEXT' as const }
+  vi.mocked(api.queryTargetReportDirectory).mockResolvedValue([
+    { ...structuredClone(definition), columns: [textColumn] },
+  ])
+  vi.mocked(api.queryTargetReport).mockResolvedValue({
+    revision: '1',
+    columns: [textColumn],
+    rows: [{ total: '' }, { total: null }],
+    page: 1,
+    pageSize: 20,
+    hasMore: false,
+  })
+  const w = await open()
+  await fill(w)
+  await click(w, '查询')
+  expect(w.findAll('tbody td').map((cell) => cell.text())).toEqual(['', '—'])
+  w.unmount()
+})

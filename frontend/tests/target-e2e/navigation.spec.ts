@@ -54,6 +54,25 @@ test('all authorized resources have one menu entry and unregistered pages send n
   expect(links).toEqual(expected)
   expect(links).not.toContain('/acc/opening')
   expect(links).toContain('/vou/opening')
+  await expect(
+    drawer.locator('a[href="/bob/customer"] .mdi-account-group-outline'),
+  ).toHaveCount(1)
+  await expect(
+    drawer.locator('a[href="/aux/measurement-unit"] .mdi-ruler'),
+  ).toHaveCount(1)
+  const query = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/aux/measurement-unit/query',
+  )
+  await drawer.locator('a[href="/aux/measurement-unit"]').click()
+  expect((await query).ok()).toBe(true)
+  await expect(page.getByTestId('list-page-shell')).toBeVisible()
+  await expect(
+    page
+      .getByRole('button', { name: '新增计量单位', exact: true })
+      .locator('.mdi-plus'),
+  ).toHaveCount(1)
+  businessRequests.length = 0
   await page.goto('/app/no-such-resource')
   await expect(page.getByText('无权访问', { exact: true })).toBeVisible()
   expect(businessRequests).toEqual([])
@@ -100,12 +119,7 @@ test('real create-only permissions expose the user page without unauthorized que
 test('navigation and Host retain the shell at desktop and 390px in both themes', async ({
   browser,
 }) => {
-  const directory = resolve(
-    process.cwd(),
-    '..',
-    '.scratch',
-    'issue-405-navigation',
-  )
+  const directory = resolve(process.cwd(), '..', '.scratch', 'issue-417')
   mkdirSync(directory, { recursive: true })
   for (const width of [1280, 390]) {
     const context = await browser.newContext({
@@ -119,9 +133,36 @@ test('navigation and Host retain the shell at desktop and 390px in both themes',
         page.getByRole('button', { name: '新增客户', exact: true }),
       ).toBeVisible()
       await expect(page.getByRole('table')).toBeVisible()
+      for (const name of ['新增客户', '正式资料', '提交记录'])
+        await expect(
+          page.getByRole('button', { name, exact: true }),
+        ).toBeInViewport({ ratio: 1 })
       for (const theme of ['light', 'dark']) {
         if (theme === 'dark') await page.getByLabel('切换深色模式').click()
         await expect(page.locator('.topbar')).toBeVisible()
+        const toggle = page.getByRole('button', {
+          name: '切换导航',
+          exact: true,
+        })
+        await expect(toggle.locator('.mdi-menu')).toBeVisible()
+        await expect(
+          page
+            .getByRole('button', {
+              name: theme === 'light' ? '切换深色模式' : '切换浅色模式',
+              exact: true,
+            })
+            .locator('.v-icon'),
+        ).toBeVisible()
+        await toggle.focus()
+        await expect(
+          page.getByRole('tooltip').filter({ hasText: '切换导航' }),
+        ).toBeVisible()
+        await toggle.blur()
+        await expect(
+          page
+            .getByRole('button', { name: '新增客户', exact: true })
+            .locator('.v-icon'),
+        ).toHaveAttribute('aria-hidden', 'true')
         expect(
           await page.evaluate(
             () => document.documentElement.scrollWidth <= innerWidth,

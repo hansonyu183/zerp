@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { actionIcon } from '../../presentation/action-icons.ts'
 import { computed } from 'vue'
 
 import { FieldContractError } from './contract.ts'
@@ -53,6 +54,7 @@ const emit = defineEmits<{
     <v-btn
       v-for="action in checkedActions"
       :key="action.key"
+      :prepend-icon="actionIcon(action.key)"
       size="small"
       variant="text"
       :color="action.color"

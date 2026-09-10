@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { actionIcons } from '../../presentation/action-icons.ts'
+import RowActions from '../dynamic-fields/RowActions.vue'
+import type { RowAction } from '../dynamic-fields/types.ts'
+import DynamicCols from '../dynamic-fields/DynamicCols.vue'
+import ListPagination from '../list-page/ListPagination.vue'
 import FieldInput from '../dynamic-fields/FieldInput.vue'
 import {
   computed,
@@ -74,6 +78,47 @@ const filter = ref({ keyword: '' })
 const query = shallowRef<VersionQuery>({ keyword: '', page: 1, pageSize: 20 })
 const rows = shallowRef<readonly Current[]>([]),
   candidates = shallowRef<readonly SubmissionItem[]>([])
+function currentActions(item: Current): RowAction[] {
+  const actions: RowAction[] = []
+  if (can('get')) actions.push({ key: 'view', caption: '查看' })
+  if (
+    canCreate.value &&
+    (definition.resource !== 'wfl/process-definition' || can('submission-get'))
+  )
+    actions.push({
+      key: 'clone',
+      caption: '克隆',
+      disabled: locked.value || loading.value,
+    })
+  if (canChange.value)
+    actions.push({ key: 'submit', caption: '提交变更', disabled: locked.value })
+  const enablement = item.enabled ? 'disable' : 'enable'
+  if (adapter.setEnabled && can(enablement))
+    actions.push({
+      key: enablement,
+      caption: item.enabled ? '停用' : '启用',
+      disabled: locked.value,
+    })
+  return actions
+}
+function runCurrentAction(key: string, item: Current) {
+  if (key === 'view') void openCurrent(item)
+  else if (key === 'clone') void cloneCurrent(item)
+  else if (key === 'submit') void change(item)
+  else if (key === 'enable' || key === 'disable') void toggle(item)
+}
+const submissionRows = computed(() =>
+  candidates.value.map((item) => ({
+    ...item,
+    code: item.code ?? '待编',
+    candidateStatus: item.openCandidate
+      ? approvalStatusPresentation[item.openCandidate.status].label
+      : '无',
+    approvedVersion: item.latestApproved
+      ? String(item.latestApproved.versionNo)
+      : '无',
+  })),
+)
 const total = ref(0),
   querying = ref(false),
   queryError = ref('')
@@ -811,91 +856,58 @@ onBeforeUnmount(() => {
         :disabled="!can(tab === 'current' ? 'query' : 'submission-query')"
         @search="search"
     /></template>
-    <v-progress-linear v-if="querying" indeterminate />
-    <div class="version-table">
-      <v-table v-if="tab === 'current'"
-        ><thead>
-          <tr>
-            <th>编码</th>
-            <th>名称</th>
-            <th>状态</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in rows" :key="item.objectId">
-            <td>{{ item.code }}</td>
-            <td>{{ item.name }}</td>
-            <td>{{ item.enabled ? '启用' : '停用' }}</td>
-            <td>
-              <div class="version-actions">
-                <v-btn v-if="can('get')" @click="openCurrent(item)">查看</v-btn
-                ><v-btn
-                  v-if="
-                    canCreate &&
-                    (definition.resource !== 'wfl/process-definition' ||
-                      can('submission-get'))
-                  "
-                  :disabled="locked || loading"
-                  @click="cloneCurrent(item)"
-                  >克隆</v-btn
-                ><v-btn
-                  v-if="canChange"
-                  :disabled="locked"
-                  @click="change(item)"
-                  >提交变更</v-btn
-                ><v-btn
-                  v-if="
-                    adapter.setEnabled &&
-                    can(item.enabled ? 'disable' : 'enable')
-                  "
-                  :disabled="locked"
-                  @click="toggle(item)"
-                  >{{ item.enabled ? '停用' : '启用' }}</v-btn
-                >
-              </div>
-            </td>
-          </tr>
-        </tbody></v-table
-      >
-      <v-table v-else
-        ><thead>
-          <tr>
-            <th>编码</th>
-            <th>候选版本</th>
-            <th>最新批准</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in candidates" :key="item.subjectId">
-            <td>{{ item.code ?? '待编' }}</td>
-            <td>
-              {{
-                item.openCandidate
-                  ? approvalStatusPresentation[item.openCandidate.status].label
-                  : '无'
-              }}
-            </td>
-            <td>{{ item.latestApproved?.versionNo ?? '无' }}</td>
-            <td>
-              <v-btn
-                v-if="can('submission-get') || can('versions')"
-                @click="openCandidate(item)"
-                >查看</v-btn
-              >
-            </td>
-          </tr>
-        </tbody></v-table
-      >
-    </div>
+    <DynamicCols
+      v-if="tab === 'current'"
+      identity-key="objectId"
+      :items="rows"
+      :loading="querying"
+      :fields="[
+        { key: 'code', type: 'text', caption: '编码' },
+        { key: 'name', type: 'text', caption: '名称' },
+        {
+          key: 'enabled',
+          type: 'boolean',
+          caption: '状态',
+          trueCaption: '启用',
+          falseCaption: '停用',
+        },
+        { key: '$actions', type: 'actions', caption: '操作' },
+      ]"
+      ><template #actions="{ item }">
+        <RowActions
+          :actions="currentActions(item)"
+          @action="runCurrentAction($event, item)" /></template
+    ></DynamicCols>
+    <DynamicCols
+      v-else
+      identity-key="subjectId"
+      :items="submissionRows"
+      :loading="querying"
+      :fields="[
+        { key: 'code', type: 'text', caption: '编码' },
+        { key: 'candidateStatus', type: 'text', caption: '候选版本' },
+        { key: 'approvedVersion', type: 'text', caption: '最新批准' },
+        { key: '$actions', type: 'actions', caption: '操作' },
+      ]"
+      ><template #actions="{ item }"
+        ><RowActions
+          :actions="
+            can('submission-get') || can('versions')
+              ? [{ key: 'view', caption: '查看' }]
+              : []
+          "
+          @action="openCandidate(item)" /></template
+    ></DynamicCols>
     <template #footer
-      ><span>共 {{ total }} 项</span
-      ><v-pagination
-        v-if="total > query.pageSize"
-        :model-value="query.page"
-        :length="Math.ceil(total / query.pageSize)"
-        @update:model-value="page"
+      ><ListPagination
+        :pagination="{
+          mode: 'total',
+          page: query.page,
+          pageSize: query.pageSize,
+          total,
+        }"
+        :disabled="querying"
+        @page="page"
     /></template>
   </ManagementPageFrame>
   <v-dialog :model-value="open" persistent max-width="1000"
@@ -1092,10 +1104,6 @@ onBeforeUnmount(() => {
   >
 </template>
 <style scoped>
-.version-table {
-  overflow-x: auto;
-  min-width: 0;
-}
 .version-actions {
   display: flex;
   flex-wrap: wrap;

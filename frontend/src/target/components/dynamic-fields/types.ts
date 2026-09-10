@@ -32,6 +32,7 @@ export interface TextField<K extends string = string> extends FieldBase<
   K,
   'text'
 > {
+  emptyCaption?: string
   range?: never
 }
 
@@ -130,7 +131,9 @@ type StringColumnField<K extends string> =
   TextField<K> | DecimalField<K> | DateField<K> | EnumField<K>
 
 type StringFilterField<K extends string> =
-  StringColumnField<K> | ReferenceField<K>
+  | (Omit<TextField<K>, 'emptyCaption'> & { emptyCaption?: never })
+  | Exclude<StringColumnField<K>, TextField<K>>
+  | ReferenceField<K>
 
 type ColumnFieldFor<K extends string, Value> =
   NonNullable<Value> extends string
@@ -169,14 +172,15 @@ type FilterFields<Filters extends object> = {
   [K in FieldKey<Filters>]: FilterFieldFor<K, Filters[K]>
 }[FieldKey<Filters>]
 
-export type ColumnField<Row extends object = never> = [Row] extends [never]
+export type ColumnField<Row extends object = never> = ([Row] extends [never]
   ? AnyDataField | ActionsField
-  : RowFields<Row> | ActionsField
+  : RowFields<Row> | ActionsField) & { width?: number }
 
 export type FilterField<Filters extends object = never> = [Filters] extends [
   never,
 ]
-  ? AnyDataField
+  ? | Exclude<AnyDataField, TextField>
+    | (Omit<TextField, 'emptyCaption'> & { emptyCaption?: never })
   : FilterFields<Filters>
 
 export type DataField<T extends object = never> = [T] extends [never]

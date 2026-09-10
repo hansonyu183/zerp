@@ -25,23 +25,35 @@ export const archiveStubs = {
   VDataTable: {
     props: ['headers', 'items'],
     setup(
-      props: { headers: Array<{ key: string }>; items: object[] },
+      props: {
+        headers: Array<{ key: string; title: string }>
+        items: object[]
+      },
       {
         slots,
       }: { slots: Record<string, (props: { item: object }) => unknown> },
     ) {
       return () =>
-        h(
-          'table',
-          props.items.map((item) =>
+        h('table', [
+          h(
+            'thead',
             h(
               'tr',
-              props.headers.map((header) =>
-                h('td', slots[`item.${header.key}`]?.({ item })),
+              props.headers.map((header) => h('th', header.title)),
+            ),
+          ),
+          h(
+            'tbody',
+            props.items.map((item) =>
+              h(
+                'tr',
+                props.headers.map((header) =>
+                  h('td', slots[`item.${header.key}`]?.({ item })),
+                ),
               ),
             ),
           ),
-        )
+        ])
     },
   },
   VDialog: {

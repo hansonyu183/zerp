@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { actionIcons } from '../../presentation/action-icons.ts'
+import DynamicCols from '../dynamic-fields/DynamicCols.vue'
+import ListPagination from '../list-page/ListPagination.vue'
 import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { computed, ref, shallowRef, watch, onMounted, onUnmounted } from 'vue'
 import {
@@ -52,11 +54,26 @@ const references = ref<
   >
 >({})
 const displayRows = computed(() =>
-  rows.value.map((row) =>
-    columns.value
-      .filter((column) => column.visible)
-      .map((column) => reportCell(column, row[column.alias])),
-  ),
+  rows.value.map((row, index) => ({
+    displayKey: `${page.value}:${index}`,
+    ...Object.fromEntries(
+      columns.value
+        .filter((column) => column.visible)
+        .map((column, columnIndex) => [
+          `column${columnIndex}`,
+          reportCell(column, row[column.alias]),
+        ]),
+    ),
+  })),
+)
+const displayColumns = computed(() =>
+  visibleColumns.value.map((column, index) => ({
+    key: `column${index}`,
+    type: 'text' as const,
+    emptyCaption: '',
+    caption: column.name,
+    width: column.width,
+  })),
 )
 let disposed = false,
   request = 0,
@@ -389,38 +406,20 @@ function enter(event: KeyboardEvent) {
     <v-alert v-if="!canQuery && canExport" type="info" class="my-4"
       >你可以填写参数并导出此报表。</v-alert
     >
-    <v-table v-if="canQuery" class="mt-4">
-      <thead>
-        <tr>
-          <th
-            v-for="column in visibleColumns"
-            :key="column.alias"
-            :style="{ minWidth: `${column.width}px` }"
-          >
-            {{ column.name }}
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="(row, index) in displayRows" :key="index">
-          <td v-for="(cell, columnIndex) in row" :key="columnIndex">
-            {{ cell }}
-          </td>
-        </tr>
-      </tbody>
-    </v-table>
-    <p v-if="canQuery && !loading && displayRows.length === 0" class="my-4">
-      暂无结果，请填写参数后查询。
-    </p>
-    <template v-if="canQuery" #footer>
-      <v-btn :disabled="page <= 1 || loading" @click="goToPage(page - 1)"
-        >上一页</v-btn
-      >
-      <span>第 {{ page }} 页</span>
-      <v-btn :disabled="!hasMore || loading" @click="goToPage(page + 1)"
-        >下一页</v-btn
-      >
-    </template>
+    <DynamicCols
+      v-if="canQuery"
+      class="mt-4"
+      identity-key="displayKey"
+      :items="displayRows"
+      :fields="displayColumns"
+      :loading="loading"
+    />
+    <template v-if="canQuery" #footer
+      ><ListPagination
+        :pagination="{ mode: 'more', page, hasMore }"
+        :disabled="loading"
+        @page="goToPage"
+    /></template>
   </ManagementPageFrame>
 </template>
 <style scoped>

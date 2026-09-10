@@ -132,7 +132,11 @@ test('WFL definition page edits, trials, submits, approves and preserves an old 
       .locator('.v-navigation-drawer a[href="/wfl/process-instance"]')
       .click()
     await reviewer.setViewportSize({ width: 390, height: 844 })
-    await reviewer.getByText(/浏览器初版 · /).click()
+    await reviewer
+      .getByRole('row')
+      .filter({ hasText: '浏览器初版' })
+      .getByRole('button', { name: '打开', exact: true })
+      .click()
     await expect(reviewer.locator('main')).toContainText(v1.submissionId)
     await reviewer
       .getByRole('button', { name: '创建 出库', exact: true })

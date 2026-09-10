@@ -2,6 +2,8 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { h, nextTick, onUnmounted, ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { userPage } from '@/target/definitions/user.ts'
+import { rolePage } from '@/target/definitions/role.ts'
 import ResourceHost from '@/target/navigation/ResourceHost.vue'
 import { createResourceRegistry } from '@/target/navigation/registry.ts'
 
@@ -72,11 +74,12 @@ describe('business resource Host', () => {
         domain: 'app',
         entity: 'user',
         registry: createResourceRegistry([
-          { domain: 'app', entity: 'user', component },
+          { domain: 'app', entity: 'user', definition: userPage },
         ]),
       },
       global: {
         stubs: {
+          DirectPage: component,
           VEmptyState: {
             props: ['title'],
             template: '<div>{{ title }}</div>',
@@ -113,11 +116,12 @@ describe('business resource Host', () => {
       },
     }
     const registry = createResourceRegistry([
-      { domain: 'app', entity: 'user', component },
-      { domain: 'app', entity: 'role', component },
+      { domain: 'app', entity: 'user', definition: userPage },
+      { domain: 'app', entity: 'role', definition: rolePage },
     ])
     const wrapper = mount(ResourceHost, {
       props: { domain: 'app', entity: 'user', registry },
+      global: { stubs: { DirectPage: component } },
     })
     expect(wrapper.get('[data-testid="registered"]').text()).toBe('1')
 

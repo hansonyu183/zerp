@@ -16,7 +16,9 @@ const displayValue = computed(() => {
   const value = props.value
   if (value === null || value === undefined || value === '') {
     assertFieldValue(field, value)
-    return '—'
+    return value === '' && field.type === 'text'
+      ? (field.emptyCaption ?? '—')
+      : '—'
   }
   assertFieldValue(field, value)
   switch (field.type) {

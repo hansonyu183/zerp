@@ -3,6 +3,7 @@ import { computed } from 'vue'
 
 import FieldCol from './FieldCol.vue'
 import type { ColumnField, DataField } from './types.ts'
+import { FieldContractError } from './contract.ts'
 import { validateRows } from './values.ts'
 
 const props = withDefaults(
@@ -10,13 +11,13 @@ const props = withDefaults(
     fields: readonly ColumnField[]
     items: readonly Row[]
     loading?: boolean
-    identityKey?: 'id' | 'documentId'
+    identityKey?: Extract<keyof Row, string>
   }>(),
-  { loading: false, identityKey: 'id' },
+  { loading: false, identityKey: 'id' as Extract<keyof Row, string> },
 )
 
 defineSlots<{
-  actions(props: { item: Row }): unknown
+  actions?(props: { item: Row }): unknown
 }>()
 
 const headers = computed(() =>
@@ -24,10 +25,24 @@ const headers = computed(() =>
     title: field.caption,
     key: field.key,
     sortable: false,
+    width: field.width,
+    minWidth: field.width,
   })),
 )
 
-const checkedItems = computed(() => validateRows(props.fields, props.items))
+const checkedItems = computed(() => {
+  const rows = validateRows(props.fields, props.items, {
+    requireActions: false,
+  })
+  const keys = new Set<string>()
+  for (const row of rows) {
+    const key = row[props.identityKey as keyof Row]
+    if (typeof key !== 'string' || !key || keys.has(key))
+      throw new FieldContractError('列表行身份必须非空且唯一')
+    keys.add(key)
+  }
+  return rows
+})
 </script>
 
 <template>

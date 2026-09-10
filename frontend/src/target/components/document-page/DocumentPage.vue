@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { actionIcons } from '../../presentation/action-icons.ts'
+import ListPagination from '../list-page/ListPagination.vue'
 import FieldInput from '../dynamic-fields/FieldInput.vue'
 import {
   onBeforeUnmount,
@@ -991,12 +992,15 @@ onBeforeUnmount(() => {
       /></template>
     </DynamicCols>
     <template #footer>
-      <span>共 {{ vm.total }} 项</span>
-      <v-pagination
-        v-if="vm.searchable && vm.total > vm.pageSize"
-        :model-value="vm.page"
-        :length="Math.ceil(vm.total / vm.pageSize)"
-        @update:model-value="vm.goToPage"
+      <ListPagination
+        :pagination="{
+          mode: 'total',
+          page: vm.page,
+          pageSize: vm.pageSize,
+          total: vm.total,
+        }"
+        :disabled="vm.loading || !vm.searchable"
+        @page="vm.goToPage"
       />
     </template>
   </ManagementPageFrame>

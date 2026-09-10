@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { actionIcons } from '../../presentation/action-icons.ts'
+import RowActions from '../dynamic-fields/RowActions.vue'
+import DynamicCols from '../dynamic-fields/DynamicCols.vue'
+import ListPagination from '../list-page/ListPagination.vue'
 import FieldInput from '../dynamic-fields/FieldInput.vue'
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import {
   getTargetMappingCatalog,
   queryTargetMappings,
@@ -30,6 +33,14 @@ const catalog = ref<Awaited<ReturnType<typeof getTargetMappingCatalog>>>({
   subjects: [],
 })
 const rows = ref<Awaited<ReturnType<typeof queryTargetMappings>>['items']>([])
+const displayRows = computed(() =>
+  rows.value.map((row) => ({
+    ...row,
+    bookName: row.book.name,
+    vouName: row.vouEntity.name,
+    resultName: mappingResults[row.defaultResult],
+  })),
+)
 const bookId = ref(''),
   page = ref(1),
   total = ref(0),
@@ -302,36 +313,26 @@ onBeforeUnmount(dispose)
     <v-alert v-if="!can('catalog')" type="info" class="mt-3"
       >缺少映射目录权限，无法选择账簿、单据类型与科目。</v-alert
     >
-    <v-table class="mt-4">
-      <thead>
-        <tr>
-          <th>账簿</th>
-          <th>单据类型</th>
-          <th>默认结果</th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="row in rows" :key="row.subjectId">
-          <td>{{ row.book.name }}</td>
-          <td>{{ row.vouEntity.name }}</td>
-          <td>{{ mappingResults[row.defaultResult] }}</td>
-          <td>
-            <v-btn
-              :disabled="!can('get')"
-              variant="text"
-              @click="edit(row.book.id, row.vouEntity.code)"
-              >打开</v-btn
-            >
-          </td>
-        </tr>
-      </tbody>
-    </v-table>
-    <v-pagination
-      v-if="total > 20"
-      :model-value="page"
-      :length="Math.ceil(total / 20)"
-      @update:model-value="turnPage"
+    <DynamicCols
+      class="mt-4"
+      identity-key="subjectId"
+      :items="displayRows"
+      :loading="loading"
+      :fields="[
+        { key: 'bookName', type: 'text', caption: '账簿' },
+        { key: 'vouName', type: 'text', caption: '单据类型' },
+        { key: 'resultName', type: 'text', caption: '默认结果' },
+        { key: '$actions', type: 'actions', caption: '操作' },
+      ]"
+      ><template #actions="{ item }"
+        ><RowActions
+          :actions="[{ key: 'open', caption: '打开', disabled: !can('get') }]"
+          @action="edit(item.book.id, item.vouEntity.code)" /></template
+    ></DynamicCols>
+    <ListPagination
+      :pagination="{ mode: 'total', page, pageSize: 20, total }"
+      :disabled="loading"
+      @page="turnPage"
     />
     <v-dialog
       :model-value="open"

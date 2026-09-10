@@ -3,6 +3,9 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTheme } from 'vuetify'
 
+import { actionIcons } from '../presentation/action-icons.ts'
+import { presentNavigation } from '../presentation/navigation-icons.ts'
+import NavigationMenu from '../navigation/NavigationMenu.vue'
 import AppSnackbar from '../components/AppSnackbar.vue'
 import { useTargetBranding } from '../session/branding.ts'
 import { useTargetSession } from '../session/vm.ts'
@@ -26,6 +29,7 @@ const passwords = reactive({
 })
 let accountRequest = 0
 
+const navigation = computed(() => presentNavigation(session.resourceGroups))
 const displayName = computed(() => session.user?.name || '用户')
 const initials = computed(
   () => displayName.value.trim().slice(0, 1).toUpperCase() || 'U',
@@ -232,7 +236,17 @@ onBeforeUnmount(() => {
 
 <template>
   <v-app-bar class="topbar" elevation="0" height="64">
-    <v-app-bar-nav-icon aria-label="切换导航" @click="drawer = !drawer" />
+    <v-app-bar-nav-icon
+      :icon="actionIcons.navigation"
+      aria-label="切换导航"
+      @click="drawer = !drawer"
+      ><v-icon :icon="actionIcons.navigation" /><v-tooltip
+        activator="parent"
+        location="bottom"
+        content-class="bg-surface elevation-4"
+        >切换导航</v-tooltip
+      ></v-app-bar-nav-icon
+    >
     <div class="company" @click="router.push('/')">
       <div class="company__mark">Z</div>
       <div class="company__copy">
@@ -241,14 +255,26 @@ onBeforeUnmount(() => {
     </div>
     <v-spacer />
     <v-btn
-      :icon="isDark ? 'mdi-weather-sunny' : 'mdi-weather-night'"
+      :icon="isDark ? actionIcons.lightTheme : actionIcons.darkTheme"
       :aria-label="isDark ? '切换浅色模式' : '切换深色模式'"
       variant="text"
       @click="toggleTheme"
-    />
+      ><v-icon
+        :icon="isDark ? actionIcons.lightTheme : actionIcons.darkTheme"
+      /><v-tooltip
+        activator="parent"
+        location="bottom"
+        content-class="bg-surface elevation-4"
+        >{{ isDark ? '切换浅色模式' : '切换深色模式' }}</v-tooltip
+      ></v-btn
+    >
     <v-menu location="bottom end"
       ><template #activator="{ props }"
-        ><v-btn v-bind="props" class="account-button" variant="text"
+        ><v-btn
+          v-bind="props"
+          class="account-button"
+          variant="text"
+          :aria-label="`账户：${displayName}`"
           ><v-avatar color="primary" size="34"
             ><v-img
               v-if="session.profile?.avatarUrl"
@@ -256,41 +282,23 @@ onBeforeUnmount(() => {
               alt="用户头像"
             /><span v-else>{{ initials }}</span></v-avatar
           ><span>{{ displayName }}</span
-          ><v-icon icon="mdi-chevron-down" /></v-btn></template
+          ><v-icon :icon="actionIcons.expand" /></v-btn></template
       ><v-list min-width="220"
         ><v-list-item
-          prepend-icon="mdi-account-edit-outline"
+          :prepend-icon="actionIcons.account"
           title="名称与头像"
           @click="openProfile" /><v-list-item
-          prepend-icon="mdi-lock-reset"
+          :prepend-icon="actionIcons.password"
           title="更改密码"
           @click="passwordDialog = true" /><v-divider /><v-list-item
-          prepend-icon="mdi-logout"
+          :prepend-icon="actionIcons.signOut"
           title="退出登录"
           @click="signOut" /></v-list
     ></v-menu>
   </v-app-bar>
   <v-navigation-drawer v-model="drawer" width="288">
     <div class="sidebar-label">导航</div>
-    <v-list nav class="px-3"
-      ><v-list-group
-        v-for="group in session.resourceGroups"
-        :key="group.domain"
-        :value="group.domain"
-        ><template #activator="{ props }"
-          ><v-list-item
-            v-bind="props"
-            prepend-icon="mdi-folder-outline"
-            :title="group.displayName"
-          ></v-list-item></template
-        ><v-list-item
-          v-for="resource in group.resources"
-          :key="resource.key"
-          prepend-icon="mdi-file-document-outline"
-          :title="resource.displayName"
-          :to="resource.routePath"
-          rounded="lg" /></v-list-group
-    ></v-list>
+    <NavigationMenu :groups="navigation" />
     <template #append
       ><div class="sidebar-footer">ZERP · 企业工作台</div></template
     >

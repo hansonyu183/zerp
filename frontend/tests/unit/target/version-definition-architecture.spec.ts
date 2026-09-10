@@ -12,7 +12,6 @@ const resources = [
 ] as const
 const root = resolve(import.meta.dirname, '../../../src/target')
 it('assembles every version archive from one stateless definition and a single runtime', () => {
-  let component: unknown
   const importsAllowed = new Set([
     '../api.ts',
     '../components/version-page/definition.ts',
@@ -31,8 +30,6 @@ it('assembles every version archive from one stateless definition and a single r
       'kind',
       'resource',
     ])
-    component ??= registration.component
-    expect(registration.component).toBe(component)
     const source = readFileSync(
       resolve(root, `definitions/${entity}.ts`),
       'utf8',
@@ -49,6 +46,6 @@ it('assembles every version archive from one stateless definition and a single r
   expect(existsSync(resolve(root, 'pages/bob'))).toBe(false)
   expect(existsSync(resolve(root, 'pages/wfl/definition'))).toBe(false)
   expect(
-    targetResourceRegistry.resolve('wfl', 'process-instance')!.component,
-  ).not.toBe(component)
+    targetResourceRegistry.resolve('wfl', 'process-instance')!.definition.kind,
+  ).toBe('process')
 })

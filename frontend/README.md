@@ -9,8 +9,12 @@ AppLayout、Vuetify 主题和公共反馈保持既有风格。`ManagementPageFra
 ```bash
 pnpm dev:target
 pnpm typecheck
-pnpm test:unit
+pnpm check:architecture
+pnpm test:pure
+pnpm test:component
 pnpm build:target
 ```
+
+`pnpm test:unit` 仍执行全部普通与 Vuetify 测试；源码边界及部署配置检查在 `pnpm check:architecture` 的 Node 环境运行，三个配置互不重复。
 
 完整 PostgreSQL 与浏览器验收从仓库根目录运行 `make e2e`。生产构建和 API 基址见[根 README](../README.md)与[前端 API 配置](../docs/operations/frontend-api-configuration.md)。

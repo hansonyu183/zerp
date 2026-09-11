@@ -5,7 +5,7 @@ import { targetResourceRegistry } from '@/target/navigation/registry.ts'
 
 const definitionRoot = resolve(
   import.meta.dirname,
-  '../../../src/target/definitions',
+  '../../src/target/definitions',
 )
 const resources = [
   'app/user',

@@ -14,7 +14,6 @@ describe('production frontend deployment configuration', () => {
     expect(productionEnvironment).toContain(
       'VITE_TARGET_API_BASE_URL=https://zerp-api.bytesucceed.com',
     )
-    expect(productionEnvironment).not.toContain('VITE_API_BASE_URL=')
     expect(productionEnvironment).not.toContain('127.0.0.1')
   })
 

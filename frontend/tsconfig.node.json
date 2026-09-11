@@ -22,6 +22,8 @@
   "include": [
     "vite.target.config.ts",
     "vitest.config.ts",
+    "vitest.vuetify.config.ts",
+    "vitest.static.config.ts",
     "playwright.target.config.ts",
     "wfl-starlark-parity.playwright.config.ts"
   ]

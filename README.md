@@ -21,14 +21,30 @@ docs/use-cases/       页面编排与验收场景
 ```bash
 make bootstrap
 make dev
+make check-static
+make test-unit
+make test-component
 make generate-check
-make check
-make test
 make e2e
 make target-down
 ```
 
-`make dev` 启动可丢弃 target 数据库与 Hono API，再以前台 Vite 启动 SPA。`make generate` 从 Hono/Zod 路由和 target schema 生成 OpenAPI、权限目录与 Kysely 类型；`packages/api-client/` 在编译期直接从同一 Hono route type 推导客户端类型。生成物不得手工修改。`make e2e` 重建隔离数据库并运行生成、类型、单元、真实 PostgreSQL 与浏览器门禁。各浏览器专项分别重建可丢弃库并连接同一独占 Compose API/Web；专项脚本不再启动内嵌 API 或 Vite。
+`make dev` 启动可丢弃 target 数据库与 Hono API，再以前台 Vite 启动 SPA。`make generate` 从 Hono/Zod 路由和 target schema 生成 OpenAPI、权限目录与 Kysely 类型；`packages/api-client/` 在编译期直接从同一 Hono route type 推导客户端类型。生成物不得手工修改。
+
+| 命令                    | 职责与前置                                                                                                                                                                       |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `make check-static`     | 格式、文档、当前架构、生成工具测试、全包类型与前端 lint；只需安装依赖，不生成、不启动 Compose 或浏览器。                                                                         |
+| `make check`            | 静态检查加 CI 配置与分类/汇总行为测试。                                                                                                                                          |
+| `make test-unit`        | model/API 单测与前端纯计算、分页、序列化、状态决策测试；不准备数据库或 WASM。                                                                                                    |
+| `make test-component`   | 普通组件交互与真实 Vuetify 组件；AppLayout 仅进入普通配置。                                                                                                                      |
+| `make test`             | 单元加组件测试。                                                                                                                                                                 |
+| `make test-integration` | 真实 PostgreSQL 集成与现有迁移验收；必须显式提供独占可丢弃的 `TARGET_TEST_DATABASE_URL`，库名以 `_test` 结尾，且已应用当前 schema、同步目录、构建 WFL WASM。该入口不重建数据库。 |
+| `make generate-check`   | 生成业务契约、重建 target 数据库并生成数据库类型，再复用统一差异检查器。                                                                                                         |
+| `make e2e`              | 完整验收：公共/CI 检查、生成物、静态、单元、组件、编排 CLI、真实 PostgreSQL、WFL Node/browser parity、Compose 构建与五组串行浏览器验收；任一必需阶段失败即退出。                 |
+
+例如，确认没有其他任务占用 `zerp-target` 后，执行 `make target-db` 与 `pnpm --filter @zerp/wfl-starlark wasm:build` 准备本地隔离库与 WASM，再通过受控环境变量提供该库地址运行 `make test-integration`。不得指向共享库或生产库；集成测试写入真实数据，迁移测试创建并回收独立 schema。完成后执行 `make target-down`。
+
+`make target-e2e` 是 CI L3 的运行时验收入口；CI 的 common/tooling 作业分别负责公共检查和 CI 行为测试，本地完整验收统一用 `make e2e`。完整验收只在 Compose Web 镜像内构建 SPA，独立构建仍可运行 `pnpm --filter @zerp/frontend build:target`。通用浏览器套件与 WFL、VOU catalog、VOU opening、VOU entry 四个专项各使用一次独占数据库准备，始终串行；WFL browser parity 只在专属阶段执行。
 
 ## Pull Request 检查
 
@@ -38,7 +54,7 @@ make target-down
 - L1：文档检查器、Prettier 配置、CI 分类与汇总脚本、测试及 `.github/workflows/ci.yml`。运行公共检查和工具/CI 行为测试。
 - L3：其余所有文件，包括 `.github/workflows/target.yml`、业务代码、SQL、依赖、运行配置和 Target 执行定义。运行公共检查、工具/CI 行为测试和完整 `make target-e2e`。
 
-重命名同时按变更前路径删除和变更后路径新增分类；修改分类规则时，基线规则与新规则分别计算并取较高等级。唯一必需检查为 `ci-required`，它会严格汇总各级必须运行的任务。开发者本地仍可用 `make check`、`make test` 和 `make e2e` 运行完整验证。
+重命名同时按变更前路径删除和变更后路径新增分类；修改分类规则时，基线规则与新规则分别计算并取较高等级。唯一必需检查为 `ci-required`，它会严格汇总各级必须运行的任务。开发者本地用 `make check`、`make test` 运行独立检查，用 `make e2e` 运行完整验证。
 
 ## 生产形态
 

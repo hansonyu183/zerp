@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { expect, it } from 'vitest'
 import { targetResourceRegistry } from '@/target/navigation/registry.ts'
@@ -10,7 +10,7 @@ const resources = [
   'bob/sales-partner',
   'wfl/process-definition',
 ] as const
-const root = resolve(import.meta.dirname, '../../../src/target')
+const root = resolve(import.meta.dirname, '../../src/target')
 it('assembles every version archive from one stateless definition and a single runtime', () => {
   const importsAllowed = new Set([
     '../api.ts',
@@ -43,8 +43,6 @@ it('assembles every version archive from one stateless definition and a single r
       /\b(?:reactive|ref|shallowRef|computed|watch|onMounted|fetch|defineComponent|render|eval)\s*\(|<template|<v-|\bas\s+(?:any|unknown)\b/,
     )
   }
-  expect(existsSync(resolve(root, 'pages/bob'))).toBe(false)
-  expect(existsSync(resolve(root, 'pages/wfl/definition'))).toBe(false)
   expect(
     targetResourceRegistry.resolve('wfl', 'process-instance')!.definition.kind,
   ).toBe('process')

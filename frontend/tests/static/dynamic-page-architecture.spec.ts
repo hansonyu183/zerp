@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import { expect, it } from 'vitest'
 import { vouEntities } from '@zerp/model'
 import { targetResourceRegistry } from '@/target/navigation/registry.ts'
-const root = resolve(import.meta.dirname, '../../../src/target')
+const root = resolve(import.meta.dirname, '../../src/target')
 it('routes the remaining resources to closed page definitions with no VM or arbitrary adapter surface', () => {
   for (const [domain, entity, kind] of [
     ['acc', 'mapping', 'configuration'],

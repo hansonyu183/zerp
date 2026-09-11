@@ -1,5 +1,6 @@
 import type { Ref } from 'vue'
-import type { DirectDefinition, EditFields } from './definition.ts'
+import type { EditFields } from '../dynamic-fields/edit-fields.ts'
+import type { DirectDefinition } from './definition.ts'
 import { defineDirectPage } from './definition.ts'
 import type { TargetMeasurementUnitCreateInput } from '../../api.ts'
 import { measurementUnitPage } from '../../definitions/measurement-unit.ts'

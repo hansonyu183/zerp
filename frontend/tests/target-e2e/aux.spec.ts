@@ -84,7 +84,7 @@ async function exerciseSimpleAuxPage(page: Page, config: SimpleAuxPage) {
     await expect(dialog).toHaveCount(0)
   }
 
-  const totalLabel = page.locator('.management-page__footer > span')
+  const totalLabel = page.getByText(/^共 \d+ 项$/)
   await expect(totalLabel).toHaveText(/共 \d+ 项/)
   expect(
     Number((await totalLabel.innerText()).match(/\d+/)?.[0]),

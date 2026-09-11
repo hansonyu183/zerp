@@ -149,3 +149,43 @@ export function csv(
     )
   return '\ufeff' + lines.join('\r\n')
 }
+
+export function parameterField(parameter: Parameter) {
+  const base = {
+    key: parameter.key,
+    caption: `${parameter.name}${parameter.required ? ' *' : ''}`,
+  }
+  switch (parameter.type) {
+    case 'DATE_RANGE':
+      return { ...base, caption: parameter.name, type: 'date' as const }
+    case 'DATE':
+      return { ...base, type: 'date' as const }
+    case 'BOOLEAN':
+      return {
+        ...base,
+        type: 'choice' as const,
+        options: [
+          { value: true, caption: '是' },
+          { value: false, caption: '否' },
+        ],
+      }
+    case 'ENUM':
+      return {
+        ...base,
+        type: 'choice' as const,
+        options: (parameter.enumValues ?? []).map((value) => ({
+          value,
+          caption: parameter.enumCaptions?.[value] ?? '',
+        })),
+      }
+    // INTEGER parameters retain their original text draft and normalize only at submission.
+    case 'INTEGER':
+      return { ...base, type: 'text' as const, inputMode: 'numeric' as const }
+    case 'DECIMAL':
+      return { ...base, type: 'text' as const, inputMode: 'decimal' as const }
+    case 'TEXT':
+      return { ...base, type: 'text' as const }
+    case 'REFERENCE':
+      return { ...base, type: 'choice' as const, searchable: true, options: [] }
+  }
+}

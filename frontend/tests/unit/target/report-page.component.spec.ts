@@ -76,14 +76,14 @@ async function open() {
   return w
 }
 async function fill(w: VueWrapper) {
-  await w.get('[aria-label="日期起始日"]').setValue('2026-09-01')
-  await w.get('[aria-label="日期截止日"]').setValue('2026-09-30')
+  await w.get('[aria-label="日期起"]').setValue('2026-09-01')
+  await w.get('[aria-label="日期止"]').setValue('2026-09-30')
 }
 it('queries and paginates a deep parameter snapshot through the actual report registration', async () => {
   const w = await open()
   await fill(w)
   await click(w, '查询')
-  await w.get('[aria-label="日期起始日"]').setValue('2026-08-01')
+  await w.get('[aria-label="日期起"]').setValue('2026-08-01')
   await click(w, '下一页')
   expect(api.queryTargetReport).toHaveBeenLastCalledWith('test', 'rpt-000001', {
     parameters: { range: ['2026-09-01', '2026-09-30'], flag: false },
@@ -208,5 +208,25 @@ it('keeps two report reference sources independent when their responses arrive i
   expect(w.get('[aria-label="供应商"]').text()).toContain('供应商选项')
   expect(w.get('[aria-label="客户"]').text()).toContain('客户选项')
   expect(api.queryTargetReport).not.toHaveBeenCalled()
+  w.unmount()
+})
+
+it('keeps empty text distinct from null in the visible report result', async () => {
+  const textColumn = { ...column, type: 'TEXT' as const }
+  vi.mocked(api.queryTargetReportDirectory).mockResolvedValue([
+    { ...structuredClone(definition), columns: [textColumn] },
+  ])
+  vi.mocked(api.queryTargetReport).mockResolvedValue({
+    revision: '1',
+    columns: [textColumn],
+    rows: [{ total: '' }, { total: null }],
+    page: 1,
+    pageSize: 20,
+    hasMore: false,
+  })
+  const w = await open()
+  await fill(w)
+  await click(w, '查询')
+  expect(w.findAll('tbody td').map((cell) => cell.text())).toEqual(['', '—'])
   w.unmount()
 })

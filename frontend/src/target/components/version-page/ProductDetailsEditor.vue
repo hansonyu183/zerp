@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
 import { shallowRef } from 'vue'
 import { productBehaviorLabels, type ProductSnapshot } from './product-data.ts'
-import SnapshotReference from './SnapshotReference.vue'
-import FormBlock from './FormBlock.vue'
+import SnapshotReference from '../dynamic-fields/SnapshotReference.vue'
+import FormBlock from '../dynamic-fields/FormBlock.vue'
 import ProductUnitsBlock from './ProductUnitsBlock.vue'
 import ProductFormulaBlock from './ProductFormulaBlock.vue'
 type Details = Pick<
@@ -70,10 +71,13 @@ function selectType(
   </p>
   <v-alert v-if="pendingType" type="warning"
     >切换产品类型会删除不适用的固定配方、默认包装规格或可回收设置。<v-btn
+      :prepend-icon="actionIcons.confirm"
       :disabled="disabled"
       @click="applyType(pendingType)"
       >确认切换</v-btn
-    ><v-btn @click="pendingType = null">取消切换</v-btn></v-alert
+    ><v-btn :prepend-icon="actionIcons.cancel" @click="pendingType = null"
+      >取消切换</v-btn
+    ></v-alert
   ><SnapshotReference
     source="product-categories"
     caption="产品分类"

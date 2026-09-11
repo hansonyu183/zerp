@@ -17,9 +17,7 @@ it('routes the remaining resources to closed page definitions with no VM or arbi
         ? { kind, code: entity }
         : { kind, resource: `${domain}/${entity}` },
     )
-    expect((registration.component as { props?: object }).props).toHaveProperty(
-      'definition',
-    )
+    expect(registration).not.toHaveProperty('component')
   }
   expect(targetResourceRegistry.resolve('rpt', 'rpt-invalid')).toBeNull()
   for (const name of ['mapping', 'report', 'process-instance']) {
@@ -69,8 +67,7 @@ it('has exactly six runtime families for the entire registered business set', ()
     const definition = r.definition!
     expect(definition).toBeDefined()
     const kind = definition.kind
-    if (kinds.has(kind)) expect(r.component).toBe(kinds.get(kind))
-    else kinds.set(kind, r.component)
+    kinds.set(kind, true)
   }
   expect([...kinds.keys()].sort()).toEqual([
     'configuration',
@@ -91,4 +88,35 @@ it('has exactly six runtime families for the entire registered business set', ()
   }
   for (const path of files(resolve(root, 'pages')))
     expect(path).toMatch(/\/pages\/(auth|system)\//)
+})
+
+it('keeps ordinary controls in the public scalar input and local blocks free of submit forms', () => {
+  const families = [
+    'direct-page',
+    'version-page',
+    'document-page',
+    'configuration-page',
+    'report-page',
+    'process-page',
+  ]
+  for (const family of families) {
+    for (const name of readdirSync(resolve(root, 'components', family)).filter(
+      (name) => name.endsWith('.vue'),
+    )) {
+      const source = readFileSync(
+        resolve(root, 'components', family, name),
+        'utf8',
+      )
+      expect(source, `${family}/${name}`).not.toMatch(
+        /<v-(?:text-field|textarea|select|autocomplete|checkbox|switch)\b/,
+      )
+    }
+  }
+  const block = readFileSync(
+    resolve(root, 'components/dynamic-fields/FormBlock.vue'),
+    'utf8',
+  )
+  expect(block).not.toMatch(
+    /<(?:v-form|form|EditForm)\b|product-data|customer-data/,
+  )
 })

@@ -1,12 +1,14 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
+import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { vouEntityPresentation, type VouEntity } from '@zerp/model'
 import { useTargetSession } from '../../session/vm.ts'
 import { wflTrial, TargetApiError } from '../../api.ts'
 import type { WflData } from './wfl-data.ts'
 import { wflErrors } from './wfl-data.ts'
-import FormBlock from './FormBlock.vue'
-import ReferencePicker from '../direct-page/ReferencePicker.vue'
+import FormBlock from '../dynamic-fields/FormBlock.vue'
+import ReferencePicker from '../dynamic-fields/ReferencePicker.vue'
 import WflGraphBlock from './WflGraphBlock.vue'
 const props = defineProps<{ modelValue: WflData; disabled: boolean }>()
 const emit = defineEmits<{
@@ -110,10 +112,18 @@ onBeforeUnmount(() => {
     :model-value="modelValue"
     :disabled="disabled"
     @update:model-value="patch({ script: $event.script })"
-  /><v-select
+  /><FieldInput
+    usage="edit"
+    :field="{
+      key: 'entity',
+      type: 'choice',
+      caption: '试算单据类型',
+      options: documentOptions.map((option) => ({
+        value: option.value,
+        caption: option.title,
+      })),
+    }"
     :model-value="entity"
-    label="试算单据类型"
-    :items="documentOptions"
     :disabled="disabled"
     @update:model-value="selectEntity"
   /><ReferencePicker
@@ -125,7 +135,10 @@ onBeforeUnmount(() => {
     :multiple="false"
     :disabled="disabled"
     @update:model-value="selectDocument"
-  /><v-btn :disabled="disabled || trialing || !canTrial" @click="trial"
+  /><v-btn
+    :prepend-icon="actionIcons.trial"
+    :disabled="disabled || trialing || !canTrial"
+    @click="trial"
     >编译并试算</v-btn
   ><v-progress-linear v-if="trialing" indeterminate /><v-alert
     v-if="error"

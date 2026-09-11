@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
+import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { computed } from 'vue'
 import { ulid } from 'ulid'
 import VouReference, { type VouCandidate } from './VouReference.vue'
@@ -41,37 +43,52 @@ function selectSubunit(
 </script>
 <template>
   <section class="financial-block" aria-label="单据事实">
-    <v-text-field
-      label="业务日期"
-      type="date"
+    <FieldInput
+      usage="edit"
+      :field="{ key: 'businessDate', type: 'date', caption: '业务日期' }"
       :model-value="modelValue.businessDate"
       :disabled="disabled"
       @update:model-value="patch({ businessDate: $event })"
     />
-    <v-text-field
-      label="币种"
+    <FieldInput
+      usage="edit"
+      :field="{ key: 'currency', type: 'text', caption: '币种', maxLength: 3 }"
       :model-value="modelValue.currency"
       :disabled="disabled"
-      maxlength="3"
       @update:model-value="patch({ currency: $event })"
     />
-    <v-textarea
-      label="备注"
+    <FieldInput
+      usage="edit"
+      :field="{
+        key: 'remark',
+        type: 'textarea',
+        caption: '备注',
+        maxLength: 1000,
+      }"
       :model-value="modelValue.remark"
       :disabled="disabled"
-      maxlength="1000"
       @update:model-value="patch({ remark: $event })"
     />
     <template v-if="modelValue.entity === 'other-income'">
-      <v-text-field
-        label="来源名称"
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'sourceName',
+          type: 'text',
+          caption: '来源名称',
+          maxLength: 200,
+        }"
         :model-value="modelValue.sourceName"
         :disabled="disabled"
-        maxlength="200"
         @update:model-value="patch({ sourceName: $event })"
       />
-      <v-checkbox
-        label="关联相对方"
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'attachCounterparty',
+          type: 'boolean',
+          caption: '关联相对方',
+        }"
         :model-value="modelValue.attachCounterparty"
         :disabled="disabled"
         @update:model-value="patch({ attachCounterparty: Boolean($event) })"
@@ -82,10 +99,18 @@ function selectSubunit(
         modelValue.entity !== 'other-income' || modelValue.attachCounterparty
       "
     >
-      <v-select
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'counterpartyType',
+          type: 'choice',
+          caption: '相对方类型',
+          options: partyOptions.map((option) => ({
+            value: option.value,
+            caption: option.title,
+          })),
+        }"
         v-if="mixed"
-        label="相对方类型"
-        :items="partyOptions"
         :model-value="modelValue.counterpartyType"
         :disabled="disabled"
         @update:model-value="patch({ counterpartyType: $event })"
@@ -99,13 +124,21 @@ function selectSubunit(
         @update:model-value="patch({ party: $event, partyOrigin: 'CURRENT' })"
       />
     </template>
-    <v-select
+    <FieldInput
+      usage="edit"
+      :field="{
+        key: 'otherCategory',
+        type: 'choice',
+        caption: '其他类别',
+        options: financialCategoryOptions.map((option) => ({
+          value: option.value,
+          caption: option.title,
+        })),
+      }"
       v-if="
         modelValue.entity === 'other-receipt' ||
         modelValue.entity === 'other-payment'
       "
-      label="其他类别"
-      :items="financialCategoryOptions"
       :model-value="modelValue.otherCategory"
       :disabled="disabled"
       @update:model-value="patch({ otherCategory: $event })"
@@ -133,9 +166,14 @@ function selectSubunit(
         :disabled="disabled"
         @update:model-value="patch({ handler: $event })"
       />
-      <v-text-field
-        label="金额"
-        inputmode="decimal"
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'amount',
+          type: 'text',
+          caption: '金额',
+          inputMode: 'decimal',
+        }"
         :model-value="modelValue.amount"
         :disabled="disabled"
         @update:model-value="patch({ amount: $event })"
@@ -160,13 +198,19 @@ function selectSubunit(
         :disabled="disabled"
         @update:model-value="selectSubunit(row, $event)"
       />
-      <v-text-field
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'amount',
+          type: 'text',
+          caption: '分摊金额',
+          inputMode: 'decimal',
+        }"
         v-model="row.amount"
-        label="分摊金额"
-        inputmode="decimal"
         :disabled="disabled"
       />
       <v-btn
+        :prepend-icon="actionIcons.remove"
         :disabled="disabled"
         @click="
           patch({
@@ -175,10 +219,11 @@ function selectSubunit(
             ),
           })
         "
-        >删除分摊行</v-btn
+        >移除分摊行</v-btn
       >
     </div>
     <v-btn
+      :prepend-icon="actionIcons.add"
       :disabled="disabled || modelValue.allocations.length >= 200"
       @click="
         patch({
@@ -198,41 +243,63 @@ function selectSubunit(
       :key="row.id"
       class="financial-line"
     >
-      <v-text-field
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'category',
+          type: 'text',
+          caption: '费用类别',
+          maxLength: 200,
+        }"
         v-model="row.category"
-        label="费用类别"
-        maxlength="200"
         :disabled="disabled"
       />
-      <v-textarea
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'description',
+          type: 'textarea',
+          caption: '费用说明',
+          maxLength: 1000,
+        }"
         v-model="row.description"
-        label="费用说明"
-        maxlength="1000"
         :disabled="disabled"
       />
-      <v-text-field
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'amount',
+          type: 'text',
+          caption: '费用金额',
+          inputMode: 'decimal',
+        }"
         v-model="row.amount"
-        label="费用金额"
-        inputmode="decimal"
         :disabled="disabled"
       />
-      <v-textarea
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'remark',
+          type: 'textarea',
+          caption: '费用备注',
+          maxLength: 1000,
+        }"
         v-model="row.remark"
-        label="费用备注"
-        maxlength="1000"
         :disabled="disabled"
       />
       <v-btn
+        :prepend-icon="actionIcons.remove"
         :disabled="disabled"
         @click="
           patch({
             expenses: modelValue.expenses.filter((item) => item.id !== row.id),
           })
         "
-        >删除费用行</v-btn
+        >移除费用行</v-btn
       >
     </div>
     <v-btn
+      :prepend-icon="actionIcons.add"
       :disabled="disabled || modelValue.expenses.length >= 200"
       @click="
         patch({

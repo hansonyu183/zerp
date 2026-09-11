@@ -15,7 +15,7 @@ const referenceSources = new Set<ReferenceSource>([
 const commonKeys = new Set(['key', 'type', 'caption', 'required'])
 const rangeKeys = new Set([...commonKeys, 'range'])
 const keysByType: Readonly<Record<string, ReadonlySet<string>>> = {
-  text: commonKeys,
+  text: new Set([...commonKeys, 'emptyCaption']),
   integer: rangeKeys,
   decimal: new Set([...rangeKeys, 'scale']),
   date: rangeKeys,
@@ -56,7 +56,7 @@ function validateField(
   const allowedKeys = keysByType[candidate.type as string]
   if (!allowedKeys) fail(`未知字段类型 ${String(candidate.type)}`)
   for (const key of Object.keys(candidate))
-    if (!allowedKeys.has(key)) {
+    if (!allowedKeys.has(key) && !(usage === 'column' && key === 'width')) {
       if (key === 'range') fail(`字段 ${String(candidate.key)} 不支持 range`)
       fail(`字段 ${String(candidate.key)} 不允许配置 ${key}`)
     }
@@ -67,6 +67,18 @@ function validateField(
   )
     fail(`字段 ${String(candidate.key)} 的 required 必须是布尔值`)
 
+  if (
+    candidate.width !== undefined &&
+    (typeof candidate.width !== 'number' ||
+      !Number.isFinite(candidate.width) ||
+      candidate.width <= 0)
+  )
+    fail('列宽必须是正数')
+  if (
+    candidate.emptyCaption !== undefined &&
+    (usage !== 'column' || typeof candidate.emptyCaption !== 'string')
+  )
+    fail('空文本提示只允许用于文本列')
   const range = candidate.range
   if (range !== undefined && typeof range !== 'boolean')
     fail(`字段 ${String(candidate.key)} 的 range 必须是布尔值`)
@@ -134,7 +146,7 @@ function validateField(
 
 export function validateFields<const Fields extends readonly unknown[]>(
   fields: Fields,
-  options: { usage: 'column' | 'filter' },
+  options: { usage: 'column' | 'filter'; requireActions?: boolean },
 ): Fields {
   if (!Array.isArray(fields)) fail('字段配置必须是数组')
   const keys = new Set<string>()
@@ -147,8 +159,10 @@ export function validateFields<const Fields extends readonly unknown[]>(
     if (candidate.type === 'actions') actionIndex = index
   }
   if (options.usage === 'column') {
-    if (actionIndex < 0) fail('列配置必须包含一个 actions 列')
-    if (actionIndex !== fields.length - 1) fail('操作列必须位于最后')
+    if (actionIndex < 0 && options.requireActions !== false)
+      fail('列配置必须包含一个 actions 列')
+    if (actionIndex >= 0 && actionIndex !== fields.length - 1)
+      fail('操作列必须位于最后')
   }
   return fields
 }

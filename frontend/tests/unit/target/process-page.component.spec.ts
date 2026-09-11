@@ -73,7 +73,7 @@ async function open() {
     global: { stubs },
   })
   await flushPromises()
-  await click(w, '销售流程 · SO-1')
+  await click(w, '打开')
   return w
 }
 it('does not treat an older document-open audit as proof of the unknown request', async () => {
@@ -122,7 +122,7 @@ it('keeps internal-error results locked through querying and instance switching,
   )
   await click(w, '打开单据')
   await click(w, '查询')
-  await click(w, '销售流程 · SO-1')
+  await click(w, '打开')
   expect(w.text()).toContain('写入结果待核实')
   const input = vi.mocked(api.wflInstanceAction).mock.calls[0]![1]
   vi.mocked(api.wflInstanceAudit).mockResolvedValue([

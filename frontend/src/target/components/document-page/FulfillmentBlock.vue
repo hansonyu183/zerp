@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
 import { ulid } from 'ulid'
-import FormBlock from '../version-page/FormBlock.vue'
+import FormBlock from '../dynamic-fields/FormBlock.vue'
 import SourceLinePicker from './SourceLinePicker.vue'
 import VouReference from './VouReference.vue'
 import { fulfillmentFields, type FulfillmentDraft } from './fulfillment-data.ts'
@@ -80,6 +81,7 @@ function line(id: string, patch: Partial<FulfillmentDraft['lines'][number]>) {
         @update:model-value="line(row.id, $event)"
       />
       <v-btn
+        :prepend-icon="actionIcons.remove"
         :disabled="disabled"
         @click="
           update({
@@ -90,6 +92,7 @@ function line(id: string, patch: Partial<FulfillmentDraft['lines'][number]>) {
       >
     </v-card>
     <v-btn
+      :prepend-icon="actionIcons.add"
       :disabled="disabled"
       @click="
         update({

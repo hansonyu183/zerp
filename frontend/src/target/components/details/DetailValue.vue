@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { DetailField, AttachmentSource } from './detail-fields.ts'
-import AttachmentBlock from './AttachmentBlock.vue'
-import type { CustomerSnapshot } from './customer-data.ts'
+import AttachmentBlock from '../attachments/AttachmentBlock.vue'
+import type { AttachmentMetadata } from '@zerp/model'
 const props = defineProps<{
   field: DetailField
   value: unknown
@@ -39,7 +39,7 @@ function display(): string {
   <AttachmentBlock
     v-if="field.type === 'attachments'"
     :caption="field.caption"
-    :model-value="(value ?? []) as CustomerSnapshot['identityAttachments']"
+    :model-value="(value ?? []) as readonly AttachmentMetadata[]"
     mode="read"
     :source="source"
   /><template v-else-if="field.type === 'rows'"

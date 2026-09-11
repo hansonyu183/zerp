@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { computed } from 'vue'
 import { mappingDimensions, mappingFieldOptions } from './mapping-data.ts'
 function caption(value: string) {
@@ -22,11 +23,19 @@ function update(key: string, value: string | null) {
 }
 </script>
 <template>
-  <v-select
+  <FieldInput
+    usage="edit"
+    :field="{
+      key: 'null',
+      type: 'choice',
+      caption: `${caption(dimension)}字段${dimensions.includes(dimension) ? '' : '（当前科目不需要，请清除）'}`,
+      options: mappingFieldOptions(fields).map((option) => ({
+        value: option.value,
+        caption: option.title,
+      })),
+    }"
     v-for="dimension in visibleDimensions"
     :key="dimension"
-    :label="`${caption(dimension)}字段${dimensions.includes(dimension) ? '' : '（当前科目不需要，请清除）'}`"
-    :items="mappingFieldOptions(fields)"
     :model-value="model[dimension] ?? null"
     :disabled="disabled"
     clearable

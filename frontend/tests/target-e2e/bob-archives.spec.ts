@@ -39,7 +39,13 @@ async function records(page: Page, name: string) {
   const tab = page.getByRole('button', { name: '提交记录', exact: true })
   if (await tab.isEnabled()) await tab.click()
   await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
+  const queried = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/submission-query') &&
+      response.request().postDataJSON()?.filters?.keyword === name,
+  )
   await page.getByRole('button', { name: '查询', exact: true }).click()
+  await queried
   await expect(
     page.getByRole('button', { name: '查看', exact: true }),
   ).toHaveCount(1)

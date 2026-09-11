@@ -48,6 +48,7 @@ vi.mock('@/target/session/vm.ts', () => {
 })
 
 const stubs = {
+  VTooltip: { template: '<span><slot /></span>' },
   VAppBar: { template: '<div><slot /></div>' },
   VAppBarNavIcon: { template: '<button><slot /></button>' },
   VSpacer: { template: '<span />' },

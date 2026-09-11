@@ -1580,3 +1580,118 @@ it('ignores a late approval after the session changes', async () => {
   ).toBe(false)
   wrapper.unmount()
 })
+
+it('keeps submission blocked until both independent attachment reads finish and discards a closed candidate read', async () => {
+  useTargetSession().apiPaths = [
+    'query',
+    'versions',
+    'submit-change',
+    'attachment-stage',
+    'save-subunits',
+  ].map((action) => `/bob/customer/${action}`)
+  const data = customerSnapshot()
+  vi.mocked(api.queryTargetCustomers).mockResolvedValue({
+    items: [
+      { objectId: 'customer', code: 'C01', name: '客户', enabled: true, data },
+    ],
+    total: 1,
+  } as never)
+  vi.mocked(api.queryTargetCustomerVersions).mockResolvedValue({
+    items: [
+      {
+        subjectId: 'customer',
+        submissionId: 'version',
+        versionNo: 1,
+        status: 'APPROVED',
+        revision: '9',
+        snapshot: data,
+      },
+    ],
+  } as never)
+  const wrapper = mount(ResourceHost, {
+    props: { domain: 'bob', entity: 'customer' },
+    global: { stubs },
+  })
+  await flushPromises()
+  await click(wrapper, '提交变更')
+  const inputs = wrapper.findAll('input[type="file"]')
+  expect(inputs.length).toBeGreaterThanOrEqual(2)
+  let finishFirst!: (value: ArrayBuffer) => void
+  let finishSecond!: (value: ArrayBuffer) => void
+  const file = (
+    name: string,
+    resolve: (done: (value: ArrayBuffer) => void) => void,
+  ) => {
+    const value = new File(['%PDF test'], name, { type: 'application/pdf' })
+    Object.defineProperty(value, 'arrayBuffer', {
+      value: () => new Promise<ArrayBuffer>(resolve),
+    })
+    return value
+  }
+  Object.defineProperty(inputs[0]!.element, 'files', {
+    value: [
+      file('first.pdf', (done) => {
+        finishFirst = done
+      }),
+    ],
+  })
+  Object.defineProperty(inputs[1]!.element, 'files', {
+    value: [
+      file('second.pdf', (done) => {
+        finishSecond = done
+      }),
+    ],
+  })
+  await inputs[0]!.trigger('change')
+  await inputs[1]!.trigger('change')
+  const submit = () =>
+    wrapper.findAll('button').find((button) => button.text() === '提交')!
+  expect(submit().attributes('disabled')).toBeDefined()
+  finishFirst(new ArrayBuffer(8))
+  await vi.waitFor(() => expect(wrapper.text()).toContain('first.pdf'))
+  expect(submit().attributes('disabled')).toBeDefined()
+  await click(wrapper, '提交')
+  expect(api.submitChangeTargetCustomer).not.toHaveBeenCalled()
+  await click(wrapper, '取消')
+  await click(wrapper, '提交变更')
+  finishSecond(new ArrayBuffer(8))
+  await flushPromises()
+  expect(wrapper.text()).not.toContain('second.pdf')
+  expect(wrapper.text()).not.toContain('first.pdf')
+  expect(submit().attributes('disabled')).toBeUndefined()
+  wrapper.unmount()
+})
+
+it('compares default operating entity identities independently of display names in historical snapshots', async () => {
+  const { default: VersionSnapshot } =
+    await import('@/target/components/version-page/VersionSnapshot.vue')
+  const wrapper = mount(VersionSnapshot, {
+    props: {
+      resource: 'bob/supplier',
+      fields: [
+        {
+          key: 'defaultOperatingEntityId',
+          type: 'text',
+          caption: '默认经营主体',
+        },
+      ],
+      value: {
+        defaultOperatingEntityId: 'one',
+        operatingEntities: [{ objectId: 'one', code: '01', name: '新名称' }],
+      },
+      previous: {
+        defaultOperatingEntityId: 'one',
+        operatingEntities: [{ objectId: 'one', code: '01', name: '旧名称' }],
+      },
+    },
+    global: { stubs },
+  })
+  expect(wrapper.text()).toContain('这些字段无变化。')
+  await wrapper.setProps({
+    value: { defaultOperatingEntityId: 'one', operatingEntities: [] },
+    previous: { defaultOperatingEntityId: 'two', operatingEntities: [] },
+  })
+  expect(wrapper.text()).not.toContain('这些字段无变化。')
+  expect(wrapper.text()).toContain('此前版本')
+  wrapper.unmount()
+})

@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
 import { onBeforeUnmount, onMounted, ref, watch, nextTick } from 'vue'
 import { ulid } from 'ulid'
-import FormBlock from '../version-page/FormBlock.vue'
+import FormBlock from '../dynamic-fields/FormBlock.vue'
 import VouReference, { type VouCandidate } from './VouReference.vue'
 import type {
   ProductFactsDraft,
@@ -224,6 +225,7 @@ onBeforeUnmount(() => {
   >
     <v-btn
       :disabled="disabled || previewLoading || !modelValue.warehouse"
+      :prepend-icon="actionIcons.view"
       @click="loadPreview()"
       >查看账面商品</v-btn
     >
@@ -235,6 +237,7 @@ onBeforeUnmount(() => {
         }}</span
       >
       <v-btn
+        :prepend-icon="actionIcons.add"
         :disabled="
           disabled ||
           modelValue.lines.some(
@@ -248,6 +251,7 @@ onBeforeUnmount(() => {
     <template v-if="preview">
       <v-btn
         :disabled="disabled || previewLoading || preview.page <= 1"
+        :prepend-icon="actionIcons.previous"
         @click="loadPreview(preview.page - 1)"
         >账面上一页</v-btn
       >
@@ -255,6 +259,7 @@ onBeforeUnmount(() => {
         :disabled="
           disabled || previewLoading || preview.page * 20 >= preview.total
         "
+        :prepend-icon="actionIcons.next"
         @click="loadPreview(preview.page + 1)"
         >账面下一页</v-btn
       >
@@ -323,9 +328,15 @@ onBeforeUnmount(() => {
         :disabled="disabled"
         @update:model-value="line(row.id, $event)"
       />
-      <v-btn :disabled="disabled" @click="remove(row.id)">移除商品行</v-btn>
+      <v-btn
+        :prepend-icon="actionIcons.remove"
+        :disabled="disabled"
+        @click="remove(row.id)"
+        >移除商品行</v-btn
+      >
     </v-card>
     <v-btn
+      :prepend-icon="actionIcons.add"
       :disabled="disabled"
       @click="
         update({

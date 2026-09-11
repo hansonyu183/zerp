@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { actionIcons } from '../../presentation/action-icons.ts'
+import RowActions from '../dynamic-fields/RowActions.vue'
+import DynamicCols from '../dynamic-fields/DynamicCols.vue'
+import ListPagination from '../list-page/ListPagination.vue'
+import FieldInput from '../dynamic-fields/FieldInput.vue'
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import {
   getTargetMappingCatalog,
   queryTargetMappings,
@@ -28,6 +33,14 @@ const catalog = ref<Awaited<ReturnType<typeof getTargetMappingCatalog>>>({
   subjects: [],
 })
 const rows = ref<Awaited<ReturnType<typeof queryTargetMappings>>['items']>([])
+const displayRows = computed(() =>
+  rows.value.map((row) => ({
+    ...row,
+    bookName: row.book.name,
+    vouName: row.vouEntity.name,
+    resultName: mappingResults[row.defaultResult],
+  })),
+)
 const bookId = ref(''),
   page = ref(1),
   total = ref(0),
@@ -267,56 +280,59 @@ onBeforeUnmount(dispose)
       feedback
     }}</v-alert>
     <div class="mapping-toolbar">
-      <v-select
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'bookId',
+          type: 'choice',
+          caption: '账簿',
+          options: catalog.books.map((option) => ({
+            value: option.id,
+            caption: option.name,
+          })),
+        }"
         v-model="bookId"
-        label="账簿"
-        :items="catalog.books"
-        item-title="name"
-        item-value="id"
         :disabled="!can('catalog')"
         hide-details
       />
       <v-btn
+        :prepend-icon="actionIcons.search"
         :disabled="!can('query') || !bookId"
         :loading="loading"
         @click="search"
         >查询</v-btn
       >
-      <v-btn v-if="can('save')" color="primary" @click="create">新增映射</v-btn>
+      <v-btn
+        :prepend-icon="actionIcons.create"
+        v-if="can('save')"
+        color="primary"
+        @click="create"
+        >新增映射</v-btn
+      >
     </div>
     <v-alert v-if="!can('catalog')" type="info" class="mt-3"
       >缺少映射目录权限，无法选择账簿、单据类型与科目。</v-alert
     >
-    <v-table class="mt-4">
-      <thead>
-        <tr>
-          <th>账簿</th>
-          <th>单据类型</th>
-          <th>默认结果</th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="row in rows" :key="row.subjectId">
-          <td>{{ row.book.name }}</td>
-          <td>{{ row.vouEntity.name }}</td>
-          <td>{{ mappingResults[row.defaultResult] }}</td>
-          <td>
-            <v-btn
-              :disabled="!can('get')"
-              variant="text"
-              @click="edit(row.book.id, row.vouEntity.code)"
-              >打开</v-btn
-            >
-          </td>
-        </tr>
-      </tbody>
-    </v-table>
-    <v-pagination
-      v-if="total > 20"
-      :model-value="page"
-      :length="Math.ceil(total / 20)"
-      @update:model-value="turnPage"
+    <DynamicCols
+      class="mt-4"
+      identity-key="subjectId"
+      :items="displayRows"
+      :loading="loading"
+      :fields="[
+        { key: 'bookName', type: 'text', caption: '账簿' },
+        { key: 'vouName', type: 'text', caption: '单据类型' },
+        { key: 'resultName', type: 'text', caption: '默认结果' },
+        { key: '$actions', type: 'actions', caption: '操作' },
+      ]"
+      ><template #actions="{ item }"
+        ><RowActions
+          :actions="[{ key: 'open', caption: '打开', disabled: !can('get') }]"
+          @action="edit(item.book.id, item.vouEntity.code)" /></template
+    ></DynamicCols>
+    <ListPagination
+      :pagination="{ mode: 'total', page, pageSize: 20, total }"
+      :disabled="loading"
+      @page="turnPage"
     />
     <v-dialog
       :model-value="open"
@@ -346,12 +362,21 @@ onBeforeUnmount(dispose)
           </fieldset>
         </v-card-text>
         <v-card-actions>
-          <v-btn :disabled="saving" @click="close">关闭</v-btn>
-          <v-btn v-if="unknown && can('get')" @click="verify"
+          <v-btn
+            :disabled="saving"
+            :prepend-icon="actionIcons.cancel"
+            @click="close"
+            >关闭</v-btn
+          >
+          <v-btn
+            :prepend-icon="actionIcons.resolve"
+            v-if="unknown && can('get')"
+            @click="verify"
             >读取当前配置核实</v-btn
           >
           <v-spacer />
           <v-btn
+            :prepend-icon="actionIcons.save"
             v-if="can('save')"
             color="primary"
             :disabled="unknown || !draft.bookId || !draft.vouEntity"

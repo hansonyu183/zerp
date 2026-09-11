@@ -15,7 +15,7 @@ import {
   productBehaviorLabels,
   formulaResolutionLabels,
 } from './product-data.ts'
-import type { DetailField, DetailFields } from './detail-fields.ts'
+import type { DetailField, DetailFields } from '../details/detail-fields.ts'
 export const referenceDetails = [
   { key: 'code', type: 'text', caption: '编码' },
   { key: 'name', type: 'text', caption: '名称' },

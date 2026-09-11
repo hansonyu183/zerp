@@ -24,12 +24,12 @@ const resources = [
 const allowedImports = new Set([
   '../api.ts',
   '../components/direct-page/definition.ts',
-  '../components/direct-page/references.ts',
+  '../components/dynamic-fields/references.ts',
+  '../components/dynamic-fields/edit-fields.ts',
 ])
 
 describe('the actual direct definitions stay stateless and reach one runtime', () => {
   it('registers the complete scoped set with the single definition interface', () => {
-    let component: unknown
     for (const resource of resources) {
       const [domain, entity] = resource.split('/')
       const registration = targetResourceRegistry.resolve(domain!, entity!)!
@@ -43,8 +43,6 @@ describe('the actual direct definitions stay stateless and reach one runtime', (
         'kind',
         'resource',
       ])
-      component ??= registration.component
-      expect(registration.component).toBe(component)
     }
     expect(targetResourceRegistry.resolve('aux', 'department')).toBeNull()
   })

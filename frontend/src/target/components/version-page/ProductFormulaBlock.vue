@@ -1,11 +1,15 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
 import { computed, onMounted, onBeforeUnmount } from 'vue'
 import { useTargetSession } from '../../session/vm.ts'
 import { queryTargetBobReferences } from '../../api.ts'
 import { emptyUnit, type ProductSnapshot } from './product-data.ts'
-import FormBlock from './FormBlock.vue'
-import DetailBlock from './DetailBlock.vue'
-import type { DetailDefinition, FormFields } from './form-fields.ts'
+import FormBlock from '../dynamic-fields/FormBlock.vue'
+import DetailBlock from '../dynamic-fields/DetailBlock.vue'
+import type {
+  DetailDefinition,
+  FormFields,
+} from '../dynamic-fields/form-fields.ts'
 type Formula = NonNullable<ProductSnapshot['fixedFormula']>
 type MaterialRow = {
   material: Formula['components'][number]['material']
@@ -30,6 +34,7 @@ const quantityFields = [
     key: 'enteredUnit',
     type: 'snapshot-reference',
     source: 'product-units',
+    emptyValue: emptyUnit(),
     caption: '配方产量单位',
     required: true,
   },
@@ -48,6 +53,7 @@ const materialDefinition = {
       key: 'material',
       type: 'snapshot-reference',
       source: 'formula-materials',
+      emptyValue: { objectId: '', approvalEntryId: '', code: '', name: '' },
       caption: '原材料',
       required: true,
     },
@@ -62,6 +68,7 @@ const materialDefinition = {
       key: 'enteredUnit',
       type: 'snapshot-reference',
       source: 'product-units',
+      emptyValue: emptyUnit(),
       caption: '原料录入单位',
       required: true,
     },
@@ -189,7 +196,11 @@ function create() {
 <template>
   <section aria-label="固定配方">
     <h3>固定配方</h3>
-    <v-btn v-if="!modelValue" :disabled="disabled" @click="create"
+    <v-btn
+      :prepend-icon="actionIcons.add"
+      v-if="!modelValue"
+      :disabled="disabled"
+      @click="create"
       >填写配方</v-btn
     ><template v-else
       ><FormBlock
@@ -213,7 +224,10 @@ function create() {
             : '待处理，请重新选择原料'
         }}
       </p>
-      <v-btn :disabled="disabled" @click="emit('update:modelValue', null)"
+      <v-btn
+        :prepend-icon="actionIcons.remove"
+        :disabled="disabled"
+        @click="emit('update:modelValue', null)"
         >移除配方</v-btn
       ></template
     >

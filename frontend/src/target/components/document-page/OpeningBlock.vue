@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
+import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { reactive } from 'vue'
 import type { AccSubjectDimension } from '@zerp/model'
 import {
@@ -8,7 +10,7 @@ import {
   counterpartyTypes,
   type OpeningDraft,
 } from './opening-data.ts'
-import FormBlock from '../version-page/FormBlock.vue'
+import FormBlock from '../dynamic-fields/FormBlock.vue'
 import {
   openingLineFields,
   openingAssetFields,
@@ -31,12 +33,19 @@ const vm = reactive(
     <v-alert v-if="vm.error" type="error">{{ vm.error }}</v-alert>
     <v-progress-linear v-if="vm.loading" indeterminate />
     <fieldset :disabled="!vm.canEdit" class="opening-fields">
-      <v-autocomplete
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'bookId',
+          type: 'choice',
+          caption: '账簿',
+          searchable: true,
+          options: vm.books.map((option) => ({
+            value: option.id,
+            caption: option.name,
+          })),
+        }"
         :model-value="vm.draft.bookId"
-        :items="vm.books"
-        item-title="name"
-        item-value="id"
-        label="账簿"
         :disabled="!vm.can('/acc/book/query')"
         @update:model-value="vm.selectBook($event ?? '')"
       />
@@ -64,34 +73,51 @@ const vm = reactive(
             :disabled="!vm.canEdit"
             @update:model-value="vm.draft.lines[index] = $event"
           />
-          <v-autocomplete
+          <FieldInput
+            usage="edit"
+            :field="{
+              key: 'subjectId',
+              type: 'choice',
+              caption: '科目',
+              searchable: true,
+              options: vm.leafSubjects.map((option) => ({
+                value: option.id,
+                caption: option.title,
+              })),
+            }"
             :model-value="line.subjectId"
-            :items="vm.leafSubjects"
-            item-title="title"
-            item-value="id"
-            label="科目"
             @update:model-value="vm.setSubject(index, $event ?? '')"
           />
 
-          <v-autocomplete
+          <FieldInput
+            usage="edit"
+            :field="{
+              key: 'dimension',
+              type: 'choice',
+              caption: dimensions[dimension],
+              searchable: true,
+              options: vm
+                .referenceOptions(dimensionSources[dimension])
+                .map((option) => ({
+                  value: option.value,
+                  caption: option.title,
+                })),
+            }"
             v-for="dimension in Object.keys(
               line.dimensions,
             ) as AccSubjectDimension[]"
             :key="dimension"
             v-model="line.dimensions[dimension]"
-            :items="vm.referenceOptions(dimensionSources[dimension])"
-            :label="dimensions[dimension]"
             :loading="vm.referencePending.has(dimensionSources[dimension])"
             :disabled="
               !vm.can('/vou/reference/query') &&
               !['ASSET', 'BILL'].includes(dimension)
             "
             @focus="vm.loadReference(dimensionSources[dimension])"
-            @update:search="
-              vm.loadReference(dimensionSources[dimension], $event)
-            "
+            @search="vm.loadReference(dimensionSources[dimension], $event)"
           />
           <v-btn
+            :prepend-icon="actionIcons.remove"
             color="error"
             variant="text"
             @click="vm.draft.lines.splice(index, 1)"
@@ -100,6 +126,7 @@ const vm = reactive(
         </v-card-text>
       </v-card>
       <v-btn
+        :prepend-icon="actionIcons.add"
         :disabled="!vm.draft.bookId || !vm.can('/acc/subject/query')"
         @click="vm.addLine"
         >添加明细</v-btn
@@ -119,31 +146,61 @@ const vm = reactive(
             @update:model-value="vm.draft.assets[index] = $event"
           />
           <template v-if="asset.assetNo !== undefined">
-            <v-autocomplete
+            <FieldInput
+              usage="edit"
+              :field="{
+                key: 'categoryId',
+                type: 'choice',
+                caption: '资产类别',
+                searchable: true,
+                options: vm
+                  .referenceOptions('asset-category')
+                  .map((option) => ({
+                    value: option.value,
+                    caption: option.title,
+                  })),
+              }"
               v-model="asset.categoryId"
-              label="资产类别"
-              :items="vm.referenceOptions('asset-category')"
               @focus="vm.loadReference('asset-category')"
-              @update:search="vm.loadReference('asset-category', $event)"
+              @search="vm.loadReference('asset-category', $event)"
             />
-            <v-autocomplete
+            <FieldInput
+              usage="edit"
+              :field="{
+                key: 'departmentId',
+                type: 'choice',
+                caption: '使用部门',
+                searchable: true,
+                options: vm.referenceOptions('department').map((option) => ({
+                  value: option.value,
+                  caption: option.title,
+                })),
+              }"
               v-model="asset.departmentId"
-              label="使用部门"
-              :items="vm.referenceOptions('department')"
               @focus="vm.loadReference('department')"
-              @update:search="vm.loadReference('department', $event)"
+              @search="vm.loadReference('department', $event)"
             />
           </template>
-          <v-autocomplete
+          <FieldInput
+            usage="edit"
+            :field="{
+              key: 'assetId',
+              type: 'choice',
+              caption: '已有资产',
+              searchable: true,
+              options: vm.referenceOptions('asset').map((option) => ({
+                value: option.value,
+                caption: option.title,
+              })),
+            }"
             v-else
             v-model="asset.assetId"
-            :items="vm.referenceOptions('asset')"
-            label="已有资产"
             @focus="vm.loadReference('asset')"
-            @update:search="vm.loadReference('asset', $event)"
+            @search="vm.loadReference('asset', $event)"
           />
 
           <v-btn
+            :prepend-icon="actionIcons.remove"
             color="error"
             variant="text"
             @click="vm.draft.assets.splice(index, 1)"
@@ -152,8 +209,11 @@ const vm = reactive(
         </v-card-text>
       </v-card>
       <div class="opening-actions">
-        <v-btn @click="vm.addAsset()">新增资产登记</v-btn
-        ><v-btn @click="vm.addAsset(true)">关联已有资产</v-btn>
+        <v-btn :prepend-icon="actionIcons.add" @click="vm.addAsset()"
+          >新增资产登记</v-btn
+        ><v-btn :prepend-icon="actionIcons.link" @click="vm.addAsset(true)"
+          >关联已有资产</v-btn
+        >
       </div>
       <h3 class="text-subtitle-1 mt-6">票据登记</h3>
       <v-card
@@ -170,29 +230,46 @@ const vm = reactive(
             @update:model-value="vm.draft.bills[index] = $event"
           />
           <template v-if="bill.billNo !== undefined">
-            <v-select
+            <FieldInput
+              usage="edit"
+              :field="{
+                key: 'entity',
+                type: 'choice',
+                caption: '原始相对方类型',
+                options: options(counterpartyTypes).map((option) => ({
+                  value: option.value,
+                  caption: option.title,
+                })),
+              }"
               :model-value="
                 vm.billCounterparties[bill.billId!] ??
                 bill.originatingCounterparty?.entity
               "
-              :items="options(counterpartyTypes)"
-              label="原始相对方类型"
               @update:model-value="vm.selectCounterpartyType(index, $event)"
             />
-            <v-autocomplete
+            <FieldInput
+              usage="edit"
+              :field="{
+                key: 'objectId',
+                type: 'choice',
+                caption: '原始相对方',
+                searchable: true,
+                options: vm
+                  .referenceOptions(
+                    vm.billCounterparties[bill.billId!] ??
+                      bill.originatingCounterparty!.entity,
+                  )
+                  .map((option) => ({
+                    value: option.value,
+                    caption: option.title,
+                  })),
+              }"
               v-if="
                 vm.billCounterparties[bill.billId!] ??
                 bill.originatingCounterparty?.entity
               "
               :model-value="bill.originatingCounterparty?.objectId"
-              :items="
-                vm.referenceOptions(
-                  vm.billCounterparties[bill.billId!] ??
-                    bill.originatingCounterparty!.entity,
-                )
-              "
-              label="原始相对方"
-              @update:search="
+              @search="
                 vm.loadReference(
                   vm.billCounterparties[bill.billId!] ??
                     bill.originatingCounterparty!.entity,
@@ -209,16 +286,26 @@ const vm = reactive(
               "
             />
           </template>
-          <v-autocomplete
+          <FieldInput
+            usage="edit"
+            :field="{
+              key: 'billId',
+              type: 'choice',
+              caption: '已有票据',
+              searchable: true,
+              options: vm.referenceOptions('bill').map((option) => ({
+                value: option.value,
+                caption: option.title,
+              })),
+            }"
             v-else
             v-model="bill.billId"
-            label="已有票据"
-            :items="vm.referenceOptions('bill')"
             @focus="vm.loadReference('bill')"
-            @update:search="vm.loadReference('bill', $event)"
+            @search="vm.loadReference('bill', $event)"
           />
 
           <v-btn
+            :prepend-icon="actionIcons.remove"
             color="error"
             variant="text"
             @click="vm.draft.bills.splice(index, 1)"
@@ -227,8 +314,11 @@ const vm = reactive(
         </v-card-text>
       </v-card>
       <div class="opening-actions">
-        <v-btn @click="vm.addBill()">新增票据登记</v-btn
-        ><v-btn @click="vm.addBill(true)">关联已有票据</v-btn>
+        <v-btn :prepend-icon="actionIcons.add" @click="vm.addBill()"
+          >新增票据登记</v-btn
+        ><v-btn :prepend-icon="actionIcons.link" @click="vm.addBill(true)"
+          >关联已有票据</v-btn
+        >
       </div>
       <h3 class="text-subtitle-1 mt-6">空桶登记</h3>
       <v-card
@@ -244,16 +334,28 @@ const vm = reactive(
             :disabled="!vm.canEdit"
             @update:model-value="vm.draft.containers[index] = $event"
           />
-          <v-autocomplete
+          <FieldInput
+            usage="edit"
+            :field="{
+              key: 'objectId',
+              type: 'choice',
+              caption: '客户子单位',
+              searchable: true,
+              options: vm
+                .referenceOptions('customer-subunit')
+                .map((option) => ({
+                  value: option.value,
+                  caption: option.title,
+                })),
+            }"
             :model-value="container.subunit.objectId"
-            label="客户子单位"
-            :items="vm.referenceOptions('customer-subunit')"
             @focus="vm.loadReference('customer-subunit')"
-            @update:search="vm.loadReference('customer-subunit', $event)"
+            @search="vm.loadReference('customer-subunit', $event)"
             @update:model-value="vm.setContainer(index, $event ?? '')"
           />
 
           <v-btn
+            :prepend-icon="actionIcons.remove"
             color="error"
             variant="text"
             @click="vm.draft.containers.splice(index, 1)"
@@ -261,7 +363,9 @@ const vm = reactive(
           >
         </v-card-text>
       </v-card>
-      <v-btn @click="vm.addContainer">添加空桶</v-btn>
+      <v-btn :prepend-icon="actionIcons.add" @click="vm.addContainer"
+        >添加空桶</v-btn
+      >
     </fieldset>
   </section>
 </template>

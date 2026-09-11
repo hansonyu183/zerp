@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import FormBlock from '../version-page/FormBlock.vue'
+import FormBlock from '../dynamic-fields/FormBlock.vue'
 import VouReference from './VouReference.vue'
 import {
   servicePartyOptions,

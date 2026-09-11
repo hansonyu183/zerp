@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
 import { computed, inject, onBeforeUnmount, ref } from 'vue'
 import { attachmentScope } from './attachments.ts'
-import type { CustomerSnapshot } from './customer-data.ts'
+import type { AttachmentMetadata } from '@zerp/model'
 import {
   readTargetCustomerAttachment,
   readTargetVoucherAttachment,
@@ -9,7 +10,7 @@ import {
   TargetApiError,
 } from '../../api.ts'
 import { useTargetSession } from '../../session/vm.ts'
-type Attachment = CustomerSnapshot['identityAttachments'][number]
+type Attachment = AttachmentMetadata
 type Source =
   | Omit<
       Extract<TargetCustomerAttachmentReadInput, { source: 'current' }>,
@@ -173,18 +174,23 @@ onBeforeUnmount(() => {
         ><v-progress-linear
           v-if="scope?.status(file.id) === '正在上传'"
           indeterminate
-        /><v-btn :disabled="disabled" @click="remove(file.id)"
+        /><v-btn
+          :prepend-icon="actionIcons.remove"
+          :disabled="disabled"
+          @click="remove(file.id)"
           >移除附件</v-btn
         ></template
       ><v-btn
         v-if="canRead"
         :loading="downloading === file.id"
         :disabled="Boolean(downloading)"
+        :prepend-icon="actionIcons.download"
         @click="download(file)"
         >下载附件</v-btn
       >
     </div>
     <v-file-input
+      :prepend-icon="actionIcons.upload"
       v-if="mode === 'edit' && canStage"
       :label="`添加${caption}`"
       accept=".pdf,.jpg,.jpeg,.png"

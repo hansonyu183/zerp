@@ -1,11 +1,11 @@
 import * as api from '../../api.ts'
-import { roleTypeLabels } from './role-presentation.ts'
-import { permissionTitle } from './permission-presentation.ts'
+import { roleTypeLabels } from '../direct-page/role-presentation.ts'
+import { permissionTitle } from '../direct-page/permission-presentation.ts'
 import type {
   EditOption,
   EditReferenceSource,
   EditReference,
-} from './definition.ts'
+} from './edit-fields.ts'
 export const referencePermissions = {
   roles: '/app/role/query',
   permissions: '/app/permission/query',

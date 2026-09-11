@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
+import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { computed, ref, watch } from 'vue'
-import FormBlock from '../version-page/FormBlock.vue'
+import FormBlock from '../dynamic-fields/FormBlock.vue'
 import MappingDimensions from './MappingDimensions.vue'
 import type {
   TargetMappingSaveInput,
@@ -123,35 +125,61 @@ function removeLine(index: number, lineIndex: number) {
 }
 </script>
 <template>
-  <v-select
+  <FieldInput
+    usage="edit"
+    :field="{
+      key: 'bookId',
+      type: 'choice',
+      caption: '映射账簿',
+      options: catalog.books.map((option) => ({
+        value: option.id,
+        caption: option.name,
+      })),
+    }"
     v-model="draft.bookId"
-    label="映射账簿"
-    :items="catalog.books"
-    item-title="name"
-    item-value="id"
     :disabled="draft.expectedRevision !== null || !catalogAvailable"
   />
-  <v-select
+  <FieldInput
+    usage="edit"
+    :field="{
+      key: 'vouEntity',
+      type: 'choice',
+      caption: '单据类型',
+      options: catalog.vouEntities.map((option) => ({
+        value: option.code,
+        caption: option.name,
+      })),
+    }"
     v-model="draft.vouEntity"
-    label="单据类型"
-    :items="catalog.vouEntities"
-    item-title="name"
-    item-value="code"
     :disabled="draft.expectedRevision !== null || !catalogAvailable"
   />
-  <v-select
+  <FieldInput
+    usage="edit"
+    :field="{
+      key: 'defaultResult',
+      type: 'choice',
+      caption: '未命中规则时',
+      options: options(mappingResults).map((option) => ({
+        value: option.value,
+        caption: option.title,
+      })),
+    }"
     v-model="draft.defaultResult"
-    label="未命中规则时"
-    :items="options(mappingResults)"
     @update:model-value="changeDefaultResult()"
   />
-  <v-select
+  <FieldInput
+    usage="edit"
+    :field="{
+      key: 'defaultTemplateId',
+      type: 'choice',
+      caption: '默认凭证模板',
+      options: draft.definition.templates.map((option) => ({
+        value: option.templateId,
+        caption: option.templateId,
+      })),
+    }"
     v-if="draft.defaultResult === 'POST'"
     v-model="draft.definition.defaultTemplateId"
-    label="默认凭证模板"
-    :items="draft.definition.templates"
-    item-title="templateId"
-    item-value="templateId"
   />
   <h3 class="mb-3">条件规则</h3>
   <v-card
@@ -196,30 +224,58 @@ function removeLine(index: number, lineIndex: number) {
         multiple
         chips
       />
-      <v-btn variant="text" @click="removeCondition(index, conditionIndex)"
-        >删除条件</v-btn
+      <v-btn
+        :prepend-icon="actionIcons.remove"
+        variant="text"
+        @click="removeCondition(index, conditionIndex)"
+        >移除条件</v-btn
       >
     </div>
-    <v-btn variant="text" @click="addCondition(index)">添加条件</v-btn>
-    <v-select
+    <v-btn
+      :prepend-icon="actionIcons.add"
+      variant="text"
+      @click="addCondition(index)"
+      >添加条件</v-btn
+    >
+    <FieldInput
+      usage="edit"
+      :field="{
+        key: 'result',
+        type: 'choice',
+        caption: '规则结果',
+        options: options(mappingResults).map((option) => ({
+          value: option.value,
+          caption: option.title,
+        })),
+      }"
       v-model="rule.result"
-      label="规则结果"
-      :items="options(mappingResults)"
       @update:model-value="changeRuleResult(index)"
     />
-    <v-select
+    <FieldInput
+      usage="edit"
+      :field="{
+        key: 'templateId',
+        type: 'choice',
+        caption: '凭证模板',
+        options: draft.definition.templates.map((option) => ({
+          value: option.templateId,
+          caption: option.templateId,
+        })),
+      }"
       v-if="rule.result === 'POST'"
       v-model="rule.templateId"
-      label="凭证模板"
-      :items="draft.definition.templates"
-      item-title="templateId"
-      item-value="templateId"
     />
-    <v-btn variant="text" color="error" @click="removeRule(index)"
-      >删除规则</v-btn
+    <v-btn
+      :prepend-icon="actionIcons.remove"
+      variant="text"
+      color="error"
+      @click="removeRule(index)"
+      >移除规则</v-btn
     >
   </v-card>
-  <v-btn class="mb-4" @click="addRule">添加规则</v-btn>
+  <v-btn :prepend-icon="actionIcons.add" class="mb-4" @click="addRule"
+    >添加规则</v-btn
+  >
   <h3 class="mb-3">凭证模板</h3>
   <v-card
     v-for="(template, index) in draft.definition.templates"
@@ -233,10 +289,18 @@ function removeLine(index: number, lineIndex: number) {
       :disabled="disabled"
       @update:model-value="draft.definition.templates[index] = $event"
     />
-    <v-select
+    <FieldInput
+      usage="edit"
+      :field="{
+        key: 'collection',
+        type: 'choice',
+        caption: '单据行集合（留空使用头字段）',
+        options: collections.map((option) => ({
+          value: option.value,
+          caption: option.title,
+        })),
+      }"
       v-model="template.collection"
-      label="单据行集合（留空使用头字段）"
-      :items="collections"
       clearable
     />
     <v-card
@@ -245,18 +309,23 @@ function removeLine(index: number, lineIndex: number) {
       variant="tonal"
       class="pa-3 mb-3"
     >
-      <v-select
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'HEADER',
+          type: 'choice',
+          caption: '本分录来源',
+          options: [
+            { title: '跟随模板', value: 'INHERIT' },
+            { title: '单头', value: 'HEADER' },
+            ...collections,
+          ].map((option) => ({ value: option.value, caption: option.title })),
+        }"
         :model-value="
           line.collection === undefined
             ? 'INHERIT'
             : (line.collection ?? 'HEADER')
         "
-        label="本分录来源"
-        :items="[
-          { title: '跟随模板', value: 'INHERIT' },
-          { title: '单头', value: 'HEADER' },
-          ...collections,
-        ]"
         @update:model-value="
           line.collection =
             $event === 'INHERIT'
@@ -320,10 +389,18 @@ function removeLine(index: number, lineIndex: number) {
           :disabled="disabled"
           @update:model-value="template.lines[lineIndex] = $event"
         />
-        <v-select
+        <FieldInput
+          usage="edit"
+          :field="{
+            key: 'quantityField',
+            type: 'choice',
+            caption: '数量字段',
+            options: mappingFieldOptions(fields).map((option) => ({
+              value: option.value,
+              caption: option.title,
+            })),
+          }"
           v-model="line.quantityField"
-          label="数量字段"
-          :items="mappingFieldOptions(fields)"
           clearable
         />
       </div>
@@ -336,12 +413,18 @@ function removeLine(index: number, lineIndex: number) {
             : Object.keys(mappingDimensions)
         "
       />
-      <v-select
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'costCounterpartSubjectId',
+          type: 'choice',
+          caption: '成本对方科目（可选）',
+          options: subjects.map((option) => ({
+            value: option.id,
+            caption: option.name,
+          })),
+        }"
         v-model="line.costCounterpartSubjectId"
-        label="成本对方科目（可选）"
-        :items="subjects"
-        item-title="name"
-        item-value="id"
         clearable
       />
       <MappingDimensions
@@ -349,28 +432,55 @@ function removeLine(index: number, lineIndex: number) {
         :fields="fields"
         :dimensions="requiredDimensions(line.costCounterpartSubjectId)"
       />
-      <v-btn variant="text" color="error" @click="removeLine(index, lineIndex)"
-        >删除分录行</v-btn
+      <v-btn
+        :prepend-icon="actionIcons.remove"
+        variant="text"
+        color="error"
+        @click="removeLine(index, lineIndex)"
+        >移除分录行</v-btn
       >
     </v-card>
-    <v-btn variant="text" @click="addLine(index)">添加分录行</v-btn>
-    <v-btn variant="text" color="error" @click="removeTemplate(index)"
-      >删除模板</v-btn
+    <v-btn
+      :prepend-icon="actionIcons.add"
+      variant="text"
+      @click="addLine(index)"
+      >添加分录行</v-btn
+    >
+    <v-btn
+      :prepend-icon="actionIcons.remove"
+      variant="text"
+      color="error"
+      @click="removeTemplate(index)"
+      >移除模板</v-btn
     >
   </v-card>
-  <v-btn class="mb-4" @click="addTemplate">添加模板</v-btn>
-  <v-switch
+  <v-btn :prepend-icon="actionIcons.add" class="mb-4" @click="addTemplate"
+    >添加模板</v-btn
+  >
+  <FieldInput
+    usage="edit"
+    :field="{
+      key: 'assetConfigurationEnabled',
+      type: 'boolean',
+      caption: '配置固定资产科目',
+    }"
     :model-value="draft.definition.assetConfiguration !== null"
-    label="配置固定资产科目"
+    :disabled="disabled"
     @update:model-value="setAssets"
   />
   <template v-if="draft.definition.assetConfiguration">
-    <v-select
+    <FieldInput
+      usage="edit"
+      :field="{
+        key: 'assetSubjectId',
+        type: 'choice',
+        caption: '资产科目',
+        options: subjects.map((option) => ({
+          value: option.id,
+          caption: option.name,
+        })),
+      }"
       v-model="draft.definition.assetConfiguration.assetSubjectId"
-      label="资产科目"
-      :items="subjects"
-      item-title="name"
-      item-value="id"
     />
     <MappingDimensions
       v-model="draft.definition.assetConfiguration.assetDimensions"
@@ -379,14 +489,20 @@ function removeLine(index: number, lineIndex: number) {
         requiredDimensions(draft.definition.assetConfiguration.assetSubjectId)
       "
     />
-    <v-select
+    <FieldInput
+      usage="edit"
+      :field="{
+        key: 'accumulatedDepreciationSubjectId',
+        type: 'choice',
+        caption: '累计折旧科目',
+        options: subjects.map((option) => ({
+          value: option.id,
+          caption: option.name,
+        })),
+      }"
       v-model="
         draft.definition.assetConfiguration.accumulatedDepreciationSubjectId
       "
-      label="累计折旧科目"
-      :items="subjects"
-      item-title="name"
-      item-value="id"
     />
     <MappingDimensions
       v-model="
@@ -399,12 +515,18 @@ function removeLine(index: number, lineIndex: number) {
         )
       "
     />
-    <v-select
+    <FieldInput
+      usage="edit"
+      :field="{
+        key: 'depreciationExpenseSubjectId',
+        type: 'choice',
+        caption: '折旧费用科目',
+        options: subjects.map((option) => ({
+          value: option.id,
+          caption: option.name,
+        })),
+      }"
       v-model="draft.definition.assetConfiguration.depreciationExpenseSubjectId"
-      label="折旧费用科目"
-      :items="subjects"
-      item-title="name"
-      item-value="id"
     />
     <MappingDimensions
       v-model="

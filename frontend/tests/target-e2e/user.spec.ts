@@ -340,6 +340,16 @@ test('user list and reused editor remain usable at desktop and 390px in both the
             () => document.documentElement.scrollWidth <= innerWidth,
           ),
         ).toBe(true)
+        await expect(
+          page
+            .getByRole('button', { name: '新增用户', exact: true })
+            .locator('.mdi-plus'),
+        ).toHaveAttribute('aria-hidden', 'true')
+        await expect(
+          page
+            .getByRole('button', { name: '查询', exact: true })
+            .locator('.mdi-magnify'),
+        ).toHaveAttribute('aria-hidden', 'true')
         await page.screenshot({
           animations: 'disabled',
           path: resolve(directory, `${width}-${theme}-list.png`),
@@ -355,6 +365,12 @@ test('user list and reused editor remain usable at desktop and 390px in both the
         await expect(
           dialog.getByLabel('初始密码', { exact: true }),
         ).toHaveValue('')
+        await expect(
+          dialog
+            .getByRole('button', { name: '保存', exact: true })
+            .locator('.mdi-content-save-outline'),
+        ).toHaveAttribute('aria-hidden', 'true')
+        await expect(dialog.locator('form')).toHaveCount(1)
         await page.screenshot({
           animations: 'disabled',
           path: resolve(directory, `${width}-${theme}-editor.png`),

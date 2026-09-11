@@ -1,48 +1,81 @@
-<script setup lang="ts">
+<script setup lang="ts" generic="Value">
 import { computed } from 'vue'
 
-import type { FieldRange, FilterField, ReferenceOptions } from './types.ts'
+import type { EditField } from './edit-fields.ts'
+import type { FilterField, ReferenceOptions } from './types.ts'
 
 const props = withDefaults(
   defineProps<{
-    field: FilterField
-    modelValue: unknown
+    field: (
+      | Exclude<FilterField, { range: true }>
+      | Exclude<EditField, { type: 'reference' | 'multi-reference' }>
+      | {
+          key: string
+          type: 'choice'
+          caption: string
+          options: readonly {
+            value: string | number | boolean | null
+            caption: string
+            disabled?: boolean
+          }[]
+          multiple?: boolean
+          searchable?: boolean
+        }
+    ) & {
+      maxLength?: number
+      suffix?: string
+      inputMode?: 'numeric' | 'decimal' | 'text'
+    }
+    usage?: 'filter' | 'edit'
+    clearable?: boolean
+    loading?: boolean
+    errorMessages?: string
+    remoteSearch?: boolean
+    modelValue: Value
     referenceOptions?: ReferenceOptions
     disabled?: boolean
   }>(),
   {
     referenceOptions: () => ({}),
     disabled: false,
+    usage: 'filter',
+    clearable: undefined,
   },
 )
 
 const emit = defineEmits<{
-  'update:modelValue': [value: unknown]
+  'update:modelValue': [value: Value]
+  search: [value: string]
 }>()
 
-const rangeValue = computed<FieldRange<unknown>>(() => {
-  if (
-    props.modelValue !== null &&
-    typeof props.modelValue === 'object' &&
-    !Array.isArray(props.modelValue)
-  ) {
-    const value = props.modelValue as Partial<FieldRange<unknown>>
-    return { from: value.from ?? null, to: value.to ?? null }
-  }
-  return { from: null, to: null }
-})
+function update(value: unknown) {
+  if (!inputDisabled.value) emit('update:modelValue', value as Value)
+}
 
 const selectItems = computed(() => {
-  if (props.field.type === 'enum')
+  if (props.field.type === 'enum' || props.field.type === 'choice')
     return props.field.options.map((option) => ({
       title: option.caption,
       value: option.value,
+      props: { disabled: 'disabled' in option && Boolean(option.disabled) },
     }))
   if (props.field.type === 'boolean')
     return [
       { title: '全部', value: null },
-      { title: props.field.trueCaption ?? '是', value: true },
-      { title: props.field.falseCaption ?? '否', value: false },
+      {
+        title:
+          ('trueCaption' in props.field
+            ? props.field.trueCaption
+            : undefined) ?? '是',
+        value: true,
+      },
+      {
+        title:
+          ('falseCaption' in props.field
+            ? props.field.falseCaption
+            : undefined) ?? '否',
+        value: false,
+      },
     ]
   if (props.field.type === 'reference')
     return (props.referenceOptions[props.field.source] ?? []).map((option) => ({
@@ -65,10 +98,15 @@ const inputDisabled = computed(
 )
 
 function inputType(): string {
-  return props.field.type === 'date' ? 'date' : 'text'
+  return props.field.type === 'password'
+    ? 'password'
+    : props.field.type === 'date'
+      ? 'date'
+      : 'text'
 }
 
 function inputMode(): 'text' | 'numeric' | 'decimal' {
+  if (props.field.inputMode) return props.field.inputMode
   if (props.field.type === 'integer') return 'numeric'
   if (props.field.type === 'decimal') return 'decimal'
   return 'text'
@@ -84,61 +122,56 @@ function scalarValue(value: unknown): unknown {
   }
   return value
 }
-
-function updateRange(endpoint: 'from' | 'to', value: unknown): void {
-  emit('update:modelValue', {
-    ...rangeValue.value,
-    [endpoint]: scalarValue(value) === '' ? null : scalarValue(value),
-  })
-}
 </script>
 
 <template>
-  <div
-    v-if="field.range === true"
-    class="dynamic-field-range"
-    :data-testid="`field-${field.key}`"
-  >
-    <v-text-field
-      :model-value="rangeValue.from"
-      :label="`${field.caption}起`"
-      :type="inputType()"
-      :inputmode="inputMode()"
-      :disabled="inputDisabled"
-      hide-details
-      clearable
-      variant="outlined"
-      @update:model-value="updateRange('from', $event)"
-    />
-    <v-text-field
-      :model-value="rangeValue.to"
-      :label="`${field.caption}止`"
-      :type="inputType()"
-      :inputmode="inputMode()"
-      :disabled="inputDisabled"
-      hide-details
-      clearable
-      variant="outlined"
-      @update:model-value="updateRange('to', $event)"
-    />
-  </div>
+  <v-textarea
+    :maxlength="field.maxLength"
+    v-if="field.type === 'textarea'"
+    :label="field.caption"
+    :model-value="modelValue"
+    :disabled="inputDisabled"
+    @update:model-value="update($event ?? '')"
+  />
+  <v-checkbox
+    v-else-if="field.type === 'boolean' && usage === 'edit'"
+    :label="field.caption"
+    :model-value="modelValue"
+    :disabled="inputDisabled"
+    @update:model-value="update(Boolean($event))"
+  />
+  <v-autocomplete
+    v-else-if="field.type === 'choice' && field.searchable"
+    :model-value="modelValue"
+    :label="field.caption"
+    :items="selectItems"
+    :multiple="field.multiple"
+    :chips="field.multiple"
+    :disabled="inputDisabled"
+    :loading="loading"
+    :error-messages="errorMessages"
+    :no-filter="remoteSearch"
+    :clearable="clearable ?? usage === 'filter'"
+    @update:model-value="update($event ?? (field.multiple ? [] : null))"
+    @update:search="emit('search', $event)"
+  />
   <v-select
     v-else-if="
       field.type === 'boolean' ||
       field.type === 'enum' ||
+      field.type === 'choice' ||
       field.type === 'reference'
     "
     :model-value="modelValue"
     :data-testid="`field-${field.key}`"
     :label="field.caption"
     :items="selectItems"
+    :multiple="field.type === 'choice' && field.multiple"
     :disabled="inputDisabled"
     hide-details
-    clearable
+    :clearable="clearable ?? usage === 'filter'"
     variant="outlined"
-    @update:model-value="
-      emit('update:modelValue', $event ?? (field.type === 'enum' ? '' : null))
-    "
+    @update:model-value="update($event ?? (field.type === 'enum' ? '' : null))"
   />
   <v-text-field
     v-else
@@ -147,24 +180,12 @@ function updateRange(endpoint: 'from' | 'to', value: unknown): void {
     :label="field.caption"
     :type="inputType()"
     :inputmode="inputMode()"
+    :maxlength="field.maxLength"
+    :suffix="field.suffix"
     :disabled="inputDisabled"
     hide-details
-    clearable
+    :clearable="clearable ?? usage === 'filter'"
     variant="outlined"
-    @update:model-value="emit('update:modelValue', scalarValue($event))"
+    @update:model-value="update(scalarValue($event))"
   />
 </template>
-
-<style scoped>
-.dynamic-field-range {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(140px, 1fr));
-  gap: 8px;
-}
-
-@media (max-width: 600px) {
-  .dynamic-field-range {
-    grid-template-columns: 1fr;
-  }
-}
-</style>

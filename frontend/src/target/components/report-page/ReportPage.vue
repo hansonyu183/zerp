@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
+import DynamicCols from '../dynamic-fields/DynamicCols.vue'
+import ListPagination from '../list-page/ListPagination.vue'
+import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { computed, ref, shallowRef, watch, onMounted, onUnmounted } from 'vue'
 import {
   queryTargetReportDirectory,
@@ -9,6 +13,7 @@ import {
 import { useTargetSession } from '../../session/vm.ts'
 import ManagementPageFrame from '../ManagementPageFrame.vue'
 import {
+  parameterField,
   type Definition,
   type ReferenceItem,
   normalize,
@@ -49,11 +54,26 @@ const references = ref<
   >
 >({})
 const displayRows = computed(() =>
-  rows.value.map((row) =>
-    columns.value
-      .filter((column) => column.visible)
-      .map((column) => reportCell(column, row[column.alias])),
-  ),
+  rows.value.map((row, index) => ({
+    displayKey: `${page.value}:${index}`,
+    ...Object.fromEntries(
+      columns.value
+        .filter((column) => column.visible)
+        .map((column, columnIndex) => [
+          `column${columnIndex}`,
+          reportCell(column, row[column.alias]),
+        ]),
+    ),
+  })),
+)
+const displayColumns = computed(() =>
+  visibleColumns.value.map((column, index) => ({
+    key: `column${index}`,
+    type: 'text' as const,
+    emptyCaption: '',
+    caption: column.name,
+    width: column.width,
+  })),
 )
 let disposed = false,
   request = 0,
@@ -228,30 +248,26 @@ function dispose() {
 function setValue(key: string, value: unknown) {
   parameterInput.value[key] = value
 }
-function setRange(key: string, index: 0 | 1, value: unknown) {
+function rangeValue(key: string, index: number) {
+  const value = parameterInput.value[key]
+  return Array.isArray(value) ? String(value[index] ?? '') : ''
+}
+function setRange(key: string, index: number, value: string) {
   const existing = parameterInput.value[key]
   const range = Array.isArray(existing) ? [...existing] : ['', '']
   range[index] = value
   setValue(key, range)
 }
-function rangeValue(key: string, index: 0 | 1) {
-  const value = parameterInput.value[key]
-  return Array.isArray(value) ? String(value[index] ?? '') : ''
-}
 const referenceOptions = (key: string) =>
   (references.value[key]?.items ?? []).map((item) => ({
     value: item.id ?? item.objectId,
-    title: [item.customerCode, item.customerName, item.code, item.name]
+    caption: [item.customerCode, item.customerName, item.code, item.name]
       .filter(Boolean)
       .join(' · '),
   }))
 const visibleColumns = computed(() =>
   columns.value.filter((column) => column.visible),
 )
-const booleanOptions = [
-  { title: '是', value: true },
-  { title: '否', value: false },
-]
 onMounted(() => void initialize())
 onUnmounted(() => dispose())
 async function download() {
@@ -267,7 +283,9 @@ async function download() {
   URL.revokeObjectURL(url)
 }
 function enter(event: KeyboardEvent) {
-  if (!event.isComposing) {
+  if (event.isComposing) {
+    event.preventDefault()
+  } else {
     event.preventDefault()
     void search()
   }
@@ -280,6 +298,7 @@ function enter(event: KeyboardEvent) {
   >
     <template #actions>
       <v-btn
+        :prepend-icon="actionIcons.export"
         v-if="canExport"
         :loading="exporting"
         :disabled="!report"
@@ -299,60 +318,26 @@ function enter(event: KeyboardEvent) {
       @keydown.enter="enter"
     >
       <div v-for="parameter in report.parameters" :key="parameter.key">
-        <template v-if="parameter.type === 'DATE_RANGE'">
-          <label
-            >{{ parameter.name }}{{ parameter.required ? ' *' : '' }}</label
-          >
-          <div class="d-flex ga-2">
-            <v-text-field
-              :model-value="rangeValue(parameter.key, 0)"
-              :label="`${parameter.name}起始日`"
-              type="date"
-              @update:model-value="setRange(parameter.key, 0, $event)"
-            />
-            <v-text-field
-              :model-value="rangeValue(parameter.key, 1)"
-              :label="`${parameter.name}截止日`"
-              type="date"
-              @update:model-value="setRange(parameter.key, 1, $event)"
-            />
-          </div>
-        </template>
-        <v-select
-          v-else-if="parameter.type === 'BOOLEAN'"
-          :model-value="parameterInput[parameter.key]"
-          :items="booleanOptions"
-          :label="parameter.name"
-          clearable
-          @update:model-value="setValue(parameter.key, $event)"
-        />
-        <v-select
-          v-else-if="parameter.type === 'ENUM'"
-          :model-value="parameterInput[parameter.key]"
-          :items="
-            parameter.enumValues?.map((value) => ({
-              value,
-              title: parameter.enumCaptions?.[value],
-            }))
-          "
-          :label="parameter.name"
-          clearable
-          @update:model-value="setValue(parameter.key, $event)"
-        />
-        <template v-else-if="parameter.type === 'REFERENCE'">
-          <v-autocomplete
+        <template v-if="parameter.type === 'REFERENCE'">
+          <FieldInput
+            :field="{
+              key: parameter.key,
+              type: 'choice',
+              caption: parameter.name,
+              searchable: true,
+              options: referenceOptions(parameter.key),
+            }"
             :model-value="parameterInput[parameter.key]"
-            :items="referenceOptions(parameter.key)"
-            :label="parameter.name"
+            clearable
+            remote-search
             :loading="references[parameter.key]?.loading"
             :error-messages="references[parameter.key]?.error"
-            no-filter
-            clearable
             @update:model-value="setValue(parameter.key, $event)"
-            @update:search="loadReference(parameter.key, $event)"
+            @search="loadReference(parameter.key, $event)"
           />
           <div class="d-flex ga-2">
             <v-btn
+              :prepend-icon="actionIcons.previous"
               size="small"
               :disabled="
                 (references[parameter.key]?.page ?? 1) <= 1 ||
@@ -368,6 +353,7 @@ function enter(event: KeyboardEvent) {
               >上一组</v-btn
             >
             <v-btn
+              :prepend-icon="actionIcons.next"
               size="small"
               :disabled="
                 (references[parameter.key]?.page ?? 1) * 20 >=
@@ -385,23 +371,34 @@ function enter(event: KeyboardEvent) {
             >
           </div>
         </template>
-        <v-text-field
+        <div v-else-if="parameter.type === 'DATE_RANGE'" class="d-flex ga-2">
+          <FieldInput
+            v-for="(suffix, index) in ['起', '止']"
+            :key="suffix"
+            :field="{
+              key: parameter.key,
+              type: 'date',
+              caption: `${parameter.name}${suffix}`,
+            }"
+            :model-value="rangeValue(parameter.key, index)"
+            clearable
+            @update:model-value="setRange(parameter.key, index, $event)"
+          />
+        </div>
+        <FieldInput
           v-else
+          :field="parameterField(parameter)"
           :model-value="parameterInput[parameter.key]"
-          :label="`${parameter.name}${parameter.required ? ' *' : ''}`"
-          :type="parameter.type === 'DATE' ? 'date' : 'text'"
-          :inputmode="
-            parameter.type === 'INTEGER'
-              ? 'numeric'
-              : parameter.type === 'DECIMAL'
-                ? 'decimal'
-                : undefined
-          "
           clearable
           @update:model-value="setValue(parameter.key, $event)"
         />
       </div>
-      <v-btn v-if="canQuery" type="submit" color="primary" :loading="loading"
+      <v-btn
+        :prepend-icon="actionIcons.search"
+        v-if="canQuery"
+        type="submit"
+        color="primary"
+        :loading="loading"
         >查询</v-btn
       >
     </form>
@@ -409,38 +406,20 @@ function enter(event: KeyboardEvent) {
     <v-alert v-if="!canQuery && canExport" type="info" class="my-4"
       >你可以填写参数并导出此报表。</v-alert
     >
-    <v-table v-if="canQuery" class="mt-4">
-      <thead>
-        <tr>
-          <th
-            v-for="column in visibleColumns"
-            :key="column.alias"
-            :style="{ minWidth: `${column.width}px` }"
-          >
-            {{ column.name }}
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="(row, index) in displayRows" :key="index">
-          <td v-for="(cell, columnIndex) in row" :key="columnIndex">
-            {{ cell }}
-          </td>
-        </tr>
-      </tbody>
-    </v-table>
-    <p v-if="canQuery && !loading && displayRows.length === 0" class="my-4">
-      暂无结果，请填写参数后查询。
-    </p>
-    <template v-if="canQuery" #footer>
-      <v-btn :disabled="page <= 1 || loading" @click="goToPage(page - 1)"
-        >上一页</v-btn
-      >
-      <span>第 {{ page }} 页</span>
-      <v-btn :disabled="!hasMore || loading" @click="goToPage(page + 1)"
-        >下一页</v-btn
-      >
-    </template>
+    <DynamicCols
+      v-if="canQuery"
+      class="mt-4"
+      identity-key="displayKey"
+      :items="displayRows"
+      :fields="displayColumns"
+      :loading="loading"
+    />
+    <template v-if="canQuery" #footer
+      ><ListPagination
+        :pagination="{ mode: 'more', page, hasMore }"
+        :disabled="loading"
+        @page="goToPage"
+    /></template>
   </ManagementPageFrame>
 </template>
 <style scoped>

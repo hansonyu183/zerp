@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { vouEntityPresentation } from '@zerp/model'
 import type { WflData } from './wfl-data.ts'
-import DetailBlock from './DetailBlock.vue'
+import DetailBlock from '../dynamic-fields/DetailBlock.vue'
 defineProps<{
   graph: NonNullable<WflData['compiledGraph']>
   result?: NonNullable<WflData['trial']>['result']

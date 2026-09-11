@@ -1,5 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import DirectPage from '../components/direct-page/DirectPage.vue'
+import VersionPage from '../components/version-page/VersionPage.vue'
+import DocumentPage from '../components/document-page/DocumentPage.vue'
+import ConfigurationPage from '../components/configuration-page/ConfigurationPage.vue'
+import ProcessPage from '../components/process-page/ProcessPage.vue'
+import ReportPage from '../components/report-page/ReportPage.vue'
 
 import ManagementPageFrame from '../components/ManagementPageFrame.vue'
 import Forbidden from '../pages/system/Forbidden.vue'
@@ -25,9 +31,7 @@ const authorized = computed(() =>
 const registration = computed(() =>
   authorized.value ? props.registry.resolve(props.domain, props.entity) : null,
 )
-const pageProps = computed(() => ({
-  definition: registration.value?.definition,
-}))
+const definition = computed(() => registration.value?.definition)
 const instanceKey = computed(() => `${session.generation}:${resourceKey.value}`)
 </script>
 
@@ -36,11 +40,35 @@ const instanceKey = computed(() => `${session.generation}:${resourceKey.value}`)
     请从左侧导航选择功能。
   </ManagementPageFrame>
   <Forbidden v-else-if="!authorized" />
-  <component
-    :is="registration.component"
-    v-else-if="registration"
+  <DirectPage
+    v-else-if="definition?.kind === 'direct'"
     :key="instanceKey"
-    v-bind="pageProps"
+    :definition="definition"
+  />
+  <VersionPage
+    v-else-if="definition?.kind === 'version'"
+    :key="instanceKey"
+    :definition="definition"
+  />
+  <DocumentPage
+    v-else-if="definition?.kind === 'document'"
+    :key="instanceKey"
+    :definition="definition"
+  />
+  <ConfigurationPage
+    v-else-if="definition?.kind === 'configuration'"
+    :key="instanceKey"
+    :definition="definition"
+  />
+  <ProcessPage
+    v-else-if="definition?.kind === 'process'"
+    :key="instanceKey"
+    :definition="definition"
+  />
+  <ReportPage
+    v-else-if="definition?.kind === 'report'"
+    :key="instanceKey"
+    :definition="definition"
   />
   <ManagementPageFrame
     v-else

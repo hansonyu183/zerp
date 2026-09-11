@@ -1,5 +1,5 @@
 import { vouEntities } from '@zerp/model'
-import { defineComponent } from 'vue'
+import { userPage } from '@/target/definitions/user.ts'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -10,15 +10,15 @@ import { targetDomainCapabilities } from '@/target/navigation/resources.ts'
 
 describe('business resource registry', () => {
   it('resolves a registered implementation with its fixed domain capabilities', () => {
-    const component = defineComponent({ template: '<div>user</div>' })
+    const definition = userPage
     const registry = createResourceRegistry([
-      { domain: 'app', entity: 'user', component },
+      { domain: 'app', entity: 'user', definition },
     ])
 
     expect(registry.resolve('app', 'user')).toEqual({
       domain: 'app',
       entity: 'user',
-      component,
+      definition,
       capabilities: {
         approval: false,
         businessVersion: false,
@@ -153,5 +153,20 @@ it('opens every shared voucher type through the real registry with independent d
       businessVersion: false,
       enabled: false,
     })
+  }
+})
+
+it('registers only definitions and leaves page selection to the Host', () => {
+  for (const [domain, entity] of [
+    ['app', 'user'],
+    ['bob', 'supplier'],
+    ['vou', 'opening'],
+    ['acc', 'mapping'],
+    ['wfl', 'process-instance'],
+    ['rpt', 'rpt-000001'],
+  ]) {
+    const registration = targetResourceRegistry.resolve(domain!, entity!)!
+    expect(registration.definition).toBeDefined()
+    expect(registration).not.toHaveProperty('component')
   }
 })

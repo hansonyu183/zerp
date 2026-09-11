@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
 import { onBeforeUnmount, ref } from 'vue'
 import { ulid } from 'ulid'
 import type { VouFormulaInput } from '@zerp/model'
-import FormBlock from '../version-page/FormBlock.vue'
+import FormBlock from '../dynamic-fields/FormBlock.vue'
 import VouReference, { type VouCandidate } from './VouReference.vue'
 import SourceLinePicker, { type SourceLineChoice } from './SourceLinePicker.vue'
 import {
@@ -325,9 +326,15 @@ onBeforeUnmount(() => {
           @update:model-value="material(row.id, item.formulaLineNo, $event)"
         />
       </section>
-      <v-btn :disabled="disabled" @click="remove(row.id)">移除成品行</v-btn>
+      <v-btn
+        :prepend-icon="actionIcons.remove"
+        :disabled="disabled"
+        @click="remove(row.id)"
+        >移除成品行</v-btn
+      >
     </v-card>
     <v-btn
+      :prepend-icon="actionIcons.add"
       :disabled="disabled"
       @click="
         update({ lines: [...modelValue.lines, emptyProductionLine(ulid())] })

@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
+import RowActions from '../dynamic-fields/RowActions.vue'
+import DynamicCols from '../dynamic-fields/DynamicCols.vue'
+import ListPagination from '../list-page/ListPagination.vue'
+import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { ref, shallowRef, watch, onMounted, onBeforeUnmount } from 'vue'
 import { ulid } from 'ulid'
 import { vouEntityPresentation } from '@zerp/model'
@@ -330,6 +335,10 @@ async function readAudit(processId: string) {
       auditError.value = '运行审计读取失败，请重试。'
   }
 }
+function turnPage(value: number) {
+  page.value = value
+  void read()
+}
 onMounted(read)
 onBeforeUnmount(dispose)
 </script>
@@ -339,6 +348,7 @@ onBeforeUnmount(dispose)
     ><v-alert v-if="feedback" type="success">{{ feedback }}</v-alert
     ><v-alert v-if="unknown" type="warning"
       >写入结果待核实，请勿重复提交。<v-btn
+        :prepend-icon="actionIcons.resolve"
         v-if="canInstance('audit-history')"
         :disabled="busy"
         @click="verify"
@@ -346,32 +356,46 @@ onBeforeUnmount(dispose)
       ></v-alert
     >
     <div class="d-flex flex-wrap ga-3 align-center">
-      <v-text-field
+      <FieldInput
+        usage="edit"
+        :field="{ key: 'keyword', type: 'text', caption: '流程代码或名称' }"
         v-model="keyword"
-        label="流程代码或名称"
         @keydown.enter="!$event.isComposing && search()"
       /><v-btn
+        :prepend-icon="actionIcons.search"
         :loading="loading"
         :disabled="!canInstance('query') || busy"
         @click="search"
         >查询</v-btn
       >
     </div>
-    <v-pagination
-      v-model="page"
-      :length="Math.max(1, Math.ceil(total / 20))"
+    <ListPagination
+      :pagination="{ mode: 'total', page, pageSize: 20, total }"
       :disabled="loading || busy"
-      @update:model-value="read"
+      @page="turnPage"
     />
-    <v-text-field v-if="instance" v-model="reason" label="实例操作原因" />
-    <v-list
-      ><v-list-item
-        v-for="item in instances"
-        :key="item.processId"
-        :title="`${item.definitionName} · ${item.rootDocumentNo}`"
-        :disabled="!canInstance('get')"
-        @click="openInstance(item.processId)"
-    /></v-list>
+    <FieldInput
+      usage="edit"
+      :field="{ key: 'reason', type: 'text', caption: '实例操作原因' }"
+      v-if="instance"
+      v-model="reason"
+    />
+    <DynamicCols
+      identity-key="processId"
+      :items="instances"
+      :loading="loading"
+      :fields="[
+        { key: 'definitionName', type: 'text', caption: '流程名称' },
+        { key: 'rootDocumentNo', type: 'text', caption: '单据编号' },
+        { key: '$actions', type: 'actions', caption: '操作' },
+      ]"
+      ><template #actions="{ item }"
+        ><RowActions
+          :actions="[
+            { key: 'open', caption: '打开', disabled: !canInstance('get') },
+          ]"
+          @action="openInstance(item.processId)" /></template
+    ></DynamicCols>
     <v-dialog
       :model-value="document !== null"
       max-width="850"
@@ -420,7 +444,9 @@ onBeforeUnmount(dispose)
             金额：{{ document.payload.amount }}
           </p> </v-card-text
         ><v-card-actions
-          ><v-btn @click="document = null">关闭</v-btn></v-card-actions
+          ><v-btn :prepend-icon="actionIcons.cancel" @click="document = null"
+            >关闭</v-btn
+          ></v-card-actions
         ></v-card
       ></v-dialog
     >
@@ -444,7 +470,10 @@ onBeforeUnmount(dispose)
         />
         <section v-if="canInstance('audit-history')" aria-label="运行审计">
           <h3>运行审计</h3>
-          <v-btn :disabled="busy" @click="readAudit(instance.processId)"
+          <v-btn
+            :disabled="busy"
+            :prepend-icon="actionIcons.audit"
+            @click="readAudit(instance.processId)"
             >刷新审计</v-btn
           >
           <v-alert v-if="auditError" type="error">{{ auditError }}</v-alert>

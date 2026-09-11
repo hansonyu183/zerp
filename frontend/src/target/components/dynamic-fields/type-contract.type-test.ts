@@ -64,3 +64,11 @@ export const invalidDecimalWithoutScale: FilterField<TypeTestFilters> = {
   caption: '金额',
   range: true,
 }
+
+export const invalidFilterEmptyCaption: FilterField = {
+  key: 'keyword',
+  type: 'text',
+  caption: '关键词',
+  // @ts-expect-error Empty text presentation belongs to columns, not filters.
+  emptyCaption: '',
+}

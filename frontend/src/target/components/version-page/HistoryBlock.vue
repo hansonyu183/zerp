@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
 import { approvalStatusPresentation } from '@zerp/model'
 import {
   archiveAuditActionPresentation,
@@ -43,6 +44,7 @@ function auditLabel(action: string) {
           <td>{{ version.submittedAt || '—' }}</td>
           <td>
             <v-btn
+              :prepend-icon="actionIcons.history"
               :disabled="selectedId === version.submissionId"
               @click="
                 emit('select', {

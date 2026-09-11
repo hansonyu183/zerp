@@ -69,11 +69,11 @@ test('includes explicitly documented Resource Host pages from the Registry', () 
   assert.deepEqual(
     parseTargetRegisteredResourcePages(`
       const resources = [
-        { domain: 'aux', entity: 'warehouse', component: Warehouse },
+        { domain: 'aux', entity: 'warehouse', definition: warehousePage },
         {
           domain: 'bob',
           entity: 'supplier',
-          component: SupplierManagement,
+          definition: supplierPage,
           useCaseKey: 'bob/supplier-management',
         },
       ]
@@ -144,7 +144,7 @@ test('use-case baseline can only describe current target-route gaps', () => {
 })
 
 test('documents the constrained RPT code registration without accepting arbitrary dynamic resources', () => {
-  const registration = `{domain:'rpt',entity:':code',component:ReportPage,useCaseKey:'rpt/report-query'}`
+  const registration = `{domain:'rpt',entity:':code',definition:reportPage,useCaseKey:'rpt/report-query'}`
   const parsed = parseTargetRegisteredResourcePages(registration)
   assert.deepEqual(parsed.failures, [])
   assert.equal(parsed.pages[0].route, '/rpt/:code')
@@ -155,12 +155,27 @@ test('documents the constrained RPT code registration without accepting arbitrar
 })
 
 test('documents the shared VOU catalog without accepting an arbitrary dynamic resource', () => {
-  const registration = `{domain:'vou',entity:':entity',component:VoucherManagement,useCaseKey:'vou/catalog'}`
+  const registration = `{domain:'vou',entity:':entity',definition:voucherPage,useCaseKey:'vou/catalog'}`
   const parsed = parseTargetRegisteredResourcePages(registration)
   assert.deepEqual(parsed.failures, [])
   assert.equal(parsed.pages[0].route, '/vou/:entity')
   assert.ok(
     parseTargetRegisteredResourcePages(registration.replace("'vou'", "'bob'"))
       .failures.length,
+  )
+})
+
+test('requires a definition and rejects a separately assigned component in a resource registration', () => {
+  const source =
+    "{domain:'bob',entity:'supplier',useCaseKey:'bob/supplier-management'"
+  assert.match(
+    parseTargetRegisteredResourcePages(source + '}').failures.join('\n'),
+    /缺少 definition/,
+  )
+  assert.match(
+    parseTargetRegisteredResourcePages(
+      source + ',definition:supplierPage,component:WrongPage}',
+    ).failures.join('\n'),
+    /不得登记 component/,
   )
 })

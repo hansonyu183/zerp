@@ -115,8 +115,12 @@ function validateRange(field: DataField, value: unknown): void {
 export function validateRows<
   Row extends object,
   const Fields extends readonly unknown[],
->(fields: Fields, rows: readonly Row[]): readonly Row[] {
-  validateFields(fields, { usage: 'column' })
+>(
+  fields: Fields,
+  rows: readonly Row[],
+  options: { requireActions?: boolean } = {},
+): readonly Row[] {
+  validateFields(fields, { usage: 'column', ...options })
   if (!Array.isArray(rows)) fail('列数据必须是数组')
   const identities = new Set<string>()
   for (const [index, row] of rows.entries()) {

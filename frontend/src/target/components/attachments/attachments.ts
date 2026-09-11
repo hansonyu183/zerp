@@ -6,8 +6,8 @@ import {
   stageTargetVoucherAttachment,
   type TargetCustomerAttachmentStageInput,
 } from '../../api.ts'
-import type { CustomerSnapshot } from './customer-data.ts'
-type Attachment = CustomerSnapshot['identityAttachments'][number]
+import type { AttachmentMetadata } from '@zerp/model'
+type Attachment = AttachmentMetadata
 type LocalFile = {
   file: File
   stagingId: string

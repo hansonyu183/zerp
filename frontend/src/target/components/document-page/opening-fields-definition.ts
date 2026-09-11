@@ -1,4 +1,4 @@
-import type { FormFields } from '../version-page/form-fields.ts'
+import type { FormFields } from '../dynamic-fields/form-fields.ts'
 import {
   directions,
   billPositions,

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
 import {
   computed,
   onBeforeUnmount,
@@ -11,6 +12,10 @@ import {
 import { TargetApiError } from '../../api.ts'
 import { useTargetSession } from '../../session/vm.ts'
 import { resourceDisplayName } from '../../navigation/resources.ts'
+import AppSnackbar from '../AppSnackbar.vue'
+import RowActions from '../dynamic-fields/RowActions.vue'
+import type { FilterField } from '../dynamic-fields/types.ts'
+import { useReferenceOptionsViewModel } from '../dynamic-fields/reference-options.ts'
 import ListPageShell from '../list-page/ListPageShell.vue'
 import { defineListPage } from '../list-page/definition.ts'
 import {
@@ -19,15 +24,14 @@ import {
   ListActionRefreshRequiredError,
   type ListAction,
 } from '../list-page/vm.ts'
+import type { EditValues, EditOption } from '../dynamic-fields/edit-fields.ts'
 import {
   hasAction,
   type DirectDefinition,
   type DirectRow,
-  type EditValues,
   type EditDetail,
-  type EditOption,
 } from './definition.ts'
-import EditForm from './EditForm.vue'
+import EditForm from '../dynamic-fields/EditForm.vue'
 import { formatDecimal, compareDecimal } from '../dynamic-fields/decimal.ts'
 import { roleTypeOptions } from './role-presentation.ts'
 const props = defineProps<{ definition: DirectDefinition }>()
@@ -430,9 +434,53 @@ const list = reactive(
     },
   ),
 )
-onMounted(() => void list.initialize())
+const references = reactive(useReferenceOptionsViewModel())
+const pendingDelete = shallowRef<DirectRow | null>(null)
+const contractError = computed(() => {
+  try {
+    listDefinition.validateRows(list.items)
+    return null
+  } catch (cause) {
+    return cause instanceof Error ? cause.message : '列表数据不符合字段契约。'
+  }
+})
+function rowActions(item: DirectRow) {
+  const pending = list.isRowPending(item.id)
+  return (
+    [
+      { key: 'edit', caption: '编辑' },
+      { key: 'enable', caption: '启用', color: 'success' },
+      { key: 'disable', caption: '停用', color: 'warning' },
+      { key: 'delete', caption: '删除', color: 'error' },
+    ] as const
+  )
+    .filter((action) => list.canAction(action.key, item))
+    .map((action) => ({
+      ...action,
+      disabled: pending || list.isRowBlocked(item.id),
+      loading: pending,
+    }))
+}
+function runRowAction(key: string, item: DirectRow) {
+  if (key === 'delete') pendingDelete.value = item
+  else if (key === 'edit' || key === 'enable' || key === 'disable')
+    void list[key](item)
+}
+function confirmDelete() {
+  const item = pendingDelete.value
+  pendingDelete.value = null
+  if (item) void list.delete(item)
+}
+onMounted(() => {
+  void list.initialize()
+  if (list.searchable)
+    for (const field of listDefinition.filters as readonly FilterField[])
+      if (field.type === 'reference') void references.load(field.source)
+})
+
 onBeforeUnmount(() => {
   active = false
+  references.dispose()
   list.dispose()
   finish()
 })
@@ -440,19 +488,91 @@ onBeforeUnmount(() => {
 <template>
   <v-alert v-if="!open && verificationTarget" type="info"
     >{{ verificationNotice || '请求结果未知，已保持锁定。'
-    }}<v-btn v-if="canVerify" :disabled="verifying" @click="verify"
+    }}<v-btn
+      :prepend-icon="actionIcons.resolve"
+      v-if="canVerify"
+      :disabled="verifying"
+      @click="verify"
       >核实当前资料</v-btn
     ></v-alert
   >
   <ListPageShell
-    :definition="listDefinition"
-    :vm="list"
-    :notice="
-      list.actionBlocked && lastCreatedId
-        ? `新建成功（ID：${lastCreatedId}），但列表刷新失败，请先查询核实。`
-        : null
-    "
-  />
+    :title="listDefinition.title"
+    :columns="listDefinition.columns"
+    :filters="listDefinition.filters"
+    :items="contractError ? [] : list.items"
+    v-model:filter-input="list.filterInput"
+    :searchable="list.searchable"
+    :loading="list.loading"
+    :pagination="{
+      mode: 'total',
+      page: list.page,
+      pageSize: list.pageSize,
+      total: list.total,
+    }"
+    :reference-options="references.options"
+    @search="list.submitSearch"
+    @page="list.goToPage"
+  >
+    <template #actions
+      ><v-btn
+        :prepend-icon="actionIcons.create"
+        v-if="list.canAction('create')"
+        data-testid="list-create"
+        color="primary"
+        :loading="list.actionPending"
+        :disabled="list.actionPending || list.actionBlocked"
+        @click="list.create"
+        >{{ listDefinition.createLabel }}</v-btn
+      ></template
+    >
+    <template #alerts
+      ><v-alert
+        v-if="list.queryError || contractError"
+        type="error"
+        class="mb-4"
+        >{{ list.queryError || contractError }}</v-alert
+      ><v-alert v-if="list.actionBlocked && lastCreatedId" type="info"
+        >新建成功（ID：{{
+          lastCreatedId
+        }}），但列表刷新失败，请先查询核实。</v-alert
+      ></template
+    >
+    <template #references
+      ><v-progress-linear
+        v-if="references.loading"
+        indeterminate
+        aria-label="引用选项加载中"
+      /><v-alert v-if="references.error" type="error">{{
+        references.error
+      }}</v-alert></template
+    >
+    <template #rowActions="{ item }"
+      ><RowActions
+        :data-testid="`list-row-${item.id}`"
+        :actions="rowActions(item)"
+        @action="runRowAction($event, item)"
+    /></template>
+  </ListPageShell>
+  <v-dialog :model-value="Boolean(pendingDelete)" max-width="480" persistent
+    ><v-card title="确认删除"
+      ><v-card-text
+        >确认删除“{{ pendingDelete?.name }}”吗？此操作不可撤销。</v-card-text
+      ><v-card-actions
+        ><v-spacer /><v-btn
+          :prepend-icon="actionIcons.cancel"
+          @click="pendingDelete = null"
+          >取消</v-btn
+        ><v-btn
+          :prepend-icon="actionIcons.delete"
+          color="error"
+          @click="confirmDelete"
+          >删除</v-btn
+        ></v-card-actions
+      ></v-card
+    ></v-dialog
+  >
+  <AppSnackbar :message="list.feedback" @dismiss="list.dismissFeedback" />
   <v-dialog :model-value="open" max-width="720" persistent>
     <v-card
       :title="`${mode === 'create' ? '新增' : '编辑'}${title.replace(/管理$/, '')}`"
@@ -462,7 +582,11 @@ onBeforeUnmount(() => {
         <v-alert v-if="verificationNotice" type="info">{{
           verificationNotice
         }}</v-alert>
-        <v-btn v-if="blocked && canVerify" :disabled="verifying" @click="verify"
+        <v-btn
+          :prepend-icon="actionIcons.resolve"
+          v-if="blocked && canVerify"
+          :disabled="verifying"
+          @click="verify"
           >核实当前资料</v-btn
         >
         <EditForm
@@ -479,8 +603,16 @@ onBeforeUnmount(() => {
         />
       </v-card-text>
       <v-card-actions
-        ><v-spacer /><v-btn :disabled="saving" @click="finish()">取消</v-btn
-        ><v-btn :disabled="!canSave" :loading="saving" @click="save"
+        ><v-spacer /><v-btn
+          :prepend-icon="actionIcons.cancel"
+          :disabled="saving"
+          @click="finish()"
+          >取消</v-btn
+        ><v-btn
+          :prepend-icon="actionIcons.save"
+          :disabled="!canSave"
+          :loading="saving"
+          @click="save"
           >保存</v-btn
         ></v-card-actions
       >

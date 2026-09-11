@@ -1,14 +1,14 @@
 import type { Ref } from 'vue'
 import * as api from '../../api.ts'
 import { supplierPage } from '../../definitions/supplier.ts'
-import type { EditFields } from '../direct-page/definition.ts'
+import type { EditFields } from '../dynamic-fields/edit-fields.ts'
 import type {
   VersionAdapter,
   VersionDefinition,
   VersionSnapshots,
 } from './definition.ts'
-import type { FormFields } from './form-fields.ts'
-import type { DetailFields } from './detail-fields.ts'
+import type { FormFields } from '../dynamic-fields/form-fields.ts'
+import type { DetailFields } from '../details/detail-fields.ts'
 type Customer = VersionSnapshots['bob/customer']
 const nested: EditFields<Customer> = [
   // @ts-expect-error Top-level fields cannot reach into customer subunits.

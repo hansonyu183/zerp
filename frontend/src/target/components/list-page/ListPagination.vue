@@ -18,7 +18,20 @@ const emit = defineEmits<{ page: [value: number] }>()
         :prev-icon="actionIcons.previous"
         :next-icon="actionIcons.next"
         @update:model-value="emit('page', $event)"
-      />
+      >
+        <template #prev="control">
+          <v-btn v-bind="control" _as="VPaginationBtn">
+            <v-icon :icon="control.icon" />
+            <v-tooltip activator="parent" location="bottom">上一页</v-tooltip>
+          </v-btn>
+        </template>
+        <template #next="control">
+          <v-btn v-bind="control" _as="VPaginationBtn">
+            <v-icon :icon="control.icon" />
+            <v-tooltip activator="parent" location="bottom">下一页</v-tooltip>
+          </v-btn>
+        </template>
+      </v-pagination>
     </template>
     <template v-else>
       <v-btn

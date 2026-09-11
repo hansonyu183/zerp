@@ -2,6 +2,14 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createVuetify } from 'vuetify'
 import { expect, it, vi } from 'vitest'
 import DynamicCols from '@/target/components/dynamic-fields/DynamicCols.vue'
+vi.stubGlobal('visualViewport', {
+  width: 1280,
+  height: 800,
+  offsetLeft: 0,
+  offsetTop: 0,
+  addEventListener() {},
+  removeEventListener() {},
+})
 vi.stubGlobal(
   'ResizeObserver',
   class {
@@ -120,6 +128,44 @@ it('paginates hasMore without inventing a total', async () => {
   await buttons[1]!.trigger('click')
   expect(wrapper.emitted('page')).toEqual([[1], [3]])
   wrapper.unmount()
+})
+
+it('explains pagination icons on hover and keyboard focus while preserving paging', async () => {
+  const wrapper = mount(ListPagination, {
+    attachTo: document.body,
+    props: { pagination: { mode: 'total', page: 2, pageSize: 20, total: 60 } },
+    global: { plugins: [createVuetify()] },
+  })
+  try {
+    await flushPromises()
+    const previous = wrapper.get('.v-pagination__prev button')
+    const next = wrapper.get('.v-pagination__next button')
+    await previous.trigger('mouseenter')
+    await vi.waitFor(() => {
+      expect(
+        document.querySelector('.v-tooltip.v-overlay--active')?.textContent,
+      ).toBe('上一页')
+    })
+    await previous.trigger('mouseleave')
+    ;(next.element as HTMLButtonElement).focus()
+    await vi.waitFor(() => {
+      expect(
+        document.querySelector('.v-tooltip.v-overlay--active')?.textContent,
+      ).toBe('下一页')
+    })
+    await next.trigger('blur')
+    await previous.trigger('click')
+    await next.trigger('click')
+    expect(wrapper.emitted('page')).toEqual([[1], [3]])
+    await wrapper.setProps({
+      pagination: { mode: 'total', page: 1, pageSize: 20, total: 60 },
+    })
+    expect(previous.attributes('disabled')).toBeDefined()
+    await wrapper.setProps({ disabled: true })
+    expect(next.attributes('disabled')).toBeDefined()
+  } finally {
+    wrapper.unmount()
+  }
 })
 
 it('keeps opposite approval intents distinct and emits the exact permitted action', async () => {

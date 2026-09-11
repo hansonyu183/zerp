@@ -4,23 +4,25 @@
 
 数据来源：[`frontend/src/target/router/index.ts`](../../frontend/src/target/router/index.ts) 的带标题路由、[动态资源登记](../../frontend/src/target/navigation/registry.ts) 的显式页面用例，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。
 
-统计口径：每个带 `meta.title` 的正式 target 路由必须声明 `meta.useCaseKey`；动态 Resource Host 的已实现资源以 Registry 显式 `useCaseKey` 计入。layout 与重定向不单独计数。
+统计口径：每个带 `meta.title` 的正式 target 路由必须声明 `meta.useCaseKey`；全部正式 Registry 登记计入分母，缺少 `useCaseKey` 直接失败；多个入口允许共享有实际场景覆盖的用例。VOU/RPT 动态家族不展开参数，layout 与重定向不单独计数。
 
-- 页面入口：18
-- 已覆盖入口：18
-- 已登记用例：18
+- 页面入口：30
+- 已覆盖入口：30
+- 已登记唯一用例：22
 - 缺少用例：0
 - 孤儿用例：0
 
 ## APP
 
-| 页面       | 路由               | 来源                                                  | 状态                               |
-| ---------- | ------------------ | ----------------------------------------------------- | ---------------------------------- |
-| 登录       | `/signin`          | [目标路由](../../frontend/src/target/router/index.ts) | [已文档化](app/signin.md)          |
-| 修改密码   | `/change-password` | [目标路由](../../frontend/src/target/router/index.ts) | [已文档化](app/change-password.md) |
-| 无权访问   | `/forbidden`       | [目标路由](../../frontend/src/target/router/index.ts) | [已文档化](app/forbidden.md)       |
-| 业务功能   | `/:domain/:entity` | [目标路由](../../frontend/src/target/router/index.ts) | [已文档化](app/navigation.md)      |
-| 页面不存在 | `/:pathMatch(.*)*` | [目标路由](../../frontend/src/target/router/index.ts) | [已文档化](app/not-found.md)       |
+| 页面       | 路由               | 来源                                                         | 状态                                 |
+| ---------- | ------------------ | ------------------------------------------------------------ | ------------------------------------ |
+| 登录       | `/signin`          | [目标路由](../../frontend/src/target/router/index.ts)        | [已文档化](app/signin.md)            |
+| 修改密码   | `/change-password` | [目标路由](../../frontend/src/target/router/index.ts)        | [已文档化](app/change-password.md)   |
+| 无权访问   | `/forbidden`       | [目标路由](../../frontend/src/target/router/index.ts)        | [已文档化](app/forbidden.md)         |
+| 业务功能   | `/:domain/:entity` | [目标路由](../../frontend/src/target/router/index.ts)        | [已文档化](app/navigation.md)        |
+| 页面不存在 | `/:pathMatch(.*)*` | [目标路由](../../frontend/src/target/router/index.ts)        | [已文档化](app/not-found.md)         |
+| app/user   | `/app/user`        | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](app/access-management.md) |
+| app/role   | `/app/role`        | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](app/access-management.md) |
 
 ## VOU
 
@@ -43,6 +45,21 @@
 | 页面        | 路由           | 来源                                                         | 状态                                  |
 | ----------- | -------------- | ------------------------------------------------------------ | ------------------------------------- |
 | acc/mapping | `/acc/mapping` | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](acc/mapping-management.md) |
+
+## AUX
+
+| 页面                  | 路由                     | 来源                                                         | 状态                                  |
+| --------------------- | ------------------------ | ------------------------------------------------------------ | ------------------------------------- |
+| aux/employee-category | `/aux/employee-category` | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/position          | `/aux/position`          | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/measurement-unit  | `/aux/measurement-unit`  | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/payment-method    | `/aux/payment-method`    | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/asset-category    | `/aux/asset-category`    | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/operating-entity  | `/aux/operating-entity`  | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/people-maintenance.md) |
+| aux/employee          | `/aux/employee`          | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/people-maintenance.md) |
+| aux/warehouse         | `/aux/warehouse`         | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/assets-maintenance.md) |
+| aux/fund-account      | `/aux/fund-account`      | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/assets-maintenance.md) |
+| aux/vehicle           | `/aux/vehicle`           | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/assets-maintenance.md) |
 
 ## BOB
 

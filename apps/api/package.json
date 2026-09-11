@@ -17,7 +17,7 @@
     "generate": "pnpm generate:artifacts && pnpm generate:db",
     "generate:artifacts": "node scripts/generate-target-artifacts.ts",
     "generate:db": "node scripts/generate-db-types.ts",
-    "generate:check": "pnpm generate && git diff --exit-code -- src/generated",
+    "generate:check": "pnpm generate && node ../../scripts/check-generated.mjs",
     "check:catalog": "node scripts/check-target-catalog.ts",
     "validate:rpt": "node scripts/validate-rpt-definitions.ts",
     "seed:online-test": "node scripts/seed-online-test-users.ts",

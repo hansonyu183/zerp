@@ -61,7 +61,7 @@ target-generate:
 	TARGET_DATABASE_URL='$(TARGET_DATABASE_URL)' pnpm --filter @zerp/api generate:db
 
 target-generate-check: target-generate
-	git diff --exit-code -- apps/api/src/generated apps/api/src/db/generated.ts
+	node scripts/check-generated.mjs
 
 target-wfl-parity:
 	pnpm --filter @zerp/wfl-starlark wasm:build

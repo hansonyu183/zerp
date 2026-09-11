@@ -18,6 +18,6 @@ TARGET_DATABASE_URL=... TARGET_DATABASE_SCOPE=production \
 5. 为保留的 DCL、VOU 与 ACC 历史引用登记 `aux_reference_facts`；ACC 覆盖期初 `EMPLOYEE` 维度、期初票据对手方、非期初会计分录 `EMPLOYEE` 维度，并按期初事实的既有来源键去重，使 AUX 物理删除仍受全部历史事实阻止；
 6. 将旧 BOB/DCL query、get、submit-new 和 submit-change 授权转换为已确认的 AUX 精确动作。旧审批、版本、审计和删除权限不映射。
 
-任一 blocker、权限等价检查或数据库错误都会回滚 schema、current data、历史快照、引用事实、审计、计数器和权限目录。先使用匹配的旧应用正常处理 blocker，再重新停止写入并重跑；不得直接删候选、改历史快照或绕过权限检查。普通 `sync:catalog` 检测到尚未转换的旧人员、资产或三类 BOB 档案权限时会拒绝执行，避免先删除旧角色授权。完整顺序固定为 `migrate:aux-people`、`migrate:aux-assets`、`migrate:bob-archives`、`sync:catalog`，具体命令见 [BOB 档案迁移](bob-archives-migration.md)。
+任一 blocker、权限等价检查或数据库错误都会回滚 schema、current data、历史快照、引用事实、审计、计数器和权限目录。先使用匹配的旧应用正常处理 blocker，再重新停止写入并重跑；不得直接删候选、改历史快照或绕过权限检查。普通 `sync:catalog` 检测到尚未转换的旧人员、资产或三类 BOB 档案权限时会拒绝执行，避免先删除旧角色授权。人员迁移成功不等于可以同步完整目录；继续检查 [BOB 档案迁移](bob-archives-migration.md)及源基线涉及的后续迁移。只有全部旧权限已按目标版本转换后，才执行普通目录同步。
 
 成功输出只包含迁移数量和权限目录报告。随后启动匹配 SHA 的唯一 API，核对健康状态、经营主体与员工列表/详情、代表性历史 VOU 详情、有限角色的实际动作和旧 DCL/BOB 路径不可达。回退必须恢复匹配的完整数据库备份和旧应用版本，不做局部反向转换，也不增加运行时旧表读取。

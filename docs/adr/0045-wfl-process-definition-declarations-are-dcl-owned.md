@@ -2,10 +2,16 @@
 id: ADR-0045
 date: 2026-08-29
 status: accepted
-partially_superseded_by: ADR-0051
+partially_superseded_by: ADR-0051, ADR-0058
 ---
 
 # 流程定义申报由 DCL 拥有并供 WFL 当前执行
+
+## 当前效力与剩余条款
+
+本 ADR 仅保留不可变版本精确引用、实例固定启动版本、持久化实例阻止不安全反批准、事务原子性，以及 Starlark、试算和运行审计归 WFL 的条款。定义身份、维护和审批入口现由 WFL 持有；即时启停使用独立 runtime revision，遵循 [ADR-0058](0058-wfl-owns-versioned-definitions.md)。审批状态与不可变 Submission 遵循 [ADR-0051](0051-shared-typescript-model-local-drafts-and-hono-cutover.md)。下文 DCL 所有权、表名、入口、服务端草稿与 last-command-wins 是已被替代的决定，不是当前实现要求。
+
+## 原决定（部分已替代）
 
 流程定义的稳定主体 `wfl-process-definition` 由 DCL 唯一拥有创建、候选编辑、提交、撤回、驳回、批准、反批、草稿删除、版本历史和审计。`/dcl/wfl-process-definition` 是流程定义唯一维护入口，覆盖完整生命周期和版本编排；WFL 只保留当前定义的 `query|get`、脚本与编译图的领域能力、试算、实例创建、执行和运行动作。WFL 不拥有版本写入、生命周期或候选查询，也不提供定义维护、审批或版本页面。
 

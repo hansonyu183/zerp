@@ -2,7 +2,7 @@
 id: ADR-0058
 date: 2026-09-07
 status: accepted
-partially_supersedes: ADR-0046, ADR-0047, ADR-0051, ADR-0052, ADR-0055
+partially_supersedes: ADR-0045, ADR-0046, ADR-0047, ADR-0051, ADR-0052, ADR-0055
 ---
 
 # WFL 拥有流程定义并组合公共审批与版本
@@ -15,6 +15,6 @@ WFL stable identity、脚本、编译图、试算、提交、审批、历史与�
 
 临时表单不持久化，关闭或账号变化销毁输入；提交幂等与未知结果核实保持。独立 runtime revision 控制即时启停，并在同一事务保存审计；审批不覆盖 enabled。
 
-本决定部分替代 ADR-0046 的 WFL 必须由 DCL 写入条款、ADR-0047 的 WFL stable subject 必须由 DCL 持有条款、ADR-0051 的 DCL 独占 WFL 提交与本地持久化草稿条款、ADR-0052 的 WFL 尚未迁移描述，以及 ADR-0055 的 WFL 只预留接口尚未消费公共版本描述。上述 ADR 的其他业务、权限、事务与 Hono 契约规则仍有效。ADR-0003 的 Starlark 与 immutable instance 规则保持。
+本决定部分替代 ADR-0045 的 DCL 独占定义身份、维护入口以及启停不拥有独立 revision 的条款、ADR-0046 的 WFL 必须由 DCL 写入条款、ADR-0047 的 WFL stable subject 必须由 DCL 持有条款、ADR-0051 的 DCL 独占 WFL 提交与本地持久化草稿条款、ADR-0052 的 WFL 尚未迁移描述，以及 ADR-0055 的 WFL 只预留接口尚未消费公共版本描述。上述 ADR 的其他业务、权限、事务与 Hono 契约规则仍有效。ADR-0003 的 Starlark 与 immutable instance 规则保持。
 
 对应 [#401](https://github.com/hansonyu183/zerp/issues/401) 与 [#392](https://github.com/hansonyu183/zerp/issues/392)。

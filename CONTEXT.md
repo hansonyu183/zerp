@@ -71,11 +71,11 @@ _Avoid_: 编辑即停用、候选待审期间无可用版本、AUX 修改后重�
 _Authority_: [BOB 当前有效资料读取](docs/domains/bob.md#4-当前有效资料读取)、[AUX Stable-ID Direct CRUD](docs/domains/aux.md#2-stable-id-direct-crud-生命周期)
 
 **Business Identity Record（业务身份档案）**:
-客户、供应商、员工、其他单位或销售合作方各自拥有的身份档案；同一现实个人或组织具有多种业务身份时分别建档、分别审批，不跨类型共享或同步身份资料。
+客户、供应商、员工、其他单位或销售合作方各自拥有的身份档案；同一现实个人或组织具有多种业务身份时分别建档，不跨类型共享或同步身份资料。BOB 档案分别审批，AUX 员工直接维护 current data。
 _Avoid_: Party、主体主档、跨业务身份共享档案、自动识别同一现实主体
 
 **Legal Identifier（法定识别号）**:
-一种业务身份档案在其版本中保存的唯一法律身份号码。Customer 的客户身份资料中的法定识别号是精确 Customer Version 的 `legalIdentifier`：大陆企业、大陆个人或其他；前两者分别使用完整校验的统一社会信用代码与 18 位居民身份证，其他仅 trim 后在 Customer 内去重。Supplier、Employee、Other Unit 与 Sales Partner 保持各自既有身份范围，均只保存一个法定识别号。
+一种业务身份档案保存的唯一法律身份号码；BOB 档案随版本保存，AUX 员工在 current data 中保存。Customer 的客户身份资料中的法定识别号是精确 Customer Version 的 `legalIdentifier`：大陆企业、大陆个人或其他；前两者分别使用完整校验的统一社会信用代码与 18 位居民身份证，其他仅 trim 后在 Customer 内去重。Supplier、Employee、Other Unit 与 Sales Partner 保持各自既有身份范围，均只保存一个法定识别号。
 _Avoid_: 强标识数组、标识类型、重复法定识别号、跨档案自动合并
 
 **Person（个人）**:
@@ -95,7 +95,7 @@ _Avoid_: Party 的客户关系、按我方经营主体重复建立客户、客�
 _Avoid_: Party 的雇佣关系、没有经营主体的员工、把任职经营主体当作跨主体单据选择权限、用销售合作方代替员工
 
 **Business Identity Detail（业务身份资料）**:
-法定名称、显示名称、法定识别号和联系资料等由一种业务身份档案独立维护和审批的资料；客户身份资料始终按精确 Customer Version 的 `legalIdentifier` 解释。
+法定名称、显示名称、法定识别号和联系资料等由一种业务身份档案独立维护的资料；是否审批遵循所属领域规则；客户身份资料始终按精确 Customer Version 的 `legalIdentifier` 解释。
 _Avoid_: Party 身份事实、跨客户与供应商同步、用另一种业务身份的当前值解释历史
 
 **Business Archive Detail（业务档案资料）**:

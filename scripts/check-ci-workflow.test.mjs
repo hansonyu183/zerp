@@ -60,7 +60,6 @@ test('CI routes L1 and L3 work and always applies the required summary', async (
   assert.match(target, /needs\.changes\.outputs\.level == 'L3'/)
   assert.match(target, /^    uses: \.\/\.github\/workflows\/target\.yml$/m)
   assert.match(common, /make check-common/)
-  assert.match(common, /DOCS_USE_CASE_MISSING_BASELINE_BASE:/)
   assert.match(required, /^    if: always\(\)$/m)
   assert.match(required, /scripts\/ci\/required\.mjs/)
   assert.match(required, /needs: \[changes, common, tooling, target\]/)

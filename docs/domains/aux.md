@@ -80,7 +80,7 @@ payment-method PMT
 
 ### 3.2 人员类别、部门与岗位
 
-`employee-category` 是扁平通用辅助对象，字段只有 `name`、`description`，供 AUX 员工直接维护时选择。它不预置基线值，不保存等级、薪酬、权限、组织归属或任意业务规则；停用只阻止新的员工引用选择，不改写已批准员工与历史 VOU/ACC 快照。
+`employee-category` 是扁平通用辅助对象，字段只有 `name`、`description`，供 AUX 员工直接维护时选择。它不预置基线值，不保存等级、薪酬、权限、组织归属或任意业务规则；停用只阻止新的员工引用选择，不改写员工已采用的类别快照与历史 VOU/ACC 快照。
 
 `department` 是独立树形对象，字段为 `name`、`parentId`、`description`，为未来按部门配置业务规则保留稳定引用。`position` 字段为 `name`、`description`；本阶段只提供岗位身份，不在 AUX 中保存工资公式，工资计算规则由未来薪资领域拥有。
 
@@ -172,7 +172,7 @@ AUX current 修改不会覆盖既有交易快照。结算方式在客户或供�
 | product-type                              | stable ID、code、name、behaviorProfile                                                               | BOB product snapshot，VOU 再采用该产品 snapshot                                                | 不重解释产品行为、库存或生产                   |
 | employee-category / department / position | stable ID、code、name、parentId                                                                      | AUX employee snapshot                                                                          | 不改写既有雇佣或交易人员快照                   |
 | settlement-method                         | stable ID、code、name、termCode、ruleType、monthOffset、dayOfMonth、dayOffset、defaultSalesSurcharge | BOB customer/supplier snapshot；订单复制最终结算事实                                           | 不重算到期日、金额或加价                       |
-| payment-method                            | stable ID、code、name、defaultSalesSurcharge                                                         | BOB Customer Version 的核算账户 snapshot；销售订单保存最终方式与加价                           | 不重算既有订单金额                             |
+| payment-method                            | stable ID、code、name、defaultSalesSurcharge                                                         | BOB Customer Version 的客户子单位 snapshot；销售订单保存最终方式与加价                         | 不重算既有订单金额                             |
 | measurement-unit                          | stable ID、code、name、symbol、quantityScale                                                         | BOB product unit/formula snapshot；VOU 采用产品 snapshot                                       | 不改变历史数量精度、换算、库存或展示           |
 | dictionary-type / dictionary-item         | stable type、item code 与采用时名称                                                                  | 当前只作无业务规则的选择与展示；进入正式 BOB/VOU 字段时由所属 typed snapshot 保存              | 排序与说明从不重解释业务；名称不改写已保存快照 |
 | income-expense-type                       | stable ID、code、name、direction、parentId                                                           | 正式收支分类接入 VOU 时由 VOU line typed snapshot 保存；当前未接入的页面不得用自由字段伪装引用 | 已有单据分类、方向与归集不回查 current         |

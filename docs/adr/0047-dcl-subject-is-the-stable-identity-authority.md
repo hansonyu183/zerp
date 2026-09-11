@@ -8,6 +8,12 @@ supersedes: ADR-0033, ADR-0034, ADR-0035, ADR-0036, ADR-0037, ADR-0039, ADR-0040
 
 # DCL Subject 是版本化业务对象的唯一稳定身份
 
+## 当前效力与剩余条款
+
+剩余有效条款为业务类型独立身份、Customer 内部子单位边界、编码不复用、强类型历史快照与精确引用，以及公共 Approval/Version 的唯一职责；其生命周期适用范围由当前领域规则决定。DCL 通用 subject、版本写入及 BOB 只读均已被替代：AUX 直接维护（ADR-0053/0054），BOB 版本档案（ADR-0055），ACC/RPT 当前配置（ADR-0056/0057），WFL 自有版本定义及独立 runtime revision（ADR-0058）。ADR-0051 取代服务端草稿与审批状态；数据库不执行 entity 业务编码校验。后文描述原决定，不授予当前所有权，也不恢复员工审批。
+
+## 原决定（部分已替代）
+
 所有版本化业务对象统一以 `dcl_subjects` 作为唯一通用稳定身份。subject 保存不可变 stable ID、entity、business code 与创建审计信息；`(entity, upper(code))` 对非空 code 唯一。只有 ACC Mapping 是无编码 subject，允许 code 为空；Operating Entity、Warehouse、Vehicle、Fund Account、Product、Employee、Customer、Supplier、Other Unit、Sales Partner、RPT Definition 与 WFL Process Definition 的 code 必须非空并由数据库按 entity 校验格式。普通业务编码分别强制 `OPE/WHS/VEH/FAC/PRD/EMP/CUS/SUP/OTU/SLP-NNNN`；RPT 保留合法 slug 且新分配使用 `rpt-NNNNNN`；WFL 使用 `^[a-z][a-z0-9-]{1,62}[a-z0-9]$`。DCL 在创建 V1 时于同一 PostgreSQL transaction 分配 ID 与 code、创建 subject、中央 Approval V1 `DRAFT` 和完整 typed snapshot。删除尚未批准的 V1 会删除 subject 与 typed snapshot，但编码计数器不回退且 code 不复用。subject 不保存 `enabled`、Approval status、version number、revision 或 current pointer。
 
 中央 Approval 继续唯一拥有版本号、状态、revision、审批元数据、事件、唯一开放候选和 highest `APPROVED` 选择规则。DCL typed snapshot 是每个 Approval Entry 的唯一业务 payload。BOB 只提供当前有效的只读业务资料；每个实体以明确 typed SQL 连接 DCL stable subject、最高 `APPROVED` Approval Entry 和对应 typed snapshot，提供 `query`、`get` 与必要的 reference。BOB 不物化资料副本，不参与批准或反批，也不保存 stable-identity `objectRevision`。

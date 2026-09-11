@@ -1,7 +1,7 @@
 # APP/AUX 直接维护验收（#409）
 
 - 实现 SHA：`bc007b898100f81030950c4d43ebb69757effb59`。
-- 范围：十二个已登记 APP/AUX 资源；[ADR-0060](../adr/0060-dynamic-page-runtime.md) 与 [APP-DIRECT-01](../use-cases/app/navigation.md#app-direct-01-统一直接维护)。本次没有生产部署、业务数据迁移或 HTTP/数据库契约变更。
+- 范围：十二个已登记 APP/AUX 资源；[ADR-0060](../adr/0060-dynamic-page-runtime.md) 与 [APP-DIRECT-01](../use-cases/app/access-management.md#app-direct-01-统一直接维护)。本次没有生产部署、业务数据迁移或 HTTP/数据库契约变更。
 - 独占环境：Compose project `zerp-issue-409`，PostgreSQL/API/Web 端口 `55449/18092/18093`；数据库 `zerp_target_test`。浏览器只连接本次可丢弃环境。
 
 ## 验收结果

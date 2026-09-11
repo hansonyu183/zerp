@@ -43,7 +43,7 @@ export type ResourceRegistration = {
     | ProcessDefinition
     | ReportDefinition
   vouType?: import('@zerp/model').VouType
-  useCaseKey?: string
+  useCaseKey: string
 }
 
 export type ResolvedResourceRegistration = ResourceRegistration & {
@@ -142,61 +142,73 @@ export const targetResourceRegistry = createResourceRegistry(
       domain: 'app',
       entity: 'user',
       definition: userPage,
+      useCaseKey: 'app/access-management',
     },
     {
       domain: 'app',
       entity: 'role',
       definition: rolePage,
+      useCaseKey: 'app/access-management',
     },
     {
       domain: 'aux',
       entity: 'employee-category',
       definition: employeeCategoryPage,
+      useCaseKey: 'aux/basic-maintenance',
     },
     {
       domain: 'aux',
       entity: 'position',
       definition: positionPage,
+      useCaseKey: 'aux/basic-maintenance',
     },
     {
       domain: 'aux',
       entity: 'measurement-unit',
       definition: measurementUnitPage,
+      useCaseKey: 'aux/basic-maintenance',
     },
     {
       domain: 'aux',
       entity: 'payment-method',
       definition: paymentMethodPage,
+      useCaseKey: 'aux/basic-maintenance',
     },
     {
       domain: 'aux',
       entity: 'asset-category',
       definition: assetCategoryPage,
+      useCaseKey: 'aux/basic-maintenance',
     },
     {
       domain: 'aux',
       entity: 'operating-entity',
       definition: operatingEntityPage,
+      useCaseKey: 'aux/people-maintenance',
     },
     {
       domain: 'aux',
       entity: 'employee',
       definition: employeePage,
+      useCaseKey: 'aux/people-maintenance',
     },
     {
       domain: 'aux',
       entity: 'warehouse',
       definition: warehousePage,
+      useCaseKey: 'aux/assets-maintenance',
     },
     {
       domain: 'aux',
       entity: 'fund-account',
       definition: fundAccountPage,
+      useCaseKey: 'aux/assets-maintenance',
     },
     {
       domain: 'aux',
       entity: 'vehicle',
       definition: vehiclePage,
+      useCaseKey: 'aux/assets-maintenance',
     },
     {
       domain: 'bob',

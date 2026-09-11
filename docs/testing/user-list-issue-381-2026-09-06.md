@@ -16,7 +16,7 @@
 
 Session 继续使用 #379 的 `/session/auth/signin`、`/session/auth/restore`、`/session/auth/signout`、`/session/user/get`、`/session/user/save`、`/session/user/change-password`、`/session/app/get`。本票只让本人改名与管理改名共同维护真实拼音，不新增 Session 别名。
 
-用户事实采用 id/code/py/name/enabled，revision 始终保持字符串。查询针对完整服务端集合进行编码、拼音、名称 OR 包含匹配，并按编码与 ID 稳定分页。服务端用 `pinyin-pro` 统一生成小写无声调拼音，现有物理列只保存单一事实；[受控回填](../operations/user-pinyin-backfill.md) 显式执行并校验既有身份、密码、关联与审计，没有请求期回填、空拼音默认值或双写。
+用户事实采用 id/code/py/name/enabled，revision 始终保持字符串。查询针对完整服务端集合进行编码、拼音、名称 OR 包含匹配，并按编码与 ID 稳定分页。服务端用 `pinyin-pro` 统一生成小写无声调拼音，现有物理列只保存单一事实；[受控回填](https://github.com/hansonyu183/zerp/blob/c9c2d8fca30d9da7b4046315733b7666d564b0d5/docs/operations/user-pinyin-backfill.md) 显式执行并校验既有身份、密码、关联与审计，没有请求期回填、空拼音默认值或双写。
 
 核查并修正既有角色分配漂移：角色定义可维护性与用户角色可分配性分开，启用普通角色按授权上限分配（包括操作者已持有角色），超级管理员角色仅由当前启用超级管理员授予，停用角色和系统角色不可分配；角色定义的本人保护未放宽。
 

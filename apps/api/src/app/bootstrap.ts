@@ -25,16 +25,11 @@ export interface TargetOnlineTestUserSeedReport {
   updatedUsers: number
 }
 
-export interface PermissionCatalogMigrationReport {
+export interface PermissionCatalogSyncReport {
   preservedRoleGrants: number
   droppedStaleRoleGrants: number
   orphanedRoleGrants: number
   duplicateRoleGrants: number
-}
-
-export interface PermissionPathMapping {
-  from: string
-  to: readonly string[]
 }
 
 interface EffectiveAuthoritySnapshot {
@@ -124,7 +119,7 @@ function assertAuthorityPreserved(
         JSON.stringify(after[kind].get(id) ?? { wildcard: false, paths: [] })
       )
         throw new Error(
-          `permission catalog migration changed effective authority for ${kind.slice(0, -1)} ${id}`,
+          `permission catalog synchronization changed effective authority for ${kind.slice(0, -1)} ${id}`,
         )
     }
   }
@@ -141,18 +136,13 @@ export class TargetBootstrapService {
     this.db = db
   }
 
-  async migratePermissionCatalog(
+  async syncPermissionCatalog(
     catalog: readonly TargetPermissionCatalogEntry[],
-    pathMappings: readonly PermissionPathMapping[] = [],
-  ): Promise<PermissionCatalogMigrationReport> {
+  ): Promise<PermissionCatalogSyncReport> {
     return this.db
       .transaction()
       .execute((transaction) =>
-        this.migratePermissionCatalogInTransaction(
-          transaction,
-          catalog,
-          pathMappings,
-        ),
+        this.syncPermissionCatalogInTransaction(transaction, catalog),
       )
   }
 
@@ -307,30 +297,10 @@ export class TargetBootstrapService {
     })
   }
 
-  async migratePermissionCatalogInTransaction(
+  async syncPermissionCatalogInTransaction(
     transaction: Transaction<DB>,
     catalog: readonly TargetPermissionCatalogEntry[],
-    pathMappings: readonly PermissionPathMapping[] = [],
-  ): Promise<PermissionCatalogMigrationReport> {
-    if (
-      !pathMappings.some((mapping) => mapping.from.startsWith('/acc/opening/'))
-    ) {
-      const unmigrated = await transaction
-        .selectFrom('app_permissions as p')
-        .innerJoin(
-          'app_role_permissions as grant',
-          'grant.permission_id',
-          'p.id',
-        )
-        .select('p.path')
-        .where('p.domain', '=', 'acc')
-        .where('p.entity', '=', 'opening')
-        .executeTakeFirst()
-      if (unmigrated)
-        throw new Error(
-          'Run migrate:vou-opening before retiring ACC opening grants',
-        )
-    }
+  ): Promise<PermissionCatalogSyncReport> {
     const reportPermissions = await transaction
       .selectFrom('app_permissions')
       .selectAll()
@@ -338,34 +308,9 @@ export class TargetBootstrapService {
       .where('entity', '~', '^rpt-[0-9]{6}$')
       .where('action', 'in', ['query', 'export'])
       .execute()
-    // Earlier one-time conversions must not retire RPT grants before RPT itself is converted.
-    const pendingRptPermissions = pathMappings.some((mapping) =>
-      mapping.from.startsWith('/dcl/rpt-definition/'),
-    )
-      ? []
-      : await transaction
-          .selectFrom('app_permissions')
-          .selectAll()
-          .where('domain', '=', 'dcl')
-          .where('entity', '=', 'rpt-definition')
-          .execute()
-    const pendingWflPermissions = pathMappings.some((mapping) =>
-      mapping.from.startsWith('/dcl/wfl-process-definition/'),
-    )
-      ? []
-      : await transaction
-          .selectFrom('app_permissions')
-          .selectAll()
-          .where('domain', '=', 'dcl')
-          .where('entity', '=', 'wfl-process-definition')
-          .execute()
     catalog = [
       ...catalog,
-      ...[
-        ...reportPermissions,
-        ...pendingRptPermissions,
-        ...pendingWflPermissions,
-      ]
+      ...reportPermissions
         .filter((row) => !catalog.some((entry) => entry.path === row.path))
         .map((row) => ({
           id: row.id,
@@ -377,31 +322,9 @@ export class TargetBootstrapService {
         })),
     ]
     const desiredPaths = new Set(catalog.map((entry) => entry.path))
-    const mappingsBySource = new Map(
-      pathMappings.map((mapping) => [mapping.from, [...mapping.to]]),
-    )
-    if (mappingsBySource.size !== pathMappings.length)
-      throw new Error('permission path migration contains duplicate sources')
-    for (const mapping of pathMappings) {
-      if (desiredPaths.has(mapping.from))
-        throw new Error(
-          `permission path migration source remains in target catalog: ${mapping.from}`,
-        )
-      if (
-        mapping.to.length === 0 ||
-        mapping.to.some((path) => !desiredPaths.has(path))
-      )
-        throw new Error(
-          `permission path migration target is absent from target catalog: ${mapping.from}`,
-        )
-    }
-    const authorityPaths = new Set([
-      ...desiredPaths,
-      ...pathMappings.map((mapping) => mapping.from),
-    ])
     const authorityBefore = await effectiveAuthoritySnapshot(
       transaction,
-      authorityPaths,
+      desiredPaths,
     )
     const previousPermissions = await transaction
       .selectFrom('app_permissions')
@@ -416,76 +339,15 @@ export class TargetBootstrapService {
     const previousPermissionByPath = new Map(
       previousPermissions.map((permission) => [permission.path, permission]),
     )
-    const mappedAuthority = (snapshot: EffectiveAuthoritySnapshot) => ({
-      roles: new Map(
-        [...snapshot.roles].map(([id, authority]) => [
-          id,
-          {
-            wildcard: authority.wildcard,
-            paths: [
-              ...new Set(
-                authority.paths.flatMap((path) =>
-                  desiredPaths.has(path)
-                    ? [path]
-                    : (mappingsBySource.get(path) ?? []),
-                ),
-              ),
-            ].sort(),
-          },
-        ]),
-      ),
-      users: new Map(
-        [...snapshot.users].map(([id, authority]) => [
-          id,
-          {
-            wildcard: authority.wildcard,
-            paths: [
-              ...new Set(
-                authority.paths.flatMap((path) =>
-                  desiredPaths.has(path)
-                    ? [path]
-                    : (mappingsBySource.get(path) ?? []),
-                ),
-              ),
-            ].sort(),
-          },
-        ]),
-      ),
-    })
     const targetStatus = new Map(
-      catalog.map((entry) => {
-        const exact = previousPermissionByPath.get(entry.path)?.status
-        const mappedSources = pathMappings
-          .filter((mapping) => mapping.to.includes(entry.path))
-          .map((mapping) => previousPermissionByPath.get(mapping.from)?.status)
-          .filter((status) => status !== undefined)
-        const status =
-          exact ??
-          (mappedSources.length > 0 &&
-          mappedSources.every((sourceStatus) => sourceStatus === 'DISABLED')
-            ? 'DISABLED'
-            : 'ENABLED')
-        if (
-          exact === 'DISABLED' &&
-          mappedSources.some((sourceStatus) => sourceStatus === 'ENABLED')
-        )
-          throw new Error(
-            `permission path migration cannot merge enabled authority into disabled target: ${entry.path}`,
-          )
-        return [entry.path, status] as const
-      }),
+      catalog.map((entry) => [
+        entry.path,
+        previousPermissionByPath.get(entry.path)?.status ?? 'ENABLED',
+      ]),
     )
-    const preservedTargetsByGrant = previousGrants.map((grant) => {
-      if (desiredByPath.has(grant.path)) return [grant]
-      const sourceEnabled =
-        previousPermissionByPath.get(grant.path)?.status === 'ENABLED'
-      return (mappingsBySource.get(grant.path) ?? [])
-        .filter(
-          (path) => sourceEnabled || targetStatus.get(path) === 'DISABLED',
-        )
-        .map((path) => ({ role_id: grant.role_id, path }))
-    })
-    const preserved = preservedTargetsByGrant.flat()
+    const preserved = previousGrants.filter((grant) =>
+      desiredByPath.has(grant.path),
+    )
     await transaction.deleteFrom('app_role_permissions').execute()
     await transaction.deleteFrom('app_permissions').execute()
     if (catalog.length > 0) {
@@ -536,14 +398,12 @@ export class TargetBootstrapService {
       .having((builder) => builder.fn.countAll(), '>', 1)
       .execute()
     assertAuthorityPreserved(
-      mappedAuthority(authorityBefore),
+      authorityBefore,
       await effectiveAuthoritySnapshot(transaction, desiredPaths),
     )
     return {
       preservedRoleGrants: uniquePreserved.length,
-      droppedStaleRoleGrants:
-        previousGrants.length -
-        preservedTargetsByGrant.filter((targets) => targets.length > 0).length,
+      droppedStaleRoleGrants: previousGrants.length - preserved.length,
       orphanedRoleGrants: Number(orphaned.count),
       duplicateRoleGrants: duplicates.length,
     }
@@ -787,18 +647,6 @@ export class TargetBootstrapService {
         (subject) => subject.id,
       )
       if (subjectIds.length === 0) return
-      await transaction
-        .deleteFrom('dcl_warehouse_reference_facts')
-        .where('warehouse_id', 'in', subjectIds)
-        .execute()
-      await transaction
-        .deleteFrom('dcl_warehouse_usage_facts')
-        .where('warehouse_id', 'in', subjectIds)
-        .execute()
-      await transaction
-        .deleteFrom('dcl_warehouse_idempotency')
-        .where('subject_id', 'in', subjectIds)
-        .execute()
       await transaction
         .deleteFrom('archive_idempotency')
         .where('subject_id', 'in', subjectIds)

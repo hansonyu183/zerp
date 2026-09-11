@@ -424,29 +424,3 @@ export async function withWflDatabase(
     await db.destroy()
   }
 }
-
-export async function restoreWflMigrationSource(
-  tx: import('kysely').Transaction<import('../../src/db/generated.ts').DB>,
-) {
-  const { sql } = await import('kysely')
-  await sql`ALTER TABLE wfl_definitions RENAME TO _401_saved_definitions`.execute(
-    tx,
-  )
-  await sql`INSERT INTO dcl_subjects(id,entity,code,created_at,created_by) SELECT id,'wfl-process-definition',code,created_at,created_by FROM _401_saved_definitions`.execute(
-    tx,
-  )
-  await sql`ALTER TABLE wfl_definition_runtime_states DROP CONSTRAINT wfl_definition_runtime_states_subject_id_fkey,
-        ADD CONSTRAINT wfl_definition_runtime_states_subject_id_fkey FOREIGN KEY(subject_id) REFERENCES dcl_subjects(id)`.execute(
-    tx,
-  )
-  await sql`ALTER TABLE wfl_instances DROP CONSTRAINT wfl_instances_definition_subject_id_fkey,
-        ADD CONSTRAINT wfl_instances_definition_subject_id_fkey FOREIGN KEY(definition_subject_id) REFERENCES dcl_subjects(id)`.execute(
-    tx,
-  )
-  await sql`UPDATE approval_entries SET domain='dcl',entity='wfl-process-definition' WHERE domain='wfl' AND entity='process-definition'`.execute(
-    tx,
-  )
-  await sql`UPDATE approval_events SET domain='dcl',entity='wfl-process-definition' WHERE domain='wfl' AND entity='process-definition'`.execute(
-    tx,
-  )
-}

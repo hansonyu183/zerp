@@ -4,7 +4,7 @@ import test from 'node:test'
 
 const root = new URL('../../../', import.meta.url)
 
-test('isolated target schema contains every target typed aggregate', async () => {
+test('target schema preserves typed voucher storage and persistence boundaries', async () => {
   const schema = await readFile(
     new URL('apps/api/db/target-schema.sql', root),
     'utf8',
@@ -12,87 +12,6 @@ test('isolated target schema contains every target typed aggregate', async () =>
   const compose = await readFile(new URL('compose.target.yaml', root), 'utf8')
   const tables = [...schema.matchAll(/CREATE TABLE ([a-z0-9_]+)/g)].map(
     (match) => match[1],
-  )
-  assert.deepEqual(
-    tables.filter((table) => !table.startsWith('vou_')),
-    [
-      'app_users',
-      'app_user_profiles',
-      'app_permissions',
-      'app_roles',
-      'app_role_permissions',
-      'app_user_roles',
-      'app_sessions',
-      'app_audit_events',
-      'app_role_code_counters',
-      'app_system_parameters',
-      'object_number_counters',
-      'aux_objects',
-      'aux_reference_facts',
-      'archive_code_counters',
-      'dcl_subjects',
-      'bob_subjects',
-      'approval_entries',
-      'bob_legacy_enablement_evidence',
-      'bob_customer_versions',
-      'bob_customer_subunit_roots',
-      'bob_customer_version_subunits',
-      'bob_supplier_versions',
-      'bob_supplier_version_operating_entities',
-      'bob_other_unit_versions',
-      'bob_other_unit_version_operating_entities',
-      'dcl_employee_versions',
-      'bob_sales_partner_versions',
-      'bob_sales_partner_version_operating_entities',
-      'bob_product_versions',
-      'dcl_warehouse_versions',
-      'dcl_vehicle_versions',
-      'dcl_fund_account_versions',
-      'dcl_operating_entity_versions',
-      'acc_mapping_history',
-      'rpt_code_counter',
-      'rpt_definitions',
-      'rpt_definition_audits',
-      'rpt_definition_history',
-      'rpt_definition_validity_history',
-      'acc_mapping_vou_entities',
-      'acc_mapping_legacy_reference_facts',
-      'approval_events',
-      'attachment_deletion_jobs',
-      'dcl_warehouse_idempotency',
-      'archive_idempotency',
-      'bob_customer_attachment_staging',
-      'bob_customer_attachments',
-      'dcl_warehouse_reference_facts',
-      'dcl_warehouse_usage_facts',
-      'acc_books',
-      'acc_book_access',
-      'acc_subjects',
-      'acc_mappings',
-      'acc_mapping_subject_usages',
-      'acc_opening_snapshots',
-      'acc_periods',
-      'acc_period_balances',
-      'acc_journal_entries',
-      'acc_journal_lines',
-      'acc_inventory_entries',
-      'acc_container_entries',
-      'acc_asset_registers',
-      'acc_asset_book_values',
-      'acc_bill_registers',
-      'acc_bill_book_values',
-      'acc_register_entries',
-      'acc_opening_container_balances',
-      'wfl_definitions',
-      'wfl_definition_versions',
-      'wfl_definition_runtime_states',
-      'wfl_trials',
-      'wfl_instances',
-      'wfl_instance_nodes',
-      'wfl_action_results',
-      'wfl_runtime_audits',
-      'rpt_execution_audits',
-    ],
   )
   assert.doesNotMatch(
     schema,
@@ -147,19 +66,10 @@ test('isolated target schema contains every target typed aggregate', async () =>
     'vou_bill_line_snapshots',
   ])
     assert.ok(tables.includes(table), table)
-  for (const legacy of [
-    'vou_document_payloads',
-    'vou_document_detail_facts',
-    'vou_document_line_facts',
-    'vou_document_reference_facts',
-  ])
-    assert.ok(!tables.includes(legacy), legacy)
   assert.match(
     schema,
     /bob_subjects_customer_code_ck CHECK \(entity <> 'customer' OR code ~ '\^CUS-/,
   )
-  assert.doesNotMatch(schema, /\bbob_current_objects\b/)
-  assert.doesNotMatch(schema, /\bbob_customer_subunits\b/)
   for (const [entity, prefix] of [
     ['supplier', 'SUP'],
     ['other-unit', 'OTU'],
@@ -226,10 +136,7 @@ test('isolated target schema contains every target typed aggregate', async () =>
   )
   assert.match(schema, /acc_subjects[\s\S]*required_dimensions jsonb NOT NULL/)
   assert.doesNotMatch(schema, /current_(?:version|approval)_?(?:id|entry)/i)
-  for (const legacy of ['DRAFT', 'WITHDRAWN', 'REVOKED', 'UNSUBMITTED'])
-    assert.doesNotMatch(schema, new RegExp(`\\b${legacy}\\b`))
   assert.match(compose, /apps\/api\/db\/target-schema\.sql/)
-  assert.doesNotMatch(compose, /backend\/db\/schema\.sql/)
 })
 
 test('production compose runs the Hono topology after catalog and online-test seeding', async () => {
@@ -281,9 +188,6 @@ test('production compose runs the Hono topology after catalog and online-test se
     webDockerfile,
     /FROM nginx:[\s\S]*ARG VITE_TARGET_API_BASE_URL[\s\S]*ENV ZERP_API_BROWSER_URL=\$VITE_TARGET_API_BASE_URL/,
   )
-  assert.doesNotMatch(webDockerfile, /mv .*target\.html/)
-  assert.doesNotMatch(productionTopology, /context: backend/)
-  assert.doesNotMatch(productionTopology, /backend\/db\/schema\.sql/)
 })
 
 test('target frontend consumes only the inferred Hono client', async () => {

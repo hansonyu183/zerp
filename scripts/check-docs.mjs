@@ -5,15 +5,6 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import prettier from 'prettier'
 
-const root = path.resolve(import.meta.dirname, '..')
-const isMain =
-  process.argv[1] &&
-  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
-const failures = []
-const writeUseCaseCoverage = process.argv.includes('--write-use-case-coverage')
-const writeAdrIndex = process.argv.includes('--write-adr-index')
-const useCaseMissingBaselineBaseRef =
-  process.env.DOCS_USE_CASE_MISSING_BASELINE_BASE
 const ADR_STATUSES = new Set(['accepted', 'superseded', 'rejected'])
 const DOCUMENTED_SKILL_ALLOWLIST = new Set(['code-review', 'tdd'])
 const LEGACY_EXCEPTION_MARKER =
@@ -33,12 +24,8 @@ const LEGACY_LANGUAGE =
 const EXPLICIT_CURRENT_BOUNDARY =
   /(?:不(?:得|进入|引入|保留|提供)|禁止)[^；。\n]{0,80}(?:\blegacy\b|\bdeprecated\b|\bfallback\b|兼容(?:层|字段|视图|路径|客户端|数据|迁移)?)|(?:\blegacy\b|\bdeprecated\b|\bfallback\b|兼容(?:层|字段|视图|路径|客户端|数据|迁移)?)[^；。\n]{0,80}不(?:得|进入|引入|保留|提供)|旧\s*路径清理/giu
 
-function relative(file) {
-  return path.relative(root, file)
-}
-
 function isCurrentStateDocument(file) {
-  return /^(?:CONTEXT\.md|README\.md|AGENTS\.md|(?:frontend|backend)\/(?:README|AGENTS)\.md|docs\/(?:domains|use-cases|operations|agents)\/)/u.test(
+  return /^(?:CONTEXT\.md|README\.md|AGENTS\.md|(?:frontend|apps\/api)\/(?:README|AGENTS)\.md|docs\/(?:domains|use-cases|operations|agents)\/)/u.test(
     file.replaceAll('\\', '/'),
   )
 }
@@ -531,90 +518,7 @@ export function validateBobFormalTerminology(documents) {
   return terminologyFailures
 }
 
-export function parseUseCaseMissingBaseline(source, label) {
-  const baselineFailures = []
-  let parsed
-  try {
-    parsed = JSON.parse(source)
-  } catch {
-    return { keys: [], failures: [`${label} 不是有效 JSON`] }
-  }
-
-  if (
-    !parsed ||
-    typeof parsed !== 'object' ||
-    Array.isArray(parsed) ||
-    Object.keys(parsed).length !== 1 ||
-    !Object.hasOwn(parsed, 'missingUseCaseKeys')
-  ) {
-    return {
-      keys: [],
-      failures: [`${label} 必须只包含 missingUseCaseKeys`],
-    }
-  }
-  if (!Array.isArray(parsed.missingUseCaseKeys)) {
-    return {
-      keys: [],
-      failures: [`${label} 的 missingUseCaseKeys 必须是数组`],
-    }
-  }
-
-  const keys = parsed.missingUseCaseKeys
-  if (
-    keys.some(
-      (key) =>
-        typeof key !== 'string' ||
-        !/^[a-z][a-z0-9-]*\/[a-z][a-z0-9-]*$/u.test(key),
-    )
-  ) {
-    baselineFailures.push(`${label} 包含无效页面用例入口`)
-  }
-  if (duplicates(keys).length > 0) {
-    baselineFailures.push(
-      `${label} 包含重复页面用例入口：${duplicates(keys).join('、')}`,
-    )
-  }
-  if (keys.join('\n') !== [...keys].sort().join('\n')) {
-    baselineFailures.push(`${label} 的 missingUseCaseKeys 必须按字典序排列`)
-  }
-
-  return { keys, failures: baselineFailures }
-}
-
-export function validateUseCaseMissingBaseline(baselineKeys, missingKeys) {
-  const baseline = new Set(baselineKeys)
-  const missing = new Set(missingKeys)
-  const newDebt = [...missing].filter((key) => !baseline.has(key)).sort()
-  const resolvedDebt = [...baseline].filter((key) => !missing.has(key)).sort()
-  const baselineFailures = []
-
-  if (newDebt.length > 0) {
-    baselineFailures.push(
-      `页面用例缺失 baseline 未登记新增债务：${newDebt.join('、')}`,
-    )
-  }
-  if (resolvedDebt.length > 0) {
-    baselineFailures.push(
-      `页面用例缺失 baseline 包含已修复债务：${resolvedDebt.join('、')}`,
-    )
-  }
-
-  return baselineFailures
-}
-
-export function validateUseCaseMissingBaselineReduction(
-  previousBaselineKeys,
-  baselineKeys,
-) {
-  const additions = [...new Set(baselineKeys)]
-    .filter((key) => !new Set(previousBaselineKeys).has(key))
-    .sort()
-  return additions.length > 0
-    ? [`页面用例缺失 baseline 只能随债务减少：${additions.join('、')}`]
-    : []
-}
-
-function trackedMarkdownFiles() {
+function trackedMarkdownFiles(root) {
   const output = execFileSync(
     'git',
     [
@@ -637,7 +541,7 @@ function trackedMarkdownFiles() {
     .filter((file) => fs.existsSync(file))
 }
 
-function trackedFormalTerminologyFiles() {
+function trackedFormalTerminologyFiles(root) {
   const output = execFileSync(
     'git',
     [
@@ -700,86 +604,10 @@ function markdownHeadingAnchors(source) {
   return anchors
 }
 
-function duplicates(values) {
-  const seen = new Set()
-  const repeated = new Set()
-  for (const value of values) {
-    if (seen.has(value)) repeated.add(value)
-    seen.add(value)
-  }
-  return [...repeated].sort()
-}
-
-function compareSets(label, actualValues, expectedValues) {
-  const actual = new Set(actualValues)
-  const expected = new Set(expectedValues)
-  const missing = [...expected].filter((value) => !actual.has(value)).sort()
-  const extra = [...actual].filter((value) => !expected.has(value)).sort()
-  const repeated = duplicates(actualValues)
-
-  if (missing.length > 0) {
-    failures.push(`${label} 缺少：${missing.join('、')}`)
-  }
-  if (extra.length > 0) {
-    failures.push(`${label} 多出：${extra.join('、')}`)
-  }
-  if (repeated.length > 0) {
-    failures.push(`${label} 重复：${repeated.join('、')}`)
-  }
-}
-
-function extractSchemaEnum(source, schemaName, sourceLabel) {
-  const schemaMarker = `  '${schemaName}':`
-  const schemaStart = source.indexOf(schemaMarker)
-  if (schemaStart < 0) {
-    failures.push(`${sourceLabel} 缺少 ${schemaName}`)
-    return []
-  }
-
-  const nextSchemaStart = source.indexOf(
-    "\n  '",
-    schemaStart + schemaMarker.length,
-  )
-  const section = source.slice(
-    schemaStart,
-    nextSchemaStart < 0 ? source.length : nextSchemaStart,
-  )
-  const enumMarker = "'enum':"
-  const enumStart = section.indexOf(enumMarker)
-  const listStart = section.indexOf('[', enumStart + enumMarker.length)
-  const listEnd = section.indexOf(']', listStart + 1)
-  if (enumStart < 0 || listStart < 0 || listEnd < 0) {
-    failures.push(`${sourceLabel} 的 ${schemaName} 缺少可解析的 enum`)
-    return []
-  }
-
-  return [...section.slice(listStart + 1, listEnd).matchAll(/'([^']+)'/g)].map(
-    (match) => match[1],
-  )
-}
-
-function extractPlainSchemaEnum(source, schemaName, label) {
-  const schemaMatch = source.match(
-    new RegExp(
-      `^${schemaName}:\\n([\\s\\S]*?)(?=^[A-Za-z][A-Za-z0-9]*:|$(?![\\s\\S]))`,
-      'm',
-    ),
-  )
-  const values = schemaMatch
-    ? [...schemaMatch[1].matchAll(/^\s{4}- ([a-z][a-z0-9-]*)$/gm)].map(
-        (match) => match[1],
-      )
-    : []
-  if (values.length === 0) {
-    failures.push(`${label} 的 ${schemaName} 缺少可解析的 enum`)
-  }
-  return values
-}
-
 function useCaseCoverage(pages, documentedKeys, orphanKeys) {
   const byDomain = new Map()
   for (const page of pages) {
-    const domain = page.useCaseKey.split('/')[0]
+    const domain = page.useCaseKey?.split('/')[0] ?? 'unassigned'
     const entries = byDomain.get(domain) ?? []
     entries.push(page)
     byDomain.set(domain, entries)
@@ -802,11 +630,11 @@ function useCaseCoverage(pages, documentedKeys, orphanKeys) {
     '',
     '数据来源：[`frontend/src/target/router/index.ts`](../../frontend/src/target/router/index.ts) 的带标题路由、[动态资源登记](../../frontend/src/target/navigation/registry.ts) 的显式页面用例，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。',
     '',
-    '统计口径：每个带 `meta.title` 的正式 target 路由必须声明 `meta.useCaseKey`；动态 Resource Host 的已实现资源以 Registry 显式 `useCaseKey` 计入。layout 与重定向不单独计数。',
+    '统计口径：每个带 `meta.title` 的正式 target 路由必须声明 `meta.useCaseKey`；全部正式 Registry 登记计入分母，缺少 `useCaseKey` 直接失败；多个入口允许共享有实际场景覆盖的用例。VOU/RPT 动态家族不展开参数，layout 与重定向不单独计数。',
     '',
     `- 页面入口：${pages.length}`,
     `- 已覆盖入口：${coveredPages.length}`,
-    `- 已登记用例：${documentedExpectedKeys.length}`,
+    `- 已登记唯一用例：${documentedExpectedKeys.length}`,
     `- 缺少用例：${missingKeys.length}`,
     `- 孤儿用例：${orphanKeys.length}`,
     '',
@@ -839,145 +667,6 @@ function useCaseCoverage(pages, documentedKeys, orphanKeys) {
 
   return `${lines.join('\n').trimEnd()}\n`
 }
-
-const documentationFiles = trackedMarkdownFiles()
-const documentationSources = documentationFiles.map((file) => ({
-  file: relative(file),
-  source: fs.readFileSync(file, 'utf8'),
-}))
-const formalTerminologySources = trackedFormalTerminologyFiles().map(
-  (file) => ({
-    file: relative(file),
-    source: fs.readFileSync(file, 'utf8'),
-  }),
-)
-failures.push(...validateBobFormalTerminology(formalTerminologySources))
-const legacyReferences = new Set(
-  documentationSources
-    .filter(({ file }) => /^docs\/adr\/\d{4}-.+\.md$/u.test(file))
-    .map(({ source }) => parseAdrFrontmatter(source).metadata?.id)
-    .filter(Boolean),
-)
-failures.push(...validateSkillReferences(documentationSources))
-failures.push(
-  ...validateCurrentStateLegacyLanguage(documentationSources, legacyReferences),
-)
-failures.push(...validateCurrentArchitectureAssertions(documentationSources))
-
-for (const file of documentationFiles) {
-  if (writeUseCaseCoverage && relative(file) === 'docs/use-cases/COVERAGE.md') {
-    continue
-  }
-  const source = fs.readFileSync(file, 'utf8')
-  for (const match of source.matchAll(/\[[^\]]*]\(([^)]+)\)/g)) {
-    const rawTarget = match[1].trim().replace(/^<|>$/g, '')
-    if (/^[a-z][a-z0-9+.-]*:/i.test(rawTarget)) continue
-
-    const hashIndex = rawTarget.indexOf('#')
-    const target = hashIndex < 0 ? rawTarget : rawTarget.slice(0, hashIndex)
-    const rawAnchor = hashIndex < 0 ? '' : rawTarget.slice(hashIndex + 1)
-
-    const resolved = path.resolve(
-      path.dirname(file),
-      decodeURIComponent(target || path.basename(file)),
-    )
-    if (!fs.existsSync(resolved)) {
-      failures.push(`${relative(file)} 引用了不存在的本地路径：${rawTarget}`)
-      continue
-    }
-
-    if (rawAnchor && resolved.endsWith('.md')) {
-      const anchor = decodeURIComponent(rawAnchor).toLowerCase()
-      const anchors = markdownHeadingAnchors(fs.readFileSync(resolved, 'utf8'))
-      if (!anchors.has(anchor)) {
-        failures.push(`${relative(file)} 引用了不存在的标题：${rawTarget}`)
-      }
-    }
-  }
-}
-
-const forbiddenDomainCopies = documentationFiles
-  .map(relative)
-  .filter((file) => /^(frontend|backend)\/docs\/domains\//.test(file))
-for (const file of forbiddenDomainCopies) {
-  failures.push(`${file} 位于禁止维护第二套领域文档的模块目录`)
-}
-
-const rootReadme = fs.readFileSync(path.join(root, 'README.md'), 'utf8')
-const domainFiles = markdownFiles(path.join(root, 'docs', 'domains'))
-const operationFiles = markdownFiles(path.join(root, 'docs', 'operations'))
-const adrFiles = markdownFiles(path.join(root, 'docs', 'adr')).filter((file) =>
-  /^\d{4}-.+\.md$/u.test(path.basename(file)),
-)
-const adrDocuments = adrFiles.map((file) => ({
-  file: relative(file),
-  source: fs.readFileSync(file, 'utf8'),
-}))
-
-failures.push(...validateAdrDocuments(adrDocuments))
-const adrIndexFile = path.join(root, 'docs', 'adr', 'README.md')
-if (writeAdrIndex) {
-  fs.writeFileSync(
-    adrIndexFile,
-    await prettier.format(generateAdrIndex(adrDocuments), {
-      parser: 'markdown',
-    }),
-  )
-} else {
-  failures.push(
-    ...(await validateAdrIndex(
-      fs.readFileSync(adrIndexFile, 'utf8'),
-      adrDocuments,
-    )),
-  )
-}
-
-for (const file of [...domainFiles, ...operationFiles]) {
-  const target = relative(file)
-  if (!rootReadme.includes(`](${target})`)) {
-    failures.push(`README 文档索引缺少 ${target}`)
-  }
-}
-
-for (const file of domainFiles) {
-  const source = fs.readFileSync(file, 'utf8')
-  const previousMinorByMajor = new Map()
-  for (const match of source.matchAll(/^### (\d+)\.(\d+)(?:\s|$)/gm)) {
-    const major = Number(match[1])
-    const minor = Number(match[2])
-    const expected = (previousMinorByMajor.get(major) ?? 0) + 1
-    if (minor !== expected) {
-      failures.push(
-        `${relative(file)} 三级章节编号不连续：期望 ${major}.${expected}，实际 ${major}.${minor}`,
-      )
-    }
-    previousMinorByMajor.set(major, minor)
-  }
-}
-
-const useCaseRoot = path.join(root, 'docs', 'use-cases')
-export function isUseCasePageFile(file) {
-  return path.basename(file) !== 'README.md'
-}
-
-const documentedUseCases = new Set(
-  fs
-    .readdirSync(useCaseRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .flatMap((entry) =>
-      markdownFiles(path.join(useCaseRoot, entry.name))
-        .filter(isUseCasePageFile)
-        .map((file) => `${entry.name}/${path.basename(file, '.md')}`),
-    ),
-)
-
-failures.push(
-  ...validateUseCaseOwnership(
-    documentationSources.filter(({ file }) =>
-      /^docs\/use-cases\/[a-z][a-z0-9-]*\/[^/]+\.md$/u.test(file),
-    ),
-  ),
-)
 
 export function parseTargetEntryPage(source) {
   const failures = []
@@ -1082,7 +771,7 @@ function hasDirectProperty(source, start, end, property) {
 export function parseTargetRegisteredResourcePages(source) {
   const failures = []
   const pages = []
-  const seenUseCaseKeys = new Set()
+  const seenResources = new Set()
 
   for (let start = 0; start < source.length; start += 1) {
     if (source[start] !== '{') continue
@@ -1091,16 +780,38 @@ export function parseTargetRegisteredResourcePages(source) {
       failures.push('frontend/src/target/navigation/registry.ts 存在未闭合对象')
       break
     }
-    if (!hasDirectProperty(source, start, end, 'useCaseKey')) continue
+    if (
+      !['domain', 'entity', 'definition', 'useCaseKey'].some((key) =>
+        hasDirectProperty(source, start, end, key),
+      )
+    )
+      continue
+    // Type declarations and outer containers are not literal registrations.
+    if (
+      !directStringProperty(source, start, end, 'domain') &&
+      !directStringProperty(source, start, end, 'entity')
+    )
+      continue
     const domain = directStringProperty(source, start, end, 'domain')
     const entity = directStringProperty(source, start, end, 'entity')
     const useCaseKey = directStringProperty(source, start, end, 'useCaseKey')
-    if (!domain || !entity || !useCaseKey) {
+    if (!domain || !entity) {
       failures.push(
         'Registry 页面 useCaseKey 必须与直接 domain/entity 一起登记',
       )
       continue
     }
+    const resource = `${domain}/${entity}`
+    if (seenResources.has(resource))
+      failures.push(`Registry 资源重复：${resource}`)
+    seenResources.add(resource)
+    pages.push({
+      title: resource,
+      route: `/${resource}`,
+      source: '[资源登记](../../frontend/src/target/navigation/registry.ts)',
+      useCaseKey,
+    })
+    if (!useCaseKey) failures.push(`Registry ${resource} 缺少 useCaseKey`)
     if (!/^[a-z][a-z0-9-]*$/u.test(domain)) {
       failures.push(`Registry domain 不合法：${domain}`)
       continue
@@ -1127,17 +838,6 @@ export function parseTargetRegisteredResourcePages(source) {
       failures.push(`Registry ${domain}/${entity} 不得登记 component`)
       continue
     }
-    if (seenUseCaseKeys.has(useCaseKey)) {
-      failures.push(`Registry useCaseKey 重复：${useCaseKey}`)
-      continue
-    }
-    seenUseCaseKeys.add(useCaseKey)
-    pages.push({
-      title: `${domain}/${entity}`,
-      route: `/${domain}/${entity}`,
-      source: '[资源登记](../../frontend/src/target/navigation/registry.ts)',
-      useCaseKey,
-    })
   }
 
   return { failures, pages }
@@ -1147,7 +847,6 @@ export function parseTargetRouterPages(source) {
   const failures = []
   const pages = []
   const seenRoutes = new Set()
-  const seenUseCaseKeys = new Set()
 
   for (let start = 0; start < source.length; start += 1) {
     if (source[start] !== '{') continue
@@ -1185,12 +884,7 @@ export function parseTargetRouterPages(source) {
       failures.push(`目标路由重复：${route}`)
       continue
     }
-    if (seenUseCaseKeys.has(useCaseKey)) {
-      failures.push(`目标路由 useCaseKey 重复：${useCaseKey}`)
-      continue
-    }
     seenRoutes.add(route)
-    seenUseCaseKeys.add(useCaseKey)
     pages.push({
       title,
       route,
@@ -1218,132 +912,262 @@ export function validateOrphanUseCases(pages, documentedUseCases) {
   return orphan.length > 0 ? [`页面用例孤儿文档：${orphan.join('、')}`] : []
 }
 
-const targetEntryPage = parseTargetEntryPage(
-  fs.readFileSync(path.join(root, 'frontend', 'index.html'), 'utf8'),
-)
-failures.push(...targetEntryPage.failures)
-const targetRouterPages = parseTargetRouterPages(
-  fs.readFileSync(
-    path.join(root, 'frontend', 'src', 'target', 'router', 'index.ts'),
-    'utf8',
-  ),
-)
-failures.push(...targetRouterPages.failures)
-const targetRegisteredResourcePages = parseTargetRegisteredResourcePages(
-  fs.readFileSync(
-    path.join(root, 'frontend', 'src', 'target', 'navigation', 'registry.ts'),
-    'utf8',
-  ),
-)
-failures.push(...targetRegisteredResourcePages.failures)
-const expectedUseCasePages = [
-  ...targetRouterPages.pages,
-  ...targetRegisteredResourcePages.pages,
-]
-const expectedUseCaseKeys = expectedUseCasePages.map(
-  ({ useCaseKey }) => useCaseKey,
-)
-const duplicateUseCaseKeys = expectedUseCaseKeys.filter(
-  (key, index) => expectedUseCaseKeys.indexOf(key) !== index,
-)
-for (const key of new Set(duplicateUseCaseKeys))
-  failures.push(`页面 useCaseKey 重复：${key}`)
-const expectedUseCaseKeySet = new Set(expectedUseCaseKeys)
-const orphanUseCases = [...documentedUseCases].filter(
-  (key) => !expectedUseCaseKeySet.has(key),
-)
-
-orphanUseCases.sort()
-if (!writeUseCaseCoverage && orphanUseCases.length > 0) {
-  failures.push(
-    ...validateOrphanUseCases(expectedUseCasePages, documentedUseCases),
-  )
+export function isUseCasePageFile(file) {
+  return path.basename(file) !== 'README.md'
 }
-const missingUseCaseKeys = [...expectedUseCaseKeySet]
-  .filter((key) => !documentedUseCases.has(key))
-  .sort()
-failures.push(
-  ...validateTargetRouteUseCases(expectedUseCasePages, documentedUseCases),
-)
-const useCaseMissingBaselineFile = path.join(
-  useCaseRoot,
-  'MISSING-BASELINE.json',
-)
-if (!fs.existsSync(useCaseMissingBaselineFile)) {
-  failures.push('缺少 docs/use-cases/MISSING-BASELINE.json')
-} else {
-  const baseline = parseUseCaseMissingBaseline(
-    fs.readFileSync(useCaseMissingBaselineFile, 'utf8'),
-    'docs/use-cases/MISSING-BASELINE.json',
-  )
-  failures.push(...baseline.failures)
-  failures.push(
-    ...validateUseCaseMissingBaseline(baseline.keys, missingUseCaseKeys),
-  )
 
-  if (useCaseMissingBaselineBaseRef) {
-    const hasPreviousBaseline =
-      execFileSync(
-        'git',
-        [
-          '-C',
-          root,
-          'ls-tree',
-          '-r',
-          '--name-only',
-          useCaseMissingBaselineBaseRef,
-          '--',
-          'docs/use-cases/MISSING-BASELINE.json',
-        ],
-        { encoding: 'utf8' },
-      ).trim() === 'docs/use-cases/MISSING-BASELINE.json'
-    if (hasPreviousBaseline) {
-      const previousBaseline = parseUseCaseMissingBaseline(
-        execFileSync(
-          'git',
-          [
-            '-C',
-            root,
-            'show',
-            `${useCaseMissingBaselineBaseRef}:docs/use-cases/MISSING-BASELINE.json`,
-          ],
-          { encoding: 'utf8' },
-        ),
-        `${useCaseMissingBaselineBaseRef}:docs/use-cases/MISSING-BASELINE.json`,
+export function validateDomainDocumentLocations(documents) {
+  return documents
+    .filter(({ file }) =>
+      /^(?:frontend|apps\/api)\/docs\/domains\//u.test(
+        file.replaceAll('\\', '/'),
+      ),
+    )
+    .map(({ file }) => `${file} 位于禁止维护第二套领域文档的模块目录`)
+}
+
+export function validateDocumentationNavigation(documents) {
+  const sources = new Map(documents.map(({ file, source }) => [file, source]))
+  const failures = []
+  const visited = new Set()
+  const pending = ['README.md']
+  while (pending.length) {
+    const file = pending.pop()
+    if (visited.has(file)) continue
+    visited.add(file)
+    const source = sources.get(file)
+    if (source === undefined) {
+      failures.push(`文档导航引用不存在的路径：${file}`)
+      continue
+    }
+    for (const match of source.matchAll(/\[[^\]]*]\(([^)]+)\)/g)) {
+      const target = match[1].trim().replace(/^<|>$/g, '').split('#')[0]
+      if (!target || /^[a-z][a-z0-9+.-]*:/i.test(target)) continue
+      const resolved = path.posix.normalize(
+        path.posix.join(path.posix.dirname(file), decodeURIComponent(target)),
       )
-      failures.push(...previousBaseline.failures)
-      failures.push(
-        ...validateUseCaseMissingBaselineReduction(
-          previousBaseline.keys,
-          baseline.keys,
-        ),
-      )
+      if (resolved.endsWith('.md')) pending.push(resolved)
     }
   }
-}
-const coverageFile = path.join(useCaseRoot, 'COVERAGE.md')
-const expectedCoverage = await prettier.format(
-  useCaseCoverage(expectedUseCasePages, documentedUseCases, orphanUseCases),
-  { parser: 'markdown' },
-)
-
-if (writeUseCaseCoverage) {
-  fs.writeFileSync(coverageFile, expectedCoverage)
-} else if (!fs.existsSync(coverageFile)) {
-  failures.push('缺少自动生成的 docs/use-cases/COVERAGE.md')
-} else if (fs.readFileSync(coverageFile, 'utf8') !== expectedCoverage) {
-  failures.push('docs/use-cases/COVERAGE.md 已漂移；请运行 pnpm docs:coverage')
+  for (const file of sources.keys()) {
+    if (
+      /^docs\/(domains|operations|testing)\/.*\.md$/u.test(file) &&
+      !visited.has(file)
+    )
+      failures.push(`文档分类索引无法从 README 到达 ${file}`)
+  }
+  return failures
 }
 
-if (isMain) {
+export async function runDocumentationCheck({
+  root = path.resolve(import.meta.dirname, '..'),
+  args = process.argv.slice(2),
+} = {}) {
+  const failures = []
+  const relative = (file) => path.relative(root, file)
+  const writeUseCaseCoverage = args.includes('--write-use-case-coverage')
+  const writeAdrIndex = args.includes('--write-adr-index')
+  const documentationFiles = trackedMarkdownFiles(root)
+  const documentationSources = documentationFiles.map((file) => ({
+    file: relative(file),
+    source: fs.readFileSync(file, 'utf8'),
+  }))
+  const formalTerminologySources = trackedFormalTerminologyFiles(root).map(
+    (file) => ({
+      file: relative(file),
+      source: fs.readFileSync(file, 'utf8'),
+    }),
+  )
+  failures.push(...validateBobFormalTerminology(formalTerminologySources))
+  const legacyReferences = new Set(
+    documentationSources
+      .filter(({ file }) => /^docs\/adr\/\d{4}-.+\.md$/u.test(file))
+      .map(({ source }) => parseAdrFrontmatter(source).metadata?.id)
+      .filter(Boolean),
+  )
+  failures.push(...validateSkillReferences(documentationSources))
+  failures.push(
+    ...validateCurrentStateLegacyLanguage(
+      documentationSources,
+      legacyReferences,
+    ),
+  )
+  failures.push(...validateCurrentArchitectureAssertions(documentationSources))
+
+  for (const file of documentationFiles) {
+    if (
+      writeUseCaseCoverage &&
+      relative(file) === 'docs/use-cases/COVERAGE.md'
+    ) {
+      continue
+    }
+    const source = fs.readFileSync(file, 'utf8')
+    for (const match of source.matchAll(/\[[^\]]*]\(([^)]+)\)/g)) {
+      const rawTarget = match[1].trim().replace(/^<|>$/g, '')
+      if (/^[a-z][a-z0-9+.-]*:/i.test(rawTarget)) continue
+
+      const hashIndex = rawTarget.indexOf('#')
+      const target = hashIndex < 0 ? rawTarget : rawTarget.slice(0, hashIndex)
+      const rawAnchor = hashIndex < 0 ? '' : rawTarget.slice(hashIndex + 1)
+
+      const resolved = path.resolve(
+        path.dirname(file),
+        decodeURIComponent(target || path.basename(file)),
+      )
+      if (!fs.existsSync(resolved)) {
+        failures.push(`${relative(file)} 引用了不存在的本地路径：${rawTarget}`)
+        continue
+      }
+
+      if (rawAnchor && resolved.endsWith('.md')) {
+        const anchor = decodeURIComponent(rawAnchor).toLowerCase()
+        const anchors = markdownHeadingAnchors(
+          fs.readFileSync(resolved, 'utf8'),
+        )
+        if (!anchors.has(anchor)) {
+          failures.push(`${relative(file)} 引用了不存在的标题：${rawTarget}`)
+        }
+      }
+    }
+  }
+
+  failures.push(...validateDomainDocumentLocations(documentationSources))
+
+  failures.push(...validateDocumentationNavigation(documentationSources))
+  const domainFiles = markdownFiles(path.join(root, 'docs', 'domains'))
+  const operationFiles = markdownFiles(path.join(root, 'docs', 'operations'))
+  const adrFiles = markdownFiles(path.join(root, 'docs', 'adr')).filter(
+    (file) => /^\d{4}-.+\.md$/u.test(path.basename(file)),
+  )
+  const adrDocuments = adrFiles.map((file) => ({
+    file: relative(file),
+    source: fs.readFileSync(file, 'utf8'),
+  }))
+
+  failures.push(...validateAdrDocuments(adrDocuments))
+  const adrIndexFile = path.join(root, 'docs', 'adr', 'README.md')
+  if (writeAdrIndex) {
+    fs.writeFileSync(
+      adrIndexFile,
+      await prettier.format(generateAdrIndex(adrDocuments), {
+        parser: 'markdown',
+      }),
+    )
+  } else {
+    failures.push(
+      ...(await validateAdrIndex(
+        fs.readFileSync(adrIndexFile, 'utf8'),
+        adrDocuments,
+      )),
+    )
+  }
+
+  for (const file of domainFiles) {
+    const source = fs.readFileSync(file, 'utf8')
+    const previousMinorByMajor = new Map()
+    for (const match of source.matchAll(/^### (\d+)\.(\d+)(?:\s|$)/gm)) {
+      const major = Number(match[1])
+      const minor = Number(match[2])
+      const expected = (previousMinorByMajor.get(major) ?? 0) + 1
+      if (minor !== expected) {
+        failures.push(
+          `${relative(file)} 三级章节编号不连续：期望 ${major}.${expected}，实际 ${major}.${minor}`,
+        )
+      }
+      previousMinorByMajor.set(major, minor)
+    }
+  }
+
+  const useCaseRoot = path.join(root, 'docs', 'use-cases')
+  const documentedUseCases = new Set(
+    fs
+      .readdirSync(useCaseRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .flatMap((entry) =>
+        markdownFiles(path.join(useCaseRoot, entry.name))
+          .filter(isUseCasePageFile)
+          .map((file) => `${entry.name}/${path.basename(file, '.md')}`),
+      ),
+  )
+
+  failures.push(
+    ...validateUseCaseOwnership(
+      documentationSources.filter(({ file }) =>
+        /^docs\/use-cases\/[a-z][a-z0-9-]*\/[^/]+\.md$/u.test(file),
+      ),
+    ),
+  )
+
+  const targetEntryPage = parseTargetEntryPage(
+    fs.readFileSync(path.join(root, 'frontend', 'index.html'), 'utf8'),
+  )
+  failures.push(...targetEntryPage.failures)
+  const targetRouterPages = parseTargetRouterPages(
+    fs.readFileSync(
+      path.join(root, 'frontend', 'src', 'target', 'router', 'index.ts'),
+      'utf8',
+    ),
+  )
+  failures.push(...targetRouterPages.failures)
+  const targetRegisteredResourcePages = parseTargetRegisteredResourcePages(
+    fs.readFileSync(
+      path.join(root, 'frontend', 'src', 'target', 'navigation', 'registry.ts'),
+      'utf8',
+    ),
+  )
+  failures.push(...targetRegisteredResourcePages.failures)
+  const expectedUseCasePages = [
+    ...targetRouterPages.pages,
+    ...targetRegisteredResourcePages.pages,
+  ]
+  const expectedUseCaseKeys = expectedUseCasePages.map(
+    ({ useCaseKey }) => useCaseKey,
+  )
+  const expectedUseCaseKeySet = new Set(expectedUseCaseKeys)
+  const orphanUseCases = [...documentedUseCases].filter(
+    (key) => !expectedUseCaseKeySet.has(key),
+  )
+
+  orphanUseCases.sort()
+  if (!writeUseCaseCoverage && orphanUseCases.length > 0) {
+    failures.push(
+      ...validateOrphanUseCases(expectedUseCasePages, documentedUseCases),
+    )
+  }
+  failures.push(
+    ...validateTargetRouteUseCases(expectedUseCasePages, documentedUseCases),
+  )
+  const coverageFile = path.join(useCaseRoot, 'COVERAGE.md')
+  const expectedCoverage = await prettier.format(
+    useCaseCoverage(expectedUseCasePages, documentedUseCases, orphanUseCases),
+    { parser: 'markdown' },
+  )
+
+  if (writeUseCaseCoverage) {
+    fs.writeFileSync(coverageFile, expectedCoverage)
+  } else if (!fs.existsSync(coverageFile)) {
+    failures.push('缺少自动生成的 docs/use-cases/COVERAGE.md')
+  } else if (fs.readFileSync(coverageFile, 'utf8') !== expectedCoverage) {
+    failures.push(
+      'docs/use-cases/COVERAGE.md 已漂移；请运行 pnpm docs:coverage',
+    )
+  }
+
   if (failures.length > 0) {
     process.stderr.write(
       `${failures.map((failure) => `- ${failure}`).join('\n')}\n`,
     )
-    process.exitCode = 1
+    return 1
   } else {
     process.stdout.write(
       `文档检查通过：${documentationFiles.length} 个纳入检查的 Markdown，${domainFiles.length} 个领域，${operationFiles.length} 份运行手册，${expectedUseCasePages.length} 个页面入口。\n`,
     )
   }
+  return 0
 }
+
+if (
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+)
+  process.exitCode = await runDocumentationCheck()

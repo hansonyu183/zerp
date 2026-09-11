@@ -6,7 +6,6 @@ const ciPath = new URL('../.github/workflows/ci.yml', import.meta.url)
 const targetPath = new URL('../.github/workflows/target.yml', import.meta.url)
 const workflowsDirectory = new URL('../.github/workflows/', import.meta.url)
 const packagePath = new URL('../package.json', import.meta.url)
-const makefilePath = new URL('../Makefile', import.meta.url)
 
 function jobBlock(workflow, jobId) {
   const jobs = [...workflow.matchAll(/^  ([a-z0-9-]+):\n/gm)]
@@ -60,7 +59,6 @@ test('CI routes L1 and L3 work and always applies the required summary', async (
   assert.match(target, /needs\.changes\.outputs\.level == 'L3'/)
   assert.match(target, /^    uses: \.\/\.github\/workflows\/target\.yml$/m)
   assert.match(common, /make check-common/)
-  assert.match(common, /DOCS_USE_CASE_MISSING_BASELINE_BASE:/)
   assert.match(required, /^    if: always\(\)$/m)
   assert.match(required, /scripts\/ci\/required\.mjs/)
   assert.match(required, /needs: \[changes, common, tooling, target\]/)
@@ -84,35 +82,15 @@ test('reusable target workflow owns the complete target E2E and cleanup only', a
   assert.ok(target.includes('make target-down'))
 })
 
-test('local complete validation remains while CI behavior tests cover both workflows', async () => {
-  const [workflowFiles, packageText, makefile] = await Promise.all([
+test('CI behavior tests cover both workflows', async () => {
+  const [workflowFiles, packageText] = await Promise.all([
     readdir(workflowsDirectory),
     readFile(packagePath, 'utf8'),
-    readFile(makefilePath, 'utf8'),
   ])
   const packageJson = JSON.parse(packageText)
-
   assert.deepEqual(workflowFiles.sort(), ['ci.yml', 'target.yml'])
   assert.equal(
     packageJson.scripts['check:ci-workflow'],
     'node --test scripts/check-ci-workflow.test.mjs scripts/ci/*.test.mjs',
   )
-  assert.match(makefile, /^check-ci-workflow:\n\tpnpm check:ci-workflow$/m)
-  assert.match(
-    makefile,
-    /^check: check-common check-ci-workflow target-check$/m,
-  )
-  assert.match(makefile, /^test: target-test$/m)
-  assert.match(makefile, /^e2e: target-e2e$/m)
-})
-
-test('complete target gate includes dedicated browser fixtures and pinned migration tests', async () => {
-  const [makefile, apiText] = await Promise.all([
-    readFile(makefilePath, 'utf8'),
-    readFile(new URL('../apps/api/package.json', import.meta.url), 'utf8'),
-  ])
-  for (const command of ['e2e:wfl', 'e2e:vou-catalog', 'e2e:vou-opening'])
-    assert.ok(makefile.includes(`pnpm --filter @zerp/api ${command}`))
-  const api = JSON.parse(apiText)
-  assert.ok(api.scripts.test.includes('pnpm test:migrations'))
 })

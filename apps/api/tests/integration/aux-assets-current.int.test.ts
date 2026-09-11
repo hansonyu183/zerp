@@ -42,14 +42,8 @@ test('AUX assets enforce revision, unique identities, adopted references and ato
     ),
   }
   await bootstrap.createE2EPrincipal(principal, false, actor.permissions)
-  const usageIds: string[] = []
   context.after(async () => {
     try {
-      if (usageIds.length)
-        await db
-          .deleteFrom('dcl_warehouse_usage_facts')
-          .where('id', 'in', usageIds)
-          .execute()
       await bootstrap.deleteE2EPrincipal(principal)
     } finally {
       await db.destroy()
@@ -82,28 +76,6 @@ test('AUX assets enforce revision, unique identities, adopted references and ato
     remark: '',
   }
   const warehouse = await aux.create('warehouse', warehouseInput, actor)
-  for (const kind of [
-    'INVENTORY',
-    'DOCUMENT',
-    'SOURCE',
-    'REFERENCE',
-  ] as const) {
-    const id = ulid()
-    usageIds.push(id)
-    await db
-      .insertInto('dcl_warehouse_usage_facts')
-      .values({
-        id,
-        warehouse_id: warehouse.id,
-        kind,
-        entity: 'test',
-        business_id: ulid(),
-        business_code: 'TEST',
-        quantity_micros: kind === 'INVENTORY' ? '1' : null,
-        created_at: new Date(),
-      })
-      .execute()
-  }
   const config = loadConfig({
     DATABASE_URL: databaseUrl,
     TARGET_DATABASE_SCOPE: process.env.TARGET_DATABASE_SCOPE,

@@ -2,10 +2,10 @@
 
 ## 范围与判定规则
 
-本矩阵登记当前 `frontend/src/target/router/index.ts` 的带 `meta.title` 正式路由及其页面用例。#380 已删除被替代资源页的静态路由、菜单模板与专属用例；资源页面统一由动态 Resource Host 承载，Registry 的当前登记见[当前页面状态](FRONTEND-RESTORATION-STATUS.md)。历史基线、先前测试和已移除页面不是当前实现证据。
+本矩阵登记当前 Router 的带 `meta.title` 正式路由，并通过 Registry 补充动态资源页面用例。#380 已删除被替代资源页的静态路由、菜单模板与专属用例；资源页面统一由动态 Resource Host 承载，Registry 的当前登记见[当前页面状态](FRONTEND-RESTORATION-STATUS.md)。历史基线、先前测试和已移除页面不是当前实现证据。
 
-- 正式路由与组件以当前 `frontend/src/target/router/index.ts` 的登记和导入为准；页面用例由 `meta.useCaseKey` 指向，并由生成的 `COVERAGE.md` 交叉核对。
-- Resource Host 的存在不表示任一资源页面已实现。只有 Registry 明确登记的资源才有相应页面实现；当前登记以 Registry 为准；其中 `rpt/:code` 按受约束报表编码装配专用查询/导出页，ACC 当前映射与 BOB 档案使用各自页面。
+- 正式路由与 Host 以 `frontend/src/target/router/index.ts` 为准，业务 definition 与运行时绑定以 `frontend/src/target/navigation/registry.ts` 为准；页面用例由路由 `meta.useCaseKey` 和 Registry 显式用例登记共同指向，并由生成的 `COVERAGE.md` 交叉核对。
+- Resource Host 的存在不表示任一资源页面已实现。只有 Registry 明确登记的资源才有相应页面实现；当前登记以 Registry 为准；其中 `rpt/:code` 按受约束报表编码装配动态报表页，ACC 当前映射与 BOB 档案分别使用动态配置页与版本档案页。
 - 保留的 API、领域规则、数据与精确鉴权不等于可用资源页面，不能拿历史 E2E 或被替代路由充当当前页面证据。
 
 | 路由               | 当前组件             | 用例                  | 当前能力                                                                                                    |

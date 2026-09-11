@@ -12,8 +12,6 @@ import {
   validateAdrIndex,
   validateTargetRouteUseCases,
   validateOrphanUseCases,
-  validateUseCaseMissingBaseline,
-  validateUseCaseMissingBaselineReduction,
 } from './check-docs.mjs'
 
 test('accepts reciprocal ADR supersession metadata and generated indexes', async () => {
@@ -69,7 +67,6 @@ test('includes explicitly documented Resource Host pages from the Registry', () 
   assert.deepEqual(
     parseTargetRegisteredResourcePages(`
       const resources = [
-        { domain: 'aux', entity: 'warehouse', definition: warehousePage },
         {
           domain: 'bob',
           entity: 'supplier',
@@ -129,20 +126,6 @@ test('excludes directory README files from page coverage but still rejects ordin
   )
 })
 
-test('use-case baseline can only describe current target-route gaps', () => {
-  assert.deepEqual(validateUseCaseMissingBaseline([], []), [])
-  assert.match(
-    validateUseCaseMissingBaseline([], ['app/target-probe']).join('\n'),
-    /未登记新增债务/,
-  )
-  assert.match(
-    validateUseCaseMissingBaselineReduction([], ['app/target-probe']).join(
-      '\n',
-    ),
-    /只能随债务减少/,
-  )
-})
-
 test('documents the constrained RPT code registration without accepting arbitrary dynamic resources', () => {
   const registration = `{domain:'rpt',entity:':code',definition:reportPage,useCaseKey:'rpt/report-query'}`
   const parsed = parseTargetRegisteredResourcePages(registration)
@@ -177,5 +160,112 @@ test('requires a definition and rejects a separately assigned component in a res
       source + ',definition:supplierPage,component:WrongPage}',
     ).failures.join('\n'),
     /不得登记 component/,
+  )
+})
+
+test('counts registrations without ownership and accepts shared use cases', () => {
+  const missing = parseTargetRegisteredResourcePages(
+    "{domain:'app',entity:'user',definition:userPage}",
+  )
+  assert.equal(missing.pages.length, 1)
+  assert.match(missing.failures.join('\n'), /useCaseKey/)
+  const shared =
+    "{domain:'app',entity:'user',definition:userPage,useCaseKey:'app/access-management'}, {domain:'app',entity:'role',definition:rolePage,useCaseKey:'app/access-management'}"
+  assert.deepEqual(parseTargetRegisteredResourcePages(shared).failures, [])
+  assert.equal(parseTargetRegisteredResourcePages(shared).pages.length, 2)
+  assert.match(
+    parseTargetRegisteredResourcePages(
+      shared.replace("entity:'role'", "entity:'user'"),
+    ).failures.join('\n'),
+    /资源.*重复/,
+  )
+})
+
+test('allows shared documents across distinct formal routes', () => {
+  const parsed = parseTargetRouterPages(`[
+    {path:'/one',component:Page,meta:{title:'One',useCaseKey:'app/shared'}},
+    {path:'/two',component:Page,meta:{title:'Two',useCaseKey:'app/shared'}}
+  ]`)
+  assert.deepEqual(parsed.failures, [])
+  assert.equal(parsed.pages.length, 2)
+  assert.deepEqual(
+    validateTargetRouteUseCases(parsed.pages, new Set(['app/shared'])),
+    [],
+  )
+})
+
+test('rejects domain copies in current modules but accepts root authority', async () => {
+  const { validateDomainDocumentLocations } = await import('./check-docs.mjs')
+  assert.deepEqual(
+    validateDomainDocumentLocations([{ file: 'docs/domains/aux.md' }]),
+    [],
+  )
+  for (const file of [
+    'frontend/docs/domains/aux.md',
+    'apps/api/docs/domains/aux.md',
+  ]) {
+    assert.match(
+      validateDomainDocumentLocations([{ file }]).join('\n'),
+      /禁止维护第二套/,
+    )
+  }
+})
+
+test('importing validation functions performs no repository IO or CLI output', async () => {
+  const { spawnSync } = await import('node:child_process')
+  const result = spawnSync(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `
+    import 'prettier'
+    import fs from 'node:fs'
+    import cp from 'node:child_process'
+    import {syncBuiltinESMExports} from 'node:module'
+    const forbidden = () => { throw new Error('unexpected repository IO') }
+    const readFileSync = fs.readFileSync
+    fs.readFileSync = (file, ...args) => String(file).endsWith('.mjs') ? readFileSync(file, ...args) : forbidden()
+    fs.readdirSync = forbidden
+    cp.execFileSync = forbidden
+    syncBuiltinESMExports()
+    process.argv.push('--write-use-case-coverage', '--write-adr-index')
+    await import(${JSON.stringify(new URL('./check-docs.mjs', import.meta.url).href)})
+  `,
+    ],
+    { encoding: 'utf8' },
+  )
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(result.stdout, '')
+  assert.equal(result.stderr, '')
+})
+
+test('documentation navigation supports category indexes and rejects missing or orphaned manuals', async () => {
+  const { validateDocumentationNavigation } = await import('./check-docs.mjs')
+  const documents = [
+    {
+      file: 'README.md',
+      source:
+        '[APP](docs/domains/app.md)\n[Operations](docs/operations/README.md)\n[Testing](docs/testing/README.md)',
+    },
+    { file: 'docs/domains/app.md', source: '# APP' },
+    { file: 'docs/operations/README.md', source: '[Startup](startup.md)' },
+    { file: 'docs/operations/startup.md', source: '# Startup' },
+    { file: 'docs/testing/README.md', source: '[Evidence](result.md)' },
+    { file: 'docs/testing/result.md', source: '# Evidence' },
+  ]
+  assert.deepEqual(validateDocumentationNavigation(documents), [])
+  const orphan = documents.map((doc) =>
+    doc.file === 'docs/operations/README.md'
+      ? { ...doc, source: '# Operations' }
+      : doc,
+  )
+  assert.match(validateDocumentationNavigation(orphan).join('\n'), /startup.md/)
+  const missing = documents.filter(
+    (doc) => doc.file !== 'docs/operations/startup.md',
+  )
+  assert.match(
+    validateDocumentationNavigation(missing).join('\n'),
+    /startup.md/,
   )
 })

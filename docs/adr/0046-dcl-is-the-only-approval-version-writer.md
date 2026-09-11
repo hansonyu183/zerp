@@ -2,10 +2,16 @@
 id: ADR-0046
 date: 2026-08-29
 status: accepted
-partially_superseded_by: ADR-0051, ADR-0055, ADR-0056, ADR-0057, ADR-0058
+partially_superseded_by: ADR-0051, ADR-0053, ADR-0054, ADR-0055, ADR-0056, ADR-0057, ADR-0058
 ---
 
 # DCL 是申报版本的唯一写入方
+
+## 当前效力与剩余条款
+
+剩余有效条款仅为：AUX Stable-ID Direct CRUD、公共 Approval 所有权、领域事务原子性、精确授权、单一当前实现及按影响范围验证。DCL 统一写入、消费领域只读、旧切片表结构和墓碑测试要求不再作为当前规范；当前身份与写入分别归 AUX（ADR-0053/0054）、BOB（ADR-0055）、ACC（ADR-0056）、RPT（ADR-0057）和 WFL（ADR-0058）。Submission 状态与 Hono 契约遵循 ADR-0051。后文切片表仅记录当时验收事实，不能作为恢复 DCL 写入口的依据。
+
+## 原决定（部分已替代）
 
 ZERP 的申报版本切换以 DCL 为唯一写入边界。中央 Approval 统一拥有版本头、状态迁移、revision、授权与审计；DCL 拥有 stable subject 及与每个 `approvalEntryId` 一一对应的不可变领域 payload。任何需要候选编辑、提交、撤回、驳回、批准、反批、候选删除、版本历史或审批审计的申报对象都只能通过 `/dcl/{entity}/{action}` 写入，不允许消费领域直接创建或改变 Approval Version。
 

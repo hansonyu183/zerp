@@ -24,7 +24,7 @@ make e2e
 make target-down
 ```
 
-`make dev` 使用 `compose.target.yaml` 的固定隔离资源：数据库 `zerp_target_test`、PostgreSQL `55439`、API `18082`、Web `18083`。`make e2e` 每次删除并重建这些资源，运行生成、WFL parity、API 单元/集成测试和 Playwright。不得把 `TARGET_*` 变量指向共享或公网数据库。
+`make dev` 启动 `compose.target.yaml` 的隔离数据库与 API，并在宿主运行 Vite。默认数据库为 `zerp_target_test`，PostgreSQL 端口为 `55439`、API 为 `18082`；Vite 默认端口为 `5173`，Compose Web 默认端口 `18083` 用于容器构建验收。实际端口以启动输出及 `TARGET_*` 配置为准。`make e2e` 每次删除并重建这些资源，运行生成、WFL parity、API 单元/集成测试和 Playwright。不得把 `TARGET_*` 变量指向共享或公网数据库。
 
 ## 发布验收
 
@@ -32,7 +32,7 @@ make target-down
 2. API 与 Web 的 `_zerp-release` 对应同一完整合并 SHA；
 3. 浏览器请求发往预期 HTTPS API，CORS 返回精确 Origin；
 4. 登录写入 HttpOnly、Secure Cookie，刷新后会话与 CSRF 恢复；
-5. 使用真实权限验证 APP Workbench 和代表性 DCL、VOU、ACC、WFL、RPT 流程；
+5. 使用真实权限验证 Session 导航及 Registry 已登记的代表性 APP、AUX、BOB、VOU、ACC、WFL、RPT 流程；
 6. 注销后原会话不可继续访问受保护接口。
 
 记录环境、提交、时间和必要的 `requestId`，不记录密码、Cookie、CSRF Token 或敏感请求体。

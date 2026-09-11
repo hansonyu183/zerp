@@ -1,6 +1,3 @@
-import { WflMigrationService } from '../../src/wfl/migration.ts'
-import { readTargetPermissionCatalog } from '../../scripts/target-artifacts.ts'
-import { restoreWflMigrationSource } from './wfl-fixture.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { sql, type Kysely } from 'kysely'
@@ -382,20 +379,6 @@ test('WFL independently composes shared lifecycle, pins old instances and rolls 
         )
         assert.equal((await wfl.versions(subjectId, owner)).length, 2)
         assert.equal((await wfl.auditHistory(subjectId, owner)).length, 4)
-        const beforeMigration = await wfl.getInstance(instance.processId, owner)
-        await restoreWflMigrationSource(tx)
-        await new WflMigrationService(db).migrateInTransaction(
-          tx,
-          await readTargetPermissionCatalog(),
-        )
-        assert.deepEqual(
-          await wfl.getInstance(instance.processId, owner),
-          beforeMigration,
-        )
-        assert.deepEqual(
-          await wfl.executeNodeAction(action, owner, 'post-migration-retry'),
-          beforeMigration,
-        )
         throw rollback
       }),
       (error) => error === rollback,

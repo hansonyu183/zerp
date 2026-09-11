@@ -40,16 +40,16 @@ WFL 复用 VOU 的同步事务事件总线。根单据批准时允许零个或�
 
 新环境由受控初始化提供费用、采购和销售三条普通 Starlark 定义；它们与管理员定义使用同一模型和路由元数据，无系统类型、保护位、隐藏 converter 或专用运行时。默认不启用，不创建实例或业务单据，删除/修改后也不会自动补回。
 
-公开路径和数据结构由可执行 Hono/Zod 路由生成。定义管理、当前定义读取、提交读取和实例执行的精确权限由 APP route metadata 分别生成。停用保留既有角色关联，使已有实例仍可查询和运行。`/wfl/process-definition/*` 是定义维护与读取的 HTTP 边界；迁移保留旧授权对应的精确能力，普通目录同步不得在迁移前丢弃旧授权。WFL 结构不按节点 VOU 详情权限裁剪；打开正文和创建下级仍由相应 VOU/WFL 操作精确鉴权。流程定义页由当前 Registry 真实登记。
+公开路径和数据结构由可执行 Hono/Zod 路由生成。定义管理、当前定义读取、提交读取和实例执行的精确权限由 APP route metadata 分别生成。停用保留既有角色关联，使已有实例仍可查询和运行。`/wfl/process-definition/*` 是定义维护与读取的 HTTP 边界；目录同步保留当前精确授权及其启用状态。WFL 结构不按节点 VOU 详情权限裁剪；打开正文和创建下级仍由相应 VOU/WFL 操作精确鉴权。流程定义页由当前 Registry 真实登记。
 
 ## 6. 验收边界
 
 真实 PostgreSQL 验收覆盖 current 定义切换与回落、任一持久化实例精确 `approvalEntryId` blocker、新实例固定 latest APPROVED、既有实例继续固定原 entry、code/name 快照不变、回滚、历史审计身份保留、单/零/多匹配、六个动作、重试、反批准、删除、并发与任一失败全事务回滚。#361 的 WFL parity 门槛已由 [专项证据](../testing/wfl-starlark-parity-issue-361.md) 记录，并以同一完整 Starlark 语料验证 Node 与浏览器的编译、条件、初始值、资源上限和确定性结果。Hono 生成契约、客户端、API、前端、领域文档和 ADR 统一描述当前模型。
 
-## 7. 迁移与验收
+## 7. 状态与历史
 
-一次性转换保留 stable ID、code、全部 Approval Entry/版本/脚本/编译图、试算事实和审批事件，仅改变身份归属与精确权限路径；实例外键转向 WFL 身份，节点、动作指纹、结果和审计不重建。历史不完整或目标已存在时拒绝转换。不保留运行时兼容读取或别名。
+stable ID、code、全部 Approval Entry/版本/脚本/编译图、试算事实和审批事件保留原身份与解释。实例以 WFL 身份及精确版本引用保存，节点、动作指纹、结果和审计不因定义变化重建。
 
 状态闭集保持 `PENDING/APPROVED/REJECTED`（待批准/已批准/已驳回）；审批动作保持 `approve/reject/unreject/unapprove`（批准/驳回/恢复审核/反批准），启停为 `enable/disable`（启用/停用）。错误沿用公共审批、版本与 WFL 稳定 errorKey，页面用中文说明，blocker 保持结构化。版本反批准要求最高已批准、无开放提交且无精确实例引用。
 
-验收覆盖临时编辑、编译试算、提交重试、审批职责分离、新旧版本、运行开关、新实例选择与旧实例继续执行，真实 VOU 下级写入、create-child 幂等、根单据重新批准、迁移及审计失败回滚。页面编排见[流程定义管理](../use-cases/wfl/process-definition.md)。
+验收覆盖临时编辑、编译试算、提交重试、审批职责分离、新旧版本、运行开关、新实例选择与旧实例继续执行，真实 VOU 下级写入、create-child 幂等、根单据重新批准、审计失败回滚。页面编排见[流程定义管理](../use-cases/wfl/process-definition.md)。

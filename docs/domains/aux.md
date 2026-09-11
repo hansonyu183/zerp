@@ -80,7 +80,7 @@ payment-method PMT
 
 ### 3.2 人员类别、部门与岗位
 
-`employee-category` 是扁平通用辅助对象，字段只有 `name`、`description`，供 AUX 员工直接维护时选择。它不预置基线值，不保存等级、薪酬、权限、组织归属或任意业务规则；停用只阻止新的员工引用选择，不改写已批准员工与历史 VOU/ACC 快照。
+`employee-category` 是扁平通用辅助对象，字段只有 `name`、`description`，供 AUX 员工直接维护时选择。它不预置基线值，不保存等级、薪酬、权限、组织归属或任意业务规则；停用只阻止新的员工引用选择，不改写员工已采用的类别快照与历史 VOU/ACC 快照。
 
 `department` 是独立树形对象，字段为 `name`、`parentId`、`description`，为未来按部门配置业务规则保留稳定引用。`position` 字段为 `name`、`description`；本阶段只提供岗位身份，不在 AUX 中保存工资公式，工资计算规则由未来薪资领域拥有。
 
@@ -134,23 +134,23 @@ payment-method PMT
 
 AUX 仓库负责人、BOB 客户默认主体/内部业务员、供应商采购员与主体集合、其他单位/合作方主体集合、车辆内部承运方及资金账户所属主体，以及 VOU/ACC/RPT 的直接选择均采用 AUX stable ID；采用时保存自身所需 typed snapshot，不再选择旧审批版本，也不因来源后续修改或停用改变已保存解释。必要旧精确 Approval 引用仅作为历史证据保存。
 
-#### 3.9.1 既有资料与授权转换
+#### 3.9.1 历史事实与授权
 
-一次性转换保留 stable ID、OPE/EMP 编码、创建审计和所有历史快照。存在正式资料时采用最高已批准内容；仅有开放 V1 时保留该内容进入直接维护，旧 V1 不标记为批准。另有未决内容时返回迁移 blocker，由正常流程显式处理，不能静默丢弃或批准。编码计数延续，不复用历史编号。旧 subject、版本与 Approval 只作为必要历史证据，不参与 current 查询或新写入。 新建 Submission（包括从历史内容预填新表单）在提交时重新采用当前资料；原 Submission 的读取、审批和幂等重试只使用已保存快照。
+稳定 ID、OPE/EMP 编码、创建审计和已保存历史快照不可重解释，编码计数不复用历史编号。历史 subject、版本与 Approval 只作为必要审计证据，不参与 current 查询或新写入。新建 Submission（包括从历史内容预填新表单）在提交时重新采用当前资料；原 Submission 的读取、审批和幂等重试只使用已保存快照。
 
-已确认的动作映射为旧 `submit-new` → AUX `create`，旧 `submit-change` → AUX `save`、`enable`、`disable`；旧 DCL/BOB `query`、`get` 分别转为对应 AUX 读取动作。旧审批、版本查询及开放 Submission `delete` 不获得新的 mutation 权限，物理删除需明确独立授权。转换保持原授权启用事实、角色与用户有效权限，不把一个人的权限组合转授整个角色，不从通用引用权限推导资料维护权。
+资料读取、创建、保存、启停与物理删除分别精确授权；不从通用引用权限推导资料维护权，不把一个人的权限组合转授整个角色。
 
 ### 3.10 仓库、资金账户与车辆
 
 三类对象均由 AUX 直接维护 current data，保存即时生效，启停独立，不创建 Approval 或业务版本。稳定 ID、编码、revision、审计及引用更新沿用本域规则，所有校验与写入处于同一事务。页面只保留临时输入，确定失败保留输入，关闭、刷新或切换账号后销毁。
 
-仓库是全局共享的最小物理库存地点，不绑定经营主体。负责人可选，采用 AUX 员工 stable ID 与姓名快照，不授予权限。库存非零、进行中单据、来源或有效引用阻止停用，返回完整结构化 blocker；不得迁移库存或引用。仅作迁移审计证据的旧 DCL usage 不作为当前停用 blocker；库存、进行中单据与引用从当前事实读取。
+仓库是全局共享的最小物理库存地点，不绑定经营主体。负责人可选，采用 AUX 员工 stable ID 与姓名快照，不授予权限。库存非零、进行中单据、来源或有效引用阻止停用，返回完整结构化 blocker；不得迁移库存或引用。库存、进行中单据与引用从当前事实读取。
 
 资金账户必须属于一个当前启用的 AUX 经营主体。账号去除空白与连字符后转为大写，非空规范账号在本实体全部 current 对象间唯一；保存失败不改变账号占用、revision 或审计。收付款单据显式选择经营主体时（当前为销售收款），资金账户所属主体必须一致；未独立选择经营主体的收付款，以采用时资金账户快照中的所属主体作为该笔资金事实的经营主体。
 
 车辆保留车牌、VIN、车型、核定载重及明确的散水承运能力。承运归属只有 INTERNAL（AUX 经营主体）与 EXTERNAL（其他单位）；其他单位通过当前真实读取及精确版本采用，不能建立 DCL 代理。车牌去除空白后转为大写，非空 VIN 仅去除首尾空白后转为大写，两者保留连字符，最长 64 字符，分别在车辆 current 名录内唯一；`ratedLoadKg` 为非负有限数值，`bulkWaterCarrier` 为布尔值，车型只作字典分类，不推导承运能力。当前承运归属的有效引用阻止其来源失效；修改归属必须由用户显式保存，不自动停用关联对象。
 
-新业务只采用 AUX stable ID 与服务端冻结的 typed snapshot，不选择旧审批版本。既有交易快照与精确引用在一次性转换时保留，不回查 current 重解释历史。转换采用 3.9.1 的未决 blocker 与动作权限映射，并延续 WHS/VEH/FAC 既有实际编码及计数；不得静默批准候选、丢弃历史或扩权。
+新业务只采用 AUX stable ID 与服务端冻结的 typed snapshot。既有交易快照与精确引用保持原解释，不回查 current；WHS/VEH/FAC 编码及计数不复用历史编号。
 
 ## 4. 数据与引用
 
@@ -172,7 +172,7 @@ AUX current 修改不会覆盖既有交易快照。结算方式在客户或供�
 | product-type                              | stable ID、code、name、behaviorProfile                                                               | BOB product snapshot，VOU 再采用该产品 snapshot                                                | 不重解释产品行为、库存或生产                   |
 | employee-category / department / position | stable ID、code、name、parentId                                                                      | AUX employee snapshot                                                                          | 不改写既有雇佣或交易人员快照                   |
 | settlement-method                         | stable ID、code、name、termCode、ruleType、monthOffset、dayOfMonth、dayOffset、defaultSalesSurcharge | BOB customer/supplier snapshot；订单复制最终结算事实                                           | 不重算到期日、金额或加价                       |
-| payment-method                            | stable ID、code、name、defaultSalesSurcharge                                                         | BOB Customer Version 的核算账户 snapshot；销售订单保存最终方式与加价                           | 不重算既有订单金额                             |
+| payment-method                            | stable ID、code、name、defaultSalesSurcharge                                                         | BOB Customer Version 的客户子单位 snapshot；销售订单保存最终方式与加价                         | 不重算既有订单金额                             |
 | measurement-unit                          | stable ID、code、name、symbol、quantityScale                                                         | BOB product unit/formula snapshot；VOU 采用产品 snapshot                                       | 不改变历史数量精度、换算、库存或展示           |
 | dictionary-type / dictionary-item         | stable type、item code 与采用时名称                                                                  | 当前只作无业务规则的选择与展示；进入正式 BOB/VOU 字段时由所属 typed snapshot 保存              | 排序与说明从不重解释业务；名称不改写已保存快照 |
 | income-expense-type                       | stable ID、code、name、direction、parentId                                                           | 正式收支分类接入 VOU 时由 VOU line typed snapshot 保存；当前未接入的页面不得用自由字段伪装引用 | 已有单据分类、方向与归集不回查 current         |

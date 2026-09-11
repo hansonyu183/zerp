@@ -8,6 +8,9 @@ TARGET_WEB_PORT ?= 18083
 TARGET_DATABASE_URL = postgres://zerp_target:$(TARGET_POSTGRES_PASSWORD)@127.0.0.1:$(TARGET_POSTGRES_PORT)/zerp_target_test?sslmode=disable
 TARGET_COMPOSE = TARGET_POSTGRES_PASSWORD=$(TARGET_POSTGRES_PASSWORD) TARGET_POSTGRES_PORT=$(TARGET_POSTGRES_PORT) TARGET_API_PORT=$(TARGET_API_PORT) TARGET_WEB_PORT=$(TARGET_WEB_PORT) docker compose -p zerp-target -f compose.target.yaml
 
+.NOTPARALLEL:
+
+.PHONY: check-static target-static test-unit test-component test-integration
 .PHONY: bootstrap dev dev-down generate generate-check check check-common check-ci-workflow test e2e build compose-up compose-down target-db target-generate target-generate-check target-wfl-parity target-check target-test target-e2e target-down
 
 bootstrap:
@@ -27,7 +30,9 @@ generate: target-generate
 
 generate-check: target-generate-check
 
-check: check-common check-ci-workflow target-check
+check: check-static check-ci-workflow
+
+check-static: check-common target-static
 
 check-common:
 	pnpm format:check
@@ -37,9 +42,20 @@ check-common:
 check-ci-workflow:
 	pnpm check:ci-workflow
 
-test: target-test
+test: test-unit test-component
 
-e2e: target-e2e
+test-unit:
+	pnpm --filter @zerp/model test
+	pnpm --filter @zerp/api test:unit
+	pnpm --filter @zerp/frontend test:pure
+
+test-component:
+	pnpm --filter @zerp/frontend test:component
+
+test-integration:
+	pnpm --filter @zerp/api test:integration
+
+e2e: check-common check-ci-workflow target-e2e
 
 build:
 	pnpm --filter @zerp/frontend build:target
@@ -61,29 +77,32 @@ target-generate:
 	TARGET_DATABASE_URL='$(TARGET_DATABASE_URL)' pnpm --filter @zerp/api generate:db
 
 target-generate-check: target-generate
-	git diff --exit-code -- apps/api/src/generated apps/api/src/db/generated.ts
+	node scripts/check-generated.mjs
 
 target-wfl-parity:
 	pnpm --filter @zerp/wfl-starlark wasm:build
 	pnpm --filter @zerp/wfl-starlark test:node
-	pnpm --filter @zerp/wfl-starlark typecheck
 	pnpm --filter @zerp/wfl-starlark test:browser
 
-target-check: target-generate-check target-wfl-parity
-	TARGET_DATABASE_URL='$(TARGET_DATABASE_URL)' pnpm --filter @zerp/api check:catalog
-	TARGET_DATABASE_URL='$(TARGET_DATABASE_URL)' pnpm --filter @zerp/api validate:rpt
+# Static validation never creates a database or builds WASM/browser assets.
+target-static:
+	pnpm --filter @zerp/frontend check:architecture
+	pnpm --filter @zerp/api test:artifacts
 	pnpm --filter @zerp/api typecheck
 	pnpm --filter @zerp/api-client typecheck
 	pnpm --filter @zerp/model typecheck
+	pnpm --filter @zerp/wfl-starlark typecheck
 	pnpm --filter @zerp/frontend typecheck
 	pnpm --filter @zerp/frontend lint
 	pnpm --filter @zerp/frontend format:check
-	pnpm --filter @zerp/frontend build:target
 
-target-test: target-check
-	pnpm --filter @zerp/model test
-	pnpm --filter @zerp/frontend test:unit
-	TARGET_DATABASE_URL='$(TARGET_DATABASE_URL)' TARGET_TEST_DATABASE_URL='$(TARGET_DATABASE_URL)' pnpm --filter @zerp/api test
+target-check: target-generate-check target-wfl-parity target-static
+	TARGET_DATABASE_URL='$(TARGET_DATABASE_URL)' pnpm --filter @zerp/api check:catalog
+	TARGET_DATABASE_URL='$(TARGET_DATABASE_URL)' pnpm --filter @zerp/api validate:rpt
+
+target-test: target-check test-unit test-component
+	pnpm check:validation
+	TARGET_DATABASE_URL='$(TARGET_DATABASE_URL)' TARGET_TEST_DATABASE_URL='$(TARGET_DATABASE_URL)' TARGET_DATABASE_SCOPE=isolated $(MAKE) test-integration
 
 target-e2e: target-test
 	$(TARGET_COMPOSE) up -d --build --wait target-api target-web

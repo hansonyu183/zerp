@@ -31,7 +31,7 @@ Customer、Product、Supplier、Other Unit 与 Sales Partner 的 stable subject�
 
 BOB 列表只返回当前正式资料、stable ID、编码、`sourceApprovalEntryId`、`sourceVersionNo` 与实体所需最小字段，不返回 `latestApproved`、`openVersion`、Approval status 或候选摘要。`sourceApprovalEntryId` 与 `sourceVersionNo` 直接来自同一 highest APPROVED BOB Approval Entry，仅用于展示和来源追溯。详情同样不接受历史 entry 参数。
 
-法定识别号按“档案类型 + 规范化值”唯一；跨档案类型不比较、不复用、不提示和不合并。名称、电话、邮箱和地址不是唯一键。误建档案没有合并动作；Customer 的版本化停用通过下一候选完成。Customer、Product、Supplier、Other Unit 与 Sales Partner 可由独立 `disable` 立即停用其对象，仍不改写历史事实的稳定 ID、Approval Entry 或快照。
+法定识别号按“档案类型 + 规范化值”唯一；跨档案类型不比较、不复用、不提示和不合并。名称、电话、邮箱和地址不是唯一键。误建档案没有合并动作。Customer、Product、Supplier、Other Unit 与 Sales Partner 可由独立 `disable` 立即停用其对象，仍不改写历史事实的稳定 ID、Approval Entry 或快照。
 
 BOB 为 Customer、Product、Supplier、Other Unit 与 Sales Partner 提供 current `query|get|reference`、正式 Submission 读取、版本与维护入口；它们的待办和审批也使用 BOB 精确路径。Party、Party 权限、Party 页面、关系卡片、关系 root、影响预览和合并均不存在。
 
@@ -158,7 +158,7 @@ sales-partner SLP
 product PRD
 ```
 
-AUX 经营主体、员工、仓库、车辆与资金账户的编码及字段约束见 [AUX](aux.md)。本域剩余档案的字段校验以各自可执行契约为准：Customer、Customer、Product、Supplier、Other Unit 与 Sales Partner 均使用 BOB。
+AUX 经营主体、员工、仓库、车辆与资金账户的编码及字段约束见 [AUX](aux.md)。本域剩余档案的字段校验以各自可执行契约为准：Customer、Product、Supplier、Other Unit 与 Sales Partner 均使用 BOB。
 
 Customer、Supplier、Other Unit 与 Sales Partner 的非空法定识别号分别在自己的实体名录内唯一，跨类型不比较；Customer `OTHER` 只 trim 且按原大小写占用，其余身份按各自规范化结果占用。
 
@@ -174,7 +174,7 @@ BOB 不物理删除 stable subject；它只删除开放 Submission。开放 V1 S
 
 车辆承运归属、车型与散水承运能力的唯一规则见 [AUX](aux.md#310-仓库资金账户与车辆)。历史交易保留采用时快照。
 
-车辆维护边界见 [AUX](aux.md#310-仓库资金账户与车辆)。运输任务和履约事实由 VOU 保存。
+运输任务和履约事实由 VOU 保存。
 
 ### 2.5 辅助对象与业务对象引用
 
@@ -186,7 +186,7 @@ BOB 不物理删除 stable subject；它只删除开放 Submission。开放 V1 S
 
 ### 3.1 Customer、Product、Supplier、Other Unit 与 Sales Partner stable subject
 
-四类已迁档案使用以下所有权结构：
+五类已迁档案使用以下所有权结构：
 
 ```text
 BOB Subject (stable ID, entity, business code, created metadata, enabled, object revision)
@@ -200,7 +200,7 @@ BOB Typed Query
 
 BOB Subject 的 `enabled` 与 object revision 只描述对象当前可用性，不进入 Submission snapshot，Approval Entry 不保存它们；Approval Entry 是唯一版本头，typed snapshot 是唯一业务内容 payload。Customer typed snapshot 额外包含全部客户子单位子项。交易只引用明确的强类型档案，客户交易使用 `customerId + subunitId + customerApprovalEntryId`；Party 不存在。
 
-迁移把每条旧 snapshot 的 `enabled` 转入只读 `bob_legacy_enablement_evidence(approval_entry_id, enabled)`，仅保留历史证据，不参与运行时选择或 fallback。<!-- docs-check: legacy-exception=historical-read ref=ADR-0055 --> 当前对象 enabled 从迁移时最高 `APPROVED` 的旧值初始化；尚无正式版本但只有开放 V1 时才用该开放版本旧值初始化。之后新 Submission 一律不含 enabled，当前读取与新引用只使用 BOB Subject 的单一 enabled 事实。
+`bob_legacy_enablement_evidence(approval_entry_id, enabled)` 保留提交时的启用审计证据，不参与运行时选择。<!-- docs-check: legacy-exception=historical-read ref=ADR-0055 --> 新 Submission 不含 enabled，当前读取与新引用只使用 BOB Subject 的单一 enabled 事实。
 
 ### 3.2 Submission、版本与审计
 
@@ -214,7 +214,7 @@ BOB 使用公共 Approval 与 Version 组件，不建立第二 Approval Entry、
 
 产品采用的 AUX typed snapshot 保存单位 quantityScale；批准只校验快照完整性。配方原料保存精确 BOB Approval Entry，新提交和批准验证其为当前可用最高正式版本。条码在各对象最高正式版本与开放提交之间大小写不敏感唯一。正式业务或产品配方精确引用阻止反批准，失败与审批、版本和审计同事务回滚。
 
-一次转换保留原产品 ID、编码、全部 Approval Entry、审批事件、业务快照与精确授权；历史 enabled 留为审计证据。交易、配方和库存权威基准数量不重算。页面临时表单只在本页面内存保存，关闭即销毁，提交未知结果核实后才能重试。
+产品 ID、编码、全部 Approval Entry、审批事件和已保存业务快照保持不变；历史 enabled 留为审计证据。交易、配方和库存权威基准数量不重算。页面临时表单只在本页面内存保存，关闭即销毁，提交未知结果核实后才能重试。
 
 ## 4. 当前有效资料读取
 
@@ -235,7 +235,7 @@ BOB `query/get/reference` 不接受 lifecycle status 或历史 entry 作为读�
 
 每种业务档案使用自己的 BOB 读取、维护、版本、生命周期与启停权限，不因现实主体可能相同而隐式授权另一类型。旧 DCL 客户及产品权限不形成运行时能力。
 
-五类档案的权限一次性精确转换：旧 `dcl/{entity}/query|get` 分别转换为 `bob/{entity}/submission-query|submission-get`；旧 versions、audit、submit、review 与 delete 路径转换为同名 BOB 能力；既有 `bob/{entity}/query|get` 保留为正式资料读取。`enable/disable` 是新增独立即时动作，旧 `submit-change` 不授予它；既有 enabled superadmin 通配保持，其他角色必须通过正常授权获得。转换不扩大任何普通角色的能力。
+五类档案的正式资料、提交件、版本、审批与启停按各自路径精确授权。`enable/disable` 是独立即时动作；普通角色必须通过正常授权获得，不从提交或审批权限推导。
 
 ## 6. 动作语义与约束
 
@@ -266,7 +266,8 @@ Supplier、Other Unit 与 Sales Partner 的 Submission 只能由 `submit-new` �
 - `submit-new`、`submit-change`、Approval lifecycle 与开放 Submission delete 由 Approval revision 保护；`enable/disable` 只接收 object revision，二者不互相替代；
 - BOB typed identity reserve/delete 必须锁定 stable subject，并由外层 Approval/Version Plan 保护整笔动作；
 - 来源、identity 或 Approval 状态已变化时返回稳定冲突，不能自动重放或退回旧来源。
-- WFL stable definition 的启停是独立运行开关，不拥有第二套 revision；同一 latest APPROVED `approvalEntryId + approvalRevision` 下的重复或相反启停请求由 subject lock 串行化，并明确以最后一次成功请求为准。
+
+WFL 流程定义的独立运行 revision 与启停规则由 [WFL](wfl.md#2-定义与-approval-version) 拥有。
 
 ### 7.2 数据库锁
 
@@ -340,7 +341,7 @@ AUX 产品分类、部门、岗位和结算方式只在选择或更换时校验 
 
 ## 12. 测试验收
 
-BOB 验收以 Supplier、Other Unit 与 Sales Partner 的 current、Submission、版本、审批和独立启停公共边界为准。至少覆盖：
+BOB 验收以 Customer、Product、Supplier、Other Unit 与 Sales Partner 的 current、Submission、版本、审批和独立启停公共边界为准。至少覆盖：
 
 1. 每个迁入 BOB entity 提供 `query/get`、`submission-query/submission-get`、`versions`、提交、生命周期和启停；共享引用提供 `reference/query`；
 2. query/get 只读取 current，Submission 与版本读取只走独立动作；

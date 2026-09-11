@@ -21,15 +21,17 @@ if (missing.length > 0)
 
 export default defineConfig({
   testDir: './tests/target-e2e',
-  testIgnore:
-    process.env.TARGET_E2E_GENERAL === '1'
+  testIgnore: [
+    '**/wfl-starlark-parity.spec.ts',
+    ...(process.env.TARGET_E2E_GENERAL === '1'
       ? [
           '**/wfl.spec.ts',
           '**/vou-catalog.spec.ts',
           '**/vou-opening.spec.ts',
           '**/vou-entry.spec.ts',
         ]
-      : [],
+      : []),
+  ],
   fullyParallel: false,
   // Browser suites share fixture identities.
   workers: 1,

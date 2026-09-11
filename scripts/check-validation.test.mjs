@@ -116,7 +116,6 @@ if (args === process.env.FAIL_COMMAND) process.exit(17)
       '--filter @zerp/frontend test:pure',
       '--filter @zerp/frontend test:component',
       '--filter @zerp/api test:integration',
-      '--filter @zerp/api test:migrations',
       '--filter @zerp/api check:catalog',
       '--filter @zerp/api validate:rpt',
       '--filter @zerp/wfl-starlark wasm:build',

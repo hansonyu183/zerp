@@ -29,7 +29,7 @@
 - 从原用户页提取 `ManagementPageFrame`，Host 实际使用其卡片与布局。原页没有独立展示组件，因此另提取 `UserListPresentation` 和 `UserEditorPresentation`，保留表格、分页、反馈和表单弹窗供 #381 复用；两者只有 props/emits，没有 API、Session、业务 VM 或页面登记。
 - 移除菜单读取、保存、模式切换、恢复四个接口及三条菜单管理权限；生成契约差异核对未删除其他业务路径。删除模板表、权限展示列、启动同步、编辑页及专属测试。
 - 按 Router、Registry 和导入引用删除不可达业务页面、VM、本地草稿/编辑辅助代码及专属测试和页面用例，保留存续业务的类型化 API 适配与真实服务测试。前端专属 PostgreSQL 测试依赖也随相应浏览器页测试移除。
-- 新增显式运行的[菜单结构清理流程](../operations/menu-structure-cleanup.md)。真实隔离库验证非空结构删除后用户、角色、其他授权和审计不变，重复执行幂等，不完整基线拒绝执行。
+- 新增显式运行的[菜单结构清理流程](https://github.com/hansonyu183/zerp/blob/c9c2d8fca30d9da7b4046315733b7666d564b0d5/docs/operations/menu-structure-cleanup.md)。真实隔离库验证非空结构删除后用户、角色、其他授权和审计不变，重复执行幂等，不完整基线拒绝执行。
 
 ## 验证范围
 

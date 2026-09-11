@@ -239,3 +239,33 @@ test('importing validation functions performs no repository IO or CLI output', a
   assert.equal(result.stdout, '')
   assert.equal(result.stderr, '')
 })
+
+test('documentation navigation supports category indexes and rejects missing or orphaned manuals', async () => {
+  const { validateDocumentationNavigation } = await import('./check-docs.mjs')
+  const documents = [
+    {
+      file: 'README.md',
+      source:
+        '[APP](docs/domains/app.md)\n[Operations](docs/operations/README.md)\n[Testing](docs/testing/README.md)',
+    },
+    { file: 'docs/domains/app.md', source: '# APP' },
+    { file: 'docs/operations/README.md', source: '[Startup](startup.md)' },
+    { file: 'docs/operations/startup.md', source: '# Startup' },
+    { file: 'docs/testing/README.md', source: '[Evidence](result.md)' },
+    { file: 'docs/testing/result.md', source: '# Evidence' },
+  ]
+  assert.deepEqual(validateDocumentationNavigation(documents), [])
+  const orphan = documents.map((doc) =>
+    doc.file === 'docs/operations/README.md'
+      ? { ...doc, source: '# Operations' }
+      : doc,
+  )
+  assert.match(validateDocumentationNavigation(orphan).join('\n'), /startup.md/)
+  const missing = documents.filter(
+    (doc) => doc.file !== 'docs/operations/startup.md',
+  )
+  assert.match(
+    validateDocumentationNavigation(missing).join('\n'),
+    /startup.md/,
+  )
+})

@@ -602,14 +602,6 @@ CREATE TABLE attachment_deletion_jobs (
     created_at timestamptz NOT NULL
 );
 
-CREATE TABLE dcl_warehouse_idempotency (
-    idempotency_key varchar(128) PRIMARY KEY,
-    request_hash varchar(64) NOT NULL,
-    subject_id varchar(26) NOT NULL,
-    submission_id varchar(26) NOT NULL,
-    response jsonb NOT NULL,
-    created_at timestamptz NOT NULL
-);
 
 CREATE TABLE archive_idempotency (
     entity varchar(64) NOT NULL,
@@ -648,33 +640,7 @@ CREATE TABLE bob_customer_attachments (
     PRIMARY KEY (approval_entry_id, file_id)
 );
 
--- These tables are the isolated Warehouse slice's typed input facts. Later
--- slices replace their fixture writers with their owning transaction-connected
--- domains; the Warehouse service only reads them.
-CREATE TABLE dcl_warehouse_reference_facts (
-    id varchar(26) PRIMARY KEY,
-    warehouse_id varchar(26) NOT NULL,
-    approval_entry_id varchar(26) NOT NULL,
-    domain varchar(32) NOT NULL,
-    entity varchar(64) NOT NULL,
-    business_id varchar(26) NOT NULL,
-    business_code varchar(64) NOT NULL
-);
-CREATE INDEX dcl_warehouse_reference_facts_entry_idx
-    ON dcl_warehouse_reference_facts(approval_entry_id);
 
-CREATE TABLE dcl_warehouse_usage_facts (
-    id varchar(26) PRIMARY KEY,
-    warehouse_id varchar(26) NOT NULL,
-    kind varchar(16) NOT NULL CHECK (kind IN ('INVENTORY', 'DOCUMENT', 'SOURCE', 'REFERENCE')),
-    entity varchar(64) NOT NULL,
-    business_id varchar(26) NOT NULL,
-    business_code varchar(64) NOT NULL,
-    quantity_micros bigint,
-    created_at timestamptz NOT NULL
-);
-CREATE INDEX dcl_warehouse_usage_facts_warehouse_idx
-    ON dcl_warehouse_usage_facts(warehouse_id);
 
 -- #365 transactional cores. Business decisions stay in TypeScript Domain
 -- Services; these tables preserve facts, identities, CAS revisions and locks.

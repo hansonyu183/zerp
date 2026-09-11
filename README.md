@@ -31,18 +31,18 @@ make target-down
 
 `make dev` 启动可丢弃 target 数据库与 Hono API，再以前台 Vite 启动 SPA。`make generate` 从 Hono/Zod 路由和 target schema 生成 OpenAPI、权限目录与 Kysely 类型；`packages/api-client/` 在编译期直接从同一 Hono route type 推导客户端类型。生成物不得手工修改。
 
-| 命令                    | 职责与前置                                                                                                                                                                       |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `make check-static`     | 格式、文档、当前架构、生成工具测试、全包类型与前端 lint；只需安装依赖，不生成、不启动 Compose 或浏览器。                                                                         |
-| `make check`            | 静态检查加 CI 配置与分类/汇总行为测试。                                                                                                                                          |
-| `make test-unit`        | model/API 单测与前端纯计算、分页、序列化、状态决策测试；不准备数据库或 WASM。                                                                                                    |
-| `make test-component`   | 普通组件交互与真实 Vuetify 组件；AppLayout 仅进入普通配置。                                                                                                                      |
-| `make test`             | 单元加组件测试。                                                                                                                                                                 |
-| `make test-integration` | 真实 PostgreSQL 集成与现有迁移验收；必须显式提供独占可丢弃的 `TARGET_TEST_DATABASE_URL`，库名以 `_test` 结尾，且已应用当前 schema、同步目录、构建 WFL WASM。该入口不重建数据库。 |
-| `make generate-check`   | 生成业务契约、重建 target 数据库并生成数据库类型，再复用统一差异检查器。                                                                                                         |
-| `make e2e`              | 完整验收：公共/CI 检查、生成物、静态、单元、组件、编排 CLI、真实 PostgreSQL、WFL Node/browser parity、Compose 构建与五组串行浏览器验收；任一必需阶段失败即退出。                 |
+| 命令                    | 职责与前置                                                                                                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `make check-static`     | 格式、文档、当前架构、生成工具测试、全包类型与前端 lint；只需安装依赖，不生成、不启动 Compose 或浏览器。                                                           |
+| `make check`            | 静态检查加 CI 配置与分类/汇总行为测试。                                                                                                                            |
+| `make test-unit`        | model/API 单测与前端纯计算、分页、序列化、状态决策测试；不准备数据库或 WASM。                                                                                      |
+| `make test-component`   | 普通组件交互与真实 Vuetify 组件；AppLayout 仅进入普通配置。                                                                                                        |
+| `make test`             | 单元加组件测试。                                                                                                                                                   |
+| `make test-integration` | 真实 PostgreSQL 集成；必须显式提供独占可丢弃的 `TARGET_TEST_DATABASE_URL`，库名以 `_test` 结尾，且已应用当前 schema、同步目录、构建 WFL WASM。该入口不重建数据库。 |
+| `make generate-check`   | 生成业务契约、重建 target 数据库并生成数据库类型，再复用统一差异检查器。                                                                                           |
+| `make e2e`              | 完整验收：公共/CI 检查、生成物、静态、单元、组件、编排 CLI、真实 PostgreSQL、WFL Node/browser parity、Compose 构建与五组串行浏览器验收；任一必需阶段失败即退出。   |
 
-例如，确认没有其他任务占用 `zerp-target` 后，执行 `make target-db` 与 `pnpm --filter @zerp/wfl-starlark wasm:build` 准备本地隔离库与 WASM，再通过受控环境变量提供该库地址运行 `make test-integration`。不得指向共享库或生产库；集成测试写入真实数据，迁移测试创建并回收独立 schema。完成后执行 `make target-down`。
+例如，确认没有其他任务占用 `zerp-target` 后，执行 `make target-db` 与 `pnpm --filter @zerp/wfl-starlark wasm:build` 准备本地隔离库与 WASM，再通过受控环境变量提供该库地址运行 `make test-integration`。不得指向共享库或生产库；集成测试写入真实数据，测试仅操作独占隔离库。完成后执行 `make target-down`。
 
 `make target-e2e` 是 CI L3 的运行时验收入口；CI 的 common/tooling 作业分别负责公共检查和 CI 行为测试，本地完整验收统一用 `make e2e`。完整验收只在 Compose Web 镜像内构建 SPA，独立构建仍可运行 `pnpm --filter @zerp/frontend build:target`。通用浏览器套件与 WFL、VOU catalog、VOU opening、VOU entry 四个专项各使用一次独占数据库准备，始终串行；WFL browser parity 只在专属阶段执行。
 
@@ -62,14 +62,11 @@ make target-down
 
 API 启动前先同步生成的权限目录，再从 `APP_TEST_ADMIN_PASSWORD_FILE` 和 `APP_TESTER_PASSWORD_FILE` 指向的凭证文件重复校准 `test-admin`、`tester` 两个线上测试用户及其 `superadmin` 角色。数据库首次创建和后续重启都执行同一流程；密码变化会更新哈希并撤销旧会话。`/readyz` 同时验证数据库和全部启用的 RPT definition。Web 构建通过 `TARGET_API_BROWSER_URL` 注入浏览器可访问的 HTTPS API 地址，API 与 Web 使用同一完整 `ZERP_RELEASE_SHA`。
 
-#366 的开发测试环境数据库重建、验收和整体回滚见[切换运行手册](docs/operations/issue-366-cutover-runbook.md)。网络、Cookie 与联调细节见[前端 API 配置](docs/operations/frontend-api-configuration.md)。菜单模板结构的一次性删除见[菜单结构受控清理](docs/operations/menu-structure-cleanup.md)；既有用户的拼音转换见[用户拼音受控回填](docs/operations/user-pinyin-backfill.md)；经营主体与员工的受控转换见[经营主体与员工一次性迁入 AUX](docs/operations/aux-people-migration.md)。
-
 ## 文档
 
 - [共享术语](CONTEXT.md)
 - [Approval](docs/domains/approval.md)
 - [APP](docs/domains/app.md)
-- [DCL 历史归属](docs/domains/dcl.md)
 - [BOB](docs/domains/bob.md)
 - [AUX](docs/domains/aux.md)
 - [VOU](docs/domains/vou.md)
@@ -79,26 +76,9 @@ API 启动前先同步生成的权限目录，再从 `APP_TEST_ADMIN_PASSWORD_FI
 - [页面用例](docs/use-cases/README.md)
 - [架构决策](docs/adr/README.md)
 - [Session 与动态页面迁移](docs/adr/0052-session-dynamic-navigation-and-page-migration.md)
+- [运行手册](docs/operations/README.md)
 - [测试证据](docs/testing/README.md)
 
 ## License
 
 MIT，见 [LICENSE](LICENSE)。
-
-## 资料一次性转换
-
-从仍有 DCL 人员、资产和三类版本化档案的基线升级时，使用受控环境依次执行 `pnpm --filter @zerp/api migrate:aux-people`、`pnpm --filter @zerp/api migrate:aux-assets`、`pnpm --filter @zerp/api migrate:bob-archives`，再执行 `pnpm --filter @zerp/api migrate:bob-product` 与 `pnpm --filter @zerp/api migrate:bob-customer`；各迁移命令在同一事务完成对应权限转换。前两步保留后续迁移所需的旧授权；BOB 转换保留三类档案的 stable ID、历史与精确授权。普通 catalog sync 会拒绝删除尚未转换的人员、资产或 BOB 档案授权。
-
-完整命令、失败处理和验收见[经营主体与员工一次性迁入 AUX](docs/operations/aux-people-migration.md)及[供应商、其他单位与销售合作方一次性迁入 BOB](docs/operations/bob-archives-migration.md)。转换不包含生产发布，也不使用会重建数据库的聚合命令。领域规则见 [AUX](docs/domains/aux.md#310-仓库资金账户与车辆)、[BOB](docs/domains/bob.md) 和 [ADR-0055](docs/adr/0055-bob-archives-use-shared-approval-and-version.md)。
-
-产品一次性迁移与历史连续性验证见[产品迁入 BOB](docs/operations/bob-product-migration.md)。
-
-客户及全部子单位的受控转换见[客户迁入 BOB](docs/operations/bob-customer-migration.md)。
-
-会计映射的受控转换使用 `pnpm --filter @zerp/api migrate:acc-mapping`，见[会计映射迁入 ACC](docs/operations/acc-mapping-migration.md)。
-
-报表定义的受控转换使用 `pnpm --filter @zerp/api migrate:rpt`，见 [RPT 当前定义一次性转换](docs/operations/rpt-definition-migration.md)。
-
-流程定义的一次性转换使用 `pnpm --filter @zerp/api migrate:wfl`，见[流程定义迁回 WFL](docs/operations/wfl-definition-migration.md)。
-
-会计期初的一次性转换使用 `pnpm --filter @zerp/api migrate:vou-opening`，见[会计期初迁入 VOU](docs/operations/vou-opening-migration.md)。

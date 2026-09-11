@@ -2,7 +2,7 @@
 
 ## 候选范围
 
-经营主体与员工直接维护、临时编辑器、精确动作权限、旧入口删除、DCL/VOU/ACC/RPT 引用消费及一次性迁移。领域规则见 [AUX](../domains/aux.md#39-经营主体与员工)，操作边界见[迁移说明](../operations/aux-people-migration.md)。
+经营主体与员工直接维护、临时编辑器、精确动作权限、旧入口删除、DCL/VOU/ACC/RPT 引用消费及一次性迁移。领域规则见 [AUX](../domains/aux.md#39-经营主体与员工)，操作边界见[迁移说明](https://github.com/hansonyu183/zerp/blob/c9c2d8fca30d9da7b4046315733b7666d564b0d5/docs/operations/aux-people-migration.md)。
 
 ## 实际验证
 

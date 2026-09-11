@@ -39,3 +39,15 @@
 - [#421 文档归属与生成物检查验收](docs-consistency-issue-421-2026-09-11.md)
 
 - [#422 验证入口、测试收集与成本实测](validation-cost-issue-422-2026-09-11.md)
+
+- [366 开发测试环境总切换](issue-366-cutover-record.md)
+
+- [416 字段与录入操作验收](issue-416-field-entry.md)
+
+- [417 列表与导航验收](issue-417-list-navigation.md)
+
+- [418 复杂页面与整批集成验收](issue-418-complex-page-validation.md)
+
+- [#423 当前初始化与历史机制清理](history-cleanup-issue-423-2026-09-11.md)
+
+- [2026-09-08 会计期初实现历史验收](vou-opening-validation-2026-09-08.md)

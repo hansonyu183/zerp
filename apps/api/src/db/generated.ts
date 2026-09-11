@@ -729,36 +729,6 @@ export interface DclVehicleVersions {
   vin: string | null
 }
 
-export interface DclWarehouseIdempotency {
-  created_at: Timestamp
-  idempotency_key: string
-  request_hash: string
-  response: Json
-  subject_id: string
-  submission_id: string
-}
-
-export interface DclWarehouseReferenceFacts {
-  approval_entry_id: string
-  business_code: string
-  business_id: string
-  domain: string
-  entity: string
-  id: string
-  warehouse_id: string
-}
-
-export interface DclWarehouseUsageFacts {
-  business_code: string
-  business_id: string
-  created_at: Timestamp
-  entity: string
-  id: string
-  kind: string
-  quantity_micros: Int8 | null
-  warehouse_id: string
-}
-
 export interface DclWarehouseVersions {
   address: string | null
   approval_entry_id: string
@@ -1779,9 +1749,6 @@ export interface DB {
   dcl_operating_entity_versions: DclOperatingEntityVersions
   dcl_subjects: DclSubjects
   dcl_vehicle_versions: DclVehicleVersions
-  dcl_warehouse_idempotency: DclWarehouseIdempotency
-  dcl_warehouse_reference_facts: DclWarehouseReferenceFacts
-  dcl_warehouse_usage_facts: DclWarehouseUsageFacts
   dcl_warehouse_versions: DclWarehouseVersions
   object_number_counters: ObjectNumberCounters
   rpt_code_counter: RptCodeCounter

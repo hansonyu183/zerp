@@ -38,7 +38,7 @@ Session 的七个路径是 `/session/auth/signin`、`/session/auth/restore`、`/
 
 `legacy-menu-cleanup.int.test.ts` 在隔离库构造非空旧菜单结构，验证清理、部分基线拒绝、幂等和用户/角色/有效权限/审计保留。`user-pinyin-backfill.int.test.ts` 核对稳定身份、原密码摘要、角色关系、revision 和审计前后不变，错误基线拒绝；本票额外演练真实旧结构没有 `py` 列时的建列、回填、约束与重复执行，独立预期“重庆用户”得到 `chongqingyonghu`。前后摘要一致，只有新拼音事实改变。
 
-恢复依据仍是[菜单结构清理](../operations/menu-structure-cleanup.md)和[拼音回填](../operations/user-pinyin-backfill.md)要求的匹配数据库备份及应用版本；本次没有生产备份/恢复演练或生产数据保留证明，不以隔离库测试冒充生产转换。
+恢复依据仍是[菜单结构清理](https://github.com/hansonyu183/zerp/blob/c9c2d8fca30d9da7b4046315733b7666d564b0d5/docs/operations/menu-structure-cleanup.md)和[拼音回填](https://github.com/hansonyu183/zerp/blob/c9c2d8fca30d9da7b4046315733b7666d564b0d5/docs/operations/user-pinyin-backfill.md)要求的匹配数据库备份及应用版本；本次没有生产备份/恢复演练或生产数据保留证明，不以隔离库测试冒充生产转换。
 
 ## 组件与视觉
 

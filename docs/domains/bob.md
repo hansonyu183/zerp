@@ -200,7 +200,7 @@ BOB Typed Query
 
 BOB Subject 的 `enabled` 与 object revision 只描述对象当前可用性，不进入 Submission snapshot，Approval Entry 不保存它们；Approval Entry 是唯一版本头，typed snapshot 是唯一业务内容 payload。Customer typed snapshot 额外包含全部客户子单位子项。交易只引用明确的强类型档案，客户交易使用 `customerId + subunitId + customerApprovalEntryId`；Party 不存在。
 
-迁移把每条旧 snapshot 的 `enabled` 转入只读 `bob_legacy_enablement_evidence(approval_entry_id, enabled)`，仅保留历史证据，不参与运行时选择或 fallback。<!-- docs-check: legacy-exception=historical-read ref=ADR-0055 --> 当前对象 enabled 从迁移时最高 `APPROVED` 的旧值初始化；尚无正式版本但只有开放 V1 时才用该开放版本旧值初始化。之后新 Submission 一律不含 enabled，当前读取与新引用只使用 BOB Subject 的单一 enabled 事实。
+`bob_legacy_enablement_evidence(approval_entry_id, enabled)` 保留提交时的启用审计证据，不参与运行时选择。<!-- docs-check: legacy-exception=historical-read ref=ADR-0055 --> 新 Submission 不含 enabled，当前读取与新引用只使用 BOB Subject 的单一 enabled 事实。
 
 ### 3.2 Submission、版本与审计
 
@@ -214,7 +214,7 @@ BOB 使用公共 Approval 与 Version 组件，不建立第二 Approval Entry、
 
 产品采用的 AUX typed snapshot 保存单位 quantityScale；批准只校验快照完整性。配方原料保存精确 BOB Approval Entry，新提交和批准验证其为当前可用最高正式版本。条码在各对象最高正式版本与开放提交之间大小写不敏感唯一。正式业务或产品配方精确引用阻止反批准，失败与审批、版本和审计同事务回滚。
 
-一次转换保留原产品 ID、编码、全部 Approval Entry、审批事件、业务快照与精确授权；历史 enabled 留为审计证据。交易、配方和库存权威基准数量不重算。页面临时表单只在本页面内存保存，关闭即销毁，提交未知结果核实后才能重试。
+产品 ID、编码、全部 Approval Entry、审批事件和已保存业务快照保持不变；历史 enabled 留为审计证据。交易、配方和库存权威基准数量不重算。页面临时表单只在本页面内存保存，关闭即销毁，提交未知结果核实后才能重试。
 
 ## 4. 当前有效资料读取
 
@@ -235,7 +235,7 @@ BOB `query/get/reference` 不接受 lifecycle status 或历史 entry 作为读�
 
 每种业务档案使用自己的 BOB 读取、维护、版本、生命周期与启停权限，不因现实主体可能相同而隐式授权另一类型。旧 DCL 客户及产品权限不形成运行时能力。
 
-五类档案的权限一次性精确转换：旧 `dcl/{entity}/query|get` 分别转换为 `bob/{entity}/submission-query|submission-get`；旧 versions、audit、submit、review 与 delete 路径转换为同名 BOB 能力；既有 `bob/{entity}/query|get` 保留为正式资料读取。`enable/disable` 是新增独立即时动作，旧 `submit-change` 不授予它；既有 enabled superadmin 通配保持，其他角色必须通过正常授权获得。转换不扩大任何普通角色的能力。
+五类档案的正式资料、提交件、版本、审批与启停按各自路径精确授权。`enable/disable` 是独立即时动作；普通角色必须通过正常授权获得，不从提交或审批权限推导。
 
 ## 6. 动作语义与约束
 

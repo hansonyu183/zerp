@@ -926,6 +926,39 @@ export function validateDomainDocumentLocations(documents) {
     .map(({ file }) => `${file} 位于禁止维护第二套领域文档的模块目录`)
 }
 
+export function validateDocumentationNavigation(documents) {
+  const sources = new Map(documents.map(({ file, source }) => [file, source]))
+  const failures = []
+  const visited = new Set()
+  const pending = ['README.md']
+  while (pending.length) {
+    const file = pending.pop()
+    if (visited.has(file)) continue
+    visited.add(file)
+    const source = sources.get(file)
+    if (source === undefined) {
+      failures.push(`文档导航引用不存在的路径：${file}`)
+      continue
+    }
+    for (const match of source.matchAll(/\[[^\]]*]\(([^)]+)\)/g)) {
+      const target = match[1].trim().replace(/^<|>$/g, '').split('#')[0]
+      if (!target || /^[a-z][a-z0-9+.-]*:/i.test(target)) continue
+      const resolved = path.posix.normalize(
+        path.posix.join(path.posix.dirname(file), decodeURIComponent(target)),
+      )
+      if (resolved.endsWith('.md')) pending.push(resolved)
+    }
+  }
+  for (const file of sources.keys()) {
+    if (
+      /^docs\/(domains|operations|testing)\/.*\.md$/u.test(file) &&
+      !visited.has(file)
+    )
+      failures.push(`文档分类索引无法从 README 到达 ${file}`)
+  }
+  return failures
+}
+
 export async function runDocumentationCheck({
   root = path.resolve(import.meta.dirname, '..'),
   args = process.argv.slice(2),
@@ -1000,7 +1033,7 @@ export async function runDocumentationCheck({
 
   failures.push(...validateDomainDocumentLocations(documentationSources))
 
-  const rootReadme = fs.readFileSync(path.join(root, 'README.md'), 'utf8')
+  failures.push(...validateDocumentationNavigation(documentationSources))
   const domainFiles = markdownFiles(path.join(root, 'docs', 'domains'))
   const operationFiles = markdownFiles(path.join(root, 'docs', 'operations'))
   const adrFiles = markdownFiles(path.join(root, 'docs', 'adr')).filter(
@@ -1027,13 +1060,6 @@ export async function runDocumentationCheck({
         adrDocuments,
       )),
     )
-  }
-
-  for (const file of [...domainFiles, ...operationFiles]) {
-    const target = relative(file)
-    if (!rootReadme.includes(`](${target})`)) {
-      failures.push(`README 文档索引缺少 ${target}`)
-    }
   }
 
   for (const file of domainFiles) {

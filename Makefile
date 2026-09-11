@@ -54,7 +54,6 @@ test-component:
 
 test-integration:
 	pnpm --filter @zerp/api test:integration
-	pnpm --filter @zerp/api test:migrations
 
 e2e: check-common check-ci-workflow target-e2e
 

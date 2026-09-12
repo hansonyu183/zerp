@@ -206,12 +206,14 @@ test('navigation and Host retain the shell at desktop and 390px in both themes',
             .getByRole('button', { name: '读取计算脚本', exact: true })
             .locator('.v-icon'),
         ).toBeVisible()
-        await editor
-          .getByRole('button', { name: '保存计算脚本', exact: true })
-          .scrollIntoViewIfNeeded()
-        await expect(
-          editor.getByRole('button', { name: '保存计算脚本', exact: true }),
-        ).toBeInViewport({ ratio: 1 })
+        const saveScript = editor.getByRole('button', {
+          name: '保存计算脚本',
+          exact: true,
+        })
+        await expect(async () => {
+          await saveScript.scrollIntoViewIfNeeded()
+          await expect(saveScript).toBeInViewport({ ratio: 1 })
+        }).toPass()
         await page.screenshot({
           animations: 'disabled',
           path: resolve(directory, `${width}-${theme}-intermediary.png`),

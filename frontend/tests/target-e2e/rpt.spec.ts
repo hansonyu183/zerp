@@ -46,7 +46,10 @@ test('RPT resource queries multiple parameters, paginates a submitted snapshot a
   await expect(page.locator('tbody tr').first()).toContainText('开放')
   await expect(page.locator('tbody tr').first()).toContainText('2026-09-01')
   await page.getByLabel('客户名称 *', { exact: true }).fill('尚未提交')
-  await page.getByRole('button', { name: '下一页', exact: true }).click()
+  await page
+    .locator('.management-page__footer')
+    .getByRole('button', { name: '下一页', exact: true })
+    .click()
   await expect(page.locator('tbody tr')).toHaveCount(5)
   await expect(page.locator('tbody tr').first()).toContainText('历史子单位名称')
   await page.getByLabel('客户名称 *', { exact: true }).fill('历史子单位名称')
@@ -122,7 +125,7 @@ test('report parameters use paginated GET candidates through the common picker a
   )
   await page.goto(`/rpt/${code}`)
   expect((await (await initial).json()).code).toBe(0)
-  const field = page.getByLabel('部门', { exact: true })
+  const field = page.getByRole('combobox', { name: '部门', exact: true })
   const search = async (keyword: string) => {
     const loaded = page.waitForResponse((response) => {
       const url = new URL(response.url())

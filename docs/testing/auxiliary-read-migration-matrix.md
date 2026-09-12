@@ -57,6 +57,8 @@ M08 当前 VOU reference 的完整实体闭集如下（依据 `packages/model/sr
 
 M09 的使用方闭集是 sale-return、purchase-inbound、purchase-return、order-production，对应 GET `/vou/sale-return/source-lines`、`/vou/purchase-inbound/source-lines`、`/vou/purchase-return/source-lines`、`/vou/order-production/source-lines`；既有来源实体为 sale-signoff、purchase-order、purchase-inbound、sale-order。来源行摘要继续保留 sourceDocumentId/sourceLineId、rootDocumentId/rootEntity、product 与 availableBaseQuantity。
 
+#427 的代码提交、接缝测试、完整门禁与资源回收记录见[第二片验收](auxiliary-get-issue-427-2026-09-12.md)。
+
 ## 全量可执行路由基线
 
 消费者列对应下一节的精确适配器名称；“无前端适配器”表示目前没有 api.ts 调用，不代表可删除后端能力。动态实体路由仍由实际实体闭集限制；本表不虚构每个实体独立路由。输入列仅记录原顶层参数便于范围核对，完整输入输出以 [Hono 契约](../../apps/api/src/app/contract.ts) 及其注册的各领域路由为准。

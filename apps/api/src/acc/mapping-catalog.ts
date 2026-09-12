@@ -136,9 +136,9 @@ export class AccMappingCatalogService {
     this.db = db
   }
 
-  async catalog(actor: AccMappingCatalogActor): Promise<AccMappingCatalog> {
-    if (!actor.permissions.includes('/acc/mapping/catalog'))
-      throw new AccMappingCatalogError('forbidden')
+  async catalog(
+    actor: Pick<AccMappingCatalogActor, 'id'>,
+  ): Promise<AccMappingCatalog> {
     const [books, vouEntities, subjects] = await Promise.all([
       this.db
         .selectFrom('acc_books as b')

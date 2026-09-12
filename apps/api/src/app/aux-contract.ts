@@ -1,3 +1,10 @@
+import {
+  auxiliaryRoute,
+  optionPage,
+  optionPageInput,
+  optionBoolean,
+  optionIds,
+} from './options-contract.ts'
 import { createRoute, z } from '@hono/zod-openapi'
 
 const failureEnvelope = z.object({
@@ -549,26 +556,17 @@ export function auxDeleteRoute<const Path extends string>(path: Path) {
   )
 }
 
-const referenceRequest = z
-  .object({
-    entity: z.enum([
-      'settlement-method',
-      'payment-method',
-      'dictionary-item',
-      'product-type',
-      'product-category',
-      'employee-category',
-      'department',
-      'position',
-      'measurement-unit',
-    ]),
-    keyword: z.string().max(100).optional(),
-    dictionaryTypeCode: z.string().max(32).optional(),
-  })
-  .strict()
+export const auxOptionsInput = optionPageInput.extend({
+  enabled: optionBoolean.optional(),
+  ids: optionIds.optional(),
+  dictionaryTypeCode: z.string().max(32).optional(),
+})
 
 export const auxReferenceCandidateSchema = z
   .object({
+    enabled: z.boolean(),
+    defaultUsefulLifeMonths: z.number().int().optional(),
+    defaultResidualRate: z.string().optional(),
     objectId: z.string(),
     code: z.string(),
     name: z.string(),
@@ -587,15 +585,15 @@ export const auxReferenceCandidateSchema = z
   })
   .strict()
 
-export const auxReferenceRouteBinding = {
-  permission: '/aux/reference/query',
-} as const
-
-export const auxReferenceRoute = postRoute(
-  '/aux/reference/query',
-  referenceRequest,
-  z.array(auxReferenceCandidateSchema),
-)
+export function auxOptionsRoute<const Entity extends AuxContractEntity>(
+  entity: Entity,
+) {
+  return auxiliaryRoute(
+    `/aux/${entity}/options` as const,
+    auxOptionsInput,
+    optionPage(auxReferenceCandidateSchema),
+  )
+}
 
 export function auxRouteBinding(
   entity: AuxContractEntity,

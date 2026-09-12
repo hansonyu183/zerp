@@ -10,16 +10,8 @@ export interface ReferenceSummary {
   name: string
 }
 
-export interface ReferenceOption extends ReferenceSummary {
-  disabled?: boolean
-}
-
 export type ReferenceSource =
   'app/role' | 'bob/customer-subunit' | 'bob/supplier'
-
-export type ReferenceOptions = Readonly<
-  Partial<Record<ReferenceSource, readonly ReferenceOption[]>>
->
 
 interface FieldBase<K extends string, Type extends string> {
   key: K

@@ -20,7 +20,7 @@ test('ACC saves one current identity, enforces book scope and CAS, and rolls bac
     bookId = ulid()
   const actor = {
     id: actorId,
-    permissions: ['query', 'get', 'catalog', 'save'].map(
+    permissions: ['query', 'get', 'save'].map(
       (action) => `/acc/mapping/${action}`,
     ),
   }

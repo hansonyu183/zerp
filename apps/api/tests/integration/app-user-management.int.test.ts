@@ -6,6 +6,7 @@ import { serve } from '@hono/node-server'
 import { modelBuildId } from '@zerp/model'
 import { ulid } from 'ulid'
 
+import { AuxService } from '../../src/aux/service.ts'
 import { createApp } from '../../src/app.ts'
 import { ManagementService } from '../../src/app/management.ts'
 import { hashPassword, SessionService } from '../../src/app/session.ts'
@@ -234,6 +235,7 @@ async function createHarness(context: TestContext) {
     database: { ping: async () => undefined },
     session: sessionService,
     management,
+    aux: new AuxService(db),
     config,
   })
   let listening: (() => void) | undefined
@@ -448,6 +450,12 @@ async function createHarness(context: TestContext) {
     password,
     management,
     signIn,
+    get: async (session: HttpSession, path: string) => {
+      const response = await fetch(`${origin}${path}`, {
+        headers: { 'x-zerp-model-build': modelBuildId, cookie: session.cookie },
+      })
+      return response.json() as Promise<Envelope>
+    },
     post,
     restore,
     principalFor,
@@ -1562,4 +1570,137 @@ test('real HTTP concurrent same-revision role disable commits one transition and
     referencesBefore,
   )
   assert.equal(await harness.auditCount(harness.ids.lowRole), auditsBefore + 1)
+})
+
+test('auxiliary role options require a session but no role management permission or CSRF', async (context) => {
+  const h = await createHarness(context)
+  const session = await h.signIn(h.codes.lowTarget)
+  const page = await h.get(
+    session,
+    '/app/role/options?page=1&pageSize=20&keyword=',
+  )
+  assert.equal(page.code, 0)
+  assert.ok(
+    page.data.items.some((item: { id: string }) => item.id === h.ids.lowRole),
+  )
+  assert.equal(
+    page.data.items.some((item: object) => 'availableActions' in item),
+    false,
+  )
+  assert.equal(
+    (
+      await h.post(session, '/app/role/query', {
+        page: 1,
+        pageSize: 20,
+        keyword: '',
+      })
+    ).errorKey,
+    'forbidden',
+  )
+  assert.equal(
+    (await h.get(session, '/app/role/options?page=1x&pageSize=20')).errorKey,
+    'validation_failed',
+  )
+  assert.equal(
+    (
+      await h.get(
+        { cookie: '', csrfToken: '' },
+        '/app/role/options?page=1&pageSize=20',
+      )
+    ).errorKey,
+    'unauthenticated',
+  )
+})
+
+test('auxiliary options search past 200 rows, resolve bounded IDs and strictly reject malformed query values', async (context) => {
+  const h = await createHarness(context)
+  const session = await h.signIn(h.codes.lowTarget)
+  const prefix = `paged-${h.ids.lowRole}`
+  const rows = Array.from({ length: 205 }, (_, index) => ({
+    id: ulid(),
+    code: `${prefix}-${String(index).padStart(3, '0')}`,
+    name: `分页角色${index}`,
+    status: 'ENABLED' as const,
+  }))
+  rows.forEach((row) => h.trackRole(row.id))
+  await h.db.insertInto('app_roles').values(rows).execute()
+  const later = await h.get(
+    session,
+    `/app/role/options?page=11&pageSize=20&keyword=${prefix}`,
+  )
+  assert.equal(later.code, 0)
+  assert.equal(later.data.total, 205)
+  assert.equal(later.data.items.length, 5)
+  const selected = later.data.items[4]
+  const searched = await h.get(
+    session,
+    `/app/role/options?page=1&pageSize=20&keyword=${selected.code}`,
+  )
+  assert.deepEqual(searched.data.items, [selected])
+  const resolved = await h.get(
+    session,
+    `/app/role/options?page=1&pageSize=20&ids=${rows[0]!.id}&ids=${selected.id}`,
+  )
+  assert.equal(resolved.data.total, 2)
+  assert.equal(resolved.data.items.length, 2)
+  const permissions = await h.get(
+    session,
+    '/app/permission/options?page=1&pageSize=20&keyword=/app/user/query',
+  )
+  assert.equal(permissions.code, 0)
+  assert.equal(permissions.data.items[0].assignable, true)
+  const aboveCeiling = await h.get(
+    session,
+    '/app/permission/options?page=1&pageSize=20&keyword=/aux/department/query',
+  )
+  assert.equal(aboveCeiling.code, 0)
+  assert.equal(aboveCeiling.data.items[0].assignable, false)
+  assert.equal(
+    (await h.post(session, '/app/permission/query', { page: 1, pageSize: 20 }))
+      .errorKey,
+    'forbidden',
+  )
+  for (const query of [
+    'page=0',
+    'page=-1',
+    'page=1.2',
+    'page=1e2',
+    'page=100001',
+    'page=1&page=2',
+    'page=1&enabled=1',
+    'page=1&enabled=false&enabled=true',
+    'page=1&unknown=x',
+    `page=1&${Array.from({ length: 101 }, () => 'ids=x').join('&')}`,
+    'page=1&ids=',
+  ]) {
+    const result = await h.get(
+      session,
+      `/aux/employee/options?pageSize=20&${query}`,
+    )
+    assert.equal(result.errorKey, 'validation_failed', query)
+  }
+  assert.equal(
+    (await h.get(session, '/aux/employee/options?page=1&pageSize=200'))
+      .errorKey,
+    'validation_failed',
+  )
+  assert.equal(
+    (
+      await h.get(
+        session,
+        '/aux/employee/options?page=1&pageSize=20&enabled=false',
+      )
+    ).code,
+    0,
+  )
+  assert.equal(
+    (
+      await h.post(session, '/aux/employee/query', {
+        page: 1,
+        pageSize: 20,
+        keyword: '',
+      })
+    ).errorKey,
+    'forbidden',
+  )
 })

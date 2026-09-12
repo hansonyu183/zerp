@@ -46,7 +46,10 @@ test('RPT resource queries multiple parameters, paginates a submitted snapshot a
   await expect(page.locator('tbody tr').first()).toContainText('开放')
   await expect(page.locator('tbody tr').first()).toContainText('2026-09-01')
   await page.getByLabel('客户名称 *', { exact: true }).fill('尚未提交')
-  await page.getByRole('button', { name: '下一页', exact: true }).click()
+  await page
+    .locator('.management-page__footer')
+    .getByRole('button', { name: '下一页', exact: true })
+    .click()
   await expect(page.locator('tbody tr')).toHaveCount(5)
   await expect(page.locator('tbody tr').first()).toContainText('历史子单位名称')
   await page.getByLabel('客户名称 *', { exact: true }).fill('历史子单位名称')
@@ -97,4 +100,64 @@ test('RPT export-only resource does not issue a result query or expose definitio
   const content = await readFile((await (await downloading).path())!, 'utf8')
   expect(content).toContain('"只导出","0.00","否"')
   expect(queries).toEqual([])
+})
+
+test('report parameters use paginated GET candidates through the common picker and keep the selected identity for export', async ({
+  page,
+}) => {
+  const code = process.env.TARGET_E2E_RPT_CODE!
+  const auxiliaryMethods: string[] = []
+  page.on('request', (request) => {
+    if (
+      [
+        `/rpt/${code}/reference-query`,
+        '/rpt/directory/options',
+        '/rpt/directory/query',
+      ].includes(new URL(request.url()).pathname)
+    )
+      auxiliaryMethods.push(request.method())
+  })
+  await signin(page, true)
+  const initial = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === `/rpt/${code}/reference-query` &&
+      response.request().method() === 'GET',
+  )
+  await page.goto(`/rpt/${code}`)
+  expect((await (await initial).json()).code).toBe(0)
+  const field = page.getByRole('combobox', { name: '部门', exact: true })
+  const search = async (keyword: string) => {
+    const loaded = page.waitForResponse((response) => {
+      const url = new URL(response.url())
+      return (
+        url.pathname === `/rpt/${code}/reference-query` &&
+        url.searchParams.get('keyword') === keyword
+      )
+    })
+    await field.fill(keyword)
+    return (await (await loaded).json()).data
+  }
+  const first = await search('报表候选')
+  expect(first.total).toBe(205)
+  expect(first.items).toHaveLength(20)
+  const last = await search('报表候选204')
+  expect(last.items).toHaveLength(1)
+  expect(last.items[0].name).toBe('报表候选204')
+  await page.getByRole('option').filter({ hasText: '报表候选204' }).click()
+  await search('报表候选000')
+  await field.press('Escape')
+  await page.getByLabel('客户名称 *', { exact: true }).fill('保留已选参数')
+  await page.getByLabel('金额 *', { exact: true }).fill('1.00')
+  const exported = page.waitForRequest(
+    (request) => new URL(request.url()).pathname === `/rpt/${code}/export`,
+  )
+  const downloading = page.waitForEvent('download')
+  await page.getByRole('button', { name: '导出 CSV', exact: true }).click()
+  const request = await exported
+  expect(request.method()).toBe('POST')
+  expect(request.postDataJSON().parameters.department).toBe(last.items[0].id)
+  const content = await readFile((await (await downloading).path())!, 'utf8')
+  expect(content).toContain('保留已选参数')
+  expect(auxiliaryMethods.length).toBeGreaterThan(2)
+  expect(auxiliaryMethods.every((method) => method === 'GET')).toBe(true)
 })

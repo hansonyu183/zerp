@@ -6,6 +6,7 @@ import { ulid } from 'ulid'
 import { randomBytes } from 'node:crypto'
 import { modelBuildId } from '@zerp/model'
 import { createApp } from '../../src/app.ts'
+import { AuxService } from '../../src/aux/service.ts'
 import { SessionService, hashPassword } from '../../src/app/session.ts'
 import { loadConfig } from '../../src/platform/config.ts'
 import { createDatabase } from '../../src/db/database.ts'
@@ -104,6 +105,10 @@ async function fixture(context: TestContext) {
           .where('role_id', '=', roleId)
           .execute()
         await tx.deleteFrom('app_roles').where('id', '=', roleId).execute()
+        await tx
+          .deleteFrom('aux_objects')
+          .where('created_by', '=', actorId)
+          .execute()
         await tx.deleteFrom('app_users').where('id', '=', actorId).execute()
       })
     } finally {
@@ -385,6 +390,19 @@ test('RPT deterministic schema drift stops current execution; a validated correc
     .raw(`ALTER TABLE ${table} RENAME COLUMN old_total TO new_total`)
     .execute(db)
   await assert.rejects(
+    service.referenceQuery(current.code, {
+      parameterKey: 'department',
+      page: 1,
+      pageSize: 20,
+    }),
+    isError('rpt_definition_not_executable'),
+  )
+  assert.equal(
+    (await service.get(current.subjectId, actor)).validity,
+    'VALID',
+    'auxiliary read must not invalidate the definition',
+  )
+  await assert.rejects(
     service.query(
       current.code,
       { parameters: {}, page: 1, pageSize: 10 },
@@ -505,7 +523,11 @@ test('RPT HTTP uses current contracts and exact grants; removed DCL routes are a
   assert.equal(saved.data.revision, '1')
   assert.equal('approvalEntryId' in saved.data, false)
   await grant([`/rpt/${saved.data.code}/query`])
-  const directory = await post('/rpt/directory/query', {})
+  const directory = await (
+    await app.request('/rpt/directory/options', {
+      headers: { cookie: headers.cookie, 'x-zerp-model-build': modelBuildId },
+    })
+  ).json()
   assert.equal(directory.code, 0)
   assert.deepEqual(
     directory.data.map((item: { code: string }) => item.code),
@@ -639,4 +661,170 @@ test('RPT readiness remains unavailable for an INVALID current definition until 
     'readiness-repair',
   )
   await service.assertAllEnabled()
+})
+
+test('RPT auxiliary HTTP reads need only Session, paginate controlled candidates and resolve a later selected identity', async (context) => {
+  const { db, service, actor, input } = await fixture(context)
+  const aux = new AuxService(db)
+  const suffix = randomBytes(6).toString('hex')
+  const departments = []
+  for (let index = 0; index < 205; index++) {
+    departments.push(
+      await aux.create(
+        'department',
+        {
+          name: `RPT${suffix}-${String(index).padStart(3, '0')}`,
+          parentId: '',
+          description: '',
+        },
+        { id: actor.id, permissions: ['/aux/department/create'] },
+      ),
+    )
+  }
+  const command = {
+    ...input(),
+    sql: "SELECT count(*)::integer AS total FROM aux_objects WHERE entity = 'department' AND (:department::varchar IS NULL OR id = :department)",
+    parameters: [
+      {
+        key: 'department',
+        name: '部门',
+        type: 'REFERENCE' as const,
+        referenceType: 'DEPARTMENT' as const,
+        required: false,
+      },
+    ],
+  }
+  const definition = await service.save(command, actor, 'rpt-get-create')
+  const password = randomBytes(18).toString('base64url')
+  await db
+    .updateTable('app_users')
+    .set({ password_hash: await hashPassword(password) })
+    .where('id', '=', actor.id)
+    .execute()
+  const config = loadConfig({
+    DATABASE_URL: databaseUrl,
+    TARGET_DATABASE_SCOPE: 'isolated',
+  })
+  const app = createApp({
+    config,
+    session: new SessionService(db, config),
+    rpt: service,
+  })
+  const signin = await app.request('/session/auth/signin', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-zerp-model-build': modelBuildId,
+    },
+    body: JSON.stringify({ code: `rpt-${actor.id}`, password }),
+  })
+  const auth = await signin.json()
+  assert.equal(auth.code, 0)
+  const headers = {
+    cookie: signin.headers.getSetCookie()[0]!,
+    'x-zerp-model-build': modelBuildId,
+  }
+  const path = `/rpt/${definition.code}/reference-query`
+  const get = async (query: string, authenticated = true) =>
+    (
+      await app.request(`${path}?${query}`, {
+        headers: authenticated
+          ? headers
+          : { 'x-zerp-model-build': modelBuildId },
+      })
+    ).json()
+  assert.equal(
+    (await get('parameterKey=department', false)).errorKey,
+    'unauthenticated',
+  )
+  const first = await get(
+    `parameterKey=department&keyword=RPT${suffix}&page=1&pageSize=20`,
+  )
+  assert.equal(first.code, 0)
+  assert.equal(first.data.total, 205)
+  assert.equal(first.data.items.length, 20)
+  assert.deepEqual(Object.keys(first.data.items[0]).sort(), [
+    'code',
+    'id',
+    'name',
+  ])
+  const later = await get(
+    `parameterKey=department&keyword=RPT${suffix}&page=11&pageSize=20`,
+  )
+  assert.equal(later.code, 0)
+  assert.equal(later.data.items.length, 5)
+  assert.equal(later.data.items[4].id, departments[204]!.id)
+  const selected = await get(
+    `parameterKey=department&selectedId=${departments[204]!.id}&page=1&pageSize=20`,
+  )
+  assert.equal(selected.code, 0)
+  assert.deepEqual(selected.data.items, [later.data.items[4]])
+  for (const query of [
+    'parameterKey=unknown',
+    'parameterKey=department&page=0',
+    'parameterKey=department&page=1.5',
+    'parameterKey=department&page=1e2',
+    'parameterKey=department&page=100001',
+    'parameterKey=department&pageSize=51',
+    'parameterKey=department&page=1&page=2',
+    'parameterKey=department&arbitrary=true',
+    'page=1',
+  ]) {
+    const rejected = await get(query)
+    assert.notEqual(rejected.code, 0, query)
+    assert.ok(
+      ['validation_failed', 'rpt_reference_parameter_invalid'].includes(
+        rejected.errorKey,
+      ),
+      query,
+    )
+    assert.equal(rejected.data, null)
+    assert.equal(typeof rejected.requestId, 'string')
+  }
+  assert.deepEqual(
+    (await (await app.request('/rpt/directory/options', { headers })).json())
+      .data,
+    [],
+  )
+  const postHeaders = {
+    ...headers,
+    'content-type': 'application/json',
+    'x-csrf-token': auth.data.csrfToken,
+  }
+  for (const action of ['query', 'export']) {
+    const denied = await (
+      await app.request(`/rpt/${definition.code}/${action}`, {
+        method: 'POST',
+        headers: postHeaders,
+        body: JSON.stringify({
+          parameters: {},
+          ...(action === 'query' ? { page: 1, pageSize: 20 } : {}),
+        }),
+      })
+    ).json()
+    assert.equal(denied.errorKey, 'rpt_permission_denied')
+  }
+  for (const oldPath of [path, '/rpt/directory/query']) {
+    const removed = await app.request(oldPath, {
+      method: 'POST',
+      headers: postHeaders,
+      body: JSON.stringify(
+        oldPath === path
+          ? { parameterKey: 'department', page: 1, pageSize: 20 }
+          : {},
+      ),
+    })
+    if (removed.status !== 404) assert.notEqual((await removed.json()).code, 0)
+    assert.equal(removed.headers.get('location'), null)
+  }
+  assert.deepEqual(await service.get(definition.subjectId, actor), definition)
+  await service.save(
+    { ...command, expectedRevision: '1', enabled: false },
+    actor,
+    'disable-report',
+  )
+  assert.equal(
+    (await get('parameterKey=department')).errorKey,
+    'rpt_definition_not_executable',
+  )
 })

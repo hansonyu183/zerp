@@ -3,18 +3,17 @@ import { actionIcons } from '../../presentation/action-icons.ts'
 import { ref } from 'vue'
 
 import FieldInput from './FieldInput.vue'
-import type { FieldRange, FilterField, ReferenceOptions } from './types.ts'
+import ReferencePicker from './ReferencePicker.vue'
+import type { FieldRange, FilterField } from './types.ts'
 import { normalizeFilters } from './values.ts'
 
 const props = withDefaults(
   defineProps<{
     fields: readonly FilterField[]
     modelValue: Filters
-    referenceOptions?: ReferenceOptions
     disabled?: boolean
   }>(),
   {
-    referenceOptions: () => ({}),
     disabled: false,
   },
 )
@@ -96,11 +95,29 @@ function onEnter(event: KeyboardEvent): void {
           @update:model-value="updateRange(field.key, endpoint, $event)"
         />
       </div>
+      <ReferencePicker
+        v-else-if="field.type === 'reference'"
+        :source="
+          field.source === 'app/role'
+            ? 'roles'
+            : field.source === 'bob/supplier'
+              ? 'suppliers'
+              : 'customer-subunits'
+        "
+        :caption="field.caption"
+        :model-value="
+          (modelValue as Record<string, string | null>)[field.key] ?? null
+        "
+        :existing="[]"
+        :multiple="false"
+        :disabled="disabled"
+        history
+        @update:model-value="updateField(field.key, $event)"
+      />
       <FieldInput
         v-else
         :field="field"
         :model-value="(modelValue as Record<string, unknown>)[field.key]"
-        :reference-options="referenceOptions"
         :disabled="disabled"
         @update:model-value="updateField(field.key, $event)"
       />

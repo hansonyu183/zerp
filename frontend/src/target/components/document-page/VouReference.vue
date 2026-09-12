@@ -1,16 +1,13 @@
 <script setup lang="ts">
 import { shallowRef, computed, toRaw } from 'vue'
-import type {
-  TargetVouReferenceQueryInput,
-  queryTargetVouReferences,
-} from '../../api.ts'
+import type { TargetReferenceEntity, queryTargetVouOptions } from '../../api.ts'
 import ReferencePicker from '../dynamic-fields/ReferencePicker.vue'
 import type { EditOption } from '../dynamic-fields/edit-fields.ts'
 export type VouCandidate = Awaited<
-  ReturnType<typeof queryTargetVouReferences>
+  ReturnType<typeof queryTargetVouOptions>
 >['items'][number]
 const props = defineProps<{
-  entity: TargetVouReferenceQueryInput['entity']
+  entity: TargetReferenceEntity
   caption: string
   modelValue: VouCandidate | null
   disabled: boolean

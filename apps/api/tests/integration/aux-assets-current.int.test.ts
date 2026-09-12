@@ -76,6 +76,20 @@ test('AUX assets enforce revision, unique identities, adopted references and ato
     remark: '',
   }
   const warehouse = await aux.create('warehouse', warehouseInput, actor)
+  const warehouseOptions = await aux.options({
+    entity: 'warehouse',
+    ids: [warehouse.id],
+    page: 1,
+    pageSize: 20,
+  })
+  assert.deepEqual(warehouseOptions.items, [
+    {
+      objectId: warehouse.id,
+      code: (await aux.get('warehouse', { id: warehouse.id }, actor)).code,
+      name: warehouseInput.name,
+      enabled: true,
+    },
+  ])
   const config = loadConfig({
     DATABASE_URL: databaseUrl,
     TARGET_DATABASE_SCOPE: process.env.TARGET_DATABASE_SCOPE,
@@ -188,6 +202,17 @@ test('AUX assets enforce revision, unique identities, adopted references and ato
     remark: '',
   }
   const account = await aux.create('fund-account', accountInput, actor)
+  assert.equal(
+    (
+      await aux.options({
+        entity: 'fund-account',
+        ids: [account.id],
+        page: 1,
+        pageSize: 20,
+      })
+    ).items[0]?.objectId,
+    account.id,
+  )
   await assert.rejects(
     aux.create('fund-account', accountInput, actor),
     (error) =>
@@ -217,6 +242,17 @@ test('AUX assets enforce revision, unique identities, adopted references and ato
     remark: '',
   }
   const vehicle = await aux.create('vehicle', vehicleInput, actor)
+  assert.equal(
+    (
+      await aux.options({
+        entity: 'vehicle',
+        ids: [vehicle.id],
+        page: 1,
+        pageSize: 20,
+      })
+    ).items[0]?.objectId,
+    vehicle.id,
+  )
   const vehicleRead = await aux.get('vehicle', { id: vehicle.id }, actor)
   assert.equal(vehicleRead.plateNumber, vehicleInput.plateNumber)
   assert.equal(vehicleRead.vin, vehicleInput.vin.toUpperCase())

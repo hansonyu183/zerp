@@ -43,11 +43,11 @@ async function selectOption(
   label: string,
   name: string,
 ): Promise<void> {
-  await dialog
+  const field = dialog
     .locator('.v-select, .v-autocomplete')
     .filter({ hasText: label })
-    .locator('.v-field')
-    .click()
+  await field.locator('.v-field').click()
+  await field.locator('input').fill(name)
   const option = page.getByRole('option').filter({ hasText: name })
   await expect(option).toHaveCount(1)
   await option.click()

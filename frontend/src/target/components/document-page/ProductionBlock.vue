@@ -16,7 +16,7 @@ import {
   type ProductionMaterial,
 } from './production-data.ts'
 import { orderFormula } from './order-data.ts'
-import { getTargetProduct, getTargetVoucher } from '../../api.ts'
+import { resolveTargetProduct, resolveTargetSaleOrderLine } from '../../api.ts'
 import { useTargetSession } from '../../session/vm.ts'
 const props = defineProps<{ modelValue: ProductionDraft; disabled: boolean }>()
 const emit = defineEmits<{
@@ -75,31 +75,17 @@ async function select(
   requests.set(id, request)
   line(id, { source, product: choice, formula: null, materials: [] })
   if (!source && !choice) return
-  const permission = source ? '/vou/sale-order/get' : '/bob/product/get'
-  if (!session.csrfToken || !session.can(permission)) {
-    error.value = '没有来源读取权限，无法采用配方。'
-    return
-  }
   pending.add(id)
   emit('pending', true)
   try {
     let formula: VouFormulaInput | null = null,
       selected = choice
     if (source) {
-      const result = await getTargetVoucher(
-        session.csrfToken,
-        'sale-order',
+      const result = await resolveTargetSaleOrderLine(
         source.rootDocumentId,
+        source.sourceLineId,
       )
-      if (
-        result.entity !== 'sale-order' ||
-        result.status !== 'APPROVED' ||
-        !('productLines' in result.payload)
-      )
-        throw new Error('来源订单不可用。')
-      const row = result.payload.productLines.find(
-        (row) => row.lineId === source.sourceLineId,
-      )
+      const row = result?.line
       if (!row?.formula || row.formula.sourceType === 'RAW_SELF')
         throw new Error('来源行没有可用的成品配方。')
       formula = row.formula
@@ -110,7 +96,12 @@ async function select(
         name: source.product?.name ?? '来源成品',
       }
     } else {
-      const result = await getTargetProduct(session.csrfToken, choice!.objectId)
+      const result = await resolveTargetProduct(
+        choice!.objectId,
+        choice && 'approvalEntryId' in choice
+          ? choice.approvalEntryId
+          : undefined,
+      )
       if (
         !result.enabled ||
         result.data.productType.behaviorProfile !== 'STANDARD_FINISHED' ||
@@ -119,13 +110,7 @@ async function select(
         throw new Error('请选择维护固定配方的有效自制成品。')
       formula = orderFormula(result.data.fixedFormula, 'PRODUCT_FIXED') ?? null
     }
-    if (
-      !owns() ||
-      requests.get(id) !== request ||
-      !session.can(permission) ||
-      !formula
-    )
-      return
+    if (!owns() || requests.get(id) !== request || !formula) return
     line(id, {
       product: selected,
       formula,
@@ -156,20 +141,14 @@ async function replaceMaterial(
   material(id, no, { actual: choice, units: [], unitId: '' })
   emit('pending', pending.size > 0)
   if (!choice) return
-  if (!session.csrfToken || !session.can('/bob/product/get')) {
-    error.value = '没有产品读取权限，无法采用材料单位。'
-    return
-  }
   pending.add(key)
   emit('pending', true)
   try {
-    const current = await getTargetProduct(session.csrfToken, choice.objectId)
-    if (
-      !owns() ||
-      requests.get(key) !== request ||
-      !session.can('/bob/product/get')
+    const current = await resolveTargetProduct(
+      choice.objectId,
+      'approvalEntryId' in choice ? choice.approvalEntryId : undefined,
     )
-      return
+    if (!owns() || requests.get(key) !== request) return
     if (
       !current.enabled ||
       current.data.productType.behaviorProfile !== 'RAW_MATERIAL'

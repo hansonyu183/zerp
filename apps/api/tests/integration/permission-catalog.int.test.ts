@@ -189,3 +189,173 @@ test('catalog synchronization preserves every effective authority by exact path'
   assert.equal(report.orphanedRoleGrants, 0)
   assert.equal(report.duplicateRoleGrants, 0)
 })
+
+test('removing catalog authority preserves unrelated IDs, advances affected roles and invalidates old sessions only once', async (context) => {
+  assert.ok(databaseUrl)
+  const db = createDatabase(databaseUrl)
+  const bootstrap = new TargetBootstrapService(db)
+  const desired = await readTargetPermissionCatalog()
+  const suffix = randomBytes(8).toString('hex').toUpperCase()
+  const roleId = `R${suffix}`.padEnd(26, '0')
+  const userId = `U${suffix}`.padEnd(26, '0')
+  const onlyRoleId = `O${suffix}`.padEnd(26, '0')
+  const onlyUserId = `P${suffix}`.padEnd(26, '0')
+  const password = randomBytes(24).toString('base64url')
+  const session = new SessionService(
+    db,
+    loadConfig({
+      DATABASE_URL: databaseUrl,
+      TARGET_DATABASE_SCOPE: 'isolated',
+    }),
+  )
+  const legacy = {
+    id: `L${suffix}`.padEnd(26, '0'),
+    path: '/acc/mapping/catalog',
+    domain: 'acc',
+    entity: 'mapping',
+    action: 'catalog',
+    title: '会计映射目录',
+  }
+  const removedReferences = ['aux', 'bob', 'vou'].map((domain, index) => ({
+    id: `${index}${suffix}`.padEnd(26, '0'),
+    path: `/${domain}/reference/query`,
+    domain,
+    entity: 'reference',
+    action: 'query',
+    title: '旧引用候选',
+  }))
+  const removed = [
+    legacy,
+    ...removedReferences,
+    {
+      id: `Q${suffix}`.padEnd(26, '0'),
+      path: '/vou/source-line/query',
+      domain: 'vou',
+      entity: 'source-line',
+      action: 'query',
+      title: '旧来源行候选',
+    },
+  ]
+  const unrelated = desired.find((entry) => entry.path === '/app/user/query')!
+  const beforeId = (
+    await db
+      .selectFrom('app_permissions')
+      .select('id')
+      .where('path', '=', unrelated.path)
+      .executeTakeFirstOrThrow()
+  ).id
+  context.after(async () => {
+    try {
+      await db
+        .deleteFrom('app_users')
+        .where('id', 'in', [userId, onlyUserId])
+        .execute()
+      await db
+        .deleteFrom('app_roles')
+        .where('id', 'in', [roleId, onlyRoleId])
+        .execute()
+      await bootstrap.syncPermissionCatalog(desired)
+    } finally {
+      await db.destroy()
+    }
+  })
+  await bootstrap.syncPermissionCatalog([...desired, ...removed])
+  await bootstrap.createE2EPrincipal(
+    {
+      userId,
+      roleId,
+      username: `catalog-remove-${suffix}`,
+      passwordHash: await hashPassword(password),
+    },
+    false,
+    [...removed.map((item) => item.path), unrelated.path],
+  )
+  await bootstrap.createE2EPrincipal(
+    {
+      userId: onlyUserId,
+      roleId: onlyRoleId,
+      username: `catalog-only-${suffix}`,
+      passwordHash: await hashPassword(password),
+    },
+    false,
+    removed.map((item) => item.path),
+  )
+  const onlyLogin = await session.signin(`catalog-only-${suffix}`, password)
+  assert.deepEqual(
+    [...onlyLogin.principal.apiPaths].sort(),
+    removed.map((item) => item.path).sort(),
+  )
+  const login = await session.signin(`catalog-remove-${suffix}`, password)
+  assert.ok(login.principal.apiPaths.includes(legacy.path))
+  const before = await db
+    .selectFrom('app_roles')
+    .select('revision')
+    .where('id', '=', roleId)
+    .executeTakeFirstOrThrow()
+  const result = await bootstrap.syncPermissionCatalog(
+    desired.map((entry) =>
+      entry.path === unrelated.path
+        ? { ...entry, id: `N${suffix}`.padEnd(26, '0') }
+        : entry,
+    ),
+  )
+  assert.equal(result.droppedStaleRoleGrants, removed.length * 2)
+  assert.equal(
+    (
+      await db
+        .selectFrom('app_permissions')
+        .select('id')
+        .where('path', '=', unrelated.path)
+        .executeTakeFirstOrThrow()
+    ).id,
+    beforeId,
+  )
+  const after = await db
+    .selectFrom('app_roles')
+    .select('revision')
+    .where('id', '=', roleId)
+    .executeTakeFirstOrThrow()
+  assert.equal(BigInt(after.revision), BigInt(before.revision) + 1n)
+  await assert.rejects(
+    session.authenticate(login.token, undefined, false, '/acc/mapping/catalog'),
+    /unauthenticated/,
+  )
+  await assert.rejects(
+    session.authenticate(
+      onlyLogin.token,
+      undefined,
+      false,
+      '/acc/mapping/catalog',
+    ),
+    /unauthenticated/,
+  )
+  assert.deepEqual(
+    (await session.signin(`catalog-only-${suffix}`, password)).principal
+      .apiPaths,
+    [],
+  )
+  const renewed = await session.signin(`catalog-remove-${suffix}`, password)
+  assert.deepEqual(renewed.principal.apiPaths, [unrelated.path])
+  await bootstrap.syncPermissionCatalog(desired)
+  assert.equal(
+    (
+      await db
+        .selectFrom('app_roles')
+        .select('revision')
+        .where('id', '=', roleId)
+        .executeTakeFirstOrThrow()
+    ).revision,
+    after.revision,
+  )
+  assert.deepEqual(
+    (
+      await session.authenticate(
+        renewed.token,
+        undefined,
+        false,
+        '/acc/mapping/catalog',
+      )
+    ).apiPaths,
+    [unrelated.path],
+  )
+})

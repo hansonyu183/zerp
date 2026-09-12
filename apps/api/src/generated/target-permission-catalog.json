@@ -40,14 +40,6 @@
     "title": "/acc/book/save"
   },
   {
-    "id": "01J6E6F5335706964D6A03C649",
-    "path": "/acc/mapping/catalog",
-    "domain": "acc",
-    "entity": "mapping",
-    "action": "catalog",
-    "title": "会计映射目录"
-  },
-  {
     "id": "01JBB0E2371FBAE95869AC3451",
     "path": "/acc/mapping/get",
     "domain": "acc",
@@ -1072,14 +1064,6 @@
     "title": "保存产品类型"
   },
   {
-    "id": "01J29DD7AE9C28674BB5F0BA65",
-    "path": "/aux/reference/query",
-    "domain": "aux",
-    "entity": "reference",
-    "action": "query",
-    "title": "查询 AUX 最小引用候选"
-  },
-  {
     "id": "01J7D7D8004828DEF813DAA0CD",
     "path": "/aux/settlement-method/disable",
     "domain": "aux",
@@ -1622,14 +1606,6 @@
     "entity": "product",
     "action": "versions",
     "title": "versions product"
-  },
-  {
-    "id": "01J560D6C8B6290F677202E82D",
-    "path": "/bob/reference/query",
-    "domain": "bob",
-    "entity": "reference",
-    "action": "query",
-    "title": "查询 BOB 最小引用候选"
   },
   {
     "id": "01J5A0607CCE21B636FFADCC11",
@@ -4576,14 +4552,6 @@
     "title": "purchase-return unreject"
   },
   {
-    "id": "01J551D2381C6BA0E03F6BCDB1",
-    "path": "/vou/reference/query",
-    "domain": "vou",
-    "entity": "reference",
-    "action": "query",
-    "title": "VOU reference query"
-  },
-  {
     "id": "01J29993AD299AC3D8C303CA17",
     "path": "/vou/sale-delivery/approve",
     "domain": "vou",
@@ -5686,14 +5654,6 @@
     "entity": "service-contract",
     "action": "unreject",
     "title": "service-contract unreject"
-  },
-  {
-    "id": "01J34AF35315CFACB1E963E687",
-    "path": "/vou/source-line/query",
-    "domain": "vou",
-    "entity": "source-line",
-    "action": "query",
-    "title": "VOU source-line query"
   },
   {
     "id": "01JBB0D859982FC5F91AB7F754",

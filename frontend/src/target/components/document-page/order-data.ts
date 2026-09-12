@@ -2,7 +2,7 @@ import { businessDate } from './business-date.ts'
 import type {
   TargetOrderEntity,
   TargetOrderInput,
-  getTargetProduct,
+  resolveTargetProduct,
 } from '../../api.ts'
 import type { ProductSnapshot } from '../version-page/product-data.ts'
 import type { VouCandidate } from './VouReference.vue'
@@ -10,7 +10,7 @@ import type {
   VouProductLineInput,
   VouPaymentMethodSelectionInput,
 } from '@zerp/model'
-export type OrderProduct = Awaited<ReturnType<typeof getTargetProduct>>
+export type OrderProduct = Awaited<ReturnType<typeof resolveTargetProduct>>
 export type OrderLine = {
   lineId: string
   product: VouCandidate | null

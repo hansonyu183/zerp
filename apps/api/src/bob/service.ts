@@ -26,8 +26,7 @@ export function isManagedBobEntity(entity: string): entity is ManagedBobEntity {
 }
 
 export type BobEntity = (typeof bobEntities)[number]
-export type BobReferenceEntity =
-  'customer-subunit' | 'other-unit' | 'supplier' | 'sales-partner' | 'product'
+export type BobReferenceEntity = 'customer-subunit' | BobEntity
 export type BobActor = { id: string; permissions: readonly string[] }
 export type BobData = Record<string, unknown>
 
@@ -61,6 +60,11 @@ export interface BobQueryInput {
 }
 
 export interface BobReferenceQueryInput {
+  page: number
+  pageSize: 20
+  enabled?: boolean
+  ids?: string[]
+  capability?: 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER'
   entity: BobReferenceEntity
   keyword?: string
   sourceObjectId?: string
@@ -74,7 +78,9 @@ export interface BobReferenceCandidate {
   name: string
   sourceApprovalEntryId: string
   sourceVersionNo: number
-  data: BobData
+  enabled: boolean
+  customerId?: string
+  paymentMethod?: import('@zerp/model').VouPaymentMethodSnapshotInput | null
 }
 
 export class BobApplicationError extends Error {
@@ -117,28 +123,26 @@ interface StoredBobObject {
   implicitSubunitId?: string | null
 }
 
-interface StoredCustomerSubunit extends Omit<StoredBobObject, 'object_id'> {
-  object_id: string
-  customer_id: string
-}
-
 /** Read each entity from its owning subject and highest approved typed version. */
 function currentSource(entity: BobEntity) {
   return businessIdentityCurrent(entity)
 }
 
 /** One typed query; neither current queries nor references issue per-row reads. */
-function businessIdentityCurrent(entity: ManagedBobEntity) {
+function businessIdentityCurrent(
+  entity: ManagedBobEntity,
+  approvalEntryId?: string,
+) {
   if (entity === 'customer')
     return sql<StoredBobObject>`SELECT subject.id AS object_id,subject.entity,subject.code,subject.enabled,subject.revision::text AS revision,entry.id AS source_approval_entry_id,entry.version_no AS source_version_no,entry.updated_at,
     jsonb_build_object('identityKind',COALESCE(v.kind,''),'legalName',COALESCE(v.legal_name,''),'displayName',COALESCE(v.display_name,''),'legalIdentifier',COALESCE(v.legal_identifier,''),'phone',COALESCE(v.phone,''),'email',COALESCE(v.email,''),'address',COALESCE(v.address,''),'invoiceTitle',COALESCE(v.invoice_title,''),'invoiceAddress',COALESCE(v.invoice_address,''),'invoicePhone',COALESCE(v.invoice_phone,''),'invoiceBank',COALESCE(v.invoice_bank,''),'invoiceAccount',COALESCE(v.invoice_account,''),'remittanceProfiles',v.remittance_profiles,'identityAttachments',v.tax_attachments,'defaultOperatingEntity', CASE WHEN v.default_operating_entity_id IS NULL THEN NULL ELSE jsonb_build_object('objectId',v.default_operating_entity_id,'code',v.default_operating_entity_code,'name',v.default_operating_entity_name) END,
     'subunits',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',COALESCE(u.subunit_id,''),'code',COALESCE(r.code,''),'name',COALESCE(u.name,''),'contactName',COALESCE(u.contact_name,''),'address',COALESCE(u.business_address,''),'internalReminder',COALESCE(u.internal_reminder,''),'defaultSalesOrderRemark',COALESCE(u.default_order_remark,''),'intent','EXISTING','customerType',u.customer_type_snapshot,'settlementMethod',u.settlement_snapshot,'paymentMethod',u.payment_snapshot,'transportPolicy',u.transport_snapshot,'pricingPolicy',u.pricing_snapshot,'creditLimits',u.credit_limits,'primarySalesAttribution',u.sales_attribution_snapshot,'attachments',u.business_attachments,'enabled',u.enabled) ORDER BY r.code) FROM bob_customer_version_subunits u JOIN bob_customer_subunit_roots r ON r.subunit_id=u.subunit_id WHERE u.customer_approval_entry_id=entry.id),'[]'::jsonb)) AS data
-    FROM bob_subjects subject JOIN LATERAL (SELECT id,version_no,updated_at FROM approval_entries WHERE domain='bob' AND entity='customer' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN bob_customer_versions v ON v.approval_entry_id=entry.id WHERE subject.entity='customer'`
+    FROM bob_subjects subject JOIN LATERAL (SELECT id,version_no,updated_at FROM approval_entries WHERE domain='bob' AND entity='customer' AND subject_id=subject.id AND status='APPROVED' ${approvalEntryId ? sql`AND id = ${approvalEntryId}` : sql``} ORDER BY version_no DESC LIMIT 1) entry ON true JOIN bob_customer_versions v ON v.approval_entry_id=entry.id WHERE subject.entity='customer'`
 
   if (entity === 'product')
     return sql<StoredBobObject>`SELECT subject.id AS object_id,subject.entity,subject.code,subject.enabled,subject.revision::text AS revision,entry.id AS source_approval_entry_id,entry.version_no AS source_version_no,entry.updated_at,
     jsonb_build_object('name',v.name,'barcode',COALESCE(v.barcode,''),'specification',COALESCE(v.specification,''),'model',COALESCE(v.model,''),'productType',v.source_snapshots->'productType','productCategory',v.source_snapshots->'productCategory','pricingUnit',v.source_snapshots->'pricingUnit','defaultInputUnit',v.source_snapshots->'defaultInputUnit','unitConversions',v.unit_conversions,'defaultPackagingSpec',v.default_packaging_snapshot->>'defaultPackagingSpec','recyclable',v.recyclable,'fixedFormula',v.fixed_formula,'remark',COALESCE(v.remark,'')) AS data
-    FROM bob_subjects subject JOIN LATERAL (SELECT id,version_no,updated_at FROM approval_entries WHERE domain='bob' AND entity='product' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN bob_product_versions v ON v.approval_entry_id=entry.id WHERE subject.entity='product'`
+    FROM bob_subjects subject JOIN LATERAL (SELECT id,version_no,updated_at FROM approval_entries WHERE domain='bob' AND entity='product' AND subject_id=subject.id AND status='APPROVED' ${approvalEntryId ? sql`AND id = ${approvalEntryId}` : sql``} ORDER BY version_no DESC LIMIT 1) entry ON true JOIN bob_product_versions v ON v.approval_entry_id=entry.id WHERE subject.entity='product'`
 
   const tables = {
     supplier: [
@@ -172,7 +176,7 @@ function businessIdentityCurrent(entity: ManagedBobEntity) {
         FROM ${sql.table(operatingEntities)} r WHERE r.approval_entry_id=entry.id),'[]'::jsonb)
     ) || ${specific} AS data
     FROM bob_subjects subject
-    JOIN LATERAL (SELECT id,version_no,updated_at FROM approval_entries WHERE domain='bob' AND entity=${entity} AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
+    JOIN LATERAL (SELECT id,version_no,updated_at FROM approval_entries WHERE domain='bob' AND entity=${entity} AND subject_id=subject.id AND status='APPROVED' ${approvalEntryId ? sql`AND id = ${approvalEntryId}` : sql``} ORDER BY version_no DESC LIMIT 1) entry ON true
     JOIN ${sql.table(versions)} v ON v.approval_entry_id=entry.id
     WHERE subject.entity=${entity}`
 }
@@ -187,21 +191,6 @@ function isEntity(value: string): value is BobEntity {
 
 function assertEntity(value: string): asserts value is BobEntity {
   if (!isEntity(value)) fail('validation_failed')
-}
-
-function assertReferenceEntity(
-  value: string,
-): asserts value is BobReferenceEntity {
-  if (
-    ![
-      'customer-subunit',
-      'other-unit',
-      'supplier',
-      'sales-partner',
-      'product',
-    ].includes(value)
-  )
-    fail('validation_failed')
 }
 
 function assertPermission(
@@ -529,12 +518,83 @@ export class BobService {
     })
   }
 
-  async queryReferenceCandidates(
-    input: BobReferenceQueryInput,
-    actor: BobActor,
-  ): Promise<BobReferenceCandidate[]> {
-    assertReferenceEntity(input.entity)
-    assertExactPermission(actor, '/bob/reference/query')
+  async resolve(
+    entity: 'product' | 'supplier' | 'customer-subunit',
+    input: { objectId: string; approvalEntryId: string },
+  ) {
+    if (!validId(input.objectId) || !validId(input.approvalEntryId))
+      fail('validation_failed')
+    let objectId = input.objectId
+    if (entity === 'customer-subunit') {
+      const root = await this.db
+        .selectFrom('bob_customer_subunit_roots')
+        .select('customer_id')
+        .where('subunit_id', '=', objectId)
+        .executeTakeFirst()
+      if (!root) fail('not_found')
+      objectId = root.customer_id
+    }
+    const source = businessIdentityCurrent(
+      entity === 'customer-subunit' ? 'customer' : entity,
+      input.approvalEntryId,
+    )
+    const result =
+      await sql<StoredBobObject>`SELECT * FROM (${source}) current WHERE object_id = ${objectId}`.execute(
+        this.db,
+      )
+    const row = result.rows[0]
+    if (!row) fail('not_found')
+    const common = {
+      objectId,
+      code: row.code,
+      enabled: row.enabled,
+      sourceApprovalEntryId: row.source_approval_entry_id,
+    }
+    if (entity === 'product') {
+      const data = row.data as import('@zerp/model').ProductData
+      return {
+        ...common,
+        data: {
+          name: data.name,
+          productType: data.productType,
+          pricingUnit: data.pricingUnit,
+          defaultInputUnit: data.defaultInputUnit,
+          unitConversions: data.unitConversions,
+          defaultPackagingSpec: data.defaultPackagingSpec,
+          fixedFormula: data.fixedFormula,
+        },
+      }
+    }
+    if (entity === 'supplier') {
+      const data = row.data as import('@zerp/model').SupplierData
+      return { ...common, data: { defaultPurchaser: data.defaultPurchaser } }
+    }
+    const data = row.data as import('@zerp/model').CustomerData
+    const subunit = data.subunits.find((item) => item.id === input.objectId)
+    if (!subunit) fail('not_found')
+    return {
+      ...common,
+      data: {
+        subunits: [
+          {
+            id: subunit.id,
+            enabled: subunit.enabled,
+            internalReminder: subunit.internalReminder,
+            defaultSalesOrderRemark: subunit.defaultSalesOrderRemark,
+            settlementMethod: subunit.settlementMethod,
+            primarySalesAttribution: subunit.primarySalesAttribution,
+          },
+        ],
+      },
+    }
+  }
+
+  async options(input: BobReferenceQueryInput) {
+    if (
+      input.entity !== 'customer-subunit' &&
+      !bobEntities.includes(input.entity)
+    )
+      fail('validation_failed')
     if (input.sourceObjectId !== undefined && !validId(input.sourceObjectId))
       fail('validation_failed')
     if (
@@ -556,7 +616,11 @@ export class BobService {
     if (input.entity === 'customer-subunit')
       return this.customerSubunitReferences(input)
     const source = currentSource(input.entity)
-    const where = [sql`enabled = true`]
+    const where = [sql`true`]
+    if (input.enabled !== undefined) where.push(sql`enabled = ${input.enabled}`)
+    if (input.ids) where.push(sql`object_id IN (${sql.join(input.ids)})`)
+    if (input.capability)
+      where.push(sql`data->'capabilities' ? ${input.capability}`)
     if (input.keyword?.trim()) {
       const keyword = `%${input.keyword.trim().replace(/[\\%_]/g, '\\$&')}%`
       where.push(
@@ -573,48 +637,80 @@ export class BobService {
       where.push(
         sql`(data->>'operatingEntityId' = ${input.operatingEntityId} OR data->>'defaultOperatingEntityId' = ${input.operatingEntityId} OR data->'defaultOperatingEntity'->>'sourceObjectId' = ${input.operatingEntityId} OR EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(data->'operatingEntities', '[]'::jsonb)) AS item WHERE item->>'objectId' = ${input.operatingEntityId}))`,
       )
-    const result =
-      await sql<StoredBobObject>`SELECT current.* FROM (${source}) current WHERE ${sql.join(where, sql` AND `)} ORDER BY code, object_id LIMIT 200`.execute(
+    const query = sql`FROM (${source}) current WHERE ${sql.join(where, sql` AND `)}`
+    const [result, count] = await Promise.all([
+      sql<StoredBobObject>`SELECT current.* ${query} ORDER BY code, object_id LIMIT ${input.pageSize} OFFSET ${(input.page - 1) * input.pageSize}`.execute(
         this.db,
-      )
-    return result.rows.map((row) => this.referenceCandidate(row))
+      ),
+      sql<{ total: string }>`SELECT count(*) AS total ${query}`.execute(
+        this.db,
+      ),
+    ])
+    return {
+      items: result.rows.map((row) => this.referenceCandidate(row)),
+      total: Number(count.rows[0]?.total ?? 0),
+      page: input.page,
+      pageSize: 20 as const,
+    }
   }
 
-  private async customerSubunitReferences(
-    input: BobReferenceQueryInput,
-  ): Promise<BobReferenceCandidate[]> {
-    const where = [sql`customer.enabled = true`, sql`subunit.enabled = true`]
+  private async customerSubunitReferences(input: BobReferenceQueryInput) {
+    const where = [sql`true`]
+    if (input.enabled !== undefined)
+      where.push(
+        input.enabled
+          ? sql`customer.enabled AND subunit.enabled`
+          : sql`NOT (customer.enabled AND subunit.enabled)`,
+      )
+    if (input.ids) where.push(sql`root.subunit_id IN (${sql.join(input.ids)})`)
     if (input.keyword?.trim()) {
       const keyword = `%${input.keyword.trim().replace(/[\\%_]/g, '\\$&')}%`
       where.push(
         sql`(root.code ILIKE ${keyword} OR subunit.name ILIKE ${keyword})`,
       )
     }
-    const result = await sql<StoredCustomerSubunit>`
-        SELECT root.subunit_id AS object_id, root.customer_id,
-          'customer-subunit' AS entity, root.code, subunit.enabled,
-          entry.id AS source_approval_entry_id, entry.version_no AS source_version_no,
-          jsonb_strip_nulls(jsonb_build_object(
-            'customerId', root.customer_id, 'name', subunit.name,
-            'customerTypeId', subunit.customer_type_id,
-            'settlementMethodId', subunit.settlement_method_id,
-            'primarySalesAttributionType', subunit.primary_sales_attribution_type,
-            'primarySalesAttributionObjectId', subunit.primary_sales_attribution_object_id
-          )) AS data, entry.updated_at
-        FROM bob_customer_subunit_roots root
-        JOIN LATERAL (
-          SELECT * FROM approval_entries
-          WHERE domain = 'bob' AND entity = 'customer'
-            AND subject_id = root.customer_id AND status = 'APPROVED'
-          ORDER BY version_no DESC LIMIT 1
-        ) entry ON true
-        JOIN bob_subjects customer ON customer.id = root.customer_id
-        JOIN bob_customer_version_subunits subunit
-          ON subunit.customer_approval_entry_id = entry.id
-          AND subunit.subunit_id = root.subunit_id
-        WHERE ${sql.join(where, sql` AND `)}
-        ORDER BY root.code, root.subunit_id LIMIT 200`.execute(this.db)
-    return result.rows.map((row) => this.referenceCandidate(row))
+    const source = sql`
+      FROM bob_customer_subunit_roots root
+      JOIN LATERAL (SELECT * FROM approval_entries WHERE domain = 'bob' AND entity = 'customer' AND subject_id = root.customer_id AND status = 'APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
+      JOIN bob_subjects customer ON customer.id = root.customer_id
+      JOIN bob_customer_version_subunits subunit ON subunit.customer_approval_entry_id = entry.id AND subunit.subunit_id = root.subunit_id
+      WHERE ${sql.join(where, sql` AND `)}`
+    const [result, count] = await Promise.all([
+      sql<{
+        objectId: string
+        customerId: string
+        code: string
+        name: string
+        enabled: boolean
+        sourceApprovalEntryId: string
+        sourceVersionNo: number
+        paymentMethod: import('@zerp/model').PaymentMethodSnapshot | null
+      }>`
+        SELECT root.subunit_id AS "objectId", root.customer_id AS "customerId", root.code, subunit.name,
+          customer.enabled AND subunit.enabled AS enabled, entry.id AS "sourceApprovalEntryId", entry.version_no AS "sourceVersionNo", subunit.payment_snapshot AS "paymentMethod"
+        ${source} ORDER BY root.code, root.subunit_id LIMIT ${input.pageSize} OFFSET ${(input.page - 1) * input.pageSize}`.execute(
+        this.db,
+      ),
+      sql<{ total: string }>`SELECT count(*) AS total ${source}`.execute(
+        this.db,
+      ),
+    ])
+    return {
+      items: result.rows.map((row) => ({
+        ...row,
+        paymentMethod: row.paymentMethod
+          ? {
+              objectId: row.paymentMethod.id,
+              code: row.paymentMethod.code,
+              name: row.paymentMethod.name,
+              defaultSalesSurcharge: row.paymentMethod.defaultSalesSurcharge,
+            }
+          : null,
+      })),
+      total: Number(count.rows[0]?.total ?? 0),
+      page: input.page,
+      pageSize: 20 as const,
+    }
   }
 
   private referenceCandidate(row: StoredBobObject): BobReferenceCandidate {
@@ -625,7 +721,7 @@ export class BobService {
       name: name(data),
       sourceApprovalEntryId: row.source_approval_entry_id,
       sourceVersionNo: row.source_version_no,
-      data,
+      enabled: row.enabled,
     }
     return result
   }

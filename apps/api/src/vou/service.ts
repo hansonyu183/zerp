@@ -238,35 +238,6 @@ export interface VouPage {
   pageSize: 20
 }
 
-type VouReferenceCandidateBase = {
-  objectId: string
-  approvalEntryId?: string
-  code: string
-  name: string
-}
-export type VouReferenceCandidate =
-  | (VouReferenceCandidateBase & {
-      entity: 'customer-subunit'
-      customerId: string
-      approvalEntryId: string
-      paymentMethod: VouPaymentMethodSnapshotInput | null
-    })
-  | (VouReferenceCandidateBase & {
-      entity: 'payment-method'
-      defaultSalesSurcharge: string
-    })
-  | (VouReferenceCandidateBase & {
-      entity: 'asset-category'
-      defaultUsefulLifeMonths: number
-      defaultResidualRate: string
-    })
-  | (VouReferenceCandidateBase & {
-      entity: Exclude<
-        VouReferenceCandidateEntity,
-        'customer-subunit' | 'asset-category' | 'payment-method'
-      >
-    })
-
 export type VouSourceLineQueryInput = {
   targetEntity: VouSourceLineTargetEntity
   page: number
@@ -1365,6 +1336,13 @@ export class VouService implements WflVouPort {
     actor: ApprovalActor,
   ): Promise<VouPage> {
     requirePermission(actor, `/vou/${entity}/query`)
+    return this.readQuery(entity, input)
+  }
+
+  private async readQuery(
+    entity: VouEntity,
+    input: VouQueryInput,
+  ): Promise<VouPage> {
     const filters = input.filters
     const capability = vouListCapabilities[entity]
     if (
@@ -1516,88 +1494,127 @@ export class VouService implements WflVouPort {
     }
   }
 
-  async queryReferenceCandidates(
-    input: { entity: VouReferenceCandidateEntity; keyword?: string },
-    actor: ApprovalActor,
-  ): Promise<{ items: VouReferenceCandidate[] }> {
-    requirePermission(actor, '/vou/reference/query')
-    const entity = input.entity
-    const keyword = input.keyword?.trim()
-    const filter = keyword
-      ? sql`WHERE code ILIKE ${`%${keyword}%`} OR name ILIKE ${`%${keyword}%`}`
-      : sql``
-    const source = this.referenceCandidateSource(entity)
-    const result = await sql<{
-      object_id: string
-      approval_entry_id: string | null
-      customer_id: string | null
-      code: string
-      name: string
-      payment_snapshot?: unknown
-      default_sales_surcharge?: string
-      default_useful_life_months?: number | null
-      default_residual_rate?: string | null
-    }>`
-      SELECT * FROM (${sql.raw(source)}) AS candidate ${filter} ORDER BY code, object_id LIMIT 200
-    `.execute(this.db)
-    if (entity === 'customer-subunit')
+  async saleOrderLine(
+    input:
+      | { documentId: string; lineId: string }
+      | { customerSubunitId: string; productId: string },
+  ) {
+    return this.db
+      .transaction()
+      .setIsolationLevel('repeatable read')
+      .execute(async (tx) => {
+        const condition =
+          'documentId' in input
+            ? sql`d.id = ${input.documentId} AND line.line_id = ${input.lineId} AND e.status = 'APPROVED'`
+            : sql`e.status IN ('PENDING','APPROVED') AND EXISTS (SELECT 1 FROM vou_reference_snapshots party WHERE party.approval_entry_id = e.id AND party.field = 'customerSubunit' AND party.line_no = 0 AND party.item_no = 0 AND party.object_id = ${input.customerSubunitId}) AND EXISTS (SELECT 1 FROM vou_reference_snapshots product WHERE product.approval_entry_id = e.id AND product.field = 'product' AND product.line_no = line.line_no AND product.item_no = 0 AND product.object_id = ${input.productId})`
+        const result = await sql<{
+          document_id: string
+          document_no: string
+          approval_entry_id: string
+          line_id: string
+        }>`
+        SELECT d.id AS document_id, d.document_no, e.id AS approval_entry_id, line.line_id
+        FROM vou_documents d JOIN LATERAL (
+          SELECT candidate.* FROM approval_entries candidate WHERE candidate.subject_id = d.id AND candidate.entity = d.entity AND candidate.domain = 'vou'
+          ORDER BY CASE WHEN candidate.status IN ('PENDING','REJECTED') THEN 0 ELSE 1 END, candidate.submitted_at DESC, candidate.id DESC LIMIT 1
+        ) e ON true
+        JOIN vou_sale_order_details detail ON detail.approval_entry_id = e.id
+        JOIN vou_product_line_snapshots line ON line.approval_entry_id = e.id
+        WHERE d.entity = 'sale-order' AND ${condition}
+        ORDER BY detail.business_date DESC, d.document_no DESC, line.line_no LIMIT 1`.execute(
+          tx,
+        )
+        const row = result.rows[0]
+        if (!row) {
+          if ('documentId' in input)
+            throw new VouApplicationError('vou_not_found')
+          return null
+        }
+        const payload = await this.readPayload(
+          tx,
+          'sale-order',
+          row.approval_entry_id,
+        )
+        if (!('productLines' in payload))
+          throw new VouApplicationError('vou_not_found')
+        const line = payload.productLines.find(
+          (line) => line.lineId === row.line_id,
+        )
+        if (!line) throw new VouApplicationError('vou_not_found')
+        return {
+          documentId: row.document_id,
+          documentNo: row.document_no,
+          approvalEntryId: row.approval_entry_id,
+          line: {
+            lineId: line.lineId,
+            product: line.product,
+            formula: line.formula,
+            deliverySpecificationType: line.deliverySpecificationType,
+            containerType: line.containerType,
+            quantityPerContainer: line.quantityPerContainer,
+          },
+        }
+      })
+  }
+
+  async options(
+    entity: VouEntity,
+    input: { keyword?: string; page: number; pageSize: 20; ids?: string[] },
+  ) {
+    if (input.ids) {
+      const rows = await this.db
+        .selectFrom('vou_documents')
+        .select(['id', 'document_no'])
+        .where('entity', '=', entity)
+        .where('id', 'in', input.ids)
+        .orderBy('document_no')
+        .execute()
       return {
-        items: result.rows.map((row) => {
-          if (!row.customer_id || !row.approval_entry_id)
-            throw new VouApplicationError('vou_reference_unavailable')
-          return {
-            entity: 'customer-subunit',
-            paymentMethod: paymentMethodSnapshot(row.payment_snapshot),
-            objectId: row.object_id,
-            customerId: row.customer_id,
-            approvalEntryId: row.approval_entry_id,
-            code: row.code,
-            name: row.name,
-          }
-        }),
+        items: rows
+          .slice((input.page - 1) * 20, input.page * 20)
+          .map((row) => ({
+            objectId: row.id,
+            code: row.document_no,
+            name: row.document_no,
+          })),
+        total: rows.length,
+        page: input.page,
+        pageSize: 20 as const,
       }
-    if (entity === 'payment-method')
+    }
+    if (entity === 'service-contract') {
+      const source = sql`FROM (${sql.raw(this.referenceCandidateSource('service-contract'))}) candidate WHERE code ILIKE ${`%${input.keyword ?? ''}%`}`
+      const [rows, count] = await Promise.all([
+        sql<{
+          objectId: string
+          approvalEntryId: string
+          code: string
+          name: string
+        }>`SELECT object_id AS "objectId", approval_entry_id AS "approvalEntryId", code, name ${source} ORDER BY code, object_id LIMIT 20 OFFSET ${(input.page - 1) * 20}`.execute(
+          this.db,
+        ),
+        sql<{ total: string }>`SELECT count(*) AS total ${source}`.execute(
+          this.db,
+        ),
+      ])
       return {
-        items: result.rows.map((row) => {
-          if (row.default_sales_surcharge === undefined)
-            throw new VouApplicationError('vou_reference_unavailable')
-          return {
-            entity,
-            objectId: row.object_id,
-            code: row.code,
-            name: row.name,
-            defaultSalesSurcharge: row.default_sales_surcharge,
-          }
-        }),
+        items: rows.rows,
+        total: Number(count.rows[0]?.total ?? 0),
+        page: input.page,
+        pageSize: 20 as const,
       }
-    if (entity === 'asset-category')
-      return {
-        items: result.rows.map((row) => {
-          if (
-            row.default_useful_life_months === null ||
-            row.default_useful_life_months === undefined ||
-            !row.default_residual_rate
-          )
-            throw new VouApplicationError('vou_reference_unavailable')
-          return {
-            entity,
-            objectId: row.object_id,
-            code: row.code,
-            name: row.name,
-            defaultUsefulLifeMonths: row.default_useful_life_months,
-            defaultResidualRate: row.default_residual_rate,
-          }
-        }),
-      }
+    }
+    const result = await this.readQuery(entity, {
+      page: input.page,
+      pageSize: 20,
+      filters: { documentNo: input.keyword },
+    })
     return {
-      items: result.rows.map((row) => ({
-        entity,
-        objectId: row.object_id,
-        ...(row.approval_entry_id
-          ? { approvalEntryId: row.approval_entry_id }
-          : {}),
-        code: row.code,
-        name: row.name,
+      ...result,
+      items: result.items.map((item) => ({
+        objectId: item.documentId,
+        code: item.documentNo,
+        name: item.documentNo,
       })),
     }
   }
@@ -1653,17 +1670,12 @@ export class VouService implements WflVouPort {
     })
   }
 
-  async querySourceLineCandidates(
-    input: VouSourceLineQueryInput,
-    actor: ApprovalActor,
-  ): Promise<{
+  async querySourceLineCandidates(input: VouSourceLineQueryInput): Promise<{
     items: VouSourceLineCandidate[]
     total: number
     page: number
     pageSize: 20
   }> {
-    requirePermission(actor, '/vou/source-line/query')
-
     const plan = {
       'sale-return': {
         sourceEntity: 'sale-signoff',
@@ -1936,8 +1948,7 @@ export class VouService implements WflVouPort {
       ? Number(result.rows[0].total)
       : input.page === 1
         ? 0
-        : (await this.querySourceLineCandidates({ ...input, page: 1 }, actor))
-            .total
+        : (await this.querySourceLineCandidates({ ...input, page: 1 })).total
     return {
       items: result.rows.map((row) => ({
         sourceDocumentId: row.source_document_id,

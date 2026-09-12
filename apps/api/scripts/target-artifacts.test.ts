@@ -388,7 +388,6 @@ test('target OpenAPI contains the complete issue 363 APP, AUX, and BOB inventory
       )
       .map((action) => `/aux/${entity}/${action}`),
   )
-  auxPaths.push('/aux/reference/query')
   const bobPaths = [
     'customer',
     'supplier',
@@ -396,7 +395,6 @@ test('target OpenAPI contains the complete issue 363 APP, AUX, and BOB inventory
     'sales-partner',
     'product',
   ].flatMap((entity) => [`/bob/${entity}/query`, `/bob/${entity}/get`])
-  bobPaths.push('/bob/reference/query')
   const removedMenuPaths = [
     '/app/menu/get',
     '/app/menu/save-business',
@@ -533,10 +531,17 @@ test('target OpenAPI exposes typed ACC mapping current-read permissions', async 
   for (const path of [
     '/acc/mapping/query',
     '/acc/mapping/get',
-    '/acc/mapping/catalog',
     '/acc/mapping/save',
   ])
     assert.ok(catalog.some((entry) => entry.path === path))
+  assert.equal(
+    catalog.some((entry) => entry.path === '/acc/mapping/catalog'),
+    false,
+  )
+  assert.deepEqual(
+    Object.keys(document.paths['/acc/mapping/catalog'] as object),
+    ['get'],
+  )
 })
 
 test('target OpenAPI and catalog expose the complete VOU cutover surface without server Draft routes', async () => {
@@ -619,7 +624,7 @@ test('target OpenAPI exposes executable ACC, WFL and RPT transaction cores', asy
     '/wfl/process-definition/disable',
     '/wfl/process-definition/get',
     '/wfl/process-definition/trial',
-    '/rpt/directory/query',
+    '/rpt/directory/options',
     '/rpt/{code}/query',
     '/rpt/{code}/export',
   ]
@@ -669,5 +674,38 @@ test('target OpenAPI exposes health and readiness as public plain responses', as
   assert.equal(
     catalog.some(({ path }) => path === '/healthz' || path === '/readyz'),
     false,
+  )
+})
+
+test('method classification rejects auxiliary permissions and missing POST authority', () => {
+  const path = '/acc/mapping/catalog'
+  assert.throws(
+    () =>
+      validateTargetRouteMetadata(
+        [`GET ${path}`],
+        [{ method: 'get', path, permission: path, title: '目录' }],
+      ),
+    /GET.*permission/,
+  )
+  assert.throws(
+    () =>
+      validateTargetRouteMetadata(
+        ['POST /app/user/query'],
+        [{ method: 'post', path: '/app/user/query' }],
+      ),
+    /POST.*permission/,
+  )
+  assert.deepEqual(
+    validateTargetRouteMetadata([`GET ${path}`], [{ method: 'get', path }]),
+    [],
+  )
+  assert.throws(
+    () =>
+      validateTargetRouteMetadata(
+        [`GET ${path}`],
+        [{ method: 'get', path }],
+        [{ permission: path, title: '目录能力' }],
+      ),
+    /auxiliary.*capability/,
   )
 })

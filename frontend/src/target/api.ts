@@ -170,15 +170,17 @@ export type TargetVehicleEnabledInput = PostJson<
 export type TargetVehicleDeleteInput = PostJson<
   (typeof client)['aux']['vehicle']['delete']['$post']
 >
-export type TargetAuxReferenceQueryInput = PostJson<
-  (typeof client)['aux']['reference']['query']['$post']
->
-export type TargetVouReferenceQueryInput = PostJson<
-  (typeof client)['vou']['reference']['query']['$post']
->
-export type TargetBobReferenceQueryInput = PostJson<
-  (typeof client)['bob']['reference']['query']['$post']
->
+export type TargetReferenceEntity =
+  import('@zerp/model').VouReferenceCandidateEntity
+export type TargetOptionQuery = Parameters<
+  typeof client.app.role.options.$get
+>[0]['query']
+export type TargetAuxOptionQuery = Parameters<
+  typeof client.aux.department.options.$get
+>[0]['query']
+export type TargetBobOptionQuery = Parameters<
+  typeof client.bob.supplier.options.$get
+>[0]['query']
 export type TargetSupplierQueryInput = PostJson<
   (typeof client)['bob']['supplier']['query']['$post']
 >
@@ -1191,42 +1193,257 @@ export async function deleteTargetVehicle(
   )
 }
 
-export async function queryTargetAuxReferences(
-  csrfToken: string,
-  input: TargetAuxReferenceQueryInput,
+export async function queryTargetRoleOptions(query: TargetOptionQuery) {
+  return unwrapTarget(
+    await (await client.app.role.options.$get({ query })).json(),
+  )
+}
+export async function queryTargetPermissionOptions(query: TargetOptionQuery) {
+  return unwrapTarget(
+    await (await client.app.permission.options.$get({ query })).json(),
+  )
+}
+const auxOptionEndpoints = {
+  'operating-entity': client.aux['operating-entity'].options,
+  employee: client.aux['employee'].options,
+  warehouse: client.aux['warehouse'].options,
+  vehicle: client.aux['vehicle'].options,
+  'fund-account': client.aux['fund-account'].options,
+  'employee-category': client.aux['employee-category'].options,
+  department: client.aux['department'].options,
+  position: client.aux['position'].options,
+  'settlement-method': client.aux['settlement-method'].options,
+  'payment-method': client.aux['payment-method'].options,
+  'dictionary-item': client.aux['dictionary-item'].options,
+  'product-type': client.aux['product-type'].options,
+  'product-category': client.aux['product-category'].options,
+  'measurement-unit': client.aux['measurement-unit'].options,
+  'asset-category': client.aux['asset-category'].options,
+}
+export async function queryTargetAuxOptions(
+  entity: keyof typeof auxOptionEndpoints,
+  query: TargetAuxOptionQuery,
+) {
+  return unwrapTarget(
+    await (await auxOptionEndpoints[entity].$get({ query })).json(),
+  )
+}
+export async function queryTargetBobOptions(
+  entity: 'customer' | 'supplier' | 'other-unit' | 'sales-partner' | 'product',
+  query: TargetBobOptionQuery,
+) {
+  return unwrapTarget(
+    await (await client.bob[entity].options.$get({ query })).json(),
+  )
+}
+export async function queryTargetSubunitOptions(query: TargetBobOptionQuery) {
+  return unwrapTarget(
+    await (await client.bob.customer['subunit-options'].$get({ query })).json(),
+  )
+}
+export async function queryTargetDocumentOptions(
+  entity: import('@zerp/model').VouEntity,
+  query: Parameters<
+    (typeof client.vou)[':entity']['options']['$get']
+  >[0]['query'],
 ) {
   return unwrapTarget(
     await (
-      await client.aux.reference.query.$post(
-        { json: input },
-        csrfHeaders(csrfToken),
-      )
+      await client.vou[':entity'].options.$get({ param: { entity }, query })
     ).json(),
   )
 }
-export async function queryTargetVouReferences(
-  csrfToken: string,
-  input: TargetVouReferenceQueryInput,
+export async function queryTargetRegisterOptions(
+  entity: 'asset' | 'bill',
+  query: Parameters<typeof client.acc.asset.options.$get>[0]['query'],
+) {
+  return unwrapTarget(
+    await (await client.acc[entity].options.$get({ query })).json(),
+  )
+}
+export async function queryTargetBookOptions(
+  query: Parameters<typeof client.acc.book.options.$get>[0]['query'],
+) {
+  return unwrapTarget(
+    await (await client.acc.book.options.$get({ query })).json(),
+  )
+}
+export async function queryTargetSubjectOptions(
+  query: Parameters<typeof client.acc.subject.options.$get>[0]['query'],
+) {
+  return unwrapTarget(
+    await (await client.acc.subject.options.$get({ query })).json(),
+  )
+}
+export async function queryTargetVouOptions(
+  entity: TargetReferenceEntity,
+  query: Parameters<typeof client.acc.asset.options.$get>[0]['query'],
+) {
+  if (entity === 'customer-subunit') {
+    const page = await queryTargetSubunitOptions({
+      ...query,
+      ...(query.ids ? {} : { enabled: 'true' as const }),
+    })
+    return {
+      ...page,
+      items: page.items.map((item) => ({
+        entity,
+        objectId: item.objectId,
+        code: item.code,
+        name: item.name,
+        customerId: item.customerId,
+        approvalEntryId: item.sourceApprovalEntryId,
+        paymentMethod: item.paymentMethod,
+      })),
+    }
+  }
+  if (
+    entity === 'customer' ||
+    entity === 'supplier' ||
+    entity === 'other-unit' ||
+    entity === 'sales-partner' ||
+    entity === 'product'
+  ) {
+    const page = await queryTargetBobOptions(entity, {
+      ...query,
+      ...(query.ids ? {} : { enabled: 'true' as const }),
+    })
+    return {
+      ...page,
+      items: page.items.map((item) => ({
+        entity,
+        objectId: item.objectId,
+        code: item.code,
+        name: item.name,
+        ...(item.sourceApprovalEntryId
+          ? { approvalEntryId: item.sourceApprovalEntryId }
+          : {}),
+      })),
+    }
+  }
+  if (entity === 'service-contract') {
+    const page = await queryTargetDocumentOptions(entity, query)
+    return { ...page, items: page.items.map((item) => ({ ...item, entity })) }
+  }
+  if (entity === 'asset' || entity === 'bill') {
+    const page = await queryTargetRegisterOptions(entity, query)
+    return {
+      ...page,
+      items: page.items.map((item) => ({
+        entity,
+        objectId: item.objectId,
+        code: item.code,
+        name: item.name,
+      })),
+    }
+  }
+  const page = await queryTargetAuxOptions(entity, {
+    ...query,
+    ...(query.ids ? {} : { enabled: 'true' as const }),
+  })
+  if (entity === 'payment-method')
+    return {
+      ...page,
+      items: page.items.map((item) => {
+        if (item.defaultSalesSurcharge === undefined)
+          throw new Error('收款方式候选缺少附加费。')
+        return {
+          entity,
+          objectId: item.objectId,
+          code: item.code,
+          name: item.name,
+          defaultSalesSurcharge: item.defaultSalesSurcharge,
+        }
+      }),
+    }
+  if (entity === 'asset-category')
+    return {
+      ...page,
+      items: page.items.map((item) => {
+        if (
+          item.defaultUsefulLifeMonths === undefined ||
+          item.defaultResidualRate === undefined
+        )
+          throw new Error('资产分类候选缺少折旧参数。')
+        return {
+          entity,
+          objectId: item.objectId,
+          code: item.code,
+          name: item.name,
+          defaultUsefulLifeMonths: item.defaultUsefulLifeMonths,
+          defaultResidualRate: item.defaultResidualRate,
+        }
+      }),
+    }
+  return {
+    ...page,
+    items: page.items.map((item) => ({
+      entity,
+      objectId: item.objectId,
+      code: item.code,
+      name: item.name,
+    })),
+  }
+}
+
+export async function resolveTargetSaleOrderLine(
+  documentId: string,
+  lineId: string,
 ) {
   return unwrapTarget(
     await (
-      await client.vou.reference.query.$post(
-        { json: input },
-        csrfHeaders(csrfToken),
-      )
+      await client.vou['sale-order'].resolve.$get({
+        query: { documentId, lineId },
+      })
     ).json(),
   )
 }
-export async function queryTargetBobReferences(
-  csrfToken: string,
-  input: TargetBobReferenceQueryInput,
+export async function queryTargetCustomerLatestLine(
+  customerSubunitId: string,
+  productId: string,
+) {
+  const payload = await (
+    await client.vou['sale-order']['customer-latest-line'].$get({
+      query: { customerSubunitId, productId },
+    })
+  ).json()
+  return payload.code === 0 ? payload.data : unwrapTarget(payload)
+}
+export async function resolveTargetProduct(
+  objectId: string,
+  approvalEntryId: string | undefined,
+) {
+  if (!approvalEntryId) throw new Error('请重新选择产品以采用明确版本。')
+  return unwrapTarget(
+    await (
+      await client.bob.product.resolve.$get({
+        query: { objectId, approvalEntryId },
+      })
+    ).json(),
+  )
+}
+export async function resolveTargetSupplier(
+  objectId: string,
+  approvalEntryId: string | undefined,
+) {
+  if (!approvalEntryId) throw new Error('请重新选择供应商以采用明确版本。')
+  return unwrapTarget(
+    await (
+      await client.bob.supplier.resolve.$get({
+        query: { objectId, approvalEntryId },
+      })
+    ).json(),
+  )
+}
+export async function resolveTargetCustomerSubunit(
+  objectId: string,
+  approvalEntryId: string,
 ) {
   return unwrapTarget(
     await (
-      await client.bob.reference.query.$post(
-        { json: input },
-        csrfHeaders(csrfToken),
-      )
+      await client.bob.customer['subunit-resolve'].$get({
+        query: { objectId, approvalEntryId },
+      })
     ).json(),
   )
 }
@@ -2366,14 +2583,9 @@ export async function getTargetMapping(
     ).json(),
   )
 }
-export async function getTargetMappingCatalog(csrfToken: string) {
+export async function getTargetMappingCatalog() {
   return unwrapTarget(
-    await (
-      await client.acc.mapping.catalog.$post(
-        { json: {} },
-        csrfHeaders(csrfToken),
-      )
-    ).json(),
+    await (await client.acc.mapping.catalog.$get({ query: {} })).json(),
   )
 }
 export async function saveTargetMapping(
@@ -2396,17 +2608,12 @@ export type TargetReportSaveInput = PostJson<
 export type TargetReportQueryInput = PostJson<
   (typeof client)['rpt'][':code']['query']['$post']
 >
-export type TargetReportReferenceInput = PostJson<
-  (typeof client)['rpt'][':code']['reference-query']['$post']
->
-export async function queryTargetReportDirectory(csrfToken: string) {
+export type TargetReportReferenceInput = Parameters<
+  (typeof client)['rpt'][':code']['reference-query']['$get']
+>[0]['query']
+export async function queryTargetReportDirectory() {
   return unwrapTarget(
-    await (
-      await client.rpt.directory.query.$post(
-        { json: {} },
-        csrfHeaders(csrfToken),
-      )
-    ).json(),
+    await (await client.rpt.directory.options.$get({ query: {} })).json(),
   )
 }
 export async function queryTargetReport(
@@ -2438,16 +2645,15 @@ export async function exportTargetReport(
   )
 }
 export async function queryTargetReportReference(
-  csrfToken: string,
   code: string,
   input: TargetReportReferenceInput,
 ) {
   return unwrapTarget(
     await (
-      await client.rpt[':code']['reference-query'].$post(
-        { param: { code }, json: input },
-        csrfHeaders(csrfToken),
-      )
+      await client.rpt[':code']['reference-query'].$get({
+        param: { code },
+        query: input,
+      })
     ).json(),
   )
 }
@@ -3047,31 +3253,6 @@ export async function deleteTargetVoucher(
     ).json(),
   )
 }
-export async function queryTargetAccountingBooks(
-  csrfToken: string,
-  input: PostJson<(typeof client.acc.book.query)['$post']>,
-) {
-  return unwrapTarget(
-    await (
-      await client.acc.book.query.$post({ json: input }, csrfHeaders(csrfToken))
-    ).json(),
-  )
-}
-export async function queryTargetAccountingSubjects(
-  csrfToken: string,
-  bookId: string,
-  page = 1,
-) {
-  return unwrapTarget(
-    await (
-      await client.acc.subject.query.$post(
-        { json: { bookId, page, pageSize: 200 } },
-        csrfHeaders(csrfToken),
-      )
-    ).json(),
-  )
-}
-
 export type TargetVoucherSubmitInput = PostJson<
   (typeof client.vou)[':entity']['submit-new']['$post']
 >
@@ -3112,20 +3293,14 @@ export async function submitTargetVoucher<
     ).json(),
   )
 }
-export type TargetVouSourceLineQueryInput = PostJson<
-  (typeof client.vou)['source-line']['query']['$post']
->
+export type TargetVouSourceLineQueryInput = Parameters<
+  (typeof client.vou)[':entity']['source-lines']['$get']
+>[0]
 export async function queryTargetVouSourceLines(
-  csrfToken: string,
   input: TargetVouSourceLineQueryInput,
 ) {
   return unwrapTarget(
-    await (
-      await client.vou['source-line'].query.$post(
-        { json: input },
-        csrfHeaders(csrfToken),
-      )
-    ).json(),
+    await (await client.vou[':entity']['source-lines'].$get(input)).json(),
   )
 }
 export type TargetVoucherAttachmentStageInput = PostJson<

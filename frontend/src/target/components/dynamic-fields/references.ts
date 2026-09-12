@@ -1,39 +1,10 @@
 import * as api from '../../api.ts'
 import { roleTypeLabels } from '../direct-page/role-presentation.ts'
 import { permissionTitle } from '../direct-page/permission-presentation.ts'
-import type {
-  EditOption,
-  EditReferenceSource,
-  EditReference,
-} from './edit-fields.ts'
-export const referencePermissions = {
-  roles: '/app/role/query',
-  permissions: '/app/permission/query',
-  'operating-entities': '/aux/operating-entity/query',
-  'employee-categories': '/aux/employee-category/query',
-  departments: '/aux/department/query',
-  positions: '/aux/position/query',
-  employees: '/aux/employee/query',
-  'vehicle-types': '/aux/reference/query',
-  'other-units': '/bob/reference/query',
-  'archive-operating-entities': '/aux/operating-entity/query',
-  'archive-employees': '/aux/employee/query',
-  'settlement-rules': '/aux/reference/query',
-  'sales-settlement-methods': '/aux/reference/query',
-  'sales-payment-methods': '/aux/reference/query',
-  'customer-types': '/aux/reference/query',
-  'product-types': '/aux/reference/query',
-  'product-categories': '/aux/reference/query',
-  'product-units': '/aux/reference/query',
-  'formula-materials': '/bob/reference/query',
-  'external-salespeople': '/bob/sales-partner/query',
-  'channel-partners': '/bob/sales-partner/query',
-} as const satisfies Record<EditReferenceSource, string>
+import type { EditOption, EditReference } from './edit-fields.ts'
+
 export function roleOption(
-  role: Pick<
-    Awaited<ReturnType<typeof api.queryTargetRoles>>['items'][number],
-    'id' | 'name' | 'code' | 'enabled' | 'type' | 'assignable'
-  >,
+  role: Awaited<ReturnType<typeof api.queryTargetRoleOptions>>['items'][number],
 ): EditOption {
   return {
     id: role.id,
@@ -63,137 +34,207 @@ export function summaryOption(item: {
     disabled: item.enabled === false,
   }
 }
-async function allPages<T>(
-  query: (input: {
-    keyword: string
-    page: number
-    pageSize: 20
-  }) => Promise<{ items: readonly T[]; total: number }>,
-): Promise<T[]> {
-  const items: T[] = []
-  for (let page = 1; ; page++) {
-    const result = await query({ keyword: '', page, pageSize: 20 })
-    items.push(...result.items)
-    if (items.length >= result.total) return items
-    if (!result.items.length) throw new Error('候选集合未完整加载，请重试。')
-  }
+export type ReferencePage = {
+  items: EditOption[]
+  total: number
+  page: number
+  pageSize: number
 }
-export async function loadEditReferences(
+export type ReferenceSearch = { keyword: string; page: number; ids?: string[] }
+const auxSources = {
+  'operating-entities': 'operating-entity',
+  'employee-categories': 'employee-category',
+  departments: 'department',
+  positions: 'position',
+  employees: 'employee',
+  'vehicle-types': 'dictionary-item',
+  'archive-operating-entities': 'operating-entity',
+  'archive-employees': 'employee',
+  'settlement-rules': 'settlement-method',
+  'sales-settlement-methods': 'settlement-method',
+  'sales-payment-methods': 'payment-method',
+  'customer-types': 'dictionary-item',
+  'product-types': 'product-type',
+  'product-categories': 'product-category',
+  'product-units': 'measurement-unit',
+} as const
+function required<T>(value: T | undefined): T {
+  if (value === undefined) throw new Error('候选资料缺少必要信息，请重试。')
+  return value
+}
+export async function loadEditReferencePage(
   source: EditReference,
-  token: () => string,
-  can: (path: string) => boolean,
-): Promise<EditOption[]> {
-  if (typeof source === 'object' && source.kind === 'vou-source-line') {
-    const rows = await allPages((input) =>
-      api.queryTargetVouSourceLines(token(), {
-        targetEntity: source.entity,
-        page: input.page,
-        pageSize: 20,
-      }),
-    )
-    return rows.map((item) => ({
-      id: `${item.sourceDocumentId}:${item.sourceLineId}`,
-      name: `${item.sourceDocumentNo} · ${item.product.code} · ${item.product.name} · 可用 ${item.availableBaseQuantity}`,
-      snapshot: item,
-    }))
+  search: ReferenceSearch,
+  history = false,
+): Promise<ReferencePage> {
+  const query = {
+    keyword: search.keyword,
+    page: String(search.page),
+    pageSize: '20' as const,
+    ...(search.ids ? { ids: search.ids } : {}),
   }
-  if (typeof source === 'object' && source.kind === 'vou-reference')
-    return (
-      await api.queryTargetVouReferences(token(), { entity: source.entity })
-    ).items.map((item) => ({
-      id: item.objectId,
-      name: `${item.code} · ${item.name}`,
-      snapshot: item,
-    }))
-  if (typeof source === 'object')
-    return (
-      await allPages((input) =>
-        api.queryTargetVouchers(token(), source.entity, {
-          page: input.page,
-          pageSize: input.pageSize,
-          filters: input.keyword ? { documentNo: input.keyword } : {},
-        }),
-      )
-    ).map((item) => ({ id: item.documentId, name: item.documentNo }))
-  switch (source) {
-    case 'archive-operating-entities':
-    case 'archive-employees':
-      return (
-        await allPages((input) =>
-          source === 'archive-operating-entities'
-            ? api.queryTargetOperatingEntities(token(), input)
-            : api.queryTargetEmployees(token(), input),
-        )
-      ).map((item) => ({
-        ...summaryOption(item),
-        snapshot: { objectId: item.id, code: item.code, name: item.name },
-      }))
-    case 'settlement-rules':
-    case 'sales-settlement-methods':
-    case 'sales-payment-methods':
-    case 'customer-types':
-    case 'product-types':
-    case 'product-categories':
-    case 'product-units': {
-      const entities = {
-        'settlement-rules': 'settlement-method',
-        'sales-settlement-methods': 'settlement-method',
-        'sales-payment-methods': 'payment-method',
-        'customer-types': 'dictionary-item',
-        'product-types': 'product-type',
-        'product-categories': 'product-category',
-        'product-units': 'measurement-unit',
-      } as const
-      const items = await api.queryTargetAuxReferences(token(), {
-        entity: entities[source],
+  if (typeof source === 'object') {
+    if (source.kind === 'report') {
+      const input = {
+        parameterKey: source.parameterKey,
+        keyword: search.keyword,
+        page: String(search.page),
+        pageSize: '20',
+      }
+      const pages = search.ids
+        ? await Promise.all(
+            search.ids.map((selectedId) =>
+              api.queryTargetReportReference(source.code, {
+                ...input,
+                selectedId,
+              }),
+            ),
+          )
+        : [await api.queryTargetReportReference(source.code, input)]
+      return {
+        ...pages[0]!,
+        items: pages.flatMap((page) =>
+          page.items.map((item) => ({
+            id: required(
+              source.referenceType === 'COUNTERPARTY' ? item.objectId : item.id,
+            ),
+            name: [item.customerCode, item.customerName, item.code, item.name]
+              .filter(Boolean)
+              .join(' · '),
+          })),
+        ),
+      }
+    }
+    if (source.kind === 'vou-source-line') {
+      const page = await api.queryTargetVouSourceLines({
+        param: { entity: source.entity },
+        query: {
+          page: String(search.page),
+          pageSize: '20',
+          ...(search.keyword ? { keyword: search.keyword } : {}),
+        },
       })
-      return items.map((item) => {
-        const base = { id: item.objectId, code: item.code, name: item.name }
-        let snapshot: object = base
-        if (
-          source === 'settlement-rules' ||
-          source === 'sales-settlement-methods'
-        )
-          snapshot = {
-            ...base,
-            termCode: item.termCode,
-            ruleType: item.ruleType,
-            monthOffset: item.monthOffset,
-            dayOfMonth: item.dayOfMonth,
-            dayOffset: item.dayOffset,
-            ...(source === 'sales-settlement-methods'
-              ? { defaultSalesSurcharge: item.defaultSalesSurcharge }
-              : {}),
-          }
-        else if (source === 'sales-payment-methods')
-          snapshot = {
-            ...base,
-            defaultSalesSurcharge: item.defaultSalesSurcharge,
-          }
-        else if (source === 'product-types')
-          snapshot = { ...base, behaviorProfile: item.behaviorProfile }
-        else if (source === 'product-units')
-          snapshot = {
-            ...base,
-            symbol: item.symbol,
-            quantityScale: item.quantityScale,
-          }
-        return {
+      return {
+        ...page,
+        items: page.items.map((item) => ({
+          id: `${item.sourceDocumentId}:${item.sourceLineId}`,
+          name: `${item.sourceDocumentNo} · ${item.product.code} · ${item.product.name} · 可用 ${item.availableBaseQuantity}`,
+          snapshot: item,
+        })),
+      }
+    }
+    if (source.kind === 'vou-reference') {
+      const page = await api.queryTargetVouOptions(source.entity, query)
+      return {
+        ...page,
+        items: page.items.map((item) => ({
           id: item.objectId,
           name: `${item.code} · ${item.name}`,
-          snapshot,
-        }
-      })
+          snapshot: item,
+          ...('approvalEntryId' in item
+            ? { approvalEntryId: item.approvalEntryId }
+            : {}),
+        })),
+      }
     }
-    case 'formula-materials':
-      return (
-        await api.queryTargetBobReferences(token(), {
-          entity: 'product',
-          behaviorProfile: 'RAW_MATERIAL',
-        })
-      ).map((item) => ({
+    if (source.kind === 'book') {
+      const page = await api.queryTargetBookOptions(query)
+      return {
+        ...page,
+        items: page.items.map((item) => ({
+          ...summaryOption(item),
+          snapshot: item,
+        })),
+      }
+    }
+    if (source.kind === 'subject') {
+      const page = await api.queryTargetSubjectOptions({
+        ...query,
+        bookId: source.bookId,
+      })
+      return {
+        ...page,
+        items: page.items.map((item) => ({
+          ...summaryOption(item),
+          snapshot: item,
+        })),
+      }
+    }
+    const page = await api.queryTargetDocumentOptions(source.entity, query)
+    return {
+      ...page,
+      items: page.items.map((item) => ({
+        id: item.objectId,
+        name: item.code,
+        snapshot: item,
+      })),
+    }
+  }
+  if (source === 'roles') {
+    const page = await api.queryTargetRoleOptions(query)
+    return {
+      ...page,
+      items: page.items.map((item) => ({
+        ...roleOption(item),
+        ...(history ? { disabled: false } : {}),
+      })),
+    }
+  }
+  if (source === 'permissions') {
+    const page = await api.queryTargetPermissionOptions(query)
+    return {
+      ...page,
+      items: page.items.map((item) => ({
+        ...permissionOption(item),
+        disabled: !item.assignable,
+      })),
+    }
+  }
+  const enabled = history || search.ids ? {} : { enabled: 'true' as const }
+  if (source === 'customer-subunits') {
+    const page = await api.queryTargetSubunitOptions({ ...query, ...enabled })
+    return {
+      ...page,
+      items: page.items.map((item) => ({
         id: item.objectId,
         name: `${item.code} · ${item.name}`,
+        disabled: !history && !item.enabled,
+      })),
+    }
+  }
+  if (
+    source === 'suppliers' ||
+    source === 'other-units' ||
+    source === 'formula-materials' ||
+    source === 'external-salespeople' ||
+    source === 'channel-partners'
+  ) {
+    const entity =
+      source === 'suppliers'
+        ? 'supplier'
+        : source === 'other-units'
+          ? 'other-unit'
+          : source === 'formula-materials'
+            ? 'product'
+            : 'sales-partner'
+    const page = await api.queryTargetBobOptions(entity, {
+      ...query,
+      ...enabled,
+      ...(source === 'formula-materials'
+        ? { behaviorProfile: 'RAW_MATERIAL' as const }
+        : {}),
+      ...(source === 'external-salespeople'
+        ? { capability: 'EXTERNAL_PART_TIME' as const }
+        : source === 'channel-partners'
+          ? { capability: 'CHANNEL_PARTNER' as const }
+          : {}),
+    })
+    return {
+      ...page,
+      items: page.items.map((item) => ({
+        id: item.objectId,
+        name: `${item.code} · ${item.name}`,
+        disabled: !history && !item.enabled,
         approvalEntryId: item.sourceApprovalEntryId,
         snapshot: {
           objectId: item.objectId,
@@ -201,100 +242,65 @@ export async function loadEditReferences(
           code: item.code,
           name: item.name,
         },
-      }))
-    case 'external-salespeople':
-    case 'channel-partners': {
-      const capability =
-        source === 'external-salespeople'
-          ? 'EXTERNAL_PART_TIME'
-          : 'CHANNEL_PARTNER'
-      return (
-        await allPages((input) =>
-          api.queryTargetSalesPartners(token(), {
-            page: input.page,
-            pageSize: input.pageSize,
-            filters: { keyword: input.keyword },
-          }),
-        )
-      )
-        .filter(
-          (item) => item.enabled && item.data.capabilities.includes(capability),
-        )
-        .map((item) => ({
-          id: item.objectId,
-          name: `${item.code} · ${item.name}`,
-          approvalEntryId: item.sourceApprovalEntryId,
-          snapshot: {
+      })),
+    }
+  }
+  const page = await api.queryTargetAuxOptions(auxSources[source], {
+    ...query,
+    ...enabled,
+  })
+  return {
+    ...page,
+    items: page.items.map((item) => {
+      const base = { id: item.objectId, code: item.code, name: item.name }
+      let snapshot: object = base
+      switch (source) {
+        case 'archive-operating-entities':
+        case 'archive-employees':
+          snapshot = {
             objectId: item.objectId,
-            approvalEntryId: item.sourceApprovalEntryId,
             code: item.code,
             name: item.name,
-          },
-        }))
-    }
-    case 'roles':
-      return (
-        await allPages((input) => api.queryTargetRoles(token(), input))
-      ).map(roleOption)
-    case 'permissions':
-      return (
-        await allPages((input) =>
-          api.queryTargetPermissions(token(), {
-            page: input.page,
-            pageSize: input.pageSize,
-          }),
-        )
-      ).map((item) => ({
-        ...permissionOption(item),
-        disabled: item.status !== 'ENABLED' || !can(item.path),
-      }))
-    case 'operating-entities':
-      return (
-        await allPages((input) =>
-          api.queryTargetOperatingEntities(token(), input),
-        )
-      ).map(summaryOption)
-    case 'employee-categories':
-      return (
-        await allPages((input) =>
-          api.queryTargetEmployeeCategories(token(), input),
-        )
-      ).map(summaryOption)
-    case 'departments':
-      return (
-        await allPages((input) => api.queryTargetDepartments(token(), input))
-      ).map(summaryOption)
-    case 'positions':
-      return (
-        await allPages((input) => api.queryTargetPositions(token(), input))
-      ).map(summaryOption)
-    case 'employees':
-      return (
-        await allPages((input) => api.queryTargetEmployees(token(), input))
-      ).map(summaryOption)
-    case 'vehicle-types':
-      return (
-        await api.queryTargetAuxReferences(token(), {
-          entity: 'dictionary-item',
-        })
-      ).map((item) => ({ id: item.objectId, name: item.code }))
-    case 'other-units':
-      return (
-        await api.queryTargetBobReferences(token(), { entity: 'other-unit' })
-      ).map((item) => ({
-        id: item.objectId,
-        name: `${item.code} · ${item.name}`,
-        approvalEntryId: item.sourceApprovalEntryId,
-      }))
+          }
+          break
+        case 'settlement-rules':
+        case 'sales-settlement-methods':
+          snapshot = {
+            ...base,
+            termCode: required(item.termCode),
+            ruleType: required(item.ruleType),
+            monthOffset: required(item.monthOffset),
+            dayOfMonth: required(item.dayOfMonth),
+            dayOffset: required(item.dayOffset),
+            ...(source === 'sales-settlement-methods'
+              ? { defaultSalesSurcharge: required(item.defaultSalesSurcharge) }
+              : {}),
+          }
+          break
+        case 'sales-payment-methods':
+          snapshot = {
+            ...base,
+            defaultSalesSurcharge: required(item.defaultSalesSurcharge),
+          }
+          break
+        case 'product-types':
+          snapshot = {
+            ...base,
+            behaviorProfile: required(item.behaviorProfile),
+          }
+          break
+        case 'product-units':
+          snapshot = {
+            ...base,
+            symbol: required(item.symbol),
+            quantityScale: required(item.quantityScale),
+          }
+          break
+      }
+      return {
+        ...summaryOption({ ...base, enabled: history || item.enabled }),
+        snapshot,
+      }
+    }),
   }
-}
-
-export function referencePermission(source: EditReference): string {
-  return typeof source === 'object'
-    ? source.kind === 'vou-source-line'
-      ? '/vou/source-line/query'
-      : source.kind === 'vou-reference'
-        ? '/vou/reference/query'
-        : `/vou/${source.entity}/query`
-    : referencePermissions[source]
 }

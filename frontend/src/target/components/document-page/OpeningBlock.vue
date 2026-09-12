@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { actionIcons } from '../../presentation/action-icons.ts'
 import FieldInput from '../dynamic-fields/FieldInput.vue'
+import ReferencePicker from '../dynamic-fields/ReferencePicker.vue'
 import { reactive } from 'vue'
 import type { AccSubjectDimension } from '@zerp/model'
 import {
@@ -30,35 +31,21 @@ const vm = reactive(
 </script>
 <template>
   <section aria-label="期初分类录入">
-    <v-alert v-if="vm.error" type="error">{{ vm.error }}</v-alert>
-    <v-progress-linear v-if="vm.loading" indeterminate />
     <fieldset :disabled="!vm.canEdit" class="opening-fields">
-      <FieldInput
-        usage="edit"
-        :field="{
-          key: 'bookId',
-          type: 'choice',
-          caption: '账簿',
-          searchable: true,
-          options: vm.books.map((option) => ({
-            value: option.id,
-            caption: option.name,
-          })),
-        }"
+      <ReferencePicker
+        :source="{ kind: 'book' }"
+        caption="账簿"
         :model-value="vm.draft.bookId"
-        :disabled="!vm.can('/acc/book/query')"
-        @update:model-value="vm.selectBook($event ?? '')"
+        :existing="[]"
+        :multiple="false"
+        :disabled="!vm.canEdit"
+        @resolved="vm.adoptBookOptions"
+        @update:model-value="vm.selectBook(($event as string) ?? '')"
       />
-      <v-alert v-if="!vm.can('/acc/book/query')" type="info"
-        >没有账簿查询权限，无法加载账簿选项。</v-alert
-      >
       <h3 class="text-subtitle-1 mt-4">期初明细</h3>
       <p v-if="!vm.draft.lines.length" class="mb-3">
         尚无余额明细；无其他登记时将提交零期初。
       </p>
-      <v-alert v-if="!vm.can('/acc/subject/query')" type="info"
-        >没有会计科目查询权限，无法新增非零明细。</v-alert
-      >
       <v-card
         v-for="(line, index) in vm.draft.lines"
         :key="index"
@@ -73,48 +60,41 @@ const vm = reactive(
             :disabled="!vm.canEdit"
             @update:model-value="vm.draft.lines[index] = $event"
           />
-          <FieldInput
-            usage="edit"
-            :field="{
-              key: 'subjectId',
-              type: 'choice',
-              caption: '科目',
-              searchable: true,
-              options: vm.leafSubjects.map((option) => ({
-                value: option.id,
-                caption: option.title,
-              })),
-            }"
+          <ReferencePicker
+            :source="{ kind: 'subject', bookId: vm.draft.bookId }"
+            caption="科目"
             :model-value="line.subjectId"
-            @update:model-value="vm.setSubject(index, $event ?? '')"
+            :existing="[]"
+            :multiple="false"
+            :disabled="!vm.canEdit || !vm.draft.bookId"
+            @resolved="vm.adoptSubjectOptions"
+            @update:model-value="vm.setSubject(index, ($event as string) ?? '')"
           />
 
-          <FieldInput
-            usage="edit"
-            :field="{
-              key: 'dimension',
-              type: 'choice',
-              caption: dimensions[dimension],
-              searchable: true,
-              options: vm
-                .referenceOptions(dimensionSources[dimension])
-                .map((option) => ({
-                  value: option.value,
-                  caption: option.title,
-                })),
-            }"
+          <ReferencePicker
             v-for="dimension in Object.keys(
               line.dimensions,
             ) as AccSubjectDimension[]"
             :key="dimension"
-            v-model="line.dimensions[dimension]"
-            :loading="vm.referencePending.has(dimensionSources[dimension])"
-            :disabled="
-              !vm.can('/vou/reference/query') &&
-              !['ASSET', 'BILL'].includes(dimension)
+            :source="{
+              kind: 'vou-reference',
+              entity: dimensionSources[dimension],
+            }"
+            :caption="dimensions[dimension]"
+            :model-value="line.dimensions[dimension] ?? null"
+            :existing="[]"
+            :multiple="false"
+            :disabled="!vm.canEdit"
+            :local-options="
+              ['ASSET', 'BILL'].includes(dimension)
+                ? vm
+                    .referenceOptions(dimensionSources[dimension])
+                    .map((item) => ({ id: item.value, name: item.title }))
+                : []
             "
-            @focus="vm.loadReference(dimensionSources[dimension])"
-            @search="vm.loadReference(dimensionSources[dimension], $event)"
+            @update:model-value="
+              line.dimensions[dimension] = ($event as string) ?? ''
+            "
           />
           <v-btn
             :prepend-icon="actionIcons.remove"
@@ -127,7 +107,7 @@ const vm = reactive(
       </v-card>
       <v-btn
         :prepend-icon="actionIcons.add"
-        :disabled="!vm.draft.bookId || !vm.can('/acc/subject/query')"
+        :disabled="!vm.draft.bookId"
         @click="vm.addLine"
         >添加明细</v-btn
       >
@@ -146,57 +126,36 @@ const vm = reactive(
             @update:model-value="vm.draft.assets[index] = $event"
           />
           <template v-if="asset.assetNo !== undefined">
-            <FieldInput
-              usage="edit"
-              :field="{
-                key: 'categoryId',
-                type: 'choice',
-                caption: '资产类别',
-                searchable: true,
-                options: vm
-                  .referenceOptions('asset-category')
-                  .map((option) => ({
-                    value: option.value,
-                    caption: option.title,
-                  })),
-              }"
-              v-model="asset.categoryId"
-              @focus="vm.loadReference('asset-category')"
-              @search="vm.loadReference('asset-category', $event)"
+            <ReferencePicker
+              :source="{ kind: 'vou-reference', entity: 'asset-category' }"
+              caption="资产类别"
+              :model-value="asset.categoryId ?? null"
+              :existing="[]"
+              :multiple="false"
+              :disabled="!vm.canEdit"
+              @update:model-value="asset.categoryId = ($event as string) ?? ''"
             />
-            <FieldInput
-              usage="edit"
-              :field="{
-                key: 'departmentId',
-                type: 'choice',
-                caption: '使用部门',
-                searchable: true,
-                options: vm.referenceOptions('department').map((option) => ({
-                  value: option.value,
-                  caption: option.title,
-                })),
-              }"
-              v-model="asset.departmentId"
-              @focus="vm.loadReference('department')"
-              @search="vm.loadReference('department', $event)"
+            <ReferencePicker
+              :source="{ kind: 'vou-reference', entity: 'department' }"
+              caption="使用部门"
+              :model-value="asset.departmentId ?? null"
+              :existing="[]"
+              :multiple="false"
+              :disabled="!vm.canEdit"
+              @update:model-value="
+                asset.departmentId = ($event as string) ?? ''
+              "
             />
           </template>
-          <FieldInput
-            usage="edit"
-            :field="{
-              key: 'assetId',
-              type: 'choice',
-              caption: '已有资产',
-              searchable: true,
-              options: vm.referenceOptions('asset').map((option) => ({
-                value: option.value,
-                caption: option.title,
-              })),
-            }"
+          <ReferencePicker
             v-else
-            v-model="asset.assetId"
-            @focus="vm.loadReference('asset')"
-            @search="vm.loadReference('asset', $event)"
+            :source="{ kind: 'vou-reference', entity: 'asset' }"
+            caption="已有资产"
+            :model-value="asset.assetId ?? null"
+            :existing="[]"
+            :multiple="false"
+            :disabled="!vm.canEdit"
+            @update:model-value="asset.assetId = ($event as string) ?? ''"
           />
 
           <v-btn
@@ -247,30 +206,36 @@ const vm = reactive(
               "
               @update:model-value="vm.selectCounterpartyType(index, $event)"
             />
-            <FieldInput
-              usage="edit"
-              :field="{
-                key: 'objectId',
-                type: 'choice',
-                caption: '原始相对方',
-                searchable: true,
-                options: vm
-                  .referenceOptions(
-                    vm.billCounterparties[bill.billId!] ??
-                      bill.originatingCounterparty!.entity,
-                  )
-                  .map((option) => ({
-                    value: option.value,
-                    caption: option.title,
-                  })),
-              }"
+            <ReferencePicker
               v-if="
                 vm.billCounterparties[bill.billId!] ??
                 bill.originatingCounterparty?.entity
               "
-              :model-value="bill.originatingCounterparty?.objectId"
-              @search="
-                vm.loadReference(
+              :source="{
+                kind: 'vou-reference',
+                entity:
+                  vm.billCounterparties[bill.billId!] ??
+                  bill.originatingCounterparty!.entity,
+              }"
+              caption="原始相对方"
+              :model-value="bill.originatingCounterparty?.objectId ?? null"
+              :existing="
+                bill.originatingCounterparty &&
+                'name' in bill.originatingCounterparty
+                  ? [
+                      {
+                        id: bill.originatingCounterparty.objectId,
+                        name:
+                          bill.originatingCounterparty.name ?? '已采用相对方',
+                        snapshot: bill.originatingCounterparty,
+                      },
+                    ]
+                  : []
+              "
+              :multiple="false"
+              :disabled="!vm.canEdit"
+              @resolved="
+                vm.adoptReferenceOptions(
                   vm.billCounterparties[bill.billId!] ??
                     bill.originatingCounterparty!.entity,
                   $event,
@@ -281,27 +246,20 @@ const vm = reactive(
                   index,
                   vm.billCounterparties[bill.billId!] ??
                     bill.originatingCounterparty!.entity,
-                  $event ?? '',
+                  ($event as string) ?? '',
                 )
               "
             />
           </template>
-          <FieldInput
-            usage="edit"
-            :field="{
-              key: 'billId',
-              type: 'choice',
-              caption: '已有票据',
-              searchable: true,
-              options: vm.referenceOptions('bill').map((option) => ({
-                value: option.value,
-                caption: option.title,
-              })),
-            }"
+          <ReferencePicker
             v-else
-            v-model="bill.billId"
-            @focus="vm.loadReference('bill')"
-            @search="vm.loadReference('bill', $event)"
+            :source="{ kind: 'vou-reference', entity: 'bill' }"
+            caption="已有票据"
+            :model-value="bill.billId ?? null"
+            :existing="[]"
+            :multiple="false"
+            :disabled="!vm.canEdit"
+            @update:model-value="bill.billId = ($event as string) ?? ''"
           />
 
           <v-btn
@@ -334,24 +292,27 @@ const vm = reactive(
             :disabled="!vm.canEdit"
             @update:model-value="vm.draft.containers[index] = $event"
           />
-          <FieldInput
-            usage="edit"
-            :field="{
-              key: 'objectId',
-              type: 'choice',
-              caption: '客户子单位',
-              searchable: true,
-              options: vm
-                .referenceOptions('customer-subunit')
-                .map((option) => ({
-                  value: option.value,
-                  caption: option.title,
-                })),
-            }"
+          <ReferencePicker
+            :source="{ kind: 'vou-reference', entity: 'customer-subunit' }"
+            caption="客户子单位"
             :model-value="container.subunit.objectId"
-            @focus="vm.loadReference('customer-subunit')"
-            @search="vm.loadReference('customer-subunit', $event)"
-            @update:model-value="vm.setContainer(index, $event ?? '')"
+            :existing="
+              container.subunit.objectId
+                ? [
+                    {
+                      id: container.subunit.objectId,
+                      name: container.subunit.name,
+                      snapshot: container.subunit,
+                    },
+                  ]
+                : []
+            "
+            :multiple="false"
+            :disabled="!vm.canEdit"
+            @resolved="vm.adoptReferenceOptions('customer-subunit', $event)"
+            @update:model-value="
+              vm.setContainer(index, ($event as string) ?? '')
+            "
           />
 
           <v-btn

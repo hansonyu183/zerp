@@ -70,7 +70,9 @@ test('returns the standard envelope for recovery, model mismatch, and oversized 
   })
 
   const recovered = await app.request('/panic')
-  const mismatch = await app.request('/session/auth/restore', { method: 'POST' })
+  const mismatch = await app.request('/session/auth/restore', {
+    method: 'POST',
+  })
   const oversized = await app.request('/echo', {
     method: 'POST',
     headers: { 'Content-Length': '2' },
@@ -100,4 +102,19 @@ test('readiness pings the configured database', async () => {
 
   assert.equal((await ready.request('/readyz')).status, 200)
   assert.equal((await unavailable.request('/readyz')).status, 503)
+})
+
+test('pre-GET clients must refresh before signing in or restoring Session after the coordinated cutover', async () => {
+  const app = createApp()
+  for (const path of ['/session/auth/signin', '/session/auth/restore']) {
+    const response = await app.request(path, {
+      method: 'POST',
+      headers: { 'X-ZERP-Model-Build': 'zerp-model-0.3.0' },
+    })
+    assert.equal(response.status, 200)
+    const payload = await response.json()
+    assert.equal(payload.errorKey, 'model_version_mismatch')
+    assert.match(payload.message, /刷新页面/)
+    assert.equal(payload.data, null)
+  }
 })

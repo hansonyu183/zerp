@@ -30,9 +30,21 @@ async function signIn(page: Page, reviewer = false) {
 async function create(page: Page) {
   await page.getByRole('button', { name: '新建', exact: true }).click()
   const editor = page.getByTestId('opening-editor')
+  const candidates = page.waitForResponse((response) => {
+    const url = new URL(response.url())
+    return (
+      response.request().method() === 'GET' &&
+      url.pathname === '/acc/book/options' &&
+      url.searchParams.get('keyword') === facts.book.name
+    )
+  })
   await editor.getByLabel('账簿', { exact: true }).fill(facts.book.name)
-
-  await page.getByRole('option', { name: facts.book.name, exact: true }).click()
+  const result = await (await candidates).json()
+  expect(result.code).toBe(0)
+  expect(
+    result.data.items.some((item: { id: string }) => item.id === facts.book.id),
+  ).toBe(true)
+  await page.getByRole('option').filter({ hasText: facts.book.name }).click()
   return editor
 }
 async function open(page: Page) {

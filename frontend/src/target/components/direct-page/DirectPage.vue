@@ -14,8 +14,6 @@ import { useTargetSession } from '../../session/vm.ts'
 import { resourceDisplayName } from '../../navigation/resources.ts'
 import AppSnackbar from '../AppSnackbar.vue'
 import RowActions from '../dynamic-fields/RowActions.vue'
-import type { FilterField } from '../dynamic-fields/types.ts'
-import { useReferenceOptionsViewModel } from '../dynamic-fields/reference-options.ts'
 import ListPageShell from '../list-page/ListPageShell.vue'
 import { defineListPage } from '../list-page/definition.ts'
 import {
@@ -434,7 +432,6 @@ const list = reactive(
     },
   ),
 )
-const references = reactive(useReferenceOptionsViewModel())
 const pendingDelete = shallowRef<DirectRow | null>(null)
 const contractError = computed(() => {
   try {
@@ -473,14 +470,10 @@ function confirmDelete() {
 }
 onMounted(() => {
   void list.initialize()
-  if (list.searchable)
-    for (const field of listDefinition.filters as readonly FilterField[])
-      if (field.type === 'reference') void references.load(field.source)
 })
 
 onBeforeUnmount(() => {
   active = false
-  references.dispose()
   list.dispose()
   finish()
 })
@@ -510,7 +503,6 @@ onBeforeUnmount(() => {
       pageSize: list.pageSize,
       total: list.total,
     }"
-    :reference-options="references.options"
     @search="list.submitSearch"
     @page="list.goToPage"
   >
@@ -537,15 +529,6 @@ onBeforeUnmount(() => {
           lastCreatedId
         }}），但列表刷新失败，请先查询核实。</v-alert
       ></template
-    >
-    <template #references
-      ><v-progress-linear
-        v-if="references.loading"
-        indeterminate
-        aria-label="引用选项加载中"
-      /><v-alert v-if="references.error" type="error">{{
-        references.error
-      }}</v-alert></template
     >
     <template #rowActions="{ item }"
       ><RowActions

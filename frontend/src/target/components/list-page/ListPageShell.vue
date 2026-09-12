@@ -9,11 +9,7 @@ import DynamicCols from '../dynamic-fields/DynamicCols.vue'
 import ListPagination, {
   type ListPagination as Pagination,
 } from './ListPagination.vue'
-import type {
-  ColumnField,
-  FilterField,
-  ReferenceOptions,
-} from '../dynamic-fields/types.ts'
+import type { ColumnField, FilterField } from '../dynamic-fields/types.ts'
 defineProps<{
   title: string
   columns: readonly ColumnField[]
@@ -23,7 +19,6 @@ defineProps<{
   searchable: boolean
   loading: boolean
   pagination: Pagination
-  referenceOptions: ReferenceOptions
 }>()
 const emit = defineEmits<{
   'update:filterInput': [value: Filters]
@@ -33,7 +28,6 @@ const emit = defineEmits<{
 defineSlots<{
   actions(): unknown
   alerts(): unknown
-  references(): unknown
   rowActions(props: { item: Row }): unknown
 }>()
 </script>
@@ -53,11 +47,9 @@ defineSlots<{
         :fields="filters"
         :model-value="filterInput"
         :disabled="!searchable"
-        :reference-options="referenceOptions"
         @update:model-value="emit('update:filterInput', $event)"
         @search="emit('search')"
       />
-      <slot name="references" />
     </template>
     <DynamicCols :fields="columns" :items="items" :loading="loading"
       ><template #actions="{ item }"

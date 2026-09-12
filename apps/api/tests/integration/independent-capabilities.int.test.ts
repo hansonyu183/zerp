@@ -265,6 +265,18 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     return response
   }
 
+  async function get(path: string, query: Record<string, string> = {}) {
+    const response = await fetch(
+      `${origin}${path}?${new URLSearchParams({ page: '1', pageSize: '20', enabled: 'true', ...query })}`,
+      { headers: { ...baseHeaders, cookie } },
+    )
+    return response.json() as Promise<{
+      code: number
+      errorKey: string
+      data: any
+    }>
+  }
+
   async function post(path: string, body: unknown, authenticated = true) {
     const response = await postResponse(path, body, authenticated)
     return response.json() as Promise<{
@@ -459,48 +471,48 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     dictionaryType.id,
     dictionaryItem.id,
   )
-  const settlementReferences = await post('/aux/reference/query', {
-    entity: 'settlement-method',
+  const settlementReferences = await get('/aux/settlement-method/options', {
     keyword: suffix,
   })
-  assert.equal(settlementReferences.data[0].objectId, seededSettlementMethod.id)
-  assert.equal(settlementReferences.data[0].name, settlementMethod.name)
-  assert.equal(settlementReferences.data[0].termCode, 'MONTHLY_30')
-  assert.equal(settlementReferences.data[0].ruleType, 'MONTH_END')
-  assert.equal(settlementReferences.data[0].monthOffset, 1)
-  assert.equal(settlementReferences.data[0].dayOfMonth, 0)
-  assert.equal(settlementReferences.data[0].dayOffset, 0)
-  assert.equal(settlementReferences.data[0].defaultSalesSurcharge, '0.00')
-  const paymentReferences = await post('/aux/reference/query', {
-    entity: 'payment-method',
+  assert.equal(
+    settlementReferences.data.items[0].objectId,
+    seededSettlementMethod.id,
+  )
+  assert.equal(settlementReferences.data.items[0].name, settlementMethod.name)
+  assert.equal(settlementReferences.data.items[0].termCode, 'MONTHLY_30')
+  assert.equal(settlementReferences.data.items[0].ruleType, 'MONTH_END')
+  assert.equal(settlementReferences.data.items[0].monthOffset, 1)
+  assert.equal(settlementReferences.data.items[0].dayOfMonth, 0)
+  assert.equal(settlementReferences.data.items[0].dayOffset, 0)
+  assert.equal(settlementReferences.data.items[0].defaultSalesSurcharge, '0.00')
+  const paymentReferences = await get('/aux/payment-method/options', {
     keyword: `E2E 银行转账 ${suffix}`,
   })
-  assert.equal(paymentReferences.data[0].objectId, paymentMethod.id)
-  assert.equal(paymentReferences.data[0].name, `E2E 银行转账 ${suffix}`)
-  assert.equal(paymentReferences.data[0].defaultSalesSurcharge, '0.05')
-  const defaultPaymentReferences = await post('/aux/reference/query', {
-    entity: 'payment-method',
+  assert.equal(paymentReferences.data.items[0].objectId, paymentMethod.id)
+  assert.equal(paymentReferences.data.items[0].name, `E2E 银行转账 ${suffix}`)
+  assert.equal(paymentReferences.data.items[0].defaultSalesSurcharge, '0.05')
+  const defaultPaymentReferences = await get('/aux/payment-method/options', {
     keyword: `默认附加费 ${suffix}`,
   })
   assert.equal(
-    defaultPaymentReferences.data[0].objectId,
+    defaultPaymentReferences.data.items[0].objectId,
     defaultPaymentMethod.id,
   )
-  assert.equal(defaultPaymentReferences.data[0].defaultSalesSurcharge, '0.00')
-  const unitReferences = await post('/aux/reference/query', {
-    entity: 'measurement-unit',
+  assert.equal(
+    defaultPaymentReferences.data.items[0].defaultSalesSurcharge,
+    '0.00',
+  )
+  const unitReferences = await get('/aux/measurement-unit/options', {
     keyword: suffix,
   })
-  assert.equal(unitReferences.data[0].objectId, measurementUnit.id)
-  assert.equal(unitReferences.data[0].name, `E2E 千克 ${suffix}`)
-  assert.equal(unitReferences.data[0].symbol, 'kg')
-  assert.equal(unitReferences.data[0].quantityScale, 3)
-  const dictionaryItemReferences = await post('/aux/reference/query', {
-    entity: 'dictionary-item',
-  })
+  assert.equal(unitReferences.data.items[0].objectId, measurementUnit.id)
+  assert.equal(unitReferences.data.items[0].name, `E2E 千克 ${suffix}`)
+  assert.equal(unitReferences.data.items[0].symbol, 'kg')
+  assert.equal(unitReferences.data.items[0].quantityScale, 3)
+  const dictionaryItemReferences = await get('/aux/dictionary-item/options', {})
   assert.equal(dictionaryItemReferences.code, 0)
   assert.ok(
-    dictionaryItemReferences.data.some(
+    dictionaryItemReferences.data.items.some(
       (candidate: { objectId: string; name: string }) =>
         candidate.objectId === dictionaryItem.id &&
         candidate.name === `E2E 字典项 ${suffix}`,
@@ -516,8 +528,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     })
     .where('id', '=', paymentMethod.id)
     .execute()
-  const malformedPaymentReferences = await post('/aux/reference/query', {
-    entity: 'payment-method',
+  const malformedPaymentReferences = await get('/aux/payment-method/options', {
     keyword: suffix,
   })
   assert.equal(malformedPaymentReferences.errorKey, 'validation_failed')
@@ -532,11 +543,10 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     .where('role_id', '=', principal.roleId)
     .where('permission_id', '=', customerQueryPermission.id)
     .execute()
-  const subunits = await post('/bob/reference/query', {
-    entity: 'customer-subunit',
+  const subunits = await get('/bob/customer/subunit-options', {
     keyword: suffix,
   })
-  assert.equal(subunits.data[0].objectId, subunitId)
+  assert.equal(subunits.data.items[0].objectId, subunitId)
 
   const signoutResponse = await sessionClient.session.auth.signout.$post(
     { json: {} },

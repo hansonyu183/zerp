@@ -72,13 +72,6 @@ test('AUX assets have temporary forms, direct CRUD, enablement, navigation, and 
     })
   ).json()) as Envelope & { data: { csrfToken: string } }
   expect(restored.code).toBe(0)
-  const post = async (path: string, data: Record<string, unknown>) =>
-    (await (
-      await page.request.post(`${base}${path}`, {
-        data,
-        headers: { ...headers, 'x-csrf-token': restored.data.csrfToken },
-      })
-    ).json()) as Envelope
   const tag = randomBytes(8).toString('hex').toUpperCase()
 
   const operatingEntityName = `E2E资产主体${tag}`
@@ -167,16 +160,22 @@ test('AUX assets have temporary forms, direct CRUD, enablement, navigation, and 
     .click()
   await expect(accountRow).toHaveCount(0)
 
-  const vehicleTypes = await post('/aux/reference/query', {
-    entity: 'dictionary-item',
-  })
-  const otherUnits = await post('/bob/reference/query', {
-    entity: 'other-unit',
-  })
+  const vehicleTypes = await (
+    await page.request.get(
+      `${base}/aux/dictionary-item/options?page=1&pageSize=20&enabled=true`,
+      { headers },
+    )
+  ).json()
+  const otherUnits = await (
+    await page.request.get(
+      `${base}/bob/other-unit/options?page=1&pageSize=20&enabled=true`,
+      { headers },
+    )
+  ).json()
   expect(vehicleTypes.code).toBe(0)
   expect(otherUnits.code).toBe(0)
-  const vehicleType = vehicleTypes.data[0]
-  const otherUnit = otherUnits.data[0]
+  const vehicleType = vehicleTypes.data.items[0]
+  const otherUnit = otherUnits.data.items[0]
   expect(vehicleType).toBeTruthy()
   expect(otherUnit).toBeTruthy()
   const vehicleName = `E2E车辆${tag}`

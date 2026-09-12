@@ -90,21 +90,7 @@ function executableTargetPaths() {
   )
   return {
     document,
-    paths: paths.filter((entry) =>
-      [
-        'GET /healthz',
-        'GET /readyz',
-        ' /app/',
-        ' /session/',
-        ' /aux/',
-        ' /dcl/',
-        ' /bob/',
-        ' /acc/',
-        ' /vou/',
-        ' /wfl/',
-        ' /rpt/',
-      ].some((prefix) => entry.includes(prefix)),
-    ),
+    paths,
   }
 }
 
@@ -193,6 +179,61 @@ export function validateTargetRouteMetadata(
     throw new Error(
       `target route metadata must exactly match executable Hono routes; missing=${missing.join(',') || '-'} extra=${extra.join(',') || '-'}`,
     )
+  }
+  const sessionScopedPosts = new Set([
+    '/session/auth/signin',
+    '/session/auth/restore',
+    '/session/auth/signout',
+    '/session/user/get',
+    '/session/user/save',
+    '/session/user/change-password',
+    '/session/app/get',
+    '/app/workbench/query',
+  ])
+  // Existing dispatch routes authorize concrete actions inside their services.
+  // Keep this inventory explicit: an ordinary POST cannot opt itself out.
+  const dispatchedPosts = new Set([
+    '/vou/intermediary-calculation/source',
+    '/vou/intermediary-calculation/script-get',
+    '/vou/intermediary-calculation/script-save',
+    '/vou/inventory-count/book-balance',
+    ...[
+      'query',
+      'get',
+      'audit-history',
+      'submit-new',
+      'submit-change',
+      'approve',
+      'reject',
+      'unreject',
+      'unapprove',
+      'delete',
+      'attachment-stage',
+      'attachment-read',
+      'attachment-cleanup',
+    ].map((action) => `/vou/{entity}/${action}`),
+    '/wfl/process-instance/action',
+    '/rpt/{code}/query',
+    '/rpt/{code}/export',
+  ])
+  for (const entry of metadata) {
+    const method = entry.method.toUpperCase()
+    if (method === 'GET' && entry.permission !== undefined)
+      throw new Error(`GET ${entry.path} cannot declare an action permission`)
+    if (
+      method === 'POST' &&
+      !sessionScopedPosts.has(entry.path) &&
+      !dispatchedPosts.has(entry.path) &&
+      !entry.permission
+    )
+      throw new Error(`POST ${entry.path} must declare an action permission`)
+    if (
+      method === 'GET' &&
+      capabilities.some((capability) => capability.permission === entry.path)
+    )
+      throw new Error(
+        `auxiliary ${entry.path} cannot be registered as a capability`,
+      )
   }
   return permissionCatalog(metadata, capabilities)
 }

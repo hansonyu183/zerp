@@ -3,19 +3,18 @@ import { actionIcons } from '../../presentation/action-icons.ts'
 import DynamicCols from '../dynamic-fields/DynamicCols.vue'
 import ListPagination from '../list-page/ListPagination.vue'
 import FieldInput from '../dynamic-fields/FieldInput.vue'
+import ReferencePicker from '../dynamic-fields/ReferencePicker.vue'
 import { computed, ref, shallowRef, watch, onMounted, onUnmounted } from 'vue'
 import {
   queryTargetReportDirectory,
   queryTargetReport,
   exportTargetReport,
-  queryTargetReportReference,
 } from '../../api.ts'
 import { useTargetSession } from '../../session/vm.ts'
 import ManagementPageFrame from '../ManagementPageFrame.vue'
 import {
   parameterField,
   type Definition,
-  type ReferenceItem,
   normalize,
   reportCell,
   csv,
@@ -40,19 +39,6 @@ const rows = ref<Record<string, unknown>[]>([]),
 const loading = ref(false),
   exporting = ref(false),
   error = ref('')
-const references = ref<
-  Record<
-    string,
-    {
-      items: ReferenceItem[]
-      loading: boolean
-      error: string
-      page: number
-      total: number
-      keyword: string
-    }
-  >
->({})
 const displayRows = computed(() =>
   rows.value.map((row, index) => ({
     displayKey: `${page.value}:${index}`,
@@ -78,7 +64,6 @@ const displayColumns = computed(() =>
 let disposed = false,
   request = 0,
   exportRequest = 0
-const referenceRequests = new Map<string, number>()
 function parameters() {
   if (!report.value) throw new Error('rpt_definition_not_executable')
   return Object.fromEntries(
@@ -127,53 +112,12 @@ async function goToPage(targetPage: number) {
   if (!disposed && !loading.value && targetPage > 0 && appliedParameters.value)
     await query(targetPage, copy(appliedParameters.value))
 }
-async function loadReference(key: string, keyword = '', targetPage = 1) {
-  if (disposed || (!canQuery.value && !canExport.value) || !session.csrfToken)
-    return
-  if (
-    !report.value?.parameters.some(
-      (parameter) => parameter.key === key && parameter.type === 'REFERENCE',
-    )
-  )
-    return
-  const generation = (referenceRequests.get(key) ?? 0) + 1
-  referenceRequests.set(key, generation)
-  references.value[key] = {
-    items: references.value[key]?.items ?? [],
-    loading: true,
-    error: '',
-    page: targetPage,
-    total: 0,
-    keyword,
-  }
-  try {
-    const result = await queryTargetReportReference(session.csrfToken, code, {
-      parameterKey: key,
-      keyword,
-      page: targetPage,
-      pageSize: 20,
-    })
-    if (disposed || referenceRequests.get(key) !== generation) return
-    references.value[key] = { ...result, loading: false, error: '', keyword }
-  } catch (caught) {
-    if (!disposed && referenceRequests.get(key) === generation)
-      references.value[key] = {
-        items: [],
-        loading: false,
-        error: message(caught),
-        page: targetPage,
-        total: 0,
-        keyword,
-      }
-  }
-}
 async function initialize() {
-  if (disposed || (!canQuery.value && !canExport.value) || !session.csrfToken)
-    return
+  if (disposed) return
   const generation = ++request
   loading.value = true
   try {
-    const directory = await queryTargetReportDirectory(session.csrfToken)
+    const directory = await queryTargetReportDirectory()
     if (disposed || generation !== request) return
     report.value = directory.find((item) => item.code === code) ?? null
     if (!report.value) throw new Error('rpt_definition_not_executable')
@@ -187,11 +131,6 @@ async function initialize() {
       ]),
     )
     loading.value = false
-    await Promise.all(
-      report.value.parameters
-        .filter((parameter) => parameter.type === 'REFERENCE')
-        .map((parameter) => loadReference(parameter.key)),
-    )
     if (
       canQuery.value &&
       report.value.parameters.every(
@@ -236,13 +175,11 @@ function dispose() {
   disposed = true
   request++
   exportRequest++
-  referenceRequests.clear()
   parameterInput.value = {}
   appliedParameters.value = null
   report.value = null
   rows.value = []
   columns.value = []
-  references.value = {}
   stop()
 }
 function setValue(key: string, value: unknown) {
@@ -258,13 +195,10 @@ function setRange(key: string, index: number, value: string) {
   range[index] = value
   setValue(key, range)
 }
-const referenceOptions = (key: string) =>
-  (references.value[key]?.items ?? []).map((item) => ({
-    value: item.id ?? item.objectId,
-    caption: [item.customerCode, item.customerName, item.code, item.name]
-      .filter(Boolean)
-      .join(' · '),
-  }))
+function referenceValue(key: string) {
+  const value = parameterInput.value[key]
+  return typeof value === 'string' ? value : null
+}
 const visibleColumns = computed(() =>
   columns.value.filter((column) => column.visible),
 )
@@ -319,57 +253,22 @@ function enter(event: KeyboardEvent) {
     >
       <div v-for="parameter in report.parameters" :key="parameter.key">
         <template v-if="parameter.type === 'REFERENCE'">
-          <FieldInput
-            :field="{
-              key: parameter.key,
-              type: 'choice',
-              caption: parameter.name,
-              searchable: true,
-              options: referenceOptions(parameter.key),
+          <ReferencePicker
+            v-if="parameter.referenceType"
+            :source="{
+              kind: 'report',
+              code,
+              parameterKey: parameter.key,
+              referenceType: parameter.referenceType,
             }"
-            :model-value="parameterInput[parameter.key]"
-            clearable
-            remote-search
-            :loading="references[parameter.key]?.loading"
-            :error-messages="references[parameter.key]?.error"
+            :caption="parameter.name"
+            :model-value="referenceValue(parameter.key)"
+            :existing="[]"
+            :multiple="false"
+            :disabled="false"
+            history
             @update:model-value="setValue(parameter.key, $event)"
-            @search="loadReference(parameter.key, $event)"
           />
-          <div class="d-flex ga-2">
-            <v-btn
-              :prepend-icon="actionIcons.previous"
-              size="small"
-              :disabled="
-                (references[parameter.key]?.page ?? 1) <= 1 ||
-                references[parameter.key]?.loading
-              "
-              @click="
-                loadReference(
-                  parameter.key,
-                  references[parameter.key]?.keyword,
-                  (references[parameter.key]?.page ?? 1) - 1,
-                )
-              "
-              >上一组</v-btn
-            >
-            <v-btn
-              :prepend-icon="actionIcons.next"
-              size="small"
-              :disabled="
-                (references[parameter.key]?.page ?? 1) * 20 >=
-                  (references[parameter.key]?.total ?? 0) ||
-                references[parameter.key]?.loading
-              "
-              @click="
-                loadReference(
-                  parameter.key,
-                  references[parameter.key]?.keyword,
-                  (references[parameter.key]?.page ?? 1) + 1,
-                )
-              "
-              >下一组</v-btn
-            >
-          </div>
         </template>
         <div v-else-if="parameter.type === 'DATE_RANGE'" class="d-flex ga-2">
           <FieldInput

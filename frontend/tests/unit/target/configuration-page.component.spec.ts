@@ -31,9 +31,7 @@ beforeEach(() => {
   const session = useTargetSession()
   session.user = { id: 'accountant', code: 'accountant', name: '会计' }
   session.csrfToken = 'test'
-  session.apiPaths = ['catalog', 'query', 'get', 'save'].map(
-    (a) => `/acc/mapping/${a}`,
-  )
+  session.apiPaths = ['query', 'get', 'save'].map((a) => `/acc/mapping/${a}`)
   vi.mocked(api.getTargetMappingCatalog).mockResolvedValue({
     books: [current.book],
     vouEntities: [
@@ -151,7 +149,8 @@ it('keeps a save-only resource accessible without sending unauthorized reads', a
   await flushPromises()
   await click(w, '新增映射')
   expect(w.text()).toContain('当前会计映射')
-  expect(api.getTargetMappingCatalog).not.toHaveBeenCalled()
+  expect(api.getTargetMappingCatalog).toHaveBeenCalledWith()
+  expect(w.get('[aria-label="映射账簿"]').text()).toContain('账簿')
   expect(api.queryTargetMappings).not.toHaveBeenCalled()
   expect(api.getTargetMapping).not.toHaveBeenCalled()
   w.unmount()
@@ -195,5 +194,24 @@ it('shows shared Chinese captions for mapping condition fields instead of wire p
   expect(fields.text()).toContain('业务日期')
   expect(fields.text()).toContain('客户子单位 · 对象标识')
   expect(fields.text()).not.toContain('customerSubunit.objectId')
+  w.unmount()
+})
+
+it('shows a catalog load failure and retries through the real mapping Host', async () => {
+  useTargetSession().apiPaths = ['/acc/mapping/save']
+  vi.mocked(api.getTargetMappingCatalog).mockRejectedValueOnce(
+    new TypeError('offline'),
+  )
+  const w = mount(ResourceHost, {
+    props: { domain: 'acc', entity: 'mapping' },
+    global: { stubs },
+  })
+  await flushPromises()
+  expect(w.text()).toContain('网络请求失败')
+  await click(w, '重试加载目录')
+  await click(w, '新增映射')
+  expect(w.get('[aria-label="映射账簿"]').text()).toContain('账簿')
+  expect(api.getTargetMappingCatalog).toHaveBeenCalledTimes(2)
+  expect(api.queryTargetMappings).not.toHaveBeenCalled()
   w.unmount()
 })

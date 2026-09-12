@@ -46,7 +46,6 @@ test('product HTTP preserves precise formula history and independent enablement 
     'delete',
   ]
   const permissions = actions.map((action) => `/bob/product/${action}`)
-  permissions.push('/bob/reference/query')
   await bootstrap.createE2EPrincipal(submitter, false, permissions)
   await bootstrap.createE2EPrincipal(reviewer, false, permissions)
   context.after(async () => {
@@ -405,12 +404,15 @@ test('product HTTP preserves precise formula history and independent enablement 
     reason: '恢复旧版本条码冲突',
   })
   assert.equal(restoredBarcode.errorKey, 'product_duplicate_barcode')
-  const candidates = await new BobService(db).queryReferenceCandidates(
-    { entity: 'product', behaviorProfile: 'RAW_MATERIAL' },
-    { id: submitter.userId, permissions: ['/bob/reference/query'] },
-  )
+  const candidates = await new BobService(db).options({
+    entity: 'product',
+    behaviorProfile: 'RAW_MATERIAL',
+    page: 1,
+    pageSize: 20,
+    enabled: true,
+  })
   assert.ok(
-    candidates.some(
+    candidates.items.some(
       (item) =>
         item.objectId === input.subjectId &&
         item.sourceApprovalEntryId === change.submissionId,

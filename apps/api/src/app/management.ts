@@ -392,11 +392,39 @@ export class ManagementService {
 
   async queryRoles(input: ManagementQueryInput, principal: Principal) {
     this.require(principal, '/app/role/query')
+    return this.readRoles(input, principal)
+  }
+
+  async roleOptions(
+    input: ManagementQueryInput & { ids?: string[] },
+    principal: Principal,
+  ) {
+    const result = await this.readRoles(input, principal)
+    return {
+      ...result,
+      items: result.items.map(
+        ({ id, code, name, enabled, type, assignable }) => ({
+          id,
+          code,
+          name,
+          enabled,
+          type,
+          assignable,
+        }),
+      ),
+    }
+  }
+
+  private async readRoles(
+    input: ManagementQueryInput & { ids?: string[] },
+    principal: Principal,
+  ) {
     const page = this.page(input, 20)
     const keyword = this.search(input.keyword).toLowerCase()
     const rows = await this.db
       .selectFrom('app_roles')
       .selectAll()
+      .$if(Boolean(input.ids), (qb) => qb.where('id', 'in', input.ids!))
       .orderBy('code', 'asc')
       .orderBy('id', 'asc')
       .execute()
@@ -651,6 +679,55 @@ export class ManagementService {
         .executeTakeFirstOrThrow()
       return this.roleDetail(role, principal, tx)
     })
+  }
+
+  async permissionOptions(
+    input: ManagementQueryInput & { ids?: string[] },
+    principal: Principal,
+  ) {
+    const page = this.page(input, 20)
+    const keyword = this.search(input.keyword)
+    const query = () =>
+      this.db
+        .selectFrom('app_permissions')
+        .$if(Boolean(input.ids), (qb) => qb.where('id', 'in', input.ids!))
+        .$if(Boolean(keyword), (qb) =>
+          qb.where((eb) =>
+            eb.or([
+              eb('path', 'ilike', `%${keyword}%`),
+              eb('description', 'ilike', `%${keyword}%`),
+            ]),
+          ),
+        )
+    const [items, count] = await Promise.all([
+      query()
+        .select([
+          'id',
+          'path',
+          'domain',
+          'entity',
+          'action',
+          'description',
+          'status',
+        ])
+        .orderBy('path')
+        .limit(20)
+        .offset((page.page - 1) * 20)
+        .execute(),
+      query()
+        .select((eb) => eb.fn.countAll<string>().as('total'))
+        .executeTakeFirstOrThrow(),
+    ])
+    return {
+      items: items.map((item) => ({
+        ...item,
+        assignable:
+          item.status === 'ENABLED' && principal.apiPaths.includes(item.path),
+      })),
+      total: Number(count.total),
+      page: page.page,
+      pageSize: 20 as const,
+    }
   }
 
   async queryPermissions(input: PageInput, principal: Principal) {

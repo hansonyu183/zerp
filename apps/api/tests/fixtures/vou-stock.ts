@@ -17,11 +17,7 @@ export async function seedStockFixture(db: Kysely<DB>) {
   ])
   const actor = {
     ...fixture.actor,
-    permissions: [
-      ...fixture.actor.permissions,
-      '/acc/mapping/save',
-      '/acc/mapping/catalog',
-    ],
+    permissions: [...fixture.actor.permissions, '/acc/mapping/save'],
   }
   const acc = new AccService(db),
     mappings = new AccMappingCatalogService(db)

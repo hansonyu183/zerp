@@ -26,6 +26,8 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
   const id = `T${suffix}`.toUpperCase().padEnd(26, '0')
   const roleId = `R${suffix}`.toUpperCase().padEnd(26, '0')
   const bookId = `B${suffix}`.toUpperCase().padEnd(26, '0')
+  const outsideBookId = `C${suffix}`.toUpperCase().padEnd(26, '0')
+  const outsiderId = `O${suffix}`.toUpperCase().padEnd(26, '0')
   const vouEntityId = `V${suffix}`.toUpperCase().padEnd(26, '0')
   const subjectId = `S${suffix}`.toUpperCase().padEnd(26, '0')
   const username = `target-${suffix}`
@@ -39,14 +41,17 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
         .deleteFrom('acc_subjects')
         .where('book_id', '=', bookId)
         .execute()
-      await db.deleteFrom('acc_books').where('id', '=', bookId).execute()
+      await db
+        .deleteFrom('acc_books')
+        .where('id', 'in', [bookId, outsideBookId])
+        .execute()
       await db
         .deleteFrom('acc_mapping_vou_entities')
         .where('id', '=', vouEntityId)
         .execute()
       await db
         .deleteFrom('app_audit_events')
-        .where('actor_user_id', '=', id)
+        .where('actor_user_id', 'in', [id, outsiderId])
         .execute()
       await db.deleteFrom('app_sessions').where('user_id', '=', id).execute()
       await db.deleteFrom('app_user_roles').where('user_id', '=', id).execute()
@@ -55,7 +60,10 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
         .where('role_id', '=', roleId)
         .execute()
       await db.deleteFrom('app_roles').where('id', '=', roleId).execute()
-      await db.deleteFrom('app_users').where('id', '=', id).execute()
+      await db
+        .deleteFrom('app_users')
+        .where('id', 'in', [id, outsiderId])
+        .execute()
     } finally {
       await db.destroy()
     }
@@ -84,7 +92,33 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
       password_change_required: false,
     })
     .execute()
+  await db
+    .insertInto('app_users')
+    .values({
+      id: outsiderId,
+      username: `outsider-${suffix}`,
+      display_name: '外部账簿所有者',
+      py: 'waibuzhangbusuoyouzhe',
+      password_hash: encoded,
+      status: 'ENABLED',
+      password_changed_at: new Date(),
+      password_change_required: false,
+    })
+    .execute()
   const acc = new AccService(db)
+  await acc.createBook(
+    {
+      id: outsideBookId,
+      name: '不可见账簿',
+      description: '',
+      startMonth: '2098-01',
+      baseCurrency: 'CNY',
+      subjectTemplate: 'EMPTY',
+      queryUserIds: [],
+      operateUserIds: [],
+    },
+    { id: outsiderId, permissions: [], trusted: true },
+  )
   const book = await acc.createBook(
     {
       id: bookId,
@@ -160,6 +194,7 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
     },
     session: new SessionService(db, config),
     management: new ManagementService(db, config),
+    acc,
     accMappingCatalog: new AccMappingCatalogService(db),
     config,
   })
@@ -411,7 +446,65 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
     body: JSON.stringify(query),
   })
   assert.equal((await denied.json()).errorKey, 'forbidden')
-  const catalogDenied = await fetch(`${origin}/acc/mapping/catalog`, {
+  const auxiliary = await fetch(`${origin}/acc/mapping/catalog`, {
+    headers: { cookie },
+  })
+  assert.equal((await auxiliary.json()).code, 0)
+  const bookOptions = await (
+    await fetch(`${origin}/acc/book/options?page=1&pageSize=20`, {
+      headers: { cookie },
+    })
+  ).json()
+  assert.equal(bookOptions.code, 0)
+  assert.deepEqual(
+    bookOptions.data.items.map((item: { id: string }) => item.id),
+    [bookId],
+  )
+  assert.deepEqual(Object.keys(bookOptions.data.items[0]).sort(), [
+    'baseCurrency',
+    'code',
+    'id',
+    'name',
+  ])
+  const subjectOptions = await (
+    await fetch(
+      `${origin}/acc/subject/options?bookId=${bookId}&page=1&pageSize=20`,
+      { headers: { cookie } },
+    )
+  ).json()
+  assert.equal(subjectOptions.code, 0)
+  assert.deepEqual(
+    subjectOptions.data.items.map((item: { id: string }) => item.id),
+    [subjectId],
+  )
+  const outsideSubjects = await (
+    await fetch(
+      `${origin}/acc/subject/options?bookId=${outsideBookId}&page=1&pageSize=20`,
+      { headers: { cookie } },
+    )
+  ).json()
+  assert.equal(outsideSubjects.errorKey, 'acc_book_access_denied')
+  for (const entity of ['book', 'subject']) {
+    const formal = await (
+      await fetch(`${origin}/acc/${entity}/query`, {
+        method: 'POST',
+        headers: {
+          ...headers,
+          cookie,
+          'x-csrf-token': sessionPayload.data.csrfToken,
+        },
+        body: JSON.stringify({
+          page: 1,
+          pageSize: 20,
+          ...(entity === 'subject' ? { bookId } : {}),
+        }),
+      })
+    ).json()
+    assert.equal(formal.errorKey, 'approval_invalid_action')
+  }
+  const anonymousCatalog = await fetch(`${origin}/acc/mapping/catalog`)
+  assert.equal((await anonymousCatalog.json()).errorKey, 'unauthenticated')
+  const oldCatalog = await fetch(`${origin}/acc/mapping/catalog`, {
     method: 'POST',
     headers: {
       ...headers,
@@ -420,16 +513,45 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
     },
     body: '{}',
   })
-  assert.equal((await catalogDenied.json()).errorKey, 'forbidden')
+  assert.equal(oldCatalog.status, 404)
+  const invalidCatalog = await fetch(
+    `${origin}/acc/mapping/catalog?page=invalid`,
+    { headers: { cookie } },
+  )
+  assert.equal((await invalidCatalog.json()).errorKey, 'validation_failed')
+  for (const action of ['query', 'get', 'save']) {
+    const response: Response = await fetch(`${origin}/acc/mapping/${action}`, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        cookie,
+        'x-csrf-token': sessionPayload.data.csrfToken,
+      },
+      body: JSON.stringify(
+        action === 'query'
+          ? { bookId, page: 1, pageSize: 20 }
+          : action === 'get'
+            ? { bookId, vouEntity: 'HTTP-SALE' }
+            : {
+                bookId,
+                vouEntity: 'HTTP-SALE',
+                expectedRevision: null,
+                defaultResult: 'UN_POST',
+                definition: {
+                  defaultTemplateId: null,
+                  rules: [],
+                  templates: [],
+                  assetConfiguration: null,
+                },
+              },
+      ),
+    })
+    assert.equal((await response.json()).errorKey, 'forbidden')
+  }
   const permission = await db
     .selectFrom('app_permissions')
     .select('id')
     .where('path', '=', '/app/user/query')
-    .executeTakeFirstOrThrow()
-  const catalogPermission = await db
-    .selectFrom('app_permissions')
-    .select('id')
-    .where('path', '=', '/acc/mapping/catalog')
     .executeTakeFirstOrThrow()
   const mappingQueryPermission = await db
     .selectFrom('app_permissions')
@@ -454,7 +576,6 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
     .insertInto('app_role_permissions')
     .values([
       { role_id: roleId, permission_id: permission.id },
-      { role_id: roleId, permission_id: catalogPermission.id },
       { role_id: roleId, permission_id: mappingQueryPermission.id },
       { role_id: roleId, permission_id: mappingGetPermission.id },
     ])
@@ -493,17 +614,38 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
     'revision',
   ])
   assert.equal(allowedPayload.data.pageSize, 20)
-  const catalog = await fetch(`${origin}/acc/mapping/catalog`, {
-    method: 'POST',
-    headers: {
-      ...headers,
-      cookie,
-      'x-csrf-token': sessionPayload.data.csrfToken,
-    },
-    body: '{}',
+  const missingMappingCsrf = await client.acc.mapping.query.$post({
+    json: { bookId, page: 1, pageSize: 20 },
   })
+  assert.equal((await missingMappingCsrf.json()).errorKey, 'forbidden')
+  const catalog = await client.acc.mapping.catalog.$get({ query: {} })
   const catalogPayload = await catalog.json()
   assert.equal(catalogPayload.code, 0)
+  assert.equal(
+    catalogPayload.data.books.some(
+      (item: { id: string }) => item.id === outsideBookId,
+    ),
+    false,
+  )
+  for (const action of ['query', 'get'] as const) {
+    const deniedBook: Response = await fetch(
+      `${origin}/acc/mapping/${action}`,
+      {
+        method: 'POST',
+        headers: {
+          ...headers,
+          cookie,
+          'x-csrf-token': sessionPayload.data.csrfToken,
+        },
+        body: JSON.stringify(
+          action === 'query'
+            ? { bookId: outsideBookId, page: 1, pageSize: 20 }
+            : { bookId: outsideBookId, vouEntity: 'HTTP-SALE' },
+        ),
+      },
+    )
+    assert.equal((await deniedBook.json()).errorKey, 'acc_book_access_denied')
+  }
   assert.deepEqual(
     catalogPayload.data.books.filter(
       (item: { id: string }) => item.id === bookId,
@@ -570,7 +712,16 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
       },
       body: JSON.stringify({ bookId, vouEntity: 'HTTP-SALE' }),
     })
-  assert.equal((await (await mappingGet()).json()).data.revision, '1')
+  const beforeAuxiliaryRead = (await (await mappingGet()).json()).data
+  assert.equal(beforeAuxiliaryRead.revision, '1')
+  assert.equal(
+    (await (await client.acc.mapping.catalog.$get({ query: {} })).json()).code,
+    0,
+  )
+  assert.deepEqual(
+    (await (await mappingGet()).json()).data,
+    beforeAuxiliaryRead,
+  )
   const saveMapping = () =>
     fetch(`${origin}/acc/mapping/save`, {
       method: 'POST',
@@ -640,6 +791,14 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
     .set({ idle_expires_at: new Date(Date.now() - 1_000) })
     .where('user_id', '=', id)
     .execute()
+  assert.equal(
+    (
+      await (
+        await fetch(`${origin}/acc/mapping/catalog`, { headers: { cookie } })
+      ).json()
+    ).errorKey,
+    'unauthenticated',
+  )
   const expiredIndependentRoute = await fetch(`${origin}/session/user/get`, {
     method: 'POST',
     headers: {
@@ -677,6 +836,11 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
   const restrictedPayload = await restricted.json()
   assert.equal(restrictedPayload.code, 0)
   assert.equal(restrictedPayload.data.passwordChangeRequired, true)
+  assert.equal(
+    (await (await client.acc.mapping.catalog.$get({ query: {} })).json())
+      .errorKey,
+    'forbidden',
+  )
   const restrictedHeaders = {
     headers: { 'X-CSRF-Token': restrictedPayload.data.csrfToken },
   }
@@ -769,6 +933,14 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
     .set({ status: 'DISABLED' })
     .where('id', '=', id)
     .execute()
+  assert.equal(
+    (
+      await (
+        await fetch(`${origin}/acc/mapping/catalog`, { headers: { cookie } })
+      ).json()
+    ).errorKey,
+    'unauthenticated',
+  )
   const disabledSignin = await fetch(`${origin}/session/auth/signin`, {
     method: 'POST',
     headers,

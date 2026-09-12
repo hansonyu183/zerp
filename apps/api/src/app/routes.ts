@@ -175,7 +175,11 @@ export function registerAppRoutes(
   }
   async function executeAccCatalog<T>(
     context: {
-      req: { header(name: string): string | undefined; path: string }
+      req: {
+        header(name: string): string | undefined
+        path: string
+        method: string
+      }
     },
     requestId: string,
     operation: (actor: { id: string; permissions: string[] }) => Promise<T>,
@@ -189,7 +193,7 @@ export function registerAppRoutes(
           config.sessionCookieName,
         ),
         context.req.header('X-CSRF-Token'),
-        true,
+        context.req.method !== 'GET',
         context.req.path,
       )
       return {
@@ -226,7 +230,7 @@ export function registerAppRoutes(
       const current = await service.authenticate(
         getCookie(context, config.sessionCookieName),
         context.req.header('X-CSRF-Token'),
-        true,
+        context.req.method !== 'GET',
         context.req.path,
       )
       return {
@@ -275,7 +279,7 @@ export function registerAppRoutes(
       const current = await service.authenticate(
         getCookie(context, config.sessionCookieName),
         context.req.header('X-CSRF-Token'),
-        true,
+        context.req.method !== 'GET',
         context.req.path,
       )
       return {
@@ -624,10 +628,19 @@ export function registerAppRoutes(
           throw error
         }
       }
-      if (action === 'reference') {
-        const body = context.req.valid('json')
-        const response = await executeVou<unknown>(context, (actor) =>
-          vou!.queryReferenceCandidates(body, actor),
+      if (action === 'line-resolve' || action === 'customer-latest-line')
+        return context.json(
+          (await executeVou(context, () =>
+            vou!.saleOrderLine(context.req.valid('query')),
+          )) as never,
+          200,
+        )
+      if (action === 'options') {
+        const response = await executeVou(context, () =>
+          vou!.options(
+            context.req.valid('param').entity,
+            context.req.valid('query'),
+          ),
         )
         return context.json(response as never, 200)
       }
@@ -654,10 +667,13 @@ export function registerAppRoutes(
         )
         return context.json(response as never, 200)
       }
-      if (action === 'source-line') {
-        const body = context.req.valid('json')
-        const response = await executeVou<unknown>(context, (actor) =>
-          vou!.querySourceLineCandidates(body, actor),
+      if (action === 'source-lines') {
+        const body = context.req.valid('query')
+        const response = await executeVou<unknown>(context, () =>
+          vou!.querySourceLineCandidates({
+            ...body,
+            targetEntity: context.req.valid('param').entity,
+          }),
         )
         return context.json(response as never, 200)
       }
@@ -715,8 +731,17 @@ export function registerAppRoutes(
     withVou,
     async (action: AccRouteAction, context: any) => {
       if (!acc) throw new Error('ACC service is unavailable')
-      const input = context.req.valid('json')
+      const input = context.req.valid(
+        context.req.method === 'GET' ? 'query' : 'json',
+      )
       const response = await executeCore<unknown>(context, (actor) => {
+        if (action === 'assetOptions' || action === 'billOptions')
+          return acc.registerOptions(
+            action === 'assetOptions' ? 'asset' : 'bill',
+            input,
+          )
+        if (action === 'bookOptions') return acc.bookOptions(input, actor)
+        if (action === 'subjectOptions') return acc.subjectOptions(input, actor)
         if (action === 'bookQuery') return acc.queryBooks(input, actor)
         if (action === 'bookGet') return acc.getBook(input.id, actor)
         if (action === 'bookCreate') return acc.createBook(input, actor)
@@ -795,7 +820,11 @@ export function registerAppRoutes(
     withWfl,
     async (action: RptRouteAction, context: any) => {
       if (!rpt) throw new Error('RPT service is unavailable')
-      const input = context.req.valid('json')
+      const input = context.req.valid(
+        action === 'directory' || action === 'referenceQuery'
+          ? 'query'
+          : 'json',
+      )
       const response = await executeCore<unknown>(context, (actor) => {
         if (action === 'directory') return rpt.directory(actor)
         if (action === 'get') return rpt.get(input.subjectId, actor)
@@ -804,8 +833,7 @@ export function registerAppRoutes(
         const code = context.req.valid('param').code
         if (action === 'query')
           return rpt.query(code, input, actor, currentRequestId(context))
-        if (action === 'referenceQuery')
-          return rpt.referenceQuery(code, input, actor)
+        if (action === 'referenceQuery') return rpt.referenceQuery(code, input)
         return rpt.export(
           code,
           input.parameters,

@@ -31,6 +31,10 @@ async function openUserManagement(page: Page): Promise<void> {
   )
   while (await closed.count()) await closed.first().click()
   await drawer.locator('a[href="/app/user"]').click()
+  await page.waitForURL('**/app/user')
+  await expect(
+    page.getByRole('button', { name: '新增用户', exact: true }),
+  ).toBeVisible()
   await expect(
     page.getByLabel('编码、拼音或名称', { exact: true }),
   ).toBeVisible()
@@ -51,6 +55,10 @@ async function openRoleManagement(page: Page): Promise<void> {
   )
   while (await closed.count()) await closed.first().click()
   await drawer.locator('a[href="/app/role"]').click()
+  await page.waitForURL('**/app/role')
+  await expect(
+    page.getByRole('button', { name: '新增角色', exact: true }),
+  ).toBeVisible()
   await expect(
     page.getByLabel('编码、拼音或名称', { exact: true }),
   ).toBeVisible()
@@ -59,27 +67,34 @@ async function openRoleManagement(page: Page): Promise<void> {
 
 async function toggleVirtualOption(page: Page, title: string): Promise<void> {
   const option = page.getByRole('option').filter({ hasText: title })
-  const options = page.getByRole('listbox')
   const chip = page
     .getByRole('dialog')
     .locator('.v-chip')
     .filter({ hasText: title })
-  let wasSelected = false
-  await expect(options).toBeVisible()
-  // Vuetify only mounts the visible portion of long option lists.
-  await options.evaluate((element) => {
-    element.scrollTop = 0
+  const search = page
+    .getByRole('dialog')
+    .getByRole('combobox', { name: /^(权限|角色)$/ })
+  const keyword =
+    title === '系统管理 · 用户管理 · 新增'
+      ? '/app/user/create'
+      : title === '系统管理 · 用户管理 · 查看'
+        ? '/app/user/get'
+        : title === targetE2ERoleText
+          ? targetE2ERoleName
+          : title
+  const candidates = page.waitForResponse((response) => {
+    const url = new URL(response.url())
+    return (
+      response.request().method() === 'GET' &&
+      ['/app/role/options', '/app/permission/options'].includes(url.pathname) &&
+      url.searchParams.get('keyword') === keyword
+    )
   })
-  await expect(async () => {
-    if (!(await option.count())) {
-      await options.evaluate((element) => {
-        element.scrollTop += element.clientHeight
-      })
-      throw new Error(`permission option is not mounted yet: ${title}`)
-    }
-    wasSelected = (await option.getAttribute('aria-selected')) === 'true'
-    await option.evaluate((element) => (element as HTMLElement).click())
-  }).toPass({ timeout: 15_000, intervals: [50] })
+  await search.fill(keyword)
+  expect((await (await candidates).json()).code).toBe(0)
+  await expect(option).toBeVisible()
+  const wasSelected = (await option.getAttribute('aria-selected')) === 'true'
+  await option.click()
   await expect(chip).toHaveCount(wasSelected ? 0 : 1)
 }
 
@@ -108,7 +123,18 @@ async function createRole(
 async function findRoleRow(page: Page, name: string) {
   const keyword = page.getByLabel('编码、拼音或名称', { exact: true })
   await keyword.fill(name)
+  const queried = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/app/role/query') &&
+      response.request().method() === 'POST' &&
+      response.request().postDataJSON().keyword === name,
+  )
   await page.getByRole('button', { name: '查询', exact: true }).click()
+  const result = await (await queried).json()
+  expect(result.code).toBe(0)
+  expect(
+    result.data.items.some((item: { name: string }) => item.name === name),
+  ).toBe(true)
   const row = page.getByRole('row').filter({ hasText: name })
   await expect(row).toBeVisible()
   return row
@@ -124,6 +150,9 @@ async function createUser(
   await dialog.getByLabel('用户编码', { exact: true }).fill(input.code)
   await dialog.getByLabel('名称', { exact: true }).fill(input.name)
   await dialog.locator('.v-autocomplete .v-field').click()
+  await dialog
+    .getByRole('combobox', { name: '角色', exact: true })
+    .fill(process.env.TARGET_E2E_USERNAME!)
   const targetE2ERole = page
     .locator('[role="option"]:not(.v-list-item--disabled)')
     .filter({ hasText: targetE2ERoleText })

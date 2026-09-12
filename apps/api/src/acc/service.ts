@@ -1902,14 +1902,110 @@ export class AccService
     })
   }
 
+  async registerOptions(
+    entity: 'asset' | 'bill',
+    input: { keyword?: string; page: number; pageSize: 20; ids?: string[] },
+  ) {
+    const source =
+      entity === 'asset'
+        ? sql`SELECT id AS object_id, asset_no AS code, name, status = 'ACTIVE' AS enabled FROM acc_asset_registers WHERE ${input.ids ? sql`id IN (${sql.join(input.ids)})` : sql`status = 'ACTIVE'`}`
+        : sql`SELECT r.id AS object_id, r.bill_no AS code, r.bill_no AS name, r.status = 'AVAILABLE' AS enabled FROM acc_bill_registers r WHERE ${input.ids ? sql`r.id IN (${sql.join(input.ids)})` : sql`r.status = 'AVAILABLE'`} AND EXISTS (SELECT 1 FROM acc_bill_book_values v JOIN acc_books b ON b.id = v.book_id JOIN approval_entries a ON a.subject_id = b.id AND a.domain = 'vou' AND a.entity = 'opening' AND a.status = 'APPROVED' WHERE v.bill_id = r.id AND b.control_book)`
+    const query = sql`FROM (${source}) candidate WHERE code ILIKE ${`%${input.keyword ?? ''}%`} OR name ILIKE ${`%${input.keyword ?? ''}%`}`
+    const [rows, count] = await Promise.all([
+      sql<{
+        objectId: string
+        code: string
+        name: string
+        enabled: boolean
+      }>`SELECT object_id AS "objectId", code, name, enabled ${query} ORDER BY code, object_id LIMIT 20 OFFSET ${(input.page - 1) * 20}`.execute(
+        this.db,
+      ),
+      sql<{ total: string }>`SELECT count(*) AS total ${query}`.execute(
+        this.db,
+      ),
+    ])
+    return {
+      items: rows.rows,
+      total: Number(count.rows[0]?.total ?? 0),
+      page: input.page,
+      pageSize: 20 as const,
+    }
+  }
+
+  async bookOptions(
+    input: { keyword?: string; page: number; pageSize: 20; ids?: string[] },
+    actor: ApprovalActor,
+  ) {
+    const page = await this.readBooks(input, actor)
+    return {
+      ...page,
+      pageSize: 20 as const,
+      items: page.items.map(({ id, code, name, baseCurrency }) => ({
+        id,
+        code,
+        name,
+        baseCurrency,
+      })),
+    }
+  }
+
+  async subjectOptions(
+    input: {
+      bookId: string
+      keyword?: string
+      page: number
+      pageSize: 20
+      ids?: string[]
+    },
+    actor: ApprovalActor,
+  ) {
+    await this.requireBookAccess(this.db, input.bookId, actor, false)
+    const where = sql`FROM acc_subjects s WHERE book_id = ${input.bookId} AND ${input.ids ? sql`s.id IN (${sql.join(input.ids)})` : sql`enabled AND NOT EXISTS (SELECT 1 FROM acc_subjects child WHERE child.parent_id = s.id)`} AND (code ILIKE ${`%${input.keyword ?? ''}%`} OR name ILIKE ${`%${input.keyword ?? ''}%`})`
+    const [rows, count] = await Promise.all([
+      sql<{
+        id: string
+        code: string
+        name: string
+        enabled: boolean
+        requiredDimensions: import('@zerp/model').AccSubjectDimension[]
+        balanceDirection: string
+        inventoryQuantity: boolean
+      }>`SELECT id, code, name, enabled, required_dimensions AS "requiredDimensions", balance_direction AS "balanceDirection", inventory_quantity AS "inventoryQuantity" ${where} ORDER BY code, id LIMIT 20 OFFSET ${(input.page - 1) * 20}`.execute(
+        this.db,
+      ),
+      sql<{ total: string }>`SELECT count(*) AS total ${where}`.execute(
+        this.db,
+      ),
+    ])
+    return {
+      items: rows.rows,
+      total: Number(count.rows[0]?.total ?? 0),
+      page: input.page,
+      pageSize: 20 as const,
+    }
+  }
+
   async queryBooks(
     input: { page?: number; pageSize?: number; keyword?: string },
     actor: ApprovalActor,
   ) {
     requirePermission(actor, '/acc/book/query')
+    return this.readBooks(input, actor)
+  }
+
+  private async readBooks(
+    input: {
+      page?: number
+      pageSize?: number
+      keyword?: string
+      ids?: string[]
+    },
+    actor: ApprovalActor,
+  ) {
     let query = this.db
       .selectFrom('acc_books as b')
       .selectAll('b')
+      .$if(Boolean(input.ids), (qb) => qb.where('b.id', 'in', input.ids!))
       .orderBy('b.code', 'asc')
     if (actor.trusted !== true)
       query = query

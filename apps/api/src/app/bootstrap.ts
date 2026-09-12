@@ -301,6 +301,7 @@ export class TargetBootstrapService {
     transaction: Transaction<DB>,
     catalog: readonly TargetPermissionCatalogEntry[],
   ): Promise<PermissionCatalogSyncReport> {
+    await sql`SELECT pg_advisory_xact_lock(74155001)`.execute(transaction)
     const reportPermissions = await transaction
       .selectFrom('app_permissions')
       .selectAll()
@@ -328,7 +329,7 @@ export class TargetBootstrapService {
     )
     const previousPermissions = await transaction
       .selectFrom('app_permissions')
-      .select(['path', 'status'])
+      .selectAll()
       .execute()
     const previousGrants = await transaction
       .selectFrom('app_role_permissions as rp')
@@ -339,31 +340,88 @@ export class TargetBootstrapService {
     const previousPermissionByPath = new Map(
       previousPermissions.map((permission) => [permission.path, permission]),
     )
-    const targetStatus = new Map(
-      catalog.map((entry) => [
-        entry.path,
-        previousPermissionByPath.get(entry.path)?.status ?? 'ENABLED',
-      ]),
-    )
     const preserved = previousGrants.filter((grant) =>
       desiredByPath.has(grant.path),
     )
-    await transaction.deleteFrom('app_role_permissions').execute()
-    await transaction.deleteFrom('app_permissions').execute()
-    if (catalog.length > 0) {
+    const stale = previousPermissions.filter(
+      (entry) => !desiredPaths.has(entry.path),
+    )
+    const affectedRoleIds = new Set(
+      previousGrants
+        .filter((grant) => !desiredPaths.has(grant.path))
+        .map((grant) => grant.role_id),
+    )
+    if (
+      stale.length > 0 ||
+      catalog.some((entry) => !previousPermissionByPath.has(entry.path))
+    ) {
+      const administrators = await transaction
+        .selectFrom('app_roles')
+        .select('id')
+        .where('code', '=', 'superadmin')
+        .execute()
+      for (const role of administrators) affectedRoleIds.add(role.id)
+    }
+    if (stale.length > 0) {
+      const ids = stale.map((entry) => entry.id)
       await transaction
-        .insertInto('app_permissions')
-        .values(
-          catalog.map((entry) => ({
+        .deleteFrom('app_role_permissions')
+        .where('permission_id', 'in', ids)
+        .execute()
+      await transaction
+        .deleteFrom('app_permissions')
+        .where('id', 'in', ids)
+        .execute()
+    }
+    for (const entry of catalog) {
+      const existing = previousPermissionByPath.get(entry.path)
+      if (!existing) {
+        await transaction
+          .insertInto('app_permissions')
+          .values({
             id: entry.id,
             path: entry.path,
             domain: entry.domain,
             entity: entry.entity,
             action: entry.action,
             description: entry.title,
-            status: targetStatus.get(entry.path)!,
-          })),
+            status: 'ENABLED',
+          })
+          .execute()
+      } else if (existing.description !== entry.title) {
+        await transaction
+          .updateTable('app_permissions')
+          .set({
+            description: entry.title,
+            revision: sql`revision + 1`,
+            updated_at: new Date(),
+          })
+          .where('id', '=', existing.id)
+          .execute()
+      }
+    }
+    if (affectedRoleIds.size > 0) {
+      const roleIds = [...affectedRoleIds]
+      await transaction
+        .updateTable('app_roles')
+        .set({ revision: sql`revision + 1`, updated_at: new Date() })
+        .where('id', 'in', roleIds)
+        .execute()
+      await transaction
+        .updateTable('app_sessions')
+        .set({
+          revoked_at: new Date(),
+          revoked_reason: 'permission_catalog_changed',
+        })
+        .where(
+          'user_id',
+          'in',
+          transaction
+            .selectFrom('app_user_roles')
+            .select('user_id')
+            .where('role_id', 'in', roleIds),
         )
+        .where('revoked_at', 'is', null)
         .execute()
     }
     const uniquePreserved = [
@@ -371,17 +429,6 @@ export class TargetBootstrapService {
         preserved.map((grant) => [`${grant.role_id}\0${grant.path}`, grant]),
       ).values(),
     ]
-    if (uniquePreserved.length > 0) {
-      await transaction
-        .insertInto('app_role_permissions')
-        .values(
-          uniquePreserved.map((grant) => ({
-            role_id: grant.role_id,
-            permission_id: desiredByPath.get(grant.path)!.id,
-          })),
-        )
-        .execute()
-    }
     const orphaned = await transaction
       .selectFrom('app_role_permissions as rp')
       .leftJoin('app_permissions as p', 'p.id', 'rp.permission_id')

@@ -179,3 +179,7 @@ AUX current 修改不会覆盖既有交易快照。结算方式在客户或供�
 | asset-category                            | stable ID、code、name、defaultUsefulLifeMonths、defaultResidualRate                                  | VOU asset-acquisition line 与批准后资产台账 snapshot                                           | 不重算既有折旧参数                             |
 
 `description` 和页面排序不是业务计算输入；读取 current AUX 可用于管理页面展示，但不得覆盖 BOB/VOU 已保存的名称和业务参数。新 BOB/VOU 选择只接受当前启用的 stable object；来源随后停用时，已保存的精确 snapshot 继续可读和可执行。
+
+## 资料候选
+
+普通资料通过所属实体 GET options 加载，支持关键词、分页和历史筛选。新增候选只含启用资料，历史关联筛选保留停用资料；辅助读取不要求管理动作权限。共享 reference 资源删除。

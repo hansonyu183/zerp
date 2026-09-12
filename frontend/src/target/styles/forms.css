@@ -1,0 +1,15 @@
+.form-control {
+  min-width: 0;
+}
+.form-control + .form-control {
+  margin-top: 16px;
+}
+.form-stack {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  width: 100%;
+}
+.form-stack > .form-control {
+  margin-top: 0;
+}

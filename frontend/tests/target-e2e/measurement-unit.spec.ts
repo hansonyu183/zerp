@@ -72,7 +72,9 @@ test('measurement units use typed fields through menu on desktop and 390px', asy
       page.getByText(`共 ${width === 1440 ? 21 : 20} 项`, { exact: true }),
     ).toBeVisible()
     await expect(
-      page.getByRole('columnheader', { name: '数量精度', exact: true }),
+      width < 600
+        ? page.locator('.list-card dt').filter({ hasText: '数量精度' }).first()
+        : page.getByRole('columnheader', { name: '数量精度', exact: true }),
     ).toBeVisible()
     await page.getByLabel('数量精度', { exact: true }).fill('6')
     // Input edits alone must not change the submitted result or its total.
@@ -89,10 +91,10 @@ test('measurement units use typed fields through menu on desktop and 390px', asy
       await page.getByLabel('编码、拼音或名称', { exact: true }).fill(keyword)
       await page.getByRole('button', { name: '查询', exact: true }).click()
       await expect(
-        page.getByRole('row').filter({ hasText: name }),
+        page.locator('tr, .list-card').filter({ hasText: name }),
       ).toBeVisible()
     }
-    const row = page.getByRole('row').filter({ hasText: name })
+    const row = page.locator('tr, .list-card').filter({ hasText: name })
     const code = (await row.innerText()).match(/UNT-\d+/)![0]
     await page.getByLabel('编码、拼音或名称', { exact: true }).fill(code)
     await page.getByRole('button', { name: '查询', exact: true }).click()

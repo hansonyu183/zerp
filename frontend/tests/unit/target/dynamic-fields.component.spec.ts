@@ -1,6 +1,7 @@
 import { defineComponent, h } from 'vue'
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+vi.mock('vuetify', () => ({ useDisplay: () => ({ xs: false }) }))
 
 import DynamicCols from '@/target/components/dynamic-fields/DynamicCols.vue'
 import DynamicForm from '@/target/components/dynamic-fields/DynamicForm.vue'

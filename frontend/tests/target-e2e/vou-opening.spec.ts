@@ -1,3 +1,4 @@
+import { confirmCollections } from './collection-helpers.ts'
 import { expect, test, type Page } from '@playwright/test'
 const facts = JSON.parse(process.env.TARGET_E2E_OPENING_JSON ?? '{}')
 if (!process.env.TARGET_E2E_OPENING_JSON)
@@ -29,7 +30,7 @@ async function signIn(page: Page, reviewer = false) {
 }
 async function create(page: Page) {
   await page.getByRole('button', { name: '新建', exact: true }).click()
-  const editor = page.getByTestId('opening-editor')
+  const editor = page.getByRole('dialog').last()
   const candidates = page.waitForResponse((response) => {
     const url = new URL(response.url())
     return (
@@ -99,16 +100,25 @@ test('real opening page submits zero, another operator approves, then replaces e
   await expect(page.getByTestId('vou-detail')).toHaveCount(0)
   editor = await create(page)
   await page.setViewportSize({ width: 390, height: 844 })
-  await editor.getByRole('button', { name: '添加明细', exact: true }).click()
-  const debit = page.getByTestId('opening-line-0')
+  await confirmCollections(page)
+  await editor
+    .getByRole('button', { name: '添加期初明细', exact: true })
+    .click()
+  const debit = page.getByRole('dialog').last()
   await debit.getByLabel('科目', { exact: true }).fill('1001')
   await page.getByRole('option').filter({ hasText: '期初借方' }).click()
   await debit.getByLabel('金额', { exact: true }).fill('12.30')
+  await confirmCollections(page)
   await editor.getByRole('button', { name: '提交期初', exact: true }).click()
   await expect(editor).toContainText('期初必须逐币种借贷平衡')
-  await expect(debit.getByLabel('金额', { exact: true })).toHaveValue('12.30')
-  await editor.getByRole('button', { name: '添加明细', exact: true }).click()
-  const credit = page.getByTestId('opening-line-1')
+  await expect(
+    editor.locator('.collection-block[aria-label="期初明细"]'),
+  ).toContainText('12.30')
+  await confirmCollections(page)
+  await editor
+    .getByRole('button', { name: '添加期初明细', exact: true })
+    .click()
+  const credit = page.getByRole('dialog').last()
   await credit.getByLabel('科目', { exact: true }).fill('3001')
   await page.getByRole('option').filter({ hasText: '期初贷方' }).click()
   await credit.locator('.v-select .v-field').click()
@@ -119,6 +129,7 @@ test('real opening page submits zero, another operator approves, then replaces e
       () => document.documentElement.scrollWidth > innerWidth,
     ),
   ).toBe(false)
+  await confirmCollections(page)
   await editor.getByRole('button', { name: '提交期初', exact: true }).click()
   await expect(editor).toHaveCount(0)
   await open(page)

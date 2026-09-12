@@ -1,9 +1,8 @@
 <script setup lang="ts" generic="Filters extends object">
 import { actionIcons } from '../../presentation/action-icons.ts'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import FilterInput from './FilterInput.vue'
 
-import FieldInput from './FieldInput.vue'
-import ReferencePicker from './ReferencePicker.vue'
 import type { FieldRange, FilterField } from './types.ts'
 import { normalizeFilters } from './values.ts'
 
@@ -24,6 +23,17 @@ const emit = defineEmits<{
 }>()
 
 const validationError = ref<string | null>(null)
+const expanded = ref(false)
+const hiddenCount = computed(
+  () =>
+    props.fields.slice(2).filter((field) => {
+      const value = (props.modelValue as Record<string, unknown>)[field.key]
+      const filled = (v: unknown) => v !== null && v !== undefined && v !== ''
+      return field.range
+        ? filled(rangeValue(field.key).from) || filled(rangeValue(field.key).to)
+        : filled(value)
+    }).length,
+)
 
 function updateField(key: string, value: unknown): void {
   emit('update:modelValue', { ...props.modelValue, [key]: value })
@@ -37,13 +47,6 @@ function rangeValue(key: string): FieldRange<unknown> {
   }
   return { from: null, to: null }
 }
-function updateRange(key: string, endpoint: 'from' | 'to', value: unknown) {
-  updateField(key, {
-    ...rangeValue(key),
-    [endpoint]: value === '' ? null : value,
-  })
-}
-
 function submit(): void {
   if (props.disabled) return
   try {
@@ -76,52 +79,28 @@ function onEnter(event: KeyboardEvent): void {
     <v-alert v-if="validationError" data-testid="field-error" type="error">
       {{ validationError }}
     </v-alert>
-    <template v-for="field in fields" :key="field.key">
-      <div
-        v-if="field.range === true"
-        class="dynamic-field-range"
-        :data-testid="`field-${field.key}`"
-      >
-        <FieldInput
-          v-for="endpoint in ['from', 'to'] as const"
-          :key="endpoint"
-          :field="{
-            ...field,
-            range: false,
-            caption: `${field.caption}${endpoint === 'from' ? '起' : '止'}`,
-          }"
-          :model-value="rangeValue(field.key)[endpoint]"
-          :disabled="disabled"
-          @update:model-value="updateRange(field.key, endpoint, $event)"
-        />
-      </div>
-      <ReferencePicker
-        v-else-if="field.type === 'reference'"
-        :source="
-          field.source === 'app/role'
-            ? 'roles'
-            : field.source === 'bob/supplier'
-              ? 'suppliers'
-              : 'customer-subunits'
-        "
-        :caption="field.caption"
-        :model-value="
-          (modelValue as Record<string, string | null>)[field.key] ?? null
-        "
-        :existing="[]"
-        :multiple="false"
-        :disabled="disabled"
-        history
-        @update:model-value="updateField(field.key, $event)"
-      />
-      <FieldInput
-        v-else
+    <div
+      v-for="field in fields.slice(0, 2)"
+      :key="field.key"
+      class="filter-control"
+    >
+      <FilterInput
         :field="field"
         :model-value="(modelValue as Record<string, unknown>)[field.key]"
         :disabled="disabled"
         @update:model-value="updateField(field.key, $event)"
       />
-    </template>
+    </div>
+    <v-btn
+      v-if="fields.length > 2"
+      variant="text"
+      :aria-expanded="expanded"
+      :append-icon="expanded ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+      data-testid="more-filters"
+      @click="expanded = !expanded"
+      >{{ expanded ? '收起条件' : '更多条件'
+      }}{{ hiddenCount ? `（${hiddenCount}）` : '' }}</v-btn
+    >
     <v-btn
       :prepend-icon="actionIcons.search"
       data-testid="list-search"
@@ -131,39 +110,46 @@ function onEnter(event: KeyboardEvent): void {
     >
       查询
     </v-btn>
+    <div v-if="fields.length > 2" v-show="expanded" class="extra-filters">
+      <div
+        v-for="field in fields.slice(2)"
+        :key="field.key"
+        class="filter-control"
+      >
+        <FilterInput
+          :field="field"
+          :model-value="(modelValue as Record<string, unknown>)[field.key]"
+          :disabled="disabled"
+          @update:model-value="updateField(field.key, $event)"
+        />
+      </div>
+    </div>
   </v-form>
 </template>
 
 <style scoped>
-.dynamic-field-range {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
 .dynamic-form {
   display: flex;
   grid-column: 1 / -1;
   flex: 1 1 100%;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 16px;
   align-items: center;
   width: 100%;
 }
-
-.dynamic-form > :deep(*) {
-  min-width: 180px;
+.filter-control {
+  min-width: 0;
   flex: 1 1 220px;
 }
-
-.dynamic-form > :deep(.v-btn) {
-  min-width: auto;
-  flex: 0 0 auto;
+.extra-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  flex: 1 1 100%;
+  width: 100%;
 }
-
-@media (max-width: 600px) {
-  .dynamic-form > :deep(*) {
-    width: 100%;
+@media (max-width: 599px) {
+  .filter-control {
     flex-basis: 100%;
   }
 }

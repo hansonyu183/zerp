@@ -162,7 +162,7 @@ test('operating entities and employees use direct AUX ListPages on desktop and 3
     .fill(operatingEntityName)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   const operatingEntityRow = page
-    .getByRole('row')
+    .locator('tr, .list-card')
     .filter({ hasText: operatingEntityName })
   await expect(operatingEntityRow).toBeVisible()
   await operatingEntityRow
@@ -243,7 +243,9 @@ test('operating entities and employees use direct AUX ListPages on desktop and 3
 
   await page.getByLabel('编码、拼音或名称', { exact: true }).fill(employeeName)
   await page.getByRole('button', { name: '查询', exact: true }).click()
-  const employeeRow = page.getByRole('row').filter({ hasText: employeeName })
+  const employeeRow = page
+    .locator('tr, .list-card')
+    .filter({ hasText: employeeName })
   await expect(employeeRow).toBeVisible()
   await employeeRow.getByRole('button', { name: '编辑', exact: true }).click()
   await expect(

@@ -39,6 +39,8 @@ const checkedActions = computed(() => {
       throw new FieldContractError(`行操作 ${action.key} 的 color 未登记`)
     if (keys.has(action.key))
       throw new FieldContractError(`行操作 key ${action.key} 重复`)
+    if (!actionIcon(action.key))
+      throw new FieldContractError(`行操作 ${action.key} 未登记语义图标`)
     keys.add(action.key)
   }
   return props.actions
@@ -54,7 +56,8 @@ const emit = defineEmits<{
     <v-btn
       v-for="action in checkedActions"
       :key="action.key"
-      :prepend-icon="actionIcon(action.key)"
+      :icon="actionIcon(action.key)"
+      :aria-label="action.caption"
       size="small"
       variant="text"
       :color="action.color"
@@ -63,7 +66,10 @@ const emit = defineEmits<{
       :data-testid="`row-action-${action.key}`"
       @click="emit('action', action.key)"
     >
-      {{ action.caption }}
+      <v-icon :icon="actionIcon(action.key)" />
+      <v-tooltip activator="parent" location="bottom">{{
+        action.caption
+      }}</v-tooltip>
     </v-btn>
   </div>
 </template>

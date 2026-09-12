@@ -240,13 +240,7 @@ onBeforeUnmount(() => {
       :icon="actionIcons.navigation"
       aria-label="切换导航"
       @click="drawer = !drawer"
-      ><v-icon :icon="actionIcons.navigation" /><v-tooltip
-        activator="parent"
-        location="bottom"
-        content-class="bg-surface elevation-4"
-        >切换导航</v-tooltip
-      ></v-app-bar-nav-icon
-    >
+    />
     <div class="company" @click="router.push('/')">
       <div class="company__mark">Z</div>
       <div class="company__copy">

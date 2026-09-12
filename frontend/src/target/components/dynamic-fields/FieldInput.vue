@@ -114,6 +114,7 @@ function scalarValue(value: unknown): unknown {
 
 <template>
   <v-textarea
+    class="form-control"
     :maxlength="field.maxLength"
     v-if="field.type === 'textarea'"
     :label="field.caption"
@@ -122,6 +123,7 @@ function scalarValue(value: unknown): unknown {
     @update:model-value="update($event ?? '')"
   />
   <v-checkbox
+    class="form-control"
     v-else-if="field.type === 'boolean' && usage === 'edit'"
     :label="field.caption"
     :model-value="modelValue"
@@ -129,6 +131,7 @@ function scalarValue(value: unknown): unknown {
     @update:model-value="update(Boolean($event))"
   />
   <v-autocomplete
+    class="form-control"
     v-else-if="field.type === 'choice' && field.searchable"
     :model-value="modelValue"
     :label="field.caption"
@@ -145,6 +148,7 @@ function scalarValue(value: unknown): unknown {
     @click:clear="emit('search', '')"
   />
   <v-select
+    class="form-control"
     v-else-if="
       field.type === 'boolean' ||
       field.type === 'enum' ||
@@ -162,6 +166,7 @@ function scalarValue(value: unknown): unknown {
     @update:model-value="update($event ?? (field.type === 'enum' ? '' : null))"
   />
   <v-text-field
+    class="form-control"
     v-else
     :model-value="modelValue"
     :data-testid="`field-${field.key}`"

@@ -1,3 +1,4 @@
+import { confirmCollection, editCollection } from './collection-helpers.ts'
 import { randomBytes } from 'node:crypto'
 import { expect, test, type Page, type Locator } from '@playwright/test'
 
@@ -36,7 +37,7 @@ async function select(
 async function approve(page: Page, name: string, compare = false) {
   await page.goto('/bob/customer')
   await page.getByRole('button', { name: '提交记录', exact: true }).click()
-  const dialog = page.getByRole('dialog')
+  const dialog = page.getByRole('dialog').last()
   await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
   const queried = page.waitForResponse(
     (response) =>
@@ -49,7 +50,7 @@ async function approve(page: Page, name: string, compare = false) {
     response.url().endsWith('/bob/customer/submission-get'),
   )
   await page
-    .getByRole('row')
+    .locator('tr, .list-card')
     .filter({ hasText: '待批准' })
     .getByRole('button', { name: '查看', exact: true })
     .click()
@@ -85,14 +86,14 @@ test('customer full temporary form, two subunits, history and independent enable
       name = `浏览器客户${tag}`
     await page.goto('/bob/customer')
     await page.getByRole('button', { name: '新增客户', exact: true }).click()
-    let dialog = page.getByRole('dialog')
+    let dialog = page.getByRole('dialog').last()
     await expect(dialog.getByLabel('身份类型', { exact: true })).toHaveValue(
       '大陆企业',
     )
     await dialog.getByLabel('显示名称', { exact: true }).fill('关闭即丢弃')
     await dialog.getByRole('button', { name: '取消', exact: true }).click()
     await page.getByRole('button', { name: '新增客户', exact: true }).click()
-    dialog = page.getByRole('dialog')
+    dialog = page.getByRole('dialog').last()
     await expect(dialog.getByLabel('显示名称', { exact: true })).toHaveValue('')
     await select(page, dialog, '身份类型', '其他')
     for (const [label, value] of [
@@ -115,6 +116,7 @@ test('customer full temporary form, two subunits, history and independent enable
     await dialog.getByLabel('付款户名', { exact: true }).fill('汇款识别户名')
     await dialog.getByLabel('付款银行', { exact: true }).fill('来款银行')
     await dialog.getByLabel('付款账号', { exact: true }).fill('87654321')
+    await confirmCollection(page)
     await dialog
       .locator('input[type=file]')
       .first()
@@ -125,15 +127,13 @@ test('customer full temporary form, two subunits, history and independent enable
       })
     await expect(dialog).toContainText('税务.pdf')
     expect(staged).toBe(0)
-    await dialog
-      .getByRole('button', { name: '添加子单位', exact: true })
-      .click()
-    const subunits = dialog
-      .locator('[aria-label="客户子单位"] > .v-card')
-      .filter({ has: page.getByLabel('子单位名称', { exact: true }) })
-    await expect(subunits).toHaveCount(2)
     for (let i = 0; i < 2; i++) {
-      const sub = subunits.nth(i)
+      if (i === 0) await editCollection(page, '客户子单位')
+      else
+        await dialog
+          .getByRole('button', { name: '添加客户子单位', exact: true })
+          .click()
+      const sub = page.getByRole('dialog').last()
       await sub
         .getByLabel('子单位名称', { exact: true })
         .fill(i ? '分部' : '总部')
@@ -158,9 +158,12 @@ test('customer full temporary form, two subunits, history and independent enable
       await sub
         .getByRole('textbox', { name: '信用额度', exact: true })
         .fill('10000.00')
+      await confirmCollection(page)
       await sub.getByRole('button', { name: '添加成本项', exact: true }).click()
       await sub.getByLabel('成本名称', { exact: true }).fill('装卸')
       await sub.getByLabel('成本单价或每单金额', { exact: true }).fill('0.20')
+      await confirmCollection(page)
+      await confirmCollection(page)
     }
     await dialog.getByRole('button', { name: '提交', exact: true }).click()
     await expect
@@ -177,30 +180,32 @@ test('customer full temporary form, two subunits, history and independent enable
     await page.reload()
     await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
     await page.getByRole('button', { name: '查询', exact: true }).click()
-    let row = page.getByRole('row').filter({ hasText: name })
+    let row = page.locator('tr, .list-card').filter({ hasText: name })
     await row.getByRole('button', { name: '停用', exact: true }).click()
     await expect(
       row.getByRole('button', { name: '启用', exact: true }),
     ).toBeVisible()
     await row.getByRole('button', { name: '提交变更', exact: true }).click()
-    dialog = page.getByRole('dialog')
-    await expect(dialog.getByLabel('子单位名称', { exact: true })).toHaveCount(
-      2,
-    )
+    dialog = page.getByRole('dialog').last()
+    await expect(
+      dialog.locator('.collection-block[aria-label="客户子单位"] tbody tr'),
+    ).toHaveCount(2)
     await expect(dialog.getByLabel('开票账号', { exact: true })).toHaveValue(
       '12345678',
     )
+    await editCollection(page, '客户子单位')
     await dialog
       .getByLabel('默认加价单价', { exact: true })
       .first()
       .fill('0.30')
+    await confirmCollection(page)
     await dialog.getByRole('button', { name: '提交', exact: true }).click()
     await expect(dialog).toHaveCount(0)
     await approve(reviewer, name, true)
     await page.reload()
     await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
     await page.getByRole('button', { name: '查询', exact: true }).click()
-    row = page.getByRole('row').filter({ hasText: name })
+    row = page.locator('tr, .list-card').filter({ hasText: name })
     await expect(
       row.getByRole('button', { name: '启用', exact: true }),
     ).toBeVisible()
@@ -209,8 +214,12 @@ test('customer full temporary form, two subunits, history and independent enable
       row.getByRole('button', { name: '停用', exact: true }),
     ).toBeVisible()
     await page.setViewportSize({ width: 390, height: 844 })
-    await row.getByRole('button', { name: '查看', exact: true }).click()
-    await expect(page.getByRole('dialog')).toContainText('SUB-0002')
+    await page
+      .locator('.list-card')
+      .filter({ hasText: name })
+      .getByRole('button', { name: '查看', exact: true })
+      .click()
+    await expect(page.getByRole('dialog').last()).toContainText('SUB-0002')
     const downloading = page.waitForEvent('download')
     await page
       .getByRole('dialog')

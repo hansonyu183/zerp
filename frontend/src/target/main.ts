@@ -8,6 +8,7 @@ import { installRouterBehavior } from './router/guards.ts'
 import { useTargetSession } from './session/vm.ts'
 import './style.css'
 import './styles/tables.css'
+import './styles/forms.css'
 
 const pinia = createPinia()
 const app = createApp(App)

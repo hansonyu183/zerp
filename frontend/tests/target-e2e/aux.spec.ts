@@ -90,7 +90,7 @@ async function exerciseSimpleAuxPage(page: Page, config: SimpleAuxPage) {
     Number((await totalLabel.innerText()).match(/\d+/)?.[0]),
   ).toBeGreaterThan(20)
   await search(page, exactName)
-  let row = page.getByRole('row').filter({ hasText: exactName })
+  let row = page.locator('tr, .list-card').filter({ hasText: exactName })
   await expect(row).toBeVisible()
   const code = (await row.innerText()).match(
     new RegExp(`${config.prefix}-\\d+`),
@@ -98,11 +98,11 @@ async function exerciseSimpleAuxPage(page: Page, config: SimpleAuxPage) {
   expect(code).toBeTruthy()
 
   await search(page, code!)
-  row = page.getByRole('row').filter({ hasText: exactName })
+  row = page.locator('tr, .list-card').filter({ hasText: exactName })
   await expect(row).toBeVisible()
 
   await search(page, `${config.py}-${tag}-21`)
-  row = page.getByRole('row').filter({ hasText: exactName })
+  row = page.locator('tr, .list-card').filter({ hasText: exactName })
   await expect(row).toBeVisible()
 
   expect(
@@ -132,7 +132,7 @@ async function exerciseSimpleAuxPage(page: Page, config: SimpleAuxPage) {
   await expect(dialog).toHaveCount(0)
 
   await search(page, renamedName)
-  row = page.getByRole('row').filter({ hasText: renamedName })
+  row = page.locator('tr, .list-card').filter({ hasText: renamedName })
   await expect(row).toBeVisible()
   await row.getByRole('button', { name: '停用', exact: true }).click()
   await expect(
@@ -156,15 +156,15 @@ async function exerciseExistingSimpleAuxPage(
   ).toBeVisible()
   await expect(page.getByTestId('business-unimplemented')).toHaveCount(0)
   await search(page, fact.renamedName)
-  let row = page.getByRole('row').filter({ hasText: fact.renamedName })
+  let row = page.locator('tr, .list-card').filter({ hasText: fact.renamedName })
   await expect(row).toBeVisible()
 
   await search(page, fact.code)
-  row = page.getByRole('row').filter({ hasText: fact.renamedName })
+  row = page.locator('tr, .list-card').filter({ hasText: fact.renamedName })
   await expect(row).toBeVisible()
 
   await search(page, `gaojicaigou-${fact.tag}`)
-  row = page.getByRole('row').filter({ hasText: fact.renamedName })
+  row = page.locator('tr, .list-card').filter({ hasText: fact.renamedName })
   await expect(row).toBeVisible()
 
   await page
@@ -181,7 +181,7 @@ async function exerciseExistingSimpleAuxPage(
   await expect(createDialog).toHaveCount(0)
 
   await search(page, fact.renamedName)
-  row = page.getByRole('row').filter({ hasText: fact.renamedName })
+  row = page.locator('tr, .list-card').filter({ hasText: fact.renamedName })
   await expect(row).toBeVisible()
   await row.getByRole('button', { name: '编辑', exact: true }).click()
   const editDialog = page.getByRole('dialog')

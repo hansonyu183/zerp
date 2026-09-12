@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { actionIcons } from '../../presentation/action-icons.ts'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { queryTargetBobOptions } from '../../api.ts'
+import {
+  queryFormulaMaterials,
+  adoptFormulaMaterials,
+} from './formula-materials.ts'
 import { useTargetSession } from '../../session/vm.ts'
 import { emptyUnit, type ProductSnapshot } from './product-data.ts'
 import FormBlock from '../dynamic-fields/FormBlock.vue'
@@ -153,49 +156,12 @@ async function resolveMaterials(initializing = false) {
   emit('pending', true)
   const owns = () => active && generation === session.generation
   try {
-    const ids = [
-      ...new Set(copied.map((item) => item.material.objectId).filter(Boolean)),
-    ]
-    const choices = new Map<
-      string,
-      Awaited<ReturnType<typeof queryTargetBobOptions>>['items'][number]
-    >()
-    for (let offset = 0; offset < ids.length; offset += 20) {
-      const page = await queryTargetBobOptions('product', {
-        ids: ids.slice(offset, offset + 20),
-        enabled: 'true',
-        behaviorProfile: 'RAW_MATERIAL',
-        keyword: '',
-        page: '1',
-        pageSize: '20',
-      })
-      if (!owns()) return
-      for (const item of page.items) choices.set(item.objectId, item)
-    }
+    const choices = await queryFormulaMaterials(copied)
     if (!owns() || !props.modelValue || props.disabled) return
-    emit('update:modelValue', {
-      ...props.modelValue,
-      components: props.modelValue.components.map((item) => {
-        const unchanged = copied.some(
-          (original) =>
-            original.material.objectId === item.material.objectId &&
-            original.material.approvalEntryId === item.material.approvalEntryId,
-        )
-        const current = choices.get(item.material.objectId)
-        if (!unchanged || !item.requiresConfirmation || !current) return item
-        return {
-          ...item,
-          material: {
-            objectId: current.objectId,
-            approvalEntryId: current.sourceApprovalEntryId,
-            code: current.code,
-            name: current.name,
-          },
-          resolutionStatus: 'CURRENT',
-          requiresConfirmation: false,
-        }
-      }),
-    })
+    emit(
+      'update:modelValue',
+      adoptFormulaMaterials(props.modelValue, copied, choices),
+    )
   } catch {
     if (owns()) resolutionError.value = true
   } finally {

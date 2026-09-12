@@ -107,9 +107,9 @@ for (const [entity, title] of [
       await expect(dialog).toHaveCount(0)
       await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
       await page.getByRole('button', { name: '查询', exact: true }).click()
-      await expect(page.getByRole('row').filter({ hasText: name })).toHaveCount(
-        0,
-      )
+      await expect(
+        page.locator('tr, .list-card').filter({ hasText: name }),
+      ).toHaveCount(0)
       await open(reviewer, path, 1440)
       const approval = await records(reviewer, name)
       await expect(approval).toContainText('浏览器联系人')
@@ -121,7 +121,7 @@ for (const [entity, title] of [
       await open(page, path, 390)
       await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
       await page.getByRole('button', { name: '查询', exact: true }).click()
-      const row = page.getByRole('row').filter({ hasText: name })
+      const row = page.locator('tr, .list-card').filter({ hasText: name })
       await expect(row).toBeVisible()
       await row.getByRole('button', { name: '查看', exact: true }).click()
       await expect(page.getByRole('dialog')).toContainText('浏览器联系人')

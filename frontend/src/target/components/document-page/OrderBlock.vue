@@ -1,29 +1,21 @@
 <script setup lang="ts">
-import { actionIcons } from '../../presentation/action-icons.ts'
+import CollectionBlock from '../dynamic-fields/CollectionBlock.vue'
+import OrderLineEditor from './OrderLineEditor.vue'
+import { useOrderLineEditor } from './order-line-editor.ts'
+import type { DetailFields } from '../details/detail-fields.ts'
 import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { ref, onBeforeUnmount, onMounted, nextTick } from 'vue'
 import { ulid } from 'ulid'
 import {
-  resolveTargetProduct,
-  queryTargetBobOptions,
   resolveTargetCustomerSubunit,
   resolveTargetSupplier,
-  queryTargetCustomerLatestLine,
 } from '../../api.ts'
 import { useTargetSession } from '../../session/vm.ts'
-import ProductFormulaBlock from '../version-page/ProductFormulaBlock.vue'
-import type { ProductSnapshot } from '../version-page/product-data.ts'
 import { vouPaymentMethodSelectionOriginPresentation } from '@zerp/model'
 import FormBlock from '../dynamic-fields/FormBlock.vue'
 import type { FormFields } from '../dynamic-fields/form-fields.ts'
 import VouReference, { type VouCandidate } from './VouReference.vue'
-import {
-  unitSnapshot,
-  orderFormula,
-  formulaDraftFromWire,
-  type OrderDraft,
-  type OrderLine,
-} from './order-data.ts'
+import { type OrderDraft, type OrderLine } from './order-data.ts'
 const props = defineProps<{ modelValue: OrderDraft; disabled: boolean }>()
 const emit = defineEmits<{
   'update:modelValue': [value: OrderDraft]
@@ -33,11 +25,43 @@ const session = useTargetSession(),
   generation = session.generation
 let active = true
 const pending = ref(new Set<string>()),
-  requests = new Map<string, number>(),
   error = ref('')
-const historyStatus = ref<Record<string, string>>({})
 const reminder = ref(''),
   defaultSurcharge = ref<string | null>(null)
+const {
+  product,
+  invalidateLine,
+  error: lineError,
+} = useOrderLineEditor({
+  context: () => props.modelValue,
+  lines: () => props.modelValue.lines,
+  update: lineUpdate,
+  disabled: () => props.disabled,
+  defaultSurcharge: () => defaultSurcharge.value,
+  onPending: (value) => pendingGroup('lines', value),
+})
+function pendingGroup(key: string, value: boolean) {
+  if (value) pending.value.add(key)
+  else pending.value.delete(key)
+  emit('pending', pending.value.size > 0)
+}
+function replaceLines(lines: OrderLine[]) {
+  for (const row of props.modelValue.lines)
+    if (!lines.some((line) => line.lineId === row.lineId))
+      invalidateLine(row.lineId)
+  update({ lines })
+}
+const lineFields = [
+  {
+    key: 'product',
+    type: 'group',
+    caption: '产品',
+    fields: [{ key: 'name', type: 'text', caption: '名称' }],
+  },
+  { key: 'enteredQuantity', type: 'text', caption: '录入数量' },
+  { key: 'baseQuantity', type: 'text', caption: '基准数量' },
+  { key: 'unitPrice', type: 'text', caption: '基础单价' },
+] as const satisfies DetailFields<OrderLine>
 let counterpartyRequest = 0
 const owns = () => active && session.generation === generation
 function update(patch: Partial<OrderDraft>) {
@@ -50,24 +74,6 @@ function lineUpdate(id: string, patch: Partial<OrderLine>) {
       line.lineId === id ? { ...line, ...patch } : line,
     ),
   })
-}
-function invalidateLine(id: string) {
-  requests.set(id, (requests.get(id) ?? 0) + 1)
-  pending.value.delete(id)
-  delete historyStatus.value[id]
-}
-function removeLine(id: string) {
-  if (props.disabled) return
-  invalidateLine(id)
-  pending.value.delete(`formula:${id}`)
-  update({ lines: props.modelValue.lines.filter((line) => line.lineId !== id) })
-  emit('pending', pending.value.size > 0)
-}
-function formulaPending(id: string, value: boolean) {
-  if (!owns()) return
-  if (value) pending.value.add(`formula:${id}`)
-  else pending.value.delete(`formula:${id}`)
-  emit('pending', pending.value.size > 0)
 }
 async function counterparty(choice: VouCandidate | null) {
   if (props.disabled) return
@@ -155,206 +161,23 @@ async function counterparty(choice: VouCandidate | null) {
     }
   }
 }
-function addLine() {
-  update({
-    lines: [
-      ...props.modelValue.lines,
-      {
-        lineId: ulid(),
-        product: null,
-        current: null,
-        enteredQuantity: '',
-        unitId: '',
-        baseQuantity: '',
-        unitPrice: '',
-        settlementSurcharge: null,
-        remark: '',
-        formula: null,
-        formulaDraft: null,
-        deliverySpecificationType: 'PACKAGED',
-        quantityPerContainer: '',
-        containerType: '',
-      },
-    ],
-  })
-}
-async function product(
-  id: string,
-  choice: VouCandidate | null,
-  retained?: OrderLine,
-) {
-  if (props.disabled) return
-  invalidateLine(id)
-  const request = requests.get(id)!
-  emit('pending', pending.value.size > 0)
-  lineUpdate(id, {
-    product: choice,
+function createLine(): OrderLine {
+  return {
+    lineId: ulid(),
+    product: null,
     current: null,
+    enteredQuantity: '',
     unitId: '',
+    baseQuantity: '',
+    unitPrice: '',
+    settlementSurcharge: null,
+    remark: '',
     formula: null,
     formulaDraft: null,
-  })
-  if (!choice) return
-  pending.value.add(id)
-  emit('pending', true)
-  try {
-    let approvalEntryId =
-      'approvalEntryId' in choice ? choice.approvalEntryId : undefined
-    // Order wire products contain only IDs. An explicit copy creates a new draft
-    // and re-adopts their current product configuration, retaining entered facts.
-    if (retained && !approvalEntryId) {
-      const candidates = await queryTargetBobOptions('product', {
-        ids: [choice.objectId],
-        enabled: 'true',
-        keyword: '',
-        page: '1',
-        pageSize: '20',
-      })
-      if (!owns() || requests.get(id) !== request) return
-      const candidate = candidates.items.find(
-        (item) => item.objectId === choice.objectId,
-      )
-      if (!candidate) throw new Error('复制的产品已不可用，请重新选择。')
-      approvalEntryId = candidate.sourceApprovalEntryId
-    }
-    const current = await resolveTargetProduct(choice.objectId, approvalEntryId)
-    if (!owns() || requests.get(id) !== request) return
-    if (!current.enabled) throw new Error('产品已停用，请重新选择。')
-    const unit = unitSnapshot(current.data.defaultInputUnit)
-    const rawFormula = {
-      sourceType: 'RAW_SELF' as const,
-      output: { enteredQuantity: '1', enteredUnit: unit, baseQuantity: '1' },
-      components: [
-        {
-          material: { objectId: choice.objectId },
-          quantity: {
-            enteredQuantity: '1',
-            enteredUnit: unit,
-            baseQuantity: '1',
-          },
-        },
-      ],
-    }
-    lineUpdate(id, {
-      product: {
-        entity: 'product',
-        objectId: current.objectId,
-        approvalEntryId: current.sourceApprovalEntryId,
-        code: current.code,
-        name: current.data.name,
-      },
-      current,
-      unitId: retained?.unitId ?? current.data.defaultInputUnit.id,
-      quantityPerContainer:
-        retained?.quantityPerContainer ??
-        current.data.defaultPackagingSpec ??
-        '',
-      settlementSurcharge:
-        current.data.productType.behaviorProfile === 'PACKAGING'
-          ? '0.00'
-          : (retained?.settlementSurcharge ?? defaultSurcharge.value),
-      formulaDraft:
-        retained?.formula &&
-        current.data.productType.behaviorProfile !== 'RAW_MATERIAL' &&
-        current.data.productType.behaviorProfile !== 'PACKAGING'
-          ? formulaDraftFromWire(retained.formula)
-          : props.modelValue.entity === 'sale-order' &&
-              current.data.productType.behaviorProfile === 'STANDARD_FINISHED'
-            ? (JSON.parse(
-                JSON.stringify(current.data.fixedFormula),
-              ) as ProductSnapshot['fixedFormula'])
-            : null,
-      formula:
-        props.modelValue.entity === 'sale-order'
-          ? current.data.productType.behaviorProfile === 'RAW_MATERIAL'
-            ? rawFormula
-            : (retained?.formula ??
-              orderFormula(current.data.fixedFormula, 'PRODUCT_FIXED'))
-          : null,
-    })
-    await nextTick()
-    if (
-      !retained &&
-      props.modelValue.entity === 'sale-order' &&
-      current.data.productType.behaviorProfile !== 'PACKAGING'
-    )
-      await adoptHistory(
-        id,
-        request,
-        choice.objectId,
-        current.data.productType.behaviorProfile === 'CUSTOM_FINISHED',
-      )
-  } catch (cause) {
-    if (owns() && requests.get(id) === request)
-      error.value = cause instanceof Error ? cause.message : '产品读取失败。'
-  } finally {
-    if (owns() && requests.get(id) === request) {
-      pending.value.delete(id)
-      emit('pending', pending.value.size > 0)
-    }
+    deliverySpecificationType: 'PACKAGED',
+    quantityPerContainer: '',
+    containerType: '',
   }
-}
-async function adoptHistory(
-  id: string,
-  request: number,
-  productId: string,
-  needsFormula: boolean,
-) {
-  const customer = props.modelValue.counterparty?.objectId
-  if (!customer) {
-    historyStatus.value[id] = '请选择客户子单位后采用最近有效订单。'
-    return
-  }
-  const document = await queryTargetCustomerLatestLine(customer, productId)
-  if (
-    !owns() ||
-    requests.get(id) !== request ||
-    props.modelValue.counterparty?.objectId !== customer
-  )
-    return
-  if (document) {
-    const line = document.line
-    lineUpdate(id, {
-      deliverySpecificationType: line.deliverySpecificationType ?? 'PACKAGED',
-      containerType: line.containerType ?? '',
-      quantityPerContainer: line.quantityPerContainer ?? '',
-    })
-    if (needsFormula && line.formula) {
-      const formulaDraft = formulaDraftFromWire(line.formula)
-      lineUpdate(id, {
-        formulaDraft,
-        formula: {
-          ...line.formula,
-          sourceType: 'CUSTOMER_LATEST',
-          sourceDocumentId: document.documentId,
-          sourceDocumentNo: document.documentNo,
-        },
-      })
-    }
-    historyStatus.value[id] =
-      `已采用最近有效订单 ${document.documentNo} 的交付规格${needsFormula && line.formula ? '与配方' : ''}。`
-    return
-  }
-  historyStatus.value[id] =
-    '没有该客户与产品的有效历史订单，请手工确认交付规格与配方。'
-}
-function formula(id: string, value: ProductSnapshot['fixedFormula']) {
-  const previous = props.modelValue.lines.find(
-    (line) => line.lineId === id,
-  )?.formula
-  const next = orderFormula(value, previous?.sourceType ?? 'MANUAL')
-  lineUpdate(id, {
-    formulaDraft: value,
-    formula: next && {
-      ...next,
-      ...(previous?.sourceDocumentId
-        ? {
-            sourceDocumentId: previous.sourceDocumentId,
-            sourceDocumentNo: previous.sourceDocumentNo,
-          }
-        : {}),
-    },
-  })
 }
 function payment(choice: VouCandidate | null) {
   if (choice?.entity === 'payment-method')
@@ -373,73 +196,6 @@ const header = [
   { key: 'currency', type: 'text', caption: '币种', required: true },
   { key: 'remark', type: 'textarea', caption: '备注' },
 ] as const satisfies FormFields<OrderDraft>
-function fields(line: OrderLine): FormFields<OrderLine> {
-  return [
-    {
-      key: 'enteredQuantity',
-      type: 'decimal',
-      scale: 6,
-      caption: '录入数量',
-      required: true,
-    },
-    {
-      key: 'unitId',
-      type: 'enum',
-      caption: '录入单位',
-      required: true,
-      options:
-        line.current?.data.unitConversions.map((item) => ({
-          value: item.unit.id,
-          caption: `${item.unit.name}（${item.unit.symbol}，${item.unit.quantityScale} 位小数）`,
-        })) ?? [],
-    },
-    {
-      key: 'baseQuantity',
-      type: 'decimal',
-      scale: 6,
-      caption: '基准数量',
-      required: true,
-    },
-    {
-      key: 'unitPrice',
-      type: 'decimal',
-      scale: 2,
-      caption: '基础单价',
-      required: true,
-    },
-    ...(props.modelValue.entity === 'sale-order'
-      ? [
-          {
-            key: 'settlementSurcharge' as const,
-            type: 'decimal' as const,
-            scale: 2,
-            caption: '销售加价',
-          },
-          {
-            key: 'deliverySpecificationType' as const,
-            type: 'enum' as const,
-            caption: '交付规格',
-            options: [
-              { value: 'PACKAGED', caption: '有包装' },
-              { value: 'BULK_LIQUID', caption: '散水' },
-            ],
-          },
-          {
-            key: 'quantityPerContainer' as const,
-            type: 'decimal' as const,
-            scale: 6,
-            caption: '每容器数量',
-          },
-          {
-            key: 'containerType' as const,
-            type: 'text' as const,
-            caption: '容器类型',
-          },
-        ]
-      : []),
-    { key: 'remark', type: 'textarea', caption: '行备注' },
-  ]
-}
 onMounted(async () => {
   const lines = props.modelValue.lines.filter(
     (line) => line.product && !line.current,
@@ -472,7 +228,9 @@ onBeforeUnmount(() => {
     "
   />
   <section aria-label="订单录入">
-    <v-alert v-if="error" type="error">{{ error }}</v-alert>
+    <v-alert v-if="error || lineError" type="error">{{
+      error || lineError
+    }}</v-alert>
     <FormBlock
       :fields="header"
       :model-value="modelValue"
@@ -548,56 +306,40 @@ onBeforeUnmount(() => {
         @update:model-value="update($event)"
       />
     </template>
-    <v-card
-      v-for="(line, index) in modelValue.lines"
-      :key="line.lineId"
-      :title="`商品行第 ${index + 1} 行`"
-      variant="outlined"
-      class="my-3 pa-3"
+    <CollectionBlock
+      caption="商品行"
+      :fields="lineFields"
+      :model-value="modelValue.lines"
+      mode="edit"
+      :disabled="disabled"
+      :create="createLine"
+      @update:model-value="replaceLines"
+      @pending="pendingGroup('editor', $event)"
     >
-      <VouReference
-        entity="product"
-        caption="产品"
-        :model-value="line.product"
-        :disabled="disabled"
-        @update:model-value="product(line.lineId, $event)"
-      />
-      <p v-if="historyStatus[line.lineId]">{{ historyStatus[line.lineId] }}</p>
-      <v-progress-linear v-if="pending.has(line.lineId)" indeterminate />
-      <FormBlock
-        :fields="fields(line)"
-        :model-value="line"
-        :disabled="disabled || pending.has(line.lineId)"
-        @update:model-value="lineUpdate(line.lineId, $event)"
-      />
-      <template v-if="modelValue.entity === 'sale-order' && line.current">
-        <p
-          v-if="
-            line.current.data.productType.behaviorProfile === 'RAW_MATERIAL'
-          "
-        >
-          原材料采用自身配方：基准产量 1、自身用量 1，不可编辑。
-        </p>
-        <ProductFormulaBlock
-          v-else-if="
-            line.current.data.productType.behaviorProfile !== 'PACKAGING'
-          "
-          :key="`${line.current.sourceApprovalEntryId}:${line.formula?.sourceDocumentId ?? ''}`"
-          :model-value="line.formulaDraft"
-          :disabled="disabled"
-          @update:model-value="formula(line.lineId, $event)"
-          @pending="formulaPending(line.lineId, $event)"
-        />
-      </template>
-      <v-btn
-        :prepend-icon="actionIcons.remove"
-        :disabled="disabled"
-        @click="removeLine(line.lineId)"
-        >移除商品行第 {{ index + 1 }} 行</v-btn
-      >
-    </v-card>
-    <v-btn :prepend-icon="actionIcons.add" :disabled="disabled" @click="addLine"
-      >添加商品行</v-btn
-    >
+      <template
+        #editor="{
+          value,
+          disabled: locked,
+          update: updateLine,
+          pending: pendingLine,
+        }"
+        ><OrderLineEditor
+          :model-value="value"
+          :entity="modelValue.entity"
+          :counterparty="modelValue.counterparty"
+          :default-surcharge="defaultSurcharge"
+          :disabled="locked"
+          @update:model-value="updateLine"
+          @pending="pendingLine"
+      /></template>
+      <template #viewer="{ value }"
+        ><OrderLineEditor
+          :model-value="value"
+          :entity="modelValue.entity"
+          :counterparty="modelValue.counterparty"
+          :default-surcharge="defaultSurcharge"
+          disabled
+      /></template>
+    </CollectionBlock>
   </section>
 </template>

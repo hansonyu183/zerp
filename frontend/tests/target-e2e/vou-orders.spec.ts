@@ -1,3 +1,9 @@
+import {
+  setDateRange,
+  confirmCollection,
+  confirmCollections,
+  editCollection,
+} from './collection-helpers.ts'
 import { expect, test, type Page } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -59,21 +65,11 @@ test('sales and purchases open from menus, share date range fields, show immutab
       page.getByRole('button', { name: '新建', exact: true }),
     ).toBeVisible()
     await page.setViewportSize({ width: 390, height: 844 })
-    await page.getByLabel('期间起', { exact: true }).fill(row.businessDate)
-    await page.getByLabel('期间止', { exact: true }).fill(row.businessDate)
-    await expect(
-      page.getByLabel('提交日期起', { exact: true }),
-    ).toHaveAttribute('type', 'date')
-    await expect(page.getByLabel('期间起', { exact: true })).toHaveAttribute(
-      'type',
-      'date',
-    )
-    await expect(page.getByLabel('期间起', { exact: true })).toHaveValue(
-      row.businessDate,
-    )
-    await expect(page.getByLabel('期间止', { exact: true })).toHaveValue(
-      row.businessDate,
-    )
+    await setDateRange(page, '期间', row.businessDate, row.businessDate)
+    await expect(page.getByLabel('提交日期', { exact: true })).not.toBeVisible()
+    await page.getByTestId('more-filters').click()
+    await expect(page.getByLabel('提交日期', { exact: true })).toBeVisible()
+    await page.getByTestId('more-filters').click()
     await page.getByLabel('单号', { exact: true }).fill(row.documentNo)
     const response = page.waitForResponse(
       (r) =>
@@ -172,7 +168,7 @@ test('creates and clones sales and purchase orders from real menu candidates, in
     await page.setViewportSize({ width: 1280, height: 900 })
     await openMenu(page, `/vou/${entity}`)
     await page.getByRole('button', { name: '新建', exact: true }).click()
-    const editor = page.getByTestId('document-editor')
+    const editor = page.getByRole('dialog').last()
     await expect(editor).toBeVisible()
     const choose = async (label: string, name: string) => {
       const field = editor.getByLabel(label, { exact: true })
@@ -219,12 +215,15 @@ test('creates and clones sales and purchase orders from real menu candidates, in
     await choose('产品', references.product!.name)
     if (entity === 'sale-order') {
       await expect(editor).toContainText('已采用最近有效订单')
+      await editCollection(page, '配方原料')
       await choose('原材料', references.rawMaterial!.name)
+      await confirmCollection(page)
     }
     await expect(editor.getByLabel('录入数量', { exact: true })).toBeEnabled()
     await editor.getByLabel('录入数量', { exact: true }).fill('2')
     await editor.getByLabel('基准数量', { exact: true }).fill('2')
     await editor.getByLabel('基础单价', { exact: true }).fill('12.50')
+    await confirmCollections(page)
     await editor.getByLabel('添加附件', { exact: true }).setInputFiles({
       name: 'order.pdf',
       mimeType: 'application/pdf',
@@ -241,6 +240,7 @@ test('creates and clones sales and purchase orders from real menu candidates, in
       (response) =>
         new URL(response.url()).pathname === `/vou/${entity}/submit-new`,
     )
+    await confirmCollections(page)
     await editor.getByRole('button', { name: '提交', exact: true }).click()
     const envelope = await (
       await submitted.catch(async () => {
@@ -264,19 +264,25 @@ test('creates and clones sales and purchase orders from real menu candidates, in
       .click()
     await expect(editor).toBeVisible()
     await expect(editor).toContainText('请重新上传')
+    await editCollection(page, '商品行')
     await expect(editor.getByLabel('录入数量', { exact: true })).toHaveValue(
       envelope.data.payload.productLines[0].enteredQuantity,
     )
+    if (entity === 'sale-order') {
+      await editCollection(page, '配方原料')
+      await choose('原材料', references.rawMaterial!.name)
+      await confirmCollection(page)
+    }
+    await confirmCollections(page)
     await expect(
       editor.getByRole('button', { name: '提交', exact: true }),
     ).toBeEnabled()
-    if (entity === 'sale-order')
-      await choose('原材料', references.rawMaterial!.name)
     await editor.getByLabel('备注', { exact: true }).fill('克隆重新提交')
     const cloned = page.waitForResponse(
       (response) =>
         new URL(response.url()).pathname === `/vou/${entity}/submit-new`,
     )
+    await confirmCollections(page)
     await editor.getByRole('button', { name: '提交', exact: true }).click()
     const cloneEnvelope = await (await cloned).json()
     expect(cloneEnvelope.code, JSON.stringify(cloneEnvelope)).toBe(0)

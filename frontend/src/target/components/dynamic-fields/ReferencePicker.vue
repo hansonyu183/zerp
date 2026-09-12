@@ -220,7 +220,7 @@ onBeforeUnmount(() => {
 })
 </script>
 <template>
-  <div class="reference-picker">
+  <div class="reference-picker form-control">
     <FieldInput
       usage="edit"
       :field="{

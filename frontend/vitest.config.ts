@@ -12,6 +12,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    setupFiles: ['tests/unit/target/helpers/display.ts'],
     include: ['tests/unit/target/**/*.spec.ts'],
     exclude: ['tests/unit/target/*.vuetify.spec.ts'],
   },

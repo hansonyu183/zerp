@@ -19,8 +19,8 @@ const wrongType: EditFields<Customer> = [
   { key: 'legalName', type: 'integer', caption: '名称' },
 ]
 const arrayField: FormFields<Customer> = [
+  // @ts-expect-error Repeating subunits require a rows field, not a reference.
   {
-    // @ts-expect-error Repeating subunits require a detail block.
     key: 'subunits',
     type: 'snapshot-reference',
     source: 'customer-types',

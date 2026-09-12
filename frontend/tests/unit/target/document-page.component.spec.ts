@@ -4,6 +4,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import * as api from '@/target/api.ts'
 import ResourceHost from '@/target/navigation/ResourceHost.vue'
 import { useTargetSession } from '@/target/session/vm.ts'
+import { confirmItems, editItem } from './helpers/collection-actions.ts'
 import { archiveStubs as stubs } from './helpers/archive-stubs.ts'
 
 vi.mock('@/target/api.ts', async (original) => ({
@@ -115,6 +116,7 @@ it('submits a purchase order from selected candidates and confirmed quantities, 
   await wrapper.get('[aria-label="录入数量"]').setValue('2')
   await wrapper.get('[aria-label="基准数量"]').setValue('2')
   await wrapper.get('[aria-label="基础单价"]').setValue('15.00')
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(api.submitTargetOrder, wrapper.text()).toHaveBeenCalledTimes(1)
   const [, entity, input] = vi.mocked(api.submitTargetOrder).mock.calls[0]!
@@ -249,6 +251,7 @@ it('adopts customer defaults, keeps the internal reminder out of the order, and 
   await wrapper.get('[aria-label="录入数量"]').setValue('2')
   await wrapper.get('[aria-label="基准数量"]').setValue('2')
   await wrapper.get('[aria-label="基础单价"]').setValue('10.00')
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(api.submitTargetOrder, wrapper.text()).toHaveBeenCalledTimes(1)
   const payload = vi.mocked(api.submitTargetOrder).mock.calls[0]![2].payload
@@ -320,6 +323,7 @@ it('keeps an uncertain order submission locked across closing, querying and reop
   await wrapper.get('[aria-label="录入数量"]').setValue('1')
   await wrapper.get('[aria-label="基准数量"]').setValue('1')
   await wrapper.get('[aria-label="基础单价"]').setValue('1')
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(wrapper.text()).toContain('未知')
   await click(wrapper, '取消')
@@ -425,13 +429,16 @@ it('keeps a failed opening input and intent, then discards both when starting an
   await click(wrapper, '新建')
   await wrapper.get('[aria-label="账簿"]').setValue(referenceId)
   await flushPromises()
-  await click(wrapper, '添加明细')
+  await click(wrapper, '添加期初明细')
   await wrapper.get('[aria-label="金额"]').setValue('12.30')
+  await confirmItems(wrapper)
   await click(wrapper, '提交期初')
   expect(wrapper.text()).toContain('逐币种')
+  await editItem(wrapper, '期初明细')
   expect(
     (wrapper.get('[aria-label="金额"]').element as HTMLInputElement).value,
   ).toBe('12.30')
+  await confirmItems(wrapper)
   await click(wrapper, '提交期初')
   expect(
     vi.mocked(api.submitTargetOpening).mock.calls[0]![1].submissionId,
@@ -476,6 +483,7 @@ it('clears the optional opening bill counterparty before submitting', async () =
   await flushPromises()
   await wrapper.get('[aria-label="清空原始相对方"]').trigger('click')
   await flushPromises()
+  await confirmItems(wrapper)
   await click(wrapper, '提交期初')
   expect(api.submitTargetOpening).toHaveBeenCalledTimes(1)
   expect(
@@ -512,11 +520,12 @@ it('clears every adopted customer identity from an opening container before subm
   })
   await click(wrapper, '新建')
   await wrapper.get('[aria-label="账簿"]').setValue(referenceId)
-  await click(wrapper, '添加空桶')
+  await click(wrapper, '添加空桶登记')
   await wrapper.get('[aria-label="客户子单位"]').setValue(productId)
   await flushPromises()
   await wrapper.get('[aria-label="清空客户子单位"]').trigger('click')
   await flushPromises()
+  await confirmItems(wrapper)
   await click(wrapper, '提交期初')
   expect(api.submitTargetOpening).toHaveBeenCalledTimes(1)
   expect(
@@ -532,7 +541,7 @@ it('clears every adopted customer identity from an opening container before subm
   wrapper.unmount()
 })
 
-it.each(['clear', 'remove'])(
+it.each(['clear', 'cancel'])(
   'releases pending product work after %s and ignores its late response',
   async (action) => {
     useTargetSession().apiPaths = [
@@ -591,7 +600,11 @@ it.each(['clear', 'remove'])(
     if (action === 'clear')
       await wrapper.get('[aria-label="产品"]').setValue('')
     else {
-      await click(wrapper, '移除商品行第 1 行')
+      await wrapper
+        .findAll('div[aria-label^="编辑"] button')
+        .find((button) => button.text() === '取消')!
+        .trigger('click')
+      await flushPromises()
       await click(wrapper, '添加商品行')
     }
     await wrapper.get('[aria-label="产品"]').setValue(productId)
@@ -604,6 +617,7 @@ it.each(['clear', 'remove'])(
     await wrapper.get('[aria-label="录入数量"]').setValue('2')
     await wrapper.get('[aria-label="基准数量"]').setValue('2')
     await wrapper.get('[aria-label="基础单价"]').setValue('15.00')
+    await confirmItems(wrapper)
     await click(wrapper, '提交')
     expect(api.submitTargetOrder, wrapper.text()).toHaveBeenCalledTimes(1)
     const [, entity, input] = vi.mocked(api.submitTargetOrder).mock.calls[0]!
@@ -751,6 +765,7 @@ it.each(['RAW_MATERIAL', 'CUSTOM_FINISHED'] as const)(
     await click(wrapper, '打开')
     await click(wrapper, '复制到临时表单')
     await flushPromises()
+    await confirmItems(wrapper)
     await click(wrapper, '提交')
     expect(api.resolveTargetProduct).toHaveBeenCalledWith(productId, entryId)
     if (profile === 'RAW_MATERIAL') {
@@ -828,12 +843,13 @@ it('submits purchase receipt with the selected exact source and refreshes once',
     .get('[data-testid="document-editor"] [aria-label="供应商"]')
     .setValue(referenceId)
   await wrapper.get('[aria-label="仓库"]').setValue(referenceId)
-  await click(wrapper, '添加来源行')
+  await click(wrapper, '添加来源明细')
   await wrapper
     .get('[aria-label="来源行"]')
     .setValue(`${referenceId}:source-line-1`)
   await flushPromises()
   await wrapper.get('[aria-label="基准数量"]').setValue('2.123456')
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(api.submitTargetVoucher, wrapper.text()).toHaveBeenCalledTimes(1)
   expect(
@@ -900,13 +916,15 @@ it.each(['sale-return', 'purchase-return'] as const)(
     if (entity === 'purchase-return')
       await wrapper.get('[aria-label="供应商"]').setValue(referenceId)
     await wrapper.get('[aria-label="仓库"]').setValue(referenceId)
-    await click(wrapper, '添加来源行')
+    await click(wrapper, '添加来源明细')
     await wrapper.get('[aria-label="来源行"]').setValue(`${entryId}:line-1`)
     await wrapper.get('[aria-label="基准数量"]').setValue('1.000001')
+    await confirmItems(wrapper)
     await click(wrapper, '提交')
     expect(api.submitTargetVoucher).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('请填写退货原因')
     await wrapper.get('[aria-label="退货原因"]').setValue('质量退货')
+    await confirmItems(wrapper)
     await click(wrapper, '提交')
     expect(
       vi.mocked(api.submitTargetVoucher).mock.calls[0]?.[2].payload,
@@ -1012,6 +1030,7 @@ it('clones return facts and exact sources without inheriting submission identity
   expect(wrapper.get('[data-testid="document-editor"]').text()).not.toContain(
     '退货凭证.pdf',
   )
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(api.submitTargetVoucher, wrapper.text()).toHaveBeenCalledTimes(1)
   const input = vi.mocked(api.submitTargetVoucher).mock.calls[0]![2]
@@ -1073,6 +1092,7 @@ it.each(['purchase-inquiry', 'inventory-count', 'sale-pricing'] as const)(
       await wrapper.get('[aria-label="实盘数量"]').setValue('0')
       await wrapper.get('[aria-label="基准数量"]').setValue('0')
     }
+    await confirmItems(wrapper)
     await click(wrapper, '提交')
     expect(api.submitTargetVoucher, wrapper.text()).toHaveBeenCalledTimes(1)
     expect(
@@ -1176,11 +1196,16 @@ it('submits self production from a fixed formula and retains the reason for an a
   await flushPromises()
   await wrapper.get('[aria-label="成品数量"]').setValue('2')
   await wrapper.get('[aria-label="成品基准数量"]').setValue('2')
+  await editItem(wrapper, '配方材料')
   await wrapper.get('[aria-label="实际基准领料量"]').setValue('1')
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(api.submitTargetVoucher).not.toHaveBeenCalled()
   expect(wrapper.text()).toContain('调整原因')
+  await editItem(wrapper, '成品行')
+  await editItem(wrapper, '配方材料')
   await wrapper.get('[aria-label="调整原因"]').setValue('节约材料')
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(
     vi.mocked(api.submitTargetVoucher).mock.calls[0]?.[2].payload,
@@ -1283,6 +1308,7 @@ it('adopts the exact order production source and immutable formula', async () =>
     .get('[aria-label="来源行"]')
     .setValue(`${entryId}:finished-line`)
   await flushPromises()
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(
     vi.mocked(api.submitTargetVoucher).mock.calls[0]?.[2].payload,
@@ -1356,11 +1382,13 @@ it('adds a book-balance product as a candidate while requiring an explicit actua
     expect.objectContaining({ ids: [productId], enabled: 'true' }),
   )
   expect(api.resolveTargetProduct).toHaveBeenCalledWith(productId, entryId)
+  await editItem(wrapper, '商品行')
   expect(wrapper.get('[aria-label="实盘数量"]').element).toHaveProperty(
     'value',
     '',
   )
   useTargetSession().csrfToken = 'test-csrf'
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(api.submitTargetVoucher).not.toHaveBeenCalled()
   wrapper.unmount()
@@ -1436,6 +1464,7 @@ it.each([
       await choose('经办人')
       await wrapper.get('[aria-label="金额"]').setValue('1234567890123.45')
     }
+    await confirmItems(wrapper)
     await click(wrapper, '提交')
     expect(api.submitTargetVoucher, wrapper.text()).toHaveBeenCalledTimes(1)
     const [token, actualEntity, input] = vi.mocked(api.submitTargetVoucher).mock
@@ -1501,6 +1530,7 @@ it.each(['supplier', 'employee', 'other-unit', 'sales-partner'] as const)(
     for (const caption of ['相对方', '资金账户', '经办人'])
       await wrapper.get(`[aria-label="${caption}"]`).setValue(referenceId)
     await wrapper.get('[aria-label="金额"]').setValue('0.00')
+    await confirmItems(wrapper)
     await click(wrapper, '提交')
     expect(api.submitTargetVoucher, wrapper.text()).toHaveBeenCalledTimes(1)
     expect(
@@ -1581,6 +1611,7 @@ it.each(['asset-acquisition', 'asset-sale', 'asset-liquidation'] as const)(
         await wrapper.get('[aria-label="处置费用"]').setValue('0.01')
       }
     }
+    await confirmItems(wrapper)
     await click(wrapper, '提交')
     expect(api.submitTargetVoucher, wrapper.text()).toHaveBeenCalledTimes(1)
     const payload = vi.mocked(api.submitTargetVoucher).mock.calls[0]![2].payload
@@ -1678,9 +1709,11 @@ it.each([
       for (const label of ['出票人', '承兑人', '收款人'])
         await wrapper.get(`[aria-label="${label}"]`).setValue('测试单位')
     } else await choose('可用票据')
+    await confirmItems(wrapper)
     await click(wrapper, '添加现金行')
     await choose('现金资金账户')
     await wrapper.get('[aria-label="现金金额"]').setValue('9999.99')
+    await confirmItems(wrapper)
     await click(wrapper, '提交')
     expect(api.submitTargetVoucher, wrapper.text()).toHaveBeenCalledTimes(1)
     const payload = vi.mocked(api.submitTargetVoucher).mock.calls[0]![2].payload
@@ -1739,6 +1772,7 @@ it.each(['service-contract', 'service-acceptance'] as const)(
       await wrapper.get('[aria-label="相对方"]').setValue(referenceId)
       await wrapper.get('[aria-label="合同条款"]').setValue('按合同交付')
       await wrapper.get('[aria-label="相对方类型"]').setValue('sales-partner')
+      await confirmItems(wrapper)
       await click(wrapper, '提交')
       expect(api.submitTargetVoucher).not.toHaveBeenCalled()
       expect(wrapper.text()).toContain('请选择合同相对方。')
@@ -1749,6 +1783,7 @@ it.each(['service-contract', 'service-acceptance'] as const)(
       await wrapper.get('[aria-label="履约事实"]').setValue('已交付')
       await wrapper.get('[aria-label="验收事实"]').setValue('合格')
     }
+    await confirmItems(wrapper)
     await click(wrapper, '提交')
     expect(api.submitTargetVoucher, wrapper.text()).toHaveBeenCalledTimes(1)
     expect(
@@ -1812,6 +1847,7 @@ it.each([null, 'network', 'internal_error', 'invalid_response'])(
     await flushPromises()
     await click(wrapper, '新建')
     await wrapper.get('[aria-label="计算月末日期"]').setValue('2026-09-30')
+    await confirmItems(wrapper)
     await click(wrapper, '提交')
     expect(api.submitTargetVoucher).not.toHaveBeenCalled()
     await wrapper.get('[aria-label="脚本名称"]').setValue(script.name)
@@ -1850,6 +1886,7 @@ it.each([null, 'network', 'internal_error', 'invalid_response'])(
       source: script.source,
       expectedRevision: null,
     })
+    await confirmItems(wrapper)
     await click(wrapper, '提交')
     expect(api.submitTargetVoucher).not.toHaveBeenCalled()
     vi.mocked(api.getTargetIntermediaryScript).mockResolvedValue(script)
@@ -1875,6 +1912,7 @@ it.each([null, 'network', 'internal_error', 'invalid_response'])(
       vi.mocked(api.getTargetIntermediaryScript).mockResolvedValue(nextScript)
       await click(wrapper, '核实脚本保存')
       expect(wrapper.find('[aria-label="计算结果"]').exists()).toBe(false)
+      await confirmItems(wrapper)
       await click(wrapper, '提交')
       expect(api.submitTargetVoucher).not.toHaveBeenCalled()
       await click(wrapper, '重新计算')
@@ -1883,6 +1921,7 @@ it.each([null, 'network', 'internal_error', 'invalid_response'])(
       )
       script = nextScript
     }
+    await confirmItems(wrapper)
     await click(wrapper, '提交')
     expect(api.submitTargetVoucher).toHaveBeenCalledTimes(1)
     expect(

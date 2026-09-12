@@ -51,3 +51,6 @@
 - [#423 当前初始化与历史机制清理](history-cleanup-issue-423-2026-09-11.md)
 
 - [2026-09-08 会计期初实现历史验收](vou-opening-validation-2026-09-08.md)
+
+- [#425 辅助读取路由与消费者迁移盘点](auxiliary-read-migration-matrix.md)
+- [#426 ACC 目录 GET 与方法分类验收](auxiliary-get-issue-426-2026-09-12.md)

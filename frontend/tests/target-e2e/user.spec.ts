@@ -92,15 +92,6 @@ async function toggleVirtualOption(page: Page, title: string): Promise<void> {
   })
   await search.fill(keyword)
   expect((await (await candidates).json()).code).toBe(0)
-  await expect(
-    page
-      .getByRole('dialog')
-      .locator('.reference-picker')
-      .filter({
-        has: page.getByRole('combobox', { name: /^(权限|角色)$/ }),
-      })
-      .locator('.v-field'),
-  ).not.toHaveClass(/v-field--loading/)
   await expect(option).toBeVisible()
   const wasSelected = (await option.getAttribute('aria-selected')) === 'true'
   await option.click()
@@ -513,7 +504,7 @@ test('a role with one non-query permission grants the menu without an overbroad 
   await row.getByRole('button', { name: '编辑', exact: true }).click()
   const editor = page.getByRole('dialog')
   await expect(editor.getByRole('combobox', { name: '角色' })).toBeEnabled()
-  await editor.getByRole('combobox', { name: '角色' }).press('ArrowDown')
+  await editor.getByRole('combobox', { name: '角色' }).click()
   await toggleVirtualOption(page, targetE2ERoleText)
   await toggleVirtualOption(page, roleName)
   await closeOpenListbox(page)

@@ -74,15 +74,24 @@ async function toggleVirtualOption(page: Page, title: string): Promise<void> {
   const search = page
     .getByRole('dialog')
     .getByRole('combobox', { name: /^(权限|角色)$/ })
-  await search.fill(
+  const keyword =
     title === '系统管理 · 用户管理 · 新增'
       ? '/app/user/create'
       : title === '系统管理 · 用户管理 · 查看'
         ? '/app/user/get'
         : title === targetE2ERoleText
           ? targetE2ERoleName
-          : title,
-  )
+          : title
+  const candidates = page.waitForResponse((response) => {
+    const url = new URL(response.url())
+    return (
+      response.request().method() === 'GET' &&
+      ['/app/role/options', '/app/permission/options'].includes(url.pathname) &&
+      url.searchParams.get('keyword') === keyword
+    )
+  })
+  await search.fill(keyword)
+  expect((await (await candidates).json()).code).toBe(0)
   await expect(option).toBeVisible()
   const wasSelected = (await option.getAttribute('aria-selected')) === 'true'
   await option.click()

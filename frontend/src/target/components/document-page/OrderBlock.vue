@@ -59,7 +59,14 @@ function invalidateLine(id: string) {
 function removeLine(id: string) {
   if (props.disabled) return
   invalidateLine(id)
+  pending.value.delete(`formula:${id}`)
   update({ lines: props.modelValue.lines.filter((line) => line.lineId !== id) })
+  emit('pending', pending.value.size > 0)
+}
+function formulaPending(id: string, value: boolean) {
+  if (!owns()) return
+  if (value) pending.value.add(`formula:${id}`)
+  else pending.value.delete(`formula:${id}`)
   emit('pending', pending.value.size > 0)
 }
 async function counterparty(choice: VouCandidate | null) {
@@ -579,6 +586,7 @@ onBeforeUnmount(() => {
           :model-value="line.formulaDraft"
           :disabled="disabled"
           @update:model-value="formula(line.lineId, $event)"
+          @pending="formulaPending(line.lineId, $event)"
         />
       </template>
       <v-btn

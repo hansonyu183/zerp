@@ -504,7 +504,7 @@ test('a role with one non-query permission grants the menu without an overbroad 
   await row.getByRole('button', { name: '编辑', exact: true }).click()
   const editor = page.getByRole('dialog')
   await expect(editor.getByRole('combobox', { name: '角色' })).toBeEnabled()
-  await editor.getByRole('combobox', { name: '角色' }).press('ArrowDown')
+  await editor.getByRole('combobox', { name: '角色' }).click()
   await toggleVirtualOption(page, targetE2ERoleText)
   await toggleVirtualOption(page, roleName)
   await closeOpenListbox(page)

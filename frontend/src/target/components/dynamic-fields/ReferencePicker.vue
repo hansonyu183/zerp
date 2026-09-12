@@ -67,8 +67,8 @@ function preserveSelection() {
   const next = new Map<string, EditOption>()
   for (const id of selected.value) {
     const item =
-      retained.value.get(id) ??
       props.existing.find((item) => item.id === id) ??
+      retained.value.get(id) ??
       [...options.value, ...props.localOptions].find((item) => item.id === id)
     if (item) next.set(id, item)
   }

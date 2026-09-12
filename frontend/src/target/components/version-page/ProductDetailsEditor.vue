@@ -20,6 +20,7 @@ type Details = Pick<
 const props = defineProps<{ modelValue: Details; disabled: boolean }>()
 const emit = defineEmits<{
   'update:modelValue': [value: Details]
+  pending: [value: boolean]
 }>()
 const pendingType = shallowRef<Details['productType'] | null>(null)
 function patch(value: Partial<Details>) {
@@ -125,5 +126,6 @@ function selectType(
     :model-value="modelValue.fixedFormula"
     :disabled="disabled"
     @update:model-value="patch({ fixedFormula: $event })"
+    @pending="emit('pending', $event)"
   />
 </template>

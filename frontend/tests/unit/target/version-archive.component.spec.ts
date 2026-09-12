@@ -356,7 +356,7 @@ function productFacts() {
   }
   return { data, unit }
 }
-it('opening a product change preserves the exact adopted material and confirmed quantities', async () => {
+it('opening a new product candidate adopts current material versions without changing confirmed quantities or the approved snapshot', async () => {
   useTargetSession().apiPaths = [
     '/bob/product/query',
     '/bob/product/versions',
@@ -408,6 +408,9 @@ it('opening a product change preserves the exact adopted material and confirmed 
   })
   await flushPromises()
   await click(wrapper, '提交变更')
+  expect(wrapper.get('[aria-label="原材料"] option:checked').text()).toBe(
+    'MAT · 原料现版本',
+  )
   await click(wrapper, '提交')
   expect(api.submitChangeTargetProduct).toHaveBeenCalledWith(
     'test-csrf',
@@ -420,10 +423,9 @@ it('opening a product change preserves the exact adopted material and confirmed 
             expect.objectContaining({
               material: {
                 objectId: 'material',
-                approvalEntryId:
-                  data.fixedFormula!.components[0]!.material.approvalEntryId,
-                code: data.fixedFormula!.components[0]!.material.code,
-                name: data.fixedFormula!.components[0]!.material.name,
+                approvalEntryId: 'new-entry',
+                code: 'MAT',
+                name: '原料现版本',
               },
               quantity: {
                 enteredQuantity: '2',
@@ -436,6 +438,12 @@ it('opening a product change preserves the exact adopted material and confirmed 
       }),
     }),
   )
+  expect(data.fixedFormula.components[0]!.material).toEqual({
+    objectId: 'material',
+    approvalEntryId: 'old-entry',
+    code: 'MAT',
+    name: '原料旧快照',
+  })
   wrapper.unmount()
 })
 
@@ -1468,14 +1476,16 @@ it('does not let initial material resolution overwrite a subsequent user choice'
   await click(wrapper, '提交变更')
   await wrapper.get('[aria-label="原材料"]').setValue('other')
   await wrapper.get('[aria-label="原材料"]').setValue('material')
-  initial.resolve([
-    {
-      objectId: 'material',
-      sourceApprovalEntryId: 'stale',
-      code: 'MAT',
-      name: '较早查询的原料',
-    },
-  ] as never)
+  initial.resolve(
+    optionPage([
+      {
+        objectId: 'material',
+        sourceApprovalEntryId: 'stale',
+        code: 'MAT',
+        name: '较早查询的原料',
+      },
+    ]) as never,
+  )
   await flushPromises()
   await click(wrapper, '提交')
   expect(api.submitChangeTargetProduct).toHaveBeenCalledWith(

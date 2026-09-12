@@ -10,6 +10,7 @@ import type {
 } from './product-facts-data.ts'
 import {
   resolveTargetProduct,
+  queryTargetBobOptions,
   queryTargetInventoryBookBalance,
 } from '../../api.ts'
 import { useTargetSession } from '../../session/vm.ts'
@@ -134,20 +135,38 @@ async function product(
   line(id, { product: choice, current: null, unitId: '' })
   emit('pending', pending.size > 0)
   if (!choice || props.modelValue.entity !== 'inventory-count') return
-  if (!session.csrfToken) {
-    error.value = '没有产品读取权限，无法采用产品单位。'
-    return
-  }
   pending.add(id)
   emit('pending', true)
   try {
-    const current = await resolveTargetProduct(
-      choice.objectId,
-      'approvalEntryId' in choice ? choice.approvalEntryId : undefined,
-    )
+    let approvalEntryId =
+      'approvalEntryId' in choice ? choice.approvalEntryId : undefined
+    // Book-balance rows and copied document products carry identity only.
+    if (!approvalEntryId) {
+      const candidates = await queryTargetBobOptions('product', {
+        ids: [choice.objectId],
+        enabled: 'true',
+        keyword: '',
+        page: '1',
+        pageSize: '20',
+      })
+      if (!owns() || requests.get(id) !== request) return
+      const candidate = candidates.items.find(
+        (item) => item.objectId === choice.objectId,
+      )
+      if (!candidate) throw new Error('产品已不可用，请重新选择。')
+      approvalEntryId = candidate.sourceApprovalEntryId
+    }
+    const current = await resolveTargetProduct(choice.objectId, approvalEntryId)
     if (!owns() || requests.get(id) !== request) return
     if (!current.enabled) throw new Error('产品已停用，请重新选择。')
     line(id, {
+      product: {
+        entity: 'product',
+        objectId: current.objectId,
+        approvalEntryId: current.sourceApprovalEntryId,
+        code: current.code,
+        name: current.data.name,
+      },
       current,
       unitId: retained?.unitId ?? current.data.defaultInputUnit.id,
     })

@@ -376,6 +376,22 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
   }
 
   const first = await submit(productLine(unitV1, '1.200000'))
+  const latestLine = await vou.saleOrderLine({
+    customerSubunitId,
+    productId: subjectIds.product,
+  })
+  assert.equal(latestLine?.documentId, first.documentId)
+  assert.deepEqual(
+    latestLine?.line.formula,
+    (first.payload as VouPayloadFor<'sale-order'>).productLines[0]!.formula,
+  )
+  assert.equal(
+    await vou.saleOrderLine({
+      customerSubunitId: ulid(),
+      productId: subjectIds.product,
+    }),
+    null,
+  )
   // Real delivery adoption checks the vehicle against its source order owner.
   const vehicleActor = {
     ...auxActor,

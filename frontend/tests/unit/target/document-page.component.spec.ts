@@ -544,122 +544,136 @@ it.each(['clear', 'remove'])(
   },
 )
 
-it('requires explicit material selection when cloning an unresolved manual formula', async () => {
-  useTargetSession().apiPaths = [
-    '/vou/sale-order/query',
-    '/vou/sale-order/get',
-    '/vou/sale-order/submit-new',
-    '/bob/product/get',
-  ]
-  const quantity = {
-    enteredQuantity: '2',
-    enteredUnit: {
-      objectId: unitId,
-      code: 'PC',
-      name: '个',
-      symbol: '个',
-      quantityScale: 0,
-    },
-    baseQuantity: '2',
-  }
-  const payload = {
-    businessDate: '2026-09-01',
-    currency: 'CNY',
-    remark: '复制备注',
-    attachments: [],
-    customerSubunit: {
-      objectId: referenceId,
-      approvalEntryId: entryId,
-      selectionOrigin: 'CURRENT',
-    },
-    warehouse: { objectId: referenceId },
-    operatingEntity: { objectId: referenceId },
-    paymentMethod: null,
-    productLines: [
-      {
-        lineId: referenceId,
-        product: { objectId: productId },
-        ...quantity,
-        unitPrice: '10',
-        settlementSurcharge: '3',
-        quantityPerContainer: '8',
-        deliverySpecificationType: 'PACKAGED',
-        containerType: '',
-        remark: '',
-        formula: {
-          sourceType: 'MANUAL',
-          output: quantity,
-          components: [{ material: { objectId: referenceId }, quantity }],
+it.each(['RAW_MATERIAL', 'CUSTOM_FINISHED'] as const)(
+  'clones ID-only order products through current options while preserving unresolved manual formulas (%s)',
+  async (profile) => {
+    useTargetSession().apiPaths = [
+      '/vou/sale-order/query',
+      '/vou/sale-order/get',
+      '/vou/sale-order/submit-new',
+      '/bob/product/get',
+    ]
+    const quantity = {
+      enteredQuantity: '2',
+      enteredUnit: {
+        objectId: unitId,
+        code: 'PC',
+        name: '个',
+        symbol: '个',
+        quantityScale: 0,
+      },
+      baseQuantity: '2',
+    }
+    const payload = {
+      businessDate: '2026-09-01',
+      currency: 'CNY',
+      remark: '复制备注',
+      attachments: [],
+      customerSubunit: {
+        objectId: referenceId,
+        approvalEntryId: entryId,
+        selectionOrigin: 'CURRENT',
+      },
+      warehouse: { objectId: referenceId },
+      operatingEntity: { objectId: referenceId },
+      paymentMethod: null,
+      productLines: [
+        {
+          lineId: referenceId,
+          product: { objectId: productId },
+          ...quantity,
+          unitPrice: '10',
+          settlementSurcharge: '3',
+          quantityPerContainer: '8',
+          deliverySpecificationType: 'PACKAGED',
+          containerType: '',
+          remark: '',
+          formula: {
+            sourceType: 'MANUAL',
+            output: quantity,
+            components: [{ material: { objectId: referenceId }, quantity }],
+          },
+        },
+      ],
+    }
+    vi.mocked(api.queryTargetVouchers).mockResolvedValue({
+      items: [
+        {
+          vouType: 'sale-order',
+          documentId: referenceId,
+          documentNo: 'SO01',
+          revision: '1',
+          businessDate: '2026-09-01',
+          submittedDate: '2026-09-01',
+          handlerName: null,
+          counterpartyName: '客户',
+          status: 'PENDING',
+          amount: '20',
+          currency: 'CNY',
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    })
+    vi.mocked(api.getTargetVoucher).mockResolvedValue({
+      entity: 'sale-order',
+      documentId: referenceId,
+      documentNo: 'SO01',
+      revision: '1',
+      submissionId: entryId,
+      status: 'PENDING',
+      availableApprovalActions: [],
+      payload,
+    } as Awaited<ReturnType<typeof api.getTargetVoucher>>)
+    vi.mocked(api.resolveTargetProduct).mockResolvedValue({
+      ...productCurrent,
+      data: {
+        ...productCurrent.data,
+        productType: {
+          ...productCurrent.data.productType,
+          behaviorProfile: profile,
         },
       },
-    ],
-  }
-  vi.mocked(api.queryTargetVouchers).mockResolvedValue({
-    items: [
-      {
-        vouType: 'sale-order',
-        documentId: referenceId,
-        documentNo: 'SO01',
-        revision: '1',
-        businessDate: '2026-09-01',
-        submittedDate: '2026-09-01',
-        handlerName: null,
-        counterpartyName: '客户',
-        status: 'PENDING',
-        amount: '20',
-        currency: 'CNY',
-      },
-    ],
-    total: 1,
-    page: 1,
-    pageSize: 20,
-  })
-  vi.mocked(api.getTargetVoucher).mockResolvedValue({
-    entity: 'sale-order',
-    documentId: referenceId,
-    documentNo: 'SO01',
-    revision: '1',
-    submissionId: entryId,
-    status: 'PENDING',
-    availableApprovalActions: [],
-    payload,
-  } as Awaited<ReturnType<typeof api.getTargetVoucher>>)
-  vi.mocked(api.resolveTargetProduct).mockResolvedValue({
-    ...productCurrent,
-    data: {
-      ...productCurrent.data,
-      productType: {
-        ...productCurrent.data.productType,
-        behaviorProfile: 'CUSTOM_FINISHED',
-      },
-    },
-  } as Awaited<ReturnType<typeof api.resolveTargetProduct>>)
-  vi.mocked(api.queryTargetBobOptions).mockResolvedValue(
-    optionPage([
-      {
-        objectId: referenceId,
-        sourceApprovalEntryId: entryId,
-        code: 'R01',
-        name: '当前原料',
-      },
-    ]) as Awaited<ReturnType<typeof api.queryTargetBobOptions>>,
-  )
-  vi.mocked(api.submitTargetOrder).mockResolvedValue({
-    documentId: productId,
-  } as Awaited<ReturnType<typeof api.submitTargetOrder>>)
-  const wrapper = mount(ResourceHost, {
-    props: { domain: 'vou', entity: 'sale-order' },
-    global: { stubs },
-  })
-  await flushPromises()
-  await click(wrapper, '打开')
-  await click(wrapper, '复制到临时表单')
-  await flushPromises()
-  await click(wrapper, '提交')
-  expect(api.submitTargetOrder).not.toHaveBeenCalled()
-  expect(wrapper.text()).toContain('配方原料尚未确认')
-  wrapper.unmount()
-})
+    } as Awaited<ReturnType<typeof api.resolveTargetProduct>>)
+    vi.mocked(api.queryTargetBobOptions).mockResolvedValue(
+      optionPage([
+        {
+          objectId: productId,
+          sourceApprovalEntryId: entryId,
+          code: 'R01',
+          name: '当前原料',
+        },
+      ]) as Awaited<ReturnType<typeof api.queryTargetBobOptions>>,
+    )
+    vi.mocked(api.submitTargetOrder).mockResolvedValue({
+      documentId: productId,
+    } as Awaited<ReturnType<typeof api.submitTargetOrder>>)
+    const wrapper = mount(ResourceHost, {
+      props: { domain: 'vou', entity: 'sale-order' },
+      global: { stubs },
+    })
+    await flushPromises()
+    await click(wrapper, '打开')
+    await click(wrapper, '复制到临时表单')
+    await flushPromises()
+    await click(wrapper, '提交')
+    expect(api.resolveTargetProduct).toHaveBeenCalledWith(productId, entryId)
+    if (profile === 'RAW_MATERIAL') {
+      expect(api.submitTargetOrder).toHaveBeenCalled()
+      const submitted = vi.mocked(api.submitTargetOrder).mock.calls[0]![2]
+      expect(submitted.payload.productLines[0]).toMatchObject({
+        enteredQuantity: '2',
+        baseQuantity: '2',
+        unitPrice: '10',
+      })
+    } else {
+      expect(api.submitTargetOrder).not.toHaveBeenCalled()
+      expect(wrapper.text()).toContain('配方原料尚未确认')
+    }
+    wrapper.unmount()
+  },
+)
 
 it('submits purchase receipt with the selected exact source and refreshes once', async () => {
   useTargetSession().apiPaths = [
@@ -1225,6 +1239,16 @@ it('adds a book-balance product as a candidate while requiring an explicit actua
   vi.mocked(api.resolveTargetProduct).mockResolvedValue(
     productCurrent as Awaited<ReturnType<typeof api.resolveTargetProduct>>,
   )
+  vi.mocked(api.queryTargetBobOptions).mockResolvedValue(
+    optionPage([
+      {
+        objectId: productId,
+        sourceApprovalEntryId: entryId,
+        code: 'P01',
+        name: '账面商品',
+      },
+    ]) as Awaited<ReturnType<typeof api.queryTargetBobOptions>>,
+  )
   const wrapper = mount(ResourceHost, {
     props: { domain: 'vou', entity: 'inventory-count' },
     global: { stubs },
@@ -1233,11 +1257,18 @@ it('adds a book-balance product as a candidate while requiring an explicit actua
   await click(wrapper, '新建')
   await wrapper.get('[aria-label="仓库"]').setValue(referenceId)
   await click(wrapper, '查看账面商品')
+  useTargetSession().csrfToken = ''
   await click(wrapper, '加入盘点：账面商品')
+  expect(api.queryTargetBobOptions).toHaveBeenCalledWith(
+    'product',
+    expect.objectContaining({ ids: [productId], enabled: 'true' }),
+  )
+  expect(api.resolveTargetProduct).toHaveBeenCalledWith(productId, entryId)
   expect(wrapper.get('[aria-label="实盘数量"]').element).toHaveProperty(
     'value',
     '',
   )
+  useTargetSession().csrfToken = 'test-csrf'
   await click(wrapper, '提交')
   expect(api.submitTargetVoucher).not.toHaveBeenCalled()
   wrapper.unmount()

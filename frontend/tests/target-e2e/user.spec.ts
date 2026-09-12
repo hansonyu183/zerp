@@ -31,6 +31,10 @@ async function openUserManagement(page: Page): Promise<void> {
   )
   while (await closed.count()) await closed.first().click()
   await drawer.locator('a[href="/app/user"]').click()
+  await page.waitForURL('**/app/user')
+  await expect(
+    page.getByRole('button', { name: '新增用户', exact: true }),
+  ).toBeVisible()
   await expect(
     page.getByLabel('编码、拼音或名称', { exact: true }),
   ).toBeVisible()
@@ -51,6 +55,10 @@ async function openRoleManagement(page: Page): Promise<void> {
   )
   while (await closed.count()) await closed.first().click()
   await drawer.locator('a[href="/app/role"]').click()
+  await page.waitForURL('**/app/role')
+  await expect(
+    page.getByRole('button', { name: '新增角色', exact: true }),
+  ).toBeVisible()
   await expect(
     page.getByLabel('编码、拼音或名称', { exact: true }),
   ).toBeVisible()
@@ -106,7 +114,18 @@ async function createRole(
 async function findRoleRow(page: Page, name: string) {
   const keyword = page.getByLabel('编码、拼音或名称', { exact: true })
   await keyword.fill(name)
+  const queried = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/app/role/query') &&
+      response.request().method() === 'POST' &&
+      response.request().postDataJSON().keyword === name,
+  )
   await page.getByRole('button', { name: '查询', exact: true }).click()
+  const result = await (await queried).json()
+  expect(result.code).toBe(0)
+  expect(
+    result.data.items.some((item: { name: string }) => item.name === name),
+  ).toBe(true)
   const row = page.getByRole('row').filter({ hasText: name })
   await expect(row).toBeVisible()
   return row

@@ -1506,7 +1506,7 @@ export class VouService implements WflVouPort {
         const condition =
           'documentId' in input
             ? sql`d.id = ${input.documentId} AND line.line_id = ${input.lineId} AND e.status = 'APPROVED'`
-            : sql`e.status IN ('PENDING','APPROVED') AND EXISTS (SELECT 1 FROM vou_reference_snapshots party WHERE party.approval_entry_id = e.id AND party.field = 'counterparty' AND party.line_no = 0 AND party.item_no = 0 AND party.object_id = ${input.customerSubunitId}) AND EXISTS (SELECT 1 FROM vou_reference_snapshots product WHERE product.approval_entry_id = e.id AND product.field = 'product' AND product.line_no = line.line_no AND product.item_no = 0 AND product.object_id = ${input.productId})`
+            : sql`e.status IN ('PENDING','APPROVED') AND EXISTS (SELECT 1 FROM vou_reference_snapshots party WHERE party.approval_entry_id = e.id AND party.field = 'customerSubunit' AND party.line_no = 0 AND party.item_no = 0 AND party.object_id = ${input.customerSubunitId}) AND EXISTS (SELECT 1 FROM vou_reference_snapshots product WHERE product.approval_entry_id = e.id AND product.field = 'product' AND product.line_no = line.line_no AND product.item_no = 0 AND product.object_id = ${input.productId})`
         const result = await sql<{
           document_id: string
           document_no: string

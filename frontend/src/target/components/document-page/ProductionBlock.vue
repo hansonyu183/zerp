@@ -75,10 +75,6 @@ async function select(
   requests.set(id, request)
   line(id, { source, product: choice, formula: null, materials: [] })
   if (!source && !choice) return
-  if (!session.csrfToken) {
-    error.value = '没有来源读取权限，无法采用配方。'
-    return
-  }
   pending.add(id)
   emit('pending', true)
   try {
@@ -145,10 +141,6 @@ async function replaceMaterial(
   material(id, no, { actual: choice, units: [], unitId: '' })
   emit('pending', pending.size > 0)
   if (!choice) return
-  if (!session.csrfToken) {
-    error.value = '没有产品读取权限，无法采用材料单位。'
-    return
-  }
   pending.add(key)
   emit('pending', true)
   try {

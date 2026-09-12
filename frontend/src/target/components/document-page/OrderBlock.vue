@@ -5,6 +5,7 @@ import { ref, onBeforeUnmount, onMounted, nextTick } from 'vue'
 import { ulid } from 'ulid'
 import {
   resolveTargetProduct,
+  queryTargetBobOptions,
   resolveTargetCustomerSubunit,
   resolveTargetSupplier,
   queryTargetCustomerLatestLine,
@@ -53,7 +54,6 @@ function lineUpdate(id: string, patch: Partial<OrderLine>) {
 function invalidateLine(id: string) {
   requests.set(id, (requests.get(id) ?? 0) + 1)
   pending.value.delete(id)
-  pending.value.delete(`formula:${id}`)
   delete historyStatus.value[id]
 }
 function removeLine(id: string) {
@@ -80,7 +80,7 @@ async function counterparty(choice: VouCandidate | null) {
   reminder.value = ''
   defaultSurcharge.value = null
   await nextTick()
-  if (!choice || !session.csrfToken) return
+  if (!choice) return
   const sale = props.modelValue.entity === 'sale-order'
   pending.value.add('counterparty')
   emit('pending', true)
@@ -188,17 +188,29 @@ async function product(
     formulaDraft: null,
   })
   if (!choice) return
-  if (!session.csrfToken) {
-    error.value = '没有产品读取权限，无法采用产品单位与配方。'
-    return
-  }
   pending.value.add(id)
   emit('pending', true)
   try {
-    const current = await resolveTargetProduct(
-      choice.objectId,
-      'approvalEntryId' in choice ? choice.approvalEntryId : undefined,
-    )
+    let approvalEntryId =
+      'approvalEntryId' in choice ? choice.approvalEntryId : undefined
+    // Order wire products contain only IDs. An explicit copy creates a new draft
+    // and re-adopts their current product configuration, retaining entered facts.
+    if (retained && !approvalEntryId) {
+      const candidates = await queryTargetBobOptions('product', {
+        ids: [choice.objectId],
+        enabled: 'true',
+        keyword: '',
+        page: '1',
+        pageSize: '20',
+      })
+      if (!owns() || requests.get(id) !== request) return
+      const candidate = candidates.items.find(
+        (item) => item.objectId === choice.objectId,
+      )
+      if (!candidate) throw new Error('复制的产品已不可用，请重新选择。')
+      approvalEntryId = candidate.sourceApprovalEntryId
+    }
+    const current = await resolveTargetProduct(choice.objectId, approvalEntryId)
     if (!owns() || requests.get(id) !== request) return
     if (!current.enabled) throw new Error('产品已停用，请重新选择。')
     const unit = unitSnapshot(current.data.defaultInputUnit)
@@ -336,11 +348,6 @@ function formula(id: string, value: ProductSnapshot['fixedFormula']) {
         : {}),
     },
   })
-}
-function formulaPending(id: string, value: boolean) {
-  if (value) pending.value.add(`formula:${id}`)
-  else pending.value.delete(`formula:${id}`)
-  emit('pending', pending.value.size > 0)
 }
 function payment(choice: VouCandidate | null) {
   if (choice?.entity === 'payment-method')
@@ -572,7 +579,6 @@ onBeforeUnmount(() => {
           :model-value="line.formulaDraft"
           :disabled="disabled"
           @update:model-value="formula(line.lineId, $event)"
-          @pending="formulaPending(line.lineId, $event)"
         />
       </template>
       <v-btn

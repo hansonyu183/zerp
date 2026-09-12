@@ -177,6 +177,13 @@ test('creates and clones sales and purchase orders from real menu candidates, in
     const choose = async (label: string, name: string) => {
       const field = editor.getByLabel(label, { exact: true })
       await expect(field).toBeEnabled()
+      if (label === '原材料') {
+        await field
+          .locator('xpath=ancestor::*[contains(@class,"v-input")][1]')
+          .locator('.v-field__clearable .v-icon')
+          .click()
+        await expect(field).toHaveValue('')
+      }
       const candidates = page.waitForResponse((response) => {
         const url = new URL(response.url())
         return (
@@ -210,6 +217,10 @@ test('creates and clones sales and purchase orders from real menu candidates, in
       .getByRole('button', { name: '添加商品行', exact: true })
       .click()
     await choose('产品', references.product!.name)
+    if (entity === 'sale-order') {
+      await expect(editor).toContainText('已采用最近有效订单')
+      await choose('原材料', references.rawMaterial!.name)
+    }
     await expect(editor.getByLabel('录入数量', { exact: true })).toBeEnabled()
     await editor.getByLabel('录入数量', { exact: true }).fill('2')
     await editor.getByLabel('基准数量', { exact: true }).fill('2')
@@ -259,6 +270,8 @@ test('creates and clones sales and purchase orders from real menu candidates, in
     await expect(
       editor.getByRole('button', { name: '提交', exact: true }),
     ).toBeEnabled()
+    if (entity === 'sale-order')
+      await choose('原材料', references.rawMaterial!.name)
     await editor.getByLabel('备注', { exact: true }).fill('克隆重新提交')
     const cloned = page.waitForResponse(
       (response) =>

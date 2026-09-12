@@ -1644,7 +1644,7 @@ try {
         parentId: '',
         description: '',
       },
-      serviceActor(submitter.userId),
+      { id: submitter.userId, permissions: ['/aux/department/create'] },
     )
   }
   const report = await createRptBrowserFixture(

@@ -1,3 +1,4 @@
+import { BobService } from '../../src/bob/service.ts'
 import assert from 'node:assert/strict'
 import { createHash, randomBytes } from 'node:crypto'
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -688,12 +689,6 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
 
 type HttpSession = { cookie: string; csrfToken: string }
 
-function permissionParts(path: string) {
-  const match = path.match(/^\/([^/]+)\/([^/]+)\/([^/]+)$/)
-  assert.ok(match, `invalid permission path ${path}`)
-  return { domain: match[1]!, entity: match[2]!, action: match[3]! }
-}
-
 async function signin(
   origin: string,
   username: string,
@@ -716,7 +711,7 @@ async function post(
   origin: string,
   session: HttpSession,
   body: unknown,
-  path = '/vou/reference/query',
+  path: string,
 ) {
   const response = await fetch(`${origin}${path}`, {
     method: 'POST',
@@ -2717,7 +2712,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
   )
 })
 
-test('VOU reference candidates use session, CSRF and current typed facts', async (context) => {
+test('entity-owned candidates use session without CSRF and return current typed facts', async (context) => {
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
   const db = createDatabase(databaseUrl)
   const config = loadConfig({
@@ -2733,6 +2728,9 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
     session: new SessionService(db, config),
     config,
     vou,
+    aux: new AuxService(db),
+    bob: new BobService(db),
+    acc: new AccService(db),
   })
   let listening: (() => void) | undefined
   const started = new Promise<void>((resolve) => {
@@ -2754,14 +2752,6 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
   const documentIds: string[] = []
   const registerIds: string[] = []
   const assetIds: string[] = []
-  const permissionPath = '/vou/reference/query'
-  const existingPermission = await db
-    .selectFrom('app_permissions')
-    .select(['id'])
-    .where('path', '=', permissionPath)
-    .executeTakeFirst()
-  const permissionId = existingPermission?.id ?? ulid()
-  const createdPermission = !existingPermission
   const now = new Date()
   context.after(async () => {
     await new Promise<void>((resolve, reject) =>
@@ -2833,26 +2823,10 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
         .deleteFrom('app_users')
         .where('id', 'in', [actorId, deniedId])
         .execute()
-      if (createdPermission)
-        await db
-          .deleteFrom('app_permissions')
-          .where('id', '=', permissionId)
-          .execute()
     } finally {
       await db.destroy()
     }
   })
-  if (createdPermission)
-    await db
-      .insertInto('app_permissions')
-      .values({
-        id: permissionId,
-        path: permissionPath,
-        ...permissionParts(permissionPath),
-        description: permissionPath,
-        status: 'ENABLED',
-      })
-      .execute()
   const password = `Target!${randomBytes(18).toString('base64url')}`
   const username = `vou-reference-${randomBytes(8).toString('hex')}`
   await db
@@ -2898,7 +2872,6 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
   await db
     .insertInto('app_role_permissions')
     .values([
-      { role_id: actorRoleId, permission_id: permissionId },
       ...readPermissions.map((permission) => ({
         role_id: actorRoleId,
         permission_id: permission.id,
@@ -3104,7 +3077,7 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
         id: unitId,
         entity: 'measurement-unit',
         code: 'AUX-1001',
-        data: { name: 'VOU 有效单位' },
+        data: { name: 'VOU 有效单位', symbol: 'kg', quantityScale: 3 },
         enabled: true,
         created_by: actorId,
         updated_by: actorId,
@@ -3113,7 +3086,7 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
         id: disabledUnitId,
         entity: 'measurement-unit',
         code: 'AUX-1002',
-        data: { name: 'VOU 停用单位' },
+        data: { name: 'VOU 停用单位', symbol: 'kg', quantityScale: 3 },
         enabled: false,
         created_by: actorId,
         updated_by: actorId,
@@ -3256,6 +3229,30 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
     { id: actorId, permissions: [], trusted: true },
     'http-vou-query-readback',
   )
+  async function options(
+    session: HttpSession,
+    path: string,
+    query: Record<string, string> = {},
+  ) {
+    const response = await fetch(
+      `${origin}${path}?${new URLSearchParams({ page: '1', pageSize: '20', ...query })}`,
+      {
+        headers: { cookie: session.cookie, 'x-zerp-model-build': modelBuildId },
+      },
+    )
+    assert.equal(response.status, 200)
+    return response.json() as Promise<{
+      code: number
+      errorKey: string
+      data: {
+        items: Array<{
+          objectId: string
+          sourceApprovalEntryId?: string
+          approvalEntryId?: string
+        }>
+      }
+    }>
+  }
   const allowed = await signin(origin, username, password)
   const deniedUsername = (
     await db
@@ -3265,10 +3262,46 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
       .executeTakeFirstOrThrow()
   ).username
   const deniedSession = await signin(origin, deniedUsername, password)
-  const forbidden = await post(origin, deniedSession, { entity: 'product' })
-  assert.equal(forbidden.errorKey, 'approval_invalid_action')
-  const products = await post(origin, allowed, {
-    entity: 'product',
+  const withoutManagement = await options(
+    deniedSession,
+    '/bob/product/options',
+    { enabled: 'true' },
+  )
+  assert.equal(withoutManagement.code, 0)
+  const forbidden = await post(
+    origin,
+    deniedSession,
+    { page: 1, pageSize: 20 },
+    '/bob/product/query',
+  )
+  assert.equal(forbidden.errorKey, 'forbidden')
+  const latest = (await (
+    await fetch(
+      `${origin}/vou/sale-order/customer-latest-line?${new URLSearchParams({ customerSubunitId, productId })}`,
+      {
+        headers: {
+          cookie: deniedSession.cookie,
+          'x-zerp-model-build': modelBuildId,
+        },
+      },
+    )
+  ).json()) as { code: number; data: unknown }
+  assert.equal(latest.code, 0)
+  assert.equal(latest.data, null)
+  const missingLine = (await (
+    await fetch(
+      `${origin}/vou/sale-order/resolve?${new URLSearchParams({ documentId: httpDocumentId, lineId: ulid() })}`,
+      {
+        headers: {
+          cookie: deniedSession.cookie,
+          'x-zerp-model-build': modelBuildId,
+        },
+      },
+    )
+  ).json()) as { errorKey: string }
+  assert.equal(missingLine.errorKey, 'vou_not_found')
+  const products = await options(allowed, '/bob/product/options', {
+    enabled: 'true',
     keyword: productKeyword,
   })
   assert.equal(products.code, 0)
@@ -3277,32 +3310,34 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
     [productId],
   )
   assert.equal(
-    products.data.items[0]?.approvalEntryId,
+    products.data.items[0]?.sourceApprovalEntryId,
     currentProductApprovalId,
   )
   assert.equal(
     products.data.items.some(
-      (item) => item.approvalEntryId === oldProductApprovalId,
+      (item) => item.sourceApprovalEntryId === oldProductApprovalId,
     ),
     false,
   )
-  const customerSubunits = await post(origin, allowed, {
-    entity: 'customer-subunit',
-    keyword: customerKeyword,
-  })
+  const customerSubunits = await options(
+    allowed,
+    '/bob/customer/subunit-options',
+    { enabled: 'true', keyword: customerKeyword },
+  )
   assert.deepEqual(customerSubunits.data.items, [
     {
-      entity: 'customer-subunit',
+      enabled: true,
+      sourceVersionNo: 1,
       objectId: customerSubunitId,
       customerId,
-      approvalEntryId: customerApprovalId,
+      sourceApprovalEntryId: customerApprovalId,
       code: `SUB-${customerSubunitId.slice(-6)}`,
       name: `${customerKeyword}总部`,
       paymentMethod: null,
     },
   ])
-  const units = await post(origin, allowed, {
-    entity: 'measurement-unit',
+  const units = await options(allowed, '/aux/measurement-unit/options', {
+    enabled: 'true',
     keyword: 'VOU',
   })
   assert.deepEqual(
@@ -3310,13 +3345,14 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
     [unitId],
   )
   assert.equal(units.data.items[0]?.approvalEntryId, undefined)
-  const assetCategories = await post(origin, allowed, {
-    entity: 'asset-category',
-    keyword: 'VOU',
-  })
+  const assetCategories = await options(
+    allowed,
+    '/aux/asset-category/options',
+    { enabled: 'true', keyword: 'VOU' },
+  )
   assert.deepEqual(assetCategories.data.items, [
     {
-      entity: 'asset-category',
+      enabled: true,
       objectId: assetCategoryId,
       code: 'ACT-1001',
       name: 'VOU 机器设备',
@@ -3324,8 +3360,7 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
       defaultResidualRate: '5.00',
     },
   ])
-  const assets = await post(origin, allowed, {
-    entity: 'asset',
+  const assets = await options(allowed, '/acc/asset/options', {
     keyword: 'VOU-REF',
   })
   assert.deepEqual(
@@ -3366,7 +3401,7 @@ test('VOU reference candidates use session, CSRF and current typed facts', async
     httpDocumentId,
   )
   await addRegisterSource(false, activeAssetId)
-  const canonicalAssets = await post(origin, allowed, { entity: 'asset' })
+  const canonicalAssets = await options(allowed, '/acc/asset/options')
   assert.equal(canonicalAssets.code, 0)
   assert.deepEqual(
     canonicalAssets.data.items.map((item) => item.objectId),

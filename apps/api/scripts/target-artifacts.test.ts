@@ -388,7 +388,6 @@ test('target OpenAPI contains the complete issue 363 APP, AUX, and BOB inventory
       )
       .map((action) => `/aux/${entity}/${action}`),
   )
-  auxPaths.push('/aux/reference/query')
   const bobPaths = [
     'customer',
     'supplier',
@@ -396,7 +395,6 @@ test('target OpenAPI contains the complete issue 363 APP, AUX, and BOB inventory
     'sales-partner',
     'product',
   ].flatMap((entity) => [`/bob/${entity}/query`, `/bob/${entity}/get`])
-  bobPaths.push('/bob/reference/query')
   const removedMenuPaths = [
     '/app/menu/get',
     '/app/menu/save-business',

@@ -1,3 +1,8 @@
+import {
+  auxiliaryRoute,
+  optionPage,
+  optionPageInput,
+} from '../app/options-contract.ts'
 import { auxCurrentDataSchemas } from '../app/aux-contract.ts'
 import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
 import type { Schema } from 'hono'
@@ -6,7 +11,6 @@ import {
   vouEntityPresentation,
   vouPaymentMethodSelectionOrigins,
   userCreatableVouEntities,
-  vouReferenceCandidateEntities,
   vouSourceLineSourceEntities,
   vouSourceLineTargetEntities,
   type VouPayload,
@@ -16,19 +20,6 @@ import type { TargetRouteEnvironment } from '../app/contract.ts'
 
 const entityParameter = z.object({ entity: z.enum(vouEntities) })
 const identity = z.object({ documentId: z.string().length(26) }).strict()
-const referenceCandidateEntity = z.enum(vouReferenceCandidateEntities)
-const referenceQuery = z
-  .object({
-    entity: referenceCandidateEntity,
-    keyword: z.string().trim().min(1).max(200).optional(),
-  })
-  .strict()
-const referenceCandidateBase = {
-  objectId: z.string(),
-  approvalEntryId: z.string().optional(),
-  code: z.string(),
-  name: z.string(),
-}
 const auxMoney = z.string().regex(/^(?:0|[1-9]\d*)\.\d{2}$/)
 const paymentMethodSnapshot = z
   .object({
@@ -41,38 +32,6 @@ const paymentMethodSnapshot = z
 const paymentMethodSelection = paymentMethodSnapshot
   .extend({ selectionOrigin: z.enum(vouPaymentMethodSelectionOrigins) })
   .strict()
-const referenceCandidate = z.discriminatedUnion('entity', [
-  z
-    .object({
-      ...referenceCandidateBase,
-      entity: z.literal('customer-subunit'),
-      customerId: z.string().length(26),
-      approvalEntryId: z.string().length(26),
-      paymentMethod: paymentMethodSnapshot.nullable(),
-    })
-    .strict(),
-  paymentMethodSnapshot
-    .extend({ entity: z.literal('payment-method') })
-    .strict(),
-  z
-    .object({
-      ...referenceCandidateBase,
-      entity: z.literal('asset-category'),
-      defaultUsefulLifeMonths: z.number().int().min(1).max(1200),
-      defaultResidualRate: z.string().regex(/^(?:0|[1-9]\d?)(?:\.\d{1,2})?$/),
-    })
-    .strict(),
-  z
-    .object({
-      ...referenceCandidateBase,
-      entity: referenceCandidateEntity.exclude([
-        'customer-subunit',
-        'payment-method',
-        'asset-category',
-      ]),
-    })
-    .strict(),
-])
 const sourceLineQuery = z
   .object({
     targetEntity: z.enum(vouSourceLineTargetEntities),
@@ -1106,6 +1065,68 @@ function intermediaryRoute<
   })
 }
 
+const saleOrderLineResult = z
+  .object({
+    documentId: z.string(),
+    documentNo: z.string(),
+    approvalEntryId: z.string(),
+    line: productLine.pick({
+      lineId: true,
+      product: true,
+      formula: true,
+      deliverySpecificationType: true,
+      containerType: true,
+      quantityPerContainer: true,
+    }),
+  })
+  .nullable()
+const saleOrderLineResolve = auxiliaryRoute(
+  '/vou/sale-order/resolve',
+  z
+    .object({
+      documentId: z.string().length(26),
+      lineId: z.string().length(26),
+    })
+    .strict(),
+  saleOrderLineResult.unwrap(),
+)
+const customerLatestLine = auxiliaryRoute(
+  '/vou/sale-order/customer-latest-line',
+  z
+    .object({
+      customerSubunitId: z.string().length(26),
+      productId: z.string().length(26),
+    })
+    .strict(),
+  saleOrderLineResult,
+)
+const documentOptionsRoute = auxiliaryRoute(
+  '/vou/{entity}/options',
+  optionPageInput,
+  optionPage(
+    z.object({
+      objectId: z.string(),
+      code: z.string(),
+      name: z.string(),
+      approvalEntryId: z.string().optional(),
+    }),
+  ),
+).request
+const vouOptionsRoute = createRoute({
+  ...auxiliaryRoute(
+    '/vou/{entity}/options',
+    optionPageInput,
+    optionPage(
+      z.object({
+        objectId: z.string(),
+        code: z.string(),
+        name: z.string(),
+        approvalEntryId: z.string().optional(),
+      }),
+    ),
+  ),
+  request: { ...documentOptionsRoute, params: entityParameter },
+})
 export const vouRouteSet = {
   source: intermediaryRoute(
     'source',
@@ -1133,27 +1154,6 @@ export const vouRouteSet = {
       .strict(),
     intermediaryCalculation.shape.script,
   ),
-  reference: createRoute({
-    method: 'post',
-    path: '/vou/reference/query',
-    request: {
-      body: { content: { 'application/json': { schema: referenceQuery } } },
-    },
-    responses: {
-      200: {
-        description: 'VOU reference candidates',
-        content: {
-          'application/json': {
-            schema: envelope(
-              z.object({
-                items: z.array(referenceCandidate),
-              }),
-            ),
-          },
-        },
-      },
-    },
-  }),
   'book-balance': createRoute({
     method: 'post',
     path: '/vou/inventory-count/book-balance',
@@ -1256,18 +1256,21 @@ export const vouRouteSet = {
 } as const
 
 export const vouRouteMetadata = [
+  ...[saleOrderLineResolve, customerLatestLine].map((route) => ({
+    method: route.method,
+    path: route.path,
+  })),
+  { method: vouOptionsRoute.method, path: vouOptionsRoute.path },
   ...Object.keys(vouRouteSet).map((action) => ({
     method: 'post',
     path:
       action === 'source' || action === 'script-get' || action === 'script-save'
         ? `/vou/intermediary-calculation/${action}`
-        : action === 'reference'
-          ? '/vou/reference/query'
-          : action === 'book-balance'
-            ? '/vou/inventory-count/book-balance'
-            : action === 'source-line'
-              ? '/vou/source-line/query'
-              : `/vou/{entity}/${action}`,
+        : action === 'book-balance'
+          ? '/vou/inventory-count/book-balance'
+          : action === 'source-line'
+            ? '/vou/source-line/query'
+            : `/vou/{entity}/${action}`,
     title: `VOU ${action}`,
   })),
   {
@@ -1307,7 +1310,6 @@ export const vouCapabilityPermissionMetadata = [
     permission: '/vou/inventory-count/book-balance',
     title: '库存盘点账面预览',
   },
-  { permission: '/vou/reference/query', title: 'VOU reference query' },
   { permission: '/vou/source-line/query', title: 'VOU source-line query' },
   {
     permission: '/vou/sale-order/approve-over-credit-limit',
@@ -1330,7 +1332,12 @@ export const vouCapabilityPermissionMetadata = [
   ),
 ]
 
-export type VouRouteAction = keyof typeof vouRouteSet | 'attachment-download'
+export type VouRouteAction =
+  | keyof typeof vouRouteSet
+  | 'attachment-download'
+  | 'options'
+  | 'line-resolve'
+  | 'customer-latest-line'
 export type VouRouteHandler = (
   action: VouRouteAction,
   context: any,
@@ -1343,7 +1350,13 @@ export function registerVouRoutes<
   app: OpenAPIHono<TargetRouteEnvironment, AppSchema, BasePath>,
   handler: VouRouteHandler,
 ) {
-  const source = app.openapi(
+  const resolved = app
+    .openapi(saleOrderLineResolve, (c) => handler('line-resolve', c) as never)
+    .openapi(
+      customerLatestLine,
+      (c) => handler('customer-latest-line', c) as never,
+    )
+  const source = resolved.openapi(
     vouRouteSet.source,
     (c) => handler('source', c) as never,
   )
@@ -1355,11 +1368,11 @@ export function registerVouRoutes<
     vouRouteSet['script-save'],
     (c) => handler('script-save', c) as never,
   )
-  const reference = scriptSave.openapi(
-    vouRouteSet.reference,
-    (c) => handler('reference', c) as never,
+  const options = scriptSave.openapi(
+    vouOptionsRoute,
+    (c) => handler('options', c) as never,
   )
-  const sourceLine = reference.openapi(
+  const sourceLine = options.openapi(
     vouRouteSet['source-line'],
     (c) => handler('source-line', c) as never,
   )

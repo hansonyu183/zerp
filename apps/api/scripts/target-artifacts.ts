@@ -196,7 +196,6 @@ export function validateTargetRouteMetadata(
     '/vou/intermediary-calculation/source',
     '/vou/intermediary-calculation/script-get',
     '/vou/intermediary-calculation/script-save',
-    '/vou/reference/query',
     '/vou/source-line/query',
     '/vou/inventory-count/book-balance',
     ...[

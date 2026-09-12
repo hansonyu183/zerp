@@ -4,11 +4,10 @@ import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { ref, onBeforeUnmount, onMounted, nextTick } from 'vue'
 import { ulid } from 'ulid'
 import {
-  getTargetProduct,
-  getTargetCustomer,
-  getTargetSupplier,
-  queryTargetVouchers,
-  getTargetVoucher,
+  resolveTargetProduct,
+  resolveTargetCustomerSubunit,
+  resolveTargetSupplier,
+  queryTargetCustomerLatestLine,
 } from '../../api.ts'
 import { useTargetSession } from '../../session/vm.ts'
 import ProductFormulaBlock from '../version-page/ProductFormulaBlock.vue'
@@ -83,26 +82,15 @@ async function counterparty(choice: VouCandidate | null) {
   await nextTick()
   if (!choice || !session.csrfToken) return
   const sale = props.modelValue.entity === 'sale-order'
-  const permission = sale ? '/bob/customer/get' : '/bob/supplier/get'
-  if (!session.can(permission)) {
-    for (const line of props.modelValue.lines)
-      if (line.product) void product(line.lineId, line.product)
-    return
-  }
   pending.value.add('counterparty')
   emit('pending', true)
   try {
     if (sale && choice.entity === 'customer-subunit') {
-      const customer = await getTargetCustomer(
-        session.csrfToken,
-        choice.customerId,
+      const customer = await resolveTargetCustomerSubunit(
+        choice.objectId,
+        choice.approvalEntryId,
       )
-      if (
-        !owns() ||
-        request !== counterpartyRequest ||
-        !session.can(permission)
-      )
-        return
+      if (!owns() || request !== counterpartyRequest) return
       const subunit = customer.data.subunits.find(
         (item) => item.id === choice.objectId,
       )
@@ -132,16 +120,11 @@ async function counterparty(choice: VouCandidate | null) {
           : {}),
       })
     } else if (!sale) {
-      const supplier = await getTargetSupplier(
-        session.csrfToken,
+      const supplier = await resolveTargetSupplier(
         choice.objectId,
+        'approvalEntryId' in choice ? choice.approvalEntryId : undefined,
       )
-      if (
-        !owns() ||
-        request !== counterpartyRequest ||
-        !session.can(permission)
-      )
-        return
+      if (!owns() || request !== counterpartyRequest) return
       const employee = supplier.data.defaultPurchaser
       if (employee)
         update({
@@ -205,20 +188,18 @@ async function product(
     formulaDraft: null,
   })
   if (!choice) return
-  if (!session.can('/bob/product/get') || !session.csrfToken) {
+  if (!session.csrfToken) {
     error.value = '没有产品读取权限，无法采用产品单位与配方。'
     return
   }
   pending.value.add(id)
   emit('pending', true)
   try {
-    const current = await getTargetProduct(session.csrfToken, choice.objectId)
-    if (
-      !owns() ||
-      requests.get(id) !== request ||
-      !session.can('/bob/product/get')
+    const current = await resolveTargetProduct(
+      choice.objectId,
+      'approvalEntryId' in choice ? choice.approvalEntryId : undefined,
     )
-      return
+    if (!owns() || requests.get(id) !== request) return
     if (!current.enabled) throw new Error('产品已停用，请重新选择。')
     const unit = unitSnapshot(current.data.defaultInputUnit)
     const rawFormula = {
@@ -301,64 +282,19 @@ async function adoptHistory(
   needsFormula: boolean,
 ) {
   const customer = props.modelValue.counterparty?.objectId
-  if (
-    !customer ||
-    !session.can('/vou/sale-order/query') ||
-    !session.can('/vou/sale-order/get') ||
-    !session.csrfToken
-  ) {
-    historyStatus.value[id] = !customer
-      ? '请选择客户子单位后采用最近有效订单。'
-      : '没有历史订单读取权限，请手工确认交付规格与配方。'
+  if (!customer) {
+    historyStatus.value[id] = '请选择客户子单位后采用最近有效订单。'
     return
   }
-  const found: Awaited<ReturnType<typeof queryTargetVouchers>>['items'] = []
-  for (let page = 1; ; page++) {
-    const result = await queryTargetVouchers(session.csrfToken, 'sale-order', {
-      page,
-      pageSize: 20,
-      filters: {
-        counterpartyObjectId: customer,
-        status: ['PENDING', 'APPROVED'],
-      },
-      sort: [{ field: 'businessDate', order: 'desc' }],
-    })
-    if (
-      !owns() ||
-      requests.get(id) !== request ||
-      props.modelValue.counterparty?.objectId !== customer
-    )
-      return
-    found.push(...result.items)
-    if (found.length >= result.total || !result.items.length) break
-  }
-  found.sort(
-    (a, b) =>
-      b.businessDate.localeCompare(a.businessDate) ||
-      b.documentNo.localeCompare(a.documentNo),
+  const document = await queryTargetCustomerLatestLine(customer, productId)
+  if (
+    !owns() ||
+    requests.get(id) !== request ||
+    props.modelValue.counterparty?.objectId !== customer
   )
-  for (const row of found) {
-    if (!session.can('/vou/sale-order/get') || !session.csrfToken) return
-    const document = await getTargetVoucher(
-      session.csrfToken,
-      'sale-order',
-      row.documentId,
-    )
-    if (
-      !owns() ||
-      requests.get(id) !== request ||
-      props.modelValue.counterparty?.objectId !== customer
-    )
-      return
-    if (
-      document.entity !== 'sale-order' ||
-      !('productLines' in document.payload)
-    )
-      continue
-    const line = document.payload.productLines.find(
-      (line) => line.product.objectId === productId,
-    )
-    if (!line) continue
+    return
+  if (document) {
+    const line = document.line
     lineUpdate(id, {
       deliverySpecificationType: line.deliverySpecificationType ?? 'PACKAGED',
       containerType: line.containerType ?? '',

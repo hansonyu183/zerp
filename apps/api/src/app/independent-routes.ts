@@ -1,3 +1,9 @@
+import { auxOptionsInput } from './aux-contract.ts'
+import {
+  roleOptionsInput,
+  bobOptionsInput,
+  bobResolveInput,
+} from './independent-contract.ts'
 import { getCookie } from 'hono/cookie'
 import type { Context } from 'hono'
 
@@ -8,7 +14,6 @@ import {
   type AuxEntity,
   type AuxIdentifierInput,
   type AuxQueryInput,
-  type AuxReferenceQueryInput,
   type AuxRevisionInput,
   type AuxSaveInput,
   type AuxService,
@@ -19,7 +24,6 @@ import {
   type BobEntity,
   type ManagedBobEntity,
   type BobQueryInput,
-  type BobReferenceQueryInput,
   type BobService,
 } from '../bob/service.ts'
 import type { IndependentRouteHandlers } from './independent-contract.ts'
@@ -110,7 +114,7 @@ export function createIndependentHandlers(
     return services.session.authenticate(
       getCookie(context, services.config.sessionCookieName),
       context.req.header('X-CSRF-Token'),
-      true,
+      context.req.method !== 'GET',
       path,
     )
   }
@@ -119,7 +123,11 @@ export function createIndependentHandlers(
     app: async (context) => {
       const requestId = currentRequestId(context)
       const path = context.req.path
-      const input = asInput(await context.req.json())
+      const input = asInput(
+        context.req.method === 'GET'
+          ? context.req.query()
+          : await context.req.json(),
+      )
       try {
         const management = required(services.management, 'APP management')
         if (path === '/session/app/get')
@@ -131,6 +139,28 @@ export function createIndependentHandlers(
         const principal = await authenticate(context, path)
         let data: unknown
         switch (path) {
+          case '/app/permission/options':
+            data = await management.permissionOptions(
+              roleOptionsInput.parse({
+                ...context.req.query(),
+                ...(context.req.queries('ids')
+                  ? { ids: context.req.queries('ids') }
+                  : {}),
+              }),
+              principal,
+            )
+            break
+          case '/app/role/options':
+            data = await management.roleOptions(
+              roleOptionsInput.parse({
+                ...context.req.query(),
+                ...(context.req.queries('ids')
+                  ? { ids: context.req.queries('ids') }
+                  : {}),
+              }),
+              principal,
+            )
+            break
           case '/session/auth/signout':
             await services.session.signout(principal, requestId)
             clearSessionCookie(context, services.config)
@@ -302,6 +332,29 @@ export function createIndependentHandlers(
       }
     },
 
+    auxOptions: (entity) => async (context) => {
+      const requestId = currentRequestId(context)
+      try {
+        await authenticate(context, context.req.path)
+        const input = auxOptionsInput.parse({
+          ...context.req.query(),
+          ...(context.req.queries('ids')
+            ? { ids: context.req.queries('ids') }
+            : {}),
+        })
+        return context.json(
+          success(
+            requestId,
+            await required(services.aux, 'AUX').options({ ...input, entity }),
+          ),
+          200,
+        )
+      } catch (error) {
+        clearUnauthenticatedSessionCookie(context, services.config, error)
+        return context.json(independentFailure(requestId, error), 200)
+      }
+    },
+
     aux: (binding) => async (context) => {
       const requestId = currentRequestId(context)
       const input = asInput(await context.req.json())
@@ -312,17 +365,6 @@ export function createIndependentHandlers(
           id: principal.user.id,
           permissions: principal.apiPaths,
         }
-        if (!('entity' in binding))
-          return context.json(
-            success(
-              requestId,
-              await service.queryReferenceCandidates(
-                input as unknown as AuxReferenceQueryInput,
-                actor,
-              ),
-            ),
-            200,
-          )
         const entity: AuxEntity = binding.entity
         let data: unknown
         if (binding.action === 'query')
@@ -373,6 +415,48 @@ export function createIndependentHandlers(
       }
     },
 
+    bobResolve: (entity) => async (context) => {
+      const requestId = currentRequestId(context)
+      try {
+        await authenticate(context, context.req.path)
+        return context.json(
+          success(
+            requestId,
+            await required(services.bob, 'BOB').resolve(
+              entity,
+              bobResolveInput.parse(context.req.query()),
+            ),
+          ),
+          200,
+        )
+      } catch (error) {
+        clearUnauthenticatedSessionCookie(context, services.config, error)
+        return context.json(independentFailure(requestId, error), 200)
+      }
+    },
+    bobOptions: (entity) => async (context) => {
+      const requestId = currentRequestId(context)
+      try {
+        await authenticate(context, context.req.path)
+        const input = bobOptionsInput.parse({
+          ...context.req.query(),
+          ...(context.req.queries('ids')
+            ? { ids: context.req.queries('ids') }
+            : {}),
+        })
+        return context.json(
+          success(
+            requestId,
+            await required(services.bob, 'BOB').options({ ...input, entity }),
+          ),
+          200,
+        )
+      } catch (error) {
+        clearUnauthenticatedSessionCookie(context, services.config, error)
+        return context.json(independentFailure(requestId, error), 200)
+      }
+    },
+
     bob: (binding) => async (context) => {
       const requestId = currentRequestId(context)
       const input = asInput(await context.req.json())
@@ -384,33 +468,28 @@ export function createIndependentHandlers(
           permissions: principal.apiPaths,
         }
         const data =
-          'entity' in binding
-            ? binding.action === 'enable' || binding.action === 'disable'
-              ? service.setEnabled(
-                  binding.entity as ManagedBobEntity,
-                  {
-                    objectId: text(input, 'objectId'),
-                    expectedRevision: text(input, 'expectedRevision'),
-                  },
-                  binding.action === 'enable',
-                  actor,
-                  requestId,
-                )
-              : binding.action === 'query'
-                ? service.query(
-                    binding.entity as BobEntity,
-                    input as unknown as BobQueryInput,
-                    actor,
-                  )
-                : service.get(
-                    binding.entity as BobEntity,
-                    text(input, 'objectId'),
-                    actor,
-                  )
-            : service.queryReferenceCandidates(
-                input as unknown as BobReferenceQueryInput,
+          binding.action === 'enable' || binding.action === 'disable'
+            ? service.setEnabled(
+                binding.entity as ManagedBobEntity,
+                {
+                  objectId: text(input, 'objectId'),
+                  expectedRevision: text(input, 'expectedRevision'),
+                },
+                binding.action === 'enable',
                 actor,
+                requestId,
               )
+            : binding.action === 'query'
+              ? service.query(
+                  binding.entity as BobEntity,
+                  input as unknown as BobQueryInput,
+                  actor,
+                )
+              : service.get(
+                  binding.entity as BobEntity,
+                  text(input, 'objectId'),
+                  actor,
+                )
         return context.json(success(requestId, await data), 200)
       } catch (error) {
         return context.json(independentFailure(requestId, error), 200)

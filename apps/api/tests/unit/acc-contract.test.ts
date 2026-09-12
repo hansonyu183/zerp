@@ -5,7 +5,10 @@ import test from 'node:test'
 import { accRouteSet } from '../../src/acc/contract.ts'
 
 function requestSchema(action: keyof typeof accRouteSet) {
-  return accRouteSet[action].request.body.content['application/json'].schema
+  const request = accRouteSet[action].request
+  return 'query' in request
+    ? request.query
+    : request.body.content['application/json'].schema
 }
 
 function responseSchema(action: keyof typeof accRouteSet) {

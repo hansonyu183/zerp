@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { actionIcons } from '../../presentation/action-icons.ts'
-import { computed, onMounted, onBeforeUnmount } from 'vue'
-import { useTargetSession } from '../../session/vm.ts'
-import { queryTargetBobReferences } from '../../api.ts'
+import { computed } from 'vue'
 import { emptyUnit, type ProductSnapshot } from './product-data.ts'
 import FormBlock from '../dynamic-fields/FormBlock.vue'
 import DetailBlock from '../dynamic-fields/DetailBlock.vue'
@@ -20,7 +18,6 @@ type MaterialRow = {
 const props = defineProps<{ modelValue: Formula | null; disabled: boolean }>()
 const emit = defineEmits<{
   'update:modelValue': [value: Formula | null]
-  pending: [value: boolean]
 }>()
 const quantityFields = [
   {
@@ -120,67 +117,6 @@ function updateRows(value: MaterialRow[]) {
   })
   emit('update:modelValue', { ...props.modelValue, components })
 }
-const session = useTargetSession(),
-  generation = session.generation
-let active = true
-onBeforeUnmount(() => {
-  active = false
-  emit('pending', false)
-})
-onMounted(async () => {
-  const initial = props.modelValue
-  if (!initial?.components.length || props.disabled) return
-  const unresolved = {
-    ...initial,
-    components: initial.components.map((item) => ({
-      ...item,
-      resolutionStatus: 'UNRESOLVED' as const,
-      requiresConfirmation: true,
-    })),
-  }
-  emit('update:modelValue', unresolved)
-  if (!session.can('/bob/reference/query') || !session.csrfToken) return
-  emit('pending', true)
-  try {
-    const choices = await queryTargetBobReferences(session.csrfToken, {
-      entity: 'product',
-      behaviorProfile: 'RAW_MATERIAL',
-    })
-    if (!active || generation !== session.generation || !props.modelValue)
-      return
-    emit('update:modelValue', {
-      ...props.modelValue,
-      components: props.modelValue.components.map((item) => {
-        const unchanged = initial.components.some(
-          (original) =>
-            original.material.objectId === item.material.objectId &&
-            original.material.approvalEntryId === item.material.approvalEntryId,
-        )
-        if (!unchanged || !item.requiresConfirmation) return item
-        const current = choices.find(
-          (choice) => choice.objectId === item.material.objectId,
-        )
-        return current
-          ? {
-              ...item,
-              material: {
-                objectId: current.objectId,
-                approvalEntryId: current.sourceApprovalEntryId,
-                code: current.code,
-                name: current.name,
-              },
-              resolutionStatus: 'CURRENT',
-              requiresConfirmation: false,
-            }
-          : item
-      }),
-    })
-  } catch {
-    /* Rows remain visibly unresolved until the user selects available materials. */
-  } finally {
-    if (active && generation === session.generation) emit('pending', false)
-  }
-})
 function create() {
   if (!props.disabled)
     emit('update:modelValue', {

@@ -96,9 +96,6 @@ const resources: Record<string, NavigationIcon> = {
   'wfl/process-instance': 'instance',
   'rpt/directory': 'report',
   'rpt/definition': 'report',
-  'bob/reference': 'reference',
-  'aux/reference': 'reference',
-  'vou/reference': 'reference',
   'vou/source-line': 'reference',
 }
 const vouchers = {

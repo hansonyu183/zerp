@@ -2,12 +2,12 @@
 import { computed } from 'vue'
 
 import type { EditField } from './edit-fields.ts'
-import type { FilterField, ReferenceOptions } from './types.ts'
+import type { FilterField } from './types.ts'
 
 const props = withDefaults(
   defineProps<{
     field: (
-      | Exclude<FilterField, { range: true }>
+      | Exclude<FilterField, { range: true } | { type: 'reference' }>
       | Exclude<EditField, { type: 'reference' | 'multi-reference' }>
       | {
           key: string
@@ -32,11 +32,9 @@ const props = withDefaults(
     errorMessages?: string
     remoteSearch?: boolean
     modelValue: Value
-    referenceOptions?: ReferenceOptions
     disabled?: boolean
   }>(),
   {
-    referenceOptions: () => ({}),
     disabled: false,
     usage: 'filter',
     clearable: undefined,
@@ -77,25 +75,10 @@ const selectItems = computed(() => {
         value: false,
       },
     ]
-  if (props.field.type === 'reference')
-    return (props.referenceOptions[props.field.source] ?? []).map((option) => ({
-      title: option.name,
-      value: option.id,
-      props: option.disabled ? { disabled: true } : undefined,
-    }))
   return []
 })
 
-const inputDisabled = computed(
-  () =>
-    props.disabled ||
-    (props.field.type === 'reference' &&
-      (!Object.prototype.hasOwnProperty.call(
-        props.referenceOptions,
-        props.field.source,
-      ) ||
-        !Array.isArray(props.referenceOptions[props.field.source]))),
-)
+const inputDisabled = computed(() => props.disabled)
 
 function inputType(): string {
   return props.field.type === 'password'
@@ -159,8 +142,7 @@ function scalarValue(value: unknown): unknown {
     v-else-if="
       field.type === 'boolean' ||
       field.type === 'enum' ||
-      field.type === 'choice' ||
-      field.type === 'reference'
+      field.type === 'choice'
     "
     :model-value="modelValue"
     :data-testid="`field-${field.key}`"

@@ -23,7 +23,6 @@ describe('apiPath navigation resources', () => {
       'aux/asset-category': '资产类别',
       'aux/operating-entity': '经营主体',
       'aux/employee': '员工',
-      'aux/reference': '辅助资料引用',
       'bob/customer': '客户',
       'bob/supplier': '供应商',
       'bob/other-unit': '其他单位',
@@ -32,7 +31,6 @@ describe('apiPath navigation resources', () => {
       'aux/warehouse': '仓库',
       'aux/vehicle': '车辆',
       'aux/fund-account': '资金账户',
-      'bob/reference': '业务资料引用',
       'rpt/definition': '报表定义维护',
       'rpt/rpt-000001': '报表 000001',
       'acc/book': '会计账簿',
@@ -44,7 +42,6 @@ describe('apiPath navigation resources', () => {
       'wfl/process-definition': '流程定义',
       'wfl/process-instance': '流程实例',
       'vou/sale-order': '销售订单',
-      'vou/reference': '业务单据引用',
       'vou/source-line': '业务单据来源行',
     }
     const groups = collectNavigationResourceGroups(

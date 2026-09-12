@@ -515,18 +515,21 @@ test('AUX typed details keep derived dictionary facts, fixed defaults, settlemen
   )
   assert.equal(paymentDetail.defaultSalesSurcharge, '0.00')
   assert.equal(paymentDetail.description, '')
-  const paymentReference = await service.queryReferenceCandidates(
-    { entity: 'payment-method', keyword: suffix },
-    actor,
-  )
-  assert.equal(paymentReference[0]?.objectId, payment.id)
-  assert.equal(paymentReference[0]?.defaultSalesSurcharge, '0.00')
+  const paymentReference = await service.options({
+    entity: 'payment-method',
+    keyword: suffix,
+    page: 1,
+    pageSize: 20,
+    enabled: true,
+  })
+  assert.equal(paymentReference.items[0]?.objectId, payment.id)
+  assert.equal(paymentReference.items[0]?.defaultSalesSurcharge, '0.00')
 
   const paymentSnapshot = {
-    objectId: paymentReference[0]!.objectId,
-    code: paymentReference[0]!.code,
-    name: paymentReference[0]!.name,
-    defaultSalesSurcharge: paymentReference[0]!.defaultSalesSurcharge,
+    objectId: paymentReference.items[0]!.objectId,
+    code: paymentReference.items[0]!.code,
+    name: paymentReference.items[0]!.name,
+    defaultSalesSurcharge: paymentReference.items[0]!.defaultSalesSurcharge,
   }
   await db
     .insertInto('aux_reference_facts')
@@ -543,10 +546,15 @@ test('AUX typed details keep derived dictionary facts, fixed defaults, settlemen
     `payment-disable-${suffix}`,
   )
   assert.deepEqual(
-    await service.queryReferenceCandidates(
-      { entity: 'payment-method', keyword: suffix },
-      actor,
-    ),
+    (
+      await service.options({
+        entity: 'payment-method',
+        keyword: suffix,
+        page: 1,
+        pageSize: 20,
+        enabled: true,
+      })
+    ).items,
     [],
   )
   const disabledPaymentDetail = await service.get(
@@ -677,11 +685,14 @@ test('AUX typed details keep derived dictionary facts, fixed defaults, settlemen
   )
   assert.equal(
     (
-      await service.queryReferenceCandidates(
-        { entity: 'settlement-method', keyword: suffix },
-        actor,
-      )
-    )[0]?.objectId,
+      await service.options({
+        entity: 'settlement-method',
+        keyword: suffix,
+        page: 1,
+        pageSize: 20,
+        enabled: true,
+      })
+    ).items[0]?.objectId,
     settlement.id,
   )
 })

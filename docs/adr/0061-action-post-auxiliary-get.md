@@ -38,7 +38,7 @@ partially_supersedes: ADR-0052, ADR-0056
 | GET /vou/attachment-download/{token}                                                                                  | 使用授权读取动作签发的一次性短期下载凭据，文件传输例外，不属于候选 GET |
 | POST /vou/intermediary-calculation/source、script-get、script-save                                                    | 服务按同名既有能力精确授权，不是辅助读取                               |
 | POST /vou/inventory-count/book-balance                                                                                | 用户主动读取账面，服务按同名能力授权                                   |
-| POST /vou/reference/query、/vou/source-line/query                                                                     | 后续 #428 迁移；当前保留同名能力授权                                   |
+| POST /vou/source-line/query                                                                                           | 后续 #428 迁移；当前保留同名能力授权                                   |
 | POST /vou/{entity}/query、get、audit-history、submit-new、submit-change、approve、reject、unreject、unapprove、delete | 动态路由按实际实体和动作执行既有能力授权                               |
 | POST /wfl/process-instance/action                                                                                     | 按具体流程子动作能力授权                                               |
 | POST /rpt/directory/query                                                                                             | 按现有报表访问权限过滤目录，无独立目录权限                             |

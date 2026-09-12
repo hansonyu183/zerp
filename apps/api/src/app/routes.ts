@@ -230,7 +230,7 @@ export function registerAppRoutes(
       const current = await service.authenticate(
         getCookie(context, config.sessionCookieName),
         context.req.header('X-CSRF-Token'),
-        true,
+        context.req.method !== 'GET',
         context.req.path,
       )
       return {
@@ -279,7 +279,7 @@ export function registerAppRoutes(
       const current = await service.authenticate(
         getCookie(context, config.sessionCookieName),
         context.req.header('X-CSRF-Token'),
-        true,
+        context.req.method !== 'GET',
         context.req.path,
       )
       return {
@@ -628,10 +628,19 @@ export function registerAppRoutes(
           throw error
         }
       }
-      if (action === 'reference') {
-        const body = context.req.valid('json')
-        const response = await executeVou<unknown>(context, (actor) =>
-          vou!.queryReferenceCandidates(body, actor),
+      if (action === 'line-resolve' || action === 'customer-latest-line')
+        return context.json(
+          (await executeVou(context, () =>
+            vou!.saleOrderLine(context.req.valid('query')),
+          )) as never,
+          200,
+        )
+      if (action === 'options') {
+        const response = await executeVou(context, () =>
+          vou!.options(
+            context.req.valid('param').entity,
+            context.req.valid('query'),
+          ),
         )
         return context.json(response as never, 200)
       }
@@ -719,8 +728,17 @@ export function registerAppRoutes(
     withVou,
     async (action: AccRouteAction, context: any) => {
       if (!acc) throw new Error('ACC service is unavailable')
-      const input = context.req.valid('json')
+      const input = context.req.valid(
+        context.req.method === 'GET' ? 'query' : 'json',
+      )
       const response = await executeCore<unknown>(context, (actor) => {
+        if (action === 'assetOptions' || action === 'billOptions')
+          return acc.registerOptions(
+            action === 'assetOptions' ? 'asset' : 'bill',
+            input,
+          )
+        if (action === 'bookOptions') return acc.bookOptions(input, actor)
+        if (action === 'subjectOptions') return acc.subjectOptions(input, actor)
         if (action === 'bookQuery') return acc.queryBooks(input, actor)
         if (action === 'bookGet') return acc.getBook(input.id, actor)
         if (action === 'bookCreate') return acc.createBook(input, actor)

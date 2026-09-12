@@ -315,73 +315,7 @@ test('VOU source-line query owns target eligibility and readable quantity facts'
   )
 })
 
-test('VOU customer-subunit reference candidates carry the exact customer identity', () => {
-  const customerId = '01J00000000000000000000006'
-  const customerSubunit = {
-    entity: 'customer-subunit',
-    objectId: id,
-    customerId,
-    approvalEntryId: view.submissionId,
-    code: 'SUB-0001',
-    name: '总部',
-    paymentMethod: null,
-  }
-  assert.equal(
-    responseSchema('reference').safeParse(success({ items: [customerSubunit] }))
-      .success,
-    true,
-  )
-  assert.equal(
-    responseSchema('reference').safeParse(
-      success({
-        items: [
-          {
-            ...customerSubunit,
-            paymentMethod: {
-              objectId: '01J00000000000000000000007',
-              code: 'PMT-BANK',
-              name: '银行转账',
-              defaultSalesSurcharge: '0.25',
-            },
-          },
-        ],
-      }),
-    ).success,
-    true,
-  )
-  assert.equal(
-    responseSchema('reference').safeParse(
-      success({ items: [{ ...customerSubunit, customerId: undefined }] }),
-    ).success,
-    false,
-  )
-  const { paymentMethod: _paymentMethod, ...missingPaymentMethod } =
-    customerSubunit
-  assert.equal(
-    responseSchema('reference').safeParse(
-      success({ items: [missingPaymentMethod] }),
-    ).success,
-    false,
-  )
-  assert.equal(
-    responseSchema('reference').safeParse(
-      success({
-        items: [
-          {
-            entity: 'product',
-            objectId: id,
-            approvalEntryId: view.submissionId,
-            code: 'PRD-0001',
-            name: '产品',
-          },
-        ],
-      }),
-    ).success,
-    true,
-  )
-})
-
-test('VOU sale-order and reference contracts expose exact payment-method snapshots', () => {
+test('VOU sale-order contracts expose exact payment-method snapshots', () => {
   const paymentMethod = {
     objectId: '01J00000000000000000000010',
     code: 'PMT-BANK',
@@ -460,38 +394,14 @@ test('VOU sale-order and reference contracts expose exact payment-method snapsho
       .success,
     false,
   )
-
-  const candidate = {
-    entity: 'payment-method',
-    objectId: paymentMethod.objectId,
-    code: paymentMethod.code,
-    name: paymentMethod.name,
-    defaultSalesSurcharge: paymentMethod.defaultSalesSurcharge,
-  }
-  assert.equal(
-    responseSchema('reference').safeParse(success({ items: [candidate] }))
-      .success,
-    true,
-  )
-  assert.equal(
-    responseSchema('reference').safeParse(
-      success({
-        items: [{ ...candidate, defaultSalesSurcharge: undefined }],
-      }),
-    ).success,
-    false,
-  )
 })
 
-test('VOU publishes the shared reference permission in the assignable catalog', () => {
-  assert.deepEqual(
-    vouCapabilityPermissionMetadata.find(
+test('VOU auxiliary candidates do not declare a reference permission', () => {
+  assert.equal(
+    vouCapabilityPermissionMetadata.some(
       (item) => item.permission === '/vou/reference/query',
     ),
-    {
-      permission: '/vou/reference/query',
-      title: 'VOU reference query',
-    },
+    false,
   )
 })
 

@@ -59,6 +59,7 @@ vi.mock('@/target/api.ts', async (importOriginal) => ({
   setTargetVehicleEnabled: vi.fn(),
   queryTargetUsers: vi.fn(),
   queryTargetRoles: vi.fn(),
+  queryTargetRoleOptions: vi.fn(),
   queryTargetEmployeeCategories: vi.fn(),
   queryTargetPositions: vi.fn(),
   queryTargetMeasurementUnits: vi.fn(),
@@ -70,9 +71,10 @@ vi.mock('@/target/api.ts', async (importOriginal) => ({
   queryTargetFundAccounts: vi.fn(),
   queryTargetVehicles: vi.fn(),
   queryTargetPermissions: vi.fn(),
+  queryTargetPermissionOptions: vi.fn(),
   queryTargetDepartments: vi.fn(),
-  queryTargetAuxReferences: vi.fn(),
-  queryTargetBobReferences: vi.fn(),
+  queryTargetAuxOptions: vi.fn(),
+  queryTargetBobOptions: vi.fn(),
   deleteTargetWarehouse: vi.fn(),
   deleteTargetFundAccount: vi.fn(),
   deleteTargetVehicle: vi.fn(),
@@ -86,9 +88,9 @@ const queryEmployees = vi.mocked(targetApi.queryTargetEmployees)
 const queryMeasurementUnits = vi.mocked(targetApi.queryTargetMeasurementUnits)
 const queryOperatingEntities = vi.mocked(targetApi.queryTargetOperatingEntities)
 const queryPaymentMethods = vi.mocked(targetApi.queryTargetPaymentMethods)
-const queryPermissions = vi.mocked(targetApi.queryTargetPermissions)
+const queryPermissions = vi.mocked(targetApi.queryTargetPermissionOptions)
 const queryPositions = vi.mocked(targetApi.queryTargetPositions)
-const queryRoles = vi.mocked(targetApi.queryTargetRoles)
+const queryRoles = vi.mocked(targetApi.queryTargetRoleOptions)
 const queryUsers = vi.mocked(targetApi.queryTargetUsers)
 
 const buttonStub = {
@@ -188,6 +190,32 @@ const identity = (id: string) => ({
 })
 
 function configureApi(): void {
+  vi.mocked(targetApi.queryTargetRoles).mockResolvedValue(
+    page([
+      {
+        ...identity('role'),
+        type: 'NORMAL',
+        enabled: true,
+        manageable: true,
+        assignable: true,
+      },
+    ]) as never,
+  )
+  vi.mocked(targetApi.queryTargetPermissions).mockResolvedValue(
+    page([]) as never,
+  )
+  vi.mocked(targetApi.queryTargetAuxOptions).mockImplementation(
+    async (entity) =>
+      optionPage([
+        {
+          objectId: entity,
+          code: `${entity}-code`,
+          name: `${entity} 名称`,
+          symbol: 'kg',
+          quantityScale: 0,
+        },
+      ]) as never,
+  )
   queryUsers.mockResolvedValue(page([identity('user')]) as never)
   queryRoles.mockResolvedValue(
     page([
@@ -334,15 +362,16 @@ describe('direct maintenance through the registered resource Host', () => {
     wrapper.unmount()
   })
 
-  it('loads only the visible vehicle carrier source under its own authorization', async () => {
-    authorize([
-      '/aux/vehicle/create',
-      '/aux/reference/query',
-      '/aux/operating-entity/query',
-    ])
-    vi.mocked(targetApi.queryTargetAuxReferences).mockResolvedValue([
-      { objectId: 'type', code: '罐车' },
-    ] as never)
+  it('loads only the visible vehicle carrier source without candidate permissions', async () => {
+    authorize(['/aux/vehicle/create', '/aux/operating-entity/query'])
+    vi.mocked(targetApi.queryTargetAuxOptions).mockImplementation(
+      async (entity) =>
+        optionPage(
+          entity === 'dictionary-item'
+            ? [{ objectId: 'type', code: '罐车', name: '罐车' }]
+            : [{ objectId: entity, code: 'E01', name: `${entity} 名称` }],
+        ) as never,
+    )
     const wrapper = mount(ResourceHost, {
       props: { domain: 'aux', entity: 'vehicle' },
       global: { stubs },
@@ -354,7 +383,7 @@ describe('direct maintenance through the registered resource Host', () => {
       '罐车',
     )
     expect(wrapper.text()).toContain('operating-entity 名称')
-    expect(targetApi.queryTargetBobReferences).not.toHaveBeenCalled()
+    expect(targetApi.queryTargetBobOptions).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 })
@@ -464,8 +493,6 @@ function prepare(
     '/aux/department/query',
     '/aux/position/query',
     '/aux/employee/query',
-    '/aux/reference/query',
-    '/bob/reference/query',
   ])
   return row
 }
@@ -661,15 +688,17 @@ describe('direct resource persistence mapping', () => {
       vehicleType: refSummary,
       carrier,
     })
-    vi.mocked(targetApi.queryTargetAuxReferences).mockResolvedValue([])
-    vi.mocked(targetApi.queryTargetBobReferences).mockResolvedValue([
-      {
-        objectId: 'ref-1',
-        sourceApprovalEntryId: 'new-entry',
-        code: 'REF',
-        name: '新版本',
-      },
-    ] as never)
+    vi.mocked(targetApi.queryTargetAuxOptions).mockResolvedValue(optionPage([]))
+    vi.mocked(targetApi.queryTargetBobOptions).mockResolvedValue(
+      optionPage([
+        {
+          objectId: 'ref-1',
+          sourceApprovalEntryId: 'new-entry',
+          code: 'REF',
+          name: '新版本',
+        },
+      ]) as never,
+    )
     const wrapper = host('vehicle')
     await flushPromises()
     await button(wrapper, '编辑').trigger('click')
@@ -854,15 +883,15 @@ describe('direct runtime failure and asynchronous isolation', () => {
     expect(queryRoles).toHaveBeenCalledTimes(1)
     wrapper.unmount()
   })
-  it('explains missing candidate permission and prevents save without sending an unauthorized request', async () => {
+  it('loads role candidates without role management permission', async () => {
     authorize(['/app/user/create'])
     const wrapper = host('user', 'app')
     await flushPromises()
     await button(wrapper, '新增用户').trigger('click')
     await flushPromises()
-    expect(wrapper.text()).toContain('角色查询权限')
-    expect(button(wrapper, '保存').attributes('disabled')).toBeDefined()
-    expect(queryRoles).not.toHaveBeenCalled()
+    expect(wrapper.text()).not.toContain('角色查询权限')
+    expect(button(wrapper, '保存').attributes('disabled')).toBeUndefined()
+    expect(queryRoles).toHaveBeenCalledTimes(1)
     expect(queryUsers).not.toHaveBeenCalled()
     wrapper.unmount()
   })
@@ -949,7 +978,7 @@ describe('fresh editor lifecycle and optional references', () => {
         managerEmployeeId: null,
         remark: '',
       },
-      {},
+      expect.any(Object),
     )
     expect(queryEmployees).not.toHaveBeenCalled()
     wrapper.unmount()
@@ -1050,20 +1079,20 @@ it('does not display a late verification response for a different unknown row wr
   wrapper.unmount()
 })
 
-it('loads the complete paginated role set and keeps nonassignable choices disabled', async () => {
+it('loads a requested role page and keeps nonassignable choices disabled', async () => {
   setActivePinia(createPinia())
   vi.resetAllMocks()
   configureApi()
   authorize(['/app/user/create', '/app/role/query'])
   queryRoles.mockResolvedValueOnce({
     items: [{ ...identity('first'), type: 'NORMAL', assignable: false }],
-    total: 2,
+    total: 21,
     page: 1,
     pageSize: 20,
   } as never)
   queryRoles.mockResolvedValueOnce({
     items: [{ ...identity('last'), type: 'NORMAL', assignable: true }],
-    total: 2,
+    total: 21,
     page: 2,
     pageSize: 20,
   } as never)
@@ -1071,19 +1100,21 @@ it('loads the complete paginated role set and keeps nonassignable choices disabl
   await flushPromises()
   await button(wrapper, '新增用户').trigger('click')
   await flushPromises()
-  expect(queryRoles).toHaveBeenNthCalledWith(2, 'csrf-token', {
-    keyword: '',
-    page: 2,
-    pageSize: 20,
-  })
   expect(
     wrapper.get('option[value="first"]').attributes('disabled'),
   ).toBeDefined()
+  await button(wrapper, '下一页').trigger('click')
+  await flushPromises()
+  expect(queryRoles).toHaveBeenNthCalledWith(2, {
+    keyword: '',
+    page: '2',
+    pageSize: '20',
+  })
   expect(wrapper.get('option[value="last"]').text()).toContain('last 名称')
   wrapper.unmount()
 })
 
-it('loads all permissions with the exact pagination contract and enforces delegation choices', async () => {
+it('loads requested permission pages and enforces delegation choices', async () => {
   setActivePinia(createPinia())
   vi.resetAllMocks()
   configureApi()
@@ -1096,10 +1127,11 @@ it('loads all permissions with the exact pagination contract and enforces delega
     action: 'query',
     description: null,
     status: 'ENABLED',
+    assignable: true,
   }
   queryPermissions.mockResolvedValueOnce({
     items: [permission],
-    total: 2,
+    total: 21,
     page: 1,
     pageSize: 20,
   } as never)
@@ -1108,11 +1140,12 @@ it('loads all permissions with the exact pagination contract and enforces delega
       {
         ...permission,
         id: 'forbidden',
+        assignable: false,
         path: '/app/user/save',
         action: 'save',
       },
     ],
-    total: 2,
+    total: 21,
     page: 2,
     pageSize: 20,
   } as never)
@@ -1120,9 +1153,13 @@ it('loads all permissions with the exact pagination contract and enforces delega
   await flushPromises()
   await button(wrapper, '新增角色').trigger('click')
   await flushPromises()
-  expect(queryPermissions).toHaveBeenNthCalledWith(2, 'csrf-token', {
-    page: 2,
-    pageSize: 20,
+  await wrapper.get('select[aria-label="权限"]').setValue(['allowed'])
+  await button(wrapper, '下一页').trigger('click')
+  await flushPromises()
+  expect(queryPermissions).toHaveBeenNthCalledWith(2, {
+    keyword: '',
+    page: '2',
+    pageSize: '20',
   })
   expect(
     wrapper.get('option[value="forbidden"]').attributes('disabled'),
@@ -1156,3 +1193,12 @@ it('keeps the established asset category creation defaults', async () => {
   )
   wrapper.unmount()
 })
+
+function optionPage(items: readonly object[]) {
+  return {
+    items: items.map((item) => ({ enabled: true, ...item })),
+    total: items.length,
+    page: 1,
+    pageSize: 20,
+  }
+}

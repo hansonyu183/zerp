@@ -1,3 +1,9 @@
+import {
+  auxiliaryRoute,
+  optionPage,
+  optionPageInput,
+  optionIdentity,
+} from '../app/options-contract.ts'
 import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
 
 import type { Schema } from 'hono'
@@ -157,6 +163,38 @@ function route<
 }
 
 export const accRouteSet = {
+  assetOptions: auxiliaryRoute(
+    '/acc/asset/options',
+    optionPageInput,
+    optionPage(optionIdentity),
+  ),
+  billOptions: auxiliaryRoute(
+    '/acc/bill/options',
+    optionPageInput,
+    optionPage(optionIdentity),
+  ),
+  bookOptions: auxiliaryRoute(
+    '/acc/book/options',
+    optionPageInput,
+    optionPage(
+      bookView.pick({ id: true, code: true, name: true, baseCurrency: true }),
+    ),
+  ),
+  subjectOptions: auxiliaryRoute(
+    '/acc/subject/options',
+    optionPageInput.extend({ bookId: z.string().length(26) }),
+    optionPage(
+      subject.pick({
+        id: true,
+        code: true,
+        name: true,
+        enabled: true,
+        requiredDimensions: true,
+        balanceDirection: true,
+        inventoryQuantity: true,
+      }),
+    ),
+  ),
   bookQuery: route(
     '/acc/book/query',
     bookQuery,
@@ -209,7 +247,7 @@ export const accRouteSet = {
 export const accRouteMetadata = Object.values(accRouteSet).map((item) => ({
   method: item.method,
   path: item.path,
-  permission: item.path,
+  ...(item.method === 'post' ? { permission: item.path } : {}),
   title: item.path,
 }))
 export type AccRouteAction = keyof typeof accRouteSet
@@ -225,7 +263,29 @@ export function registerAccRoutes<
   app: OpenAPIHono<TargetRouteEnvironment, AppSchema, BasePath>,
   handler: AccRouteHandler,
 ) {
-  const bq = app.openapi(
+  const options = app.openapiRoutes([
+    {
+      route: accRouteSet.assetOptions,
+      handler: (c: import('hono').Context<TargetRouteEnvironment>) =>
+        handler('assetOptions', c) as never,
+    },
+    {
+      route: accRouteSet.billOptions,
+      handler: (c: import('hono').Context<TargetRouteEnvironment>) =>
+        handler('billOptions', c) as never,
+    },
+    {
+      route: accRouteSet.bookOptions,
+      handler: (c: import('hono').Context<TargetRouteEnvironment>) =>
+        handler('bookOptions', c) as never,
+    },
+    {
+      route: accRouteSet.subjectOptions,
+      handler: (c: import('hono').Context<TargetRouteEnvironment>) =>
+        handler('subjectOptions', c) as never,
+    },
+  ] as const)
+  const bq = options.openapi(
     accRouteSet.bookQuery,
     (c) => handler('bookQuery', c) as never,
   )

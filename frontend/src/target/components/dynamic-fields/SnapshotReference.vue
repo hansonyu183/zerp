@@ -1,9 +1,11 @@
 <script setup lang="ts" generic="T extends object">
 import { computed, shallowRef, toRaw } from 'vue'
 import ReferencePicker from './ReferencePicker.vue'
-import type { EditOption, EditReferenceSource } from './edit-fields.ts'
+import type { EditOption } from './edit-fields.ts'
+import type { SnapshotReferenceSource } from './form-fields.ts'
+import { snapshotOption } from './snapshot-options.ts'
 const props = defineProps<{
-  source: EditReferenceSource
+  source: SnapshotReferenceSource
   caption: string
   modelValue: T | readonly T[] | null
   disabled: boolean
@@ -12,8 +14,7 @@ const props = defineProps<{
 const emit = defineEmits<{ 'update:modelValue': [value: T | T[] | null] }>()
 const options = shallowRef<readonly EditOption[]>([])
 function identity(value: object): string {
-  const record = value as Record<string, unknown>
-  return String(record.id ?? record.objectId ?? '')
+  return snapshotOption(props.source, value).id
 }
 const adopted = computed(() =>
   Array.isArray(props.modelValue)
@@ -25,14 +26,7 @@ const adopted = computed(() =>
 const existing = computed(() =>
   adopted.value
     .filter((item) => identity(item))
-    .map((item) => {
-      const record = item as Record<string, unknown>
-      return {
-        id: identity(item),
-        name: `${record.code ?? ''} · ${record.name ?? ''}`,
-        snapshot: item,
-      }
-    }),
+    .map((item) => snapshotOption(props.source, item)),
 )
 const selected = computed(() =>
   props.multiple

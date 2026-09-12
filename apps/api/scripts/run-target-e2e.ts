@@ -1618,14 +1618,8 @@ async function seedVouAccObjects() {
     'e2e-bill-issue-approve',
   )
   const [assets, bills] = await Promise.all([
-    vou.queryReferenceCandidates(
-      { entity: 'asset' },
-      serviceActor(submitter.userId),
-    ),
-    vou.queryReferenceCandidates(
-      { entity: 'bill' },
-      serviceActor(submitter.userId),
-    ),
+    acc.registerOptions('asset', { page: 1, pageSize: 20 }),
+    acc.registerOptions('bill', { page: 1, pageSize: 20 }),
   ])
   if (assets.items.length !== 1 || bills.items.length !== 1)
     throw new Error(
@@ -1641,7 +1635,6 @@ try {
   await bootstrap.createE2EPrincipal(createOnly, false, ['/app/user/create'])
   await bootstrap.createE2EPrincipal(orderReviewOnly, false, [
     '/vou/sale-order/approve',
-    '/bob/reference/query',
   ])
   const report = await createRptBrowserFixture(
     rpt,

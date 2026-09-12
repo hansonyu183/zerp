@@ -20,7 +20,7 @@ vi.mock('@/target/api.ts', async (original) => ({
   ...(await original<typeof import('@/target/api.ts')>()),
   queryTargetMeasurementUnits: api.queryUnits,
   createTargetMeasurementUnit: api.createUnit,
-  queryTargetRoles: api.queryRoles,
+  queryTargetRoleOptions: api.queryRoles,
 }))
 const mounted: ReturnType<typeof mount>[] = []
 afterEach(() => {
@@ -202,10 +202,10 @@ describe('真实录入字段', () => {
     await form.get('.v-field__clearable .v-icon').trigger('click')
     await flushPromises()
     expect(form.emitted('update:modelValue')?.at(-1)).toEqual([{ roles: [] }])
-    expect(api.queryRoles).toHaveBeenCalledWith('unit-test-csrf', {
+    expect(api.queryRoles).toHaveBeenCalledWith({
       keyword: '',
-      page: 1,
-      pageSize: 20,
+      page: '1',
+      pageSize: '20',
     })
   })
 

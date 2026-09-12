@@ -20,7 +20,6 @@ type Details = Pick<
 const props = defineProps<{ modelValue: Details; disabled: boolean }>()
 const emit = defineEmits<{
   'update:modelValue': [value: Details]
-  pending: [value: boolean]
 }>()
 const pendingType = shallowRef<Details['productType'] | null>(null)
 function patch(value: Partial<Details>) {
@@ -122,7 +121,6 @@ function selectType(
     @update:model-value="patch($event)"
   />
   <ProductFormulaBlock
-    @pending="emit('pending', $event)"
     v-if="modelValue.productType.behaviorProfile === 'STANDARD_FINISHED'"
     :model-value="modelValue.fixedFormula"
     :disabled="disabled"

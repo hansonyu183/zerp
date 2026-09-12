@@ -308,7 +308,7 @@ CSRF Token 按 Cookie 会话固定，并由服务端从随机会话令牌单向�
 
 每条权限独立授权。菜单不依赖 `query` 权限，因此不得自动补授或强制依赖同实体的 `query`；每项操作只由其精确动作权限决定。
 
-角色查询固定每页 20 条，默认包含启用及停用角色；在完整授权集合上对编码、真实拼音、名称做关键词 OR 包含匹配后，按 `code`、`id` 升序分页。原生摘要返回 `id/code/py/name/enabled/revision`；revision 为十进制字符串，启用事实显示为启用/停用。角色类型为 `NORMAL/SYSTEM/SUPERADMIN`（普通角色/系统角色/超级管理员）；动作完整集合为 `edit/enable/disable`（编辑/启用/停用）。查询和详情按操作者当前授权上限、自持角色和精确动作权限返回资格与 `assignable`。`system` 与 `superadmin` 可见但不可编辑启停。编辑器将动作资格与 get、save、权限目录 query 的实际依赖相交；单项 API 不额外要求其他读取授权。旧 status、状态筛选、排序与数字 revision 管理输入不再接受。
+角色查询固定每页 20 条，默认包含启用及停用角色；在完整授权集合上对编码、真实拼音、名称做关键词 OR 包含匹配后，按 `code`、`id` 升序分页。原生摘要返回 `id/code/py/name/enabled/revision`；revision 为十进制字符串，启用事实显示为启用/停用。角色类型为 `NORMAL/SYSTEM/SUPERADMIN`（普通角色/系统角色/超级管理员）；动作完整集合为 `edit/enable/disable`（编辑/启用/停用）。查询和详情按操作者当前授权上限、自持角色和精确动作权限返回资格与 `assignable`。`system` 与 `superadmin` 可见但不可编辑启停。编辑器将动作资格与 get、save 的实际依赖相交；权限候选通过所属实体 GET 加载，不依赖权限目录 query；单项 API 不额外要求其他读取授权。旧 status、状态筛选、排序与数字 revision 管理输入不再接受。
 
 角色详情返回编码、拼音、名称、说明、启用事实、类型、完整权限资料、revision、创建和更新时间以及同一套动作与可分配结论。`superadmin` 的权限详情在读取时动态展开为全部启用权限，但数据库不保存逐项关联；普通有限权限集合无论当前是否恰好覆盖全部权限，都不得获得通配身份。
 
@@ -429,3 +429,7 @@ CSRF Token 按 Cookie 会话固定，并由服务端从随机会话令牌单向�
 
 - 用户角色或角色权限变更后，后端必须确保后续请求使用最新权限。
 - Session 恢复或权限版本失效后必须重新得到 `apiPaths`；权限被撤销后后端必须立即拒绝无权限 API 请求，前端同步移除对应 Navigation Entry 与已挂载资源实例。
+
+## 角色与权限候选
+
+角色、权限的 GET options 使用有效 Session，不检查管理动作权限。角色保留 assignable 和启停状态；权限保留 Delegation Ceiling。候选支持关键词、分页与所选身份回显，正式 POST 和写入授权保持不变。

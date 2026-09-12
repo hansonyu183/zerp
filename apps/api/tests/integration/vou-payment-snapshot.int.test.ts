@@ -1,3 +1,4 @@
+import { BobService } from '../../src/bob/service.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { sql } from 'kysely'
@@ -400,30 +401,34 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     await reject(payload({ ...inherited, ...patch }))
     await reject(payload({ ...selected, ...patch }))
   }
-  const customerCandidates = await vou.queryReferenceCandidates(
-    { entity: 'customer-subunit' },
-    actor,
-  )
+  const customerCandidates = await new BobService(db).options({
+    entity: 'customer-subunit',
+    page: 1,
+    pageSize: 20,
+    enabled: true,
+  })
   assert.deepEqual(
     customerCandidates.items.find((item) => item.objectId === subunitId),
     {
-      entity: 'customer-subunit',
+      enabled: true,
+      sourceVersionNo: 1,
       objectId: subunitId,
       customerId: subjects.customer,
-      approvalEntryId: entries.customer,
+      sourceApprovalEntryId: entries.customer,
       code: `PAY-SUB-${subunitId.slice(-8)}`,
       name: '默认收款总部',
       paymentMethod: customerSnapshot,
     },
   )
-  const paymentCandidates = await vou.queryReferenceCandidates(
-    { entity: 'payment-method' },
-    actor,
-  )
+  const paymentCandidates = await aux.options({
+    entity: 'payment-method',
+    page: 1,
+    pageSize: 20,
+    enabled: true,
+  })
   assert.ok(
     paymentCandidates.items.some(
       (item) =>
-        item.entity === 'payment-method' &&
         item.objectId === alternate.id &&
         item.defaultSalesSurcharge === '987654321.09',
     ),
@@ -499,10 +504,12 @@ test('sales orders adopt explicit customer or current payment snapshots without 
       approved.payload,
     )
   }
-  const afterCandidates = await vou.queryReferenceCandidates(
-    { entity: 'payment-method' },
-    actor,
-  )
+  const afterCandidates = await aux.options({
+    entity: 'payment-method',
+    page: 1,
+    pageSize: 20,
+    enabled: true,
+  })
   assert.ok(
     !afterCandidates.items.some(
       (item) =>

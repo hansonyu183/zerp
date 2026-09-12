@@ -47,7 +47,6 @@ test('Customer HTTP preserves subunit identity, exact snapshots and independent 
     'save-subunits',
   ]
   const permissions = actions.map((action) => `/bob/customer/${action}`)
-  permissions.push('/bob/reference/query')
   await bootstrap.createE2EPrincipal(submitter, false, permissions)
   await bootstrap.createE2EPrincipal(reviewer, false, permissions)
   context.after(async () => {

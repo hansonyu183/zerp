@@ -216,6 +216,15 @@ test('removing catalog authority preserves unrelated IDs, advances affected role
     action: 'catalog',
     title: '会计映射目录',
   }
+  const removedReferences = ['aux', 'bob', 'vou'].map((domain, index) => ({
+    id: `${index}${suffix}`.padEnd(26, '0'),
+    path: `/${domain}/reference/query`,
+    domain,
+    entity: 'reference',
+    action: 'query',
+    title: '旧引用候选',
+  }))
+  const removed = [legacy, ...removedReferences]
   const unrelated = desired.find((entry) => entry.path === '/app/user/query')!
   const beforeId = (
     await db
@@ -239,7 +248,7 @@ test('removing catalog authority preserves unrelated IDs, advances affected role
       await db.destroy()
     }
   })
-  await bootstrap.syncPermissionCatalog([...desired, legacy])
+  await bootstrap.syncPermissionCatalog([...desired, ...removed])
   await bootstrap.createE2EPrincipal(
     {
       userId,
@@ -248,7 +257,7 @@ test('removing catalog authority preserves unrelated IDs, advances affected role
       passwordHash: await hashPassword(password),
     },
     false,
-    [legacy.path, unrelated.path],
+    [...removed.map((item) => item.path), unrelated.path],
   )
   await bootstrap.createE2EPrincipal(
     {
@@ -258,10 +267,13 @@ test('removing catalog authority preserves unrelated IDs, advances affected role
       passwordHash: await hashPassword(password),
     },
     false,
-    [legacy.path],
+    removed.map((item) => item.path),
   )
   const onlyLogin = await session.signin(`catalog-only-${suffix}`, password)
-  assert.deepEqual(onlyLogin.principal.apiPaths, [legacy.path])
+  assert.deepEqual(
+    [...onlyLogin.principal.apiPaths].sort(),
+    removed.map((item) => item.path).sort(),
+  )
   const login = await session.signin(`catalog-remove-${suffix}`, password)
   assert.ok(login.principal.apiPaths.includes(legacy.path))
   const before = await db
@@ -276,7 +288,7 @@ test('removing catalog authority preserves unrelated IDs, advances affected role
         : entry,
     ),
   )
-  assert.equal(result.droppedStaleRoleGrants, 2)
+  assert.equal(result.droppedStaleRoleGrants, removed.length * 2)
   assert.equal(
     (
       await db

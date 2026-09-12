@@ -228,21 +228,19 @@ export interface AuxCurrentReference<Entity extends AuxCurrentEntity> {
 }
 
 export interface AuxReferenceQueryInput {
-  entity:
-    | 'settlement-method'
-    | 'payment-method'
-    | 'dictionary-item'
-    | 'product-type'
-    | 'product-category'
-    | 'employee-category'
-    | 'department'
-    | 'position'
-    | 'measurement-unit'
+  entity: AuxEntity
   keyword?: string
   dictionaryTypeCode?: string
+  page: number
+  pageSize: 20
+  enabled?: boolean
+  ids?: string[]
 }
 
 export interface AuxReferenceCandidate {
+  enabled: boolean
+  defaultUsefulLifeMonths?: number
+  defaultResidualRate?: string
   objectId: string
   code: string
   name: string
@@ -1588,33 +1586,16 @@ export class AuxService {
     })
   }
 
-  async queryReferenceCandidates(
-    input: AuxReferenceQueryInput,
-    actor: AuxActor,
-  ): Promise<AuxReferenceCandidate[]> {
+  async options(input: AuxReferenceQueryInput) {
     const { entity } = input
-    if (
-      !(
-        [
-          'settlement-method',
-          'payment-method',
-          'dictionary-item',
-          'product-type',
-          'product-category',
-          'employee-category',
-          'department',
-          'position',
-          'measurement-unit',
-        ] as const
-      ).includes(entity)
-    )
-      applicationError('validation_failed')
-    assertPermission(actor, `/aux/${entity}/query`)
-    const where = [sql`entity = ${entity}`, sql`enabled = true`]
+    assertEntity(entity)
+    const where = [sql`entity = ${entity}`]
+    if (input.enabled !== undefined) where.push(sql`enabled = ${input.enabled}`)
+    if (input.ids) where.push(sql`id IN (${sql.join(input.ids)})`)
     if (input.keyword?.trim()) {
       const keyword = `%${input.keyword.trim()}%`
       where.push(
-        sql`(code ILIKE ${keyword} OR COALESCE(data->>'name', '') ILIKE ${keyword})`,
+        sql`(code ILIKE ${keyword} OR COALESCE(data->>'name', data->>'displayName', data->>'legalName', '') ILIKE ${keyword})`,
       )
     }
     if (input.dictionaryTypeCode?.trim())
@@ -1623,23 +1604,30 @@ export class AuxService {
       )
     const result = await sql<{
       id: string
+      enabled: boolean
       code: string
       name: string
       behavior_profile: AuxReferenceCandidate['behaviorProfile'] | null
       quantity_scale: number | null
       symbol: string | null
       data: unknown
-    }>`SELECT id, code, data, COALESCE(data->>'name', '') AS name,
+    }>`SELECT id, enabled, code, data, COALESCE(data->>'name', data->>'displayName', data->>'legalName', '') AS name,
       CASE WHEN entity = 'product-type' THEN data->>'behaviorProfile' END AS behavior_profile,
       CASE WHEN entity = 'measurement-unit' THEN NULLIF(data->>'quantityScale', '')::integer END AS quantity_scale,
       CASE WHEN entity = 'measurement-unit' THEN data->>'symbol' END AS symbol
-      FROM aux_objects WHERE ${sql.join(where, sql` AND `)} ORDER BY COALESCE((data->>'sortOrder')::integer, 2147483647), code, id LIMIT 20`.execute(
+      FROM aux_objects WHERE ${sql.join(where, sql` AND `)} ORDER BY COALESCE((data->>'sortOrder')::integer, 2147483647), code, id LIMIT ${input.pageSize} OFFSET ${(input.page - 1) * input.pageSize}`.execute(
       this.db,
     )
-    return result.rows.map((row) => {
+    const count = await sql<{
+      total: string
+    }>`SELECT count(*) AS total FROM aux_objects WHERE ${sql.join(where, sql` AND `)}`.execute(
+      this.db,
+    )
+    const items = result.rows.map((row): AuxReferenceCandidate => {
       const data = normaliseReferenceData(entity, row.data)
       const common = {
         objectId: row.id,
+        enabled: row.enabled,
         code: row.code,
         name: row.name,
       }
@@ -1680,8 +1668,24 @@ export class AuxService {
           ...common,
           defaultSalesSurcharge: fixedMoney(data.defaultSalesSurcharge),
         }
+      if (entity === 'asset-category')
+        return {
+          ...common,
+          defaultUsefulLifeMonths: integer(
+            data.defaultUsefulLifeMonths,
+            1,
+            1200,
+          ),
+          defaultResidualRate: String(data.defaultResidualRate),
+        }
       return common
     })
+    return {
+      items,
+      total: Number(count.rows[0]?.total ?? 0),
+      page: input.page,
+      pageSize: 20 as const,
+    }
   }
 
   private async setEnabled(

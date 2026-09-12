@@ -1,6 +1,8 @@
 import type { EnumOption } from './types.ts'
 
 export type EditReferenceSource =
+  | 'customer-subunits'
+  | 'suppliers'
   | 'roles'
   | 'permissions'
   | 'operating-entities'
@@ -71,11 +73,13 @@ export type EditFields<T extends object> = readonly {
 }[Extract<keyof T, string>][]
 
 export type EditReference =
+  | { kind: 'book' }
+  | { kind: 'subject'; bookId: string }
   | EditReferenceSource
   | { kind: 'voucher'; entity: import('@zerp/model').VouEntity }
   | {
       kind: 'vou-reference'
-      entity: import('../../api.ts').TargetVouReferenceQueryInput['entity']
+      entity: import('../../api.ts').TargetReferenceEntity
     }
   | {
       kind: 'vou-source-line'

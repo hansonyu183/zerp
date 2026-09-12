@@ -30,7 +30,6 @@ export async function seedOrderListFixture(
       'audit-history',
     ].map((action) => `/vou/${entity}/${action}`),
   )
-  paths.push('/bob/reference/query')
   const password = randomBytes(24).toString('base64url')
   const passwordHash = await hashPassword(password)
   async function principal(actions: readonly string[]) {
@@ -48,7 +47,6 @@ export async function seedOrderListFixture(
     reviewer = await principal(paths),
     noQuery = await principal([
       ...entities.map((entity) => `/vou/${entity}/approve`),
-      '/bob/reference/query',
     ])
   const bob = new BobArchiveService(db)
   const references = await seedSaleOrderReferences(

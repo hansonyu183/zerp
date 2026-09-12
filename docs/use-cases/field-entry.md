@@ -14,3 +14,14 @@
 ## 实现证据
 
 本片的实际 SHA、门禁结果、浏览器场景与回收结果见 [#416 验收记录](../testing/issue-416-field-entry.md)。
+
+## 普通引用统一读取（#427）
+
+普通编辑与历史筛选共用 ReferencePicker，采用快照的字段由 SnapshotReference 适配。领域语义引用 [APP](../domains/app.md)、[AUX](../domains/aux.md)、[BOB](../domains/bob.md)、[VOU](../domains/vou.md) 与 [ACC](../domains/acc.md)。可执行入口分别为 `apps/api/src/app/independent-contract.ts`、`apps/api/src/app/aux-contract.ts`、`apps/api/src/acc/contract.ts` 和 `apps/api/src/vou/contract.ts`；逐消费者范围见[迁移矩阵](../testing/auxiliary-read-migration-matrix.md)。
+
+1. 编辑器和筛选器打开后只请求当前候选页；搜索词变化回到第一页。超过 200 条时可通过搜索或后续页选择，不预载全集。多选跨页保留，清空只由用户触发。
+2. 有效 Session 在没有来源实体管理权限时仍可读取候选；管理菜单与正式 POST 查询、查看及写入继续遵守各自授权。权限和角色候选使用服务端可分配结论；账簿候选仍受既有账簿范围控制。
+3. 当前页与已选集合分离；历史停用资料可以用于筛选，编辑时不能作为新关联重新选入。已有身份、Approval Entry 和采用快照保持不变，不因候选刷新替换。完整快照无需 resolve；确需默认值或来源行事实时，所属业务适配器按已选精确身份读取。
+4. 订单选择客户子账户、供应商或产品后，所属实体 resolve 提供必要默认值；首次订单缺少历史匹配时显示手工录入说明。期初账簿、科目、资产和票据同样逐页加载，用户更换账簿时科目来源同步切换。
+5. 加载失败显示中文说明与重试入口；非法查询条件有稳定错误。快速搜索、切源、关闭页面及账号变化后，旧请求结果不能回写。公共组件正式 props/事件、definition → Host 和浏览器 GET/POST 均覆盖这些边界。
+6. VOU 来源行及 RPT 参数仍沿用本系列下一片的原专属读取；本片不改变其业务规则。

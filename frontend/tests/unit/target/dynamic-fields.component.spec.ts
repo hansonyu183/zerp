@@ -110,14 +110,11 @@ describe('finite field renderers', () => {
           },
         ],
         modelValue: { keyword: null, enabled: false, roleId: 'role-1' },
-        referenceOptions: {
-          'app/role': [
-            { id: 'role-1', name: '业务员' },
-            { id: 'role-2', name: '已停用角色', disabled: true },
-          ],
-        },
       },
-      global: { components: { VAlert, VBtn, VForm, VTextField, VSelect } },
+      global: {
+        components: { VAlert, VBtn, VForm, VTextField, VSelect },
+        stubs: { ReferencePicker: true },
+      },
     })
 
     const composing = new KeyboardEvent('keydown', {
@@ -137,15 +134,6 @@ describe('finite field renderers', () => {
       roleId: 'role-1',
     })
     expect(wrapper.emitted('search')).toHaveLength(1)
-    expect(
-      wrapper
-        .get('[data-testid="field-roleId"]')
-        .attributes('data-option-disabled'),
-    ).toBe('true')
-    await wrapper.setProps({ referenceOptions: {} })
-    expect(
-      wrapper.get('[data-testid="field-roleId"]').attributes('data-disabled'),
-    ).toBe('true')
   })
 
   it('keeps invalid input visible and blocks disabled form submission', async () => {
@@ -154,7 +142,10 @@ describe('finite field renderers', () => {
         fields: [{ key: 'quantity', type: 'integer', caption: '数量' }],
         modelValue: { quantity: Number.MAX_SAFE_INTEGER + 1 },
       },
-      global: { components: { VAlert, VBtn, VForm, VTextField, VSelect } },
+      global: {
+        components: { VAlert, VBtn, VForm, VTextField, VSelect },
+        stubs: { ReferencePicker: true },
+      },
     })
 
     await wrapper.get('[data-testid="form"]').trigger('submit')

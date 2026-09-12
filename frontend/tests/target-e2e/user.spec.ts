@@ -59,27 +59,23 @@ async function openRoleManagement(page: Page): Promise<void> {
 
 async function toggleVirtualOption(page: Page, title: string): Promise<void> {
   const option = page.getByRole('option').filter({ hasText: title })
-  const options = page.getByRole('listbox')
   const chip = page
     .getByRole('dialog')
     .locator('.v-chip')
     .filter({ hasText: title })
-  let wasSelected = false
-  await expect(options).toBeVisible()
-  // Vuetify only mounts the visible portion of long option lists.
-  await options.evaluate((element) => {
-    element.scrollTop = 0
-  })
-  await expect(async () => {
-    if (!(await option.count())) {
-      await options.evaluate((element) => {
-        element.scrollTop += element.clientHeight
-      })
-      throw new Error(`permission option is not mounted yet: ${title}`)
-    }
-    wasSelected = (await option.getAttribute('aria-selected')) === 'true'
-    await option.evaluate((element) => (element as HTMLElement).click())
-  }).toPass({ timeout: 15_000, intervals: [50] })
+  const search = page.getByRole('dialog').getByRole('combobox')
+  await search.fill(
+    title === '系统管理 · 用户管理 · 新增'
+      ? '/app/user/create'
+      : title === '系统管理 · 用户管理 · 查看'
+        ? '/app/user/get'
+        : title === targetE2ERoleText
+          ? targetE2ERoleName
+          : title,
+  )
+  await expect(option).toBeVisible()
+  const wasSelected = (await option.getAttribute('aria-selected')) === 'true'
+  await option.click()
   await expect(chip).toHaveCount(wasSelected ? 0 : 1)
 }
 

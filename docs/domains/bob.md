@@ -33,7 +33,7 @@ BOB 列表只返回当前正式资料、stable ID、编码、`sourceApprovalEntr
 
 法定识别号按“档案类型 + 规范化值”唯一；跨档案类型不比较、不复用、不提示和不合并。名称、电话、邮箱和地址不是唯一键。误建档案没有合并动作。Customer、Product、Supplier、Other Unit 与 Sales Partner 可由独立 `disable` 立即停用其对象，仍不改写历史事实的稳定 ID、Approval Entry 或快照。
 
-BOB 为 Customer、Product、Supplier、Other Unit 与 Sales Partner 提供 current `query|get|reference`、正式 Submission 读取、版本与维护入口；它们的待办和审批也使用 BOB 精确路径。Party、Party 权限、Party 页面、关系卡片、关系 root、影响预览和合并均不存在。
+BOB 为 Customer、Product、Supplier、Other Unit 与 Sales Partner 提供 current `query|get|options`、正式 Submission 读取、版本与维护入口；它们的待办和审批也使用 BOB 精确路径。Party、Party 权限、Party 页面、关系卡片、关系 root、影响预览和合并均不存在。
 
 服务类业务档案的用户名称固定为“其他单位”，实体与路径使用 `other-unit`；它的 current、Submission、版本、维护和启停 HTTP 边界均为 `/bob/other-unit/*`。
 
@@ -204,7 +204,7 @@ BOB Subject 的 `enabled` 与 object revision 只描述对象当前可用性，�
 
 ### 3.2 Submission、版本与审计
 
-BOB 使用公共 Approval 与 Version 组件，不建立第二 Approval Entry、版本头、current pointer 或审批事件。`query/get/reference` 必须以 entity 和 subject 双重约束选择 highest `APPROVED` entry，再连接对应 typed snapshot；`sourceApprovalEntryId` 与 `sourceVersionNo` 直接来自该 entry。`submission-query/submission-get` 只读取持久化 Submission，`versions` 只读取版本历史；声明生命周期审计只写中央 `approval_events`。Approval、Version 和 BOB Domain Plan 在同一外层事务中落库，任一步失败全部回滚。
+BOB 使用公共 Approval 与 Version 组件，不建立第二 Approval Entry、版本头、current pointer 或审批事件。`query/get/options` 必须以 entity 和 subject 双重约束选择 highest `APPROVED` entry，再连接对应 typed snapshot；`sourceApprovalEntryId` 与 `sourceVersionNo` 直接来自该 entry。`submission-query/submission-get` 只读取持久化 Submission，`versions` 只读取版本历史；声明生命周期审计只写中央 `approval_events`。Approval、Version 和 BOB Domain Plan 在同一外层事务中落库，任一步失败全部回滚。
 
 业务字段尚未确定前，不应仅为追求通用性把全部正式字段长期存入无约束 JSONB。客户 `pricingPolicy` 是因定价规则结构易变而明确限定的封闭值对象例外，不得扩展为通用客户属性包。
 
@@ -227,11 +227,11 @@ Customer、Product、Supplier、Other Unit 与 Sales Partner 的 BOB current 读
 - latest approved 反批准后，查询自然回落到上一批准版本，首版反批准后无结果；
 - approve/unapprove 只重新选择 highest approved typed snapshot，不覆盖对象 `enabled` 或 object revision。
 
-BOB `query/get/reference` 不接受 lifecycle status 或历史 entry 作为读取模式；`submission-query/submission-get` 与 `versions` 是独立 BOB 动作。`enable/disable` 只改变对象当前可用性，不创建候选、版本或 Approval event；不存在 Party 或档案合并动作。
+BOB `query/get/options` 不接受 lifecycle status 或历史 entry 作为读取模式；`submission-query/submission-get` 与 `versions` 是独立 BOB 动作。`enable/disable` 只改变对象当前可用性，不创建候选、版本或 Approval event；不存在 Party 或档案合并动作。
 
 ## 5. 领域动作
 
-公开动作及路径由 Hono route metadata 生成。Customer、Product、Supplier、Other Unit 与 Sales Partner 各自登记 `query/get`、`submission-query/submission-get`、`versions`、`submit-new/submit-change`、`reject/approve/unreject/unapprove/delete`、`enable/disable`，共享引用入口登记 `reference/query`；每个动作都是独立 APP 权限。后端通过路由元数据绑定权限标识，不能由 Handler 以字符串前缀或角色名称推断。
+公开动作及路径由 Hono route metadata 生成。Customer、Product、Supplier、Other Unit 与 Sales Partner 各自登记 `query/get`、`submission-query/submission-get`、`versions`、`submit-new/submit-change`、`reject/approve/unreject/unapprove/delete`、`enable/disable`，辅助候选通过所属实体 GET `options`（Customer 子账户为 `subunit-options`）读取，不登记动作权限；正式 POST 动作仍为独立 APP 权限。后端通过路由元数据绑定权限标识，不能由 Handler 以字符串前缀或角色名称推断。
 
 每种业务档案使用自己的 BOB 读取、维护、版本、生命周期与启停权限，不因现实主体可能相同而隐式授权另一类型。旧 DCL 客户及产品权限不形成运行时能力。
 
@@ -253,7 +253,7 @@ BOB `query` 永远只返回 current 行；BOB Submission 状态不进入筛选�
 
 BOB `get` 只接受稳定对象 ID，并返回 current 类型化详情、`sourceApprovalEntryId` 与 `sourceVersionNo`；current 不存在时返回稳定未找到错误。它不接受历史 `approvalEntryId`，也不返回 Approval metadata、开放候选、版本或审计。
 
-BOB `reference/query` 只返回当前启用对象的最小引用资料。新业务由内部 typed resolver 解析 current 来源；已有业务按自己保存的稳定对象 ID 与精确 Approval Entry 校验历史来源，不通过 BOB HTTP 暴露历史详情。
+BOB 所属实体 GET `options` 返回最小引用资料，支持关键词和分页；新增业务候选只含当前启用对象，历史筛选可包含停用对象。辅助读取只要求有效 Session，不要求被引用实体管理权限。新业务由内部 typed resolver 解析 current 来源；已有业务按自己保存的稳定对象 ID 与精确 Approval Entry 校验历史来源，不通过 BOB HTTP 暴露历史详情。
 
 ### 6.3 写入与独立启停
 
@@ -343,7 +343,7 @@ AUX 产品分类、部门、岗位和结算方式只在选择或更换时校验 
 
 BOB 验收以 Customer、Product、Supplier、Other Unit 与 Sales Partner 的 current、Submission、版本、审批和独立启停公共边界为准。至少覆盖：
 
-1. 每个迁入 BOB entity 提供 `query/get`、`submission-query/submission-get`、`versions`、提交、生命周期和启停；共享引用提供 `reference/query`；
+1. 每个迁入 BOB entity 提供 `query/get`、`submission-query/submission-get`、`versions`、提交、生命周期和启停；辅助候选提供所属实体 GET `options`；
 2. query/get 只读取 current，Submission 与版本读取只走独立动作；
 3. 每个 current 响应返回 `sourceApprovalEntryId` 与 `sourceVersionNo`，两者来自同一实体、subject 和 approved entry；
 4. V1/V2 批准与反批准后，BOB typed query 分别自然出现、切换、回落或消失；候选待审期间仍读取上一批准版本；

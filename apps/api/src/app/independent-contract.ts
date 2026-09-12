@@ -1,3 +1,10 @@
+import {
+  auxiliaryRoute,
+  optionPage,
+  optionPageInput,
+  optionIds,
+  optionBoolean,
+} from './options-contract.ts'
 import { bobArchiveSnapshotSchemas } from '../bob/archive-contract.ts'
 import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
 import type { Handler } from 'hono'
@@ -14,8 +21,7 @@ import {
   fundAccountGetRoute,
   auxQueryRoute,
   measurementUnitQueryRoute,
-  auxReferenceRoute,
-  auxReferenceRouteBinding,
+  auxOptionsRoute,
   auxRouteBinding,
   auxSaveRoute,
   operatingEntityGetRoute,
@@ -226,6 +232,20 @@ const userResetPassword = postRoute(
   userRevision,
   z.object({ temporaryPassword: z.string() }),
 )
+export const roleOptionsInput = optionPageInput.extend({
+  ids: optionIds.optional(),
+})
+const roleOptions = auxiliaryRoute(
+  '/app/role/options',
+  roleOptionsInput,
+  optionPage(roleReference),
+)
+const permissionOptions = auxiliaryRoute(
+  '/app/permission/options',
+  roleOptionsInput,
+  optionPage(permissionReference.extend({ assignable: z.boolean() })),
+)
+
 const roleQuery = postRoute(
   '/app/role/query',
   z
@@ -317,36 +337,105 @@ const bobPage = z.object({
   page: z.number().int().positive(),
   pageSize: z.number().int().positive(),
 })
-const bobReferenceRequest = z
+export const bobOptionsInput = optionPageInput.extend({
+  enabled: optionBoolean.optional(),
+  ids: optionIds.optional(),
+  operatingEntityId: z.string().length(26).optional(),
+  sourceObjectId: z.string().length(26).optional(),
+  behaviorProfile: z
+    .enum(['RAW_MATERIAL', 'STANDARD_FINISHED', 'CUSTOM_FINISHED', 'PACKAGING'])
+    .optional(),
+  capability: z.enum(['EXTERNAL_PART_TIME', 'CHANNEL_PARTNER']).optional(),
+})
+const bobOption = z
   .object({
-    entity: z.enum([
-      'customer-subunit',
-      'other-unit',
-      'supplier',
-      'sales-partner',
-      'product',
-    ]),
-    keyword: z.string().max(100).optional(),
-    operatingEntityId: z.string().max(26).optional(),
-    sourceObjectId: z.string().max(26).optional(),
-    behaviorProfile: z
-      .enum([
-        'RAW_MATERIAL',
-        'STANDARD_FINISHED',
-        'CUSTOM_FINISHED',
-        'PACKAGING',
-      ])
-      .optional(),
-  })
-  .strict()
-const bobReferences = z.array(
-  z.object({
     objectId: z.string(),
     code: z.string(),
     name: z.string(),
+    enabled: z.boolean(),
     sourceApprovalEntryId: z.string(),
     sourceVersionNo: z.number().int().positive(),
-    data: jsonObject.optional(),
+  })
+  .strict()
+const subunitOption = bobOption.extend({
+  customerId: z.string(),
+  paymentMethod: z
+    .object({
+      objectId: z.string(),
+      code: z.string(),
+      name: z.string(),
+      defaultSalesSurcharge: z.string(),
+    })
+    .nullable(),
+})
+function bobOptionsRoute<
+  const Entity extends
+    'customer' | 'supplier' | 'other-unit' | 'sales-partner' | 'product',
+>(entity: Entity) {
+  return auxiliaryRoute(
+    `/bob/${entity}/options` as const,
+    bobOptionsInput,
+    optionPage(bobOption),
+  )
+}
+const subunitOptionsRoute = auxiliaryRoute(
+  '/bob/customer/subunit-options',
+  bobOptionsInput,
+  optionPage(subunitOption),
+)
+
+export const bobResolveInput = z
+  .object({
+    objectId: z.string().length(26),
+    approvalEntryId: z.string().length(26),
+  })
+  .strict()
+const resolvedIdentity = z.object({
+  objectId: z.string(),
+  code: z.string(),
+  enabled: z.boolean(),
+  sourceApprovalEntryId: z.string(),
+})
+const productResolveRoute = auxiliaryRoute(
+  '/bob/product/resolve',
+  bobResolveInput,
+  resolvedIdentity.extend({
+    data: bobArchiveSnapshotSchemas.product.pick({
+      name: true,
+      productType: true,
+      pricingUnit: true,
+      defaultInputUnit: true,
+      unitConversions: true,
+      defaultPackagingSpec: true,
+      fixedFormula: true,
+    }),
+  }),
+)
+const supplierResolveRoute = auxiliaryRoute(
+  '/bob/supplier/resolve',
+  bobResolveInput,
+  resolvedIdentity.extend({
+    data: bobArchiveSnapshotSchemas.supplier.pick({ defaultPurchaser: true }),
+  }),
+)
+const subunitResolveRoute = auxiliaryRoute(
+  '/bob/customer/subunit-resolve',
+  bobResolveInput,
+  resolvedIdentity.extend({
+    data: z.object({
+      subunits: z.array(
+        bobArchiveSnapshotSchemas.customer.shape.subunits.element.options[1].pick(
+          {
+            id: true,
+            enabled: true,
+            internalReminder: true,
+            defaultSalesOrderRemark: true,
+            settlementMethod: true,
+            primarySalesAttribution: true,
+          },
+        ),
+      ),
+    }),
   }),
 )
 
@@ -463,16 +552,6 @@ export interface BobRouteBinding {
   permission: string
 }
 
-export const bobReferenceRouteBinding = {
-  permission: '/bob/reference/query',
-} as const
-
-export const bobReferenceRoute = postRoute(
-  '/bob/reference/query',
-  bobReferenceRequest,
-  bobReferences,
-)
-
 export function bobRouteBinding(
   entity: BobRouteBinding['entity'],
   action: BobRouteBinding['action'],
@@ -484,12 +563,15 @@ type IndependentHandler = Handler<TargetRouteEnvironment>
 
 export interface IndependentRouteHandlers {
   app: IndependentHandler
-  aux(
-    binding: AuxRouteBinding | typeof auxReferenceRouteBinding,
+  bobResolve(
+    entity: 'product' | 'supplier' | 'customer-subunit',
   ): IndependentHandler
-  bob(
-    binding: BobRouteBinding | typeof bobReferenceRouteBinding,
+  auxOptions(entity: AuxRouteBinding['entity']): IndependentHandler
+  bobOptions(
+    entity: BobRouteBinding['entity'] | 'customer-subunit',
   ): IndependentHandler
+  aux(binding: AuxRouteBinding): IndependentHandler
+  bob(binding: BobRouteBinding): IndependentHandler
 }
 
 export function registerIndependentRoutes(
@@ -498,6 +580,98 @@ export function registerIndependentRoutes(
 ) {
   const fixed = app.openapiRoutes([
     { route: brandingGet, handler: handlers.app },
+    { route: productResolveRoute, handler: handlers.bobResolve('product') },
+    { route: supplierResolveRoute, handler: handlers.bobResolve('supplier') },
+    {
+      route: subunitResolveRoute,
+      handler: handlers.bobResolve('customer-subunit'),
+    },
+    {
+      route: subunitOptionsRoute,
+      handler: handlers.bobOptions('customer-subunit'),
+    },
+    {
+      route: bobOptionsRoute('customer'),
+      handler: handlers.bobOptions('customer'),
+    },
+    {
+      route: bobOptionsRoute('supplier'),
+      handler: handlers.bobOptions('supplier'),
+    },
+    {
+      route: bobOptionsRoute('other-unit'),
+      handler: handlers.bobOptions('other-unit'),
+    },
+    {
+      route: bobOptionsRoute('sales-partner'),
+      handler: handlers.bobOptions('sales-partner'),
+    },
+    {
+      route: bobOptionsRoute('product'),
+      handler: handlers.bobOptions('product'),
+    },
+
+    {
+      route: auxOptionsRoute('operating-entity'),
+      handler: handlers.auxOptions('operating-entity'),
+    },
+    {
+      route: auxOptionsRoute('employee'),
+      handler: handlers.auxOptions('employee'),
+    },
+    {
+      route: auxOptionsRoute('warehouse'),
+      handler: handlers.auxOptions('warehouse'),
+    },
+    {
+      route: auxOptionsRoute('vehicle'),
+      handler: handlers.auxOptions('vehicle'),
+    },
+    {
+      route: auxOptionsRoute('fund-account'),
+      handler: handlers.auxOptions('fund-account'),
+    },
+    {
+      route: auxOptionsRoute('employee-category'),
+      handler: handlers.auxOptions('employee-category'),
+    },
+    {
+      route: auxOptionsRoute('department'),
+      handler: handlers.auxOptions('department'),
+    },
+    {
+      route: auxOptionsRoute('position'),
+      handler: handlers.auxOptions('position'),
+    },
+    {
+      route: auxOptionsRoute('settlement-method'),
+      handler: handlers.auxOptions('settlement-method'),
+    },
+    {
+      route: auxOptionsRoute('payment-method'),
+      handler: handlers.auxOptions('payment-method'),
+    },
+    {
+      route: auxOptionsRoute('dictionary-item'),
+      handler: handlers.auxOptions('dictionary-item'),
+    },
+    {
+      route: auxOptionsRoute('product-type'),
+      handler: handlers.auxOptions('product-type'),
+    },
+    {
+      route: auxOptionsRoute('product-category'),
+      handler: handlers.auxOptions('product-category'),
+    },
+    {
+      route: auxOptionsRoute('measurement-unit'),
+      handler: handlers.auxOptions('measurement-unit'),
+    },
+    {
+      route: auxOptionsRoute('asset-category'),
+      handler: handlers.auxOptions('asset-category'),
+    },
+
     { route: userSignout, handler: handlers.app },
     { route: sessionUserGet, handler: handlers.app },
     { route: sessionUserSave, handler: handlers.app },
@@ -509,6 +683,8 @@ export function registerIndependentRoutes(
     { route: userDisable, handler: handlers.app },
     { route: userResetPassword, handler: handlers.app },
     { route: roleQuery, handler: handlers.app },
+    { route: roleOptions, handler: handlers.app },
+    { route: permissionOptions, handler: handlers.app },
     { route: roleGet, handler: handlers.app },
     { route: roleCreate, handler: handlers.app },
     { route: roleSave, handler: handlers.app },
@@ -1083,14 +1259,6 @@ export function registerIndependentRoutes(
       route: productCurrentRoutes.get,
       handler: handlers.bob(bobRouteBinding('product', 'get')),
     },
-    {
-      route: auxReferenceRoute,
-      handler: handlers.aux(auxReferenceRouteBinding),
-    },
-    {
-      route: bobReferenceRoute,
-      handler: handlers.bob(bobReferenceRouteBinding),
-    },
   ] as const)
 }
 const appPermissions = [
@@ -1143,6 +1311,11 @@ const bobNames: Record<(typeof bobEntities)[number], string> = {
 }
 
 export const independentRouteMetadata = [
+  ...[productResolveRoute, supplierResolveRoute, subunitResolveRoute].map(
+    (route) => ({ method: route.method, path: route.path }),
+  ),
+  { method: roleOptions.method, path: roleOptions.path },
+  { method: permissionOptions.method, path: permissionOptions.path },
   { method: 'post', path: '/session/app/get' },
   { method: 'post', path: '/session/auth/signout' },
   { method: 'post', path: '/session/user/get' },
@@ -1185,12 +1358,23 @@ export const independentRouteMetadata = [
         }
       }),
   ),
-  {
-    method: 'post',
-    path: '/aux/reference/query',
-    permission: '/aux/reference/query',
-    title: '查询 AUX 最小引用候选',
-  },
+  ...[
+    'operating-entity',
+    'employee',
+    'warehouse',
+    'vehicle',
+    'fund-account',
+    'employee-category',
+    'department',
+    'position',
+    'settlement-method',
+    'payment-method',
+    'dictionary-item',
+    'product-type',
+    'product-category',
+    'measurement-unit',
+    'asset-category',
+  ].map((entity) => ({ method: 'get', path: `/aux/${entity}/options` })),
   ...bobEntities.flatMap((entity) =>
     (bobManagedEntities.some((item) => item === entity)
       ? ['query', 'get', 'enable', 'disable']
@@ -1202,10 +1386,9 @@ export const independentRouteMetadata = [
       title: `${action === 'query' ? '查询' : '查看'}${bobNames[entity]}`,
     })),
   ),
-  {
-    method: 'post',
-    path: '/bob/reference/query',
-    permission: '/bob/reference/query',
-    title: '查询 BOB 最小引用候选',
-  },
+  ...bobEntities.map((entity) => ({
+    method: 'get',
+    path: `/bob/${entity}/options`,
+  })),
+  { method: 'get', path: '/bob/customer/subunit-options' },
 ] as const

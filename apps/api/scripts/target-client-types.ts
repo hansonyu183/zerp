@@ -3,13 +3,10 @@ import type { OpenAPIHono } from '@hono/zod-openapi'
 
 import type { TargetAppType } from '../src/app/contract.ts'
 import type { registerIndependentRoutes } from '../src/app/independent-contract.ts'
-import { auxReferenceRoute } from '../src/app/aux-contract.ts'
-import { bobReferenceRoute } from '../src/app/independent-contract.ts'
 import {
   bobArchiveRouteSets,
   type registerBobArchiveRoutes,
 } from '../src/bob/archive-contract.ts'
-import { vouRouteSet } from '../src/vou/contract.ts'
 
 type SchemaOf<T> =
   T extends OpenAPIHono<any, infer Schema, any> ? Schema : never
@@ -25,9 +22,6 @@ const noWideIndependentPath: string extends keyof SchemaOf<
 >
   ? false
   : true = true
-const auxReferencePath: '/aux/reference/query' = auxReferenceRoute.path
-const bobReferencePath: '/bob/reference/query' = bobReferenceRoute.path
-const vouReferencePath: '/vou/reference/query' = vouRouteSet.reference.path
 const supplierDeletePath: '/bob/supplier/delete' =
   bobArchiveRouteSets.supplier.delete.path
 
@@ -38,9 +32,9 @@ const archiveClient = hc<ReturnType<typeof registerBobArchiveRoutes>>(
 
 // These seams are consumed by @zerp/api-client, which derives its client from
 // TargetAppType. Keep their literal paths in the executable Hono composition.
-void client.aux.reference.query.$post
-void client.bob.reference.query.$post
-void client.vou.reference.query.$post
+void client.aux.department.options.$get
+void client.bob.customer['subunit-options'].$get
+void client.vou[':entity'].options.$get
 void client.acc.mapping.query.$post
 void client.acc.mapping.get.$post
 void client.acc.mapping.catalog.$get
@@ -65,7 +59,4 @@ void archiveClient.bob.supplier.delete.$post({
 void noWidePath
 void noWideArchivePath
 void noWideIndependentPath
-void auxReferencePath
-void bobReferencePath
-void vouReferencePath
 void supplierDeletePath

@@ -37,7 +37,7 @@ export const counterpartyTypes = {
 } as const
 export const options = (captions: Readonly<Record<string, string>>) =>
   Object.entries(captions).map(([value, title]) => ({ value, title }))
-type ReferenceEntity = api.TargetVouReferenceQueryInput['entity']
+type ReferenceEntity = api.TargetReferenceEntity
 export const dimensionSources: Record<AccSubjectDimension, ReferenceEntity> = {
   CUSTOMER_SUBUNIT: 'customer-subunit',
   SUPPLIER: 'supplier',

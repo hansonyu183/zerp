@@ -18,17 +18,18 @@ vi.mock('@/target/api.ts', async (original) => ({
   approveTargetSupplier: vi.fn(),
   queryTargetOperatingEntities: vi.fn(),
   queryTargetEmployees: vi.fn(),
-  queryTargetAuxReferences: vi.fn(),
+  queryTargetAuxOptions: vi.fn(),
   submitChangeTargetSupplier: vi.fn(),
   submitNewTargetCustomer: vi.fn(),
   queryTargetCustomers: vi.fn(),
   queryTargetProducts: vi.fn(),
   queryTargetProductVersions: vi.fn(),
-  queryTargetBobReferences: vi.fn(),
+  queryTargetBobOptions: vi.fn(),
   submitChangeTargetProduct: vi.fn(),
   wflTrial: vi.fn(),
   wflSubmitNew: vi.fn(),
   queryTargetVouchers: vi.fn(),
+  queryTargetDocumentOptions: vi.fn(),
   setTargetSupplierEnabled: vi.fn(),
   rejectTargetSupplier: vi.fn(),
   unrejectTargetSupplier: vi.fn(),
@@ -217,7 +218,6 @@ it('loads independent supplier reference sources and submits their adopted snaps
     '/bob/supplier/submit-new',
     '/aux/operating-entity/query',
     '/aux/employee/query',
-    '/aux/reference/query',
   ]
   vi.mocked(api.queryTargetOperatingEntities).mockResolvedValue({
     items: [{ id: 'entity', code: 'E01', name: '主体甲', enabled: true }],
@@ -227,18 +227,27 @@ it('loads independent supplier reference sources and submits their adopted snaps
     items: [{ id: 'employee', code: 'P01', name: '采购员甲', enabled: true }],
     total: 1,
   } as never)
-  vi.mocked(api.queryTargetAuxReferences).mockResolvedValue([
-    {
-      objectId: 'settlement',
-      code: 'S01',
-      name: '月结',
-      termCode: 'MONTH',
-      ruleType: 'MONTH_DAY',
-      monthOffset: 1,
-      dayOfMonth: 10,
-      dayOffset: 0,
-    },
-  ] as never)
+  vi.mocked(api.queryTargetAuxOptions).mockImplementation(
+    async (entity) =>
+      optionPage(
+        entity === 'operating-entity'
+          ? [{ objectId: 'entity', code: 'E01', name: '主体甲' }]
+          : entity === 'employee'
+            ? [{ objectId: 'employee', code: 'P01', name: '采购员甲' }]
+            : [
+                {
+                  objectId: 'settlement',
+                  code: 'S01',
+                  name: '月结',
+                  termCode: 'MONTH',
+                  ruleType: 'MONTH_DAY',
+                  monthOffset: 1,
+                  dayOfMonth: 10,
+                  dayOffset: 0,
+                },
+              ],
+      ) as never,
+  )
   vi.mocked(api.submitNewTargetSupplier).mockResolvedValue({} as never)
   const wrapper = mount(ResourceHost, {
     props: { domain: 'bob', entity: 'supplier' },
@@ -347,13 +356,11 @@ function productFacts() {
   }
   return { data, unit }
 }
-it('opening a product change adopts the latest material version while preserving confirmed quantities', async () => {
+it('opening a product change preserves the exact adopted material and confirmed quantities', async () => {
   useTargetSession().apiPaths = [
     '/bob/product/query',
     '/bob/product/versions',
     '/bob/product/submit-change',
-    '/aux/reference/query',
-    '/bob/reference/query',
   ]
   const { data, unit } = productFacts()
   vi.mocked(api.queryTargetProducts).mockResolvedValue({
@@ -383,15 +390,17 @@ it('opening a product change adopts the latest material version while preserving
       },
     ],
   } as never)
-  vi.mocked(api.queryTargetAuxReferences).mockResolvedValue([])
-  vi.mocked(api.queryTargetBobReferences).mockResolvedValue([
-    {
-      objectId: 'material',
-      sourceApprovalEntryId: 'new-entry',
-      code: 'MAT',
-      name: '原料现版本',
-    },
-  ] as never)
+  vi.mocked(api.queryTargetAuxOptions).mockResolvedValue(optionPage([]))
+  vi.mocked(api.queryTargetBobOptions).mockResolvedValue(
+    optionPage([
+      {
+        objectId: 'material',
+        sourceApprovalEntryId: 'new-entry',
+        code: 'MAT',
+        name: '原料现版本',
+      },
+    ]) as never,
+  )
   vi.mocked(api.submitChangeTargetProduct).mockResolvedValue({} as never)
   const wrapper = mount(ResourceHost, {
     props: { domain: 'bob', entity: 'product' },
@@ -411,9 +420,10 @@ it('opening a product change adopts the latest material version while preserving
             expect.objectContaining({
               material: {
                 objectId: 'material',
-                approvalEntryId: 'new-entry',
-                code: 'MAT',
-                name: '原料现版本',
+                approvalEntryId:
+                  data.fixedFormula!.components[0]!.material.approvalEntryId,
+                code: data.fixedFormula!.components[0]!.material.code,
+                name: data.fixedFormula!.components[0]!.material.name,
               },
               quantity: {
                 enteredQuantity: '2',
@@ -436,8 +446,8 @@ it('chooses an authorized real trial document, shows evaluation results, and inv
     '/vou/sale-order/query',
     '/vou/sale-order/get',
   ]
-  vi.mocked(api.queryTargetVouchers).mockResolvedValue({
-    items: [{ documentId: 'order', documentNo: 'SO-0001', status: 'PENDING' }],
+  vi.mocked(api.queryTargetDocumentOptions).mockResolvedValue({
+    items: [{ objectId: 'order', code: 'SO-0001', name: 'SO-0001' }],
     total: 1,
   } as never)
   vi.mocked(api.wflTrial).mockResolvedValue({
@@ -1408,8 +1418,6 @@ it('does not let initial material resolution overwrite a subsequent user choice'
     '/bob/product/query',
     '/bob/product/versions',
     '/bob/product/submit-change',
-    '/aux/reference/query',
-    '/bob/reference/query',
   ]
   const { data } = productFacts()
   vi.mocked(api.queryTargetProducts).mockResolvedValue({
@@ -1430,24 +1438,26 @@ it('does not let initial material resolution overwrite a subsequent user choice'
       },
     ],
   } as never)
-  vi.mocked(api.queryTargetAuxReferences).mockResolvedValue([])
+  vi.mocked(api.queryTargetAuxOptions).mockResolvedValue(optionPage([]))
   const initial =
-    deferred<Awaited<ReturnType<typeof api.queryTargetBobReferences>>>()
-  vi.mocked(api.queryTargetBobReferences)
-    .mockResolvedValueOnce([
-      {
-        objectId: 'material',
-        sourceApprovalEntryId: 'newest',
-        code: 'MAT',
-        name: '新原料',
-      },
-      {
-        objectId: 'other',
-        sourceApprovalEntryId: 'other-entry',
-        code: 'OTHER',
-        name: '其他原料',
-      },
-    ] as never)
+    deferred<Awaited<ReturnType<typeof api.queryTargetBobOptions>>>()
+  vi.mocked(api.queryTargetBobOptions)
+    .mockResolvedValueOnce(
+      optionPage([
+        {
+          objectId: 'material',
+          sourceApprovalEntryId: 'newest',
+          code: 'MAT',
+          name: '新原料',
+        },
+        {
+          objectId: 'other',
+          sourceApprovalEntryId: 'other-entry',
+          code: 'OTHER',
+          name: '其他原料',
+        },
+      ]) as never,
+    )
     .mockReturnValueOnce(initial.promise)
   vi.mocked(api.submitChangeTargetProduct).mockResolvedValue({} as never)
   const wrapper = mount(ResourceHost, {
@@ -1695,3 +1705,12 @@ it('compares default operating entity identities independently of display names 
   expect(wrapper.text()).toContain('此前版本')
   wrapper.unmount()
 })
+
+function optionPage(items: readonly object[]) {
+  return {
+    items: items.map((item) => ({ enabled: true, ...item })),
+    total: items.length,
+    page: 1,
+    pageSize: 20,
+  }
+}

@@ -49,7 +49,6 @@ const appPresentation: Readonly<Record<string, string>> = {
 }
 
 const auxPresentation: Readonly<Record<string, string>> = {
-  reference: '辅助资料引用',
   'product-category': '产品分类',
   'product-type': '产品类型',
   'employee-category': '员工分类',
@@ -102,8 +101,6 @@ export function resourceDisplayName(domain: string, entity: string): string {
   if (domain === 'rpt' && entity === 'definition') return '报表定义维护'
   if (domain === 'rpt' && /^rpt-[0-9]{6}$/.test(entity))
     return `报表 ${entity.slice(4)}`
-  if (domain === 'bob' && entity === 'reference') return '业务资料引用'
-  if (domain === 'vou' && entity === 'reference') return '业务单据引用'
   if (domain === 'vou' && entity === 'source-line') return '业务单据来源行'
   if (domain === 'vou' && entity in vouEntityPresentation)
     return vouEntityPresentation[entity as keyof typeof vouEntityPresentation]

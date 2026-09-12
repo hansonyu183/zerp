@@ -8,7 +8,10 @@ import type {
   ProductFactsDraft,
   ProductFactLine,
 } from './product-facts-data.ts'
-import { getTargetProduct, queryTargetInventoryBookBalance } from '../../api.ts'
+import {
+  resolveTargetProduct,
+  queryTargetInventoryBookBalance,
+} from '../../api.ts'
 import { useTargetSession } from '../../session/vm.ts'
 const props = defineProps<{
   modelValue: ProductFactsDraft
@@ -131,20 +134,18 @@ async function product(
   line(id, { product: choice, current: null, unitId: '' })
   emit('pending', pending.size > 0)
   if (!choice || props.modelValue.entity !== 'inventory-count') return
-  if (!session.csrfToken || !session.can('/bob/product/get')) {
+  if (!session.csrfToken) {
     error.value = '没有产品读取权限，无法采用产品单位。'
     return
   }
   pending.add(id)
   emit('pending', true)
   try {
-    const current = await getTargetProduct(session.csrfToken, choice.objectId)
-    if (
-      !owns() ||
-      requests.get(id) !== request ||
-      !session.can('/bob/product/get')
+    const current = await resolveTargetProduct(
+      choice.objectId,
+      'approvalEntryId' in choice ? choice.approvalEntryId : undefined,
     )
-      return
+    if (!owns() || requests.get(id) !== request) return
     if (!current.enabled) throw new Error('产品已停用，请重新选择。')
     line(id, {
       current,

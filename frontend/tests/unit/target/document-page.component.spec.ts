@@ -12,15 +12,17 @@ vi.mock('@/target/api.ts', async (original) => ({
   saveTargetIntermediaryScript: vi.fn(),
   getTargetIntermediarySource: vi.fn(),
   queryTargetVouchers: vi.fn(),
-  queryTargetVouReferences: vi.fn(),
-  getTargetProduct: vi.fn(),
-  queryTargetBobReferences: vi.fn(),
-  getTargetCustomer: vi.fn(),
-  getTargetSupplier: vi.fn(),
+  queryTargetVouOptions: vi.fn(),
+  resolveTargetProduct: vi.fn(),
+  queryTargetBobOptions: vi.fn(),
+  queryTargetCustomerLatestLine: vi.fn(),
+  resolveTargetSaleOrderLine: vi.fn(),
+  resolveTargetCustomerSubunit: vi.fn(),
+  resolveTargetSupplier: vi.fn(),
   getTargetVoucher: vi.fn(),
   queryTargetOpenings: vi.fn(),
-  queryTargetAccountingBooks: vi.fn(),
-  queryTargetAccountingSubjects: vi.fn(),
+  queryTargetBookOptions: vi.fn(),
+  queryTargetSubjectOptions: vi.fn(),
   submitTargetOpening: vi.fn(),
   submitTargetOrder: vi.fn(),
   submitTargetVoucher: vi.fn(),
@@ -61,14 +63,13 @@ it.each(['sale-order', 'purchase-order'])(
     await click(wrapper, '取消')
     expect(wrapper.find('[aria-label="业务日期"]').exists()).toBe(false)
     expect(api.queryTargetVouchers).not.toHaveBeenCalled()
-    expect(api.queryTargetVouReferences).not.toHaveBeenCalled()
+    expect(api.queryTargetVouOptions).toHaveBeenCalled()
     wrapper.unmount()
   },
 )
 it('submits a purchase order from selected candidates and confirmed quantities, then refreshes once', async () => {
   useTargetSession().apiPaths = [
     '/vou/purchase-order/submit-new',
-    '/vou/reference/query',
     '/bob/product/get',
     '/vou/purchase-order/query',
   ]
@@ -78,22 +79,22 @@ it('submits a purchase order from selected candidates and confirmed quantities, 
     page: 1,
     pageSize: 20,
   })
-  vi.mocked(api.queryTargetVouReferences).mockImplementation(
-    async (_token, input) =>
+  vi.mocked(api.queryTargetVouOptions).mockImplementation(
+    async (entity) =>
       ({
         items: [
           {
-            entity: input.entity,
-            objectId: input.entity === 'product' ? productId : referenceId,
+            entity: entity,
+            objectId: entity === 'product' ? productId : referenceId,
             code: '01',
-            name: input.entity === 'product' ? '包装桶' : '候选资料',
+            name: entity === 'product' ? '包装桶' : '候选资料',
             approvalEntryId: entryId,
           },
         ],
-      }) as Awaited<ReturnType<typeof api.queryTargetVouReferences>>,
+      }) as Awaited<ReturnType<typeof api.queryTargetVouOptions>>,
   )
-  vi.mocked(api.getTargetProduct).mockResolvedValue(
-    productCurrent as Awaited<ReturnType<typeof api.getTargetProduct>>,
+  vi.mocked(api.resolveTargetProduct).mockResolvedValue(
+    productCurrent as Awaited<ReturnType<typeof api.resolveTargetProduct>>,
   )
   vi.mocked(api.submitTargetOrder).mockResolvedValue({
     documentId: referenceId,
@@ -177,28 +178,27 @@ const productCurrent = {
 it('adopts customer defaults, keeps the internal reminder out of the order, and fixes a raw-material self formula', async () => {
   useTargetSession().apiPaths = [
     '/vou/sale-order/submit-new',
-    '/vou/reference/query',
     '/bob/customer/get',
     '/bob/product/get',
   ]
-  vi.mocked(api.queryTargetVouReferences).mockImplementation(
-    async (_token, input) =>
+  vi.mocked(api.queryTargetVouOptions).mockImplementation(
+    async (entity) =>
       ({
         items: [
           {
-            entity: input.entity,
-            objectId: input.entity === 'product' ? productId : referenceId,
+            entity: entity,
+            objectId: entity === 'product' ? productId : referenceId,
             approvalEntryId: entryId,
             code: '01',
             name: '候选资料',
-            ...(input.entity === 'customer-subunit'
+            ...(entity === 'customer-subunit'
               ? { customerId: referenceId, paymentMethod: null }
               : {}),
           },
         ],
-      }) as Awaited<ReturnType<typeof api.queryTargetVouReferences>>,
+      }) as Awaited<ReturnType<typeof api.queryTargetVouOptions>>,
   )
-  vi.mocked(api.getTargetCustomer).mockResolvedValue({
+  vi.mocked(api.resolveTargetCustomerSubunit).mockResolvedValue({
     objectId: referenceId,
     sourceApprovalEntryId: entryId,
     enabled: true,
@@ -213,8 +213,8 @@ it('adopts customer defaults, keeps the internal reminder out of the order, and 
         },
       ],
     },
-  } as Awaited<ReturnType<typeof api.getTargetCustomer>>)
-  vi.mocked(api.getTargetProduct).mockResolvedValue({
+  } as Awaited<ReturnType<typeof api.resolveTargetCustomerSubunit>>)
+  vi.mocked(api.resolveTargetProduct).mockResolvedValue({
     ...productCurrent,
     data: {
       ...productCurrent.data,
@@ -224,7 +224,7 @@ it('adopts customer defaults, keeps the internal reminder out of the order, and 
       },
       defaultPackagingSpec: '25',
     },
-  } as Awaited<ReturnType<typeof api.getTargetProduct>>)
+  } as Awaited<ReturnType<typeof api.resolveTargetProduct>>)
   vi.mocked(api.submitTargetOrder).mockResolvedValue({
     documentId: referenceId,
   } as Awaited<ReturnType<typeof api.submitTargetOrder>>)
@@ -277,7 +277,6 @@ it('keeps an uncertain order submission locked across closing, querying and reop
     '/vou/purchase-order/submit-new',
     '/vou/purchase-order/get',
     '/vou/purchase-order/query',
-    '/vou/reference/query',
     '/bob/product/get',
   ]
   vi.mocked(api.queryTargetVouchers).mockResolvedValue({
@@ -286,22 +285,22 @@ it('keeps an uncertain order submission locked across closing, querying and reop
     page: 1,
     pageSize: 20,
   })
-  vi.mocked(api.queryTargetVouReferences).mockImplementation(
-    async (_token, input) =>
+  vi.mocked(api.queryTargetVouOptions).mockImplementation(
+    async (entity) =>
       ({
         items: [
           {
-            entity: input.entity,
-            objectId: input.entity === 'product' ? productId : referenceId,
+            entity: entity,
+            objectId: entity === 'product' ? productId : referenceId,
             approvalEntryId: entryId,
             code: '01',
             name: '候选',
           },
         ],
-      }) as Awaited<ReturnType<typeof api.queryTargetVouReferences>>,
+      }) as Awaited<ReturnType<typeof api.queryTargetVouOptions>>,
   )
-  vi.mocked(api.getTargetProduct).mockResolvedValue(
-    productCurrent as Awaited<ReturnType<typeof api.getTargetProduct>>,
+  vi.mocked(api.resolveTargetProduct).mockResolvedValue(
+    productCurrent as Awaited<ReturnType<typeof api.resolveTargetProduct>>,
   )
   vi.mocked(api.submitTargetOrder).mockRejectedValue(
     new TypeError('lost response'),
@@ -362,16 +361,16 @@ it('submits opening with its independent payload and keeps its unknown result lo
     '/acc/book/query',
     '/acc/subject/query',
   ]
-  vi.mocked(api.queryTargetAccountingBooks).mockResolvedValue({
+  vi.mocked(api.queryTargetBookOptions).mockResolvedValue({
     items: [
       { id: referenceId, code: 'B01', name: '账簿', baseCurrency: 'CNY' },
     ],
     total: 1,
-  } as Awaited<ReturnType<typeof api.queryTargetAccountingBooks>>)
-  vi.mocked(api.queryTargetAccountingSubjects).mockResolvedValue({
+  } as Awaited<ReturnType<typeof api.queryTargetBookOptions>>)
+  vi.mocked(api.queryTargetSubjectOptions).mockResolvedValue({
     items: [],
     total: 0,
-  } as Awaited<ReturnType<typeof api.queryTargetAccountingSubjects>>)
+  } as Awaited<ReturnType<typeof api.queryTargetSubjectOptions>>)
   vi.mocked(api.submitTargetOpening).mockRejectedValue(new TypeError('unknown'))
   const wrapper = mount(ResourceHost, {
     props: { domain: 'vou', entity: 'opening' },
@@ -406,16 +405,16 @@ it('keeps a failed opening input and intent, then discards both when starting an
     '/acc/book/query',
     '/acc/subject/query',
   ]
-  vi.mocked(api.queryTargetAccountingBooks).mockResolvedValue({
+  vi.mocked(api.queryTargetBookOptions).mockResolvedValue({
     items: [
       { id: referenceId, code: 'B01', name: '账簿', baseCurrency: 'CNY' },
     ],
     total: 1,
-  } as Awaited<ReturnType<typeof api.queryTargetAccountingBooks>>)
-  vi.mocked(api.queryTargetAccountingSubjects).mockResolvedValue({
+  } as Awaited<ReturnType<typeof api.queryTargetBookOptions>>)
+  vi.mocked(api.queryTargetSubjectOptions).mockResolvedValue({
     items: [],
     total: 0,
-  } as Awaited<ReturnType<typeof api.queryTargetAccountingSubjects>>)
+  } as Awaited<ReturnType<typeof api.queryTargetSubjectOptions>>)
   vi.mocked(api.submitTargetOpening).mockRejectedValue(
     new api.TargetApiError('acc_opening_unbalanced', '', 'req'),
   )
@@ -448,7 +447,6 @@ it.each(['clear', 'remove'])(
   async (action) => {
     useTargetSession().apiPaths = [
       '/vou/purchase-order/submit-new',
-      '/vou/reference/query',
       '/bob/product/get',
       '/vou/purchase-order/query',
     ]
@@ -458,22 +456,22 @@ it.each(['clear', 'remove'])(
       page: 1,
       pageSize: 20,
     })
-    vi.mocked(api.queryTargetVouReferences).mockImplementation(
-      async (_token, input) =>
+    vi.mocked(api.queryTargetVouOptions).mockImplementation(
+      async (entity) =>
         ({
           items: [
             {
-              entity: input.entity,
-              objectId: input.entity === 'product' ? productId : referenceId,
+              entity: entity,
+              objectId: entity === 'product' ? productId : referenceId,
               code: '01',
-              name: input.entity === 'product' ? '包装桶' : '候选资料',
+              name: entity === 'product' ? '包装桶' : '候选资料',
               approvalEntryId: entryId,
             },
           ],
-        }) as Awaited<ReturnType<typeof api.queryTargetVouReferences>>,
+        }) as Awaited<ReturnType<typeof api.queryTargetVouOptions>>,
     )
-    vi.mocked(api.getTargetProduct).mockResolvedValue(
-      productCurrent as Awaited<ReturnType<typeof api.getTargetProduct>>,
+    vi.mocked(api.resolveTargetProduct).mockResolvedValue(
+      productCurrent as Awaited<ReturnType<typeof api.resolveTargetProduct>>,
     )
     vi.mocked(api.submitTargetOrder).mockResolvedValue({
       documentId: referenceId,
@@ -490,9 +488,9 @@ it.each(['clear', 'remove'])(
     await wrapper.get('[aria-label="仓库"]').setValue(referenceId)
     await click(wrapper, '添加商品行')
     let resolveOld!: (
-      value: Awaited<ReturnType<typeof api.getTargetProduct>>,
+      value: Awaited<ReturnType<typeof api.resolveTargetProduct>>,
     ) => void
-    vi.mocked(api.getTargetProduct).mockImplementationOnce(
+    vi.mocked(api.resolveTargetProduct).mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           resolveOld = resolve
@@ -509,7 +507,7 @@ it.each(['clear', 'remove'])(
     await wrapper.get('[aria-label="产品"]').setValue(productId)
     await flushPromises()
     resolveOld({ ...productCurrent, enabled: false } as Awaited<
-      ReturnType<typeof api.getTargetProduct>
+      ReturnType<typeof api.resolveTargetProduct>
     >)
 
     await flushPromises()
@@ -546,13 +544,12 @@ it.each(['clear', 'remove'])(
   },
 )
 
-it('re-adopts current materials when cloning a manual formula without a source document', async () => {
+it('requires explicit material selection when cloning an unresolved manual formula', async () => {
   useTargetSession().apiPaths = [
     '/vou/sale-order/query',
     '/vou/sale-order/get',
     '/vou/sale-order/submit-new',
     '/bob/product/get',
-    '/bob/reference/query',
   ]
   const quantity = {
     enteredQuantity: '2',
@@ -627,7 +624,7 @@ it('re-adopts current materials when cloning a manual formula without a source d
     availableApprovalActions: [],
     payload,
   } as Awaited<ReturnType<typeof api.getTargetVoucher>>)
-  vi.mocked(api.getTargetProduct).mockResolvedValue({
+  vi.mocked(api.resolveTargetProduct).mockResolvedValue({
     ...productCurrent,
     data: {
       ...productCurrent.data,
@@ -636,15 +633,17 @@ it('re-adopts current materials when cloning a manual formula without a source d
         behaviorProfile: 'CUSTOM_FINISHED',
       },
     },
-  } as Awaited<ReturnType<typeof api.getTargetProduct>>)
-  vi.mocked(api.queryTargetBobReferences).mockResolvedValue([
-    {
-      objectId: referenceId,
-      sourceApprovalEntryId: entryId,
-      code: 'R01',
-      name: '当前原料',
-    },
-  ] as Awaited<ReturnType<typeof api.queryTargetBobReferences>>)
+  } as Awaited<ReturnType<typeof api.resolveTargetProduct>>)
+  vi.mocked(api.queryTargetBobOptions).mockResolvedValue(
+    optionPage([
+      {
+        objectId: referenceId,
+        sourceApprovalEntryId: entryId,
+        code: 'R01',
+        name: '当前原料',
+      },
+    ]) as Awaited<ReturnType<typeof api.queryTargetBobOptions>>,
+  )
   vi.mocked(api.submitTargetOrder).mockResolvedValue({
     documentId: productId,
   } as Awaited<ReturnType<typeof api.submitTargetOrder>>)
@@ -657,25 +656,8 @@ it('re-adopts current materials when cloning a manual formula without a source d
   await click(wrapper, '复制到临时表单')
   await flushPromises()
   await click(wrapper, '提交')
-  expect(api.submitTargetOrder, wrapper.text()).toHaveBeenCalledTimes(1)
-  expect(
-    vi.mocked(api.submitTargetOrder).mock.calls[0]![2].payload,
-  ).toMatchObject({
-    productLines: [
-      {
-        settlementSurcharge: '3',
-        quantityPerContainer: '8',
-        formula: {
-          sourceType: 'MANUAL',
-          output: quantity,
-          components: [{ material: { objectId: referenceId }, quantity }],
-        },
-      },
-    ],
-  })
-  expect(payload.productLines[0]!.formula.components[0]!.material).toEqual({
-    objectId: referenceId,
-  })
+  expect(api.submitTargetOrder).not.toHaveBeenCalled()
+  expect(wrapper.text()).toContain('配方原料尚未确认')
   wrapper.unmount()
 })
 
@@ -683,7 +665,6 @@ it('submits purchase receipt with the selected exact source and refreshes once',
   useTargetSession().apiPaths = [
     '/vou/purchase-inbound/submit-new',
     '/vou/purchase-inbound/query',
-    '/vou/reference/query',
     '/vou/source-line/query',
   ]
   vi.mocked(api.queryTargetVouchers).mockResolvedValue({
@@ -692,19 +673,19 @@ it('submits purchase receipt with the selected exact source and refreshes once',
     page: 1,
     pageSize: 20,
   })
-  vi.mocked(api.queryTargetVouReferences).mockImplementation(
-    async (_token, input) =>
+  vi.mocked(api.queryTargetVouOptions).mockImplementation(
+    async (entity) =>
       ({
         items: [
           {
-            entity: input.entity,
+            entity: entity,
             objectId: referenceId,
             approvalEntryId: entryId,
             code: '01',
             name: '候选资料',
           },
         ],
-      }) as Awaited<ReturnType<typeof api.queryTargetVouReferences>>,
+      }) as Awaited<ReturnType<typeof api.queryTargetVouOptions>>,
   )
   vi.mocked(api.queryTargetVouSourceLines).mockResolvedValue({
     items: [
@@ -767,22 +748,21 @@ it.each(['sale-return', 'purchase-return'] as const)(
   async (entity) => {
     useTargetSession().apiPaths = [
       `/vou/${entity}/submit-new`,
-      '/vou/reference/query',
       '/vou/source-line/query',
     ]
-    vi.mocked(api.queryTargetVouReferences).mockImplementation(
-      async (_token, input) =>
+    vi.mocked(api.queryTargetVouOptions).mockImplementation(
+      async (entity) =>
         ({
           items: [
             {
-              entity: input.entity,
+              entity: entity,
               objectId: referenceId,
               approvalEntryId: entryId,
               code: '01',
               name: '候选资料',
             },
           ],
-        }) as Awaited<ReturnType<typeof api.queryTargetVouReferences>>,
+        }) as Awaited<ReturnType<typeof api.queryTargetVouOptions>>,
     )
     vi.mocked(api.queryTargetVouSourceLines).mockResolvedValue({
       items: [
@@ -943,25 +923,24 @@ it.each(['purchase-inquiry', 'inventory-count', 'sale-pricing'] as const)(
   async (entity) => {
     useTargetSession().apiPaths = [
       `/vou/${entity}/submit-new`,
-      '/vou/reference/query',
       '/bob/product/get',
     ]
-    vi.mocked(api.queryTargetVouReferences).mockImplementation(
-      async (_token, input) =>
+    vi.mocked(api.queryTargetVouOptions).mockImplementation(
+      async (entity) =>
         ({
           items: [
             {
-              entity: input.entity,
-              objectId: input.entity === 'product' ? productId : referenceId,
+              entity: entity,
+              objectId: entity === 'product' ? productId : referenceId,
               approvalEntryId: entryId,
               code: '01',
               name: '候选资料',
             },
           ],
-        }) as Awaited<ReturnType<typeof api.queryTargetVouReferences>>,
+        }) as Awaited<ReturnType<typeof api.queryTargetVouOptions>>,
     )
-    vi.mocked(api.getTargetProduct).mockResolvedValue(
-      productCurrent as Awaited<ReturnType<typeof api.getTargetProduct>>,
+    vi.mocked(api.resolveTargetProduct).mockResolvedValue(
+      productCurrent as Awaited<ReturnType<typeof api.resolveTargetProduct>>,
     )
     vi.mocked(api.submitTargetVoucher).mockResolvedValue({
       documentId: referenceId,
@@ -1027,29 +1006,28 @@ it.each(['purchase-inquiry', 'inventory-count', 'sale-pricing'] as const)(
 it('submits self production from a fixed formula and retains the reason for an adjusted material', async () => {
   useTargetSession().apiPaths = [
     '/vou/self-production/submit-new',
-    '/vou/reference/query',
     '/bob/product/get',
   ]
-  vi.mocked(api.queryTargetVouReferences).mockImplementation(
-    async (_token, input) =>
+  vi.mocked(api.queryTargetVouOptions).mockImplementation(
+    async (entity) =>
       ({
         items: [
           {
-            entity: input.entity,
-            objectId: input.entity === 'product' ? productId : referenceId,
+            entity: entity,
+            objectId: entity === 'product' ? productId : referenceId,
             approvalEntryId: entryId,
             code: '01',
             name: '候选资料',
           },
         ],
-      }) as Awaited<ReturnType<typeof api.queryTargetVouReferences>>,
+      }) as Awaited<ReturnType<typeof api.queryTargetVouOptions>>,
   )
   const quantity = {
     enteredQuantity: '1',
     enteredUnit: productCurrent.data.defaultInputUnit,
     baseQuantity: '1',
   }
-  vi.mocked(api.getTargetProduct).mockResolvedValue({
+  vi.mocked(api.resolveTargetProduct).mockResolvedValue({
     ...productCurrent,
     data: {
       ...productCurrent.data,
@@ -1074,7 +1052,7 @@ it('submits self production from a fixed formula and retains the reason for an a
         ],
       },
     },
-  } as Awaited<ReturnType<typeof api.getTargetProduct>>)
+  } as Awaited<ReturnType<typeof api.resolveTargetProduct>>)
   vi.mocked(api.submitTargetVoucher).mockResolvedValue({
     documentId: referenceId,
   } as Awaited<ReturnType<typeof api.submitTargetVoucher>>)
@@ -1123,11 +1101,10 @@ it('submits self production from a fixed formula and retains the reason for an a
 it('adopts the exact order production source and immutable formula', async () => {
   useTargetSession().apiPaths = [
     '/vou/order-production/submit-new',
-    '/vou/reference/query',
     '/vou/source-line/query',
     '/vou/sale-order/get',
   ]
-  vi.mocked(api.queryTargetVouReferences).mockResolvedValue({
+  vi.mocked(api.queryTargetVouOptions).mockResolvedValue({
     items: [
       { entity: 'warehouse', objectId: referenceId, code: 'W01', name: '仓库' },
     ],
@@ -1161,7 +1138,7 @@ it('adopts the exact order production source and immutable formula', async () =>
     },
     baseQuantity: '1',
   }
-  vi.mocked(api.getTargetVoucher).mockResolvedValue({
+  const sourceDocument = {
     entity: 'sale-order',
     status: 'APPROVED',
     payload: {
@@ -1177,7 +1154,13 @@ it('adopts the exact order production source and immutable formula', async () =>
         },
       ],
     },
-  } as Awaited<ReturnType<typeof api.getTargetVoucher>>)
+  }
+  vi.mocked(api.resolveTargetSaleOrderLine).mockResolvedValue({
+    documentId: entryId,
+    documentNo: 'SO01',
+    approvalEntryId: entryId,
+    line: sourceDocument.payload.productLines[0],
+  } as never)
   vi.mocked(api.submitTargetVoucher).mockResolvedValue({
     documentId: referenceId,
   } as Awaited<ReturnType<typeof api.submitTargetVoucher>>)
@@ -1221,10 +1204,9 @@ it('adds a book-balance product as a candidate while requiring an explicit actua
   useTargetSession().apiPaths = [
     '/vou/inventory-count/submit-new',
     '/vou/inventory-count/book-balance',
-    '/vou/reference/query',
     '/bob/product/get',
   ]
-  vi.mocked(api.queryTargetVouReferences).mockResolvedValue({
+  vi.mocked(api.queryTargetVouOptions).mockResolvedValue({
     items: [
       { entity: 'warehouse', objectId: referenceId, code: 'W01', name: '仓库' },
     ],
@@ -1240,8 +1222,8 @@ it('adds a book-balance product as a candidate while requiring an explicit actua
     page: 1,
     pageSize: 20,
   })
-  vi.mocked(api.getTargetProduct).mockResolvedValue(
-    productCurrent as Awaited<ReturnType<typeof api.getTargetProduct>>,
+  vi.mocked(api.resolveTargetProduct).mockResolvedValue(
+    productCurrent as Awaited<ReturnType<typeof api.resolveTargetProduct>>,
   )
   const wrapper = mount(ResourceHost, {
     props: { domain: 'vou', entity: 'inventory-count' },
@@ -1276,16 +1258,13 @@ it.each([
 ] as const)(
   'submits %s from money and expense candidates without losing decimal strings',
   async (entity) => {
-    useTargetSession().apiPaths = [
-      `/vou/${entity}/submit-new`,
-      '/vou/reference/query',
-    ]
-    vi.mocked(api.queryTargetVouReferences).mockImplementation(
-      async (_token, input) =>
+    useTargetSession().apiPaths = [`/vou/${entity}/submit-new`]
+    vi.mocked(api.queryTargetVouOptions).mockImplementation(
+      async (entity) =>
         ({
           items: [
             {
-              entity: input.entity,
+              entity: entity,
               objectId: referenceId,
               approvalEntryId: entryId,
               code: '01',
@@ -1293,7 +1272,7 @@ it.each([
               customerId: referenceId,
             },
           ],
-        }) as Awaited<ReturnType<typeof api.queryTargetVouReferences>>,
+        }) as Awaited<ReturnType<typeof api.queryTargetVouOptions>>,
     )
     vi.mocked(api.submitTargetVoucher).mockResolvedValue({
       documentId: productId,
@@ -1366,23 +1345,20 @@ it.each([
 it.each(['supplier', 'employee', 'other-unit', 'sales-partner'] as const)(
   'changes other-payment candidates to %s before adopting the new counterparty',
   async (party) => {
-    useTargetSession().apiPaths = [
-      '/vou/other-payment/submit-new',
-      '/vou/reference/query',
-    ]
-    vi.mocked(api.queryTargetVouReferences).mockImplementation(
-      async (_token, input) =>
+    useTargetSession().apiPaths = ['/vou/other-payment/submit-new']
+    vi.mocked(api.queryTargetVouOptions).mockImplementation(
+      async (entity) =>
         ({
           items: [
             {
-              entity: input.entity,
+              entity: entity,
               objectId: referenceId,
               approvalEntryId: entryId,
               code: '01',
               name: '候选',
             },
           ],
-        }) as Awaited<ReturnType<typeof api.queryTargetVouReferences>>,
+        }) as Awaited<ReturnType<typeof api.queryTargetVouOptions>>,
     )
     vi.mocked(api.submitTargetVoucher).mockResolvedValue({
       documentId: productId,
@@ -1395,9 +1371,10 @@ it.each(['supplier', 'employee', 'other-unit', 'sales-partner'] as const)(
     await click(wrapper, '新建')
     await wrapper.get('[aria-label="相对方类型"]').setValue(party)
     await flushPromises()
-    expect(api.queryTargetVouReferences).toHaveBeenCalledWith('test-csrf', {
-      entity: party,
-    })
+    expect(api.queryTargetVouOptions).toHaveBeenCalledWith(
+      party,
+      expect.objectContaining({ page: '1', pageSize: '20' }),
+    )
     for (const caption of ['相对方', '资金账户', '经办人'])
       await wrapper.get(`[aria-label="${caption}"]`).setValue(referenceId)
     await wrapper.get('[aria-label="金额"]').setValue('0.00')
@@ -1424,16 +1401,13 @@ it.each(['supplier', 'employee', 'other-unit', 'sales-partner'] as const)(
 it.each(['asset-acquisition', 'asset-sale', 'asset-liquidation'] as const)(
   'submits %s from asset and category candidates',
   async (entity) => {
-    useTargetSession().apiPaths = [
-      `/vou/${entity}/submit-new`,
-      '/vou/reference/query',
-    ]
-    vi.mocked(api.queryTargetVouReferences).mockImplementation(
-      async (_token, input) =>
+    useTargetSession().apiPaths = [`/vou/${entity}/submit-new`]
+    vi.mocked(api.queryTargetVouOptions).mockImplementation(
+      async (entity) =>
         ({
           items: [
             {
-              entity: input.entity,
+              entity: entity,
               objectId: referenceId,
               approvalEntryId: entryId,
               code: '01',
@@ -1442,7 +1416,7 @@ it.each(['asset-acquisition', 'asset-sale', 'asset-liquidation'] as const)(
               defaultResidualRate: '5.00',
             },
           ],
-        }) as Awaited<ReturnType<typeof api.queryTargetVouReferences>>,
+        }) as Awaited<ReturnType<typeof api.queryTargetVouOptions>>,
     )
     vi.mocked(api.submitTargetVoucher).mockResolvedValue({
       documentId: productId,
@@ -1534,23 +1508,20 @@ it.each([
 ] as const)(
   'submits %s through finite bill and cash fields',
   async (entity) => {
-    useTargetSession().apiPaths = [
-      `/vou/${entity}/submit-new`,
-      '/vou/reference/query',
-    ]
-    vi.mocked(api.queryTargetVouReferences).mockImplementation(
-      async (_token, input) =>
+    useTargetSession().apiPaths = [`/vou/${entity}/submit-new`]
+    vi.mocked(api.queryTargetVouOptions).mockImplementation(
+      async (entity) =>
         ({
           items: [
             {
-              entity: input.entity,
+              entity: entity,
               objectId: referenceId,
               approvalEntryId: entryId,
               code: '01',
               name: '票据候选',
             },
           ],
-        }) as Awaited<ReturnType<typeof api.queryTargetVouReferences>>,
+        }) as Awaited<ReturnType<typeof api.queryTargetVouOptions>>,
     )
     vi.mocked(api.submitTargetVoucher).mockResolvedValue({
       documentId: productId,
@@ -1616,23 +1587,20 @@ it.each([
 it.each(['service-contract', 'service-acceptance'] as const)(
   'submits %s through selected service references and typed facts',
   async (entity) => {
-    useTargetSession().apiPaths = [
-      `/vou/${entity}/submit-new`,
-      '/vou/reference/query',
-    ]
-    vi.mocked(api.queryTargetVouReferences).mockImplementation(
-      async (_token, input) =>
+    useTargetSession().apiPaths = [`/vou/${entity}/submit-new`]
+    vi.mocked(api.queryTargetVouOptions).mockImplementation(
+      async (entity) =>
         ({
           items: [
             {
-              entity: input.entity,
+              entity: entity,
               objectId: referenceId,
               approvalEntryId: entryId,
               code: '01',
               name: '服务候选',
             },
           ],
-        }) as Awaited<ReturnType<typeof api.queryTargetVouReferences>>,
+        }) as Awaited<ReturnType<typeof api.queryTargetVouOptions>>,
     )
     vi.mocked(api.submitTargetVoucher).mockResolvedValue({
       documentId: referenceId,
@@ -1808,3 +1776,12 @@ it.each([null, 'network', 'internal_error', 'invalid_response'])(
     wrapper.unmount()
   },
 )
+
+function optionPage(items: readonly object[]) {
+  return {
+    items: items.map((item) => ({ enabled: true, ...item })),
+    total: items.length,
+    page: 1,
+    pageSize: 20,
+  }
+}

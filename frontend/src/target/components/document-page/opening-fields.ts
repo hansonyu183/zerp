@@ -1,17 +1,16 @@
-import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, watch, onBeforeUnmount } from 'vue'
 import { ulid } from 'ulid'
-import * as api from '../../api.ts'
+import type * as api from '../../api.ts'
+import type { EditOption } from '../dynamic-fields/edit-fields.ts'
 import { useTargetSession } from '../../session/vm.ts'
-import { openingErrorCaptions as errors } from './opening-errors.ts'
 import {
   emptyOpening,
-  dimensionSources,
   type OpeningDraft,
   counterpartyTypes,
 } from './opening-data.ts'
-type ReferenceEntity = api.TargetVouReferenceQueryInput['entity']
+type ReferenceEntity = api.TargetReferenceEntity
 type Candidate = Awaited<
-  ReturnType<typeof api.queryTargetVouReferences>
+  ReturnType<typeof api.queryTargetVouOptions>
 >['items'][number]
 export function useOpeningFields(
   value: () => OpeningDraft,
@@ -20,28 +19,21 @@ export function useOpeningFields(
 ) {
   const session = useTargetSession(),
     generation = session.generation
-  let disposed = false,
-    request = 0,
-    subjectsRequest = 0
+  let disposed = false
   const draft = ref<OpeningDraft>(
     JSON.parse(JSON.stringify(value())) as OpeningDraft,
   )
-  const error = ref(''),
-    loading = ref(false)
   const billCounterparties = ref<
     Record<string, keyof typeof counterpartyTypes>
   >({})
   const books = ref<
-    Awaited<ReturnType<typeof api.queryTargetAccountingBooks>>['items']
+    Awaited<ReturnType<typeof api.queryTargetBookOptions>>['items']
   >([])
   const subjects = ref<
-    Awaited<ReturnType<typeof api.queryTargetAccountingSubjects>>['items']
+    Awaited<ReturnType<typeof api.queryTargetSubjectOptions>>['items']
   >([])
   const references = ref<Partial<Record<ReferenceEntity, Candidate[]>>>({})
-  const referencePending = ref(new Set<ReferenceEntity>())
-  const referenceRequests = new Map<ReferenceEntity, number>()
-  const current = (version = request) =>
-    !disposed && session.generation === generation && version === request
+  const current = () => !disposed && session.generation === generation
   const can = (path: string) => current() && session.can(path)
   const canEdit = computed(() => current() && !disabled())
   watch(
@@ -52,96 +44,28 @@ export function useOpeningFields(
     },
     { deep: true, flush: 'sync' },
   )
-  const leafSubjects = computed(() => {
-    const parents = new Set(
-      subjects.value.map((row) => row.parentId).filter(Boolean),
+  function adoptBookOptions(items: readonly EditOption[]) {
+    books.value = items.flatMap((item) =>
+      item.snapshot ? [item.snapshot as (typeof books.value)[number]] : [],
     )
-    return subjects.value
-      .filter((row) => row.enabled && !parents.has(row.id))
-      .map((row) => ({ ...row, title: `${row.code} ${row.name}` }))
-  })
-  const report = (cause: unknown) =>
-    cause instanceof api.TargetApiError
-      ? (errors[cause.errorKey] ?? '操作未完成，请检查期初内容与账簿限制。')
-      : '读取失败，请重试。'
-  async function loadBooks(version: number) {
-    if (!can('/acc/book/query') || !session.csrfToken) return
-    const all: typeof books.value = []
-    for (let page = 1; ; page++) {
-      if (!current(version) || !can('/acc/book/query') || !session.csrfToken)
-        return
-      const result = await api.queryTargetAccountingBooks(session.csrfToken, {
-        page,
-        pageSize: 200,
-      })
-      if (!current(version) || !can('/acc/book/query')) return
-      all.push(...result.items)
-      if (all.length >= result.total || !result.items.length) break
-    }
-    books.value = all
   }
-  async function loadSubjects(bookId: string, version: number) {
-    const own = ++subjectsRequest
-    subjects.value = []
-    if (!can('/acc/subject/query') || !session.csrfToken) return
-    const all: typeof subjects.value = []
-    for (let page = 1; ; page++) {
-      if (
-        !current(version) ||
-        own !== subjectsRequest ||
-        !can('/acc/subject/query') ||
-        !session.csrfToken
-      )
-        return
-      const result = await api.queryTargetAccountingSubjects(
-        session.csrfToken,
-        bookId,
-        page,
-      )
-      if (
-        !current(version) ||
-        own !== subjectsRequest ||
-        !can('/acc/subject/query')
-      )
-        return
-      all.push(...result.items)
-      if (all.length >= result.total || !result.items.length) break
-    }
-    subjects.value = all
+  function adoptSubjectOptions(items: readonly EditOption[]) {
+    subjects.value = items.flatMap((item) =>
+      item.snapshot ? [item.snapshot as (typeof subjects.value)[number]] : [],
+    )
   }
-  async function selectBook(bookId: string) {
-    if (!canEdit.value) return
-    draft.value = { ...emptyOpening(), bookId }
-    const version = request
-    try {
-      await loadSubjects(bookId, version)
-    } catch (cause) {
-      if (current(version)) error.value = report(cause)
-    }
+  function adoptReferenceOptions(
+    entity: ReferenceEntity,
+    items: readonly EditOption[],
+  ) {
+    references.value[entity] = items.flatMap((item) =>
+      item.snapshot ? [item.snapshot as Candidate] : [],
+    )
   }
-  async function loadReference(entity: ReferenceEntity, keyword = '') {
-    if (!current() || !can('/vou/reference/query') || !session.csrfToken) return
-    const version = request,
-      own = (referenceRequests.get(entity) ?? 0) + 1
-    referenceRequests.set(entity, own)
-    referencePending.value.add(entity)
-    try {
-      const result = await api.queryTargetVouReferences(session.csrfToken, {
-        entity,
-        keyword: keyword.trim() || undefined,
-      })
-      if (
-        current(version) &&
-        referenceRequests.get(entity) === own &&
-        can('/vou/reference/query')
-      )
-        references.value = { ...references.value, [entity]: result.items }
-    } catch (cause) {
-      if (current(version) && referenceRequests.get(entity) === own)
-        error.value = report(cause)
-    } finally {
-      if (current(version) && referenceRequests.get(entity) === own)
-        referencePending.value.delete(entity)
+  function selectBook(bookId: string) {
+    if (canEdit.value && bookId !== draft.value.bookId) {
+      draft.value = { ...emptyOpening(), bookId }
+      subjects.value = []
     }
   }
   function referenceOptions(entity: ReferenceEntity) {
@@ -191,7 +115,6 @@ export function useOpeningFields(
     if (subject?.inventoryQuantity) line.quantity = '0'
     for (const dimension of subject?.requiredDimensions ?? []) {
       line.dimensions[dimension] = ''
-      void loadReference(dimensionSources[dimension])
     }
   }
   function addAsset(existing = false) {
@@ -253,7 +176,6 @@ export function useOpeningFields(
     if (!bill || !canEdit.value) return
     billCounterparties.value[bill.billId!] = entity
     delete bill.originatingCounterparty
-    void loadReference(entity)
   }
   function setCounterparty(
     index: number,
@@ -307,36 +229,22 @@ export function useOpeningFields(
         name: row.name,
       }
   }
-  onMounted(async () => {
-    loading.value = true
-    try {
-      await loadBooks(request)
-      if (draft.value.bookId) await loadSubjects(draft.value.bookId, request)
-    } catch (cause) {
-      if (current()) error.value = report(cause)
-    } finally {
-      if (current()) loading.value = false
-    }
-  })
   onBeforeUnmount(() => {
     disposed = true
-    request++
-    referenceRequests.clear()
   })
   return {
     draft,
     books,
-    leafSubjects,
+    subjects,
+    adoptBookOptions,
+    adoptSubjectOptions,
+    adoptReferenceOptions,
     references,
-    referencePending,
     referenceOptions,
-    error,
-    loading,
     billCounterparties,
     can,
     canEdit,
     selectBook,
-    loadReference,
     addLine,
     setSubject,
     addAsset,

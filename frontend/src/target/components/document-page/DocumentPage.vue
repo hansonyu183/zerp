@@ -21,9 +21,7 @@ import {
   DynamicForm,
   DynamicCols,
   RowActions,
-  useReferenceOptionsViewModel,
 } from '../dynamic-fields/index.ts'
-import type { FilterField } from '../dynamic-fields/types.ts'
 import type { DocumentDefinition } from './definition.ts'
 import { vouPages } from './catalog-list.ts'
 import { openingPage } from './opening-list.ts'
@@ -505,19 +503,14 @@ async function deleteOpeningSource() {
 }
 const deleting = ref(false)
 const vm = reactive(useVouListViewModel(definition))
-const references = reactive(useReferenceOptionsViewModel())
 onMounted(() => {
   void vm.initialize()
-  if (!vm.searchable) return
-  for (const field of definition.filters as readonly FilterField[])
-    if (field.type === 'reference') void references.load(field.source)
 })
 
 onBeforeUnmount(() => {
   active = false
   attachments.reset()
   vm.dispose()
-  references.dispose()
 })
 </script>
 <template>
@@ -584,18 +577,9 @@ onBeforeUnmount(() => {
         :fields="definition.filters"
         :model-value="vm.filterInput"
         :disabled="!vm.searchable"
-        :reference-options="references.options"
         @update:model-value="vm.filterInput = $event"
         @search="vm.submitSearch"
       />
-      <v-progress-linear
-        v-if="references.loading"
-        indeterminate
-        aria-label="引用选项加载中"
-      />
-      <v-alert v-if="references.error" type="error">{{
-        references.error
-      }}</v-alert>
     </template>
     <DynamicCols
       identity-key="documentId"

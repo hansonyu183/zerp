@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import CollectionBlock from '../dynamic-fields/CollectionBlock.vue'
+import type { DetailField } from '../details/detail-fields.ts'
+import { dimensions } from './opening-data.ts'
+import type { AccSubjectDimension } from '@zerp/model'
 import { computed } from 'vue'
 import { intermediaryCategoryLabels } from './intermediary-data.ts'
 import { snapshotCaptions, snapshotEnums } from './snapshot-presentation.ts'
@@ -12,6 +16,59 @@ const entries = computed(() => {
     return null
   return Object.entries(props.value).filter(([key]) => key !== 'attachments')
 })
+const rows = computed(() =>
+  Array.isArray(props.value) &&
+  props.value.every(
+    (item) => item && typeof item === 'object' && !Array.isArray(item),
+  )
+    ? (props.value as Record<string, unknown>[])
+    : null,
+)
+const columns = computed<readonly DetailField[]>(() => {
+  const keys = [
+    ...new Set((rows.value ?? []).flatMap((row) => Object.keys(row))),
+  ]
+    .filter(
+      (key) =>
+        key !== 'attachments' &&
+        (rows.value ?? []).every(
+          (row) => row[key] == null || typeof row[key] !== 'object',
+        ),
+    )
+    .slice(0, 4)
+  return keys.map((key) => {
+    const title = caption(key)
+    const labels =
+      snapshotEnums[key] ??
+      (key === 'category' ? intermediaryCategoryLabels : undefined)
+    if (labels)
+      return {
+        key,
+        caption: title,
+        type: 'enum',
+        options: Object.entries(labels).map(([value, caption]) => ({
+          value,
+          caption,
+        })),
+      }
+    return {
+      key,
+      caption: title,
+      type: (rows.value ?? []).some((row) => typeof row[key] === 'boolean')
+        ? 'boolean'
+        : 'text',
+    }
+  })
+})
+function caption(key: string) {
+  return (
+    (props.field === 'dimensions'
+      ? dimensions[key as AccSubjectDimension]
+      : key === 'dimensions'
+        ? '辅助核算'
+        : snapshotCaptions[key]) ?? '未登记字段（单据数据错误）'
+  )
+}
 const scalar = computed(() => {
   if (props.value === null || props.value === undefined || props.value === '')
     return '—'
@@ -37,7 +94,21 @@ const scalar = computed(() => {
 })
 </script>
 <template>
-  <div v-if="Array.isArray(value)" class="snapshot-values">
+  <CollectionBlock
+    v-if="rows"
+    :caption="snapshotCaptions[field ?? ''] ?? '明细'"
+    :fields="columns"
+    :model-value="rows"
+    mode="read"
+  >
+    <template #summary="{ value: row, field: column }"
+      ><SnapshotValue :value="row[column.key]" :field="column.key"
+    /></template>
+    <template #viewer="{ value: row }"
+      ><SnapshotValue :value="row" :field="field"
+    /></template>
+  </CollectionBlock>
+  <div v-else-if="Array.isArray(value)" class="snapshot-values">
     <span v-if="!value.length">—</span>
     <article v-for="(item, index) in value" :key="index" class="my-3">
       <span v-if="typeof item === 'object'" class="text-caption"
@@ -48,7 +119,7 @@ const scalar = computed(() => {
   </div>
   <dl v-else-if="entries" class="snapshot-values">
     <template v-for="[key, item] in entries" :key="key">
-      <dt>{{ snapshotCaptions[key] ?? '未登记字段（单据数据错误）' }}</dt>
+      <dt>{{ caption(key) }}</dt>
       <dd><SnapshotValue :value="item" :field="key" /></dd>
     </template>
   </dl>

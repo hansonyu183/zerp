@@ -1,3 +1,4 @@
+import { confirmCollection } from './collection-helpers.ts'
 import { randomBytes } from 'node:crypto'
 import { modelBuildId } from '@zerp/model'
 import { expect, test, type Page, type Locator } from '@playwright/test'
@@ -32,7 +33,7 @@ async function select(page: Page, scope: Locator, label: string, name: string) {
 async function approve(page: Page, name: string) {
   await page.goto('/bob/product')
   await page.getByRole('button', { name: '提交记录', exact: true }).click()
-  const dialog = page.getByRole('dialog')
+  const dialog = page.getByRole('dialog').last()
   await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   await page.getByRole('button', { name: '查看', exact: true }).first().click()
@@ -95,11 +96,11 @@ test('product temporary form, exact quantity trial, approval and independent ena
     await page.setViewportSize({ width: 1440, height: 960 })
     await page.goto('/bob/product')
     await page.getByRole('button', { name: '新增产品', exact: true }).click()
-    let dialog = page.getByRole('dialog')
+    let dialog = page.getByRole('dialog').last()
     await dialog.getByLabel('名称', { exact: true }).fill('关闭即丢弃')
     await dialog.getByRole('button', { name: '取消', exact: true }).click()
     await page.getByRole('button', { name: '新增产品', exact: true }).click()
-    dialog = page.getByRole('dialog')
+    dialog = page.getByRole('dialog').last()
     await expect(dialog.getByLabel('名称', { exact: true })).toHaveValue('')
     await dialog.getByRole('button', { name: '提交', exact: true }).click()
     await expect(dialog).toContainText('名称：请填写名称。')
@@ -119,6 +120,7 @@ test('product temporary form, exact quantity trial, approval and independent ena
       .click()
     await select(page, dialog, '录入单位', unitName)
     await dialog.getByLabel('换算系数', { exact: true }).fill('2.5')
+    await confirmCollection(page)
     await select(page, dialog, '试算单位', unitName)
     await dialog
       .getByLabel('试算录入数量', { exact: true })
@@ -130,13 +132,13 @@ test('product temporary form, exact quantity trial, approval and independent ena
     await page.reload()
     await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
     await page.getByRole('button', { name: '查询', exact: true }).click()
-    const row = page.getByRole('row').filter({ hasText: name })
+    const row = page.locator('tr, .list-card').filter({ hasText: name })
     await row.getByRole('button', { name: '停用', exact: true }).click()
     await expect(
       row.getByRole('button', { name: '启用', exact: true }),
     ).toBeVisible()
     await row.getByRole('button', { name: '提交变更', exact: true }).click()
-    dialog = page.getByRole('dialog')
+    dialog = page.getByRole('dialog').last()
     await expect(dialog.getByLabel('规格', { exact: true })).toHaveValue(
       '规格完整',
     )
@@ -157,7 +159,7 @@ test('product temporary form, exact quantity trial, approval and independent ena
       ),
     ).toBe(true)
     await row.getByRole('button', { name: '克隆', exact: true }).click()
-    dialog = page.getByRole('dialog')
+    dialog = page.getByRole('dialog').last()
     await select(page, dialog, '产品类型', finishedName)
     await dialog.getByRole('button', { name: '确认切换', exact: true }).click()
     await dialog.getByRole('button', { name: '填写配方', exact: true }).click()
@@ -170,6 +172,7 @@ test('product temporary form, exact quantity trial, approval and independent ena
     await expect(
       dialog.getByLabel('原料基准用量', { exact: true }),
     ).toBeVisible()
+    await dialog.getByRole('button', { name: '取消', exact: true }).click()
     await expect(
       dialog.getByLabel('配方产量基准数量', { exact: true }),
     ).toHaveValue('9007199254740993.000001')

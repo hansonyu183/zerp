@@ -1,3 +1,8 @@
+import {
+  confirmCollections,
+  editCollection,
+  setDateRange,
+} from './collection-helpers.ts'
 import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
@@ -89,7 +94,7 @@ for (const width of [1280, 390])
         await drawer.locator(`a[href="/vou/${entity}"]`).click()
         await expect(page.getByTestId('vou-list-page')).toBeVisible()
         await page.getByRole('button', { name: '新建', exact: true }).click()
-        const editor = page.getByTestId('document-editor')
+        const editor = page.getByRole('dialog').last()
         await expect(editor).toBeVisible()
         const choose = async (label: string, code: string) => {
           const field = editor.getByLabel(label, { exact: true })
@@ -215,6 +220,7 @@ for (const width of [1280, 390])
               '可用票据',
               entity === 'bill-maturity' ? facts.maturedBill : facts.bill,
             )
+          await confirmCollections(page)
           await editor
             .getByRole('button', { name: '添加现金行', exact: true })
             .click()
@@ -248,6 +254,7 @@ for (const width of [1280, 390])
               .click()
             await choose('客户子单位', facts.subunit)
             await editor.getByLabel('分摊金额', { exact: true }).fill('12.34')
+            await confirmCollections(page)
           } else if (entity === 'sales-refund')
             await choose('客户子单位', facts.subunit)
           else if (entity.startsWith('purchase-'))
@@ -297,6 +304,7 @@ for (const width of [1280, 390])
           if (entity === 'order-production')
             await choose('来源行', facts.sources[entity]!)
           else await choose('成品', facts.finished)
+          await editCollection(page, '配方材料')
           await expect(
             editor.getByLabel('实际基准领料量', { exact: true }),
           ).toHaveValue('1.000000')
@@ -326,18 +334,20 @@ for (const width of [1280, 390])
             }
           } else {
             await editor
-              .getByRole('button', { name: '添加来源行', exact: true })
+              .getByRole('button', { name: '添加来源明细', exact: true })
               .click()
             await choose('来源行', facts.sources[entity]!)
             await editor
               .getByLabel('基准数量', { exact: true })
               .fill('0.123456')
+            await confirmCollections(page)
             if (entity !== 'purchase-inbound')
               await editor
                 .getByLabel('退货原因', { exact: true })
                 .fill('验收退货')
           }
         }
+        await confirmCollections(page)
         await page.setViewportSize({ width, height: 900 })
         expect(
           await editor.evaluate(
@@ -355,9 +365,10 @@ for (const width of [1280, 390])
             entity,
           )
         ) {
-          await expect(
-            editor.locator('.mdi-plus-circle-outline').first(),
-          ).toHaveAttribute('aria-hidden', 'true')
+          await expect(editor.locator('.mdi-plus').first()).toHaveAttribute(
+            'aria-hidden',
+            'true',
+          )
           await expect(
             editor.locator('.mdi-minus-circle-outline').first(),
           ).toHaveAttribute('aria-hidden', 'true')
@@ -444,13 +455,10 @@ for (const [width, month, cloneMonth] of [
       await group.locator('.v-list-group__header').click()
     await drawer.locator('a[href="/vou/intermediary-calculation"]').click()
     await expect(page.getByTestId('vou-list-page')).toBeVisible()
-    await page
-      .getByLabel('期间起', { exact: true })
-      .fill(`${month.slice(0, 7)}-01`)
-    await page.getByLabel('期间止', { exact: true }).fill(cloneMonth)
+    await setDateRange(page, '期间', `${month.slice(0, 7)}-01`, cloneMonth)
     await page.getByTestId('list-search').click()
     await page.getByRole('button', { name: '新建', exact: true }).click()
-    const editor = page.getByTestId('document-editor')
+    const editor = page.getByRole('dialog').last()
     await editor.getByLabel('计算月末日期', { exact: true }).fill(month)
     await editor
       .getByLabel('脚本名称', { exact: true })

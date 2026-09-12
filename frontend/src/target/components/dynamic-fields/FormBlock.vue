@@ -1,5 +1,6 @@
 <script setup lang="ts" generic="T extends object">
 import { toRaw } from 'vue'
+import DetailBlock from './DetailBlock.vue'
 import FieldInput from './FieldInput.vue'
 import ReferencePicker from './ReferencePicker.vue'
 import SnapshotReference from './SnapshotReference.vue'
@@ -41,41 +42,51 @@ function visible(field: FormFields<T>[number]) {
 }
 </script>
 <template>
-  <template v-for="field in fields" :key="field.key">
-    <template v-if="visible(field)">
-      <SnapshotReference
-        v-if="field.type === 'snapshot-reference'"
-        :source="field.source"
-        :caption="field.caption"
-        :model-value="modelValue[field.key as keyof T] as object | null"
-        :disabled="disabled || Boolean(readonlyFields?.includes(field.key))"
-        @update:model-value="reference(field.key, $event)"
-      />
-      <ReferencePicker
-        v-else-if="
-          field.type === 'reference' || field.type === 'multi-reference'
-        "
-        :key="`${field.key}:${field.source}`"
-        :source="field.source"
-        :caption="field.caption"
-        :model-value="
-          modelValue[field.key as keyof T] as string | string[] | null
-        "
-        :existing="existing?.[field.key] ?? []"
-        :multiple="field.type === 'multi-reference'"
-        :disabled="disabled || Boolean(readonlyFields?.includes(field.key))"
-        @update:model-value="update(field.key, $event)"
-        @resolved="emit('references', field.key, $event)"
-        @ready="emit('ready', field.key, $event)"
-      />
-      <FieldInput
-        v-else
-        :field="field"
-        usage="edit"
-        :model-value="modelValue[field.key as keyof T]"
-        :disabled="disabled || Boolean(readonlyFields?.includes(field.key))"
-        @update:model-value="update(field.key, $event)"
-      />
+  <div class="form-block form-control form-stack">
+    <template v-for="field in fields" :key="field.key">
+      <template v-if="visible(field)">
+        <DetailBlock
+          v-if="field.type === 'rows'"
+          :definition="field"
+          :model-value="modelValue[field.key as keyof T] as readonly object[]"
+          mode="edit"
+          :disabled="disabled || Boolean(readonlyFields?.includes(field.key))"
+          @update:model-value="update(field.key, $event)"
+        />
+        <SnapshotReference
+          v-else-if="field.type === 'snapshot-reference'"
+          :source="field.source"
+          :caption="field.caption"
+          :model-value="modelValue[field.key as keyof T] as object | null"
+          :disabled="disabled || Boolean(readonlyFields?.includes(field.key))"
+          @update:model-value="reference(field.key, $event)"
+        />
+        <ReferencePicker
+          v-else-if="
+            field.type === 'reference' || field.type === 'multi-reference'
+          "
+          :key="`${field.key}:${field.source}`"
+          :source="field.source"
+          :caption="field.caption"
+          :model-value="
+            modelValue[field.key as keyof T] as string | string[] | null
+          "
+          :existing="existing?.[field.key] ?? []"
+          :multiple="field.type === 'multi-reference'"
+          :disabled="disabled || Boolean(readonlyFields?.includes(field.key))"
+          @update:model-value="update(field.key, $event)"
+          @resolved="emit('references', field.key, $event)"
+          @ready="emit('ready', field.key, $event)"
+        />
+        <FieldInput
+          v-else
+          :field="field"
+          usage="edit"
+          :model-value="modelValue[field.key as keyof T]"
+          :disabled="disabled || Boolean(readonlyFields?.includes(field.key))"
+          @update:model-value="update(field.key, $event)"
+        />
+      </template>
     </template>
-  </template>
+  </div>
 </template>

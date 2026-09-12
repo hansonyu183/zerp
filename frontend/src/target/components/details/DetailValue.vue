@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import type { DetailField, AttachmentSource } from './detail-fields.ts'
+import CollectionBlock from '../dynamic-fields/CollectionBlock.vue'
 import AttachmentBlock from '../attachments/AttachmentBlock.vue'
 import type { AttachmentMetadata } from '@zerp/model'
 const props = defineProps<{
   field: DetailField
   value: unknown
+  compact?: boolean
   source?: AttachmentSource
 }>()
 function record(value: unknown): Record<string, unknown> {
@@ -42,29 +44,26 @@ function display(): string {
     :model-value="(value ?? []) as readonly AttachmentMetadata[]"
     mode="read"
     :source="source"
-  /><template v-else-if="field.type === 'rows'"
-    ><section
-      v-for="(row, index) in Array.isArray(value) ? value : []"
-      :key="index"
-      class="snapshot-row"
-    >
-      <h4>{{ field.caption }}第 {{ index + 1 }} 行</h4>
-      <dl>
-        <template v-for="child in field.fields" :key="child.key"
-          ><dt>{{ child.caption }}</dt>
-          <dd>
-            <DetailValue
-              :field="child"
-              :value="record(row)[child.key]"
-              :source="source"
-            /></dd
-        ></template>
-      </dl>
-    </section>
-    <span v-if="!Array.isArray(value) || !value.length">无</span></template
-  >
+  /><CollectionBlock
+    v-else-if="field.type === 'rows'"
+    :caption="field.caption"
+    :fields="field.fields"
+    :model-value="
+      (Array.isArray(value) ? value : []) as Record<string, unknown>[]
+    "
+    mode="read"
+    :source="source"
+  />
   <dl v-else-if="field.type === 'group' && value">
-    <template v-for="child in field.fields" :key="child.key"
+    <template
+      v-for="child in compact
+        ? field.fields
+            .filter(
+              (child) => !['group', 'rows', 'attachments'].includes(child.type),
+            )
+            .slice(0, 2)
+        : field.fields"
+      :key="child.key"
       ><dt>{{ child.caption }}</dt>
       <dd>
         <DetailValue
@@ -87,9 +86,5 @@ dd {
   margin: 0 0 8px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-.snapshot-row {
-  border-bottom: 1px solid rgba(128, 128, 128, 0.25);
-  padding: 8px 0;
 }
 </style>

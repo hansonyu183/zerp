@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import CollectionBlock from '../dynamic-fields/CollectionBlock.vue'
+import ProductFactLineEditor from './ProductFactLineEditor.vue'
+import { resolveProductFact } from './product-fact-resolution.ts'
+import type { DetailFields } from '../details/detail-fields.ts'
 import { actionIcons } from '../../presentation/action-icons.ts'
 import { onBeforeUnmount, onMounted, ref, watch, nextTick } from 'vue'
 import { ulid } from 'ulid'
@@ -8,11 +12,7 @@ import type {
   ProductFactsDraft,
   ProductFactLine,
 } from './product-facts-data.ts'
-import {
-  resolveTargetProduct,
-  queryTargetBobOptions,
-  queryTargetInventoryBookBalance,
-} from '../../api.ts'
+import { queryTargetInventoryBookBalance } from '../../api.ts'
 import { useTargetSession } from '../../session/vm.ts'
 const props = defineProps<{
   modelValue: ProductFactsDraft
@@ -117,12 +117,6 @@ function line(id: string, patch: Partial<ProductFactLine>) {
     ),
   })
 }
-function remove(id: string) {
-  requests.delete(id)
-  pending.delete(id)
-  emit('pending', pending.size > 0)
-  update({ lines: props.modelValue.lines.filter((row) => row.id !== id) })
-}
 async function product(
   id: string,
   choice: VouCandidate | null,
@@ -138,27 +132,8 @@ async function product(
   pending.add(id)
   emit('pending', true)
   try {
-    let approvalEntryId =
-      'approvalEntryId' in choice ? choice.approvalEntryId : undefined
-    // Book-balance rows and copied document products carry identity only.
-    if (!approvalEntryId) {
-      const candidates = await queryTargetBobOptions('product', {
-        ids: [choice.objectId],
-        enabled: 'true',
-        keyword: '',
-        page: '1',
-        pageSize: '20',
-      })
-      if (!owns() || requests.get(id) !== request) return
-      const candidate = candidates.items.find(
-        (item) => item.objectId === choice.objectId,
-      )
-      if (!candidate) throw new Error('产品已不可用，请重新选择。')
-      approvalEntryId = candidate.sourceApprovalEntryId
-    }
-    const current = await resolveTargetProduct(choice.objectId, approvalEntryId)
+    const current = await resolveProductFact(choice)
     if (!owns() || requests.get(id) !== request) return
-    if (!current.enabled) throw new Error('产品已停用，请重新选择。')
     line(id, {
       product: {
         entity: 'product',
@@ -191,6 +166,31 @@ onBeforeUnmount(() => {
   pending.clear()
   emit('pending', false)
 })
+function replaceLines(lines: ProductFactLine[]) {
+  for (const row of props.modelValue.lines)
+    if (!lines.some((line) => line.id === row.id)) {
+      requests.delete(row.id)
+      pending.delete(row.id)
+    }
+  emit('pending', pending.size > 0)
+  update({ lines })
+}
+function editorPending(value: boolean) {
+  if (value) pending.add('editor')
+  else pending.delete('editor')
+  emit('pending', pending.size > 0)
+}
+const lineFields = [
+  {
+    key: 'product',
+    type: 'group',
+    caption: '产品',
+    fields: [{ key: 'name', type: 'text', caption: '名称' }],
+  },
+  { key: 'enteredQuantity', type: 'text', caption: '实盘数量' },
+  { key: 'baseQuantity', type: 'text', caption: '基准数量' },
+  { key: 'unitPrice', type: 'text', caption: '单价' },
+] as const satisfies DetailFields<ProductFactLine>
 </script>
 <template>
   <v-alert v-if="error" type="error">{{ error }}</v-alert>
@@ -285,97 +285,46 @@ onBeforeUnmount(() => {
       >
     </template>
   </section>
-  <section aria-label="商品明细">
-    <v-card v-for="row in modelValue.lines" :key="row.id" class="pa-3 my-2">
-      <VouReference
-        entity="product"
-        caption="产品"
-        :model-value="row.product"
-        :disabled="disabled"
-        @update:model-value="product(row.id, $event)"
-      />
-      <FormBlock
-        v-if="modelValue.entity !== 'inventory-count'"
-        :fields="[
-          {
-            key: 'unitPrice',
-            type: 'decimal',
-            scale: 2,
-            caption: '单价',
-            required: true,
-          },
-        ]"
-        :model-value="row"
-        :disabled="disabled"
-        @update:model-value="line(row.id, $event)"
-      />
-      <FormBlock
-        v-else
-        :fields="[
-          {
-            key: 'enteredQuantity',
-            type: 'decimal',
-            scale: 6,
-            caption: '实盘数量',
-            required: true,
-          },
-          {
-            key: 'unitId',
-            type: 'enum',
-            caption: '录入单位',
-            required: true,
-            options:
-              row.current?.data.unitConversions.map((item) => ({
-                value: item.unit.id,
-                caption: item.unit.name,
-              })) ?? [],
-          },
-          {
-            key: 'baseQuantity',
-            type: 'decimal',
-            scale: 6,
-            caption: '基准数量',
-            required: true,
-          },
-        ]"
-        :model-value="row"
-        :disabled="disabled"
-        @update:model-value="line(row.id, $event)"
-      />
-      <FormBlock
-        :fields="[{ key: 'remark', type: 'text', caption: '行备注' }]"
-        :model-value="row"
-        :disabled="disabled"
-        @update:model-value="line(row.id, $event)"
-      />
-      <v-btn
-        :prepend-icon="actionIcons.remove"
-        :disabled="disabled"
-        @click="remove(row.id)"
-        >移除商品行</v-btn
-      >
-    </v-card>
-    <v-btn
-      :prepend-icon="actionIcons.add"
-      :disabled="disabled"
-      @click="
-        update({
-          lines: [
-            ...modelValue.lines,
-            {
-              id: ulid(),
-              product: null,
-              current: null,
-              unitId: '',
-              enteredQuantity: '',
-              baseQuantity: '',
-              unitPrice: '',
-              remark: '',
-            },
-          ],
-        })
-      "
-      >添加商品行</v-btn
-    >
-  </section>
+  <CollectionBlock
+    caption="商品行"
+    :fields="lineFields"
+    :model-value="modelValue.lines"
+    mode="edit"
+    :disabled="disabled"
+    :create="
+      () => ({
+        id: ulid(),
+        product: null,
+        current: null,
+        unitId: '',
+        enteredQuantity: '',
+        baseQuantity: '',
+        unitPrice: '',
+        remark: '',
+      })
+    "
+    @update:model-value="replaceLines"
+    @pending="editorPending"
+  >
+    <template
+      #editor="{
+        value,
+        disabled: locked,
+        update: updateLine,
+        pending: pendingLine,
+      }"
+      ><ProductFactLineEditor
+        :model-value="value"
+        :entity="modelValue.entity"
+        :disabled="locked"
+        @update:model-value="updateLine"
+        @pending="pendingLine"
+    /></template>
+    <template #viewer="{ value }"
+      ><ProductFactLineEditor
+        :model-value="value"
+        :entity="modelValue.entity"
+        disabled
+    /></template>
+  </CollectionBlock>
 </template>

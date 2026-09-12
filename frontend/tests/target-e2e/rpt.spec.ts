@@ -37,21 +37,29 @@ test('RPT resource queries multiple parameters, paginates a submitted snapshot a
   await page.getByLabel('客户名称 *', { exact: true }).fill('历史子单位名称')
   await page.getByLabel('金额 *', { exact: true }).fill('9007199254740993.00')
   await page.getByRole('button', { name: '查询', exact: true }).click()
-  await expect(page.locator('tbody tr')).toHaveCount(20)
-  await expect(page.locator('tbody tr').first()).toContainText('历史子单位名称')
-  await expect(page.locator('tbody tr').first()).toContainText(
+  await expect(page.locator('tbody tr, .list-card')).toHaveCount(20)
+  await expect(page.locator('tbody tr, .list-card').first()).toContainText(
+    '历史子单位名称',
+  )
+  await expect(page.locator('tbody tr, .list-card').first()).toContainText(
     '9007199254740993.00',
   )
-  await expect(page.locator('tbody tr').first()).toContainText('否')
-  await expect(page.locator('tbody tr').first()).toContainText('开放')
-  await expect(page.locator('tbody tr').first()).toContainText('2026-09-01')
+  await expect(page.locator('tbody tr, .list-card').first()).toContainText('否')
+  await expect(page.locator('tbody tr, .list-card').first()).toContainText(
+    '开放',
+  )
+  await expect(page.locator('tbody tr, .list-card').first()).toContainText(
+    '2026-09-01',
+  )
   await page.getByLabel('客户名称 *', { exact: true }).fill('尚未提交')
   await page
     .locator('.management-page__footer')
     .getByRole('button', { name: '下一页', exact: true })
     .click()
-  await expect(page.locator('tbody tr')).toHaveCount(5)
-  await expect(page.locator('tbody tr').first()).toContainText('历史子单位名称')
+  await expect(page.locator('tbody tr, .list-card')).toHaveCount(5)
+  await expect(page.locator('tbody tr, .list-card').first()).toContainText(
+    '历史子单位名称',
+  )
   await page.getByLabel('客户名称 *', { exact: true }).fill('历史子单位名称')
   const downloading = page.waitForEvent('download')
   await page.getByRole('button', { name: '导出 CSV', exact: true }).click()
@@ -69,7 +77,7 @@ test('RPT resource queries multiple parameters, paginates a submitted snapshot a
     ),
   ).toBe(true)
   await page.getByRole('button', { name: '查询', exact: true }).click()
-  await expect(page.locator('tbody tr')).toHaveCount(20)
+  await expect(page.locator('tbody tr, .list-card')).toHaveCount(20)
   await page.reload()
   await expect(page.getByLabel('客户名称 *', { exact: true })).toHaveValue('')
 })

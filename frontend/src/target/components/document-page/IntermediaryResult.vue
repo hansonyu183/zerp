@@ -1,12 +1,34 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import DynamicCols from '../dynamic-fields/DynamicCols.vue'
 import {
   intermediaryCategoryLabels,
   type IntermediaryDraft,
 } from './intermediary-data.ts'
-defineProps<{ calculation: NonNullable<IntermediaryDraft['calculation']> }>()
+const props = defineProps<{
+  calculation: NonNullable<IntermediaryDraft['calculation']>
+}>()
+const summaries = computed(() =>
+  props.calculation.result.summaries.map((row, index) => ({
+    displayKey: String(index),
+    payee: row.payee.name,
+    customer: row.customer?.name ?? null,
+    category: row.category,
+    amount: row.amount,
+  })),
+)
+const lines = computed(() =>
+  props.calculation.result.lines.map((row) => ({
+    ...row,
+    documentNo:
+      props.calculation.source.lines.find(
+        (source) => source.sourceSignoffLineId === row.sourceSignoffLineId,
+      )?.signoffDocumentNo ?? null,
+  })),
+)
 </script>
 <template>
-  <section aria-label="计算结果" class="intermediary-results">
+  <section aria-label="计算结果">
     <p>
       采用脚本：{{ calculation.script.name }} · 第
       {{ calculation.script.revision }} 版
@@ -15,76 +37,35 @@ defineProps<{ calculation: NonNullable<IntermediaryDraft['calculation']> }>()
       签收明细 {{ calculation.source.lines.length }} 条，票据来源
       {{ calculation.source.bills.length }} 条。
     </p>
-    <table>
-      <thead>
-        <tr>
-          <th>收款方</th>
-          <th>客户</th>
-          <th>分类</th>
-          <th>金额</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr
-          v-for="(summary, index) in calculation.result.summaries"
-          :key="index"
-        >
-          <td>{{ summary.payee.name }}</td>
-          <td>{{ summary.customer?.name ?? '—' }}</td>
-          <td>{{ intermediaryCategoryLabels[summary.category] }}</td>
-          <td>{{ summary.amount }}</td>
-        </tr>
-      </tbody>
-    </table>
+    <DynamicCols
+      :fields="[
+        { key: 'payee', type: 'text', caption: '收款方' },
+        { key: 'customer', type: 'text', caption: '客户' },
+        {
+          key: 'category',
+          type: 'enum',
+          caption: '分类',
+          options: Object.entries(intermediaryCategoryLabels).map(
+            ([value, caption]) => ({ value, caption }),
+          ),
+        },
+        { key: 'amount', type: 'text', caption: '金额' },
+      ]"
+      :items="summaries"
+      identity-key="displayKey"
+    />
     <h3>签收计算明细</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>签收单</th>
-          <th>标准件数</th>
-          <th>业务收益</th>
-          <th>第三方居间</th>
-          <th>票据成本</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr
-          v-for="line in calculation.result.lines"
-          :key="line.sourceSignoffLineId"
-        >
-          <td>
-            {{
-              calculation.source.lines.find(
-                (source) =>
-                  source.sourceSignoffLineId === line.sourceSignoffLineId,
-              )?.signoffDocumentNo
-            }}
-          </td>
-          <td>{{ line.standardPieceQuantity }}</td>
-          <td>{{ line.employeeAmount }}</td>
-          <td>{{ line.intermediaryAmount }}</td>
-          <td>{{ line.billCost }}</td>
-        </tr>
-      </tbody>
-    </table>
+    <DynamicCols
+      :fields="[
+        { key: 'documentNo', type: 'text', caption: '签收单' },
+        { key: 'standardPieceQuantity', type: 'text', caption: '标准件数' },
+        { key: 'employeeAmount', type: 'text', caption: '业务收益' },
+        { key: 'intermediaryAmount', type: 'text', caption: '第三方居间' },
+        { key: 'billCost', type: 'text', caption: '票据成本' },
+      ]"
+      :items="lines"
+      identity-key="sourceSignoffLineId"
+    />
     <p v-if="!calculation.result.summaries.length">本月无应计金额。</p>
   </section>
 </template>
-
-<style scoped>
-.intermediary-results {
-  overflow-x: auto;
-  max-width: 100%;
-}
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 12px 0;
-}
-th,
-td {
-  text-align: left;
-  padding: 8px;
-  overflow-wrap: anywhere;
-}
-</style>

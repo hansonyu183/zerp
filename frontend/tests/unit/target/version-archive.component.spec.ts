@@ -4,6 +4,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import * as api from '@/target/api.ts'
 import ResourceHost from '@/target/navigation/ResourceHost.vue'
 import { useTargetSession } from '@/target/session/vm.ts'
+import { confirmItems, editItem } from './helpers/collection-actions.ts'
 import { archiveStubs as stubs } from './helpers/archive-stubs.ts'
 
 vi.mock('@/target/api.ts', async (original) => ({
@@ -81,6 +82,7 @@ it('keeps an unknown submission locked after closing its Draft without query per
   await click(wrapper, '新增供应商')
   await wrapper.get('[aria-label="法定名称"]').setValue('供应商甲')
   await wrapper.get('[aria-label="显示名称"]').setValue('供应商甲')
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(api.submitNewTargetSupplier).toHaveBeenCalledTimes(1)
   expect(wrapper.text()).toContain('未知')
@@ -260,6 +262,7 @@ it('loads independent supplier reference sources and submits their adopted snaps
   await wrapper.get('[aria-label="适用经营主体"]').setValue(['entity'])
   await wrapper.get('[aria-label="默认采购员"]').setValue('employee')
   await wrapper.get('[aria-label="结算方式"]').setValue('settlement')
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(api.submitNewTargetSupplier).toHaveBeenCalledWith(
     'test-csrf',
@@ -297,6 +300,8 @@ it('locates invalid remittance rows in the registered customer Draft and discard
   await wrapper.get('[aria-label="法定名称"]').setValue('客户甲')
   await wrapper.get('[aria-label="显示名称"]').setValue('客户甲')
   await click(wrapper, '添加汇款识别')
+  await confirmItems(wrapper)
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(wrapper.text()).toContain('汇款识别第 1 行：请填写付款户名。')
   expect(api.submitNewTargetCustomer).not.toHaveBeenCalled()
@@ -408,9 +413,11 @@ it('opening a new product candidate adopts current material versions without cha
   })
   await flushPromises()
   await click(wrapper, '提交变更')
+  await editItem(wrapper, '配方原料')
   expect(wrapper.get('[aria-label="原材料"] option:checked').text()).toBe(
     'MAT · 原料现版本',
   )
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(api.submitChangeTargetProduct).toHaveBeenCalledWith(
     'test-csrf',
@@ -500,6 +507,7 @@ it('chooses an authorized real trial document, shows evaluation results, and inv
   )
   await wrapper.get('[aria-label="Starlark 脚本"]').setValue('changed script')
   expect(wrapper.text()).not.toContain('根节点未匹配')
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(api.wflSubmitNew).not.toHaveBeenCalled()
   wrapper.unmount()
@@ -621,12 +629,14 @@ it('keeps corrected input after a definite submit failure and refreshes only onc
   await click(wrapper, '新增供应商')
   await wrapper.get('[aria-label="法定名称"]').setValue('原名称')
   await wrapper.get('[aria-label="显示名称"]').setValue('显示名称')
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(wrapper.get('[aria-label="法定名称"]').element).toHaveProperty(
     'value',
     '原名称',
   )
   await wrapper.get('[aria-label="法定名称"]').setValue('修正名称')
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(api.submitNewTargetSupplier).toHaveBeenLastCalledWith(
     'test-csrf',
@@ -750,10 +760,12 @@ it.each([
     await wrapper.get('[aria-label="法定名称"]').setValue('档案甲')
     await wrapper.get('[aria-label="显示名称"]').setValue('档案甲')
     if (entity === 'sales-partner') {
+      await confirmItems(wrapper)
       await click(wrapper, '提交')
       expect(api[method]).not.toHaveBeenCalled()
       await wrapper.get('[aria-label="合作能力"]').setValue(['CHANNEL_PARTNER'])
     }
+    await confirmItems(wrapper)
     await click(wrapper, '提交')
     expect(api[method]).toHaveBeenCalledWith(
       'test-csrf',
@@ -778,6 +790,7 @@ it('keeps an unknown submission locked when a lookup cannot see its in-flight tr
   await click(wrapper, '新增供应商')
   await wrapper.get('[aria-label="法定名称"]').setValue('原名称')
   await wrapper.get('[aria-label="显示名称"]').setValue('显示名称')
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   const original = vi.mocked(api.submitNewTargetSupplier).mock.calls[0]![1]
   await click(wrapper, '核实结果')
@@ -889,9 +902,13 @@ it('preserves exact existing subunits in a root-only customer change', async () 
   await flushPromises()
   await click(wrapper, '提交变更')
   expect(
-    wrapper.get('[aria-label="子单位名称"]').attributes('disabled'),
-  ).toBeDefined()
+    wrapper
+      .get('[aria-label="客户子单位"]')
+      .find('[data-testid="row-action-edit"]')
+      .exists(),
+  ).toBe(false)
   await wrapper.get('[aria-label="显示名称"]').setValue('新客户')
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(api.submitChangeTargetCustomer).toHaveBeenCalledWith(
     'test-csrf',
@@ -935,6 +952,7 @@ it('clones customer data with fresh subunit identities and no inherited attachme
   })
   await flushPromises()
   await click(wrapper, '克隆')
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   const command = vi.mocked(api.submitNewTargetCustomer).mock.calls[0]![1]
   expect(command.snapshot.identityAttachments).toEqual([])
@@ -991,9 +1009,11 @@ it('keeps files local until submit, retries a failed stage with the same identit
   await input.trigger('change')
   await vi.waitFor(() => expect(wrapper.text()).toContain('待提交时上传'))
   expect(api.stageTargetCustomerAttachment).not.toHaveBeenCalled()
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(wrapper.text()).toContain('上传失败')
   expect(api.submitChangeTargetCustomer).not.toHaveBeenCalled()
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   const calls = vi.mocked(api.stageTargetCustomerAttachment).mock.calls
   expect(calls[1]).toEqual(calls[0])
@@ -1474,6 +1494,7 @@ it('does not let initial material resolution overwrite a subsequent user choice'
   })
   await flushPromises()
   await click(wrapper, '提交变更')
+  await editItem(wrapper, '配方原料')
   await wrapper.get('[aria-label="原材料"]').setValue('other')
   await wrapper.get('[aria-label="原材料"]').setValue('material')
   initial.resolve(
@@ -1487,6 +1508,7 @@ it('does not let initial material resolution overwrite a subsequent user choice'
     ]) as never,
   )
   await flushPromises()
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(api.submitChangeTargetProduct).toHaveBeenCalledWith(
     'test-csrf',
@@ -1568,6 +1590,7 @@ it('treats an invalid submit response as unknown and resolves only its exact sub
   await click(wrapper, '新增供应商')
   await wrapper.get('[aria-label="法定名称"]').setValue('供应商')
   await wrapper.get('[aria-label="显示名称"]').setValue('供应商')
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   const command = vi.mocked(api.submitNewTargetSupplier).mock.calls[0]![1]
   vi.mocked(api.getTargetSupplierSubmission).mockResolvedValue({
@@ -1634,6 +1657,7 @@ it('keeps submission blocked until both independent attachment reads finish and 
   })
   await flushPromises()
   await click(wrapper, '提交变更')
+  await editItem(wrapper, '客户子单位')
   const inputs = wrapper.findAll('input[type="file"]')
   expect(inputs.length).toBeGreaterThanOrEqual(2)
   let finishFirst!: (value: ArrayBuffer) => void
@@ -1670,6 +1694,7 @@ it('keeps submission blocked until both independent attachment reads finish and 
   finishFirst(new ArrayBuffer(8))
   await vi.waitFor(() => expect(wrapper.text()).toContain('first.pdf'))
   expect(submit().attributes('disabled')).toBeDefined()
+  await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(api.submitChangeTargetCustomer).not.toHaveBeenCalled()
   await click(wrapper, '取消')

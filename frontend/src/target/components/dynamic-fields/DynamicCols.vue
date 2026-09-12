@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 
 import FieldCol from './FieldCol.vue'
+import ListSurface from './ListSurface.vue'
 import type { ColumnField, DataField } from './types.ts'
 import { FieldContractError } from './contract.ts'
 import { validateRows } from './values.ts'
@@ -46,27 +47,19 @@ const checkedItems = computed(() => {
 </script>
 
 <template>
-  <v-data-table
+  <ListSurface
     :headers="headers"
     :items="checkedItems"
-    :item-value="identityKey"
+    :identity-key="identityKey as Extract<keyof Row, string>"
     :loading="loading"
-    :items-per-page="-1"
-    disable-sort
-    hide-default-footer
   >
-    <template
-      v-for="field in fields"
-      :key="field.key"
-      #[`item.${field.key}`]="{ item }"
-    >
-      <slot v-if="field.type === 'actions'" name="actions" :item="item" />
+    <template #cell="{ item, column }">
+      <slot v-if="column === '$actions'" name="actions" :item="item" />
       <FieldCol
         v-else
-        :field="field as DataField"
-        :value="item[field.key as keyof Row]"
+        :field="fields.find((field) => field.key === column) as DataField"
+        :value="item[column as keyof Row]"
       />
     </template>
-    <template #no-data>暂无数据。</template>
-  </v-data-table>
+  </ListSurface>
 </template>

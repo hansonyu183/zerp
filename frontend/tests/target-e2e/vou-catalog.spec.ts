@@ -1,3 +1,4 @@
+import { setDateRange } from './collection-helpers.ts'
 import { expect, test, type Page } from '@playwright/test'
 import {
   vouEntities,
@@ -94,8 +95,7 @@ test('all 36 real menus query their own summaries and open readable snapshots', 
       await expect(
         page.getByText('此类型由系统生成，不支持人工新建。'),
       ).toBeVisible()
-    await page.getByLabel('期间起', { exact: true }).fill(fact.businessDate)
-    await page.getByLabel('期间止', { exact: true }).fill(fact.businessDate)
+    await setDateRange(page, '期间', fact.businessDate, fact.businessDate)
     await page.getByLabel('单号', { exact: true }).fill(fact.documentNo)
     const response = page.waitForResponse(
       (r) =>
@@ -113,7 +113,7 @@ test('all 36 real menus query their own summaries and open readable snapshots', 
       await expect(list).toContainText('12.30')
     }
     if (entity === 'sale-pricing')
-      await expect(list.locator('tbody')).toContainText('—')
+      await expect(list.locator('.list-surface')).toContainText('—')
     if (
       entity === 'bill-discount' ||
       entity === 'employee-loan' ||
@@ -136,8 +136,16 @@ test('all 36 real menus query their own summaries and open readable snapshots', 
     if (entity === 'service-contract')
       await expect(detail).toContainText('渠道合作方')
     if (entity === 'bill-discount') await expect(detail).toContainText('否')
-    if (entity === 'bill-receipt')
-      await expect(detail).toContainText('2026-12-04')
+    if (entity === 'bill-receipt') {
+      await detail
+        .locator('.collection-block[aria-label="票据明细"]')
+        .getByRole('button', { name: '查看', exact: true })
+        .first()
+        .click()
+      const bill = page.getByRole('dialog').last()
+      await expect(bill).toContainText('2026-12-04')
+      await bill.getByRole('button', { name: '关闭', exact: true }).click()
+    }
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth > window.innerWidth,

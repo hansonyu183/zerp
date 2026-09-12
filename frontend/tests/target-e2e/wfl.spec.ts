@@ -83,7 +83,7 @@ test('WFL definition page edits, trials, submits, approves and preserves an old 
         .getByRole('button', { name: '提交记录', exact: true })
         .click()
       await reviewer
-        .getByRole('row')
+        .locator('tr, .list-card')
         .filter({ hasText: v1.code })
         .getByRole('button', { name: '查看', exact: true })
         .click()
@@ -110,7 +110,7 @@ test('WFL definition page edits, trials, submits, approves and preserves an old 
     await page.setViewportSize({ width: 390, height: 844 })
     await page.reload()
     await page
-      .getByRole('row')
+      .locator('tr, .list-card')
       .filter({ hasText: '浏览器初版' })
       .getByRole('button', { name: '提交变更', exact: true })
       .click()
@@ -133,7 +133,7 @@ test('WFL definition page edits, trials, submits, approves and preserves an old 
       .click()
     await reviewer.setViewportSize({ width: 390, height: 844 })
     await reviewer
-      .getByRole('row')
+      .locator('tr, .list-card')
       .filter({ hasText: '浏览器初版' })
       .getByRole('button', { name: '打开', exact: true })
       .click()

@@ -60,7 +60,9 @@ test('ACC current mapping saves through the real resource page and discards temp
   await dialog.getByRole('button', { name: '关闭', exact: true }).click()
   await select(page, page.locator('main'), '账簿', facts.book.name)
   await page.getByRole('button', { name: '查询', exact: true }).click()
-  const row = page.getByRole('row').filter({ hasText: facts.vouEntity.name })
+  const row = page
+    .locator('tr, .list-card')
+    .filter({ hasText: facts.vouEntity.name })
   await expect(row).toContainText('不记账')
   await row.getByRole('button', { name: '打开', exact: true }).click()
   await expect(dialog).not.toContainText('批准')

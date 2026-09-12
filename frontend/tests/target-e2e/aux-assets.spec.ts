@@ -120,7 +120,9 @@ test('AUX assets have temporary forms, direct CRUD, enablement, navigation, and 
     .getByRole('button', { name: '保存', exact: true })
     .click()
   await search(page, warehouseName)
-  const warehouseRow = page.getByRole('row').filter({ hasText: warehouseName })
+  const warehouseRow = page
+    .locator('tr, .list-card')
+    .filter({ hasText: warehouseName })
   await warehouseRow.getByRole('button', { name: '编辑', exact: true }).click()
   await warehouseEditor.getByLabel('地址', { exact: true }).fill('上海')
   await warehouseEditor
@@ -150,7 +152,9 @@ test('AUX assets have temporary forms, direct CRUD, enablement, navigation, and 
   await accountEditor.getByLabel('账号', { exact: true }).fill(`ACC${tag}`)
   await accountEditor.getByRole('button', { name: '保存', exact: true }).click()
   await search(page, accountName)
-  const accountRow = page.getByRole('row').filter({ hasText: accountName })
+  const accountRow = page
+    .locator('tr, .list-card')
+    .filter({ hasText: accountName })
   await accountRow.getByRole('button', { name: '停用', exact: true }).click()
   await accountRow.getByRole('button', { name: '启用', exact: true }).click()
   await accountRow.getByRole('button', { name: '删除', exact: true }).click()
@@ -197,7 +201,9 @@ test('AUX assets have temporary forms, direct CRUD, enablement, navigation, and 
   await vehicleEditor.getByLabel('核定载重（kg）', { exact: true }).fill('1500')
   await vehicleEditor.getByRole('button', { name: '保存', exact: true }).click()
   await search(page, vehicleName)
-  const vehicleRow = page.getByRole('row').filter({ hasText: vehicleName })
+  const vehicleRow = page
+    .locator('tr, .list-card')
+    .filter({ hasText: vehicleName })
   await vehicleRow.getByRole('button', { name: '停用', exact: true }).click()
   await vehicleRow.getByRole('button', { name: '启用', exact: true }).click()
   await vehicleRow.getByRole('button', { name: '删除', exact: true }).click()
@@ -236,7 +242,7 @@ test('AUX assets have temporary forms, direct CRUD, enablement, navigation, and 
     await dialog.getByRole('button', { name: '保存', exact: true }).click()
     await expect(dialog).toHaveCount(0)
     await search(page, mobileName)
-    const row = page.getByRole('row').filter({ hasText: mobileName })
+    const row = page.locator('tr, .list-card').filter({ hasText: mobileName })
     await expect(row).toBeVisible()
     await row.getByRole('button', { name: '删除', exact: true }).click()
     await page

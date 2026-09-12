@@ -135,7 +135,7 @@ async function findRoleRow(page: Page, name: string) {
   expect(
     result.data.items.some((item: { name: string }) => item.name === name),
   ).toBe(true)
-  const row = page.getByRole('row').filter({ hasText: name })
+  const row = page.locator('tr, .list-card').filter({ hasText: name })
   await expect(row).toBeVisible()
   return row
 }
@@ -168,7 +168,7 @@ async function findUserRow(page: Page, code: string, query = code) {
   const keyword = page.getByLabel('编码、拼音或名称', { exact: true })
   await keyword.fill(query)
   await page.getByRole('button', { name: '查询', exact: true }).click()
-  const row = page.getByRole('row').filter({ hasText: code })
+  const row = page.locator('tr, .list-card').filter({ hasText: code })
   await expect(row).toBeVisible()
   return row
 }

@@ -132,7 +132,8 @@ test('navigation and Host retain the shell at desktop and 390px in both themes',
       await expect(
         page.getByRole('button', { name: '新增客户', exact: true }),
       ).toBeVisible()
-      await expect(page.getByRole('table')).toBeVisible()
+      if (width < 600) await expect(page.locator('.list-cards')).toBeVisible()
+      else await expect(page.getByRole('table')).toBeVisible()
       for (const name of ['新增客户', '正式资料', '提交记录'])
         await expect(
           page.getByRole('button', { name, exact: true }),
@@ -156,7 +157,7 @@ test('navigation and Host retain the shell at desktop and 390px in both themes',
         await toggle.focus()
         await expect(
           page.getByRole('tooltip').filter({ hasText: '切换导航' }),
-        ).toBeVisible()
+        ).toHaveCount(0)
         await toggle.blur()
         await expect(
           page

@@ -97,7 +97,6 @@ it('uses finite action icons without changing action events or eligibility', asy
       actions: [
         { key: 'edit', caption: '编辑' },
         { key: 'disable', caption: '停用', disabled: true },
-        { key: 'custom', caption: '自定义' },
       ],
     },
     global: { plugins: [createVuetify()] },
@@ -113,8 +112,9 @@ it('uses finite action icons without changing action events or eligibility', asy
     wrapper.get('[data-testid="row-action-disable"]').attributes('disabled'),
   ).toBeDefined()
   expect(
-    wrapper.get('[data-testid="row-action-custom"]').find('.v-icon').exists(),
-  ).toBe(false)
+    wrapper.get('[data-testid="row-action-edit"]').attributes('aria-label'),
+  ).toBe('编辑')
+  expect(wrapper.get('[data-testid="row-action-edit"]').text()).toBe('')
   wrapper.unmount()
 })
 it('paginates hasMore without inventing a total', async () => {

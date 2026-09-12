@@ -112,10 +112,12 @@ test('asset categories preserve typed defaults through menu on desktop and 390px
       await page.getByLabel('编码、拼音或名称', { exact: true }).fill(tag)
       await page.getByRole('button', { name: '查询', exact: true }).click()
       await expect(page.getByText('共 22 项', { exact: true })).toBeVisible()
-      await expect(page.getByRole('row')).toHaveCount(21)
+      await expect(page.locator('tr, .list-card')).toHaveCount(21)
       await page.locator('.v-pagination__item').nth(1).click()
       await expect(
-        page.getByRole('row').filter({ hasText: `机器设备${tag}-1440-20` }),
+        page
+          .locator('tr, .list-card')
+          .filter({ hasText: `机器设备${tag}-1440-20` }),
       ).toBeVisible()
     }
 
@@ -124,10 +126,10 @@ test('asset categories preserve typed defaults through menu on desktop and 390px
       await page.getByLabel('编码、拼音或名称', { exact: true }).fill(keyword)
       await page.getByRole('button', { name: '查询', exact: true }).click()
       await expect(
-        page.getByRole('row').filter({ hasText: name }),
+        page.locator('tr, .list-card').filter({ hasText: name }),
       ).toBeVisible()
     }
-    const row = page.getByRole('row').filter({ hasText: name })
+    const row = page.locator('tr, .list-card').filter({ hasText: name })
     const code = (await row.innerText()).match(/ACT-\d+/)![0]
     await page.getByLabel('编码、拼音或名称', { exact: true }).fill(code)
     await page.getByRole('button', { name: '查询', exact: true }).click()

@@ -1,7 +1,8 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import { vouEntities, vouEntityInputDescriptors } from '@zerp/model'
 import SnapshotValue from '@/target/components/document-page/SnapshotValue.vue'
+import { archiveStubs } from './helpers/archive-stubs.ts'
 import { vouPages } from '@/target/components/document-page/catalog-list.ts'
 
 describe('voucher catalog consumers', () => {
@@ -118,8 +119,9 @@ it('shows legal foreign currencies and the complete adopted AUX reference facts'
   expect(view.text()).not.toContain('未登记字段')
 })
 
-it('renders complete opening asset and operating-entity bill snapshots without unknown fields', () => {
+it('renders complete opening asset and operating-entity bill snapshots without unknown fields', async () => {
   const view = mount(SnapshotValue, {
+    global: { stubs: archiveStubs },
     props: {
       value: [
         {
@@ -166,6 +168,10 @@ it('renders complete opening asset and operating-entity bill snapshots without u
   expect(view.text()).not.toContain('未登记字段')
   expect(view.text()).not.toContain('未知选项')
   expect(view.text()).toContain('资产编号')
+  await view.findAll('[data-testid="row-action-view"]')[0]!.trigger('click')
+  await flushPromises()
   expect(view.text()).toContain('取得日期')
+  await view.findAll('[data-testid="row-action-view"]')[1]!.trigger('click')
+  await flushPromises()
   expect(view.text()).toContain('经营主体')
 })

@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { actionIcons } from '../../presentation/action-icons.ts'
+import CollectionBlock from '../dynamic-fields/CollectionBlock.vue'
+import BillLineEditor from './BillLineEditor.vue'
+import CashLineEditor from './CashLineEditor.vue'
+import type { DetailFields } from '../details/detail-fields.ts'
+import type { BillLine, CashLine } from './bill-data.ts'
 import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { ulid } from 'ulid'
 import VouReference from './VouReference.vue'
@@ -15,6 +19,35 @@ function patch(value: Partial<BillDraft>) {
   if (!props.disabled)
     emit('update:modelValue', { ...props.modelValue, ...value })
 }
+const billFields = [
+  { key: 'billNo', type: 'text', caption: '票据号码' },
+  {
+    key: 'bill',
+    type: 'group',
+    caption: '票据',
+    fields: [{ key: 'name', type: 'text', caption: '名称' }],
+  },
+  { key: 'currency', type: 'text', caption: '币种' },
+  { key: 'faceAmount', type: 'text', caption: '票面金额' },
+] as const satisfies DetailFields<BillLine>
+const cashFields = [
+  {
+    key: 'fundAccount',
+    type: 'group',
+    caption: '资金账户',
+    fields: [{ key: 'name', type: 'text', caption: '名称' }],
+  },
+  {
+    key: 'direction',
+    type: 'enum',
+    caption: '方向',
+    options: billOptions('direction').map(({ value, title }) => ({
+      value,
+      caption: title,
+    })),
+  },
+  { key: 'amount', type: 'text', caption: '金额' },
+] as const satisfies DetailFields<CashLine>
 </script>
 <template>
   <FieldInput
@@ -150,278 +183,52 @@ function patch(value: Partial<BillDraft>) {
     :disabled="disabled"
     @update:model-value="patch({ maturityType: $event })"
   />
-  <section v-for="line in modelValue.lines" :key="line.id" class="bill-line">
-    <FieldInput
-      usage="edit"
-      :field="{
-        key: 'purpose',
-        type: 'choice',
-        caption: '票据用途',
-        options: billOptions('purpose').map((option) => ({
-          value: option.value,
-          caption: option.title,
-        })),
-      }"
-      v-if="modelValue.entity === 'bill-receipt'"
-      v-model="line.purpose"
-      :disabled="disabled"
-    />
-    <template
-      v-if="
-        modelValue.entity === 'bill-issue' ||
-        (modelValue.entity === 'bill-receipt' && line.purpose === 'PRIMARY')
-      "
-    >
-      <FieldInput
-        usage="edit"
-        :field="{
-          key: 'billType',
-          type: 'choice',
-          caption: '票据种类',
-          options: billOptions('billType').map((option) => ({
-            value: option.value,
-            caption: option.title,
-          })),
-        }"
-        v-model="line.billType"
-        :disabled="disabled"
-      />
-      <FieldInput
-        usage="edit"
-        :field="{
-          key: 'billNo',
-          type: 'text',
-          caption: '票据号码',
-          maxLength: 200,
-        }"
-        v-model="line.billNo"
-        :disabled="disabled"
-      />
-      <FieldInput
-        usage="edit"
-        :field="{
-          key: 'medium',
-          type: 'choice',
-          caption: '票据介质',
-          options: billOptions('medium').map((option) => ({
-            value: option.value,
-            caption: option.title,
-          })),
-        }"
-        v-model="line.medium"
-        :disabled="disabled"
-      />
-      <FieldInput
-        usage="edit"
-        :field="{
-          key: 'currency',
-          type: 'text',
-          caption: '票据币种',
-          maxLength: 3,
-        }"
-        v-model="line.currency"
-        :disabled="disabled"
-      />
-      <FieldInput
-        usage="edit"
-        :field="{
-          key: 'faceAmount',
-          type: 'text',
-          caption: '票面金额',
-          inputMode: 'decimal',
-        }"
-        v-model="line.faceAmount"
-        :disabled="disabled"
-      />
-      <FieldInput
-        usage="edit"
-        :field="{ key: 'issueDate', type: 'date', caption: '出票日期' }"
-        v-model="line.issueDate"
-        :disabled="disabled"
-      />
-      <FieldInput
-        usage="edit"
-        :field="{ key: 'maturityDate', type: 'date', caption: '到期日期' }"
-        v-model="line.maturityDate"
-        :disabled="disabled"
-      />
-      <FieldInput
-        usage="edit"
-        :field="{
-          key: 'drawer',
-          type: 'text',
-          caption: '出票人',
-          maxLength: 200,
-        }"
-        v-model="line.drawer"
-        :disabled="disabled"
-      />
-      <FieldInput
-        usage="edit"
-        :field="{
-          key: 'acceptor',
-          type: 'text',
-          caption: '承兑人',
-          maxLength: 200,
-        }"
-        v-model="line.acceptor"
-        :disabled="disabled"
-      />
-      <FieldInput
-        usage="edit"
-        :field="{
-          key: 'payee',
-          type: 'text',
-          caption: '收款人',
-          maxLength: 200,
-        }"
-        v-model="line.payee"
-        :disabled="disabled"
-      />
-    </template>
-    <VouReference
-      v-else
-      entity="bill"
-      caption="可用票据"
-      :model-value="line.bill"
-      :disabled="disabled"
-      @update:model-value="line.bill = $event"
-    />
-    <FieldInput
-      usage="edit"
-      :field="{
-        key: 'annualRateBps',
-        type: 'text',
-        caption:
-          modelValue.entity === 'bill-discount'
-            ? '本次贴现年利率'
-            : '票据年利率',
-        suffix: '基点',
-        inputMode: 'numeric',
-      }"
-      v-if="
-        (modelValue.entity === 'bill-receipt' && line.purpose === 'PRIMARY') ||
-        modelValue.entity === 'bill-issue' ||
-        modelValue.entity === 'bill-discount'
-      "
-      v-model="line.annualRateBps"
-      :disabled="disabled"
-    />
-    <FieldInput
-      usage="edit"
-      :field="{
-        key: 'remark',
-        type: 'textarea',
-        caption: '票据行备注',
-        maxLength: 1000,
-      }"
-      v-model="line.remark"
-      :disabled="disabled"
-    />
-    <v-btn
-      :prepend-icon="actionIcons.remove"
-      :disabled="disabled"
-      @click="
-        patch({ lines: modelValue.lines.filter((item) => item.id !== line.id) })
-      "
-      >移除票据行</v-btn
-    >
-  </section>
-  <v-btn
-    :prepend-icon="actionIcons.add"
-    :disabled="disabled || modelValue.lines.length >= 20"
-    @click="
-      patch({
-        lines: [
-          ...modelValue.lines,
-          emptyBillLine(ulid(), modelValue.currency),
-        ],
-      })
-    "
-    >添加票据行</v-btn
+  <CollectionBlock
+    caption="票据行"
+    :fields="billFields"
+    :model-value="modelValue.lines"
+    mode="edit"
+    :disabled="disabled"
+    :maximum="20"
+    :create="() => emptyBillLine(ulid(), modelValue.currency)"
+    @update:model-value="patch({ lines: $event })"
   >
-  <section v-for="line in modelValue.cash" :key="line.id" class="bill-line">
-    <VouReference
-      entity="fund-account"
-      caption="现金资金账户"
-      :model-value="line.fundAccount"
-      :disabled="disabled"
-      @update:model-value="line.fundAccount = $event"
-    />
-    <FieldInput
-      usage="edit"
-      :field="{
-        key: 'direction',
-        type: 'choice',
-        caption: '现金方向',
-        options: billOptions('direction').map((option) => ({
-          value: option.value,
-          caption: option.title,
-        })),
-      }"
-      v-model="line.direction"
-      :disabled="disabled"
-    />
-    <FieldInput
-      usage="edit"
-      :field="{
-        key: 'amountType',
-        type: 'choice',
-        caption: '现金类型',
-        options: billOptions('amountType').map((option) => ({
-          value: option.value,
-          caption: option.title,
-        })),
-      }"
-      v-model="line.amountType"
-      :disabled="disabled"
-    />
-    <FieldInput
-      usage="edit"
-      :field="{
-        key: 'amount',
-        type: 'text',
-        caption: '现金金额',
-        inputMode: 'decimal',
-      }"
-      v-model="line.amount"
-      :disabled="disabled"
-    />
-    <FieldInput
-      usage="edit"
-      :field="{
-        key: 'remark',
-        type: 'textarea',
-        caption: '现金行备注',
-        maxLength: 1000,
-      }"
-      v-model="line.remark"
-      :disabled="disabled"
-    />
-    <v-btn
-      :prepend-icon="actionIcons.remove"
-      :disabled="disabled"
-      @click="
-        patch({ cash: modelValue.cash.filter((item) => item.id !== line.id) })
-      "
-      >移除现金行</v-btn
-    >
-  </section>
-  <v-btn
-    :prepend-icon="actionIcons.add"
-    :disabled="disabled || modelValue.cash.length >= 20"
-    @click="
-      patch({ cash: [...modelValue.cash, emptyCashLine(ulid(), modelValue)] })
-    "
-    >添加现金行</v-btn
+    <template #editor="{ value, disabled: locked, update }"
+      ><BillLineEditor
+        :model-value="value"
+        :entity="modelValue.entity"
+        :disabled="locked"
+        @update:model-value="update"
+    /></template>
+    <template #viewer="{ value }"
+      ><BillLineEditor
+        :model-value="value"
+        :entity="modelValue.entity"
+        disabled
+    /></template>
+  </CollectionBlock>
+  <CollectionBlock
+    caption="现金行"
+    :fields="cashFields"
+    :model-value="modelValue.cash"
+    mode="edit"
+    :disabled="disabled"
+    :maximum="20"
+    :create="() => emptyCashLine(ulid(), modelValue)"
+    @update:model-value="patch({ cash: $event })"
   >
+    <template #editor="{ value, disabled: locked, update }"
+      ><CashLineEditor
+        :model-value="value"
+        :entity="modelValue.entity"
+        :disabled="locked"
+        @update:model-value="update"
+    /></template>
+    <template #viewer="{ value }"
+      ><CashLineEditor
+        :model-value="value"
+        :entity="modelValue.entity"
+        disabled
+    /></template>
+  </CollectionBlock>
 </template>
-<style scoped>
-.bill-line {
-  min-width: 0;
-  border: 1px solid rgb(var(--v-theme-on-surface), 0.2);
-  border-radius: 8px;
-  padding: 12px;
-  margin: 12px 0;
-}
-</style>

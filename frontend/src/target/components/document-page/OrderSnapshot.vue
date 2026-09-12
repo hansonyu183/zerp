@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CollectionBlock from '../dynamic-fields/CollectionBlock.vue'
 import DetailsBlock from '../details/DetailsBlock.vue'
 import { computed } from 'vue'
 import {
@@ -108,86 +109,108 @@ const currencyName = computed(() =>
       <dt>备注</dt>
       <dd class="pre-wrap">{{ order.remark || '—' }}</dd>
     </dl>
-    <h3 class="text-subtitle-1 mt-4">产品明细</h3>
-    <article
-      v-for="(line, index) in order.productLines"
-      :key="line.lineId"
-      class="my-4"
+    <CollectionBlock
+      caption="产品明细"
+      :fields="[
+        { key: 'enteredQuantity', type: 'text', caption: '交易数量' },
+        { key: 'baseQuantity', type: 'text', caption: '基本数量' },
+        { key: 'unitPrice', type: 'text', caption: '单价' },
+      ]"
+      :model-value="order.productLines"
+      mode="read"
     >
-      <h4>第 {{ index + 1 }} 行 · 产品标识 {{ line.product.objectId }}</h4>
-      <dl>
-        <dt>单据行标识</dt>
-        <dd>{{ line.lineId }}</dd>
-        <dt>交易数量</dt>
-        <dd>
-          {{ line.enteredQuantity }} {{ line.enteredUnit.name }}（{{
-            line.enteredUnit.symbol
-          }}）
-        </dd>
-        <dt>采用单位</dt>
-        <dd>
-          {{ line.enteredUnit.code }} · 小数位
-          {{ line.enteredUnit.quantityScale }}
-        </dd>
-        <dt>基本数量</dt>
-        <dd>{{ line.baseQuantity }}</dd>
-        <dt>单价</dt>
-        <dd>{{ line.unitPrice }}</dd>
-        <dt>结算加价</dt>
-        <dd>{{ line.settlementSurcharge ?? '—' }}</dd>
-        <dt>采购单价</dt>
-        <dd>{{ line.purchaseUnitPrice ?? '—' }}</dd>
-        <dt>交付规格</dt>
-        <dd>
-          {{
-            line.deliverySpecificationType
-              ? deliveryCaptions[line.deliverySpecificationType]
-              : '—'
-          }}
-        </dd>
-        <dt>容器类型</dt>
-        <dd>{{ line.containerType ?? '—' }}</dd>
-        <dt>每容器数量</dt>
-        <dd>{{ line.quantityPerContainer ?? '—' }}</dd>
-        <dt>行备注</dt>
-        <dd class="pre-wrap">{{ line.remark || '—' }}</dd>
-      </dl>
-      <section v-if="line.formula">
-        <h5>采用配方</h5>
-        <p>
-          来源：{{
-            line.formula.sourceType
-              ? formulaCaptions[line.formula.sourceType]
-              : '—'
-          }}
-          · 来源单号：{{ line.formula.sourceDocumentNo ?? '—' }} · 来源标识：{{
-            line.formula.sourceDocumentId ?? '—'
-          }}
-        </p>
-        <p>
-          产出：{{ line.formula.output.enteredQuantity }}
-          {{ line.formula.output.enteredUnit.name }}（{{
-            line.formula.output.enteredUnit.code
-          }}
-          / {{ line.formula.output.enteredUnit.symbol }} / 小数位
-          {{ line.formula.output.enteredUnit.quantityScale }}），基本数量
-          {{ line.formula.output.baseQuantity }}
-        </p>
-        <ul>
-          <li v-for="(component, i) in line.formula.components" :key="i">
-            材料标识 {{ component.material.objectId }}：{{
-              component.quantity.enteredQuantity
+      <template #viewer="{ value: line }">
+        <h4>产品标识 {{ line.product.objectId }}</h4>
+        <dl>
+          <dt>单据行标识</dt>
+          <dd>{{ line.lineId }}</dd>
+          <dt>交易数量</dt>
+          <dd>
+            {{ line.enteredQuantity }} {{ line.enteredUnit.name }}（{{
+              line.enteredUnit.symbol
+            }}）
+          </dd>
+          <dt>采用单位</dt>
+          <dd>
+            {{ line.enteredUnit.code }} · 小数位
+            {{ line.enteredUnit.quantityScale }}
+          </dd>
+          <dt>基本数量</dt>
+          <dd>{{ line.baseQuantity }}</dd>
+          <dt>单价</dt>
+          <dd>{{ line.unitPrice }}</dd>
+          <dt>结算加价</dt>
+          <dd>{{ line.settlementSurcharge ?? '—' }}</dd>
+          <dt>采购单价</dt>
+          <dd>{{ line.purchaseUnitPrice ?? '—' }}</dd>
+          <dt>交付规格</dt>
+          <dd>
+            {{
+              line.deliverySpecificationType
+                ? deliveryCaptions[line.deliverySpecificationType]
+                : '—'
             }}
-            {{ component.quantity.enteredUnit.name }}（{{
-              component.quantity.enteredUnit.code
+          </dd>
+          <dt>容器类型</dt>
+          <dd>{{ line.containerType ?? '—' }}</dd>
+          <dt>每容器数量</dt>
+          <dd>{{ line.quantityPerContainer ?? '—' }}</dd>
+          <dt>行备注</dt>
+          <dd class="pre-wrap">{{ line.remark || '—' }}</dd>
+        </dl>
+        <section v-if="line.formula">
+          <h5>采用配方</h5>
+          <p>
+            来源：{{
+              line.formula.sourceType
+                ? formulaCaptions[line.formula.sourceType]
+                : '—'
             }}
-            / {{ component.quantity.enteredUnit.symbol }} / 小数位
-            {{ component.quantity.enteredUnit.quantityScale }}），基本数量
-            {{ component.quantity.baseQuantity }}
-          </li>
-        </ul>
-      </section>
-    </article>
+            · 来源单号：{{ line.formula.sourceDocumentNo ?? '—' }} ·
+            来源标识：{{ line.formula.sourceDocumentId ?? '—' }}
+          </p>
+          <p>
+            产出：{{ line.formula.output.enteredQuantity }}
+            {{ line.formula.output.enteredUnit.name }}（{{
+              line.formula.output.enteredUnit.code
+            }}
+            / {{ line.formula.output.enteredUnit.symbol }} / 小数位
+            {{ line.formula.output.enteredUnit.quantityScale }}），基本数量
+            {{ line.formula.output.baseQuantity }}
+          </p>
+          <CollectionBlock
+            caption="配方材料"
+            :fields="[
+              {
+                key: 'quantity',
+                type: 'group',
+                caption: '数量',
+                fields: [
+                  { key: 'enteredQuantity', type: 'text', caption: '录入数量' },
+                  { key: 'baseQuantity', type: 'text', caption: '基本数量' },
+                ],
+              },
+            ]"
+            :model-value="line.formula.components"
+            mode="read"
+          >
+            <template #viewer="{ value: component }"
+              ><p>
+                材料标识 {{ component.material.objectId }}：{{
+                  component.quantity.enteredQuantity
+                }}
+                {{ component.quantity.enteredUnit.name }}（{{
+                  component.quantity.enteredUnit.code
+                }}
+                / {{ component.quantity.enteredUnit.symbol }} / 小数位
+                {{ component.quantity.enteredUnit.quantityScale }}），基本数量
+                {{ component.quantity.baseQuantity }}
+              </p></template
+            >
+          </CollectionBlock>
+        </section>
+      </template>
+    </CollectionBlock>
   </section>
   <v-alert v-else type="error">详情内容与订单类型不一致。</v-alert>
 </template>

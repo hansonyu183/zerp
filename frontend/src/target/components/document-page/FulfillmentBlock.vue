@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { actionIcons } from '../../presentation/action-icons.ts'
+import CollectionBlock from '../dynamic-fields/CollectionBlock.vue'
+import FulfillmentLineEditor from './FulfillmentLineEditor.vue'
+import type { DetailFields } from '../details/detail-fields.ts'
 import { ulid } from 'ulid'
 import FormBlock from '../dynamic-fields/FormBlock.vue'
-import SourceLinePicker from './SourceLinePicker.vue'
 import VouReference from './VouReference.vue'
 import { fulfillmentFields, type FulfillmentDraft } from './fulfillment-data.ts'
 const props = defineProps<{ modelValue: FulfillmentDraft; disabled: boolean }>()
@@ -11,13 +12,16 @@ function update(patch: Partial<FulfillmentDraft>) {
   if (!props.disabled)
     emit('update:modelValue', { ...props.modelValue, ...patch })
 }
-function line(id: string, patch: Partial<FulfillmentDraft['lines'][number]>) {
-  update({
-    lines: props.modelValue.lines.map((row) =>
-      row.id === id ? { ...row, ...patch } : row,
-    ),
-  })
-}
+const fields = [
+  {
+    key: 'source',
+    type: 'group',
+    caption: '来源行',
+    fields: [{ key: 'sourceDocumentNo', type: 'text', caption: '来源单号' }],
+  },
+  { key: 'baseQuantity', type: 'text', caption: '基准数量' },
+  { key: 'remark', type: 'text', caption: '行备注' },
+] as const satisfies DetailFields<FulfillmentDraft['lines'][number]>
 </script>
 <template>
   <FormBlock
@@ -57,52 +61,27 @@ function line(id: string, patch: Partial<FulfillmentDraft['lines'][number]>) {
     :disabled="disabled"
     @update:model-value="update"
   />
-  <section aria-label="来源明细">
-    <v-card v-for="row in modelValue.lines" :key="row.id" class="pa-3 my-2">
-      <SourceLinePicker
+  <CollectionBlock
+    caption="来源明细"
+    :fields="fields"
+    :model-value="modelValue.lines"
+    mode="edit"
+    :disabled="disabled"
+    :create="() => ({ id: ulid(), source: null, baseQuantity: '', remark: '' })"
+    @update:model-value="update({ lines: $event })"
+  >
+    <template #editor="{ value, disabled: locked, update: updateLine }"
+      ><FulfillmentLineEditor
+        :model-value="value"
         :entity="modelValue.entity"
-        :model-value="row.source"
-        :disabled="disabled"
-        @update:model-value="line(row.id, { source: $event })"
-      />
-      <FormBlock
-        :fields="[
-          {
-            key: 'baseQuantity',
-            type: 'decimal',
-            scale: 6,
-            caption: '基准数量',
-            required: true,
-          },
-          { key: 'remark', type: 'text', caption: '行备注' },
-        ]"
-        :model-value="row"
-        :disabled="disabled"
-        @update:model-value="line(row.id, $event)"
-      />
-      <v-btn
-        :prepend-icon="actionIcons.remove"
-        :disabled="disabled"
-        @click="
-          update({
-            lines: modelValue.lines.filter((item) => item.id !== row.id),
-          })
-        "
-        >移除来源行</v-btn
-      >
-    </v-card>
-    <v-btn
-      :prepend-icon="actionIcons.add"
-      :disabled="disabled"
-      @click="
-        update({
-          lines: [
-            ...modelValue.lines,
-            { id: ulid(), source: null, baseQuantity: '', remark: '' },
-          ],
-        })
-      "
-      >添加来源行</v-btn
-    >
-  </section>
+        :disabled="locked"
+        @update:model-value="updateLine"
+    /></template>
+    <template #viewer="{ value }"
+      ><FulfillmentLineEditor
+        :model-value="value"
+        :entity="modelValue.entity"
+        disabled
+    /></template>
+  </CollectionBlock>
 </template>

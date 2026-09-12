@@ -102,10 +102,10 @@ test('payment methods use typed fields through menu on desktop and 390px', async
       await page.getByLabel('编码、拼音或名称', { exact: true }).fill(keyword)
       await page.getByRole('button', { name: '查询', exact: true }).click()
       await expect(
-        page.getByRole('row').filter({ hasText: name }),
+        page.locator('tr, .list-card').filter({ hasText: name }),
       ).toBeVisible()
     }
-    const row = page.getByRole('row').filter({ hasText: name })
+    const row = page.locator('tr, .list-card').filter({ hasText: name })
     const code = (await row.innerText()).match(/PMT-\d+/)![0]
     await page.getByLabel('编码、拼音或名称', { exact: true }).fill(code)
     await page.getByRole('button', { name: '查询', exact: true }).click()

@@ -48,6 +48,8 @@ const bookId = ref(''),
   saving = ref(false),
   open = ref(false),
   unknown = ref(false),
+  catalogReady = ref(false),
+  catalogLoading = ref(false),
   error = ref(''),
   feedback = ref('')
 const draft = ref(emptyMapping())
@@ -62,16 +64,21 @@ const report = (cause: unknown) =>
     ? (errors[cause.errorKey] ?? '操作失败，请检查输入或权限。')
     : '网络请求失败，请稍后重试。'
 async function initialize() {
-  if (!can('catalog') || !session.csrfToken || disposed) return
+  if (!session.user || disposed || catalogLoading.value) return
   const request = ++catalogRequest
+  catalogLoading.value = true
+  error.value = ''
   try {
-    const result = await getTargetMappingCatalog(session.csrfToken)
+    const result = await getTargetMappingCatalog()
     if (disposed || request !== catalogRequest) return
     catalog.value = result
+    catalogReady.value = true
     bookId.value = result.books[0]?.id ?? ''
     if (can('query') && bookId.value) await search()
   } catch (cause) {
     if (!disposed && request === catalogRequest) error.value = report(cause)
+  } finally {
+    if (!disposed && request === catalogRequest) catalogLoading.value = false
   }
 }
 async function query(book: string, nextPage: number) {
@@ -292,7 +299,7 @@ onBeforeUnmount(dispose)
           })),
         }"
         v-model="bookId"
-        :disabled="!can('catalog')"
+        :disabled="!catalogReady"
         hide-details
       />
       <v-btn
@@ -310,8 +317,8 @@ onBeforeUnmount(dispose)
         >新增映射</v-btn
       >
     </div>
-    <v-alert v-if="!can('catalog')" type="info" class="mt-3"
-      >缺少映射目录权限，无法选择账簿、单据类型与科目。</v-alert
+    <v-btn v-if="!catalogReady" :loading="catalogLoading" @click="initialize"
+      >重试加载目录</v-btn
     >
     <DynamicCols
       class="mt-4"
@@ -356,7 +363,7 @@ onBeforeUnmount(dispose)
             <MappingBlock
               v-model="draft"
               :catalog="catalog"
-              :catalog-available="can('catalog')"
+              :catalog-available="catalogReady"
               :disabled="saving || unknown || !can('save')"
             />
           </fieldset>

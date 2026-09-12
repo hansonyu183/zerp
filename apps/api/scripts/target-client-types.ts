@@ -5,7 +5,10 @@ import type { TargetAppType } from '../src/app/contract.ts'
 import type { registerIndependentRoutes } from '../src/app/independent-contract.ts'
 import { auxReferenceRoute } from '../src/app/aux-contract.ts'
 import { bobReferenceRoute } from '../src/app/independent-contract.ts'
-import { bobArchiveRouteSets, type registerBobArchiveRoutes } from '../src/bob/archive-contract.ts'
+import {
+  bobArchiveRouteSets,
+  type registerBobArchiveRoutes,
+} from '../src/bob/archive-contract.ts'
 import { vouRouteSet } from '../src/vou/contract.ts'
 
 type SchemaOf<T> =
@@ -40,7 +43,7 @@ void client.bob.reference.query.$post
 void client.vou.reference.query.$post
 void client.acc.mapping.query.$post
 void client.acc.mapping.get.$post
-void client.acc.mapping.catalog.$post
+void client.acc.mapping.catalog.$get
 void client.vou[':entity'].get.$post({
   param: { entity: 'sales-receipt' },
   json: { documentId: '01J00000000000000000000000' },

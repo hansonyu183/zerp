@@ -27,8 +27,17 @@ test('ACC current mapping saves through the real resource page and discards temp
       },
     },
   )
-  expect((await auth.json()).code).toBe(0)
+  const authPayload = await auth.json()
+  expect(authPayload.code).toBe(0)
+  expect(authPayload.data.apiPaths).not.toContain('/acc/mapping/catalog')
+  const catalogResponse = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === '/acc/mapping/catalog',
+  )
   await page.goto('/acc/mapping')
+  const loadedCatalog = await catalogResponse
+  expect(loadedCatalog.request().method()).toBe('GET')
+  expect(loadedCatalog.request().headers()['x-csrf-token']).toBeUndefined()
+  expect((await loadedCatalog.json()).code).toBe(0)
   await expect(
     page.getByRole('button', { name: '新增映射', exact: true }),
   ).toBeVisible()

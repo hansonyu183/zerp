@@ -28,7 +28,6 @@ export const permissionActionLabels: Readonly<Record<string, string>> = {
   'attachment-stage': '暂存附件',
   'audit-history': '查看审核历史',
   'cancel-child': '取消子单据',
-  catalog: '查看目录',
   source: '生成计算来源',
   'script-get': '读取计算脚本',
   'script-save': '维护计算脚本',

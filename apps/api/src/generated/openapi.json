@@ -3145,18 +3145,7 @@
       }
     },
     "/acc/mapping/catalog": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {},
-                "additionalProperties": false
-              }
-            }
-          }
-        },
+      "get": {
         "responses": {
           "200": {
             "description": "ACC mapping catalog envelope",

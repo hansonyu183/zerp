@@ -2366,14 +2366,9 @@ export async function getTargetMapping(
     ).json(),
   )
 }
-export async function getTargetMappingCatalog(csrfToken: string) {
+export async function getTargetMappingCatalog() {
   return unwrapTarget(
-    await (
-      await client.acc.mapping.catalog.$post(
-        { json: {} },
-        csrfHeaders(csrfToken),
-      )
-    ).json(),
+    await (await client.acc.mapping.catalog.$get({ query: {} })).json(),
   )
 }
 export async function saveTargetMapping(

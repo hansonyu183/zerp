@@ -175,7 +175,11 @@ export function registerAppRoutes(
   }
   async function executeAccCatalog<T>(
     context: {
-      req: { header(name: string): string | undefined; path: string }
+      req: {
+        header(name: string): string | undefined
+        path: string
+        method: string
+      }
     },
     requestId: string,
     operation: (actor: { id: string; permissions: string[] }) => Promise<T>,
@@ -189,7 +193,7 @@ export function registerAppRoutes(
           config.sessionCookieName,
         ),
         context.req.header('X-CSRF-Token'),
-        true,
+        context.req.method !== 'GET',
         context.req.path,
       )
       return {

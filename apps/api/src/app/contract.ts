@@ -408,8 +408,6 @@ function accMappingRoute<
   })
 }
 
-const accMappingEmptyRequest = z.object({}).strict()
-
 export const accMappingQueryRoute = accMappingRoute(
   '/acc/mapping/query',
   z
@@ -451,14 +449,33 @@ export const accMappingSaveRoute = accMappingRoute(
   accMappingCurrent,
   'Saved ACC current mapping envelope',
 )
-export const accMappingCatalogRoute = accMappingRoute(
-  '/acc/mapping/catalog',
-  accMappingEmptyRequest,
-  accMappingCatalog,
-  'ACC mapping catalog envelope',
-)
+export const accMappingCatalogRoute = createRoute({
+  method: 'get',
+  path: '/acc/mapping/catalog',
+  request: { query: z.object({}).strict() },
+  responses: {
+    200: {
+      description: 'ACC mapping catalog envelope',
+      content: {
+        'application/json': {
+          schema: z.union([
+            z.object({
+              code: z.literal(0),
+              errorKey: z.literal(''),
+              message: z.literal('ok'),
+              data: accMappingCatalog,
+              requestId: z.string(),
+            }),
+            failureEnvelope,
+          ]),
+        },
+      },
+    },
+  },
+})
 
 export const targetRouteMetadata = [
+  { method: accMappingCatalogRoute.method, path: accMappingCatalogRoute.path },
   { method: signinRoute.method, path: signinRoute.path },
   { method: restoreRoute.method, path: restoreRoute.path },
   { method: queryWorkbenchRoute.method, path: queryWorkbenchRoute.path },
@@ -472,7 +489,6 @@ export const targetRouteMetadata = [
     [
       ['query', accMappingQueryRoute, '查询当前会计映射'],
       ['get', accMappingGetRoute, '查看当前会计映射'],
-      ['catalog', accMappingCatalogRoute, '会计映射目录'],
       ['save', accMappingSaveRoute, '保存当前会计映射'],
     ] as const
   ).map(([action, route, title]) => ({

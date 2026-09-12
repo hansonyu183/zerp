@@ -40,14 +40,6 @@
     "title": "/acc/book/save"
   },
   {
-    "id": "01J6E6F5335706964D6A03C649",
-    "path": "/acc/mapping/catalog",
-    "domain": "acc",
-    "entity": "mapping",
-    "action": "catalog",
-    "title": "会计映射目录"
-  },
-  {
     "id": "01JBB0E2371FBAE95869AC3451",
     "path": "/acc/mapping/get",
     "domain": "acc",

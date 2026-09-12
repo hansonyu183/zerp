@@ -183,9 +183,16 @@ export function useOpeningFields(
     objectId: string,
   ) {
     if (!canEdit.value) return
-    const bill = draft.value.bills[index],
-      row = references.value[entity]?.find((row) => row.objectId === objectId)
-    if (!bill || !row) return
+    const bill = draft.value.bills[index]
+    if (!bill) return
+    if (!objectId) {
+      delete bill.originatingCounterparty
+      return
+    }
+    const row = references.value[entity]?.find(
+      (row) => row.objectId === objectId,
+    )
+    if (!row) return
     if (entity === 'employee' || entity === 'operating-entity')
       bill.originatingCounterparty = { entity, objectId }
     else if ('approvalEntryId' in row && row.approvalEntryId)
@@ -215,11 +222,23 @@ export function useOpeningFields(
   }
   function setContainer(index: number, objectId: string) {
     if (!canEdit.value) return
+    const container = draft.value.containers[index]
+    if (!container) return
+    if (!objectId) {
+      container.subunit = {
+        entity: 'customer-subunit',
+        objectId: '',
+        customerId: '',
+        approvalEntryId: '',
+        code: '',
+        name: '',
+      }
+      return
+    }
     const row = references.value['customer-subunit']?.find(
-        (row) => row.objectId === objectId,
-      ),
-      container = draft.value.containers[index]
-    if (row?.entity === 'customer-subunit' && container)
+      (row) => row.objectId === objectId,
+    )
+    if (row?.entity === 'customer-subunit')
       container.subunit = {
         entity: 'customer-subunit',
         objectId,

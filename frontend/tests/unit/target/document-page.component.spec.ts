@@ -442,6 +442,96 @@ it('keeps a failed opening input and intent, then discards both when starting an
   wrapper.unmount()
 })
 
+it('clears the optional opening bill counterparty before submitting', async () => {
+  useTargetSession().apiPaths = ['/vou/opening/submit-new']
+  vi.mocked(api.queryTargetBookOptions).mockResolvedValue({
+    items: [
+      { id: referenceId, code: 'B01', name: '账簿', baseCurrency: 'CNY' },
+    ],
+    total: 1,
+  } as Awaited<ReturnType<typeof api.queryTargetBookOptions>>)
+  vi.mocked(api.queryTargetVouOptions).mockResolvedValue({
+    items: [
+      {
+        entity: 'supplier',
+        objectId: productId,
+        approvalEntryId: entryId,
+        code: 'S01',
+        name: '原始供应商',
+      },
+    ],
+    total: 1,
+  } as Awaited<ReturnType<typeof api.queryTargetVouOptions>>)
+  vi.mocked(api.submitTargetOpening).mockResolvedValue({} as never)
+  const wrapper = mount(ResourceHost, {
+    props: { domain: 'vou', entity: 'opening' },
+    global: { stubs },
+  })
+  await click(wrapper, '新建')
+  await wrapper.get('[aria-label="账簿"]').setValue(referenceId)
+  await click(wrapper, '新增票据登记')
+  await wrapper.get('[aria-label="原始相对方类型"]').setValue('supplier')
+  await flushPromises()
+  await wrapper.get('[aria-label="原始相对方"]').setValue(productId)
+  await flushPromises()
+  await wrapper.get('[aria-label="清空原始相对方"]').trigger('click')
+  await flushPromises()
+  await click(wrapper, '提交期初')
+  expect(api.submitTargetOpening).toHaveBeenCalledTimes(1)
+  expect(
+    vi.mocked(api.submitTargetOpening).mock.calls[0]![1].bills[0],
+  ).not.toHaveProperty('originatingCounterparty')
+  wrapper.unmount()
+})
+
+it('clears every adopted customer identity from an opening container before submitting', async () => {
+  useTargetSession().apiPaths = ['/vou/opening/submit-new']
+  vi.mocked(api.queryTargetBookOptions).mockResolvedValue({
+    items: [
+      { id: referenceId, code: 'B01', name: '账簿', baseCurrency: 'CNY' },
+    ],
+    total: 1,
+  } as Awaited<ReturnType<typeof api.queryTargetBookOptions>>)
+  vi.mocked(api.queryTargetVouOptions).mockResolvedValue({
+    items: [
+      {
+        entity: 'customer-subunit',
+        objectId: productId,
+        customerId: referenceId,
+        approvalEntryId: entryId,
+        code: 'C01',
+        name: '客户子单位',
+      },
+    ],
+    total: 1,
+  } as Awaited<ReturnType<typeof api.queryTargetVouOptions>>)
+  vi.mocked(api.submitTargetOpening).mockResolvedValue({} as never)
+  const wrapper = mount(ResourceHost, {
+    props: { domain: 'vou', entity: 'opening' },
+    global: { stubs },
+  })
+  await click(wrapper, '新建')
+  await wrapper.get('[aria-label="账簿"]').setValue(referenceId)
+  await click(wrapper, '添加空桶')
+  await wrapper.get('[aria-label="客户子单位"]').setValue(productId)
+  await flushPromises()
+  await wrapper.get('[aria-label="清空客户子单位"]').trigger('click')
+  await flushPromises()
+  await click(wrapper, '提交期初')
+  expect(api.submitTargetOpening).toHaveBeenCalledTimes(1)
+  expect(
+    vi.mocked(api.submitTargetOpening).mock.calls[0]![1].containers[0]?.subunit,
+  ).toEqual({
+    entity: 'customer-subunit',
+    objectId: '',
+    customerId: '',
+    approvalEntryId: '',
+    code: '',
+    name: '',
+  })
+  wrapper.unmount()
+})
+
 it.each(['clear', 'remove'])(
   'releases pending product work after %s and ignores its late response',
   async (action) => {
@@ -545,7 +635,7 @@ it.each(['clear', 'remove'])(
 )
 
 it.each(['RAW_MATERIAL', 'CUSTOM_FINISHED'] as const)(
-  'clones ID-only order products through current options while preserving unresolved manual formulas (%s)',
+  'clones ID-only order products and resolves copied materials without changing confirmed quantities (%s)',
   async (profile) => {
     useTargetSession().apiPaths = [
       '/vou/sale-order/query',
@@ -636,15 +726,19 @@ it.each(['RAW_MATERIAL', 'CUSTOM_FINISHED'] as const)(
         },
       },
     } as Awaited<ReturnType<typeof api.resolveTargetProduct>>)
-    vi.mocked(api.queryTargetBobOptions).mockResolvedValue(
-      optionPage([
-        {
-          objectId: productId,
-          sourceApprovalEntryId: entryId,
-          code: 'R01',
-          name: '当前原料',
-        },
-      ]) as Awaited<ReturnType<typeof api.queryTargetBobOptions>>,
+    vi.mocked(api.queryTargetBobOptions).mockImplementation(
+      async (_entity, input) =>
+        optionPage([
+          {
+            objectId:
+              input.behaviorProfile === 'RAW_MATERIAL'
+                ? referenceId
+                : productId,
+            sourceApprovalEntryId: entryId,
+            code: 'R01',
+            name: '当前原料',
+          },
+        ]) as Awaited<ReturnType<typeof api.queryTargetBobOptions>>,
     )
     vi.mocked(api.submitTargetOrder).mockResolvedValue({
       documentId: productId,
@@ -668,8 +762,11 @@ it.each(['RAW_MATERIAL', 'CUSTOM_FINISHED'] as const)(
         unitPrice: '10',
       })
     } else {
-      expect(api.submitTargetOrder).not.toHaveBeenCalled()
-      expect(wrapper.text()).toContain('配方原料尚未确认')
+      expect(api.submitTargetOrder).toHaveBeenCalledTimes(1)
+      const submitted = vi.mocked(api.submitTargetOrder).mock.calls[0]![2]
+      expect(submitted.payload.productLines[0]?.formula).toEqual(
+        payload.productLines[0]!.formula,
+      )
     }
     wrapper.unmount()
   },

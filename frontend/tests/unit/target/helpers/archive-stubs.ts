@@ -77,9 +77,16 @@ export const archiveStubs = {
     template: `<label>{{label}}<select :aria-label="label" :disabled="disabled" :multiple="multiple" @change="$emit('update:modelValue',multiple?[...$event.target.selectedOptions].map(o=>o.value):$event.target.value)"><option v-for="item in items" :key="item[itemValue||'value']" :value="item[itemValue||'value']" :selected="Array.isArray(modelValue)?modelValue.includes(item[itemValue||'value']):modelValue===item[itemValue||'value']">{{item[itemTitle||'title']}}</option></select></label>`,
   },
   VAutocomplete: {
-    props: ['modelValue', 'items', 'label', 'multiple', 'disabled'],
+    props: [
+      'modelValue',
+      'items',
+      'label',
+      'multiple',
+      'disabled',
+      'clearable',
+    ],
     emits: ['update:modelValue'],
-    template: `<label>{{label}}<select :aria-label="label" :multiple="multiple" :disabled="disabled" @change="$emit('update:modelValue',multiple ? [...$event.target.selectedOptions].map(o=>o.value) : $event.target.value)"><option v-for="item in items" :key="item.value" :value="item.value" :selected="Array.isArray(modelValue) ? modelValue.includes(item.value) : modelValue === item.value" :disabled="item.props?.disabled">{{item.title}}</option></select></label>`,
+    template: `<label>{{label}}<select :aria-label="label" :multiple="multiple" :disabled="disabled" @change="$emit('update:modelValue',multiple ? [...$event.target.selectedOptions].map(o=>o.value) : $event.target.value)"><option v-for="item in items" :key="item.value" :value="item.value" :selected="Array.isArray(modelValue) ? modelValue.includes(item.value) : modelValue === item.value" :disabled="item.props?.disabled">{{item.title}}</option></select><button v-if="clearable" type="button" :disabled="disabled" :aria-label="'清空'+label" @click="$emit('update:modelValue',multiple?[]:null)">清空{{label}}</button></label>`,
   },
   VFileInput: {
     props: ['label', 'disabled'],

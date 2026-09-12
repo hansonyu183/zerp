@@ -69,6 +69,41 @@ vi.stubGlobal(
 )
 
 describe('真实录入字段', () => {
+  it('远程候选只在实际输入文字时搜索，聚焦、失焦和采用值变化不改变关键词', async () => {
+    const field = mount(FieldInput, {
+      props: {
+        field: {
+          key: 'item',
+          type: 'choice',
+          caption: '候选',
+          searchable: true,
+          options: [
+            { value: 'one', caption: '原名称' },
+            { value: 'two', caption: '新名称' },
+          ],
+        },
+        modelValue: 'one',
+        remoteSearch: true,
+      },
+      global: { plugins: [createVuetify()] },
+    })
+    mounted.push(field)
+    await flushPromises()
+    const input = field.get('input')
+    await input.trigger('focus')
+    await flushPromises()
+    expect(field.emitted('search')).toBeUndefined()
+    await input.setValue('用户关键词')
+    expect(field.emitted('search')).toEqual([['用户关键词']])
+    await input.trigger('blur')
+    await field.setProps({ modelValue: 'two' })
+    await flushPromises()
+    expect(field.emitted('search')).toEqual([['用户关键词']])
+    await field.get('.v-field__clearable .v-icon').trigger('click')
+    await flushPromises()
+    expect(field.emitted('search')).toEqual([['用户关键词'], ['']])
+  })
+
   it('局部明细不创建提交表单，整数未完成输入不会变成 NaN', async () => {
     const block = mount(FormBlock, {
       props: {

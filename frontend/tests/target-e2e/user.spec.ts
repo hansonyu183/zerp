@@ -63,7 +63,9 @@ async function toggleVirtualOption(page: Page, title: string): Promise<void> {
     .getByRole('dialog')
     .locator('.v-chip')
     .filter({ hasText: title })
-  const search = page.getByRole('dialog').getByRole('combobox')
+  const search = page
+    .getByRole('dialog')
+    .getByRole('combobox', { name: /^(权限|角色)$/ })
   await search.fill(
     title === '系统管理 · 用户管理 · 新增'
       ? '/app/user/create'
@@ -120,6 +122,9 @@ async function createUser(
   await dialog.getByLabel('用户编码', { exact: true }).fill(input.code)
   await dialog.getByLabel('名称', { exact: true }).fill(input.name)
   await dialog.locator('.v-autocomplete .v-field').click()
+  await dialog
+    .getByRole('combobox', { name: '角色', exact: true })
+    .fill(process.env.TARGET_E2E_USERNAME!)
   const targetE2ERole = page
     .locator('[role="option"]:not(.v-list-item--disabled)')
     .filter({ hasText: targetE2ERoleText })

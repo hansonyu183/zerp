@@ -98,6 +98,20 @@ test('AUX current operating entities and employees freeze adopted references, pr
     actor,
     'create-employee',
   )
+  const employeeOptions = await service.options({
+    entity: 'employee',
+    ids: [employee.id],
+    page: 1,
+    pageSize: 20,
+  })
+  assert.deepEqual(employeeOptions.items, [
+    {
+      objectId: employee.id,
+      code: (await service.get('employee', { id: employee.id }, actor)).code,
+      name: `张三${suffix}`,
+      enabled: true,
+    },
+  ])
   const operatingEntityBeforeChange = await service.get(
     'operating-entity',
     { id: operatingEntity.id },

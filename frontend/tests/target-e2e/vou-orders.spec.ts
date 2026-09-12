@@ -177,7 +177,23 @@ test('creates and clones sales and purchase orders from real menu candidates, in
     const choose = async (label: string, name: string) => {
       const field = editor.getByLabel(label, { exact: true })
       await expect(field).toBeEnabled()
+      const candidates = page.waitForResponse((response) => {
+        const url = new URL(response.url())
+        return (
+          response.request().method() === 'GET' &&
+          url.pathname.endsWith('options') &&
+          url.searchParams.get('keyword') === name
+        )
+      })
       await field.fill(name)
+      const result = await (await candidates).json()
+      expect(result.code, `候选 ${label}: ${result.errorKey}`).toBe(0)
+      expect(
+        result.data.items.some(
+          (item: { name: string; code: string }) =>
+            item.name.includes(name) || item.code.includes(name),
+        ),
+      ).toBe(true)
       await page.getByRole('option').filter({ hasText: name }).first().click()
     }
     await choose(

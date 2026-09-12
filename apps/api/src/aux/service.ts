@@ -1624,7 +1624,7 @@ export class AuxService {
       this.db,
     )
     const items = result.rows.map((row): AuxReferenceCandidate => {
-      const data = normaliseReferenceData(entity, row.data)
+      const data = asRecord(parseData(entity, row.data))
       const common = {
         objectId: row.id,
         enabled: row.enabled,

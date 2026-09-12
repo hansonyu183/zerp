@@ -194,6 +194,7 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
     },
     session: new SessionService(db, config),
     management: new ManagementService(db, config),
+    acc,
     accMappingCatalog: new AccMappingCatalogService(db),
     config,
   })
@@ -449,6 +450,58 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
     headers: { cookie },
   })
   assert.equal((await auxiliary.json()).code, 0)
+  const bookOptions = await (
+    await fetch(`${origin}/acc/book/options?page=1&pageSize=20`, {
+      headers: { cookie },
+    })
+  ).json()
+  assert.equal(bookOptions.code, 0)
+  assert.deepEqual(
+    bookOptions.data.items.map((item: { id: string }) => item.id),
+    [bookId],
+  )
+  assert.deepEqual(Object.keys(bookOptions.data.items[0]).sort(), [
+    'baseCurrency',
+    'code',
+    'id',
+    'name',
+  ])
+  const subjectOptions = await (
+    await fetch(
+      `${origin}/acc/subject/options?bookId=${bookId}&page=1&pageSize=20`,
+      { headers: { cookie } },
+    )
+  ).json()
+  assert.equal(subjectOptions.code, 0)
+  assert.deepEqual(
+    subjectOptions.data.items.map((item: { id: string }) => item.id),
+    [subjectId],
+  )
+  const outsideSubjects = await (
+    await fetch(
+      `${origin}/acc/subject/options?bookId=${outsideBookId}&page=1&pageSize=20`,
+      { headers: { cookie } },
+    )
+  ).json()
+  assert.equal(outsideSubjects.errorKey, 'acc_book_access_denied')
+  for (const entity of ['book', 'subject']) {
+    const formal = await (
+      await fetch(`${origin}/acc/${entity}/query`, {
+        method: 'POST',
+        headers: {
+          ...headers,
+          cookie,
+          'x-csrf-token': sessionPayload.data.csrfToken,
+        },
+        body: JSON.stringify({
+          page: 1,
+          pageSize: 20,
+          ...(entity === 'subject' ? { bookId } : {}),
+        }),
+      })
+    ).json()
+    assert.equal(formal.errorKey, 'approval_invalid_action')
+  }
   const anonymousCatalog = await fetch(`${origin}/acc/mapping/catalog`)
   assert.equal((await anonymousCatalog.json()).errorKey, 'unauthenticated')
   const oldCatalog = await fetch(`${origin}/acc/mapping/catalog`, {

@@ -103,10 +103,10 @@ test('real create-only permissions expose the user page without unauthorized que
   ).toBeVisible()
   await page.getByRole('button', { name: '新增用户', exact: true }).click()
   const dialog = page.getByRole('dialog')
-  await expect(dialog).toContainText('角色查询权限')
   await expect(
-    dialog.getByRole('button', { name: '保存', exact: true }),
-  ).toBeDisabled()
+    dialog.getByRole('combobox', { name: '角色', exact: true }),
+  ).toBeEnabled()
+  await expect(dialog).not.toContainText('角色查询权限')
   await dialog.getByRole('button', { name: '取消', exact: true }).click()
   expect(businessRequests).toEqual([])
 
@@ -207,7 +207,7 @@ test('navigation and Host retain the shell at desktop and 390px in both themes',
             .locator('.v-icon'),
         ).toBeVisible()
         await editor
-          .getByRole('button', { name: '试运行脚本', exact: true })
+          .getByRole('button', { name: '保存计算脚本', exact: true })
           .scrollIntoViewIfNeeded()
         await expect(
           editor.getByRole('button', { name: '保存计算脚本', exact: true }),

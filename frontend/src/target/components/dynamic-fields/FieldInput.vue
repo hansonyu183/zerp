@@ -46,6 +46,11 @@ const emit = defineEmits<{
   search: [value: string]
 }>()
 
+function searchInput(event: Event) {
+  if (event.target instanceof HTMLInputElement && !inputDisabled.value)
+    emit('search', event.target.value)
+}
+
 function update(value: unknown) {
   if (!inputDisabled.value) emit('update:modelValue', value as Value)
 }
@@ -136,7 +141,8 @@ function scalarValue(value: unknown): unknown {
     :no-filter="remoteSearch"
     :clearable="clearable ?? usage === 'filter'"
     @update:model-value="update($event ?? (field.multiple ? [] : null))"
-    @update:search="emit('search', $event)"
+    @input="searchInput"
+    @click:clear="emit('search', '')"
   />
   <v-select
     v-else-if="

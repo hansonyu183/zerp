@@ -42,7 +42,6 @@ describe('apiPath navigation resources', () => {
       'wfl/process-definition': '流程定义',
       'wfl/process-instance': '流程实例',
       'vou/sale-order': '销售订单',
-      'vou/source-line': '业务单据来源行',
     }
     const groups = collectNavigationResourceGroups(
       Object.keys(expectedNames).map((key) => `/${key}/query`),

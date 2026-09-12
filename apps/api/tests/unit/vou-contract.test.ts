@@ -259,62 +259,6 @@ test('VOU read and action routes expose exact success envelopes', () => {
   )
 })
 
-test('VOU source-line query owns target eligibility and readable quantity facts', () => {
-  assert.equal(
-    requestSchema('source-line').safeParse({
-      targetEntity: 'purchase-inbound',
-      page: 2,
-      pageSize: 20,
-      keyword: 'CG2026',
-      sourceDocumentId: id,
-    }).success,
-    true,
-  )
-  assert.equal(
-    requestSchema('source-line').safeParse({
-      targetEntity: 'sale-order',
-      page: 1,
-      pageSize: 20,
-    }).success,
-    false,
-  )
-  assert.equal(
-    responseSchema('source-line').safeParse(
-      success({
-        items: [
-          {
-            sourceDocumentId: id,
-            sourceDocumentNo: 'CG2026090001',
-            sourceEntity: 'purchase-order',
-            rootDocumentId: id,
-            rootEntity: 'purchase-order',
-            businessDate: '2026-09-05',
-            sourceLineId: '01J00000000000000000000002',
-            product: {
-              objectId: '01J00000000000000000000003',
-              code: 'P-001',
-              name: '树脂',
-            },
-            availableBaseQuantity: '12.500000',
-          },
-        ],
-        total: 21,
-        page: 2,
-        pageSize: 20,
-      }),
-    ).success,
-    true,
-  )
-  assert.equal(
-    responseSchema('source-line').safeParse(
-      success({
-        items: [{ sourceLineId: 'technical-id-only' }],
-      }),
-    ).success,
-    false,
-  )
-})
-
 test('VOU sale-order contracts expose exact payment-method snapshots', () => {
   const paymentMethod = {
     objectId: '01J00000000000000000000010',

@@ -5656,14 +5656,6 @@
     "title": "service-contract unreject"
   },
   {
-    "id": "01J34AF35315CFACB1E963E687",
-    "path": "/vou/source-line/query",
-    "domain": "vou",
-    "entity": "source-line",
-    "action": "query",
-    "title": "VOU source-line query"
-  },
-  {
     "id": "01JBB0D859982FC5F91AB7F754",
     "path": "/wfl/process-definition/approve",
     "domain": "wfl",

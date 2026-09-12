@@ -98250,55 +98250,64 @@
         }
       }
     },
-    "/vou/source-line/query": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "targetEntity": {
-                    "type": "string",
-                    "enum": [
-                      "sale-return",
-                      "purchase-inbound",
-                      "purchase-return",
-                      "order-production"
-                    ]
-                  },
-                  "page": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true
-                  },
-                  "pageSize": {
-                    "type": "number",
-                    "enum": [
-                      20
-                    ]
-                  },
-                  "keyword": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200
-                  },
-                  "sourceDocumentId": {
-                    "type": "string",
-                    "minLength": 26,
-                    "maxLength": 26
-                  }
-                },
-                "required": [
-                  "targetEntity",
-                  "page",
-                  "pageSize"
-                ],
-                "additionalProperties": false
-              }
-            }
+    "/vou/{entity}/source-lines": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "sale-return",
+                "purchase-inbound",
+                "purchase-return",
+                "order-production"
+              ]
+            },
+            "required": true,
+            "name": "entity",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            },
+            "required": true,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "20"
+              ]
+            },
+            "required": true,
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": false,
+            "name": "keyword",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 26,
+              "maxLength": 26
+            },
+            "required": false,
+            "name": "sourceDocumentId",
+            "in": "query"
           }
-        },
+        ],
         "responses": {
           "200": {
             "description": "VOU eligible source-line candidates",
@@ -294690,22 +294699,11 @@
         }
       }
     },
-    "/rpt/directory/query": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {},
-                "additionalProperties": false
-              }
-            }
-          }
-        },
+    "/rpt/directory/options": {
+      "get": {
         "responses": {
           "200": {
-            "description": "/rpt/directory/query",
+            "description": "/rpt/directory/options",
             "content": {
               "application/json": {
                 "schema": {
@@ -295353,7 +295351,7 @@
       }
     },
     "/rpt/{code}/reference-query": {
-      "post": {
+      "get": {
         "parameters": [
           {
             "schema": {
@@ -295363,48 +295361,55 @@
             "required": true,
             "name": "code",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-zA-Z0-9]{0,63}$"
+            },
+            "required": true,
+            "name": "parameterKey",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "required": false,
+            "name": "keyword",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "required": false,
+            "name": "selectedId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d*$",
+              "default": 1
+            },
+            "required": false,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d*$",
+              "default": 20
+            },
+            "required": false,
+            "name": "pageSize",
+            "in": "query"
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "parameterKey": {
-                    "type": "string",
-                    "pattern": "^[a-z][a-zA-Z0-9]{0,63}$"
-                  },
-                  "keyword": {
-                    "type": "string",
-                    "maxLength": 200
-                  },
-                  "selectedId": {
-                    "type": "string",
-                    "maxLength": 64
-                  },
-                  "page": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true,
-                    "default": 1
-                  },
-                  "pageSize": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true,
-                    "maximum": 50,
-                    "default": 20
-                  }
-                },
-                "required": [
-                  "parameterKey"
-                ],
-                "additionalProperties": false
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "/rpt/{code}/reference-query",

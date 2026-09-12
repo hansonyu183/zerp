@@ -624,7 +624,7 @@ test('target OpenAPI exposes executable ACC, WFL and RPT transaction cores', asy
     '/wfl/process-definition/disable',
     '/wfl/process-definition/get',
     '/wfl/process-definition/trial',
-    '/rpt/directory/query',
+    '/rpt/directory/options',
     '/rpt/{code}/query',
     '/rpt/{code}/export',
   ]

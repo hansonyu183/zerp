@@ -161,8 +161,20 @@ it('keeps two report reference sources independent when their responses arrive i
     {
       ...definition,
       parameters: [
-        { key: 'customer', name: '客户', type: 'REFERENCE', required: true },
-        { key: 'supplier', name: '供应商', type: 'REFERENCE', required: true },
+        {
+          key: 'customer',
+          name: '客户',
+          type: 'REFERENCE',
+          referenceType: 'CUSTOMER_SUBUNIT',
+          required: true,
+        },
+        {
+          key: 'supplier',
+          name: '供应商',
+          type: 'REFERENCE',
+          referenceType: 'SUPPLIER',
+          required: true,
+        },
       ],
     },
   ] as never)
@@ -171,7 +183,7 @@ it('keeps two report reference sources independent when their responses arrive i
     (value: Awaited<ReturnType<typeof api.queryTargetReportReference>>) => void
   >()
   vi.mocked(api.queryTargetReportReference).mockImplementation(
-    (_t, _c, input) =>
+    (_c, input) =>
       new Promise((done) => {
         finish.set(input.parameterKey, done)
       }),
@@ -228,5 +240,44 @@ it('keeps empty text distinct from null in the visible report result', async () 
   await fill(w)
   await click(w, '查询')
   expect(w.findAll('tbody td').map((cell) => cell.text())).toEqual(['', '—'])
+  w.unmount()
+})
+
+it('automatically loads report candidates without CSRF and retries a failed read through the public picker', async () => {
+  useTargetSession().csrfToken = null
+  vi.mocked(api.queryTargetReportDirectory).mockResolvedValue([
+    {
+      ...definition,
+      parameters: [
+        {
+          key: 'department',
+          name: '部门',
+          type: 'REFERENCE',
+          referenceType: 'DEPARTMENT',
+          required: true,
+        },
+      ],
+    },
+  ])
+  vi.mocked(api.queryTargetReportReference)
+    .mockRejectedValueOnce(
+      new api.TargetApiError('rpt_reference_unavailable', '诊断', 'request'),
+    )
+    .mockResolvedValue({
+      items: [{ id: 'department-id', code: 'D', name: '销售部' }],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    })
+  const w = await open()
+  expect(w.text()).toContain('候选加载失败')
+  await click(w, '重试')
+  expect(api.queryTargetReportDirectory).toHaveBeenCalledWith()
+  expect(api.queryTargetReportReference).toHaveBeenLastCalledWith(
+    'rpt-000001',
+    { parameterKey: 'department', keyword: '', page: '1', pageSize: '20' },
+  )
+  expect(w.text()).not.toContain('候选加载失败')
+  expect(api.queryTargetReport).not.toHaveBeenCalled()
   w.unmount()
 })

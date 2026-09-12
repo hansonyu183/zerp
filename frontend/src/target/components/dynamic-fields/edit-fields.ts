@@ -73,6 +73,14 @@ export type EditFields<T extends object> = readonly {
 }[Extract<keyof T, string>][]
 
 export type EditReference =
+  | {
+      kind: 'report'
+      code: string
+      parameterKey: string
+      referenceType: NonNullable<
+        import('../report-page/report-data.ts').Definition['parameters'][number]['referenceType']
+      >
+    }
   | { kind: 'book' }
   | { kind: 'subject'; bookId: string }
   | EditReferenceSource

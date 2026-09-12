@@ -101,7 +101,6 @@ export function resourceDisplayName(domain: string, entity: string): string {
   if (domain === 'rpt' && entity === 'definition') return '报表定义维护'
   if (domain === 'rpt' && /^rpt-[0-9]{6}$/.test(entity))
     return `报表 ${entity.slice(4)}`
-  if (domain === 'vou' && entity === 'source-line') return '业务单据来源行'
   if (domain === 'vou' && entity in vouEntityPresentation)
     return vouEntityPresentation[entity as keyof typeof vouEntityPresentation]
       .label

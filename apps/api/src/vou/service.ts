@@ -1670,17 +1670,12 @@ export class VouService implements WflVouPort {
     })
   }
 
-  async querySourceLineCandidates(
-    input: VouSourceLineQueryInput,
-    actor: ApprovalActor,
-  ): Promise<{
+  async querySourceLineCandidates(input: VouSourceLineQueryInput): Promise<{
     items: VouSourceLineCandidate[]
     total: number
     page: number
     pageSize: 20
   }> {
-    requirePermission(actor, '/vou/source-line/query')
-
     const plan = {
       'sale-return': {
         sourceEntity: 'sale-signoff',
@@ -1953,8 +1948,7 @@ export class VouService implements WflVouPort {
       ? Number(result.rows[0].total)
       : input.page === 1
         ? 0
-        : (await this.querySourceLineCandidates({ ...input, page: 1 }, actor))
-            .total
+        : (await this.querySourceLineCandidates({ ...input, page: 1 })).total
     return {
       items: result.rows.map((row) => ({
         sourceDocumentId: row.source_document_id,

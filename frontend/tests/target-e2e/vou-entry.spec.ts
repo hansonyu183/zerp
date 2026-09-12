@@ -94,7 +94,30 @@ for (const width of [1280, 390])
         const choose = async (label: string, code: string) => {
           const field = editor.getByLabel(label, { exact: true })
           await expect(field).toBeEnabled()
+          const sourceResponse =
+            label === '来源行'
+              ? page.waitForResponse((response) => {
+                  const url = new URL(response.url())
+                  return (
+                    url.pathname === `/vou/${entity}/source-lines` &&
+                    url.searchParams.get('keyword') === code
+                  )
+                })
+              : null
           await field.fill(code)
+          if (sourceResponse) {
+            const response = await sourceResponse
+            expect(response.request().method()).toBe('GET')
+            const result = await response.json()
+            expect(result.code).toBe(0)
+            expect(result.data.items.length).toBeGreaterThan(0)
+            expect(result.data.items[0].rootDocumentId).toMatch(
+              /^[A-Z0-9]{26}$/,
+            )
+            expect(
+              Number(result.data.items[0].availableBaseQuantity),
+            ).toBeGreaterThan(0)
+          }
           await page
             .getByRole('option')
             .filter({ hasText: code })

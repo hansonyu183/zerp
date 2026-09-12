@@ -1636,6 +1636,17 @@ try {
   await bootstrap.createE2EPrincipal(orderReviewOnly, false, [
     '/vou/sale-order/approve',
   ])
+  for (let index = 0; index < 205; index++) {
+    await aux.create(
+      'department',
+      {
+        name: `报表候选${String(index).padStart(3, '0')}`,
+        parentId: '',
+        description: '',
+      },
+      serviceActor(submitter.userId),
+    )
+  }
   const report = await createRptBrowserFixture(
     rpt,
     serviceActor(submitter.userId),

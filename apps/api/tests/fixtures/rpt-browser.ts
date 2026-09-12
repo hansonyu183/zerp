@@ -16,8 +16,15 @@ export async function createRptBrowserFixture(
       sql: `SELECT n::integer AS line_no, :name::text AS customer_name, :amount::numeric AS amount,
       :flag::boolean AS flag, CASE :state::text WHEN 'OPEN' THEN '开放' ELSE '关闭' END AS state,
       (:dates::date[])[1] AS business_date
-      FROM generate_series(1,25) n WHERE n >= :minimum::integer ORDER BY n`,
+      FROM generate_series(1,25) n WHERE n >= :minimum::integer AND (:department::varchar IS NULL OR EXISTS (SELECT 1 FROM aux_objects WHERE entity = 'department' AND id = :department)) ORDER BY n`,
       parameters: [
+        {
+          key: 'department',
+          name: '部门',
+          type: 'REFERENCE',
+          referenceType: 'DEPARTMENT',
+          required: false,
+        },
         { key: 'name', name: '客户名称', type: 'TEXT', required: true },
         { key: 'amount', name: '金额', type: 'DECIMAL', required: true },
         {

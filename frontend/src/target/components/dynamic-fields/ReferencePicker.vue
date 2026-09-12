@@ -93,7 +93,6 @@ async function load() {
     const result = await loadEditReferencePage(
       props.source,
       { keyword: keyword.value, page: page.value },
-      session,
       props.history,
     )
     if (!current(version)) return
@@ -113,7 +112,6 @@ async function load() {
         const resolved = await loadEditReferencePage(
           props.source,
           { keyword: '', page: 1, ids: missing.slice(offset, offset + 20) },
-          session,
           true,
         )
         if (!current(version)) return

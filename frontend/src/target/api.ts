@@ -2608,17 +2608,12 @@ export type TargetReportSaveInput = PostJson<
 export type TargetReportQueryInput = PostJson<
   (typeof client)['rpt'][':code']['query']['$post']
 >
-export type TargetReportReferenceInput = PostJson<
-  (typeof client)['rpt'][':code']['reference-query']['$post']
->
-export async function queryTargetReportDirectory(csrfToken: string) {
+export type TargetReportReferenceInput = Parameters<
+  (typeof client)['rpt'][':code']['reference-query']['$get']
+>[0]['query']
+export async function queryTargetReportDirectory() {
   return unwrapTarget(
-    await (
-      await client.rpt.directory.query.$post(
-        { json: {} },
-        csrfHeaders(csrfToken),
-      )
-    ).json(),
+    await (await client.rpt.directory.options.$get({ query: {} })).json(),
   )
 }
 export async function queryTargetReport(
@@ -2650,16 +2645,15 @@ export async function exportTargetReport(
   )
 }
 export async function queryTargetReportReference(
-  csrfToken: string,
   code: string,
   input: TargetReportReferenceInput,
 ) {
   return unwrapTarget(
     await (
-      await client.rpt[':code']['reference-query'].$post(
-        { param: { code }, json: input },
-        csrfHeaders(csrfToken),
-      )
+      await client.rpt[':code']['reference-query'].$get({
+        param: { code },
+        query: input,
+      })
     ).json(),
   )
 }
@@ -3299,20 +3293,14 @@ export async function submitTargetVoucher<
     ).json(),
   )
 }
-export type TargetVouSourceLineQueryInput = PostJson<
-  (typeof client.vou)['source-line']['query']['$post']
->
+export type TargetVouSourceLineQueryInput = Parameters<
+  (typeof client.vou)[':entity']['source-lines']['$get']
+>[0]
 export async function queryTargetVouSourceLines(
-  csrfToken: string,
   input: TargetVouSourceLineQueryInput,
 ) {
   return unwrapTarget(
-    await (
-      await client.vou['source-line'].query.$post(
-        { json: input },
-        csrfHeaders(csrfToken),
-      )
-    ).json(),
+    await (await client.vou[':entity']['source-lines'].$get(input)).json(),
   )
 }
 export type TargetVoucherAttachmentStageInput = PostJson<

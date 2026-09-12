@@ -17,7 +17,7 @@ import { loadConfig } from '../../src/platform/config.ts'
 import { VouApplicationError, VouService } from '../../src/vou/service.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
-const permissionPath = '/vou/source-line/query'
+const permissionPath = '/vou/sale-return/submit-new'
 
 function permissionParts(path: string) {
   const match = path.match(/^\/([^/]+)\/([^/]+)\/([^/]+)$/)
@@ -177,6 +177,15 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
   await db
     .insertInto('app_role_permissions')
     .values({ role_id: roleId, permission_id: permissionId })
+    .execute()
+  const reversePermission = await db
+    .selectFrom('app_permissions')
+    .select('id')
+    .where('path', '=', '/vou/sale-signoff/unapprove')
+    .executeTakeFirstOrThrow()
+  await db
+    .insertInto('app_role_permissions')
+    .values({ role_id: roleId, permission_id: reversePermission.id })
     .execute()
   await db
     .insertInto('app_user_roles')
@@ -519,17 +528,14 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
       .execute()
   }
 
-  const actor = { id: actorId, permissions: [permissionPath] }
-  const direct = await vou.querySourceLineCandidates(
-    {
-      targetEntity: 'purchase-inbound',
-      page: 1,
-      pageSize: 20,
-      keyword: 'SOURCE-MATCH',
-      sourceDocumentId: source.documentId,
-    },
-    actor,
-  )
+  const session = await signin(username)
+  const direct = await getCandidates({
+    targetEntity: 'purchase-inbound',
+    page: 1,
+    pageSize: 20,
+    keyword: 'SOURCE-MATCH',
+    sourceDocumentId: source.documentId,
+  })
   assert.equal(direct.total, 1)
   assert.deepEqual(direct.items[0], {
     sourceDocumentId: source.documentId,
@@ -543,33 +549,29 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
     availableBaseQuantity: '7.500000',
   })
   const [concurrentA, concurrentB] = await Promise.all([
-    vou.querySourceLineCandidates(
-      { targetEntity: 'purchase-inbound', page: 2, pageSize: 20 },
-      actor,
-    ),
-    vou.querySourceLineCandidates(
-      { targetEntity: 'purchase-inbound', page: 2, pageSize: 20 },
-      actor,
-    ),
+    getCandidates({ targetEntity: 'purchase-inbound', page: 2, pageSize: 20 }),
+    getCandidates({ targetEntity: 'purchase-inbound', page: 2, pageSize: 20 }),
   ])
   assert.equal(concurrentA.total, 21)
   assert.equal(concurrentA.items.length, 1)
   assert.deepEqual(concurrentB, concurrentA)
   assert.deepEqual(
-    await vou.querySourceLineCandidates(
-      { targetEntity: 'purchase-inbound', page: 3, pageSize: 20 },
-      actor,
-    ),
+    await getCandidates({
+      targetEntity: 'purchase-inbound',
+      page: 3,
+      pageSize: 20,
+    }),
     { items: [], total: 21, page: 3, pageSize: 20 },
   )
   assert.equal(
     concurrentA.items.some((item) => item.sourceLineId === openLineId),
     false,
   )
-  const production = await vou.querySourceLineCandidates(
-    { targetEntity: 'order-production', page: 1, pageSize: 20 },
-    actor,
-  )
+  const production = await getCandidates({
+    targetEntity: 'order-production',
+    page: 1,
+    pageSize: 20,
+  })
   assert.equal(
     production.items.some((item) => item.sourceLineId === productionLineId),
     true,
@@ -580,10 +582,11 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
   )
   assert.equal(
     (
-      await vou.querySourceLineCandidates(
-        { targetEntity: 'sale-return', page: 1, pageSize: 20 },
-        actor,
-      )
+      await getCandidates({
+        targetEntity: 'sale-return',
+        page: 1,
+        pageSize: 20,
+      })
     ).items.some((item) => item.sourceLineId === sourceLineId),
     false,
   )
@@ -648,10 +651,6 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
     })
     .execute()
 
-  const saleReturnActor = {
-    id: actorId,
-    permissions: ['/vou/sale-return/submit-new', permissionPath],
-  }
   function saleReturnInput(input: {
     documentId: string
     submissionId: string
@@ -690,17 +689,13 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
   }
 
   await assert.rejects(
-    vou.submit(
-      'sale-return',
-      'submit-new',
+    submitReturn(
       saleReturnInput({
         documentId: ulid(),
         submissionId: ulid(),
         sourceLineId: ulid(),
         quantity: '1.000000',
       }),
-      saleReturnActor,
-      ulid(),
     ),
     (error) =>
       error instanceof VouApplicationError &&
@@ -712,23 +707,110 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
     status: 'APPROVED',
   })
   await assert.rejects(
-    vou.submit(
-      'sale-return',
-      'submit-new',
+    submitReturn(
       saleReturnInput({
         documentId: ulid(),
         submissionId: ulid(),
         parentDocumentId: differentRoot.documentId,
         quantity: '1.000000',
       }),
-      saleReturnActor,
-      ulid(),
     ),
     (error) =>
       error instanceof VouApplicationError &&
       error.errorKey === 'vou_parent_invalid',
   )
 
+  const withdrawnSignoff = await addDocument({
+    entity: 'sale-signoff',
+    documentNo: 'QS-WITHDRAWN-AFTER-GET',
+    status: 'APPROVED',
+    parent: { entity: 'sale-delivery', documentId: delivery.documentId },
+  })
+  await db
+    .insertInto('vou_signoff_line_snapshots')
+    .values({
+      approval_entry_id: withdrawnSignoff.approvalEntryId,
+      line_no: 1,
+      source_line_id: saleLineId,
+      signed_quantity_micros: 1_000_000,
+      rejected_quantity_micros: 0,
+    })
+    .execute()
+  await db
+    .insertInto('vou_reference_snapshots')
+    .values({
+      approval_entry_id: withdrawnSignoff.approvalEntryId,
+      field: 'customerSubunit',
+      line_no: 0,
+      item_no: 0,
+      object_id: ulid(),
+      reference_entity: 'customer-subunit',
+      reference_code: 'CS-CHAIN',
+      reference_name: '来源链客户',
+    })
+    .execute()
+  const beforeWithdrawal = await getCandidates({
+    targetEntity: 'sale-return',
+    sourceDocumentId: withdrawnSignoff.documentId,
+    page: 1,
+    pageSize: 20,
+  })
+  assert.equal(
+    beforeWithdrawal.items[0]?.sourceDocumentId,
+    withdrawnSignoff.documentId,
+  )
+  assert.equal(beforeWithdrawal.items[0]?.rootDocumentId, saleOrder.documentId)
+  const reverseClient = createTargetApiClient({ baseUrl: origin, modelBuildId })
+  const reversedResponse = await reverseClient.vou[':entity'].unapprove.$post(
+    {
+      param: { entity: 'sale-signoff' },
+      json: {
+        documentId: withdrawnSignoff.documentId,
+        submissionId: withdrawnSignoff.approvalEntryId,
+        expectedRevision: '1',
+        reason: '候选加载后撤销签收',
+      },
+    },
+    { headers: { cookie: session.cookie, 'x-csrf-token': session.csrfToken } },
+  )
+  const reversed = await reversedResponse.json()
+  assert.equal(reversed.code, 0)
+  assert.equal(
+    (reversed as Extract<typeof reversed, { code: 0 }>).data.status,
+    'PENDING',
+  )
+  assert.equal(
+    (
+      await getCandidates({
+        targetEntity: 'sale-return',
+        sourceDocumentId: withdrawnSignoff.documentId,
+        page: 1,
+        pageSize: 20,
+      })
+    ).items.length,
+    0,
+  )
+  await assert.rejects(
+    submitReturn(
+      saleReturnInput({
+        documentId: ulid(),
+        submissionId: ulid(),
+        sourceDocumentId: withdrawnSignoff.documentId,
+        quantity: '1.000000',
+      }),
+    ),
+    (error) =>
+      error instanceof VouApplicationError &&
+      error.errorKey === 'vou_source_line_unavailable',
+  )
+  const loadedReturn = await getCandidates({
+    targetEntity: 'sale-return',
+    sourceDocumentId: signoff.documentId,
+    page: 1,
+    pageSize: 20,
+  })
+  assert.equal(loadedReturn.items[0]?.availableBaseQuantity, '10.000000')
+  assert.equal(loadedReturn.items[0]?.rootDocumentId, saleOrder.documentId)
   const concurrentInputs = [0, 1].map(() => {
     const submissionId = ulid()
     return saleReturnInput({
@@ -738,9 +820,7 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
     })
   })
   const concurrentReturns = await Promise.allSettled(
-    concurrentInputs.map((input) =>
-      vou.submit('sale-return', 'submit-new', input, saleReturnActor, ulid()),
-    ),
+    concurrentInputs.map((input) => submitReturn(input)),
   )
   const fulfilledReturns = concurrentReturns.filter(
     (result) => result.status === 'fulfilled',
@@ -766,15 +846,12 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
     failedReturn.reason.errorKey,
     'vou_source_line_quantity_exceeded',
   )
-  const remainingReturnSource = await vou.querySourceLineCandidates(
-    {
-      targetEntity: 'sale-return',
-      page: 1,
-      pageSize: 20,
-      sourceDocumentId: signoff.documentId,
-    },
-    saleReturnActor,
-  )
+  const remainingReturnSource = await getCandidates({
+    targetEntity: 'sale-return',
+    page: 1,
+    pageSize: 20,
+    sourceDocumentId: signoff.documentId,
+  })
   assert.equal(remainingReturnSource.total, 1)
   assert.equal(
     remainingReturnSource.items[0]?.availableBaseQuantity,
@@ -788,6 +865,24 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
     { rootEntity: 'sale-order', rootDocumentId: saleOrder.documentId },
   )
 
+  async function submitReturn(input: ReturnType<typeof saleReturnInput>) {
+    const client = createTargetApiClient({ baseUrl: origin, modelBuildId })
+    const response = await client.vou[':entity']['submit-new'].$post(
+      { param: { entity: 'sale-return' }, json: input },
+      {
+        headers: {
+          cookie: session.cookie,
+          'x-csrf-token': session.csrfToken,
+          connection: 'close',
+        },
+      },
+    )
+    assert.equal(response.status, 200)
+    const result = await response.json()
+    if (result.code !== 0) throw new VouApplicationError(result.errorKey)
+    assert.ok(result.data)
+    return (result as Extract<typeof result, { code: 0 }>).data
+  }
   async function signin(login: string) {
     const client = createTargetApiClient({ baseUrl: origin, modelBuildId })
     const response = await client.session.auth.signin.$post({
@@ -801,25 +896,50 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
       csrfToken: body.data.csrfToken,
     }
   }
-  async function post(
-    session: { cookie: string; csrfToken: string },
-    body: unknown,
+  async function getCandidates(
+    input: Parameters<VouService['querySourceLineCandidates']>[0],
   ) {
-    return fetch(`${origin}/vou/source-line/query`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-zerp-model-build': modelBuildId,
-        'x-csrf-token': session.csrfToken,
-        cookie: session.cookie,
-        connection: 'close',
+    const client = createTargetApiClient({ baseUrl: origin, modelBuildId })
+    const response = await client.vou[':entity']['source-lines'].$get(
+      {
+        param: { entity: input.targetEntity },
+        query: {
+          page: String(input.page),
+          pageSize: '20',
+          ...(input.keyword ? { keyword: input.keyword } : {}),
+          ...(input.sourceDocumentId
+            ? { sourceDocumentId: input.sourceDocumentId }
+            : {}),
+        },
       },
-      body: JSON.stringify(body),
-    })
+      { headers: { cookie: session.cookie, connection: 'close' } },
+    )
+    assert.equal(response.status, 200)
+    const result = await response.json()
+    assert.equal(result.code, 0)
+    assert.ok(result.data)
+    return (result as Extract<typeof result, { code: 0 }>).data
+  }
+  async function get(
+    session: { cookie: string; csrfToken: string },
+    body: Record<string, string | number>,
+  ) {
+    const { targetEntity, ...query } = body
+    return fetch(
+      `${origin}/vou/${targetEntity}/source-lines?${new URLSearchParams(Object.entries(query).map(([key, value]) => [key, String(value)]))}`,
+      {
+        method: 'GET',
+        headers: {
+          'content-type': 'application/json',
+          'x-zerp-model-build': modelBuildId,
+          cookie: session.cookie,
+          connection: 'close',
+        },
+      },
+    )
   }
 
-  const session = await signin(username)
-  const response = await post(session, {
+  const response = await get(session, {
     targetEntity: 'purchase-inbound',
     page: 1,
     pageSize: 20,
@@ -837,7 +957,7 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
   assert.equal(body.data.items[0]?.sourceLineId, sourceLineId)
   assert.equal(body.data.items[0]?.availableBaseQuantity, '7.500000')
 
-  const invalid = await post(session, {
+  const invalid = await get(session, {
     targetEntity: 'sale-order',
     page: 1,
     pageSize: 20,
@@ -851,7 +971,7 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
   assert.equal(invalidBody.errorKey, 'validation_failed')
 
   const deniedSession = await signin(deniedUsername)
-  const denied = await post(deniedSession, {
+  const denied = await get(deniedSession, {
     targetEntity: 'purchase-inbound',
     page: 1,
     pageSize: 20,
@@ -861,6 +981,60 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
     code: number
     errorKey: string
   }
-  assert.notEqual(deniedBody.code, 0)
-  assert.equal(deniedBody.errorKey, 'approval_invalid_action')
+  assert.equal(deniedBody.code, 0)
+  for (const targetEntity of [
+    'sale-return',
+    'purchase-inbound',
+    'purchase-return',
+    'order-production',
+  ]) {
+    assert.equal(
+      (
+        await (
+          await get(deniedSession, { targetEntity, page: 1, pageSize: 20 })
+        ).json()
+      ).code,
+      0,
+    )
+  }
+  const anonymous = await fetch(
+    `${origin}/vou/purchase-inbound/source-lines?page=1&pageSize=20`,
+    { headers: { 'x-zerp-model-build': modelBuildId } },
+  )
+  assert.equal((await anonymous.json()).errorKey, 'unauthenticated')
+  for (const query of [
+    'page=0&pageSize=20',
+    'page=1.5&pageSize=20',
+    'page=100001&pageSize=20',
+    'page=1&pageSize=21',
+    'page=1&page=2&pageSize=20',
+    'page=1&pageSize=20&targetEntity=sale-return',
+    'page=1&pageSize=20&sourceDocumentId=short',
+  ]) {
+    const invalid = await fetch(
+      `${origin}/vou/purchase-inbound/source-lines?${query}`,
+      {
+        headers: { cookie: session.cookie, 'x-zerp-model-build': modelBuildId },
+      },
+    )
+    const envelope = await invalid.json()
+    assert.equal(envelope.errorKey, 'validation_failed', query)
+    assert.equal(envelope.data, null)
+  }
+  const old = await fetch(`${origin}/vou/source-line/query`, {
+    method: 'POST',
+    headers: {
+      cookie: session.cookie,
+      'x-zerp-model-build': modelBuildId,
+      'x-csrf-token': session.csrfToken,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      targetEntity: 'purchase-inbound',
+      page: 1,
+      pageSize: 20,
+    }),
+  })
+  assert.equal(old.headers.get('location'), null)
+  if (old.status !== 404) assert.notEqual((await old.json()).code, 0)
 })

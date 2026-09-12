@@ -65,7 +65,6 @@ function required<T>(value: T | undefined): T {
 export async function loadEditReferencePage(
   source: EditReference,
   search: ReferenceSearch,
-  session: { csrfToken: string | null },
   history = false,
 ): Promise<ReferencePage> {
   const query = {
@@ -75,13 +74,45 @@ export async function loadEditReferencePage(
     ...(search.ids ? { ids: search.ids } : {}),
   }
   if (typeof source === 'object') {
+    if (source.kind === 'report') {
+      const input = {
+        parameterKey: source.parameterKey,
+        keyword: search.keyword,
+        page: String(search.page),
+        pageSize: '20',
+      }
+      const pages = search.ids
+        ? await Promise.all(
+            search.ids.map((selectedId) =>
+              api.queryTargetReportReference(source.code, {
+                ...input,
+                selectedId,
+              }),
+            ),
+          )
+        : [await api.queryTargetReportReference(source.code, input)]
+      return {
+        ...pages[0]!,
+        items: pages.flatMap((page) =>
+          page.items.map((item) => ({
+            id: required(
+              source.referenceType === 'COUNTERPARTY' ? item.objectId : item.id,
+            ),
+            name: [item.customerCode, item.customerName, item.code, item.name]
+              .filter(Boolean)
+              .join(' · '),
+          })),
+        ),
+      }
+    }
     if (source.kind === 'vou-source-line') {
-      if (!session.csrfToken) throw new Error('登录已失效，请重新登录。')
-      const page = await api.queryTargetVouSourceLines(session.csrfToken, {
-        targetEntity: source.entity,
-        page: search.page,
-        pageSize: 20,
-        ...(search.keyword ? { keyword: search.keyword } : {}),
+      const page = await api.queryTargetVouSourceLines({
+        param: { entity: source.entity },
+        query: {
+          page: String(search.page),
+          pageSize: '20',
+          ...(search.keyword ? { keyword: search.keyword } : {}),
+        },
       })
       return {
         ...page,

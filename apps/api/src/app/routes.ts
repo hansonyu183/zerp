@@ -667,10 +667,13 @@ export function registerAppRoutes(
         )
         return context.json(response as never, 200)
       }
-      if (action === 'source-line') {
-        const body = context.req.valid('json')
-        const response = await executeVou<unknown>(context, (actor) =>
-          vou!.querySourceLineCandidates(body, actor),
+      if (action === 'source-lines') {
+        const body = context.req.valid('query')
+        const response = await executeVou<unknown>(context, () =>
+          vou!.querySourceLineCandidates({
+            ...body,
+            targetEntity: context.req.valid('param').entity,
+          }),
         )
         return context.json(response as never, 200)
       }
@@ -817,7 +820,11 @@ export function registerAppRoutes(
     withWfl,
     async (action: RptRouteAction, context: any) => {
       if (!rpt) throw new Error('RPT service is unavailable')
-      const input = context.req.valid('json')
+      const input = context.req.valid(
+        action === 'directory' || action === 'referenceQuery'
+          ? 'query'
+          : 'json',
+      )
       const response = await executeCore<unknown>(context, (actor) => {
         if (action === 'directory') return rpt.directory(actor)
         if (action === 'get') return rpt.get(input.subjectId, actor)
@@ -826,8 +833,7 @@ export function registerAppRoutes(
         const code = context.req.valid('param').code
         if (action === 'query')
           return rpt.query(code, input, actor, currentRequestId(context))
-        if (action === 'referenceQuery')
-          return rpt.referenceQuery(code, input, actor)
+        if (action === 'referenceQuery') return rpt.referenceQuery(code, input)
         return rpt.export(
           code,
           input.parameters,

@@ -50,7 +50,7 @@ RPT 拥有单一当前定义、稳定身份与编码、revision、技术有效�
 
 单条 SELECT 或 WITH ... SELECT 在只读事务执行，绑定参数，不拼接值。禁止多语句、写入和 DDL。参数闭集为 TEXT、INTEGER、DECIMAL、BOOLEAN、DATE、DATE_RANGE、ENUM、REFERENCE；结果列闭集为 TEXT、INTEGER、DECIMAL、BOOLEAN、DATE、DATETIME、ID。沿用类型化契约和受控引用源；中文字段名称来自定义，枚举每个 enumValues 值必须由同一定义的 enumCaptions 给出显示名；不回退显示协议原码。布尔值显示是/否。decimal 保持字符串精度。
 
-结果列名称、类型和顺序按定义校验，空结果也验证元数据。查询每页最多 100 条，读取额外一条判定 hasMore；导出最多 100,000 条。查询/导出分别使用 10s/30s statement timeout，1s lock timeout。引用读取也需该报表查询或导出权限。
+结果列名称、类型和顺序按定义校验，空结果也验证元数据。查询每页最多 100 条，读取额外一条判定 hasMore；导出最多 100,000 条。查询/导出分别使用 10s/30s statement timeout，1s lock timeout。引用辅助读取仅要求有效会话，正式查询与导出继续分别授权。
 
 ## 5. 有效性
 
@@ -58,7 +58,7 @@ VALID（有效）、INVALID（无效）是当前定义技术状态。执行前�
 
 ## 6. 权限与页面
 
-报表 stable code 的 query/export 分别精确授权，拥有任一权限可读取该报表参数与列元数据。目录按调用者精确使用权限过滤，不需要额外目录权限。定义创建/保存时同事务登记 query/export 权限，不自动赋予任何普通角色；不可用时保留角色关联。
+报表 stable code 的 query/export 分别精确授权，拥有任一权限可读取该报表参数与列元数据。目录辅助 GET 按调用者精确使用权限过滤，不需要额外目录权限，只返回可展示的参数与列元数据。每张报表的参数候选 GET 只要求有效 Session，不要求 CSRF 或 query/export 替代动作权限；继续验证定义可用性、参数闭集、受控来源与既有账簿范围，不输出 SQL 或完整定义。定义创建/保存时同事务登记 query/export 权限，不自动赋予任何普通角色；不可用时保留角色关联。
 
 真实已授权 rpt/{code} 装配专用查询/导出页，不使用 ListPage。无 query 权限不发起结果查询；只有 export 权限仍可填写参数并导出。查询提交完整参数快照，翻页复用快照；输入变化不自动查询，资源或账号变化销毁实例，过期异步结果不得覆盖新页。
 

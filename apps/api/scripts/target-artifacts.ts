@@ -196,7 +196,6 @@ export function validateTargetRouteMetadata(
     '/vou/intermediary-calculation/source',
     '/vou/intermediary-calculation/script-get',
     '/vou/intermediary-calculation/script-save',
-    '/vou/source-line/query',
     '/vou/inventory-count/book-balance',
     ...[
       'query',
@@ -214,10 +213,8 @@ export function validateTargetRouteMetadata(
       'attachment-cleanup',
     ].map((action) => `/vou/{entity}/${action}`),
     '/wfl/process-instance/action',
-    '/rpt/directory/query',
     '/rpt/{code}/query',
     '/rpt/{code}/export',
-    '/rpt/{code}/reference-query',
   ])
   for (const entry of metadata) {
     const method = entry.method.toUpperCase()

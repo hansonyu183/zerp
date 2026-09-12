@@ -679,7 +679,6 @@ it('submits purchase receipt with the selected exact source and refreshes once',
   useTargetSession().apiPaths = [
     '/vou/purchase-inbound/submit-new',
     '/vou/purchase-inbound/query',
-    '/vou/source-line/query',
   ]
   vi.mocked(api.queryTargetVouchers).mockResolvedValue({
     items: [],
@@ -760,10 +759,7 @@ it('submits purchase receipt with the selected exact source and refreshes once',
 it.each(['sale-return', 'purchase-return'] as const)(
   'requires a reason and exact source document when submitting %s',
   async (entity) => {
-    useTargetSession().apiPaths = [
-      `/vou/${entity}/submit-new`,
-      '/vou/source-line/query',
-    ]
+    useTargetSession().apiPaths = [`/vou/${entity}/submit-new`]
     vi.mocked(api.queryTargetVouOptions).mockImplementation(
       async (entity) =>
         ({
@@ -1115,7 +1111,6 @@ it('submits self production from a fixed formula and retains the reason for an a
 it('adopts the exact order production source and immutable formula', async () => {
   useTargetSession().apiPaths = [
     '/vou/order-production/submit-new',
-    '/vou/source-line/query',
     '/vou/sale-order/get',
   ]
   vi.mocked(api.queryTargetVouOptions).mockResolvedValue({

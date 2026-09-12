@@ -38,15 +38,12 @@ partially_supersedes: ADR-0052, ADR-0056
 | GET /vou/attachment-download/{token}                                                                                  | 使用授权读取动作签发的一次性短期下载凭据，文件传输例外，不属于候选 GET |
 | POST /vou/intermediary-calculation/source、script-get、script-save                                                    | 服务按同名既有能力精确授权，不是辅助读取                               |
 | POST /vou/inventory-count/book-balance                                                                                | 用户主动读取账面，服务按同名能力授权                                   |
-| POST /vou/source-line/query                                                                                           | 后续 #428 迁移；当前保留同名能力授权                                   |
 | POST /vou/{entity}/query、get、audit-history、submit-new、submit-change、approve、reject、unreject、unapprove、delete | 动态路由按实际实体和动作执行既有能力授权                               |
 | POST /wfl/process-instance/action                                                                                     | 按具体流程子动作能力授权                                               |
-| POST /rpt/directory/query                                                                                             | 按现有报表访问权限过滤目录，无独立目录权限                             |
 | POST /rpt/{code}/query、export                                                                                        | 按已发布报表编码的精确动作权限授权                                     |
-| POST /rpt/{code}/reference-query                                                                                      | 后续 #428 迁移，当前沿用既有报表查询权限与参数约束                     |
 
 APP 不整体豁免。其他文件读取入口以实际路由盘点为准，不将传输方式推导成授权豁免。
 
 ## Delivery
 
-#425 在隔离集成分支按 #426、#427、#428 依次完成，每片直接删除其替代的旧入口，最终统一发布。#426 仅迁移 ACC mapping catalog；其余仍存续接口不属于新增兼容层。全量路由与消费者范围见[迁移盘点](../testing/auxiliary-read-migration-matrix.md)。
+#425 在隔离集成分支按 #426、#427、#428 依次完成，每片直接删除其替代的旧入口，最终统一发布。#426 完成 ACC mapping catalog，#427 完成普通实体候选与公共引用组件，#428 完成来源行、报表参数与目录；被替代 POST 不再提供。全量路由与消费者范围见[迁移盘点](../testing/auxiliary-read-migration-matrix.md)。

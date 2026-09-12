@@ -34,9 +34,8 @@ const paymentMethodSelection = paymentMethodSnapshot
   .strict()
 const sourceLineQuery = z
   .object({
-    targetEntity: z.enum(vouSourceLineTargetEntities),
-    page: z.number().int().positive(),
-    pageSize: z.literal(20),
+    page: optionPageInput.shape.page,
+    pageSize: optionPageInput.shape.pageSize,
     keyword: z.string().trim().min(1).max(200).optional(),
     sourceDocumentId: z.string().length(26).optional(),
   })
@@ -1127,6 +1126,34 @@ const vouOptionsRoute = createRoute({
   ),
   request: { ...documentOptionsRoute, params: entityParameter },
 })
+const sourceLinesRoute = createRoute({
+  method: 'get',
+  path: '/vou/{entity}/source-lines',
+  request: {
+    params: z.object({ entity: z.enum(vouSourceLineTargetEntities) }),
+    query: sourceLineQuery,
+  },
+  responses: {
+    200: {
+      description: 'VOU eligible source-line candidates',
+      content: {
+        'application/json': {
+          schema: envelope(
+            z
+              .object({
+                items: z.array(sourceLineCandidate),
+                total: z.number().int().nonnegative(),
+                page: z.number().int().positive(),
+                pageSize: z.literal(20),
+              })
+              .strict(),
+          ),
+        },
+      },
+    },
+  },
+})
+
 export const vouRouteSet = {
   source: intermediaryRoute(
     'source',
@@ -1206,32 +1233,6 @@ export const vouRouteSet = {
       },
     },
   }),
-  'source-line': createRoute({
-    method: 'post',
-    path: '/vou/source-line/query',
-    request: {
-      body: { content: { 'application/json': { schema: sourceLineQuery } } },
-    },
-    responses: {
-      200: {
-        description: 'VOU eligible source-line candidates',
-        content: {
-          'application/json': {
-            schema: envelope(
-              z
-                .object({
-                  items: z.array(sourceLineCandidate),
-                  total: z.number().int().nonnegative(),
-                  page: z.number().int().positive(),
-                  pageSize: z.literal(20),
-                })
-                .strict(),
-            ),
-          },
-        },
-      },
-    },
-  }),
   query: route('query', vouQueryRequestSchema, vouPage),
   get: route('get', identity, vouView),
   'audit-history': route('audit-history', identity, z.array(auditEvent)),
@@ -1256,10 +1257,12 @@ export const vouRouteSet = {
 } as const
 
 export const vouRouteMetadata = [
-  ...[saleOrderLineResolve, customerLatestLine].map((route) => ({
-    method: route.method,
-    path: route.path,
-  })),
+  ...[saleOrderLineResolve, customerLatestLine, sourceLinesRoute].map(
+    (route) => ({
+      method: route.method,
+      path: route.path,
+    }),
+  ),
   { method: vouOptionsRoute.method, path: vouOptionsRoute.path },
   ...Object.keys(vouRouteSet).map((action) => ({
     method: 'post',
@@ -1268,9 +1271,7 @@ export const vouRouteMetadata = [
         ? `/vou/intermediary-calculation/${action}`
         : action === 'book-balance'
           ? '/vou/inventory-count/book-balance'
-          : action === 'source-line'
-            ? '/vou/source-line/query'
-            : `/vou/{entity}/${action}`,
+          : `/vou/{entity}/${action}`,
     title: `VOU ${action}`,
   })),
   {
@@ -1310,7 +1311,6 @@ export const vouCapabilityPermissionMetadata = [
     permission: '/vou/inventory-count/book-balance',
     title: '库存盘点账面预览',
   },
-  { permission: '/vou/source-line/query', title: 'VOU source-line query' },
   {
     permission: '/vou/sale-order/approve-over-credit-limit',
     title: 'VOU sale-order approve over credit limit',
@@ -1336,6 +1336,7 @@ export type VouRouteAction =
   | keyof typeof vouRouteSet
   | 'attachment-download'
   | 'options'
+  | 'source-lines'
   | 'line-resolve'
   | 'customer-latest-line'
 export type VouRouteHandler = (
@@ -1373,8 +1374,8 @@ export function registerVouRoutes<
     (c) => handler('options', c) as never,
   )
   const sourceLine = options.openapi(
-    vouRouteSet['source-line'],
-    (c) => handler('source-line', c) as never,
+    sourceLinesRoute,
+    (c) => handler('source-lines', c) as never,
   )
   const bookBalance = sourceLine.openapi(
     vouRouteSet['book-balance'],

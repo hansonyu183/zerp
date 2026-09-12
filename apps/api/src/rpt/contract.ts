@@ -1,5 +1,6 @@
 import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
 import type { Schema } from 'hono'
+import { optionPageInput } from '../app/options-contract.ts'
 
 import type { TargetRouteEnvironment } from '../app/contract.ts'
 
@@ -10,8 +11,13 @@ const referenceQuery = z
     parameterKey: z.string().regex(/^[a-z][a-zA-Z0-9]{0,63}$/),
     keyword: z.string().max(200).optional(),
     selectedId: z.string().max(64).optional(),
-    page: z.number().int().positive().default(1),
-    pageSize: z.number().int().positive().max(50).default(20),
+    page: optionPageInput.shape.page.default(1),
+    pageSize: z
+      .string()
+      .regex(/^[1-9]\d*$/)
+      .transform(Number)
+      .pipe(z.number().int().max(50))
+      .default(20),
   })
   .strict()
 const reportParameter = z
@@ -175,6 +181,23 @@ function route<
     },
   })
 }
+function auxiliary<
+  const Path extends string,
+  Request extends z.ZodObject,
+  Response extends z.ZodType,
+>(path: Path, query: Request, response: Response, params?: z.ZodObject) {
+  return createRoute({
+    method: 'get',
+    path,
+    request: { query, ...(params ? { params } : {}) },
+    responses: {
+      200: {
+        description: path,
+        content: { 'application/json': { schema: response } },
+      },
+    },
+  })
+}
 export const rptRouteSet = {
   get: route(
     '/rpt/definition/get',
@@ -186,8 +209,8 @@ export const rptRouteSet = {
     definitionInput,
     envelope(definitionResult),
   ),
-  directory: route(
-    '/rpt/directory/query',
+  directory: auxiliary(
+    '/rpt/directory/options',
     z.object({}).strict(),
     envelope(z.array(directoryItem)),
   ),
@@ -209,7 +232,7 @@ export const rptRouteSet = {
     envelope(exportResult),
     codeParameter,
   ),
-  referenceQuery: route(
+  referenceQuery: auxiliary(
     '/rpt/{code}/reference-query',
     referenceQuery,
     envelope(referencePage),
@@ -230,14 +253,14 @@ export const rptRouteMetadata = [
     title: '报表定义保存',
   },
   {
-    method: 'post',
-    path: '/rpt/directory/query',
+    method: 'get',
+    path: '/rpt/directory/options',
     title: '报表目录',
   },
   { method: 'post', path: '/rpt/{code}/query', title: '报表查询' },
   { method: 'post', path: '/rpt/{code}/export', title: '报表导出' },
   {
-    method: 'post',
+    method: 'get',
     path: '/rpt/{code}/reference-query',
     title: '报表参数引用',
   },

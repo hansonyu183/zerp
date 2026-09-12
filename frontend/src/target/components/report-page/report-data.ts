@@ -1,17 +1,10 @@
 import { toRaw } from 'vue'
-import {
-  queryTargetReportDirectory,
-  queryTargetReportReference,
-  TargetApiError,
-} from '../../api.ts'
+import { queryTargetReportDirectory, TargetApiError } from '../../api.ts'
 export type Definition = Awaited<
   ReturnType<typeof queryTargetReportDirectory>
 >[number]
 type Parameter = Definition['parameters'][number]
 type Column = Definition['columns'][number]
-export type ReferenceItem = Awaited<
-  ReturnType<typeof queryTargetReportReference>
->['items'][number]
 const errors: Record<string, string> = {
   rpt_permission_denied: '没有此操作权限。',
   forbidden: '没有此操作权限。',

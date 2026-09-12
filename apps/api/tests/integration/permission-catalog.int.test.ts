@@ -224,7 +224,18 @@ test('removing catalog authority preserves unrelated IDs, advances affected role
     action: 'query',
     title: '旧引用候选',
   }))
-  const removed = [legacy, ...removedReferences]
+  const removed = [
+    legacy,
+    ...removedReferences,
+    {
+      id: `Q${suffix}`.padEnd(26, '0'),
+      path: '/vou/source-line/query',
+      domain: 'vou',
+      entity: 'source-line',
+      action: 'query',
+      title: '旧来源行候选',
+    },
+  ]
   const unrelated = desired.find((entry) => entry.path === '/app/user/query')!
   const beforeId = (
     await db

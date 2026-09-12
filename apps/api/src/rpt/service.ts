@@ -671,14 +671,12 @@ export class RptService {
           updated_by: actorId,
         })
         .onConflict((c) =>
-          c
-            .column('path')
-            .doUpdateSet({
-              description: name,
-              status,
-              updated_by: actorId,
-              updated_at: new Date(),
-            }),
+          c.column('path').doUpdateSet({
+            description: name,
+            status,
+            updated_by: actorId,
+            updated_at: new Date(),
+          }),
         )
         .execute()
     }
@@ -821,13 +819,7 @@ export class RptService {
       page: number
       pageSize: number
     },
-    actor: ApprovalActor,
   ): Promise<RptReferencePage> {
-    if (
-      actor.trusted !== true &&
-      !actor.permissions.includes(`/rpt/${code}/export`)
-    )
-      requirePermission(actor, `/rpt/${code}/query`)
     if (
       !/^[a-z][a-zA-Z0-9]{0,63}$/.test(input.parameterKey) ||
       input.page < 1 ||
@@ -839,7 +831,12 @@ export class RptService {
       throw new RptApplicationError('rpt_reference_query_invalid')
     if (input.selectedId !== undefined && input.selectedId.length > 64)
       throw new RptApplicationError('rpt_reference_query_invalid')
-    const definition = await this.definitionByCode(this.db, code)
+    const definition = await this.enabledDefinitionByCode(this.db, code)
+    try {
+      await this.validator.validate(definition)
+    } catch (error) {
+      throw this.definitionValidationError(error)
+    }
     const parameter = definition.parameters.find(
       (item) => item.key === input.parameterKey,
     )
@@ -861,10 +858,10 @@ export class RptService {
     if (!source) throw new RptApplicationError('rpt_reference_unavailable')
     const keyword = input.keyword?.trim()
     const selectedId = input.selectedId?.trim()
-    const filter = keyword
-      ? sql`(code ILIKE ${`%${keyword}%`} OR name ILIKE ${`%${keyword}%`})${selectedId ? sql` OR id = ${selectedId}` : sql``}`
-      : selectedId
-        ? sql`id = ${selectedId} OR TRUE`
+    const filter = selectedId
+      ? sql`id = ${selectedId}`
+      : keyword
+        ? sql`(code ILIKE ${`%${keyword}%`} OR name ILIKE ${`%${keyword}%`})`
         : sql`TRUE`
     const offset = (input.page - 1) * input.pageSize
     const page = await this.db.transaction().execute(async (tx) => {
@@ -915,7 +912,7 @@ export class RptService {
       )
   }
 
-  private async definitionByCode(
+  private async enabledDefinitionByCode(
     executor: Executor,
     code: string,
   ): Promise<RptDefinition> {
@@ -923,17 +920,29 @@ export class RptService {
     const definition = definitions.find((item) => item.code === code)
     if (!definition)
       throw new RptApplicationError('rpt_definition_not_executable')
+    return definition
+  }
+
+  private async definitionByCode(
+    executor: Executor,
+    code: string,
+  ): Promise<RptDefinition> {
+    const definition = await this.enabledDefinitionByCode(executor, code)
     try {
       await this.validator.validate(definition)
     } catch (error) {
       await this.invalidate(definition, error)
-      throw new RptApplicationError(
-        this.deterministic(error)
-          ? 'rpt_definition_not_executable'
-          : 'rpt_execution_failed',
-      )
+      throw this.definitionValidationError(error)
     }
     return definition
+  }
+
+  private definitionValidationError(error: unknown) {
+    return new RptApplicationError(
+      this.deterministic(error)
+        ? 'rpt_definition_not_executable'
+        : 'rpt_execution_failed',
+    )
   }
 
   private referenceSource(referenceType: RptReferenceType): string | undefined {

@@ -462,4 +462,4 @@ VOU 在同一事务内发布创建、保存、状态变化和删除事件。WFL 
 
 ## 普通引用候选
 
-普通资料候选使用资料所属领域实体的 GET options，普通单据候选使用所属单据 GET options。有效 Session 无须候选或管理动作权限；正式 POST 查询、详情和提交保持原授权与事务校验。采用的精确 Approval Entry 和快照在用户未更换引用时保持不变。共享 reference 资源删除；来源行的专属规则与调用在后续切片迁移。
+普通资料候选使用资料所属领域实体的 GET options，普通单据候选使用所属单据 GET options。有效 Session 无须候选或管理动作权限；正式 POST 查询、详情和提交保持原授权与事务校验。采用的精确 Approval Entry 和快照在用户未更换引用时保持不变。共享 reference 与独立 source-line 资源删除。来源行由 sale-return、purchase-inbound、purchase-return、order-production 使用方单据的 GET source-lines 提供；有效 Session 无须独立或替代动作权限，不要求 CSRF。候选读取只计算事实，不预占数量；正式提交仍在同一事务重验来源链、根订单和剩余数量，保留原稳定错误。

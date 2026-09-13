@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTheme } from 'vuetify'
+import { findThemePreset, themePresets } from '../plugins/themes.ts'
 
 import { actionIcons } from '../presentation/action-icons.ts'
 import { presentNavigation } from '../presentation/navigation-icons.ts'
@@ -50,7 +51,10 @@ const pageTitle = computed(
     currentResource.value?.displayName ??
     String(route.meta.title || '业务功能'),
 )
-const isDark = computed(() => theme.global.name.value === 'zerpDark')
+const selectedTheme = computed(() => findThemePreset(theme.global.name.value))
+const isDark = computed(
+  () => theme.global.name.value === selectedTheme.value?.dark,
+)
 async function openProfile(): Promise<void> {
   const request = ++accountRequest
   accountError.value = null
@@ -195,14 +199,15 @@ watch(
 )
 
 function toggleTheme(): void {
-  const next = isDark.value ? 'zerpLight' : 'zerpDark'
+  const preset = selectedTheme.value
+  if (preset) changeTheme(isDark.value ? preset.light : preset.dark)
+}
+
+function changeTheme(next: string): void {
   theme.change(next)
   localStorage.setItem('zerp-theme', next)
 }
 
-const savedTheme = localStorage.getItem('zerp-theme')
-if (savedTheme === 'zerpDark' || savedTheme === 'zerpLight')
-  theme.change(savedTheme)
 void branding.load()
 
 async function handlePageShow(event: PageTransitionEvent): Promise<void> {
@@ -248,6 +253,31 @@ onBeforeUnmount(() => {
       </div>
     </div>
     <v-spacer />
+    <v-menu location="bottom end">
+      <template #activator="{ props }">
+        <v-btn
+          v-bind="props"
+          :icon="actionIcons.theme"
+          aria-label="切换主题"
+          variant="text"
+        >
+          <v-icon :icon="actionIcons.theme" />
+          <v-tooltip activator="parent" location="bottom">切换主题</v-tooltip>
+        </v-btn>
+      </template>
+      <v-list aria-label="主题" :selected="[selectedTheme?.name]">
+        <v-list-item
+          v-for="preset in themePresets"
+          :key="preset.name"
+          :value="preset.name"
+          :title="preset.name"
+          :append-icon="
+            preset === selectedTheme ? actionIcons.confirm : undefined
+          "
+          @click="changeTheme(isDark ? preset.dark : preset.light)"
+        />
+      </v-list>
+    </v-menu>
     <v-btn
       :icon="isDark ? actionIcons.lightTheme : actionIcons.darkTheme"
       :aria-label="isDark ? '切换浅色模式' : '切换深色模式'"
@@ -255,12 +285,9 @@ onBeforeUnmount(() => {
       @click="toggleTheme"
       ><v-icon
         :icon="isDark ? actionIcons.lightTheme : actionIcons.darkTheme"
-      /><v-tooltip
-        activator="parent"
-        location="bottom"
-        content-class="bg-surface elevation-4"
-        >{{ isDark ? '切换浅色模式' : '切换深色模式' }}</v-tooltip
-      ></v-btn
+      /><v-tooltip activator="parent" location="bottom">{{
+        isDark ? '切换浅色模式' : '切换深色模式'
+      }}</v-tooltip></v-btn
     >
     <v-menu location="bottom end"
       ><template #activator="{ props }"
@@ -291,7 +318,6 @@ onBeforeUnmount(() => {
     ></v-menu>
   </v-app-bar>
   <v-navigation-drawer v-model="drawer" width="288">
-    <div class="sidebar-label">导航</div>
     <NavigationMenu :groups="navigation" />
     <template #append
       ><div class="sidebar-footer">ZERP · 企业工作台</div></template
@@ -379,7 +405,7 @@ onBeforeUnmount(() => {
 .company__copy span {
   max-width: 240px;
   overflow: hidden;
-  color: rgb(var(--v-theme-on-surface-variant));
+  color: rgb(var(--v-theme-muted));
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -388,11 +414,10 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 8px;
 }
-.sidebar-label,
 .sidebar-footer,
 .page-heading {
   padding: 18px 24px;
-  color: rgb(var(--v-theme-on-surface-variant));
+  color: rgb(var(--v-theme-muted));
   font-size: 13px;
 }
 .page-heading {

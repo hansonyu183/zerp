@@ -20,7 +20,7 @@
   }
 
   .v-table::after {
-    color: rgb(var(--v-theme-on-surface-variant));
+    color: rgb(var(--v-theme-muted));
     content: '← 左右滑动查看全部列 →';
     display: block;
     font-size: 0.75rem;

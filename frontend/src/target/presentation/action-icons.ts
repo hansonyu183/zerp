@@ -16,6 +16,7 @@ export const actionIcons = {
   open: 'mdi-eye-outline',
   refresh: 'mdi-refresh',
   navigation: 'mdi-menu',
+  theme: 'mdi-palette-outline',
   lightTheme: 'mdi-weather-sunny',
   darkTheme: 'mdi-weather-night',
   account: 'mdi-account-edit-outline',

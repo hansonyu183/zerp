@@ -1,8 +1,8 @@
-import type { SupplierData, SalesPartnerData } from '@zerp/model'
+import type { OtherUnitData, SalesPartnerData } from '@zerp/model'
 export const identityKindLabels = {
   PERSON: '个人',
   ORGANIZATION: '组织',
-} satisfies Record<SupplierData['identityKind'], string>
+} satisfies Record<OtherUnitData['identityKind'], string>
 export const identityKindOptions = Object.entries(identityKindLabels).map(
   ([value, caption]) => ({ value, caption }),
 )

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { computed } from 'vue'
-import { useTargetSession } from '../../session/vm.ts'
 import {
   customerAttributionLabels,
   type CustomerSnapshot,
@@ -12,13 +11,13 @@ import DetailBlock from '../dynamic-fields/DetailBlock.vue'
 import SnapshotReference from '../dynamic-fields/SnapshotReference.vue'
 import CustomerPricingBlock from './CustomerPricingBlock.vue'
 import type { EditFields } from '../dynamic-fields/edit-fields.ts'
-type Subunit = CustomerSnapshot['subunits'][number]
+type Business = CustomerSnapshot
 const props = defineProps<{
-  modelValue: Subunit
+  modelValue: Business
   disabled: boolean
 }>()
 const emit = defineEmits<{
-  'update:modelValue': [value: Subunit]
+  'update:modelValue': [value: Business]
   pending: [value: boolean]
 }>()
 const pendingUploads = new Set<string>()
@@ -27,27 +26,22 @@ function pending(key: string, value: boolean) {
   else pendingUploads.delete(key)
   emit('pending', pendingUploads.size > 0)
 }
-const session = useTargetSession()
-const readonly = computed(
-  () => props.disabled || !session.can('/dcl/customer/save-subunits'),
-)
+const readonly = computed(() => props.disabled)
 const fields = [
-  { key: 'name', type: 'text', caption: '子单位名称', required: true },
   { key: 'contactName', type: 'text', caption: '联系人' },
   { key: 'address', type: 'textarea', caption: '业务地址' },
-  { key: 'enabled', type: 'boolean', caption: '子单位启用（随本次版本审批）' },
   { key: 'internalReminder', type: 'textarea', caption: '内部提醒' },
   {
     key: 'defaultSalesOrderRemark',
     type: 'textarea',
     caption: '默认销售订单备注',
   },
-] as const satisfies EditFields<Subunit>
+] as const satisfies EditFields<Business>
 const transport = [
   { key: 'methodCode', type: 'text', caption: '运输方式编码' },
   { key: 'methodName', type: 'text', caption: '运输方式名称' },
   { key: 'surcharge', type: 'decimal', scale: 2, caption: '运输销售加价' },
-] as const satisfies EditFields<Subunit['transportPolicy']>
+] as const satisfies EditFields<Business['transportPolicy']>
 const creditDefinition = {
   caption: '信用额度',
   fields: [
@@ -63,16 +57,16 @@ const creditDefinition = {
   empty: { currency: 'CNY', amount: '0.00' },
 } as const satisfies {
   caption: string
-  fields: EditFields<Subunit['creditLimits'][number]>
-  empty: Subunit['creditLimits'][number]
+  fields: EditFields<Business['creditLimits'][number]>
+  empty: Business['creditLimits'][number]
 }
-function update(value: Subunit) {
+function update(value: Business) {
   if (!readonly.value) emit('update:modelValue', value)
 }
-function patch(value: Partial<Subunit>) {
-  update({ ...props.modelValue, ...value } as Subunit)
+function patch(value: Partial<Business>) {
+  update({ ...props.modelValue, ...value } as Business)
 }
-function attributionType(type: Subunit['primarySalesAttribution']['type']) {
+function attributionType(type: Business['primarySalesAttribution']['type']) {
   patch({
     primarySalesAttribution:
       type === 'INTERNAL_EMPLOYEE'
@@ -87,7 +81,7 @@ function attribution(value: object | readonly object[] | null) {
     primarySalesAttribution: {
       ...value,
       type: sub.primarySalesAttribution.type,
-    } as Subunit['primarySalesAttribution'],
+    } as Business['primarySalesAttribution'],
   })
 }
 </script>
@@ -193,7 +187,7 @@ function attribution(value: object | readonly object[] | null) {
       mode="edit"
       :disabled="readonly"
       @update:model-value="patch({ attachments: $event })"
-      @pending="pending(modelValue.id, $event)"
+      @pending="pending('attachments', $event)"
     />
   </div>
 </template>

@@ -1,3 +1,4 @@
+import { taxInformationPage } from '../definitions/tax-information.ts'
 import { processDefinitionPage } from '../definitions/process-definition.ts'
 import { productPage, productChangesPage } from '../definitions/product.ts'
 import { customerPage, customerChangesPage } from '../definitions/customer.ts'
@@ -127,6 +128,20 @@ export const targetResourceRegistry = createResourceRegistry(
       useCaseKey: 'vou/purchase-order',
     },
     {
+      domain: 'vou',
+      entity: 'sale-invoice',
+      vouType: 'sale-invoice',
+      definition: voucherDefinitions['sale-invoice'],
+      useCaseKey: 'vou/invoice-management',
+    },
+    {
+      domain: 'vou',
+      entity: 'purchase-invoice',
+      vouType: 'purchase-invoice',
+      definition: voucherDefinitions['purchase-invoice'],
+      useCaseKey: 'vou/invoice-management',
+    },
+    {
       domain: 'wfl',
       entity: 'process-instance',
       definition: processInstancePage,
@@ -184,6 +199,12 @@ export const targetResourceRegistry = createResourceRegistry(
       domain: 'aux',
       entity: 'asset-category',
       definition: assetCategoryPage,
+      useCaseKey: 'aux/basic-maintenance',
+    },
+    {
+      domain: 'aux',
+      entity: 'tax-information',
+      definition: taxInformationPage,
       useCaseKey: 'aux/basic-maintenance',
     },
     {

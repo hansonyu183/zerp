@@ -77,7 +77,6 @@ const can = (action: string) =>
       'unreject',
       'unapprove',
       'delete',
-      'save-subunits',
       'attachment-stage',
     ].includes(action)
   ) &&
@@ -197,11 +196,7 @@ const attachments = createAttachments(
 )
 provide(attachmentScope, attachments.scope)
 const attachmentReading = ref(false)
-const canCreate = computed(
-  () =>
-    can('submit-new') &&
-    (!definition.resource.endsWith('/customer') || can('save-subunits')),
-)
+const canCreate = computed(() => can('submit-new'))
 const canChange = computed(() => can('submit-change') && can('versions'))
 const previousVersion = computed(() =>
   selected.value
@@ -572,10 +567,7 @@ async function submit() {
     busy.value = true
     try {
       const customer = command.snapshot as unknown as CustomerSnapshot
-      await attachments.prepare([
-        ...customer.identityAttachments,
-        ...customer.subunits.flatMap((item) => item.attachments),
-      ])
+      await attachments.prepare([...customer.attachments])
     } catch (cause) {
       if (owns()) error.value = message(cause)
       return

@@ -200,9 +200,8 @@ test('creates and clones sales and purchase orders from real menu candidates, in
       await page.getByRole('option').filter({ hasText: name }).first().click()
     }
     await choose(
-      entity === 'sale-order' ? '客户子单位' : '供应商',
-      references[entity === 'sale-order' ? 'customerSubunit' : 'supplier']!
-        .name,
+      entity === 'sale-order' ? '客户' : '供应商',
+      references[entity === 'sale-order' ? 'customer' : 'supplier']!.name,
     )
     await choose('仓库', references.warehouse!.name)
     if (entity === 'sale-order')

@@ -6,7 +6,6 @@ import type { Kysely } from 'kysely'
 
 import { createApp } from '../src/app.ts'
 import { targetRouteMetadata } from '../src/app/routes.ts'
-import { archiveCapabilityPermissionMetadata } from '../src/dcl/archive-contract.ts'
 import { vouCapabilityPermissionMetadata } from '../src/vou/contract.ts'
 import { wflCapabilityPermissionMetadata } from '../src/wfl/contract.ts'
 import { SessionService } from '../src/app/session.ts'
@@ -144,7 +143,6 @@ export function permissionCatalog(
 export async function generateTargetArtifacts(): Promise<void> {
   const { document, paths } = executableTargetPaths()
   const catalog = validateTargetRouteMetadata(paths, targetRouteMetadata, [
-    ...archiveCapabilityPermissionMetadata,
     ...vouCapabilityPermissionMetadata,
     ...wflCapabilityPermissionMetadata,
   ])

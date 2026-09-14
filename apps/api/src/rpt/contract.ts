@@ -42,7 +42,7 @@ const reportParameter = z
       .enum([
         'ACCOUNTING_BOOK',
         'ACCOUNT_SUBJECT',
-        'CUSTOMER_SUBUNIT',
+        'CUSTOMER',
         'SUPPLIER',
         'OTHER_UNIT',
         'EMPLOYEE',

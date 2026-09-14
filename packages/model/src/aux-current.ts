@@ -160,3 +160,20 @@ export const auxCurrentEntities = [
   'vehicle',
 ] as const
 export type AuxCurrentEntity = (typeof auxCurrentEntities)[number]
+
+/** Shared tax content adopted independently by archive versions and invoices. */
+export interface TaxInformationData {
+  name: string
+  taxNumber: string
+  registeredAddress: string
+  phone: string
+  bank: string
+  accountNumber: string
+  remark: string
+}
+
+export interface TaxInformationSnapshot extends TaxInformationData {
+  id: string
+  code: string
+  revision: string
+}

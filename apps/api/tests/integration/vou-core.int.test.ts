@@ -68,7 +68,7 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
     material: ulid(),
     warehouse: ulid(),
   }
-  const customerSubunitId = ulid()
+  const customerId = subjectIds.customer
   const documentIds: string[] = []
 
   context.after(async () => {
@@ -241,24 +241,7 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
     .insertInto('dcl_customer_versions')
     .values({
       approval_entry_id: approvalIds.customer,
-      kind: 'ENTERPRISE',
       display_name: '单位快照客户',
-    })
-    .execute()
-  await db
-    .insertInto('dcl_customer_subunit_roots')
-    .values({
-      subunit_id: customerSubunitId,
-      customer_id: subjectIds.customer,
-      code: `SUB-${codeSuffix}`,
-    })
-    .execute()
-  await db
-    .insertInto('dcl_customer_version_subunits')
-    .values({
-      customer_approval_entry_id: approvalIds.customer,
-      subunit_id: customerSubunitId,
-      name: '单位快照客户总部',
       customer_type_id: customerTypeId,
       customer_type_snapshot: JSON.stringify({
         id: customerTypeId,
@@ -266,9 +249,13 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
         name: '测试客户类型',
       }),
       payment_snapshot: null,
-      enabled: true,
+      credit_limits: JSON.stringify([]),
+      attachments: JSON.stringify([]),
+      remittance_profiles: JSON.stringify([]),
+      tax_information: JSON.stringify([]),
     })
     .execute()
+
   await db
     .insertInto('dcl_product_versions')
     .values([
@@ -308,8 +295,8 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
     businessDate: '2026-09-07',
     currency: 'CNY',
     attachments: [],
-    customerSubunit: {
-      objectId: customerSubunitId,
+    customer: {
+      objectId: customerId,
       approvalEntryId: approvalIds.customer,
       selectionOrigin: 'CURRENT' as const,
     },
@@ -372,7 +359,7 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
 
   const first = await submit(productLine(unitV1, '1.200000'))
   const latestLine = await vou.saleOrderLine({
-    customerSubunitId,
+    customerId,
     productId: subjectIds.product,
   })
   assert.equal(latestLine?.documentId, first.documentId)
@@ -382,7 +369,7 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
   )
   assert.equal(
     await vou.saleOrderLine({
-      customerSubunitId: ulid(),
+      customerId: ulid(),
       productId: subjectIds.product,
     }),
     null,
@@ -776,7 +763,6 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
   const supplierApprovalId = ulid()
   const customerId = ulid()
   const customerApprovalId = ulid()
-  const customerSubunitId = ulid()
   const assetCategoryId = ulid()
   const productCode = `PRD-${Math.floor(Math.random() * 10_000)
     .toString()
@@ -977,24 +963,7 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     .insertInto('dcl_customer_versions')
     .values({
       approval_entry_id: customerApprovalId,
-      kind: 'ENTERPRISE',
       display_name: '历史客户',
-    })
-    .execute()
-  await db
-    .insertInto('dcl_customer_subunit_roots')
-    .values({
-      subunit_id: customerSubunitId,
-      customer_id: customerId,
-      code: 'SNAP-1',
-    })
-    .execute()
-  await db
-    .insertInto('dcl_customer_version_subunits')
-    .values({
-      customer_approval_entry_id: customerApprovalId,
-      subunit_id: customerSubunitId,
-      name: '历史子单位',
       customer_type_id: customerTypeId,
       customer_type_snapshot: JSON.stringify({
         id: customerTypeId,
@@ -1002,9 +971,13 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
         name: '测试客户类型',
       }),
       payment_snapshot: null,
-      enabled: true,
+      credit_limits: JSON.stringify([]),
+      attachments: JSON.stringify([]),
+      remittance_profiles: JSON.stringify([]),
+      tax_information: JSON.stringify([]),
     })
     .execute()
+
   await db
     .insertInto('dcl_product_versions')
     .values({
@@ -1098,8 +1071,8 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     businessDate: '2026-09-04',
     currency: 'CNY',
     attachments: [],
-    customerSubunit: {
-      objectId: customerSubunitId,
+    customer: {
+      objectId: customerId,
       approvalEntryId: customerApprovalId,
       selectionOrigin: 'CURRENT' as const,
     },
@@ -1677,11 +1650,11 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
         currency: 'CNY',
         attachments: [],
         counterparty: {
-          objectId: customerSubunitId,
+          objectId: customerId,
           approvalEntryId: customerApprovalId,
           selectionOrigin: 'CURRENT' as const,
         },
-        counterpartyType: 'customer-subunit' as const,
+        counterpartyType: 'customer' as const,
         assetSaleLines: [
           { assetId: registeredAssetId, saleAmount: `${index + 1}.00` },
         ],
@@ -1750,7 +1723,7 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
       filters: {
         dateFrom: '2099-12-31',
         dateTo: '2099-12-31',
-        counterpartyObjectId: customerSubunitId,
+        counterpartyObjectId: customerId,
       },
       sort: [{ field: 'documentNo', order: 'desc' }],
     },
@@ -2304,7 +2277,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
       error.errorKey === 'vou_reference_unavailable',
   )
   const customerId = ulid(),
-    subunitId = ulid(),
+    subunitId = customerId,
     customerOldApprovalId = ulid(),
     customerCurrentApprovalId = ulid()
   const code = (prefix: string) =>
@@ -2357,53 +2330,25 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
     .execute()
   await db
     .insertInto('dcl_customer_versions')
-    .values([
-      {
-        approval_entry_id: customerOldApprovalId,
-        kind: 'ENTERPRISE',
-        display_name: '历史客户',
-      },
-      {
-        approval_entry_id: customerCurrentApprovalId,
-        kind: 'ENTERPRISE',
-        display_name: '当前客户',
-      },
-    ])
-    .execute()
-  await db
-    .insertInto('dcl_customer_subunit_roots')
-    .values({ subunit_id: subunitId, customer_id: customerId, code: 'S-1' })
-    .execute()
-  await db
-    .insertInto('dcl_customer_version_subunits')
-    .values([
-      {
-        customer_approval_entry_id: customerOldApprovalId,
-        subunit_id: subunitId,
-        name: '历史子单位',
-        customer_type_id: customerTypeId,
-        customer_type_snapshot: JSON.stringify({
-          id: customerTypeId,
-          code: 'CUSTOMER-TYPE-TEST',
-          name: '测试客户类型',
+    .values(
+      [customerOldApprovalId, customerCurrentApprovalId].map(
+        (approval_entry_id, index) => ({
+          approval_entry_id,
+          display_name: index ? '当前客户' : '历史客户',
+          customer_type_id: customerTypeId,
+          customer_type_snapshot: JSON.stringify({
+            id: customerTypeId,
+            code: 'CUSTOMER-TYPE-TEST',
+            name: '测试客户类型',
+          }),
+          payment_snapshot: null,
+          credit_limits: '[]',
+          attachments: '[]',
+          remittance_profiles: '[]',
+          tax_information: '[]',
         }),
-        payment_snapshot: null,
-        enabled: true,
-      },
-      {
-        customer_approval_entry_id: customerCurrentApprovalId,
-        subunit_id: subunitId,
-        name: '当前子单位',
-        customer_type_id: customerTypeId,
-        customer_type_snapshot: JSON.stringify({
-          id: customerTypeId,
-          code: 'CUSTOMER-TYPE-TEST',
-          name: '测试客户类型',
-        }),
-        payment_snapshot: null,
-        enabled: true,
-      },
-    ])
+      ),
+    )
     .execute()
   const currentFundAccount = await aux.create(
     'fund-account',
@@ -2427,7 +2372,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
     currency: 'CNY',
     attachments: [],
     amount: '1.00',
-    counterpartyType: 'customer-subunit' as const,
+    counterpartyType: 'customer' as const,
     counterparty: { objectId: subunitId, approvalEntryId, selectionOrigin },
     fundAccount: {
       objectId: currentFundAccount.id,
@@ -2991,8 +2936,7 @@ test('entity-owned candidates use session without CSRF and return current typed 
     ])
     .execute()
   const customerId = ulid(),
-    customerApprovalId = ulid(),
-    customerSubunitId = ulid()
+    customerApprovalId = ulid()
   const customerKeyword = `VOU 候选客户-${customerId.slice(-6)}`
   const customerCode = `CUS-${referenceProductCode.slice(4)}`
   subjectIds.push(customerId)
@@ -3028,24 +2972,7 @@ test('entity-owned candidates use session without CSRF and return current typed 
     .insertInto('dcl_customer_versions')
     .values({
       approval_entry_id: customerApprovalId,
-      kind: 'MAINLAND_ENTERPRISE',
       display_name: customerKeyword,
-    })
-    .execute()
-  await db
-    .insertInto('dcl_customer_subunit_roots')
-    .values({
-      subunit_id: customerSubunitId,
-      customer_id: customerId,
-      code: `SUB-${customerSubunitId.slice(-6)}`,
-    })
-    .execute()
-  await db
-    .insertInto('dcl_customer_version_subunits')
-    .values({
-      customer_approval_entry_id: customerApprovalId,
-      subunit_id: customerSubunitId,
-      name: `${customerKeyword}总部`,
       customer_type_id: customerTypeId,
       customer_type_snapshot: JSON.stringify({
         id: customerTypeId,
@@ -3053,9 +2980,13 @@ test('entity-owned candidates use session without CSRF and return current typed 
         name: '测试客户类型',
       }),
       payment_snapshot: null,
-      enabled: true,
+      credit_limits: JSON.stringify([]),
+      attachments: JSON.stringify([]),
+      remittance_profiles: JSON.stringify([]),
+      tax_information: JSON.stringify([]),
     })
     .execute()
+
   const unitId = ulid(),
     disabledUnitId = ulid(),
     assetCategoryId = ulid(),
@@ -3267,7 +3198,7 @@ test('entity-owned candidates use session without CSRF and return current typed 
   assert.equal(forbidden.errorKey, 'forbidden')
   const latest = (await (
     await fetch(
-      `${origin}/vou/sale-order/customer-latest-line?${new URLSearchParams({ customerSubunitId, productId })}`,
+      `${origin}/vou/sale-order/customer-latest-line?${new URLSearchParams({ customerId, productId })}`,
       {
         headers: {
           cookie: deniedSession.cookie,
@@ -3309,20 +3240,18 @@ test('entity-owned candidates use session without CSRF and return current typed 
     ),
     false,
   )
-  const customerSubunits = await options(
-    allowed,
-    '/bob/customer/subunit-options',
-    { enabled: 'true', keyword: customerKeyword },
-  )
-  assert.deepEqual(customerSubunits.data.items, [
+  const customers = await options(allowed, '/bob/customer/options', {
+    enabled: 'true',
+    keyword: customerKeyword,
+  })
+  assert.deepEqual(customers.data.items, [
     {
       enabled: true,
       sourceVersionNo: 1,
-      objectId: customerSubunitId,
-      customerId,
+      objectId: customerId,
       sourceApprovalEntryId: customerApprovalId,
-      code: `SUB-${customerSubunitId.slice(-6)}`,
-      name: `${customerKeyword}总部`,
+      code: customerCode,
+      name: customerKeyword,
       paymentMethod: null,
     },
   ])

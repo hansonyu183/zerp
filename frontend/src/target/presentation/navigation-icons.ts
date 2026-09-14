@@ -89,6 +89,7 @@ const resources: Record<string, NavigationIcon> = {
   'aux/measurement-unit': 'measure',
   'aux/income-expense-type': 'income',
   'aux/asset-category': 'asset',
+  'aux/tax-information': 'asset',
   'aux/operating-entity': 'unit',
   'aux/employee': 'employee',
   'aux/warehouse': 'warehouse',
@@ -104,6 +105,8 @@ const resources: Record<string, NavigationIcon> = {
   'rpt/definition': 'report',
 }
 const vouchers = {
+  'sale-invoice': 'sale',
+  'purchase-invoice': 'purchase',
   'sale-pricing': 'sale',
   'sale-order': 'sale',
   'sale-outbound': 'sale',

@@ -6,10 +6,7 @@ import type { DetailFields } from '../details/detail-fields.ts'
 import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { ref, onBeforeUnmount, onMounted, nextTick } from 'vue'
 import { ulid } from 'ulid'
-import {
-  resolveTargetCustomerSubunit,
-  resolveTargetSupplier,
-} from '../../api.ts'
+import { resolveTargetCustomer, resolveTargetSupplier } from '../../api.ts'
 import { useTargetSession } from '../../session/vm.ts'
 import { vouPaymentMethodSelectionOriginPresentation } from '@zerp/model'
 import FormBlock from '../dynamic-fields/FormBlock.vue'
@@ -86,7 +83,7 @@ async function counterparty(choice: VouCandidate | null) {
     counterparty: choice,
     selectionOrigin: 'CURRENT',
     paymentMethod:
-      choice?.entity === 'customer-subunit' && choice.paymentMethod
+      choice?.entity === 'customer' && choice.paymentMethod
         ? { ...choice.paymentMethod, selectionOrigin: 'CUSTOMER' }
         : null,
   })
@@ -98,28 +95,24 @@ async function counterparty(choice: VouCandidate | null) {
   pending.value.add('counterparty')
   emit('pending', true)
   try {
-    if (sale && choice.entity === 'customer-subunit') {
-      const customer = await resolveTargetCustomerSubunit(
+    if (sale && choice.entity === 'customer') {
+      const customer = await resolveTargetCustomer(
         choice.objectId,
         choice.approvalEntryId,
       )
       if (!owns() || request !== counterpartyRequest) return
-      const subunit = customer.data.subunits.find(
-        (item) => item.id === choice.objectId,
-      )
       if (
         !customer.enabled ||
-        !subunit?.enabled ||
         customer.sourceApprovalEntryId !== choice.approvalEntryId
       )
-        throw new Error('客户版本已变化，请重新选择客户子单位。')
-      reminder.value = subunit.internalReminder
+        throw new Error('客户版本已变化，请重新选择客户。')
+      reminder.value = customer.data.internalReminder
       defaultSurcharge.value =
-        subunit.settlementMethod?.defaultSalesSurcharge ?? null
-      const attribution = subunit.primarySalesAttribution
+        customer.data.settlementMethod?.defaultSalesSurcharge ?? null
+      const attribution = customer.data.primarySalesAttribution
       update({
         ...(props.modelValue.remark === previousRemark
-          ? { remark: subunit.defaultSalesOrderRemark }
+          ? { remark: customer.data.defaultSalesOrderRemark }
           : {}),
         ...(attribution?.type === 'INTERNAL_EMPLOYEE'
           ? {
@@ -238,10 +231,8 @@ onBeforeUnmount(() => {
       @update:model-value="update($event)"
     />
     <VouReference
-      :entity="
-        modelValue.entity === 'sale-order' ? 'customer-subunit' : 'supplier'
-      "
-      :caption="modelValue.entity === 'sale-order' ? '客户子单位' : '供应商'"
+      :entity="modelValue.entity === 'sale-order' ? 'customer' : 'supplier'"
+      :caption="modelValue.entity === 'sale-order' ? '客户' : '供应商'"
       :model-value="modelValue.counterparty"
       :disabled="disabled"
       @update:model-value="counterparty"

@@ -22,6 +22,7 @@ dictionary-item
 measurement-unit
 income-expense-type
 asset-category
+tax-information
 ```
 
 不具有明确业务语义和用途的“通用分类”或字典不得建立。字典只归集不参与业务逻辑的稳定选项；客户类型、车辆类型可由字典提供，币种仍是业务枚举。物流服务不再通过供应商类型表达。
@@ -64,6 +65,7 @@ measurement-unit UNT         income-expense-type IET
 asset-category ACT
 settlement-method STM
 payment-method PMT
+tax-information TAX
 ```
 
 ### 3.1 产品分类
@@ -152,6 +154,14 @@ AUX 仓库负责人、BOB 客户默认主体/内部业务员、供应商采购�
 
 新业务只采用 AUX stable ID 与服务端冻结的 typed snapshot。既有交易快照与精确引用保持原解释，不回查 current；WHS/VEH/FAC 编码及计数不复用历史编号。
 
+### 3.11 税务信息
+
+`tax-information`（税务信息）使用 TAX 编码和本域直接 CRUD、启停、revision、审计与引用删除 blocker。正式名称与税号必填；注册地址、联系电话、基本户开户行、基本户账号及备注可选，银行与账号必须同时填写或同时为空。税号和银行账号为字符串。税号删除全部空白并转为大写，在全部税务信息中唯一，不一律要求大陆 18 位格式。
+
+客户与供应商可关联零至多条不重复资料，多个业务对象可共享同一税务信息，不设默认项。关联采用时复制只读快照随 DCL Submission 审批；AUX 内容变化不需重批档案，也不覆盖其历史快照。新关联只接受启用资料。
+
+订单和收发货不选择税务信息。发票从业务对象当前正式版本关联的当前启用资料中选择，并在提交事务核对正式关联基线与 AUX revision，冻结最新内容。停用阻止新选择与新发票采用；已有发票与档案历史继续解释自身快照。删除检查全部持久化档案版本、Submission、发票与其他引用并返回 blocker，不自动移除关联。
+
 ## 4. 数据与引用
 
 `aux_objects` 是 AUX 唯一事实表；`data` 保存严格白名单校验的 typed JSON 对象。AUX 不向中央 Approval 注册实体，不写 `approval_entries`、`approval_events` 或版本 payload。
@@ -172,7 +182,7 @@ AUX current 修改不会覆盖既有交易快照。结算方式在客户或供�
 | product-type                              | stable ID、code、name、behaviorProfile                                                               | BOB product snapshot，VOU 再采用该产品 snapshot                                                | 不重解释产品行为、库存或生产                   |
 | employee-category / department / position | stable ID、code、name、parentId                                                                      | AUX employee snapshot                                                                          | 不改写既有雇佣或交易人员快照                   |
 | settlement-method                         | stable ID、code、name、termCode、ruleType、monthOffset、dayOfMonth、dayOffset、defaultSalesSurcharge | BOB customer/supplier snapshot；订单复制最终结算事实                                           | 不重算到期日、金额或加价                       |
-| payment-method                            | stable ID、code、name、defaultSalesSurcharge                                                         | BOB Customer Version 的客户子单位 snapshot；销售订单保存最终方式与加价                         | 不重算既有订单金额                             |
+| payment-method                            | stable ID、code、name、defaultSalesSurcharge                                                         | BOB Customer Version snapshot；销售订单保存最终方式与加价                                      | 不重算既有订单金额                             |
 | measurement-unit                          | stable ID、code、name、symbol、quantityScale                                                         | BOB product unit/formula snapshot；VOU 采用产品 snapshot                                       | 不改变历史数量精度、换算、库存或展示           |
 | dictionary-type / dictionary-item         | stable type、item code 与采用时名称                                                                  | 当前只作无业务规则的选择与展示；进入正式 BOB/VOU 字段时由所属 typed snapshot 保存              | 排序与说明从不重解释业务；名称不改写已保存快照 |
 | income-expense-type                       | stable ID、code、name、direction、parentId                                                           | 正式收支分类接入 VOU 时由 VOU line typed snapshot 保存；当前未接入的页面不得用自由字段伪装引用 | 已有单据分类、方向与归集不回查 current         |

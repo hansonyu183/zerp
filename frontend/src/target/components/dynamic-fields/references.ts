@@ -42,6 +42,7 @@ export type ReferencePage = {
 }
 export type ReferenceSearch = { keyword: string; page: number; ids?: string[] }
 const auxSources = {
+  'tax-information': 'tax-information',
   'operating-entities': 'operating-entity',
   'employee-categories': 'employee-category',
   departments: 'department',
@@ -191,8 +192,11 @@ export async function loadEditReferencePage(
     }
   }
   const enabled = history || search.ids ? {} : { enabled: 'true' as const }
-  if (source === 'customer-subunits') {
-    const page = await api.queryTargetSubunitOptions({ ...query, ...enabled })
+  if (source === 'customers') {
+    const page = await api.queryTargetBobOptions('customer', {
+      ...query,
+      ...enabled,
+    })
     return {
       ...page,
       items: page.items.map((item) => ({
@@ -255,6 +259,9 @@ export async function loadEditReferencePage(
       const base = { id: item.objectId, code: item.code, name: item.name }
       let snapshot: object = base
       switch (source) {
+        case 'tax-information':
+          snapshot = required(item.taxInformation)
+          break
         case 'archive-operating-entities':
         case 'archive-employees':
           snapshot = {

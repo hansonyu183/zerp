@@ -19,7 +19,6 @@ const facts = JSON.parse(process.env.TARGET_E2E_VOU_ENTRY_JSON ?? '{}') as {
   operatingEntity: string
   fundAccount: string
   employee: string
-  subunit: string
   warehouse: string
   supplier: string
   product: string
@@ -140,7 +139,7 @@ for (const width of [1280, 390])
         ) {
           if (entity === 'asset-acquisition')
             await choose('供应商', facts.supplier)
-          if (entity === 'asset-sale') await choose('相对方', facts.subunit)
+          if (entity === 'asset-sale') await choose('相对方', facts.customer)
           await editor
             .locator(
               '.collection-block[aria-label="资产行"] > .collection-heading',
@@ -190,8 +189,7 @@ for (const width of [1280, 390])
               .fill('验收合格')
           }
         } else if (entity.startsWith('bill-')) {
-          if (entity === 'bill-receipt')
-            await choose('客户子单位', facts.subunit)
+          if (entity === 'bill-receipt') await choose('客户', facts.customer)
           if (entity === 'bill-issue' || entity === 'bill-payment')
             await choose('供应商', facts.supplier)
           if (entity === 'bill-receipt' || entity === 'bill-payment')
@@ -258,17 +256,8 @@ for (const width of [1280, 390])
           else if (entity === 'sales-receipt') {
             await choose('客户', facts.customer)
             await choose('经营主体', facts.operatingEntity)
-            await editor
-              .locator(
-                '.collection-block[aria-label="分摊行"] > .collection-heading',
-              )
-              .getByRole('button', { name: '新增', exact: true })
-              .click()
-            await choose('客户子单位', facts.subunit)
-            await editor.getByLabel('分摊金额', { exact: true }).fill('12.34')
-            await confirmCollections(page)
           } else if (entity === 'sales-refund')
-            await choose('客户子单位', facts.subunit)
+            await choose('客户', facts.customer)
           else if (entity.startsWith('purchase-'))
             await choose('供应商', facts.supplier)
           else if (entity === 'other-income')
@@ -289,7 +278,7 @@ for (const width of [1280, 390])
             await page
               .getByRole('option', { name: '居间费', exact: true })
               .click()
-          } else await choose('相对方', facts.subunit)
+          } else await choose('相对方', facts.customer)
           if (expenses) {
             await editor
               .locator(
@@ -389,13 +378,15 @@ for (const width of [1280, 390])
             entity,
           )
         ) {
-          await expect(editor.locator('.mdi-plus').first()).toHaveAttribute(
-            'aria-hidden',
-            'true',
-          )
-          await expect(
-            editor.locator('.mdi-minus-circle-outline').first(),
-          ).toHaveAttribute('aria-hidden', 'true')
+          if (entity !== 'sales-receipt') {
+            await expect(editor.locator('.mdi-plus').first()).toHaveAttribute(
+              'aria-hidden',
+              'true',
+            )
+            await expect(
+              editor.locator('.mdi-minus-circle-outline').first(),
+            ).toHaveAttribute('aria-hidden', 'true')
+          }
           const directory = resolve(
             process.cwd(),
             '..',

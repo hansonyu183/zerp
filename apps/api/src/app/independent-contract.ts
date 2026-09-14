@@ -321,7 +321,6 @@ const systemParameterReset = postRoute(
   systemParameter,
 )
 const bobObject = z.object({
-  implicitSubunitId: z.string().length(26).nullable().optional(),
   objectId: z.string(),
   entity: z.string(),
   code: z.string(),
@@ -353,21 +352,19 @@ const bobOption = z
     code: z.string(),
     name: z.string(),
     enabled: z.boolean(),
+    paymentMethod: z
+      .object({
+        objectId: z.string(),
+        code: z.string(),
+        name: z.string(),
+        defaultSalesSurcharge: z.string(),
+      })
+      .nullable()
+      .optional(),
     sourceApprovalEntryId: z.string(),
     sourceVersionNo: z.number().int().positive(),
   })
   .strict()
-const subunitOption = bobOption.extend({
-  customerId: z.string(),
-  paymentMethod: z
-    .object({
-      objectId: z.string(),
-      code: z.string(),
-      name: z.string(),
-      defaultSalesSurcharge: z.string(),
-    })
-    .nullable(),
-})
 function bobOptionsRoute<
   const Entity extends
     'customer' | 'supplier' | 'other-unit' | 'sales-partner' | 'product',
@@ -378,12 +375,6 @@ function bobOptionsRoute<
     optionPage(bobOption),
   )
 }
-const subunitOptionsRoute = auxiliaryRoute(
-  '/bob/customer/subunit-options',
-  bobOptionsInput,
-  optionPage(subunitOption),
-)
-
 export const bobResolveInput = z
   .object({
     objectId: z.string().length(26),
@@ -418,23 +409,15 @@ const supplierResolveRoute = auxiliaryRoute(
     data: dclArchiveSnapshotSchemas.supplier.pick({ defaultPurchaser: true }),
   }),
 )
-const subunitResolveRoute = auxiliaryRoute(
-  '/bob/customer/subunit-resolve',
+const customerResolveRoute = auxiliaryRoute(
+  '/bob/customer/resolve',
   bobResolveInput,
   resolvedIdentity.extend({
-    data: z.object({
-      subunits: z.array(
-        dclArchiveSnapshotSchemas.customer.shape.subunits.element.options[1].pick(
-          {
-            id: true,
-            enabled: true,
-            internalReminder: true,
-            defaultSalesOrderRemark: true,
-            settlementMethod: true,
-            primarySalesAttribution: true,
-          },
-        ),
-      ),
+    data: dclArchiveSnapshotSchemas.customer.pick({
+      internalReminder: true,
+      defaultSalesOrderRemark: true,
+      settlementMethod: true,
+      primarySalesAttribution: true,
     }),
   }),
 )
@@ -563,13 +546,9 @@ type IndependentHandler = Handler<TargetRouteEnvironment>
 
 export interface IndependentRouteHandlers {
   app: IndependentHandler
-  bobResolve(
-    entity: 'product' | 'supplier' | 'customer-subunit',
-  ): IndependentHandler
+  bobResolve(entity: 'product' | 'supplier' | 'customer'): IndependentHandler
   auxOptions(entity: AuxRouteBinding['entity']): IndependentHandler
-  bobOptions(
-    entity: BobRouteBinding['entity'] | 'customer-subunit',
-  ): IndependentHandler
+  bobOptions(entity: BobRouteBinding['entity'] | 'customer'): IndependentHandler
   aux(binding: AuxRouteBinding): IndependentHandler
   bob(binding: BobRouteBinding): IndependentHandler
 }
@@ -583,12 +562,8 @@ export function registerIndependentRoutes(
     { route: productResolveRoute, handler: handlers.bobResolve('product') },
     { route: supplierResolveRoute, handler: handlers.bobResolve('supplier') },
     {
-      route: subunitResolveRoute,
-      handler: handlers.bobResolve('customer-subunit'),
-    },
-    {
-      route: subunitOptionsRoute,
-      handler: handlers.bobOptions('customer-subunit'),
+      route: customerResolveRoute,
+      handler: handlers.bobResolve('customer'),
     },
     {
       route: bobOptionsRoute('customer'),
@@ -670,6 +645,10 @@ export function registerIndependentRoutes(
     {
       route: auxOptionsRoute('asset-category'),
       handler: handlers.auxOptions('asset-category'),
+    },
+    {
+      route: auxOptionsRoute('tax-information'),
+      handler: handlers.auxOptions('tax-information'),
     },
 
     { route: userSignout, handler: handlers.app },
@@ -1094,6 +1073,34 @@ export function registerIndependentRoutes(
       handler: handlers.aux(auxRouteBinding('asset-category', 'delete')),
     },
     {
+      route: auxQueryRoute('/aux/tax-information/query'),
+      handler: handlers.aux(auxRouteBinding('tax-information', 'query')),
+    },
+    {
+      route: auxGetRoute('/aux/tax-information/get', 'tax-information'),
+      handler: handlers.aux(auxRouteBinding('tax-information', 'get')),
+    },
+    {
+      route: auxCreateRoute('/aux/tax-information/create', 'tax-information'),
+      handler: handlers.aux(auxRouteBinding('tax-information', 'create')),
+    },
+    {
+      route: auxSaveRoute('/aux/tax-information/save', 'tax-information'),
+      handler: handlers.aux(auxRouteBinding('tax-information', 'save')),
+    },
+    {
+      route: auxEnableRoute('/aux/tax-information/enable'),
+      handler: handlers.aux(auxRouteBinding('tax-information', 'enable')),
+    },
+    {
+      route: auxDisableRoute('/aux/tax-information/disable'),
+      handler: handlers.aux(auxRouteBinding('tax-information', 'disable')),
+    },
+    {
+      route: auxDeleteRoute('/aux/tax-information/delete'),
+      handler: handlers.aux(auxRouteBinding('tax-information', 'delete')),
+    },
+    {
       route: auxQueryRoute('/aux/warehouse/query'),
       handler: handlers.aux(auxRouteBinding('warehouse', 'query')),
     },
@@ -1295,6 +1302,7 @@ const auxNames: Record<(typeof auxEntities)[number], string> = {
   'measurement-unit': '计量单位',
   'income-expense-type': '收支类型',
   'asset-category': '资产类别',
+  'tax-information': '税务信息',
   'operating-entity': '经营主体',
   employee: '员工',
   warehouse: '仓库',
@@ -1311,7 +1319,7 @@ const bobNames: Record<(typeof bobEntities)[number], string> = {
 }
 
 export const independentRouteMetadata = [
-  ...[productResolveRoute, supplierResolveRoute, subunitResolveRoute].map(
+  ...[productResolveRoute, supplierResolveRoute, customerResolveRoute].map(
     (route) => ({ method: route.method, path: route.path }),
   ),
   { method: roleOptions.method, path: roleOptions.path },
@@ -1374,6 +1382,7 @@ export const independentRouteMetadata = [
     'product-category',
     'measurement-unit',
     'asset-category',
+    'tax-information',
   ].map((entity) => ({ method: 'get', path: `/aux/${entity}/options` })),
   ...bobEntities.flatMap((entity) =>
     (bobManagedEntities.some((item) => item === entity)
@@ -1390,5 +1399,4 @@ export const independentRouteMetadata = [
     method: 'get',
     path: `/bob/${entity}/options`,
   })),
-  { method: 'get', path: '/bob/customer/subunit-options' },
 ] as const

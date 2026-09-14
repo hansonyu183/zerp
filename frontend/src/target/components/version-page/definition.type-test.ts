@@ -11,20 +11,20 @@ import type { FormFields } from '../dynamic-fields/form-fields.ts'
 import type { DetailFields } from '../details/detail-fields.ts'
 type Customer = VersionSnapshots['bob/customer']
 const nested: EditFields<Customer> = [
-  // @ts-expect-error Top-level fields cannot reach into customer subunits.
-  { key: 'subunits.0.name', type: 'text', caption: '名称' },
+  // @ts-expect-error Top-level fields cannot reach into customer tax information.
+  { key: 'taxInformation.0.name', type: 'text', caption: '名称' },
 ]
 const wrongType: EditFields<Customer> = [
   // @ts-expect-error Amount/number fields cannot bind a string identity.
-  { key: 'legalName', type: 'integer', caption: '名称' },
+  { key: 'displayName', type: 'integer', caption: '名称' },
 ]
 const arrayField: FormFields<Customer> = [
-  // @ts-expect-error Repeating subunits require a rows field, not a reference.
+  // @ts-expect-error Repeating tax information require a rows field, not a reference.
   {
-    key: 'subunits',
+    key: 'taxInformation',
     type: 'snapshot-reference',
     source: 'customer-types',
-    caption: '子单位',
+    caption: '税务信息',
   },
 ]
 const badSource: FormFields<Customer> = [
@@ -38,9 +38,9 @@ const badSource: FormFields<Customer> = [
 ]
 const nestedDetails: DetailFields<Customer> = [
   {
-    key: 'subunits',
+    key: 'taxInformation',
     type: 'rows',
-    caption: '子单位',
+    caption: '税务信息',
     fields: [
       // @ts-expect-error Child details use their row's actual keys.
       { key: 'legalName', type: 'text', caption: '名称' },

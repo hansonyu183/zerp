@@ -371,63 +371,44 @@ async function seedSaleOrderReferences(
     operatingEntityId: operatingEntity.id,
     remark: '',
   })
-  const customerSubunitId = ulid()
   const customer = await submit('customer', {
-    identityKind: 'OTHER',
-    legalName: 'HTTP 客户',
     displayName: 'HTTP 客户',
-    legalIdentifier: `HTTP-CUS-${actorId}`,
     phone: '',
     email: '',
-    address: '',
-    invoiceTitle: '',
-    invoiceAddress: '',
-    invoicePhone: '',
-    invoiceBank: '',
-    invoiceAccount: '',
     remittanceProfiles: [],
     defaultOperatingEntity: null,
-    identityAttachments: [],
-    subunits: [
-      {
-        id: customerSubunitId,
-        intent: 'NEW',
-        code: null,
-        name: 'HTTP 客户子单位',
-        contactName: '',
-        address: '',
-        customerType: {
-          id: customerType.id,
-          code: customerType.code,
-          name: customerType.name,
-        },
-        settlementMethod: null,
-        paymentMethod: null,
-        transportPolicy: {
-          methodCode: 'SELF_PICKUP',
-          methodName: '自提',
-          surcharge: '0.00',
-        },
-        pricingPolicy: {
-          defaultPremiumUnitPrice: '0.00',
-          defaultDiscountUnitPrice: '0.00',
-          costItems: [],
-          thirdPartyIntermediaryFixedUnitCost: '0.00',
-          thirdPartyIntermediaryVariableUnitCost: '0.00',
-        },
-        creditLimits: [],
-        primarySalesAttribution: {
-          type: 'INTERNAL_EMPLOYEE',
-          objectId: employee.id,
-          code: employee.code,
-          name: employee.name,
-        },
-        internalReminder: '',
-        defaultSalesOrderRemark: '',
-        attachments: [],
-        enabled: true,
-      },
-    ],
+    contactName: '',
+    address: '',
+    customerType: {
+      id: customerType.id,
+      code: customerType.code,
+      name: customerType.name,
+    },
+    settlementMethod: null,
+    paymentMethod: null,
+    transportPolicy: {
+      methodCode: 'SELF_PICKUP',
+      methodName: '自提',
+      surcharge: '0.00',
+    },
+    pricingPolicy: {
+      defaultPremiumUnitPrice: '0.00',
+      defaultDiscountUnitPrice: '0.00',
+      costItems: [],
+      thirdPartyIntermediaryFixedUnitCost: '0.00',
+      thirdPartyIntermediaryVariableUnitCost: '0.00',
+    },
+    creditLimits: [],
+    primarySalesAttribution: {
+      type: 'INTERNAL_EMPLOYEE',
+      objectId: employee.id,
+      code: employee.code,
+      name: employee.name,
+    },
+    internalReminder: '',
+    defaultSalesOrderRemark: '',
+    attachments: [],
+    taxInformation: [],
   })
   const product = await submit('product', {
     name: 'HTTP 产品',
@@ -488,9 +469,9 @@ async function seedSaleOrderReferences(
   const warehouseSubjectId = warehouseCurrent.id
   const facts = [
     {
-      entity: 'customer-subunit',
-      field: 'customer-subunit',
-      objectId: customerSubunitId,
+      entity: 'customer',
+      field: 'customer',
+      objectId: customer.objectId,
       approvalEntryId: customer.approvalEntryId,
     },
     {
@@ -550,7 +531,7 @@ async function seedSaleOrderReferences(
 function saleOrderPayload(
   references: Awaited<ReturnType<typeof seedSaleOrderReferences>>,
 ): VouPayload {
-  const versionedReference = (field: 'customer-subunit') => {
+  const versionedReference = (field: 'customer') => {
     const fact = references.facts.find((item) => item.field === field)
     if (!fact || !('approvalEntryId' in fact))
       throw new Error(`missing versioned ${field} fixture`)
@@ -571,7 +552,7 @@ function saleOrderPayload(
     businessDate: '2026-09-04',
     currency: 'CNY',
     attachments: [],
-    customerSubunit: versionedReference('customer-subunit'),
+    customer: versionedReference('customer'),
     paymentMethod: null,
     operatingEntity: currentReference('operating-entity'),
     salesperson: currentReference('salesperson'),
@@ -943,7 +924,6 @@ test('WFL definition, current, trial, instance and six actions cross the authent
       '/dcl/product/approve',
       '/dcl/product/submission-get',
       '/dcl/customer/submit-new',
-      '/dcl/customer/save-subunits',
       '/dcl/customer/approve',
       '/bob/customer/get',
       '/dcl/customer/submission-get',

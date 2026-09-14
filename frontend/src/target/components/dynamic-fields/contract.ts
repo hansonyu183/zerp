@@ -8,7 +8,7 @@ type UnknownField = Record<string, unknown>
 
 const referenceSources = new Set<ReferenceSource>([
   'app/role',
-  'bob/customer-subunit',
+  'bob/customer',
   'bob/supplier',
 ])
 

@@ -657,6 +657,33 @@ export function registerAppRoutes(
           )) as never,
           200,
         )
+      if (action === 'invoice-sources')
+        return context.json(
+          await executeVou(context, () =>
+            vou!.invoiceSourceOptions(
+              context.req.valid('param').entity,
+              context.req.valid('query'),
+            ),
+          ),
+          200,
+        )
+      if (action === 'unbilled')
+        return context.json(
+          await executeVou(context, (actor) =>
+            vou!.unbilledSales(context.req.valid('query').periodMonth, actor),
+          ),
+          200,
+        )
+      if (action === 'tax-options')
+        return context.json(
+          await executeVou(context, () =>
+            vou!.invoiceTaxOptions(
+              context.req.valid('param').entity,
+              context.req.valid('query').objectId,
+            ),
+          ),
+          200,
+        )
       if (action === 'options') {
         const response = await executeVou(context, () =>
           vou!.options(

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import CollectionBlock from '../dynamic-fields/CollectionBlock.vue'
-import AllocationLineEditor from './AllocationLineEditor.vue'
 import ExpenseLineEditor from './ExpenseLineEditor.vue'
 import type { DetailFields } from '../details/detail-fields.ts'
 import FieldInput from '../dynamic-fields/FieldInput.vue'
@@ -26,7 +25,7 @@ const mixed = computed(() =>
 const partyOptions = computed(() =>
   props.modelValue.entity === 'other-income'
     ? financialPartyOptions.filter(
-        (row) => row.value === 'customer-subunit' || row.value === 'supplier',
+        (row) => row.value === 'customer' || row.value === 'supplier',
       )
     : financialPartyOptions,
 )
@@ -34,15 +33,6 @@ function patch(value: Partial<FinancialDraft>) {
   if (!props.disabled)
     emit('update:modelValue', { ...props.modelValue, ...value })
 }
-const allocationFields = [
-  {
-    key: 'subunit',
-    type: 'group',
-    caption: '客户子单位',
-    fields: [{ key: 'name', type: 'text', caption: '名称' }],
-  },
-  { key: 'amount', type: 'text', caption: '分摊金额' },
-] as const satisfies DetailFields<FinancialDraft['allocations'][number]>
 const expenseFields = [
   { key: 'category', type: 'text', caption: '费用类别' },
   { key: 'description', type: 'text', caption: '费用说明' },
@@ -188,34 +178,6 @@ const expenseFields = [
       />
     </template>
   </section>
-  <CollectionBlock
-    v-if="modelValue.entity === 'sales-receipt'"
-    caption="分摊行"
-    :fields="allocationFields"
-    :model-value="modelValue.allocations"
-    mode="edit"
-    :disabled="disabled"
-    :maximum="200"
-    :create="
-      () => ({
-        id: ulid(),
-        subunit: null,
-        origin: 'CURRENT' as const,
-        amount: '',
-      })
-    "
-    @update:model-value="patch({ allocations: $event })"
-  >
-    <template #editor="{ value, disabled: locked, update }"
-      ><AllocationLineEditor
-        :model-value="value"
-        :disabled="locked"
-        @update:model-value="update"
-    /></template>
-    <template #viewer="{ value }"
-      ><AllocationLineEditor :model-value="value" disabled
-    /></template>
-  </CollectionBlock>
   <CollectionBlock
     v-if="expenses"
     caption="费用行"

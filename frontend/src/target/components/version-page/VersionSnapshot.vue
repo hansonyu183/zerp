@@ -28,27 +28,12 @@ function identityPresentation(snapshot: Record<string, unknown>) {
       : '已采用默认主体（不在适用集合）',
   }
 }
-function pricingSubunits(snapshot: Record<string, unknown> | undefined) {
-  return (
-    (snapshot as unknown as CustomerSnapshot | undefined)?.subunits.map(
-      ({ id, code, name, pricingPolicy }) => ({
-        id,
-        code,
-        name,
-        pricingPolicy,
-      }),
-    ) ?? []
-  )
-}
-const customerPricingBefore = computed(() =>
-  props.resource === 'bob/customer' || props.resource === 'dcl/customer'
-    ? pricingSubunits(props.previous)
-    : [],
+const customerPricingBefore = computed(
+  () =>
+    (props.previous as unknown as CustomerSnapshot | undefined)?.pricingPolicy,
 )
-const customerPricingAfter = computed(() =>
-  props.resource === 'bob/customer' || props.resource === 'dcl/customer'
-    ? pricingSubunits(props.value)
-    : [],
+const customerPricingAfter = computed(
+  () => (props.value as unknown as CustomerSnapshot).pricingPolicy,
 )
 </script>
 <template>

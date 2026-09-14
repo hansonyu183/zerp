@@ -25,7 +25,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     reviewerId = ulid(),
     customerId = ulid(),
     customerEntryId = ulid()
-  const subunitId = ulid(),
+  const subunitId = customerId,
     productId = ulid(),
     productEntryId = ulid(),
     warehouseId = ulid(),
@@ -264,22 +264,8 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     .insertInto('dcl_customer_versions')
     .values({
       approval_entry_id: customerEntryId,
-      kind: 'OTHER',
       display_name: '控制客户',
       remittance_profiles: JSON.stringify([]),
-      tax_attachments: JSON.stringify([]),
-    })
-    .execute()
-  await db
-    .insertInto('dcl_customer_subunit_roots')
-    .values({ subunit_id: subunitId, customer_id: customerId, code: 'CONTROL' })
-    .execute()
-  await db
-    .insertInto('dcl_customer_version_subunits')
-    .values({
-      customer_approval_entry_id: customerEntryId,
-      subunit_id: subunitId,
-      name: '控制子单位',
       customer_type_id: customerTypeId,
       customer_type_snapshot: JSON.stringify({
         id: customerTypeId,
@@ -295,9 +281,11 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
       }),
       payment_snapshot: null,
       credit_limits: JSON.stringify([{ currency: 'CNY', amount: '1.00' }]),
-      enabled: true,
+      attachments: JSON.stringify([]),
+      tax_information: JSON.stringify([]),
     })
     .execute()
+
   await db
     .insertInto('dcl_product_versions')
     .values({
@@ -570,7 +558,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     businessDate: '2026-09-04',
     currency: 'CNY',
     attachments: [],
-    customerSubunit: {
+    customer: {
       objectId: subunitId,
       approvalEntryId: customerEntryId,
       selectionOrigin: 'CURRENT' as const,
@@ -642,7 +630,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     0,
   )
   await db
-    .updateTable('dcl_customer_version_subunits')
+    .updateTable('dcl_customer_versions')
     .set({
       settlement_snapshot: JSON.stringify({
         termCode: 'CASH_ON_DELIVERY',
@@ -652,8 +640,8 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
         dayOffset: 0,
       }),
     })
-    .where('customer_approval_entry_id', '=', customerEntryId)
-    .where('subunit_id', '=', subunitId)
+    .where('approval_entry_id', '=', customerEntryId)
+    .where('approval_entry_id', '=', customerEntryId)
     .execute()
   const noReason = await submit()
   await assert.rejects(
@@ -789,7 +777,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     reviewerId = ulid()
   const customerId = ulid(),
     customerEntryId = ulid(),
-    subunitId = ulid()
+    subunitId = customerId
   const supplierId = ulid(),
     supplierEntryId = ulid()
   const productId = ulid(),
@@ -986,26 +974,8 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     .insertInto('dcl_customer_versions')
     .values({
       approval_entry_id: customerEntryId,
-      kind: 'OTHER',
       display_name: '批次客户',
       remittance_profiles: JSON.stringify([]),
-      tax_attachments: JSON.stringify([]),
-    })
-    .execute()
-  await db
-    .insertInto('dcl_customer_subunit_roots')
-    .values({
-      subunit_id: subunitId,
-      customer_id: customerId,
-      code: `SUB-${suffix}`,
-    })
-    .execute()
-  await db
-    .insertInto('dcl_customer_version_subunits')
-    .values({
-      customer_approval_entry_id: customerEntryId,
-      subunit_id: subunitId,
-      name: '批次客户子单位',
       customer_type_id: customerTypeId,
       customer_type_snapshot: JSON.stringify({
         id: customerTypeId,
@@ -1015,17 +985,16 @@ test('sale signoff and purchase inbound price the approved source line batch ins
       settlement_snapshot: prepaid,
       payment_snapshot: null,
       credit_limits: JSON.stringify([]),
-      enabled: true,
+      attachments: JSON.stringify([]),
+      tax_information: JSON.stringify([]),
     })
     .execute()
+
   await db
     .insertInto('dcl_supplier_versions')
     .values({
       approval_entry_id: supplierEntryId,
-      kind: 'ORGANIZATION',
-      legal_name: '批次供应商',
       display_name: '批次供应商',
-      legal_identifier: null,
       default_operating_entity_id: null,
       default_purchaser_employee_id: null,
       default_purchaser_approval_entry_id: null,
@@ -1038,6 +1007,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
       default_operating_entity_reference: null,
       settlement_method_snapshot: prepaid,
       default_purchaser_snapshot: null,
+      tax_information: JSON.stringify([]),
     })
     .execute()
   await db
@@ -1100,7 +1070,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
   )
   operatingEntityId = operatingEntityCreated.id
 
-  const customerSubunit = {
+  const customer = {
     objectId: subunitId,
     approvalEntryId: customerEntryId,
     selectionOrigin: 'CURRENT' as const,
@@ -1132,7 +1102,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
             businessDate: '2026-09-04',
             currency: 'CNY',
             attachments: [],
-            customerSubunit,
+            customer,
             paymentMethod: null,
             operatingEntity: {
               objectId: operatingEntityId,
@@ -1188,7 +1158,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
         attachments: [],
         parentEntity: 'sale-order',
         parentDocumentId: saleOrder.documentId,
-        customerSubunit,
+        customer,
         expectedSolventContainers: 0,
         expectedResinContainers: 0,
         returnedSolventContainers: 0,
@@ -1266,8 +1236,8 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     'APPROVED',
   )
   assert.deepEqual(balanceCalls, [
-    `CUSTOMER_SUBUNIT:${subunitId}`,
-    `CUSTOMER_SUBUNIT:${subunitId}`,
+    `CUSTOMER:${subunitId}`,
+    `CUSTOMER:${subunitId}`,
     `SUPPLIER:${supplierId}`,
     `SUPPLIER:${supplierId}`,
   ])

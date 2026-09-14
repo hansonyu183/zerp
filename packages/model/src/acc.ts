@@ -7,7 +7,7 @@ export const accBookTemplates = [
 export type AccBookTemplate = (typeof accBookTemplates)[number]
 
 export const accSubjectDimensions = [
-  'CUSTOMER_SUBUNIT',
+  'CUSTOMER',
   'SUPPLIER',
   'OTHER_UNIT',
   'EMPLOYEE',

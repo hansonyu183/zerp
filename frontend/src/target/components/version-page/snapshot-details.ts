@@ -75,7 +75,23 @@ const associations = [
   },
   { key: 'defaultOperatingEntityId', type: 'text', caption: '默认经营主体' },
 ] as const satisfies DetailFields<SupplierData>
+const taxInformationDetails = {
+  key: 'taxInformation',
+  type: 'rows',
+  caption: '税务信息',
+  fields: [
+    ...referenceDetails,
+    { key: 'revision', type: 'text', caption: '采用修订号' },
+    { key: 'taxNumber', type: 'text', caption: '纳税识别号' },
+    { key: 'registeredAddress', type: 'text', caption: '注册地址' },
+    { key: 'phone', type: 'text', caption: '电话' },
+    { key: 'bank', type: 'text', caption: '开户银行' },
+    { key: 'accountNumber', type: 'text', caption: '银行账号' },
+    { key: 'remark', type: 'textarea', caption: '备注' },
+  ],
+} as const
 export const supplierDetails = [
+  taxInformationDetails,
   ...associations,
   {
     key: 'settlementMethod',
@@ -265,6 +281,9 @@ const pricingDetails = [
   },
 ] as const
 export const customerDetails = [
+  { key: 'contactName', type: 'text', caption: '联系人' },
+  { key: 'address', type: 'text', caption: '业务地址' },
+  taxInformationDetails,
   {
     key: 'defaultOperatingEntity',
     type: 'group',
@@ -282,109 +301,92 @@ export const customerDetails = [
     ],
   },
   {
-    key: 'identityAttachments',
-    type: 'attachments',
-    caption: '身份或税务附件',
+    key: 'customerType',
+    type: 'group',
+    caption: '客户类型',
+    fields: referenceDetails,
   },
   {
-    key: 'subunits',
-    type: 'rows',
-    caption: '客户子单位',
+    key: 'settlementMethod',
+    type: 'group',
+    caption: '结算方式',
     fields: [
-      { key: 'code', type: 'text', caption: '编码' },
-      { key: 'name', type: 'text', caption: '名称' },
-      { key: 'contactName', type: 'text', caption: '联系人' },
-      { key: 'address', type: 'textarea', caption: '业务地址' },
-      { key: 'enabled', type: 'boolean', caption: '启用' },
+      ...settlementDetails,
       {
-        key: 'customerType',
-        type: 'group',
-        caption: '客户类型',
-        fields: referenceDetails,
+        key: 'defaultSalesSurcharge',
+        type: 'decimal',
+        scale: 2,
+        caption: '销售加价',
       },
-      {
-        key: 'settlementMethod',
-        type: 'group',
-        caption: '结算方式',
-        fields: [
-          ...settlementDetails,
-          {
-            key: 'defaultSalesSurcharge',
-            type: 'decimal',
-            scale: 2,
-            caption: '销售加价',
-          },
-        ],
-      },
-      {
-        key: 'paymentMethod',
-        type: 'group',
-        caption: '收款方式',
-        fields: [
-          ...referenceDetails,
-          {
-            key: 'defaultSalesSurcharge',
-            type: 'decimal',
-            scale: 2,
-            caption: '销售加价',
-          },
-        ],
-      },
-      {
-        key: 'transportPolicy',
-        type: 'group',
-        caption: '运输政策',
-        fields: [
-          { key: 'methodCode', type: 'text', caption: '运输方式编码' },
-          { key: 'methodName', type: 'text', caption: '运输方式名称' },
-          {
-            key: 'surcharge',
-            type: 'decimal',
-            scale: 2,
-            caption: '运输销售加价',
-          },
-        ],
-      },
-      {
-        key: 'pricingPolicy',
-        type: 'group',
-        caption: '定价政策',
-        fields: pricingDetails,
-      },
-      {
-        key: 'creditLimits',
-        type: 'rows',
-        caption: '信用额度',
-        fields: [
-          { key: 'currency', type: 'text', caption: '币种' },
-          { key: 'amount', type: 'decimal', scale: 2, caption: '信用额度' },
-        ],
-      },
-      {
-        key: 'primarySalesAttribution',
-        type: 'group',
-        caption: '主要业务归属',
-        fields: [
-          {
-            key: 'type',
-            type: 'enum',
-            caption: '业务归属类型',
-            options: Object.entries(customerAttributionLabels).map(
-              ([value, caption]) => ({ value, caption }),
-            ),
-          },
-          ...referenceDetails,
-        ],
-      },
-      { key: 'internalReminder', type: 'textarea', caption: '内部提醒' },
-      {
-        key: 'defaultSalesOrderRemark',
-        type: 'textarea',
-        caption: '默认销售订单备注',
-      },
-      { key: 'attachments', type: 'attachments', caption: '业务附件' },
     ],
   },
+  {
+    key: 'paymentMethod',
+    type: 'group',
+    caption: '收款方式',
+    fields: [
+      ...referenceDetails,
+      {
+        key: 'defaultSalesSurcharge',
+        type: 'decimal',
+        scale: 2,
+        caption: '销售加价',
+      },
+    ],
+  },
+  {
+    key: 'transportPolicy',
+    type: 'group',
+    caption: '运输政策',
+    fields: [
+      { key: 'methodCode', type: 'text', caption: '运输方式编码' },
+      { key: 'methodName', type: 'text', caption: '运输方式名称' },
+      {
+        key: 'surcharge',
+        type: 'decimal',
+        scale: 2,
+        caption: '运输销售加价',
+      },
+    ],
+  },
+  {
+    key: 'pricingPolicy',
+    type: 'group',
+    caption: '定价政策',
+    fields: pricingDetails,
+  },
+  {
+    key: 'creditLimits',
+    type: 'rows',
+    caption: '信用额度',
+    fields: [
+      { key: 'currency', type: 'text', caption: '币种' },
+      { key: 'amount', type: 'decimal', scale: 2, caption: '信用额度' },
+    ],
+  },
+  {
+    key: 'primarySalesAttribution',
+    type: 'group',
+    caption: '主要业务归属',
+    fields: [
+      {
+        key: 'type',
+        type: 'enum',
+        caption: '业务归属类型',
+        options: Object.entries(customerAttributionLabels).map(
+          ([value, caption]) => ({ value, caption }),
+        ),
+      },
+      ...referenceDetails,
+    ],
+  },
+  { key: 'internalReminder', type: 'textarea', caption: '内部提醒' },
+  {
+    key: 'defaultSalesOrderRemark',
+    type: 'textarea',
+    caption: '默认销售订单备注',
+  },
+  { key: 'attachments', type: 'attachments', caption: '业务附件' },
 ] as const satisfies DetailFields<CustomerSnapshot>
 export const extraSnapshotDetails = {
   'bob/supplier': supplierDetails,

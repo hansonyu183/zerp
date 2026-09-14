@@ -6,7 +6,7 @@ import {
 } from '../src/index.ts'
 type Source = VouIntermediaryCalculationInput['source']
 const customer = {
-  entity: 'customer-subunit' as const,
+  entity: 'customer' as const,
   objectId: 'customer',
   approvalEntryId: 'customer-version',
   code: 'CUS',

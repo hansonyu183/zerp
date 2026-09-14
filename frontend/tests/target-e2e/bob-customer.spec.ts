@@ -1,5 +1,5 @@
 import { openArchive, findArchive } from './archive-navigation.ts'
-import { confirmCollection, editCollection } from './collection-helpers.ts'
+import { confirmCollection } from './collection-helpers.ts'
 import { randomBytes } from 'node:crypto'
 import { expect, test, type Page, type Locator } from '@playwright/test'
 
@@ -68,7 +68,7 @@ async function approve(page: Page, name: string) {
   await dialog.getByRole('button', { name: '关闭', exact: true }).click()
 }
 
-test('customer full temporary form, two subunits, history and independent enablement work in the real browser', async ({
+test('customer flat temporary form, business fields, history and independent enablement work in the real browser', async ({
   page,
   browser,
 }) => {
@@ -87,27 +87,16 @@ test('customer full temporary form, two subunits, history and independent enable
     await openArchive(page, 'dcl', 'customer')
     await page.getByRole('button', { name: '新增', exact: true }).click()
     let dialog = page.getByRole('dialog').last()
-    await expect(dialog.getByLabel('身份类型', { exact: true })).toHaveValue(
-      '大陆企业',
-    )
-    await dialog.getByLabel('显示名称', { exact: true }).fill('关闭即丢弃')
+    await expect(dialog.getByLabel('身份类型', { exact: true })).toHaveCount(0)
+    await dialog.getByLabel('客户名称', { exact: true }).fill('关闭即丢弃')
     await dialog.getByRole('button', { name: '取消', exact: true }).click()
     await page.getByRole('button', { name: '新增', exact: true }).click()
     dialog = page.getByRole('dialog').last()
-    await expect(dialog.getByLabel('显示名称', { exact: true })).toHaveValue('')
-    await select(page, dialog, '身份类型', '其他')
+    await expect(dialog.getByLabel('客户名称', { exact: true })).toHaveValue('')
     for (const [label, value] of [
-      ['法定名称', name],
-      ['显示名称', name],
-      ['法定识别号', `BROWSER-${tag}`],
+      ['客户名称', name],
       ['联系电话', '13900000000'],
       ['邮箱', 'customer@example.test'],
-      ['地址', '客户联系地址'],
-      ['开票抬头', name],
-      ['开票地址', '税务地址'],
-      ['开票电话', '05920000000'],
-      ['开票开户行', '测试银行'],
-      ['开票账号', '12345678'],
     ])
       await dialog.getByLabel(label!, { exact: true }).fill(value!)
     await dialog
@@ -128,53 +117,37 @@ test('customer full temporary form, two subunits, history and independent enable
       })
     await expect(dialog).toContainText('税务.pdf')
     expect(staged).toBe(0)
-    for (let i = 0; i < 2; i++) {
-      if (i === 0) await editCollection(page, '客户子单位')
-      else
-        await dialog
-          .locator(
-            '.collection-block[aria-label="客户子单位"] > .collection-heading',
-          )
-          .getByRole('button', { name: '新增', exact: true })
-          .click()
-      const sub = page.getByRole('dialog').last()
-      await sub
-        .getByLabel('子单位名称', { exact: true })
-        .fill(i ? '分部' : '总部')
-      await sub.getByLabel('联系人', { exact: true }).fill(`联系人${i}`)
-      await sub.getByLabel('业务地址', { exact: true }).fill(`业务地址${i}`)
-      await select(page, sub, '客户类型', process.env.TARGET_E2E_CUSTOMER_TYPE!)
-      await select(page, sub, '业务归属类型', '渠道商')
-      await select(
-        page,
-        sub,
-        '主要业务归属',
-        process.env.TARGET_E2E_CUSTOMER_PARTNER!,
-      )
-      await sub.getByLabel('默认加价单价', { exact: true }).fill('0.10')
-      await sub.getByLabel('内部提醒', { exact: true }).fill('内部提醒内容')
-      await sub
-        .getByLabel('默认销售订单备注', { exact: true })
-        .fill('订单默认内容')
-      await sub
-        .locator(
-          '.collection-block[aria-label="信用额度"] > .collection-heading',
-        )
-        .getByRole('button', { name: '新增', exact: true })
-        .click()
-      await sub
-        .getByRole('textbox', { name: '信用额度', exact: true })
-        .fill('10000.00')
-      await confirmCollection(page)
-      await sub
-        .locator('.collection-block[aria-label="成本项"] > .collection-heading')
-        .getByRole('button', { name: '新增', exact: true })
-        .click()
-      await sub.getByLabel('成本名称', { exact: true }).fill('装卸')
-      await sub.getByLabel('成本单价或每单金额', { exact: true }).fill('0.20')
-      await confirmCollection(page)
-      await confirmCollection(page)
-    }
+    const sub = dialog
+    await sub.getByLabel('联系人', { exact: true }).fill('业务联系人')
+    await sub.getByLabel('业务地址', { exact: true }).fill('业务地址')
+    await select(page, sub, '客户类型', process.env.TARGET_E2E_CUSTOMER_TYPE!)
+    await select(page, sub, '业务归属类型', '渠道商')
+    await select(
+      page,
+      sub,
+      '主要业务归属',
+      process.env.TARGET_E2E_CUSTOMER_PARTNER!,
+    )
+    await sub.getByLabel('默认加价单价', { exact: true }).fill('0.10')
+    await sub.getByLabel('内部提醒', { exact: true }).fill('内部提醒内容')
+    await sub
+      .getByLabel('默认销售订单备注', { exact: true })
+      .fill('订单默认内容')
+    await sub
+      .locator('.collection-block[aria-label="信用额度"] > .collection-heading')
+      .getByRole('button', { name: '新增', exact: true })
+      .click()
+    await sub
+      .getByRole('textbox', { name: '信用额度', exact: true })
+      .fill('10000.00')
+    await confirmCollection(page)
+    await sub
+      .locator('.collection-block[aria-label="成本项"] > .collection-heading')
+      .getByRole('button', { name: '新增', exact: true })
+      .click()
+    await sub.getByLabel('成本名称', { exact: true }).fill('装卸')
+    await sub.getByLabel('成本单价或每单金额', { exact: true }).fill('0.20')
+    await confirmCollection(page)
     await dialog.getByRole('button', { name: '提交', exact: true }).click()
     await expect
       .poll(() =>
@@ -201,18 +174,13 @@ test('customer full temporary form, two subunits, history and independent enable
     await findArchive(page, name)
     await row.getByRole('button', { name: '提交变更', exact: true }).click()
     dialog = page.getByRole('dialog').last()
-    await expect(
-      dialog.locator('.collection-block[aria-label="客户子单位"] tbody tr'),
-    ).toHaveCount(2)
-    await expect(dialog.getByLabel('开票账号', { exact: true })).toHaveValue(
-      '12345678',
+    await expect(dialog.getByLabel('联系人', { exact: true })).toHaveValue(
+      '业务联系人',
     )
-    await editCollection(page, '客户子单位')
     await dialog
       .getByLabel('默认加价单价', { exact: true })
       .first()
       .fill('0.30')
-    await confirmCollection(page)
     await dialog.getByRole('button', { name: '提交', exact: true }).click()
     await expect(dialog).toHaveCount(0)
     await approve(reviewer, name)
@@ -233,7 +201,7 @@ test('customer full temporary form, two subunits, history and independent enable
       .filter({ hasText: name })
       .getByRole('button', { name: '查看', exact: true })
       .click()
-    await expect(page.getByRole('dialog').last()).toContainText('SUB-0002')
+    await expect(page.getByRole('dialog').last()).toContainText('业务联系人')
     await page
       .getByRole('dialog')
       .getByRole('button', { name: '查看版本 2', exact: true })

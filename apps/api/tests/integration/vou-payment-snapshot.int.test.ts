@@ -53,7 +53,7 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     customer: ulid(),
     product: ulid(),
   }
-  const subunitId = ulid()
+  const subunitId = subjects.customer
   const emptySubunitId = ulid()
   const documentIds: string[] = []
   context.after(async () => {
@@ -72,13 +72,13 @@ test('sales orders adopt explicit customer or current payment snapshots without 
         await sql`DELETE FROM vou_documents WHERE id IN (${sql.join(documentIds)})`.execute(
           db,
         )
-      await sql`DELETE FROM approval_entries WHERE id IN (${sql.join(Object.values(entries))})`.execute(
+      await sql`DELETE FROM approval_entries WHERE subject_id IN (${sql.join([...Object.values(subjects), emptySubunitId])})`.execute(
         db,
       )
-      await sql`DELETE FROM dcl_subjects WHERE id IN (${sql.join(Object.values(subjects))})`.execute(
+      await sql`DELETE FROM dcl_subjects WHERE id IN (${sql.join([...Object.values(subjects), emptySubunitId])})`.execute(
         db,
       )
-      await sql`DELETE FROM dcl_subjects WHERE id IN (${sql.join(Object.values(subjects))})`.execute(
+      await sql`DELETE FROM dcl_subjects WHERE id IN (${sql.join([...Object.values(subjects), emptySubunitId])})`.execute(
         db,
       )
       await sql`DELETE FROM aux_objects WHERE created_by = ${actorId}`.execute(
@@ -198,48 +198,59 @@ test('sales orders adopt explicit customer or current payment snapshots without 
       })),
     )
     .execute()
+  const emptyCustomerEntryId = ulid()
+  await insertArchiveObjects(db, {
+    id: emptySubunitId,
+    entity: 'customer',
+    code: `CUS-${String((Number(codeSuffix) + 1) % 10000).padStart(4, '0')}`,
+    created_at: now,
+    created_by: actorId,
+  })
   await db
-    .insertInto('dcl_customer_versions')
+    .insertInto('approval_entries')
     .values({
-      approval_entry_id: entries.customer,
-      kind: 'ENTERPRISE',
-      display_name: '收款客户',
+      id: emptyCustomerEntryId,
+      domain: 'dcl',
+      entity: 'customer',
+      subject_id: emptySubunitId,
+      version_no: 1,
+      status: 'APPROVED',
+      revision: 1,
+      submitted_by: actorId,
+      submitted_at: now,
+      approved_by: actorId,
+      approved_at: now,
+      updated_by: actorId,
+      updated_at: now,
     })
     .execute()
   await db
-    .insertInto('dcl_customer_subunit_roots')
+    .insertInto('dcl_customer_versions')
     .values(
-      [subunitId, emptySubunitId].map((id) => ({
-        subunit_id: id,
-        customer_id: subjects.customer,
-        code: `PAY-SUB-${id.slice(-8)}`,
-      })),
-    )
-    .execute()
-  await db
-    .insertInto('dcl_customer_version_subunits')
-    .values(
-      [subunitId, emptySubunitId].map((id) => ({
-        customer_approval_entry_id: entries.customer,
-        subunit_id: id,
-        name: id === subunitId ? '默认收款总部' : '未设收款分部',
-        customer_type_id: '01J00000000000000000000103',
-        customer_type_snapshot: JSON.stringify({
-          id: '01J00000000000000000000103',
-          code: 'CUSTOMER-TYPE-TEST',
-          name: '测试类型',
-        }),
-        payment_snapshot:
-          id === subunitId
-            ? JSON.stringify({
+      [entries.customer, emptyCustomerEntryId].map(
+        (approval_entry_id, index) => ({
+          approval_entry_id,
+          display_name: index ? '未设收款客户' : '默认收款客户',
+          customer_type_id: '01J00000000000000000000103',
+          customer_type_snapshot: JSON.stringify({
+            id: '01J00000000000000000000103',
+            code: 'CUSTOMER-TYPE-TEST',
+            name: '测试类型',
+          }),
+          payment_snapshot: index
+            ? null
+            : JSON.stringify({
                 id: firstView.id,
                 code: firstView.code,
                 name: firstView.name,
                 defaultSalesSurcharge: firstView.defaultSalesSurcharge,
-              })
-            : null,
-        enabled: true,
-      })),
+              }),
+          credit_limits: '[]',
+          attachments: '[]',
+          remittance_profiles: '[]',
+          tax_information: '[]',
+        }),
+      ),
     )
     .execute()
   await db
@@ -310,7 +321,14 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     businessDate: '2026-09-07',
     currency: 'CNY',
     attachments: [],
-    customerSubunit: { ...reference('customer'), objectId: selectedSubunit },
+    customer: {
+      ...reference('customer'),
+      objectId: selectedSubunit,
+      approvalEntryId:
+        selectedSubunit === emptySubunitId
+          ? emptyCustomerEntryId
+          : entries.customer,
+    },
     operatingEntity: { objectId: operatingEntity.id },
     warehouse: { objectId: currentWarehouse.id },
     paymentMethod,
@@ -400,7 +418,7 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     await reject(payload({ ...selected, ...patch }))
   }
   const customerCandidates = await new BobService(db).options({
-    entity: 'customer-subunit',
+    entity: 'customer',
     page: 1,
     pageSize: 20,
     enabled: true,
@@ -411,10 +429,9 @@ test('sales orders adopt explicit customer or current payment snapshots without 
       enabled: true,
       sourceVersionNo: 1,
       objectId: subunitId,
-      customerId: subjects.customer,
       sourceApprovalEntryId: entries.customer,
-      code: `PAY-SUB-${subunitId.slice(-8)}`,
-      name: '默认收款总部',
+      code: `CUS-${codeSuffix}`,
+      name: '默认收款客户',
       paymentMethod: customerSnapshot,
     },
   )
@@ -515,7 +532,7 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     ),
   )
   for (const [method, source] of [
-    [disabledFirst, 'dcl_customer_version_subunits'],
+    [disabledFirst, 'dcl_customer_versions'],
     [disabledAlternate, 'vou_sale_order_details'],
   ] as const) {
     await assert.rejects(

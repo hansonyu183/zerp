@@ -1104,6 +1104,62 @@
     "title": "保存结算方式"
   },
   {
+    "id": "01JEA45DECE06B4061D5484423",
+    "path": "/aux/tax-information/create",
+    "domain": "aux",
+    "entity": "tax-information",
+    "action": "create",
+    "title": "创建税务信息"
+  },
+  {
+    "id": "01J2E3319FC500C530A5390BAF",
+    "path": "/aux/tax-information/delete",
+    "domain": "aux",
+    "entity": "tax-information",
+    "action": "delete",
+    "title": "删除税务信息"
+  },
+  {
+    "id": "01J2B9202CED66E199F7C860DD",
+    "path": "/aux/tax-information/disable",
+    "domain": "aux",
+    "entity": "tax-information",
+    "action": "disable",
+    "title": "停用税务信息"
+  },
+  {
+    "id": "01JB317A149489BB66F0974948",
+    "path": "/aux/tax-information/enable",
+    "domain": "aux",
+    "entity": "tax-information",
+    "action": "enable",
+    "title": "启用税务信息"
+  },
+  {
+    "id": "01J818A784F9EE236E475C2D79",
+    "path": "/aux/tax-information/get",
+    "domain": "aux",
+    "entity": "tax-information",
+    "action": "get",
+    "title": "查看税务信息"
+  },
+  {
+    "id": "01JE54B57448415B6ECF997C81",
+    "path": "/aux/tax-information/query",
+    "domain": "aux",
+    "entity": "tax-information",
+    "action": "query",
+    "title": "查询税务信息"
+  },
+  {
+    "id": "01JC93DCA69981CA9E829A4A25",
+    "path": "/aux/tax-information/save",
+    "domain": "aux",
+    "entity": "tax-information",
+    "action": "save",
+    "title": "保存税务信息"
+  },
+  {
     "id": "01J66832D000441436FE5EBF0D",
     "path": "/aux/vehicle/create",
     "domain": "aux",
@@ -1510,14 +1566,6 @@
     "entity": "customer",
     "action": "reject",
     "title": "reject customer"
-  },
-  {
-    "id": "01J220B7E678FCFD501145D93C",
-    "path": "/dcl/customer/save-subunits",
-    "domain": "dcl",
-    "entity": "customer",
-    "action": "save-subunits",
-    "title": "维护客户子单位"
   },
   {
     "id": "01J08C3908D01BFB7048DE2469",
@@ -4144,6 +4192,110 @@
     "title": "purchase-inquiry unreject"
   },
   {
+    "id": "01J69C949CD0B061FFA8D935B2",
+    "path": "/vou/purchase-invoice/approve",
+    "domain": "vou",
+    "entity": "purchase-invoice",
+    "action": "approve",
+    "title": "purchase-invoice approve"
+  },
+  {
+    "id": "01J90F10E27989BF402D2096FD",
+    "path": "/vou/purchase-invoice/attachment-cleanup",
+    "domain": "vou",
+    "entity": "purchase-invoice",
+    "action": "attachment-cleanup",
+    "title": "purchase-invoice attachment-cleanup"
+  },
+  {
+    "id": "01J10CCA4D4E2E8B4B2F77EE38",
+    "path": "/vou/purchase-invoice/attachment-read",
+    "domain": "vou",
+    "entity": "purchase-invoice",
+    "action": "attachment-read",
+    "title": "purchase-invoice attachment-read"
+  },
+  {
+    "id": "01J587D941CDB05F6BA58E459A",
+    "path": "/vou/purchase-invoice/attachment-stage",
+    "domain": "vou",
+    "entity": "purchase-invoice",
+    "action": "attachment-stage",
+    "title": "purchase-invoice attachment-stage"
+  },
+  {
+    "id": "01J3BEAF95698C04C3527F0ABE",
+    "path": "/vou/purchase-invoice/audit-history",
+    "domain": "vou",
+    "entity": "purchase-invoice",
+    "action": "audit-history",
+    "title": "purchase-invoice audit-history"
+  },
+  {
+    "id": "01JFF15EF170C925CA82D66DBA",
+    "path": "/vou/purchase-invoice/delete",
+    "domain": "vou",
+    "entity": "purchase-invoice",
+    "action": "delete",
+    "title": "purchase-invoice delete"
+  },
+  {
+    "id": "01J1DD2C80503EACF19B88307F",
+    "path": "/vou/purchase-invoice/get",
+    "domain": "vou",
+    "entity": "purchase-invoice",
+    "action": "get",
+    "title": "purchase-invoice get"
+  },
+  {
+    "id": "01JB215B61B57759484C87F28B",
+    "path": "/vou/purchase-invoice/query",
+    "domain": "vou",
+    "entity": "purchase-invoice",
+    "action": "query",
+    "title": "采购发票"
+  },
+  {
+    "id": "01J4D2CA41B30235D0B1E0F7C2",
+    "path": "/vou/purchase-invoice/reject",
+    "domain": "vou",
+    "entity": "purchase-invoice",
+    "action": "reject",
+    "title": "purchase-invoice reject"
+  },
+  {
+    "id": "01J1B9B3CC796E5BA60C8A7FA0",
+    "path": "/vou/purchase-invoice/submit-change",
+    "domain": "vou",
+    "entity": "purchase-invoice",
+    "action": "submit-change",
+    "title": "purchase-invoice submit-change"
+  },
+  {
+    "id": "01J96A5F5125D773EFBF0A18EA",
+    "path": "/vou/purchase-invoice/submit-new",
+    "domain": "vou",
+    "entity": "purchase-invoice",
+    "action": "submit-new",
+    "title": "purchase-invoice submit-new"
+  },
+  {
+    "id": "01JB8DE1BB0DD1D81BE89DB928",
+    "path": "/vou/purchase-invoice/unapprove",
+    "domain": "vou",
+    "entity": "purchase-invoice",
+    "action": "unapprove",
+    "title": "purchase-invoice unapprove"
+  },
+  {
+    "id": "01J5D2FCE13E520F6EA7200589",
+    "path": "/vou/purchase-invoice/unreject",
+    "domain": "vou",
+    "entity": "purchase-invoice",
+    "action": "unreject",
+    "title": "purchase-invoice unreject"
+  },
+  {
     "id": "01J1AC8E7E94F862104750B4CE",
     "path": "/vou/purchase-order/approve",
     "domain": "vou",
@@ -4646,6 +4798,110 @@
     "entity": "sale-delivery",
     "action": "unreject",
     "title": "sale-delivery unreject"
+  },
+  {
+    "id": "01JE98F4C505F3974F9DC9BF3A",
+    "path": "/vou/sale-invoice/approve",
+    "domain": "vou",
+    "entity": "sale-invoice",
+    "action": "approve",
+    "title": "sale-invoice approve"
+  },
+  {
+    "id": "01J69B4684A60A6A12F486F9BD",
+    "path": "/vou/sale-invoice/attachment-cleanup",
+    "domain": "vou",
+    "entity": "sale-invoice",
+    "action": "attachment-cleanup",
+    "title": "sale-invoice attachment-cleanup"
+  },
+  {
+    "id": "01JCC5053151B8C8AFDC35C565",
+    "path": "/vou/sale-invoice/attachment-read",
+    "domain": "vou",
+    "entity": "sale-invoice",
+    "action": "attachment-read",
+    "title": "sale-invoice attachment-read"
+  },
+  {
+    "id": "01J106F96B5AB3AC028C327C00",
+    "path": "/vou/sale-invoice/attachment-stage",
+    "domain": "vou",
+    "entity": "sale-invoice",
+    "action": "attachment-stage",
+    "title": "sale-invoice attachment-stage"
+  },
+  {
+    "id": "01JB2705AF66B90B7E543EA629",
+    "path": "/vou/sale-invoice/audit-history",
+    "domain": "vou",
+    "entity": "sale-invoice",
+    "action": "audit-history",
+    "title": "sale-invoice audit-history"
+  },
+  {
+    "id": "01JF193B77630F54CB9AD4C80E",
+    "path": "/vou/sale-invoice/delete",
+    "domain": "vou",
+    "entity": "sale-invoice",
+    "action": "delete",
+    "title": "sale-invoice delete"
+  },
+  {
+    "id": "01J80702239673CA59BE2C54A2",
+    "path": "/vou/sale-invoice/get",
+    "domain": "vou",
+    "entity": "sale-invoice",
+    "action": "get",
+    "title": "sale-invoice get"
+  },
+  {
+    "id": "01JCF34DA6B0578798C5B01C84",
+    "path": "/vou/sale-invoice/query",
+    "domain": "vou",
+    "entity": "sale-invoice",
+    "action": "query",
+    "title": "销售发票"
+  },
+  {
+    "id": "01J791BFCE84E91D56841FE5CA",
+    "path": "/vou/sale-invoice/reject",
+    "domain": "vou",
+    "entity": "sale-invoice",
+    "action": "reject",
+    "title": "sale-invoice reject"
+  },
+  {
+    "id": "01JFCDE5220A8A354369551C16",
+    "path": "/vou/sale-invoice/submit-change",
+    "domain": "vou",
+    "entity": "sale-invoice",
+    "action": "submit-change",
+    "title": "sale-invoice submit-change"
+  },
+  {
+    "id": "01JC96F5F01FC994DB0ADB5717",
+    "path": "/vou/sale-invoice/submit-new",
+    "domain": "vou",
+    "entity": "sale-invoice",
+    "action": "submit-new",
+    "title": "sale-invoice submit-new"
+  },
+  {
+    "id": "01JE7361BD7CE7795D7957B302",
+    "path": "/vou/sale-invoice/unapprove",
+    "domain": "vou",
+    "entity": "sale-invoice",
+    "action": "unapprove",
+    "title": "sale-invoice unapprove"
+  },
+  {
+    "id": "01JE618326557423FEC7A71752",
+    "path": "/vou/sale-invoice/unreject",
+    "domain": "vou",
+    "entity": "sale-invoice",
+    "action": "unreject",
+    "title": "sale-invoice unreject"
   },
   {
     "id": "01JEA250BC151B99C7F96B2FE3",

@@ -55,3 +55,5 @@
 - [#425 辅助读取路由与消费者迁移盘点](auxiliary-read-migration-matrix.md)
 - [#426 ACC 目录 GET 与方法分类验收](auxiliary-get-issue-426-2026-09-12.md)
 - [#427 实体候选与公共引用 GET 验收](auxiliary-get-issue-427-2026-09-12.md)
+
+- [#439 客户与税务一次性转换验证](issue-439-customer-cutover.md)

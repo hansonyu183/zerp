@@ -90,7 +90,6 @@ export interface AccOpeningAsset {
 export interface AccOpeningVersionedCounterpartyReference {
   entity: 'customer' | 'supplier' | 'other-unit' | 'sales-partner'
   objectId: string
-  customerId?: string
   approvalEntryId: string
   code: string
   name: string
@@ -131,10 +130,9 @@ export interface AccOpeningBill {
 }
 
 export interface AccOpeningContainer {
-  subunit: {
-    entity: 'customer-subunit'
+  customer: {
+    entity: 'customer'
     objectId: string
-    customerId: string
     approvalEntryId: string
     code: string
     name: string
@@ -276,12 +274,12 @@ export const accSubjectTemplates: Readonly<
     }),
     templateLine('1121', '应收票据', 'DEBIT', {
       parentCode: '1000',
-      requiredDimensions: ['CUSTOMER_SUBUNIT', 'BILL'],
+      requiredDimensions: ['CUSTOMER', 'BILL'],
       settlementPurpose: 'RECEIVABLE',
     }),
     templateLine('1122', '应收账款', 'DEBIT', {
       parentCode: '1000',
-      requiredDimensions: ['CUSTOMER_SUBUNIT'],
+      requiredDimensions: ['CUSTOMER'],
       settlementPurpose: 'RECEIVABLE',
     }),
     templateLine('1123', '预付账款', 'DEBIT', {
@@ -326,7 +324,7 @@ export const accSubjectTemplates: Readonly<
     }),
     templateLine('2203', '预收账款', 'CREDIT', {
       parentCode: '2000',
-      requiredDimensions: ['CUSTOMER_SUBUNIT'],
+      requiredDimensions: ['CUSTOMER'],
       settlementPurpose: 'ADVANCE_RECEIPT',
     }),
     templateLine('2241', '销售合作应付款', 'CREDIT', {
@@ -376,12 +374,12 @@ export const accSubjectTemplates: Readonly<
     templateLine('1101', '短期投资', 'DEBIT', { parentCode: '1000' }),
     templateLine('1121', '应收票据', 'DEBIT', {
       parentCode: '1000',
-      requiredDimensions: ['CUSTOMER_SUBUNIT', 'BILL'],
+      requiredDimensions: ['CUSTOMER', 'BILL'],
       settlementPurpose: 'RECEIVABLE',
     }),
     templateLine('1122', '应收账款', 'DEBIT', {
       parentCode: '1000',
-      requiredDimensions: ['CUSTOMER_SUBUNIT'],
+      requiredDimensions: ['CUSTOMER'],
       settlementPurpose: 'RECEIVABLE',
     }),
     templateLine('1123', '预付账款', 'DEBIT', {
@@ -426,7 +424,7 @@ export const accSubjectTemplates: Readonly<
     }),
     templateLine('2203', '预收账款', 'CREDIT', {
       parentCode: '2000',
-      requiredDimensions: ['CUSTOMER_SUBUNIT'],
+      requiredDimensions: ['CUSTOMER'],
       settlementPurpose: 'ADVANCE_RECEIPT',
     }),
     templateLine('2241', '销售合作应付款', 'CREDIT', {
@@ -487,16 +485,12 @@ export function validateAccSubjectAttributes(
     input.settlementPurpose === 'PREPAID'
   const other = input.settlementPurpose === 'OTHER'
   if (
-    (customer && !dimensions.has('CUSTOMER_SUBUNIT')) ||
+    (customer && !dimensions.has('CUSTOMER')) ||
     (supplier && !dimensions.has('SUPPLIER')) ||
     (other &&
-      ![
-        'CUSTOMER_SUBUNIT',
-        'SUPPLIER',
-        'OTHER_UNIT',
-        'EMPLOYEE',
-        'SALES_PARTNER',
-      ].some((dimension) => dimensions.has(dimension as AccSubjectDimension)))
+      !['CUSTOMER', 'SUPPLIER', 'OTHER_UNIT', 'EMPLOYEE', 'SALES_PARTNER'].some(
+        (dimension) => dimensions.has(dimension as AccSubjectDimension),
+      ))
   )
     throw new AccApplicationError('acc_subject_settlement_dimension_required')
 }
@@ -527,7 +521,7 @@ export interface AccControlBalancePort {
   partyBalance(
     tx: Transaction<DB>,
     input: {
-      counterpartyDimension: 'CUSTOMER_SUBUNIT' | 'SUPPLIER'
+      counterpartyDimension: 'CUSTOMER' | 'SUPPLIER'
       counterpartyObjectId: string
       currency: string
       settlementPurpose: AccControlSettlementPurpose
@@ -536,7 +530,7 @@ export interface AccControlBalancePort {
   ): Promise<bigint>
   customerCreditOccupancy(
     tx: Transaction<DB>,
-    input: { customerSubunitId: string; currency: string; asOfDate: string },
+    input: { customerId: string; currency: string; asOfDate: string },
   ): Promise<bigint>
 }
 
@@ -619,41 +613,55 @@ export class AccService
   }
 
   async syncVouEntityCatalog(): Promise<void> {
-    await this.db.transaction().execute(async (tx) => {
-      for (const entity of vouEntities) {
-        const headerFields: string[] = []
-        const lineFields: string[] = []
-        const flatten = (
-          prefix: string,
-          fields: readonly import('@zerp/model').VouInputFieldDescriptor[],
-        ) => {
-          for (const field of fields) {
-            const path = prefix ? `${prefix}.${field.key}` : field.key
-            if (field.kind === 'array') {
-              if (field.key !== 'attachments') flatten('line', field.item ?? [])
-            } else if (field.kind === 'object')
-              flatten(path, field.fields ?? [])
-            else
-              (prefix === 'line' || prefix.startsWith('line.')
-                ? lineFields
-                : headerFields
-              ).push(path)
-          }
+    await this.db
+      .transaction()
+      .execute((tx) => this.syncVouEntityCatalogInTransaction(tx))
+  }
+
+  async syncVouEntityCatalogInTransaction(tx: Transaction<DB>): Promise<void> {
+    for (const entity of vouEntities) {
+      const headerFields: string[] = []
+      const lineFields: string[] = []
+      const flatten = (
+        prefix: string,
+        fields: readonly import('@zerp/model').VouInputFieldDescriptor[],
+      ) => {
+        for (const field of fields) {
+          const path = prefix ? `${prefix}.${field.key}` : field.key
+          if (field.kind === 'array') {
+            if (field.key !== 'attachments') flatten('line', field.item ?? [])
+          } else if (field.kind === 'object') flatten(path, field.fields ?? [])
+          else
+            (prefix === 'line' || prefix.startsWith('line.')
+              ? lineFields
+              : headerFields
+            ).push(path)
         }
-        flatten('', vouEntityInputDescriptors[entity])
-        if (quantityMovementEntities.includes(entity))
-          lineFields.push(...quantityMovementFields)
-        if (billMovementEntities.includes(entity)) {
-          headerFields.push(...billMovementHeaderFields)
-          lineFields.push(...billMovementLineFields)
-        }
-        if (entity === 'intermediary-calculation')
-          lineFields.push(...intermediaryLineFields)
-        if (entity === 'asset-acquisition') lineFields.push('line.assetId')
-        await tx
-          .insertInto('acc_mapping_vou_entities')
-          .values({
-            id: entity,
+      }
+      flatten('', vouEntityInputDescriptors[entity])
+      if (quantityMovementEntities.includes(entity))
+        lineFields.push(...quantityMovementFields)
+      if (billMovementEntities.includes(entity)) {
+        headerFields.push(...billMovementHeaderFields)
+        lineFields.push(...billMovementLineFields)
+      }
+      if (entity === 'intermediary-calculation')
+        lineFields.push(...intermediaryLineFields)
+      if (entity === 'asset-acquisition') lineFields.push('line.assetId')
+      await tx
+        .insertInto('acc_mapping_vou_entities')
+        .values({
+          id: entity,
+          code: entity,
+          name: vouEntityPresentation[entity].label,
+          field_catalog: asJson({
+            headerFields: [...new Set(headerFields)],
+            lineFields: [...new Set(lineFields)],
+          }),
+          enabled: true,
+        })
+        .onConflict((conflict) =>
+          conflict.column('id').doUpdateSet({
             code: entity,
             name: vouEntityPresentation[entity].label,
             field_catalog: asJson({
@@ -661,25 +669,17 @@ export class AccService
               lineFields: [...new Set(lineFields)],
             }),
             enabled: true,
-          })
-          .onConflict((conflict) =>
-            conflict.column('id').doUpdateSet({
-              code: entity,
-              name: vouEntityPresentation[entity].label,
-              field_catalog: asJson({
-                headerFields: [...new Set(headerFields)],
-                lineFields: [...new Set(lineFields)],
-              }),
-              enabled: true,
-            }),
-          )
-          .execute()
-      }
-    })
+          }),
+        )
+        .execute()
+    }
   }
 
   async apply(tx: Transaction<DB>, plan: AccApplicationPlan): Promise<void> {
     if (plan.action === 'NONE') return
+    // Invoices allocate previously recognized source revenue; they do not post it twice.
+    if (plan.entity === 'sale-invoice' || plan.entity === 'purchase-invoice')
+      return
     if (plan.action === 'unapprove') {
       const inventoryFacts = await this.inventoryFactsForSource(
         tx,
@@ -1225,7 +1225,7 @@ export class AccService
   async partyBalance(
     tx: Transaction<DB>,
     input: {
-      counterpartyDimension: 'CUSTOMER_SUBUNIT' | 'SUPPLIER'
+      counterpartyDimension: 'CUSTOMER' | 'SUPPLIER'
       counterpartyObjectId: string
       currency: string
       settlementPurpose: AccControlSettlementPurpose
@@ -1235,7 +1235,7 @@ export class AccService
     const expectedDimension =
       input.settlementPurpose === 'RECEIVABLE' ||
       input.settlementPurpose === 'ADVANCE_RECEIPT'
-        ? 'CUSTOMER_SUBUNIT'
+        ? 'CUSTOMER'
         : 'SUPPLIER'
     if (
       input.counterpartyDimension !== expectedDimension ||
@@ -1278,11 +1278,11 @@ export class AccService
 
   async customerCreditOccupancy(
     tx: Transaction<DB>,
-    input: { customerSubunitId: string; currency: string; asOfDate: string },
+    input: { customerId: string; currency: string; asOfDate: string },
   ): Promise<bigint> {
     const balance = await this.partyBalance(tx, {
-      counterpartyDimension: 'CUSTOMER_SUBUNIT',
-      counterpartyObjectId: input.customerSubunitId,
+      counterpartyDimension: 'CUSTOMER',
+      counterpartyObjectId: input.customerId,
       currency: input.currency,
       settlementPurpose: 'RECEIVABLE',
       asOfDate: input.asOfDate,
@@ -1388,18 +1388,7 @@ export class AccService
   ): Promise<void> {
     if (plan.entity === 'sale-signoff') {
       const payload = plan.payload as VouPayloadFor<'sale-signoff'>
-      const customer = await sql<{ customer_id: string }>`
-        SELECT root.customer_id
-        FROM dcl_customer_subunit_roots root
-        JOIN dcl_customer_version_subunits subunit
-          ON subunit.subunit_id = root.subunit_id
-          AND subunit.customer_approval_entry_id = ${payload.customerSubunit.approvalEntryId}
-        WHERE root.subunit_id = ${payload.customerSubunit.objectId}
-        FOR UPDATE OF root
-      `.execute(tx)
-      const customerId = customer.rows[0]?.customer_id
-      if (!customerId)
-        throw new AccApplicationError('acc_container_customer_subunit_invalid')
+      const customerId = payload.customer.objectId
       const deltas = [
         [
           'SOLVENT',
@@ -1414,12 +1403,12 @@ export class AccService
         if (quantityDelta === 0) continue
         await sql`
           INSERT INTO acc_container_entries (
-            id, customer_subunit_id, customer_id, customer_approval_entry_id,
+            id, customer_id, customer_approval_entry_id,
             container_type, quantity_delta, business_date, vou_approval_entry_id,
             source_document_id, source_revision, created_at
           ) VALUES (
-            ${ulid()}, ${payload.customerSubunit.objectId}, ${customerId},
-            ${payload.customerSubunit.approvalEntryId}, ${containerType},
+            ${ulid()}, ${customerId},
+            ${payload.customer.approvalEntryId}, ${containerType},
             ${quantityDelta}, ${plan.payload.businessDate}::date,
             ${plan.approvalEntryId}, ${plan.documentId}, ${plan.approvalRevision},
             ${new Date(plan.occurredAt)}
@@ -2894,19 +2883,19 @@ export class AccService
     for (const container of input.containers) {
       await sql`
         INSERT INTO acc_opening_container_balances (
-          opening_approval_entry_id, customer_subunit_id, customer_id,
-          customer_approval_entry_id, customer_subunit_code, customer_subunit_name,
+          opening_approval_entry_id, customer_id,
+          customer_approval_entry_id, customer_code, customer_name,
           container_type, quantity, created_at
         ) VALUES (
-          ${openingApprovalEntryId}, ${container.subunit.objectId}, ${container.subunit.customerId},
-          ${container.subunit.approvalEntryId}, ${container.subunit.code}, ${container.subunit.name},
+          ${openingApprovalEntryId}, ${container.customer.objectId},
+          ${container.customer.approvalEntryId}, ${container.customer.code}, ${container.customer.name},
           ${container.containerType}, ${container.quantity}, ${occurredAt}
         )
       `.execute(tx)
       await this.insertOpeningRegisterEntry(
         tx,
         'CONTAINER',
-        container.subunit.objectId,
+        container.customer.objectId,
         openingApprovalEntryId,
         container,
         occurredAt,
@@ -3072,7 +3061,7 @@ export class AccService
       ),
       containers: input.containers.map((container) => ({
         ...container,
-        subunit: { ...container.subunit },
+        customer: { ...container.customer },
       })),
     }
   }
@@ -3443,16 +3432,14 @@ export class AccService
         const result = await sql<{
           id: string
           name: string
-          customer_id: string | null
         }>`
           SELECT entry.id,
             CASE entry.entity
               WHEN 'customer' THEN customer.display_name
-              WHEN 'supplier' THEN supplier.legal_name
+              WHEN 'supplier' THEN supplier.display_name
               WHEN 'other-unit' THEN other_unit.legal_name
               WHEN 'sales-partner' THEN sales_partner.legal_name
-            END AS name,
-            CASE WHEN entry.entity = 'customer' THEN entry.subject_id ELSE NULL END AS customer_id
+            END AS name
           FROM approval_entries entry
           LEFT JOIN bob_archive_objects bob_subject
             ON bob_subject.id = entry.subject_id AND entry.domain = 'dcl'
@@ -3468,11 +3455,7 @@ export class AccService
             AND bob_subject.code = ${historical.code}
         `.execute(executor)
         const row = result.rows[0]
-        if (
-          !row ||
-          row.name !== historical.name ||
-          (row.customer_id ?? undefined) !== historical.customerId
-        )
+        if (!row || row.name !== historical.name)
           throw new AccApplicationError('acc_opening_bill_counterparty_invalid')
       }
     }
@@ -3482,29 +3465,27 @@ export class AccService
         code: string
         name: string
       }>`
-        SELECT root.customer_id, root.code, subunit.name
-        FROM dcl_customer_subunit_roots root
-        JOIN dcl_customer_version_subunits subunit
-          ON subunit.subunit_id = root.subunit_id
-          AND subunit.customer_approval_entry_id = ${container.subunit.approvalEntryId}
-        JOIN approval_entries entry ON entry.id = subunit.customer_approval_entry_id
-        JOIN bob_archive_objects customer ON customer.id = root.customer_id
-        WHERE root.subunit_id = ${container.subunit.objectId}
+        SELECT customer.id AS customer_id, customer.code, version.display_name AS name
+        FROM bob_archive_objects customer
+        JOIN approval_entries entry ON entry.subject_id = customer.id
+        JOIN dcl_customer_versions version ON version.approval_entry_id = entry.id
+        WHERE customer.id = ${container.customer.objectId}
+          AND entry.id = ${container.customer.approvalEntryId}
           AND entry.domain = 'dcl' AND entry.entity = 'customer' AND entry.status = 'APPROVED'
-          AND subunit.enabled = true AND customer.enabled = true
+          AND customer.enabled = true
           AND NOT EXISTS (
             SELECT 1 FROM approval_entries later
             WHERE later.domain = 'dcl' AND later.entity = 'customer'
-              AND later.subject_id = root.customer_id AND later.status = 'APPROVED'
+              AND later.subject_id = customer.id AND later.status = 'APPROVED'
               AND later.version_no > entry.version_no
           )
       `.execute(executor)
       const row = current.rows[0]
       if (
         !row ||
-        row.customer_id !== container.subunit.customerId ||
-        row.code !== container.subunit.code ||
-        row.name !== container.subunit.name
+        row.customer_id !== container.customer.objectId ||
+        row.code !== container.customer.code ||
+        row.name !== container.customer.name
       )
         throw new AccApplicationError(
           'acc_opening_container_current_snapshot_invalid',

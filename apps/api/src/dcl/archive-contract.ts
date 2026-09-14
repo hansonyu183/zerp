@@ -149,12 +149,6 @@ const settlementSnapshot = auxSnapshot.extend({
   dayOfMonth: z.number().int().min(0).max(31).optional(),
   dayOffset: z.number().int().min(0).max(30).optional(),
 })
-const identityKind = z.enum([
-  'MAINLAND_ENTERPRISE',
-  'MAINLAND_INDIVIDUAL',
-  'OTHER',
-])
-
 // Settlement methods are AUX facts. They intentionally do not carry an
 // Approval Entry: a DCL exact-version reference here would fabricate history.
 // ArchiveService replaces any client-supplied identity with these immutable
@@ -237,64 +231,47 @@ const customerSalesAttribution = z.discriminatedUnion('type', [
   }),
 ])
 
-const customerSubunitBase = {
-  id: z.string().length(26),
-  name: z.string().min(1).max(200),
-  contactName: z.string().max(100),
-  address: z.string().max(500),
-  customerType: auxSnapshot,
-  settlementMethod: customerSettlementSnapshot.nullable(),
-  paymentMethod: paymentMethodSnapshot.nullable(),
-  transportPolicy: z
-    .object({
-      methodCode: z.string().min(1).max(64),
-      methodName: z.string().min(1).max(200),
-      surcharge: z.string().regex(/^(?:0|[1-9]\d*)\.\d{2}$/),
-    })
-    .strict(),
-  pricingPolicy,
-  creditLimits: z.array(
-    z
-      .object({ currency: z.string().min(1).max(16), amount: z.string() })
-      .strict(),
-  ),
-  primarySalesAttribution: customerSalesAttribution,
-  internalReminder: z.string().max(1000),
-  defaultSalesOrderRemark: z.string().max(1000),
-  attachments: z.array(attachmentMetadata),
-  enabled: z.boolean(),
-} as const
-const customerSubunit = z.discriminatedUnion('intent', [
-  z
-    .object({
-      ...customerSubunitBase,
-      intent: z.literal('NEW'),
-      code: z.null(),
-    })
-    .strict(),
-  z
-    .object({
-      ...customerSubunitBase,
-      intent: z.literal('EXISTING'),
-      code: z.string().regex(/^SUB-\d{4}$/),
-    })
-    .strict(),
-])
-
+export const taxInformationSnapshot = z
+  .object({
+    id: z.string().length(26),
+    code: z.string().min(1).max(64),
+    revision: z.string().regex(/^[1-9]\d*$/),
+    name: z.string().min(1).max(200),
+    taxNumber: z.string().min(1).max(128),
+    registeredAddress: z.string().max(500),
+    phone: z.string().max(32),
+    bank: z.string().max(200),
+    accountNumber: z.string().max(128),
+    remark: z.string().max(1000),
+  })
+  .strict()
 const customerSnapshot = z
   .object({
-    identityKind,
-    legalName: z.string().min(1).max(200),
     displayName: z.string().min(1).max(200),
-    legalIdentifier: z.string().max(128),
     phone: z.string().max(32),
     email: z.string().max(320),
+    contactName: z.string().max(100),
     address: z.string().max(500),
-    invoiceTitle: z.string().max(200),
-    invoiceAddress: z.string().max(500),
-    invoicePhone: z.string().max(32),
-    invoiceBank: z.string().max(200),
-    invoiceAccount: z.string().max(128),
+    customerType: auxSnapshot,
+    settlementMethod: customerSettlementSnapshot.nullable(),
+    paymentMethod: paymentMethodSnapshot.nullable(),
+    transportPolicy: z
+      .object({
+        methodCode: z.string().min(1).max(64),
+        methodName: z.string().min(1).max(200),
+        surcharge: z.string().regex(/^(?:0|[1-9]\d*)\.\d{2}$/),
+      })
+      .strict(),
+    pricingPolicy,
+    creditLimits: z.array(
+      z
+        .object({ currency: z.string().min(1).max(16), amount: z.string() })
+        .strict(),
+    ),
+    primarySalesAttribution: customerSalesAttribution,
+    internalReminder: z.string().max(1000),
+    defaultSalesOrderRemark: z.string().max(1000),
+    attachments: z.array(attachmentMetadata),
     remittanceProfiles: z.array(
       z
         .object({
@@ -305,8 +282,7 @@ const customerSnapshot = z
         .strict(),
     ),
     defaultOperatingEntity: stableReference.nullable(),
-    identityAttachments: z.array(attachmentMetadata),
-    subunits: z.array(customerSubunit).min(1),
+    taxInformation: z.array(taxInformationSnapshot),
   })
   .strict()
 
@@ -325,7 +301,14 @@ const archiveIdentityBase = {
 
 const supplierSnapshot = z
   .object({
-    ...archiveIdentityBase,
+    displayName: archiveIdentityBase.displayName,
+    contactName: archiveIdentityBase.contactName,
+    phone: archiveIdentityBase.phone,
+    address: archiveIdentityBase.address,
+    operatingEntities: archiveIdentityBase.operatingEntities,
+    defaultOperatingEntityId: archiveIdentityBase.defaultOperatingEntityId,
+    remark: archiveIdentityBase.remark,
+    taxInformation: z.array(taxInformationSnapshot),
     settlementMethod: settlementSnapshot.nullable(),
     defaultPurchaser: stableReference.nullable(),
   })
@@ -666,18 +649,6 @@ export const dclArchiveRouteMetadata: Array<{
         : `${action} ${entity}`,
   })),
 )
-
-/**
- * Capabilities authorize a bounded part of a real route, not a synthetic HTTP
- * endpoint. Keep them out of executable-route completeness checks while still
- * emitting them into the target permission catalog.
- */
-export const archiveCapabilityPermissionMetadata = [
-  {
-    permission: '/dcl/customer/save-subunits',
-    title: '维护客户子单位',
-  },
-] as const
 
 const attachmentStageRequest = z
   .object({

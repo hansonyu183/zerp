@@ -70,9 +70,9 @@ const billFields = [
 ] as const satisfies DetailFields<OpeningDraft['bills'][number]>
 const containerFields = [
   {
-    key: 'subunit',
+    key: 'customer',
     type: 'group',
-    caption: '客户子单位',
+    caption: '客户',
     fields: [{ key: 'name', type: 'text', caption: '名称' }],
   },
   { key: 'quantity', type: 'integer', caption: '数量' },

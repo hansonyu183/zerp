@@ -18,7 +18,7 @@ vi.mock('@/target/api.ts', async (original) => ({
   queryTargetBobOptions: vi.fn(),
   queryTargetCustomerLatestLine: vi.fn(),
   resolveTargetSaleOrderLine: vi.fn(),
-  resolveTargetCustomerSubunit: vi.fn(),
+  resolveTargetCustomer: vi.fn(),
   resolveTargetSupplier: vi.fn(),
   getTargetVoucher: vi.fn(),
   queryTargetOpenings: vi.fn(),
@@ -201,29 +201,23 @@ it('adopts customer defaults, keeps the internal reminder out of the order, and 
             approvalEntryId: entryId,
             code: '01',
             name: '候选资料',
-            ...(entity === 'customer-subunit'
+            ...(entity === 'customer'
               ? { customerId: referenceId, paymentMethod: null }
               : {}),
           },
         ],
       }) as Awaited<ReturnType<typeof api.queryTargetVouOptions>>,
   )
-  vi.mocked(api.resolveTargetCustomerSubunit).mockResolvedValue({
+  vi.mocked(api.resolveTargetCustomer).mockResolvedValue({
     objectId: referenceId,
     sourceApprovalEntryId: entryId,
     enabled: true,
     data: {
-      subunits: [
-        {
-          id: referenceId,
-          enabled: true,
-          defaultSalesOrderRemark: '送货前联系',
-          internalReminder: '内部信用提醒',
-          settlementMethod: null,
-        },
-      ],
+      defaultSalesOrderRemark: '送货前联系',
+      internalReminder: '内部信用提醒',
+      settlementMethod: null,
     },
-  } as Awaited<ReturnType<typeof api.resolveTargetCustomerSubunit>>)
+  } as Awaited<ReturnType<typeof api.resolveTargetCustomer>>)
   vi.mocked(api.resolveTargetProduct).mockResolvedValue({
     ...productCurrent,
     data: {
@@ -244,7 +238,7 @@ it('adopts customer defaults, keeps the internal reminder out of the order, and 
   })
   await click(wrapper, '新增')
   await wrapper
-    .get('[data-testid="document-editor"] [aria-label="客户子单位"]')
+    .get('[data-testid="document-editor"] [aria-label="客户"]')
     .setValue(referenceId)
   await flushPromises()
   expect(wrapper.text()).toContain('内部信用提醒')
@@ -527,12 +521,12 @@ it('clears every adopted customer identity from an opening container before subm
   vi.mocked(api.queryTargetVouOptions).mockResolvedValue({
     items: [
       {
-        entity: 'customer-subunit',
+        entity: 'customer',
         objectId: productId,
         customerId: referenceId,
         approvalEntryId: entryId,
         code: 'C01',
-        name: '客户子单位',
+        name: '客户',
       },
     ],
     total: 1,
@@ -549,19 +543,19 @@ it('clears every adopted customer identity from an opening container before subm
     '新增',
     '.collection-block[aria-label="空桶登记"] > .collection-heading > button',
   )
-  await wrapper.get('[aria-label="客户子单位"]').setValue(productId)
+  await wrapper.get('[aria-label="客户"]').setValue(productId)
   await flushPromises()
-  await wrapper.get('[aria-label="清空客户子单位"]').trigger('click')
+  await wrapper.get('[aria-label="清空客户"]').trigger('click')
   await flushPromises()
   await confirmItems(wrapper)
   await click(wrapper, '提交期初')
   expect(api.submitTargetOpening).toHaveBeenCalledTimes(1)
   expect(
-    vi.mocked(api.submitTargetOpening).mock.calls[0]![1].containers[0]?.subunit,
+    vi.mocked(api.submitTargetOpening).mock.calls[0]![1].containers[0]
+      ?.customer,
   ).toEqual({
-    entity: 'customer-subunit',
+    entity: 'customer',
     objectId: '',
-    customerId: '',
     approvalEntryId: '',
     code: '',
     name: '',
@@ -711,7 +705,7 @@ it.each(['RAW_MATERIAL', 'CUSTOM_FINISHED'] as const)(
       currency: 'CNY',
       remark: '复制备注',
       attachments: [],
-      customerSubunit: {
+      customer: {
         objectId: referenceId,
         approvalEntryId: entryId,
         selectionOrigin: 'CURRENT',
@@ -1502,14 +1496,7 @@ it.each([
     else if (entity === 'sales-receipt') {
       await choose('客户')
       await choose('经营主体')
-      await click(
-        wrapper,
-        '新增',
-        '.collection-block[aria-label="分摊行"] > .collection-heading > button',
-      )
-      await choose('客户子单位')
-      await wrapper.get('[aria-label="分摊金额"]').setValue('1234567890123.45')
-    } else if (entity === 'sales-refund') await choose('客户子单位')
+    } else if (entity === 'sales-refund') await choose('客户')
     else if (entity.startsWith('purchase-')) await choose('供应商')
     else if (entity === 'other-income')
       await wrapper.get('[aria-label="来源名称"]').setValue('其他业务收入')
@@ -1761,7 +1748,7 @@ it.each([
       await flushPromises()
     }
     if (entity === 'bill-receipt') {
-      await choose('客户子单位')
+      await choose('客户')
       await choose('经办人')
     }
     if (entity === 'bill-payment') {
@@ -1796,8 +1783,8 @@ it.each([
     expect(api.submitTargetVoucher, wrapper.text()).toHaveBeenCalledTimes(1)
     const payload = vi.mocked(api.submitTargetVoucher).mock.calls[0]![2].payload
     if (entity === 'bill-receipt') {
-      expect(payload).toHaveProperty('customerSubunit.objectId', referenceId)
-      expect(payload).not.toHaveProperty('customer')
+      expect(payload).toHaveProperty('customer.objectId', referenceId)
+      expect(payload).not.toHaveProperty('customerSubunit')
     }
     expect(payload).toMatchObject({
       billLines: [

@@ -399,9 +399,8 @@ test('real HTTP workbench returns only actionable BOB, WFL and VOU submissions',
     .insertInto('dcl_supplier_versions')
     .values({
       approval_entry_id: supplierSubmissionId,
-      kind: 'ORGANIZATION',
-      legal_name: '工作台供应商',
       display_name: '工作台供应商',
+      tax_information: JSON.stringify([]),
     })
     .execute()
   await db

@@ -1,17 +1,10 @@
 <script setup lang="ts">
 import type { CustomerSnapshot } from './customer-data.ts'
-import AttachmentBlock from '../attachments/AttachmentBlock.vue'
 import DetailBlock from '../dynamic-fields/DetailBlock.vue'
 import SnapshotReference from '../dynamic-fields/SnapshotReference.vue'
-import CustomerSubunits from './CustomerSubunits.vue'
+import CustomerBusinessEditor from './CustomerBusinessEditor.vue'
 import type { EditFields } from '../dynamic-fields/edit-fields.ts'
-type Details = Pick<
-  CustomerSnapshot,
-  | 'defaultOperatingEntity'
-  | 'remittanceProfiles'
-  | 'identityAttachments'
-  | 'subunits'
->
+type Details = CustomerSnapshot
 const props = defineProps<{ modelValue: Details; disabled: boolean }>()
 const emit = defineEmits<{
   'update:modelValue': [value: Details]
@@ -57,18 +50,10 @@ function update<K extends keyof Details>(key: K, value: Details[K]) {
     :disabled="disabled"
     @update:model-value="update('remittanceProfiles', $event)"
   />
-  <AttachmentBlock
-    caption="身份或税务附件"
-    :model-value="modelValue.identityAttachments"
-    mode="edit"
+  <CustomerBusinessEditor
+    @pending="pending('business', $event)"
+    :model-value="modelValue"
     :disabled="disabled"
-    @update:model-value="update('identityAttachments', $event)"
-    @pending="pending('identity', $event)"
-  />
-  <CustomerSubunits
-    @pending="pending('subunits', $event)"
-    :model-value="modelValue.subunits"
-    :disabled="disabled"
-    @update:model-value="update('subunits', $event)"
+    @update:model-value="emit('update:modelValue', $event)"
   />
 </template>

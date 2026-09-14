@@ -76,18 +76,29 @@ for (const [entity, title] of [
       await open(page, path, 1440)
       await page.getByRole('button', { name: '新增', exact: true }).click()
       let dialog = page.getByRole('dialog')
-      await dialog.getByLabel('法定名称', { exact: true }).fill('应丢弃的输入')
+      await dialog
+        .getByLabel(entity === 'supplier' ? '显示名称' : '法定名称', {
+          exact: true,
+        })
+        .fill('应丢弃的输入')
       await dialog.getByRole('button', { name: '取消', exact: true }).click()
       await page.getByRole('button', { name: '新增', exact: true }).click()
       dialog = page.getByRole('dialog')
-      await expect(dialog.getByLabel('法定名称', { exact: true })).toHaveValue(
-        '',
-      )
-      await dialog.getByLabel('法定名称', { exact: true }).fill(name)
-      await dialog.getByLabel('显示名称', { exact: true }).fill(name)
+      await expect(
+        dialog.getByLabel(entity === 'supplier' ? '显示名称' : '法定名称', {
+          exact: true,
+        }),
+      ).toHaveValue('')
       await dialog
-        .getByLabel('法定识别号', { exact: true })
-        .fill(`BROWSER${tag}`)
+        .getByLabel(entity === 'supplier' ? '显示名称' : '法定名称', {
+          exact: true,
+        })
+        .fill(name)
+      await dialog.getByLabel('显示名称', { exact: true }).fill(name)
+      if (entity !== 'supplier')
+        await dialog
+          .getByLabel('法定识别号', { exact: true })
+          .fill(`BROWSER${tag}`)
       await dialog.getByLabel('联系人', { exact: true }).fill('浏览器联系人')
       await dialog.getByLabel('联系电话', { exact: true }).fill('1234567')
       await dialog.getByLabel('地址', { exact: true }).fill('浏览器地址')
@@ -137,9 +148,11 @@ for (const [entity, title] of [
       await findArchive(page, name)
       await row.getByRole('button', { name: '提交变更', exact: true }).click()
       dialog = page.getByRole('dialog')
-      await expect(dialog.getByLabel('法定名称', { exact: true })).toHaveValue(
-        name,
-      )
+      await expect(
+        dialog.getByLabel(entity === 'supplier' ? '显示名称' : '法定名称', {
+          exact: true,
+        }),
+      ).toHaveValue(name)
       await dialog.getByLabel('备注', { exact: true }).fill('第二个版本')
       await dialog.getByRole('button', { name: '提交', exact: true }).click()
       await expect(dialog).toHaveCount(0)
@@ -159,9 +172,11 @@ for (const [entity, title] of [
       await findArchive(page, name)
       await row.getByRole('button', { name: '克隆', exact: true }).click()
       dialog = page.getByRole('dialog')
-      await expect(dialog.getByLabel('法定名称', { exact: true })).toHaveValue(
-        name,
-      )
+      await expect(
+        dialog.getByLabel(entity === 'supplier' ? '显示名称' : '法定名称', {
+          exact: true,
+        }),
+      ).toHaveValue(name)
       await dialog.getByRole('button', { name: '取消', exact: true }).click()
       await openArchive(page, 'bob', entity)
       await findArchive(page, name)

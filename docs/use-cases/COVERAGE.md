@@ -6,9 +6,9 @@
 
 统计口径：每个带 `meta.title` 的正式 target 路由必须声明 `meta.useCaseKey`；全部正式 Registry 登记计入分母，缺少 `useCaseKey` 直接失败；多个入口允许共享有实际场景覆盖的用例。VOU/RPT 动态家族不展开参数，layout 与重定向不单独计数。
 
-- 页面入口：35
-- 已覆盖入口：35
-- 已登记唯一用例：27
+- 页面入口：38
+- 已覆盖入口：38
+- 已登记唯一用例：28
 - 缺少用例：0
 - 孤儿用例：0
 
@@ -26,12 +26,14 @@
 
 ## VOU
 
-| 页面               | 路由                  | 来源                                                         | 状态                              |
-| ------------------ | --------------------- | ------------------------------------------------------------ | --------------------------------- |
-| vou/opening        | `/vou/opening`        | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](vou/opening.md)        |
-| vou/sale-order     | `/vou/sale-order`     | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](vou/sale-order.md)     |
-| vou/purchase-order | `/vou/purchase-order` | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](vou/purchase-order.md) |
-| vou/:entity        | `/vou/:entity`        | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](vou/catalog.md)        |
+| 页面                 | 路由                    | 来源                                                         | 状态                                  |
+| -------------------- | ----------------------- | ------------------------------------------------------------ | ------------------------------------- |
+| vou/opening          | `/vou/opening`          | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](vou/opening.md)            |
+| vou/sale-order       | `/vou/sale-order`       | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](vou/sale-order.md)         |
+| vou/purchase-order   | `/vou/purchase-order`   | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](vou/purchase-order.md)     |
+| vou/sale-invoice     | `/vou/sale-invoice`     | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](vou/invoice-management.md) |
+| vou/purchase-invoice | `/vou/purchase-invoice` | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](vou/invoice-management.md) |
+| vou/:entity          | `/vou/:entity`          | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](vou/catalog.md)            |
 
 ## WFL
 
@@ -55,6 +57,7 @@
 | aux/measurement-unit  | `/aux/measurement-unit`  | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
 | aux/payment-method    | `/aux/payment-method`    | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
 | aux/asset-category    | `/aux/asset-category`    | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/tax-information   | `/aux/tax-information`   | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
 | aux/operating-entity  | `/aux/operating-entity`  | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/people-maintenance.md) |
 | aux/employee          | `/aux/employee`          | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/people-maintenance.md) |
 | aux/warehouse         | `/aux/warehouse`         | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/assets-maintenance.md) |

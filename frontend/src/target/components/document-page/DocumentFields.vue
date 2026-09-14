@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { EditorDraft } from './draft.ts'
+import InvoiceBlock from './InvoiceBlock.vue'
 import OpeningBlock from './OpeningBlock.vue'
 import ServiceBlock from './ServiceBlock.vue'
 import BillBlock from './BillBlock.vue'
@@ -19,8 +20,17 @@ const emit = defineEmits<{
 }>()
 </script>
 <template>
+  <InvoiceBlock
+    v-if="modelValue.kind === 'invoice'"
+    :model-value="modelValue.value"
+    :disabled="disabled"
+    @update:model-value="
+      emit('update:modelValue', { kind: 'invoice', value: $event })
+    "
+    @pending="emit('pending', $event)"
+  />
   <OpeningBlock
-    v-if="modelValue.kind === 'opening'"
+    v-else-if="modelValue.kind === 'opening'"
     :model-value="modelValue.value"
     :disabled="disabled"
     @update:model-value="

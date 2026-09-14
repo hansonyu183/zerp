@@ -101,6 +101,18 @@ export type TargetAssetCategorySaveInput = PostJson<
 export type TargetAssetCategoryEnabledInput = PostJson<
   (typeof client)['aux']['asset-category']['enable']['$post']
 >
+export type TargetTaxInformationQueryInput = PostJson<
+  (typeof client)['aux']['tax-information']['query']['$post']
+>
+export type TargetTaxInformationCreateInput = PostJson<
+  (typeof client)['aux']['tax-information']['create']['$post']
+>
+export type TargetTaxInformationSaveInput = PostJson<
+  (typeof client)['aux']['tax-information']['save']['$post']
+>
+export type TargetTaxInformationEnabledInput = PostJson<
+  (typeof client)['aux']['tax-information']['enable']['$post']
+>
 export type TargetOperatingEntityQueryInput = PostJson<
   (typeof client)['aux']['operating-entity']['query']['$post']
 >
@@ -823,6 +835,88 @@ export async function setTargetAssetCategoryEnabled(
   )
 }
 
+export async function queryTargetTaxInformation(
+  csrfToken: string,
+  input: TargetTaxInformationQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['tax-information'].query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function getTargetTaxInformation(csrfToken: string, id: string) {
+  return unwrapTarget(
+    await (
+      await client.aux['tax-information'].get.$post(
+        { json: { id } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function createTargetTaxInformation(
+  csrfToken: string,
+  input: TargetTaxInformationCreateInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['tax-information'].create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function saveTargetTaxInformation(
+  csrfToken: string,
+  input: TargetTaxInformationSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['tax-information'].save.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function setTargetTaxInformationEnabled(
+  csrfToken: string,
+  input: TargetTaxInformationEnabledInput,
+  enabled: boolean,
+) {
+  const endpoint = enabled
+    ? client.aux['tax-information'].enable
+    : client.aux['tax-information'].disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function deleteTargetTaxInformation(
+  csrfToken: string,
+  input: TargetTaxInformationEnabledInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['tax-information'].delete.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
 export async function queryTargetOperatingEntities(
   csrfToken: string,
   input: TargetOperatingEntityQueryInput,
@@ -1204,6 +1298,7 @@ export async function queryTargetPermissionOptions(query: TargetOptionQuery) {
   )
 }
 const auxOptionEndpoints = {
+  'tax-information': client.aux['tax-information'].options,
   'operating-entity': client.aux['operating-entity'].options,
   employee: client.aux['employee'].options,
   warehouse: client.aux['warehouse'].options,
@@ -1234,11 +1329,6 @@ export async function queryTargetBobOptions(
 ) {
   return unwrapTarget(
     await (await client.bob[entity].options.$get({ query })).json(),
-  )
-}
-export async function queryTargetSubunitOptions(query: TargetBobOptionQuery) {
-  return unwrapTarget(
-    await (await client.bob.customer['subunit-options'].$get({ query })).json(),
   )
 }
 export async function queryTargetDocumentOptions(
@@ -1279,8 +1369,8 @@ export async function queryTargetVouOptions(
   entity: TargetReferenceEntity,
   query: Parameters<typeof client.acc.asset.options.$get>[0]['query'],
 ) {
-  if (entity === 'customer-subunit') {
-    const page = await queryTargetSubunitOptions({
+  if (entity === 'customer') {
+    const page = await queryTargetBobOptions('customer', {
       ...query,
       ...(query.ids ? {} : { enabled: 'true' as const }),
     })
@@ -1291,14 +1381,12 @@ export async function queryTargetVouOptions(
         objectId: item.objectId,
         code: item.code,
         name: item.name,
-        customerId: item.customerId,
         approvalEntryId: item.sourceApprovalEntryId,
         paymentMethod: item.paymentMethod,
       })),
     }
   }
   if (
-    entity === 'customer' ||
     entity === 'supplier' ||
     entity === 'other-unit' ||
     entity === 'sales-partner' ||
@@ -1399,12 +1487,12 @@ export async function resolveTargetSaleOrderLine(
   )
 }
 export async function queryTargetCustomerLatestLine(
-  customerSubunitId: string,
+  customerId: string,
   productId: string,
 ) {
   const payload = await (
     await client.vou['sale-order']['customer-latest-line'].$get({
-      query: { customerSubunitId, productId },
+      query: { customerId, productId },
     })
   ).json()
   return payload.code === 0 ? payload.data : unwrapTarget(payload)
@@ -1435,13 +1523,13 @@ export async function resolveTargetSupplier(
     ).json(),
   )
 }
-export async function resolveTargetCustomerSubunit(
+export async function resolveTargetCustomer(
   objectId: string,
   approvalEntryId: string,
 ) {
   return unwrapTarget(
     await (
-      await client.bob.customer['subunit-resolve'].$get({
+      await client.bob.customer.resolve.$get({
         query: { objectId, approvalEntryId },
       })
     ).json(),
@@ -3378,6 +3466,45 @@ export async function getTargetIntermediarySource(
         { json: input },
         csrfHeaders(csrfToken),
       )
+    ).json(),
+  )
+}
+
+export async function queryTargetInvoiceTaxOptions(
+  entity: 'sale-invoice' | 'purchase-invoice',
+  objectId: string,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou[':entity']['tax-options'].$get({
+        param: { entity },
+        query: { objectId },
+      })
+    ).json(),
+  )
+}
+export async function queryTargetInvoiceSources(
+  entity: 'sale-invoice' | 'purchase-invoice',
+  query: {
+    objectId: string
+    operatingEntityId: string
+    businessDate: string
+    currency: string
+  },
+) {
+  return unwrapTarget(
+    await (
+      await client.vou[':entity']['invoice-sources'].$get({
+        param: { entity },
+        query,
+      })
+    ).json(),
+  )
+}
+export async function queryTargetUnbilledSales(periodMonth: string) {
+  return unwrapTarget(
+    await (
+      await client.vou['sale-invoice'].unbilled.$get({ query: { periodMonth } })
     ).json(),
   )
 }

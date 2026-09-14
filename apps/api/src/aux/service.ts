@@ -2,6 +2,8 @@ import type { Kysely, Transaction } from 'kysely'
 import { sql } from 'kysely'
 import { ulid } from 'ulid'
 import type {
+  TaxInformationData,
+  TaxInformationSnapshot,
   AuxCurrentEntity,
   AuxCurrentSnapshot,
   EmployeeCurrentData,
@@ -37,6 +39,7 @@ export const auxEntities = [
   'measurement-unit',
   'income-expense-type',
   'asset-category',
+  'tax-information',
   'operating-entity',
   'employee',
   'warehouse',
@@ -49,6 +52,7 @@ export type AuxActor = { id: string; permissions: readonly string[] }
 type AuxData = Record<string, unknown>
 
 export interface AuxDataByEntity {
+  'tax-information': TaxInformationData
   'product-category': {
     name: string
     parentId: string
@@ -122,6 +126,7 @@ export interface AuxDataByEntity {
 }
 
 export interface AuxWriteDataByEntity {
+  'tax-information': TaxInformationData
   'product-category': {
     name: string
     parentId?: string
@@ -265,6 +270,7 @@ export interface AuxReferenceCandidate {
   dayOfMonth?: number
   dayOffset?: number
   defaultSalesSurcharge?: string
+  taxInformation?: TaxInformationSnapshot
 }
 
 export class AuxApplicationError extends Error {
@@ -278,6 +284,7 @@ export class AuxApplicationError extends Error {
     | 'fund_account_duplicate_account_number'
     | 'vehicle_duplicate_plate_number'
     | 'vehicle_duplicate_vin'
+    | 'tax_information_duplicate_tax_number'
     | 'warehouse_disable_blocked'
   readonly data: unknown
 
@@ -313,6 +320,7 @@ const codePrefixes: Record<AuxEntity, string> = {
   'measurement-unit': 'UNT',
   'income-expense-type': 'IET',
   'asset-category': 'ACT',
+  'tax-information': 'TAX',
   'operating-entity': 'OPE',
   employee: 'EMP',
   warehouse: 'WHS',
@@ -728,6 +736,34 @@ function normaliseData(entity: AuxEntity, source: unknown): AuxData {
   }
   const name = requiredString(data.name)
   switch (entity) {
+    case 'tax-information': {
+      only(data, [
+        'name',
+        'taxNumber',
+        'registeredAddress',
+        'phone',
+        'bank',
+        'accountNumber',
+        'remark',
+      ])
+      const taxNumber = requiredText(data.taxNumber, 128)
+        .replace(/\s/g, '')
+        .toUpperCase()
+      const bank = optionalString(data.bank, 200)
+      const accountNumber = optionalString(data.accountNumber, 128)
+      if (!taxNumber || Boolean(bank) !== Boolean(accountNumber))
+        applicationError('validation_failed')
+      return {
+        name,
+        taxNumber,
+        bank,
+        accountNumber,
+        registeredAddress: optionalString(data.registeredAddress, 500),
+        phone: optionalString(data.phone, 32),
+        remark: optionalString(data.remark),
+      }
+    }
+
     case 'product-category':
     case 'department':
       only(data, ['name', 'parentId', 'description'])
@@ -1078,7 +1114,8 @@ function availableActions(
   if (
     (entity === 'warehouse' ||
       entity === 'fund-account' ||
-      entity === 'vehicle') &&
+      entity === 'vehicle' ||
+      entity === 'tax-information') &&
     actor.permissions.includes(`/aux/${entity}/delete`)
   )
     actions.push('delete')
@@ -1163,6 +1200,23 @@ export async function resolveAuxCurrentReference<
     name: currentName(parsed),
     data: parsed.data as AuxDataByEntity[Entity],
   }
+}
+
+/** Tax adoption locks the selected current record until its consumer commits. */
+export async function resolveTaxInformation(
+  transaction: Transaction<DB>,
+  id: string,
+): Promise<TaxInformationSnapshot> {
+  const result =
+    await sql<StoredAuxObject>`SELECT id, entity, code, enabled, revision, data, updated_at, updated_by FROM aux_objects WHERE id=${id} AND entity='tax-information' AND enabled FOR SHARE`.execute(
+      transaction,
+    )
+  if (!result.rows[0])
+    applicationError('conflict', {
+      blockers: [{ entity: 'tax-information', objectId: id }],
+    })
+  const row = parseRow(result.rows[0]) as ParsedAuxRow<'tax-information'>
+  return { ...row.data, id: row.id, code: row.code, revision: row.revision }
 }
 
 async function resolveExternalCarrier(
@@ -1338,7 +1392,7 @@ export class AuxService {
           id,
           normalised as unknown as AuxDataByEntity[typeof entity],
         )
-      if (currentEntity(entity))
+      if (currentEntity(entity) || entity === 'tax-information')
         await this.recordCurrentAudit(
           transaction,
           entity,
@@ -1453,7 +1507,7 @@ export class AuxService {
           id,
           normalised as unknown as AuxDataByEntity[typeof entity],
         )
-      if (currentEntity(entity))
+      if (currentEntity(entity) || entity === 'tax-information')
         await this.recordCurrentAudit(
           transaction,
           entity,
@@ -1545,8 +1599,8 @@ export class AuxService {
       }
       if (entity === 'payment-method')
         references.push(sql`
-          SELECT 'dcl_customer_version_subunits' AS source
-          FROM dcl_customer_version_subunits
+          SELECT 'dcl_customer_versions' AS source
+          FROM dcl_customer_versions
           WHERE payment_snapshot->>'id' = ${id}
           UNION ALL
           SELECT 'vou_sale_order_details' AS source
@@ -1573,7 +1627,7 @@ export class AuxService {
       await sql`DELETE FROM aux_objects WHERE id = ${id} AND entity = ${entity}`.execute(
         transaction,
       )
-      if (currentEntity(entity))
+      if (currentEntity(entity) || entity === 'tax-information')
         await this.recordCurrentAudit(
           transaction,
           entity,
@@ -1611,7 +1665,8 @@ export class AuxService {
       quantity_scale: number | null
       symbol: string | null
       data: unknown
-    }>`SELECT id, enabled, code, data, COALESCE(data->>'name', data->>'displayName', data->>'legalName', '') AS name,
+      revision: number
+    }>`SELECT id, enabled, code, data, revision, COALESCE(data->>'name', data->>'displayName', data->>'legalName', '') AS name,
       CASE WHEN entity = 'product-type' THEN data->>'behaviorProfile' END AS behavior_profile,
       CASE WHEN entity = 'measurement-unit' THEN NULLIF(data->>'quantityScale', '')::integer END AS quantity_scale,
       CASE WHEN entity = 'measurement-unit' THEN data->>'symbol' END AS symbol
@@ -1631,6 +1686,16 @@ export class AuxService {
         code: row.code,
         name: row.name,
       }
+      if (entity === 'tax-information')
+        return {
+          ...common,
+          taxInformation: {
+            ...(parseData(entity, row.data) as TaxInformationData),
+            id: row.id,
+            code: row.code,
+            revision: String(row.revision),
+          },
+        }
       if (entity === 'product-type') {
         const behaviorProfile = data.behaviorProfile
         if (
@@ -1946,6 +2011,17 @@ export class AuxService {
     current?: AuxData,
   ): Promise<AuxData> {
     const data = normaliseData(entity, source)
+    if (entity === 'tax-information') {
+      await this.assertUniqueCurrentField(
+        transaction,
+        entity,
+        objectId,
+        'taxNumber',
+        String(data.taxNumber),
+        'tax_information_duplicate_tax_number',
+      )
+      return data
+    }
     if (entity === 'operating-entity') {
       await this.assertUniqueLegalIdentifier(
         transaction,
@@ -2135,14 +2211,15 @@ export class AuxService {
 
   private async assertUniqueCurrentField(
     transaction: Transaction<DB>,
-    entity: 'fund-account' | 'vehicle',
+    entity: 'fund-account' | 'vehicle' | 'tax-information',
     objectId: string | null,
-    field: 'accountNumber' | 'plateNumber' | 'vin',
+    field: 'accountNumber' | 'plateNumber' | 'vin' | 'taxNumber',
     value: string,
     errorKey:
       | 'fund_account_duplicate_account_number'
       | 'vehicle_duplicate_plate_number'
-      | 'vehicle_duplicate_vin',
+      | 'vehicle_duplicate_vin'
+      | 'tax_information_duplicate_tax_number',
   ): Promise<void> {
     const duplicate = await sql<{ id: string }>`SELECT id FROM aux_objects
       WHERE entity = ${entity}
@@ -2280,7 +2357,7 @@ export class AuxService {
 
   private async recordCurrentAudit(
     transaction: Transaction<DB>,
-    entity: AuxCurrentEntity,
+    entity: AuxCurrentEntity | 'tax-information',
     action: 'CREATED' | 'SAVED' | 'DELETED',
     id: string,
     revision: string,

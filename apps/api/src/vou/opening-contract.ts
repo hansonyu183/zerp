@@ -11,7 +11,6 @@ const versionedCounterpartyReference = z
   .object({
     entity: z.enum(['customer', 'supplier', 'other-unit', 'sales-partner']),
     objectId: z.string().length(26),
-    customerId: z.string().length(26).optional(),
     approvalEntryId: z.string().length(26),
     code: z.string().min(1).max(64),
     name: z.string().min(1).max(200),
@@ -98,11 +97,10 @@ const openingSubmitBill = openingBill
   .strict()
 const openingContainer = z
   .object({
-    subunit: z
+    customer: z
       .object({
-        entity: z.literal('customer-subunit'),
+        entity: z.literal('customer'),
         objectId: z.string().length(26),
-        customerId: z.string().length(26),
         approvalEntryId: z.string().length(26),
         code: z.string().min(1).max(64),
         name: z.string().min(1).max(200),

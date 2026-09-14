@@ -122,7 +122,7 @@ test('VOU product adoption serializes with BOB approval without cross-subject ad
     customer: ulid(),
     warehouse: ulid(),
   }
-  const customerSubunitId = ulid()
+  const customerId = directSubjectIds.customer
   const vouDocumentId = ulid()
   const vouSubmissionId = ulid()
   const archiveEntryIds: string[] = []
@@ -450,24 +450,7 @@ test('VOU product adoption serializes with BOB approval without cross-subject ad
     .insertInto('dcl_customer_versions')
     .values({
       approval_entry_id: directApprovalIds.customer,
-      kind: 'ENTERPRISE',
       display_name: '并发客户',
-    })
-    .execute()
-  await db
-    .insertInto('dcl_customer_subunit_roots')
-    .values({
-      subunit_id: customerSubunitId,
-      customer_id: directSubjectIds.customer,
-      code: 'CONCURRENT',
-    })
-    .execute()
-  await db
-    .insertInto('dcl_customer_version_subunits')
-    .values({
-      customer_approval_entry_id: directApprovalIds.customer,
-      subunit_id: customerSubunitId,
-      name: '并发客户总部',
       customer_type_id: customerTypeId,
       customer_type_snapshot: JSON.stringify({
         id: customerTypeId,
@@ -475,9 +458,13 @@ test('VOU product adoption serializes with BOB approval without cross-subject ad
         name: '测试客户类型',
       }),
       payment_snapshot: null,
-      enabled: true,
+      credit_limits: JSON.stringify([]),
+      attachments: JSON.stringify([]),
+      remittance_profiles: JSON.stringify([]),
+      tax_information: JSON.stringify([]),
     })
     .execute()
+
   const currentWarehouse = await new AuxService(db).create(
     'warehouse',
     {
@@ -496,8 +483,8 @@ test('VOU product adoption serializes with BOB approval without cross-subject ad
     businessDate: '2026-09-07',
     currency: 'CNY',
     attachments: [],
-    customerSubunit: {
-      objectId: customerSubunitId,
+    customer: {
+      objectId: customerId,
       approvalEntryId: directApprovalIds.customer,
       selectionOrigin: 'CURRENT',
     },

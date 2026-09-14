@@ -63,6 +63,7 @@ const auxPresentation: Readonly<Record<string, string>> = {
   'measurement-unit': '计量单位',
   'income-expense-type': '收支类型',
   'asset-category': '资产类别',
+  'tax-information': '税务信息',
   'operating-entity': '经营主体',
   employee: '员工',
   warehouse: '仓库',

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { PricingSubunit } from './pricing-diff.ts'
+import type { CustomerPricing } from './pricing-diff.ts'
 import { customerPricingChanges } from './pricing-diff.ts'
 const props = defineProps<{
-  before: readonly PricingSubunit[]
-  after: readonly PricingSubunit[]
+  before: CustomerPricing | undefined
+  after: CustomerPricing
 }>()
 const changes = computed(() =>
   customerPricingChanges(props.before, props.after),
@@ -17,7 +17,6 @@ const changes = computed(() =>
     <v-table v-else
       ><thead>
         <tr>
-          <th>子单位</th>
           <th>字段</th>
           <th>变化</th>
           <th>此前版本</th>
@@ -26,7 +25,6 @@ const changes = computed(() =>
       </thead>
       <tbody>
         <tr v-for="(change, index) in changes" :key="index">
-          <td>{{ change.subunit }}</td>
           <td>{{ change.field }}</td>
           <td>{{ change.change }}</td>
           <td>{{ change.before }}</td>

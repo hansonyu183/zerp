@@ -632,7 +632,7 @@ test('receipt credits its customer subunit for new bills plus cash minus change 
       )
     const billAccount = await account('1121', ['BILL']),
       fund = await account('1002', ['FUND_ACCOUNT']),
-      customer = await account('1122', ['CUSTOMER_SUBUNIT'], 'RECEIVABLE')
+      customer = await account('1122', ['CUSTOMER'], 'RECEIVABLE')
     type Line = AccMappingDefinition['templates'][number]['lines'][number]
     const line = (
       subjectValue: string,
@@ -694,7 +694,7 @@ test('receipt credits its customer subunit for new bills plus cash minus change 
                   'CREDIT',
                   'billTotals.netSettlementAmount',
                   null,
-                  { CUSTOMER_SUBUNIT: 'customerSubunit.objectId' },
+                  { CUSTOMER: 'customer.objectId' },
                 ),
               ],
             },
@@ -734,14 +734,9 @@ test('receipt credits its customer subunit for new bills plus cash minus change 
       f.actor,
       'receipt-posting',
     )
-    assert.ok('customerSubunit' in saved.payload)
-    assert.equal('customer' in saved.payload, false)
+    assert.ok('customer' in saved.payload)
+    assert.equal('subunitAllocations' in saved.payload, false)
     const badId = ulid()
-    const root = await db
-      .selectFrom('dcl_customer_subunit_roots')
-      .select('customer_id')
-      .where('subunit_id', '=', payload.customerSubunit.objectId)
-      .executeTakeFirstOrThrow()
     await assert.rejects(
       vou.submit(
         'bill-receipt',
@@ -753,9 +748,9 @@ test('receipt credits its customer subunit for new bills plus cash minus change 
           expectedRevision: null,
           payload: {
             ...payload,
-            customerSubunit: {
-              ...payload.customerSubunit,
-              objectId: root.customer_id,
+            customer: {
+              ...payload.customer,
+              objectId: ulid(),
             },
           },
         },
@@ -794,7 +789,7 @@ test('receipt credits its customer subunit for new bills plus cash minus change 
         {
           direction: 'CREDIT',
           amount: '92.70000000',
-          dimensions: { CUSTOMER_SUBUNIT: payload.customerSubunit.objectId },
+          dimensions: { CUSTOMER: payload.customer.objectId },
         },
       ],
     )

@@ -4,6 +4,7 @@ import {
   vouEntities,
   vouEntityPresentation,
   systemGeneratedVouEntities,
+  userCreatableVouEntities,
 } from '@zerp/model'
 
 const facts = JSON.parse(
@@ -29,7 +30,7 @@ async function openMenu(page: Page, entity: string) {
   await drawer.locator(`a[href="/vou/${entity}"]`).click()
   await expect(page.getByTestId('vou-list-page')).toBeVisible()
 }
-test('all 36 real menus query their own summaries and open readable snapshots', async ({
+test('all real menus query their own summaries and open readable snapshots', async ({
   page,
 }) => {
   test.setTimeout(180000)
@@ -45,48 +46,12 @@ test('all 36 real menus query their own summaries and open readable snapshots', 
       fact = facts[entity]!
     await expect(list).toContainText(vouEntityPresentation[entity].label)
     await expect(page.getByTestId('list-create')).toHaveCount(0)
-    if (
-      [
-        'intermediary-calculation',
-        'sale-order',
-        'purchase-order',
-        'sale-return',
-        'purchase-inbound',
-        'purchase-return',
-        'purchase-inquiry',
-        'sale-pricing',
-        'service-contract',
-        'service-acceptance',
-        'order-production',
-        'self-production',
-        'inventory-count',
-        'sales-receipt',
-        'purchase-refund',
-        'other-receipt',
-        'sales-refund',
-        'purchase-payment',
-        'other-payment',
-        'employee-loan',
-        'employee-repayment',
-        'employee-loan-writeoff',
-        'expense-reimbursement',
-        'other-income',
-        'asset-acquisition',
-        'asset-sale',
-        'asset-liquidation',
-        'bill-receipt',
-        'bill-payment',
-        'bill-issue',
-        'bill-discount',
-        'bill-maturity',
-      ].includes(entity)
-    ) {
+    if (userCreatableVouEntities.includes(entity)) {
       await expect(list).not.toContainText('专用单据编辑器尚未实施')
       await expect(
         page.getByRole('button', { name: '新增', exact: true }),
-      ).toHaveCount(0)
+      ).toHaveCount(1)
     } else {
-      await expect(list).toContainText('专用单据编辑器尚未实施')
       await expect(
         page.getByRole('button', { name: '新增', exact: true }),
       ).toHaveCount(0)
@@ -177,3 +142,97 @@ test('approval-only catalog resources remain visible without query, get or refer
   }
   expect(reads).toEqual([])
 })
+
+for (const width of [1280, 390])
+  for (const entity of ['sale-invoice', 'purchase-invoice'] as const)
+    test(`${entity} selects tax and submits a source amount at ${width}px`, async ({
+      page,
+    }) => {
+      await signIn(
+        page,
+        process.env.TARGET_E2E_USERNAME!,
+        process.env.TARGET_E2E_PASSWORD!,
+      )
+      await openMenu(page, entity)
+      await page.setViewportSize({ width, height: 900 })
+      await page.getByRole('button', { name: '新增', exact: true }).click()
+      const editor = page.getByRole('dialog').last()
+      await editor
+        .getByLabel('开票日期', { exact: true })
+        .fill(facts[entity]!.businessDate)
+      for (const caption of [
+        entity === 'sale-invoice' ? '客户' : '供应商',
+        '经营主体',
+      ]) {
+        const field = editor.getByLabel(caption, { exact: true })
+        await expect(field).toBeEnabled()
+        await field.click()
+        await page.getByRole('listbox').getByRole('option').first().click()
+        if (caption !== '经营主体')
+          await expect(
+            editor.getByLabel('税务信息', { exact: true }),
+          ).not.toHaveValue('')
+        await expect(
+          editor.getByRole('button', { name: '刷新开票资料', exact: true }),
+        ).toBeEnabled()
+      }
+      await expect(
+        editor.getByLabel('税务信息', { exact: true }),
+      ).not.toHaveValue('')
+      await editor
+        .getByRole('button', { name: '添加来源', exact: true })
+        .first()
+        .click()
+      await editor.getByLabel('本次开票金额', { exact: true }).fill('0.01')
+      const submitted = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === `/vou/${entity}/submit-new`,
+      )
+      await editor.getByRole('button', { name: '提交', exact: true }).click()
+      const result = await (await submitted).json()
+      expect(result.code, result.errorKey).toBe(0)
+      expect(result.data.payload.invoiceLines[0].amount).toBe('0.01')
+      expect(result.data.payload.taxInformation.name).toBeTruthy()
+      await expect(editor).toHaveCount(0)
+      await setDateRange(
+        page,
+        '期间',
+        facts[entity]!.businessDate,
+        facts[entity]!.businessDate,
+      )
+      await page
+        .getByLabel('单号', { exact: true })
+        .fill(result.data.documentNo)
+      await page.getByTestId('list-search').click()
+      await page
+        .getByTestId(`vou-row-${result.data.documentId}`)
+        .getByRole('button', { name: '打开', exact: true })
+        .click()
+      const detail = page.getByTestId('vou-detail')
+      await expect(detail).toContainText(
+        result.data.payload.taxInformation.name,
+      )
+      await detail.getByRole('button', { name: '关闭', exact: true }).click()
+      if (entity === 'sale-invoice') {
+        await page
+          .getByRole('button', { name: '未开票收入', exact: true })
+          .click()
+        await page
+          .getByLabel('截至月份（YYYY-MM）', { exact: true })
+          .fill(facts[entity]!.businessDate.slice(0, 7))
+        await page
+          .getByRole('button', { name: '查询未开票金额', exact: true })
+          .click()
+        await expect(page.locator('.v-expansion-panel-text')).toContainText(
+          '来源月份',
+        )
+        await expect(page.locator('.v-expansion-panel-text')).toContainText(
+          'HTTP 客户',
+        )
+      }
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth > window.innerWidth,
+        ),
+      ).toBe(false)
+    })

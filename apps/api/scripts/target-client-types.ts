@@ -33,7 +33,7 @@ const archiveClient = hc<ReturnType<typeof registerDclArchiveRoutes>>(
 // These seams are consumed by @zerp/api-client, which derives its client from
 // TargetAppType. Keep their literal paths in the executable Hono composition.
 void client.aux.department.options.$get
-void client.bob.customer['subunit-options'].$get
+void client.bob.customer.options.$get
 void client.vou[':entity'].options.$get
 void client.acc.mapping.query.$post
 void client.acc.mapping.get.$post

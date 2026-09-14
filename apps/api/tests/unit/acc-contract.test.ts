@@ -48,7 +48,7 @@ test('ACC subject request accepts only the six current settlement purposes', () 
     parentId: null,
     balanceDirection: 'DEBIT',
     enabled: true,
-    requiredDimensions: ['CUSTOMER_SUBUNIT'],
+    requiredDimensions: ['CUSTOMER'],
     inventoryQuantity: false,
   }
   for (const settlementPurpose of [

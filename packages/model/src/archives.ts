@@ -1,3 +1,4 @@
+import type { TaxInformationSnapshot } from './aux-current.ts'
 import {
   prepareSubmissionMechanics,
   type SubmissionCommand,
@@ -500,8 +501,6 @@ export function projectProductViewState(
 }
 
 export type IdentityKind = 'PERSON' | 'ORGANIZATION'
-export type CustomerIdentityKind =
-  'MAINLAND_ENTERPRISE' | 'MAINLAND_INDIVIDUAL' | 'OTHER'
 export interface IdentityArchiveData {
   identityKind: IdentityKind
   legalName: Text
@@ -512,53 +511,11 @@ export interface IdentityArchiveData {
   address: Text
   remark: Text
 }
-function validUnifiedSocialCreditCode(value: string): boolean {
-  const alphabet = '0123456789ABCDEFGHJKLMNPQRTUWXY'
-  const weights = [
-    1, 3, 9, 27, 19, 26, 16, 17, 20, 29, 25, 13, 8, 24, 10, 30, 28,
-  ]
-  if (!/^[0-9A-HJ-NPQRTUWXY]{18}$/.test(value)) return false
-  let sum = 0
-  for (let index = 0; index < 17; index += 1) {
-    const digit = alphabet.indexOf(value[index]!)
-    if (digit < 0) return false
-    sum += digit * weights[index]!
-  }
-  return alphabet[(31 - (sum % 31)) % 31] === value[17]
-}
-function validMainlandIdentityCard(value: string): boolean {
-  if (!/^\d{17}[0-9X]$/.test(value)) return false
-  const birthday = value.slice(6, 14)
-  const date = new Date(
-    `${birthday.slice(0, 4)}-${birthday.slice(4, 6)}-${birthday.slice(6, 8)}T00:00:00.000Z`,
-  )
-  if (
-    Number.isNaN(date.valueOf()) ||
-    date.toISOString().slice(0, 10).replaceAll('-', '') !== birthday
-  )
-    return false
-  const weights = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2]
-  const checks = '10X98765432'
-  const sum = value
-    .slice(0, 17)
-    .split('')
-    .reduce((total, digit, index) => total + Number(digit) * weights[index]!, 0)
-  return checks[sum % 11] === value[17]
-}
 function normalizedIdentifier(
-  kind: IdentityKind | CustomerIdentityKind,
+  _kind: IdentityKind,
   value: string,
 ): string | undefined {
-  const normalized = kind === 'OTHER' ? trim(value) : upperCompact(value)
-  if (!normalized) return undefined
-  if (
-    kind === 'MAINLAND_ENTERPRISE' &&
-    !validUnifiedSocialCreditCode(normalized)
-  )
-    return undefined
-  if (kind === 'MAINLAND_INDIVIDUAL' && !validMainlandIdentityCard(normalized))
-    return undefined
-  return normalized
+  return upperCompact(value) || undefined
 }
 function normalizeIdentity(
   data: IdentityArchiveData,
@@ -616,7 +573,10 @@ function normalizeOperatingEntitySet(
   return { operatingEntities, defaultOperatingEntityId }
 }
 export interface SupplierData
-  extends IdentityArchiveData, OperatingEntitySetData {
+  extends
+    Omit<IdentityArchiveData, 'identityKind' | 'legalName' | 'legalIdentifier'>,
+    OperatingEntitySetData {
+  taxInformation: readonly TaxInformationSnapshot[]
   settlementMethod: (AuxSnapshot | SettlementMethodSnapshot) | null
   defaultPurchaser: StableArchiveReference | null
 }
@@ -660,13 +620,32 @@ export function prepareSupplierSubmit(
   command: SupplierSubmitCommand,
   facts: SupplierSubmitFacts,
 ): SupplierSubmitDecision {
-  const prepared = prepareIdentitySet(
+  const common = mechanics<SupplierData, SupplierSubmitErrorKey>(
+    'supplier',
     command,
     facts,
-    'supplier',
-    'supplier_invalid_data',
   )
-  if ('ok' in prepared) return prepared
+  if ('ok' in common) return common
+  const set = normalizeOperatingEntitySet(command.data)
+  if (
+    !set ||
+    !hasText(command.data.displayName) ||
+    new Set(command.data.taxInformation.map((item) => item.id)).size !==
+      command.data.taxInformation.length
+  )
+    return { ok: false, error: { errorKey: 'supplier_invalid_data' } }
+  const prepared = {
+    common,
+    data: {
+      ...set,
+      displayName: trim(command.data.displayName),
+      contactName: trim(command.data.contactName),
+      phone: trim(command.data.phone),
+      address: trim(command.data.address),
+      remark: trim(command.data.remark),
+      taxInformation: command.data.taxInformation,
+    },
+  }
   for (const reference of prepared.data.operatingEntities) {
     const checked = stableReference(
       'operatingEntities',
@@ -880,9 +859,10 @@ export type CustomerSalesAttributionType =
 export type CustomerSalesAttribution =
   | (StableArchiveReference & { type: 'INTERNAL_EMPLOYEE' })
   | (ExactReference & { type: 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER' })
-interface CustomerSubunitBase {
-  id: string
-  name: string
+export interface CustomerData {
+  displayName: string
+  phone: string
+  email: string
   contactName: string
   address: string
   customerType: AuxSnapshot
@@ -895,39 +875,13 @@ interface CustomerSubunitBase {
   internalReminder: string
   defaultSalesOrderRemark: string
   attachments: readonly AttachmentMetadata[]
-  enabled: boolean
-}
-export interface NewCustomerSubunit extends CustomerSubunitBase {
-  intent: 'NEW'
-  /** The server allocates the customer-local, never-reused SUB-NNNN code. */
-  code: null
-}
-export interface ExistingCustomerSubunit extends CustomerSubunitBase {
-  intent: 'EXISTING'
-  code: string
-}
-export type CustomerSubunit = NewCustomerSubunit | ExistingCustomerSubunit
-export interface CustomerData {
-  identityKind: CustomerIdentityKind
-  legalName: string
-  displayName: string
-  legalIdentifier: string
-  phone: string
-  email: string
-  address: string
-  invoiceTitle: string
-  invoiceAddress: string
-  invoicePhone: string
-  invoiceBank: string
-  invoiceAccount: string
   remittanceProfiles: readonly {
     payerName: string
     bank: string
     accountNumber: string
   }[]
   defaultOperatingEntity: StableArchiveReference | null
-  identityAttachments: readonly AttachmentMetadata[]
-  subunits: readonly CustomerSubunit[]
+  taxInformation: readonly TaxInformationSnapshot[]
 }
 export interface CustomerSubmitCommand extends ArchiveCommand<CustomerData> {}
 export interface CustomerSubmitFacts extends ArchiveFacts {
@@ -1094,107 +1048,52 @@ function normalizeSalesAttribution(
 export function normalizeCustomerData(
   data: CustomerData,
 ): CustomerData | undefined {
-  const legalIdentifier = normalizedIdentifier(
-    data.identityKind,
-    data.legalIdentifier,
-  )
+  if (!hasText(data.displayName)) return undefined
+  const attachments = data.attachments.map(normalizeAttachment)
+  const customerType = normalizeAuxSnapshot(data.customerType)
+  const settlementMethod = normalizeCustomerSettlement(data.settlementMethod)
+  const paymentMethod = normalizePaymentMethod(data.paymentMethod)
+  const transportPolicy = normalizeTransportPolicy(data.transportPolicy)
+  const pricingPolicy = normalizePricingPolicy(data.pricingPolicy)
   if (
-    !hasText(data.legalName) ||
-    !hasText(data.displayName) ||
-    !legalIdentifier
+    !customerType ||
+    settlementMethod === undefined ||
+    paymentMethod === undefined ||
+    !transportPolicy ||
+    !pricingPolicy ||
+    attachments.some((item) => !item)
   )
     return undefined
-  const subunitIds = new Set<string>(),
-    subunitCodes = new Set<string>()
-  const subunits: CustomerSubunit[] = []
-  for (const subunit of data.subunits) {
-    const id = trim(subunit.id),
-      name = trim(subunit.name)
-    const attachments = subunit.attachments.map(normalizeAttachment)
-    const customerType = normalizeAuxSnapshot(subunit.customerType)
-    const settlementMethod = normalizeCustomerSettlement(
-      subunit.settlementMethod,
-    )
-    const paymentMethod = normalizePaymentMethod(subunit.paymentMethod)
-    const transportPolicy = normalizeTransportPolicy(subunit.transportPolicy)
-    const pricingPolicy = normalizePricingPolicy(subunit.pricingPolicy)
+  const primarySalesAttribution = normalizeSalesAttribution(
+    data.primarySalesAttribution,
+  )
+  if (
+    !primarySalesAttribution.objectId ||
+    !primarySalesAttribution.code ||
+    !primarySalesAttribution.name ||
+    (primarySalesAttribution.type !== 'INTERNAL_EMPLOYEE' &&
+      !primarySalesAttribution.approvalEntryId)
+  )
+    return undefined
+  const creditLimits = data.creditLimits.map((limit) => ({
+    currency: trim(limit.currency).toUpperCase(),
+    amount: trim(limit.amount),
+  }))
+  const currencies = new Set<string>()
+  for (const limit of creditLimits) {
     if (
-      !id ||
-      !name ||
-      !customerType ||
-      settlementMethod === undefined ||
-      paymentMethod === undefined ||
-      !transportPolicy ||
-      !pricingPolicy ||
-      subunitIds.has(id) ||
-      attachments.some((attachment) => !attachment)
+      !/^[A-Z]{3}$/.test(limit.currency) ||
+      !money.test(limit.amount) ||
+      currencies.has(limit.currency)
     )
       return undefined
-    if (
-      (subunit.intent === 'NEW' && subunit.code !== null) ||
-      (subunit.intent === 'EXISTING' &&
-        (!/^SUB-\d{4,}$/.test(trim(subunit.code).toUpperCase()) ||
-          subunitCodes.has(trim(subunit.code).toUpperCase())))
-    )
-      return undefined
-    subunitIds.add(id)
-    if (subunit.intent === 'EXISTING')
-      subunitCodes.add(trim(subunit.code).toUpperCase())
-    const normalized = {
-      id,
-      name,
-      contactName: trim(subunit.contactName),
-      address: trim(subunit.address),
-      customerType,
-      settlementMethod,
-      paymentMethod,
-      transportPolicy,
-      pricingPolicy,
-      primarySalesAttribution: normalizeSalesAttribution(
-        subunit.primarySalesAttribution,
-      ),
-      internalReminder: trim(subunit.internalReminder),
-      defaultSalesOrderRemark: trim(subunit.defaultSalesOrderRemark),
-      attachments: attachments as AttachmentMetadata[],
-      creditLimits: subunit.creditLimits.map((limit) => ({
-        currency: trim(limit.currency).toUpperCase(),
-        amount: trim(limit.amount),
-      })),
-      enabled: subunit.enabled,
-    }
-    subunits.push(
-      subunit.intent === 'EXISTING'
-        ? {
-            ...normalized,
-            intent: 'EXISTING',
-            code: trim(subunit.code).toUpperCase(),
-          }
-        : { ...normalized, intent: 'NEW', code: null },
-    )
+    currencies.add(limit.currency)
   }
-  for (const subunit of subunits) {
-    if (
-      !subunit.primarySalesAttribution.objectId ||
-      (subunit.primarySalesAttribution.type !== 'INTERNAL_EMPLOYEE' &&
-        !subunit.primarySalesAttribution.approvalEntryId) ||
-      !subunit.primarySalesAttribution.code ||
-      !subunit.primarySalesAttribution.name
-    )
-      return undefined
-    const currencies = new Set<string>()
-    for (const limit of subunit.creditLimits) {
-      if (
-        !/^[A-Z]{3}$/.test(limit.currency) ||
-        !money.test(limit.amount) ||
-        currencies.has(limit.currency)
-      )
-        return undefined
-      currencies.add(limit.currency)
-    }
-  }
-  if (subunits.length === 0) return undefined
-  const identityAttachments = data.identityAttachments.map(normalizeAttachment)
-  if (identityAttachments.some((attachment) => !attachment)) return undefined
+  if (
+    new Set(data.taxInformation.map((item) => item.id)).size !==
+    data.taxInformation.length
+  )
+    return undefined
   const defaultOperatingEntity =
     data.defaultOperatingEntity === null
       ? null
@@ -1213,21 +1112,23 @@ export function normalizeCustomerData(
   if (remittanceProfiles.some((profile) => !profile.payerName)) return undefined
   return {
     ...data,
-    legalName: trim(data.legalName),
     displayName: trim(data.displayName),
-    legalIdentifier,
     phone: trim(data.phone),
     email: trim(data.email),
     address: trim(data.address),
-    invoiceTitle: trim(data.invoiceTitle),
-    invoiceAddress: trim(data.invoiceAddress),
-    invoicePhone: trim(data.invoicePhone),
-    invoiceBank: trim(data.invoiceBank),
-    invoiceAccount: upperCompact(data.invoiceAccount),
-    remittanceProfiles,
+    contactName: trim(data.contactName),
+    internalReminder: trim(data.internalReminder),
+    defaultSalesOrderRemark: trim(data.defaultSalesOrderRemark),
+    customerType,
+    settlementMethod,
+    paymentMethod,
+    transportPolicy,
+    pricingPolicy,
+    primarySalesAttribution,
+    creditLimits,
+    attachments: attachments as AttachmentMetadata[],
     defaultOperatingEntity,
-    identityAttachments: identityAttachments as AttachmentMetadata[],
-    subunits,
+    remittanceProfiles,
   }
 }
 export function prepareCustomerSubmit(
@@ -1256,32 +1157,32 @@ export function prepareCustomerSubmit(
         checked.blocker,
       )
   }
-  for (const subunit of data.subunits) {
+  {
     if (
       !facts.customerTypes.some(
-        (fact) => fact.objectId === subunit.customerType.id && fact.available,
+        (fact) => fact.objectId === data.customerType.id && fact.available,
       )
     )
       return block('customer_reference_unavailable', {
-        field: 'subunits.customerType',
-        objectId: subunit.customerType.id,
+        field: 'customerType',
+        objectId: data.customerType.id,
         expectedApprovalEntryId: '',
       })
     const fact = facts.salesAttributions.find(
       (candidate) =>
-        candidate.objectId === subunit.primarySalesAttribution.objectId &&
-        candidate.type === subunit.primarySalesAttribution.type,
+        candidate.objectId === data.primarySalesAttribution.objectId &&
+        candidate.type === data.primarySalesAttribution.type,
     )
     const checked =
-      subunit.primarySalesAttribution.type === 'INTERNAL_EMPLOYEE'
+      data.primarySalesAttribution.type === 'INTERNAL_EMPLOYEE'
         ? stableReference(
-            'subunits.primarySalesAttribution',
-            subunit.primarySalesAttribution,
+            'primarySalesAttribution',
+            data.primarySalesAttribution,
             fact,
           )
         : exactReference(
-            'subunits.primarySalesAttribution',
-            subunit.primarySalesAttribution,
+            'primarySalesAttribution',
+            data.primarySalesAttribution,
             fact,
           )
     if (!checked.ok)

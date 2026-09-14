@@ -48,6 +48,7 @@ import {
   type DocumentCommand,
 } from './draft.ts'
 import type { IntermediaryScriptEditor } from './intermediary-data.ts'
+import UnbilledSales from './UnbilledSales.vue'
 import type { OrderDraft } from './order-data.ts'
 const props = defineProps<{ definition: DocumentDefinition }>()
 const definition =
@@ -514,6 +515,7 @@ onBeforeUnmount(() => {
 })
 </script>
 <template>
+  <UnbilledSales v-if="definition.vouType === 'sale-invoice'" />
   <ManagementPageFrame :title="definition.title" data-testid="vou-list-page">
     <template #actions
       ><v-btn

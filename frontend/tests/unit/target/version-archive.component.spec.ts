@@ -84,7 +84,6 @@ it('keeps an unknown submission locked after closing its Draft without query per
   })
   await flushPromises()
   await click(wrapper, '新增')
-  await wrapper.get('[aria-label="法定名称"]').setValue('供应商甲')
   await wrapper.get('[aria-label="显示名称"]').setValue('供应商甲')
   await confirmItems(wrapper)
   await click(wrapper, '提交')
@@ -264,7 +263,6 @@ it('loads independent supplier reference sources and submits their adopted snaps
   })
   await flushPromises()
   await click(wrapper, '新增')
-  await wrapper.get('[aria-label="法定名称"]').setValue('供应商甲')
   await wrapper.get('[aria-label="显示名称"]').setValue('供应商甲')
   await wrapper.get('[aria-label="适用经营主体"]').setValue(['entity'])
   await wrapper.get('[aria-label="默认采购员"]').setValue('employee')
@@ -294,18 +292,14 @@ it('loads independent supplier reference sources and submits their adopted snaps
 })
 
 it('locates invalid remittance rows in the registered customer Draft and discards it on close', async () => {
-  useTargetSession().apiPaths = [
-    '/dcl/customer/submit-new',
-    '/dcl/customer/save-subunits',
-  ]
+  useTargetSession().apiPaths = ['/dcl/customer/submit-new']
   const wrapper = mount(ResourceHost, {
     props: { domain: 'dcl', entity: 'customer' },
     global: { stubs },
   })
   await flushPromises()
   await click(wrapper, '新增')
-  await wrapper.get('[aria-label="法定名称"]').setValue('客户甲')
-  await wrapper.get('[aria-label="显示名称"]').setValue('客户甲')
+  await wrapper.get('[aria-label="客户名称"]').setValue('客户甲')
   await click(
     wrapper,
     '新增',
@@ -639,21 +633,20 @@ it('keeps corrected input after a definite submit failure and refreshes only onc
   const wrapper = supplierHost()
   await flushPromises()
   await click(wrapper, '新增')
-  await wrapper.get('[aria-label="法定名称"]').setValue('原名称')
-  await wrapper.get('[aria-label="显示名称"]').setValue('显示名称')
+  await wrapper.get('[aria-label="显示名称"]').setValue('原名称')
   await confirmItems(wrapper)
   await click(wrapper, '提交')
-  expect(wrapper.get('[aria-label="法定名称"]').element).toHaveProperty(
+  expect(wrapper.get('[aria-label="显示名称"]').element).toHaveProperty(
     'value',
     '原名称',
   )
-  await wrapper.get('[aria-label="法定名称"]').setValue('修正名称')
+  await wrapper.get('[aria-label="显示名称"]').setValue('修正名称')
   await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(api.submitNewTargetSupplier).toHaveBeenLastCalledWith(
     'test-csrf',
     expect.objectContaining({
-      snapshot: expect.objectContaining({ legalName: '修正名称' }),
+      snapshot: expect.objectContaining({ displayName: '修正名称' }),
     }),
   )
   expect(api.queryTargetSuppliers).toHaveBeenCalledTimes(2)
@@ -729,7 +722,7 @@ it('ignores a late change baseline after closing and opening a fresh Draft', asy
   await click(wrapper, '新增')
   baseline.resolve({ items: [supplierVersion()] } as never)
   await flushPromises()
-  expect(wrapper.get('[aria-label="法定名称"]').element).toHaveProperty(
+  expect(wrapper.get('[aria-label="显示名称"]').element).toHaveProperty(
     'value',
     '',
   )
@@ -751,7 +744,7 @@ it('keeps a versions read failure visible inside the change dialog', async () =>
   await click(wrapper, '取消')
   wrapper.unmount()
 })
-it('requires customer subunit capability for create and preserves root-only changes', async () => {
+it('allows customer creation with its exact submit permission alone', async () => {
   useTargetSession().apiPaths = ['/dcl/customer/submit-new']
   const wrapper = mount(ResourceHost, {
     props: { domain: 'dcl', entity: 'customer' },
@@ -760,7 +753,7 @@ it('requires customer subunit capability for create and preserves root-only chan
   await flushPromises()
   expect(
     wrapper.findAll('button').some((button) => button.text() === '新增'),
-  ).toBe(false)
+  ).toBe(true)
   wrapper.unmount()
 })
 it.each([
@@ -808,15 +801,14 @@ it('keeps an unknown submission locked when a lookup cannot see its in-flight tr
   const wrapper = supplierHost()
   await flushPromises()
   await click(wrapper, '新增')
-  await wrapper.get('[aria-label="法定名称"]').setValue('原名称')
-  await wrapper.get('[aria-label="显示名称"]').setValue('显示名称')
+  await wrapper.get('[aria-label="显示名称"]').setValue('原名称')
   await confirmItems(wrapper)
   await click(wrapper, '提交')
   const original = vi.mocked(api.submitNewTargetSupplier).mock.calls[0]![1]
   await click(wrapper, '核实结果')
   expect(wrapper.text()).toContain('结果仍未知，保持锁定')
   expect(
-    wrapper.get('[aria-label="法定名称"]').attributes('disabled'),
+    wrapper.get('[aria-label="显示名称"]').attributes('disabled'),
   ).toBeDefined()
   expect(
     wrapper
@@ -832,59 +824,41 @@ it('keeps an unknown submission locked when a lookup cannot see its in-flight tr
 })
 
 const customerSnapshot = () => ({
-  identityKind: 'OTHER' as const,
-  legalName: '客户',
   displayName: '客户',
-  legalIdentifier: 'OTHER-ID',
   phone: '',
   email: '',
-  address: '',
-  invoiceTitle: '',
-  invoiceAddress: '',
-  invoicePhone: '',
-  invoiceBank: '',
-  invoiceAccount: '',
   remittanceProfiles: [],
   defaultOperatingEntity: null,
-  identityAttachments: [],
-  subunits: [
-    {
-      intent: 'EXISTING' as const,
-      id: 'subunit',
-      code: 'SUB-0001',
-      name: '总部',
-      contactName: '',
-      address: '',
-      customerType: { id: 'type', code: 'DIRECT', name: '直销' },
-      settlementMethod: null,
-      paymentMethod: null,
-      transportPolicy: {
-        methodCode: 'DELIVERY',
-        methodName: '送货',
-        surcharge: '0.00',
-      },
-      pricingPolicy: {
-        defaultPremiumUnitPrice: '0.00',
-        defaultDiscountUnitPrice: '0.00',
-        costItems: [],
-        thirdPartyIntermediaryFixedUnitCost: '0.00',
-        thirdPartyIntermediaryVariableUnitCost: '0.00',
-      },
-      creditLimits: [],
-      primarySalesAttribution: {
-        type: 'INTERNAL_EMPLOYEE' as const,
-        objectId: 'employee',
-        code: 'EMP1',
-        name: '业务员',
-      },
-      internalReminder: '',
-      defaultSalesOrderRemark: '',
-      attachments: [],
-      enabled: true,
-    },
-  ],
+  contactName: '',
+  address: '',
+  customerType: { id: 'type', code: 'DIRECT', name: '直销' },
+  settlementMethod: null,
+  paymentMethod: null,
+  transportPolicy: {
+    methodCode: 'DELIVERY',
+    methodName: '送货',
+    surcharge: '0.00',
+  },
+  pricingPolicy: {
+    defaultPremiumUnitPrice: '0.00',
+    defaultDiscountUnitPrice: '0.00',
+    costItems: [],
+    thirdPartyIntermediaryFixedUnitCost: '0.00',
+    thirdPartyIntermediaryVariableUnitCost: '0.00',
+  },
+  creditLimits: [],
+  primarySalesAttribution: {
+    type: 'INTERNAL_EMPLOYEE' as const,
+    objectId: 'employee',
+    code: 'EMP1',
+    name: '业务员',
+  },
+  internalReminder: '',
+  defaultSalesOrderRemark: '',
+  attachments: [],
+  taxInformation: [],
 })
-it('preserves exact existing subunits in a root-only customer change', async () => {
+it('preserves adopted business fields when changing the customer name', async () => {
   useTargetSession().apiPaths = ['query', 'versions', 'submit-change'].map(
     (action) =>
       `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
@@ -922,13 +896,7 @@ it('preserves exact existing subunits in a root-only customer change', async () 
   })
   await flushPromises()
   await click(wrapper, '提交变更')
-  expect(
-    wrapper
-      .get('[aria-label="客户子单位"]')
-      .find('[data-testid="row-action-edit"]')
-      .exists(),
-  ).toBe(false)
-  await wrapper.get('[aria-label="显示名称"]').setValue('新客户')
+  await wrapper.get('[aria-label="客户名称"]').setValue('新客户')
   await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(api.submitChangeTargetCustomer).toHaveBeenCalledWith(
@@ -938,20 +906,21 @@ it('preserves exact existing subunits in a root-only customer change', async () 
       expectedLatestApprovedRevision: '9',
       snapshot: expect.objectContaining({
         displayName: '新客户',
-        subunits: data.subunits,
+        pricingPolicy: data.pricingPolicy,
+        primarySalesAttribution: data.primarySalesAttribution,
       }),
     }),
   )
   wrapper.unmount()
 })
-it('clones customer data with fresh subunit identities and no inherited attachments', async () => {
-  useTargetSession().apiPaths = ['query', 'submit-new', 'save-subunits'].map(
+it('clones customer business data without inherited attachments', async () => {
+  useTargetSession().apiPaths = ['query', 'submit-new'].map(
     (action) =>
       `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
   )
   const data = {
     ...customerSnapshot(),
-    identityAttachments: [
+    attachments: [
       {
         id: 'old-file',
         fileName: 'old.pdf',
@@ -977,14 +946,10 @@ it('clones customer data with fresh subunit identities and no inherited attachme
   await confirmItems(wrapper)
   await click(wrapper, '提交')
   const command = vi.mocked(api.submitNewTargetCustomer).mock.calls[0]![1]
-  expect(command.snapshot.identityAttachments).toEqual([])
-  expect(command.snapshot.subunits[0]).toMatchObject({
-    intent: 'NEW',
-    code: null,
-    name: '总部',
-  })
-  expect(command.snapshot.subunits[0]!.id).not.toBe('subunit')
-  expect(data.identityAttachments).toHaveLength(1)
+  expect(command.snapshot.attachments).toEqual([])
+  expect(command.snapshot.pricingPolicy).toEqual(data.pricingPolicy)
+  expect(command.snapshot).not.toHaveProperty('subunits')
+  expect(data.attachments).toHaveLength(1)
   wrapper.unmount()
 })
 it('keeps files local until submit, retries a failed stage with the same identity, then adopts it', async () => {
@@ -1026,7 +991,7 @@ it('keeps files local until submit, retries a failed stage with the same identit
   })
   await flushPromises()
   await click(wrapper, '提交变更')
-  const input = wrapper.get('[aria-label="添加身份或税务附件"]')
+  const input = wrapper.get('[aria-label="添加业务附件"]')
   const file = new File(['%PDF-1.4 test'], 'identity.pdf', {
     type: 'application/pdf',
   })
@@ -1045,7 +1010,7 @@ it('keeps files local until submit, retries a failed stage with the same identit
   expect(api.submitChangeTargetCustomer).toHaveBeenCalledTimes(1)
   expect(
     vi.mocked(api.submitChangeTargetCustomer).mock.calls[0]![1].snapshot
-      .identityAttachments[0],
+      .attachments[0],
   ).toMatchObject({
     stagingId: calls[0]![1].stagingId,
     fileName: 'identity.pdf',
@@ -1116,10 +1081,10 @@ it('ignores obsolete queries and removes the Draft on session changes', async ()
   await flushPromises()
   expect(wrapper.text()).not.toContain('SUP-1')
   await click(wrapper, '新增')
-  await wrapper.get('[aria-label="法定名称"]').setValue('旧账号输入')
+  await wrapper.get('[aria-label="显示名称"]').setValue('旧账号输入')
   useTargetSession().generation++
   await flushPromises()
-  expect(wrapper.find('[aria-label="法定名称"]').exists()).toBe(false)
+  expect(wrapper.find('[aria-label="显示名称"]').exists()).toBe(false)
   wrapper.unmount()
 })
 const wflPending = {
@@ -1264,44 +1229,38 @@ it('renders normalized customer pricing changes for an unnumbered candidate agai
   )
   const before = {
     ...customerSnapshot(),
-    subunits: customerSnapshot().subunits.map((sub) => ({
-      ...sub,
-      pricingPolicy: {
-        ...sub.pricingPolicy,
-        costItems: [
-          {
-            name: 'Handling',
-            calculationBasis: 'UNIT_PRICE',
-            unitPrice: '1.00',
-          },
-          {
-            name: '删除项',
-            calculationBasis: 'ORDER_AMOUNT',
-            orderAmount: '2.00',
-          },
-          { name: '金额项', calculationBasis: 'UNIT_PRICE', unitPrice: '3.00' },
-        ],
-      },
-    })),
+    pricingPolicy: {
+      ...customerSnapshot().pricingPolicy,
+      costItems: [
+        {
+          name: 'Handling',
+          calculationBasis: 'UNIT_PRICE',
+          unitPrice: '1.00',
+        },
+        {
+          name: '删除项',
+          calculationBasis: 'ORDER_AMOUNT',
+          orderAmount: '2.00',
+        },
+        { name: '金额项', calculationBasis: 'UNIT_PRICE', unitPrice: '3.00' },
+      ],
+    },
   }
   const after = {
     ...before,
-    subunits: before.subunits.map((sub) => ({
-      ...sub,
-      pricingPolicy: {
-        ...sub.pricingPolicy,
-        defaultDiscountUnitPrice: '0.10',
-        costItems: [
-          {
-            name: ' handling ',
-            calculationBasis: 'ORDER_AMOUNT',
-            orderAmount: '1.00',
-          },
-          { name: '新增', calculationBasis: 'UNIT_PRICE', unitPrice: '2.00' },
-          { name: '金额项', calculationBasis: 'UNIT_PRICE', unitPrice: '4.00' },
-        ],
-      },
-    })),
+    pricingPolicy: {
+      ...before.pricingPolicy,
+      defaultDiscountUnitPrice: '0.10',
+      costItems: [
+        {
+          name: ' handling ',
+          calculationBasis: 'ORDER_AMOUNT',
+          orderAmount: '1.00',
+        },
+        { name: '新增', calculationBasis: 'UNIT_PRICE', unitPrice: '2.00' },
+        { name: '金额项', calculationBasis: 'UNIT_PRICE', unitPrice: '4.00' },
+      ],
+    },
   }
   const approved = {
     ...supplierVersion(),
@@ -1377,7 +1336,7 @@ it('downloads only the exact adopted attachment from the authorized current cust
   )
   const data = {
     ...customerSnapshot(),
-    identityAttachments: [
+    attachments: [
       {
         id: 'file',
         fileName: 'identity.pdf',
@@ -1622,7 +1581,6 @@ it('treats an invalid submit response as unknown and resolves only its exact sub
   const wrapper = supplierHost()
   await flushPromises()
   await click(wrapper, '新增')
-  await wrapper.get('[aria-label="法定名称"]').setValue('供应商')
   await wrapper.get('[aria-label="显示名称"]').setValue('供应商')
   await confirmItems(wrapper)
   await click(wrapper, '提交')
@@ -1639,7 +1597,7 @@ it('treats an invalid submit response as unknown and resolves only its exact sub
   })
   expect(api.submitNewTargetSupplier).toHaveBeenCalledTimes(1)
   expect(wrapper.text()).toContain('已核实操作成功')
-  expect(wrapper.find('[aria-label="法定名称"]').exists()).toBe(false)
+  expect(wrapper.find('[aria-label="显示名称"]').exists()).toBe(false)
   wrapper.unmount()
 })
 it('ignores a late approval after the session changes', async () => {
@@ -1658,13 +1616,12 @@ it('ignores a late approval after the session changes', async () => {
   wrapper.unmount()
 })
 
-it('keeps submission blocked until both independent attachment reads finish and discards a closed candidate read', async () => {
+it('keeps submission blocked during an attachment read and discards a closed candidate read', async () => {
   useTargetSession().apiPaths = [
     'query',
     'versions',
     'submit-change',
     'attachment-stage',
-    'save-subunits',
   ].map(
     (action) =>
       `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
@@ -1694,10 +1651,8 @@ it('keeps submission blocked until both independent attachment reads finish and 
   })
   await flushPromises()
   await click(wrapper, '提交变更')
-  await editItem(wrapper, '客户子单位')
   const inputs = wrapper.findAll('input[type="file"]')
-  expect(inputs.length).toBeGreaterThanOrEqual(2)
-  let finishFirst!: (value: ArrayBuffer) => void
+  expect(inputs).toHaveLength(1)
   let finishSecond!: (value: ArrayBuffer) => void
   const file = (
     name: string,
@@ -1711,25 +1666,14 @@ it('keeps submission blocked until both independent attachment reads finish and 
   }
   Object.defineProperty(inputs[0]!.element, 'files', {
     value: [
-      file('first.pdf', (done) => {
-        finishFirst = done
-      }),
-    ],
-  })
-  Object.defineProperty(inputs[1]!.element, 'files', {
-    value: [
       file('second.pdf', (done) => {
         finishSecond = done
       }),
     ],
   })
   await inputs[0]!.trigger('change')
-  await inputs[1]!.trigger('change')
   const submit = () =>
     wrapper.findAll('button').find((button) => button.text() === '提交')!
-  expect(submit().attributes('disabled')).toBeDefined()
-  finishFirst(new ArrayBuffer(8))
-  await vi.waitFor(() => expect(wrapper.text()).toContain('first.pdf'))
   expect(submit().attributes('disabled')).toBeDefined()
   await confirmItems(wrapper)
   await click(wrapper, '提交')

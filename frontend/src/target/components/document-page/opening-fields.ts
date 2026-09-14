@@ -51,10 +51,9 @@ export function createOpeningBill(
 }
 export function createOpeningContainer(): OpeningDraft['containers'][number] {
   return {
-    subunit: {
-      entity: 'customer-subunit',
+    customer: {
+      entity: 'customer',
       objectId: '',
-      customerId: '',
       approvalEntryId: '',
       code: '',
       name: '',

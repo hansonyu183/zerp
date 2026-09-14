@@ -1,11 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
-import {
-  confirmCollection,
-  editCollection,
-  setDateRange,
-} from './collection-helpers.ts'
+import { confirmCollection, setDateRange } from './collection-helpers.ts'
 
 test('shared mobile cards, form spacing, nested draft cancellation and compact date filters', async ({
   page,
@@ -50,13 +46,6 @@ test('shared mobile cards, form spacing, nested draft cancellation and compact d
       return second!.y - first!.y - first!.height
     })
     .toBeGreaterThanOrEqual(15)
-  const edit = parent
-    .locator('.collection-block[aria-label="客户子单位"]')
-    .getByRole('button', { name: '编辑', exact: true })
-  await editCollection(page, '客户子单位')
-  await expect(
-    page.locator('.v-dialog--fullscreen.v-overlay--active'),
-  ).toBeVisible()
   await page
     .getByRole('dialog')
     .last()
@@ -83,7 +72,7 @@ test('shared mobile cards, form spacing, nested draft cancellation and compact d
   )
   mkdirSync(directory, { recursive: true })
   await page.screenshot({
-    path: resolve(directory, 'mobile-subunit.png'),
+    path: resolve(directory, 'mobile-customer.png'),
     animations: 'disabled',
   })
   await page
@@ -91,19 +80,13 @@ test('shared mobile cards, form spacing, nested draft cancellation and compact d
     .last()
     .getByRole('button', { name: '取消', exact: true })
     .click()
-  await expect(edit).toBeFocused()
-  await editCollection(page, '客户子单位')
+  await page.getByRole('button', { name: '新增', exact: true }).click()
   await expect(
     page
       .getByRole('dialog')
       .last()
       .locator('.collection-block[aria-label="信用额度"]'),
   ).not.toContainText('123.45')
-  await page
-    .getByRole('dialog')
-    .last()
-    .getByRole('button', { name: '取消', exact: true })
-    .click()
   await page
     .getByRole('dialog')
     .last()

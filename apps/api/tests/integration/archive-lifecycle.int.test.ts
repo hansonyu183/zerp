@@ -662,7 +662,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
           invoiceAccount: '',
           remittanceProfiles: [],
           defaultOperatingEntity: null,
-          identityAttachments: [
+          attachments: [
             {
               id: failedAttachmentId,
               fileName: 'retry.pdf',
@@ -762,21 +762,57 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     deleted: 0,
   })
   const customerSnapshot = {
-    identityKind: 'OTHER',
-    legalName: '全聚合客户',
     displayName: '全聚合客户',
-    legalIdentifier: 'CUSTOMER-001',
     phone: '13600000000',
     email: 'customer@example.test',
-    address: '厦门市',
-    invoiceTitle: '全聚合客户',
-    invoiceAddress: '厦门市',
-    invoicePhone: '0592-7654321',
-    invoiceBank: '目标银行',
-    invoiceAccount: '622200002',
     remittanceProfiles: [],
     defaultOperatingEntity: operatingEntityReference,
-    identityAttachments: [
+    contactName: '客户联系人',
+    address: '厦门市',
+    customerType: {
+      id: auxIds[0],
+      code: 'FORGED-CUSTOMER-TYPE',
+      name: '伪造客户类型',
+    },
+    settlementMethod: {
+      id: auxIds[8],
+      code: 'TST-0009',
+      name: '测试引用 9',
+      termCode: 'MONTHLY_30',
+      ruleType: 'MONTH_END',
+      monthOffset: 1,
+      dayOfMonth: 0,
+      dayOffset: 0,
+      defaultSalesSurcharge: '0.10',
+    },
+    paymentMethod: {
+      id: auxIds[9],
+      code: 'TST-0010',
+      name: '测试引用 10',
+      defaultSalesSurcharge: '0.05',
+    },
+    transportPolicy: {
+      methodCode: 'DELIVERY',
+      methodName: '送货',
+      surcharge: '0.00',
+    },
+    pricingPolicy: {
+      defaultPremiumUnitPrice: '0.00',
+      defaultDiscountUnitPrice: '0.00',
+      costItems: [],
+      thirdPartyIntermediaryFixedUnitCost: '0.00',
+      thirdPartyIntermediaryVariableUnitCost: '0.00',
+    },
+    creditLimits: [{ currency: 'CNY', amount: '10000.00' }],
+    primarySalesAttribution: {
+      type: 'INTERNAL_EMPLOYEE',
+      objectId: employee.id,
+      code: 'FORGED-EMPLOYEE',
+      name: '伪造业务员',
+    },
+    internalReminder: '',
+    defaultSalesOrderRemark: '',
+    attachments: [
       {
         id: attachmentId,
         fileName: 'identity.pdf',
@@ -786,61 +822,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
         stagingId,
       },
     ],
-    subunits: [
-      {
-        id: ulid(),
-        intent: 'NEW',
-        code: null,
-        name: '总部',
-        contactName: '客户联系人',
-        address: '厦门市',
-        customerType: {
-          id: auxIds[0],
-          code: 'FORGED-CUSTOMER-TYPE',
-          name: '伪造客户类型',
-        },
-        settlementMethod: {
-          id: auxIds[8],
-          code: 'TST-0009',
-          name: '测试引用 9',
-          termCode: 'MONTHLY_30',
-          ruleType: 'MONTH_END',
-          monthOffset: 1,
-          dayOfMonth: 0,
-          dayOffset: 0,
-          defaultSalesSurcharge: '0.10',
-        },
-        paymentMethod: {
-          id: auxIds[9],
-          code: 'TST-0010',
-          name: '测试引用 10',
-          defaultSalesSurcharge: '0.05',
-        },
-        transportPolicy: {
-          methodCode: 'DELIVERY',
-          methodName: '送货',
-          surcharge: '0.00',
-        },
-        pricingPolicy: {
-          defaultPremiumUnitPrice: '0.00',
-          defaultDiscountUnitPrice: '0.00',
-          costItems: [],
-          thirdPartyIntermediaryFixedUnitCost: '0.00',
-          thirdPartyIntermediaryVariableUnitCost: '0.00',
-        },
-        creditLimits: [{ currency: 'CNY', amount: '10000.00' }],
-        primarySalesAttribution: {
-          type: 'INTERNAL_EMPLOYEE',
-          objectId: employee.id,
-          code: 'FORGED-EMPLOYEE',
-          name: '伪造业务员',
-        },
-        internalReminder: '',
-        defaultSalesOrderRemark: '',
-        attachments: [],
-        enabled: true,
-      },
-    ],
+    taxInformation: [],
   }
   for (const malformed of [
     {
@@ -898,27 +880,20 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
         expectedLatestApprovedRevision: null,
         snapshot: {
           ...customerSnapshot,
-          legalIdentifier: `ADOPTED-${malformedSubjectId}`,
-          identityAttachments: [],
-          subunits: customerSnapshot.subunits.map((subunit) => ({
-            ...subunit,
-            id: ulid(),
-          })),
+          attachments: [],
         },
       },
       submitter,
       ulid(),
     )
-    const adoptedSubunit = (
-      adopted.snapshot.subunits as Array<Record<string, unknown>>
-    )[0]!
+    const adoptedSubunit = adopted.snapshot
     assert.deepEqual(
       adoptedSubunit.settlementMethod,
-      customerSnapshot.subunits[0]!.settlementMethod,
+      customerSnapshot.settlementMethod,
     )
     assert.deepEqual(
       adoptedSubunit.paymentMethod,
-      customerSnapshot.subunits[0]!.paymentMethod,
+      customerSnapshot.paymentMethod,
     )
     await dclArchives.delete(
       'customer',
@@ -1020,15 +995,13 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     { errorKey: 'customer_attachment_not_found' },
   )
 
-  const customerSubunit = (
-    customer.snapshot.subunits as Array<Record<string, unknown>>
-  )[0]!
-  assert.deepEqual(customerSubunit.customerType, {
+  const customerData = customer.snapshot
+  assert.deepEqual(customerData.customerType, {
     id: auxIds[0],
     code: 'TST-0001',
     name: '测试引用 1',
   })
-  assert.deepEqual(customerSubunit.settlementMethod, {
+  assert.deepEqual(customerData.settlementMethod, {
     id: auxIds[8],
     code: 'TST-0009',
     name: '测试引用 9',
@@ -1039,16 +1012,16 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     dayOffset: 0,
     defaultSalesSurcharge: '0.10',
   })
-  assert.deepEqual(customerSubunit.paymentMethod, {
+  assert.deepEqual(customerData.paymentMethod, {
     id: auxIds[9],
     code: 'TST-0010',
     name: '测试引用 10',
     defaultSalesSurcharge: '0.05',
   })
   const persistedCustomerType = await db
-    .selectFrom('dcl_customer_version_subunits')
+    .selectFrom('dcl_customer_versions')
     .select('customer_type_snapshot')
-    .where('customer_approval_entry_id', '=', customer.submissionId)
+    .where('approval_entry_id', '=', customer.submissionId)
     .executeTakeFirstOrThrow()
   assert.deepEqual(persistedCustomerType.customer_type_snapshot, {
     id: auxIds[0],
@@ -1112,7 +1085,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
         legalName: '待删除客户',
         displayName: '待删除客户',
         legalIdentifier: 'CUSTOMER-DELETE-001',
-        identityAttachments: [
+        attachments: [
           {
             id: deletedAttachmentId,
             fileName: 'delete-me.pdf',
@@ -1122,10 +1095,6 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
             stagingId: deletedStagingId,
           },
         ],
-        subunits: customerSnapshot.subunits.map((subunit) => ({
-          ...subunit,
-          id: ulid(),
-        })),
       },
     },
     submitter,
@@ -1313,20 +1282,15 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
         legalName: '保留已经采用的收款快照',
         displayName: '保留已经采用的收款快照',
         legalIdentifier: 'CUSTOMER-DISABLED-AUX-001',
-        identityAttachments: [],
-        subunits: customerSnapshot.subunits.map((subunit) => ({
-          ...subunit,
-          id: ulid(),
-        })),
+        attachments: [],
       },
     },
     submitter,
     ulid(),
   )
   assert.deepEqual(
-    (retainedCustomer.snapshot.subunits as Array<Record<string, unknown>>)[0]!
-      .paymentMethod,
-    customerSubunit.paymentMethod,
+    retainedCustomer.snapshot.paymentMethod,
+    customerData.paymentMethod,
   )
   const historicalCustomer = await dclArchives.get(
     'customer',
@@ -1334,16 +1298,11 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     reviewer,
     customer.submissionId,
   )
-  const historicalSubunit = (
-    historicalCustomer.snapshot.subunits as Array<Record<string, unknown>>
-  )[0]!
-  assert.deepEqual(
-    historicalSubunit.paymentMethod,
-    customerSubunit.paymentMethod,
-  )
+  const historicalSubunit = historicalCustomer.snapshot
+  assert.deepEqual(historicalSubunit.paymentMethod, customerData.paymentMethod)
   assert.deepEqual(
     historicalSubunit.settlementMethod,
-    customerSubunit.settlementMethod,
+    customerData.settlementMethod,
   )
   const paymentAfter = await aux.get(
     'payment-method',

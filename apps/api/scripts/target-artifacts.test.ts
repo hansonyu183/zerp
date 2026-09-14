@@ -1,7 +1,4 @@
-import {
-  archiveCapabilityPermissionMetadata,
-  dclArchiveSnapshotSchemas,
-} from '../src/dcl/archive-contract.ts'
+import { dclArchiveSnapshotSchemas } from '../src/dcl/archive-contract.ts'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
@@ -114,40 +111,6 @@ test('target artifact gate emits action permissions without presentation state',
   )
 })
 
-test('target catalog emits a customer-subunit capability without inventing HTTP routes', () => {
-  const catalog = validateTargetRouteMetadata(
-    ['POST /dcl/customer/submit-new'],
-    [
-      {
-        method: 'post',
-        path: '/dcl/customer/submit-new',
-        permission: '/dcl/customer/submit-new',
-        title: '提交客户申报',
-      },
-    ],
-    archiveCapabilityPermissionMetadata,
-  )
-  assert.ok(
-    catalog.some((entry) => entry.path === '/dcl/customer/save-subunits'),
-  )
-  assert.throws(
-    () =>
-      validateTargetRouteMetadata(
-        ['POST /dcl/customer/submit-new'],
-        [
-          {
-            method: 'post',
-            path: '/dcl/customer/submit-new',
-            permission: '/dcl/customer/save-subunits',
-            title: '错误的路由权限',
-          },
-        ],
-        archiveCapabilityPermissionMetadata,
-      ),
-    /duplicate target permission paths/,
-  )
-})
-
 test('archive wire contract closes review reason and reference semantics', () => {
   const review = {
     subjectId: '01J00000000000000000000001',
@@ -166,89 +129,53 @@ test('archive wire contract closes review reason and reference semantics', () =>
   const customer = dclArchiveSnapshotSchemas.customer
   assert.throws(() =>
     customer.parse({
-      identityKind: 'OTHER',
-      legalName: '客户',
       displayName: '客户',
-      legalIdentifier: 'C-1',
       phone: '',
       email: '',
-      address: '',
-      invoiceTitle: '',
-      invoiceAddress: '',
-      invoicePhone: '',
-      invoiceBank: '',
-      invoiceAccount: '',
       remittanceProfiles: [],
       defaultOperatingEntity: null,
-      identityAttachments: [],
       enabled: true,
-      subunits: [
-        {
-          intent: 'NEW',
-          id: '01J00000000000000000000003',
-          code: 'SUB-0001',
-          name: '总部',
-          contactName: '',
-          address: '',
-          customerType: '',
-          settlementMethod: null,
-          receiptMethod: '',
-          transportMethod: '',
-          pricePolicy: '',
-          creditLimits: [],
-          salesAttribution: null,
-          internalReminder: '',
-          defaultOrderRemark: '',
-          attachments: [],
-          enabled: true,
-        },
-      ],
+      contactName: '',
+      address: '',
+      customerType: '',
+      settlementMethod: null,
+      receiptMethod: '',
+      transportMethod: '',
+      pricePolicy: '',
+      creditLimits: [],
+      salesAttribution: null,
+      internalReminder: '',
+      defaultOrderRemark: '',
+      attachments: [],
+      taxInformation: [],
     }),
   )
   assert.throws(() =>
     customer.parse({
-      identityKind: 'OTHER',
-      legalName: '客户',
       displayName: '客户',
-      legalIdentifier: 'C-1',
       phone: '',
       email: '',
-      address: '',
-      invoiceTitle: '',
-      invoiceAddress: '',
-      invoicePhone: '',
-      invoiceBank: '',
-      invoiceAccount: '',
       remittanceProfiles: [],
       defaultOperatingEntity: null,
-      identityAttachments: [],
       enabled: true,
-      subunits: [
-        {
-          intent: 'EXISTING',
-          id: '01J00000000000000000000003',
-          code: 'SUB-0001',
-          name: '总部',
-          contactName: '',
-          address: '',
-          customerType: '',
-          settlementMethod: {
-            objectId: '01J00000000000000000000004',
-            approvalEntryId: '01J00000000000000000000005',
-            code: 'SET',
-            name: '结算',
-          },
-          receiptMethod: '',
-          transportMethod: '',
-          pricePolicy: '',
-          creditLimits: [],
-          salesAttribution: null,
-          internalReminder: '',
-          defaultOrderRemark: '',
-          attachments: [],
-          enabled: true,
-        },
-      ],
+      contactName: '',
+      address: '',
+      customerType: '',
+      settlementMethod: {
+        objectId: '01J00000000000000000000004',
+        approvalEntryId: '01J00000000000000000000005',
+        code: 'SET',
+        name: '结算',
+      },
+      receiptMethod: '',
+      transportMethod: '',
+      pricePolicy: '',
+      creditLimits: [],
+      salesAttribution: null,
+      internalReminder: '',
+      defaultOrderRemark: '',
+      attachments: [],
+      taxInformation: [],
     }),
   )
 })

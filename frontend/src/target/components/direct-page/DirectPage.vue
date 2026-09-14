@@ -147,6 +147,7 @@ function message(cause: unknown) {
     role_changed: '角色已变化，请重新查询后编辑。',
     not_found: '资料不存在或已删除。',
     role_name_exists: '角色名称已存在。',
+    tax_information_duplicate_tax_number: '税号已被其他税务信息使用。',
     employee_duplicate_legal_identifier: '法定证件号码已被其他员工使用。',
     operating_entity_duplicate_legal_identifier:
       '统一社会信用代码已被其他经营主体使用。',

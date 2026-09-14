@@ -1,7 +1,7 @@
 import type { EnumOption } from './types.ts'
 
 export type EditReferenceSource =
-  | 'customer-subunits'
+  | 'customers'
   | 'suppliers'
   | 'roles'
   | 'permissions'
@@ -17,6 +17,7 @@ export type EditReferenceSource =
   | 'settlement-rules'
   | 'sales-settlement-methods'
   | 'sales-payment-methods'
+  | 'tax-information'
   | 'customer-types'
   | 'product-types'
   | 'product-categories'

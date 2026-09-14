@@ -67,6 +67,7 @@ export const auxEntities = [
   'measurement-unit',
   'income-expense-type',
   'asset-category',
+  'tax-information',
   'operating-entity',
   'employee',
   'warehouse',
@@ -119,6 +120,15 @@ const settlementTermCode = z.enum([
 ])
 
 const auxWriteShapes = {
+  'tax-information': {
+    ...nameShape,
+    taxNumber: z.string().min(1).max(128),
+    registeredAddress: z.string().max(500),
+    phone: z.string().max(32),
+    bank: z.string().max(200),
+    accountNumber: z.string().max(128),
+    remark: z.string().max(1000),
+  },
   'product-category': {
     ...nameShape,
     ...parentShape,
@@ -262,6 +272,7 @@ const auxDetailOnlyShapes = {
   'measurement-unit': {},
   'income-expense-type': {},
   'asset-category': {},
+  'tax-information': {},
   'operating-entity': {},
   employee: {},
   warehouse: {},
@@ -565,6 +576,14 @@ export const auxOptionsInput = optionPageInput.extend({
 export const auxReferenceCandidateSchema = z
   .object({
     enabled: z.boolean(),
+    taxInformation: z
+      .object({
+        ...auxWriteShapes['tax-information'],
+        id: z.string(),
+        code: z.string(),
+        revision: z.string(),
+      })
+      .optional(),
     defaultUsefulLifeMonths: z.number().int().optional(),
     defaultResidualRate: z.string().optional(),
     objectId: z.string(),

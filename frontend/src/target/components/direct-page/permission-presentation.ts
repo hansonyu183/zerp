@@ -37,7 +37,6 @@ export const permissionActionLabels: Readonly<Record<string, string>> = {
   'open-document': '打开单据',
   reference: '查询引用',
   'retry-child': '重试子单据',
-  'save-subunits': '保存子项',
   'submit-change': '提交变更',
   'submit-new': '提交新建',
   trial: '试算',

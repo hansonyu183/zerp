@@ -157,7 +157,7 @@ export function orderPayload(
   if (!draft.operatingEntity) throw new Error('请选择经营主体。')
   return {
     ...common,
-    customerSubunit: reference,
+    customer: reference,
     ...(draft.specialApproval ? { specialApproval: true } : {}),
     operatingEntity: { objectId: draft.operatingEntity.objectId },
     paymentMethod: draft.paymentMethod,
@@ -195,8 +195,8 @@ export function cloneOrder(
   payload: TargetOrderInput<TargetOrderEntity>['payload'],
   lineIds: readonly string[],
 ): OrderDraft {
-  const sales = 'customerSubunit' in payload
-  const ref = sales ? payload.customerSubunit : payload.supplier
+  const sales = 'customer' in payload
+  const ref = sales ? payload.customer : payload.supplier
   const employee = sales ? payload.salesperson : payload.purchaser
   return {
     ...emptyOrder(entity),
@@ -204,14 +204,12 @@ export function cloneOrder(
     currency: payload.currency,
     remark: payload.remark ?? '',
     counterparty: {
-      entity: sales ? 'customer-subunit' : 'supplier',
+      entity: sales ? 'customer' : 'supplier',
       objectId: ref.objectId,
       approvalEntryId: ref.approvalEntryId,
       code: '',
-      name: sales ? '已采用客户子单位' : '已采用供应商',
-      ...(sales
-        ? { customerId: '', paymentMethod: payload.paymentMethod }
-        : {}),
+      name: sales ? '已采用客户' : '已采用供应商',
+      ...(sales ? { paymentMethod: payload.paymentMethod } : {}),
     } as VouCandidate,
     selectionOrigin: 'HISTORICAL',
     warehouse: {

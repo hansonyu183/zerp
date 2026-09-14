@@ -5,7 +5,7 @@ import { customerCostBasisLabels } from './customer-data.ts'
 import FormBlock from '../dynamic-fields/FormBlock.vue'
 import DetailBlock from '../dynamic-fields/DetailBlock.vue'
 import type { EditFields } from '../dynamic-fields/edit-fields.ts'
-type Pricing = CustomerSnapshot['subunits'][number]['pricingPolicy']
+type Pricing = CustomerSnapshot['pricingPolicy']
 type CostInput = {
   name: string
   calculationBasis: 'UNIT_PRICE' | 'ORDER_AMOUNT'

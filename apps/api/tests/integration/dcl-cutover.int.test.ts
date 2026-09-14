@@ -10,6 +10,10 @@ import {
   inspectArchiveCutover,
   migrateArchiveOwnership,
 } from '../../src/dcl/cutover.ts'
+import {
+  inspectCustomerCutover,
+  migrateCustomers,
+} from '../../src/dcl/customer-cutover/service.ts'
 import { readTargetPermissionCatalog } from '../../scripts/target-artifacts.ts'
 import { TargetBootstrapService } from '../../src/app/bootstrap.ts'
 import { SessionService, hashPassword } from '../../src/app/session.ts'
@@ -85,7 +89,7 @@ test('ownership migration preserves formal/history facts and exact grants, and r
     await sql`INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,submitted_by,submitted_at,updated_by,updated_at) VALUES (${id},'bob','supplier',${objectId},${version},${status},3,${principal.userId},now(),${principal.userId},now())`.execute(
       db,
     )
-    await sql`INSERT INTO bob_supplier_versions(approval_entry_id,kind,legal_name,display_name) VALUES (${id},'ORGANIZATION',${title},${title})`.execute(
+    await sql`INSERT INTO bob_supplier_versions(approval_entry_id,kind,legal_name,legal_identifier,display_name) VALUES (${id},'ORGANIZATION','供方税务名称','TAX-438',${title})`.execute(
       db,
     )
   }
@@ -140,6 +144,25 @@ test('ownership migration preserves formal/history facts and exact grants, and r
     legacyBefore,
   )
   assert.deepEqual(report.facts, before.facts)
+  const migrationOperator = {
+    userId: ulid(),
+    roleId: ulid(),
+    username: `operator-${ulid()}`,
+    passwordHash: await hashPassword(randomBytes(24).toString('hex')),
+  }
+  await bootstrap.createE2EPrincipal(migrationOperator, true)
+  const customerBaseline = await inspectCustomerCutover(db)
+  assert.deepEqual(customerBaseline.review, [])
+  await migrateCustomers(
+    db,
+    {
+      baseline: customerBaseline.baseline,
+      sourceReleaseSha: 'a'.repeat(40),
+      targetReleaseSha: 'b'.repeat(40),
+      actorId: migrationOperator.userId,
+    },
+    catalog,
+  )
   const config = loadConfig({
     DATABASE_URL: url.toString(),
     TARGET_DATABASE_SCOPE: 'isolated',

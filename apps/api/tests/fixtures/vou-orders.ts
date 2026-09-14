@@ -1,7 +1,11 @@
 import { randomBytes } from 'node:crypto'
 import type { Kysely } from 'kysely'
 import { ulid } from 'ulid'
-import type { VouPayloadFor, VouEntity } from '@zerp/model'
+import {
+  userCreatableVouEntities,
+  type VouPayloadFor,
+  type VouEntity,
+} from '@zerp/model'
 import type { DB } from '../../src/db/generated.ts'
 import { TargetBootstrapService } from '../../src/app/bootstrap.ts'
 import { hashPassword } from '../../src/app/session.ts'
@@ -21,6 +25,8 @@ export async function seedOrderListFixture(
   const bootstrap = new TargetBootstrapService(db)
   const paths = entities.flatMap((entity) =>
     [
+      'submit-new',
+      'submit-change',
       'query',
       'get',
       'approve',
@@ -28,7 +34,13 @@ export async function seedOrderListFixture(
       'unreject',
       'unapprove',
       'audit-history',
-    ].map((action) => `/vou/${entity}/${action}`),
+    ]
+      .filter(
+        (action) =>
+          !action.startsWith('submit-') ||
+          userCreatableVouEntities.includes(entity),
+      )
+      .map((action) => `/vou/${entity}/${action}`),
   )
   const password = randomBytes(24).toString('base64url')
   const passwordHash = await hashPassword(password)
@@ -78,10 +90,8 @@ export async function seedOrderListFixture(
     expectedLatestApprovedSubmissionId: null,
     expectedLatestApprovedRevision: null,
     snapshot: {
-      identityKind: 'ORGANIZATION',
-      legalName: '订单测试供应商',
       displayName: '订单测试供应商',
-      legalIdentifier: `ORD-${supplierId}`,
+      taxInformation: [references.taxInformation],
       contactName: '',
       phone: '',
       address: '',

@@ -34,7 +34,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   }
   const customerId = `C${suffix}`.padEnd(26, '0')
   const customerEntryId = `Q${suffix}`.padEnd(26, '0')
-  const subunitId = `S${suffix}`.padEnd(26, '0')
+  const subunitId = customerId
   const createdUserIds: string[] = []
   const createdRoleIds: string[] = []
   const createdAuxIds: string[] = []
@@ -90,33 +90,20 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     .insertInto('dcl_customer_versions')
     .values({
       approval_entry_id: customerEntryId,
-      kind: 'MAINLAND_ENTERPRISE',
       display_name: `Target Customer ${suffix}`,
-    })
-    .execute()
-  await db
-    .insertInto('dcl_customer_subunit_roots')
-    .values({
-      subunit_id: subunitId,
-      customer_id: customerId,
-      code: `SUB-${suffix}`,
-    })
-    .execute()
-  await db
-    .insertInto('dcl_customer_version_subunits')
-    .values({
-      customer_approval_entry_id: customerEntryId,
-      subunit_id: subunitId,
-      name: `Target Customer East ${suffix}`,
       customer_type_id: customerTypeId,
       customer_type_snapshot: JSON.stringify({
         id: customerTypeId,
         code: 'CUSTOMER-TYPE-TEST',
         name: '测试客户类型',
       }),
-      enabled: true,
+      credit_limits: JSON.stringify([]),
+      attachments: JSON.stringify([]),
+      remittance_profiles: JSON.stringify([]),
+      tax_information: JSON.stringify([]),
     })
     .execute()
+
   await db
     .insertInto('app_system_parameters')
     .values(
@@ -185,14 +172,6 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
       await db
         .deleteFrom('aux_objects')
         .where('id', 'in', createdAuxIds)
-        .execute()
-      await db
-        .deleteFrom('dcl_customer_version_subunits')
-        .where('subunit_id', '=', subunitId)
-        .execute()
-      await db
-        .deleteFrom('dcl_customer_subunit_roots')
-        .where('subunit_id', '=', subunitId)
         .execute()
       await db
         .deleteFrom('approval_entries')
@@ -541,7 +520,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     .where('role_id', '=', principal.roleId)
     .where('permission_id', '=', customerQueryPermission.id)
     .execute()
-  const subunits = await get('/bob/customer/subunit-options', {
+  const subunits = await get('/bob/customer/options', {
     keyword: suffix,
   })
   assert.equal(subunits.data.items[0].objectId, subunitId)

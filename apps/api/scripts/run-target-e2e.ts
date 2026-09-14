@@ -171,34 +171,22 @@ const vouReferenceFacts = {
     ['otherUnit', 'other-unit', 'OTU', '目标其他单位'],
     ['fundAccount', 'fund-account', 'FAC', '目标资金账户'],
     ['rawMaterial', 'product', 'PRD', '目标配方原料'],
-  ]
-    .map(([key, entity, prefix, name], index) => ({
-      key,
-      entity: entity as
-        | 'customer'
-        | 'supplier'
-        | 'operating-entity'
-        | 'employee'
-        | 'warehouse'
-        | 'product'
-        | 'other-unit'
-        | 'fund-account'
-        | 'customer-subunit',
-      objectId: fixtureId('Q', index + 1),
-      approvalEntryId: fixtureId('P', index + 1),
-      code: vouCode(prefix),
-      name,
-    }))
-    .concat([
-      {
-        key: 'customerSubunit',
-        entity: 'customer-subunit' as const,
-        objectId: fixtureId('U', 1),
-        approvalEntryId: fixtureId('P', 1),
-        code: 'SUB-0001',
-        name: '目标客户默认结算单位',
-      },
-    ]),
+  ].map(([key, entity, prefix, name], index) => ({
+    key,
+    entity: entity as
+      | 'customer'
+      | 'supplier'
+      | 'operating-entity'
+      | 'employee'
+      | 'warehouse'
+      | 'product'
+      | 'other-unit'
+      | 'fund-account',
+    objectId: fixtureId('Q', index + 1),
+    approvalEntryId: fixtureId('P', index + 1),
+    code: vouCode(prefix),
+    name,
+  })),
 }
 const vouAccObjectFacts = {
   asset: {
@@ -554,11 +542,7 @@ async function deleteE2ECatalogFacts() {
 async function seedArchiveReference(
   entity: Exclude<
     (typeof vouReferenceFacts.references)[number]['entity'],
-    | 'warehouse'
-    | 'fund-account'
-    | 'customer-subunit'
-    | 'operating-entity'
-    | 'employee'
+    'warehouse' | 'fund-account' | 'operating-entity' | 'employee'
   >,
   reference: {
     objectId: string
@@ -766,72 +750,45 @@ async function seedVouReferences(aux: AuxService) {
     serviceActor(reviewer.userId),
     'e2e-customer-partner-approve',
   )
-  const customerSubunit = reference('customerSubunit')
   await seedArchiveReference('customer', reference('customer'), {
-    identityKind: 'OTHER',
-    legalName: '目标客户',
     displayName: '目标客户',
-    legalIdentifier: `CUS-${suffix}`,
     phone: '',
     email: '',
-    address: '',
-    invoiceTitle: '',
-    invoiceAddress: '',
-    invoicePhone: '',
-    invoiceBank: '',
-    invoiceAccount: '',
     remittanceProfiles: [],
     defaultOperatingEntity: null,
-    identityAttachments: [],
-    subunits: [
-      {
-        id: customerSubunit.objectId,
-        intent: 'NEW',
-        code: null,
-        name: '目标客户默认结算单位',
-        contactName: '',
-        address: '',
-        customerType: auxReference('dictionary-item'),
-        settlementMethod: auxReference('settlement-method'),
-        paymentMethod: null,
-        transportPolicy: {
-          methodCode: 'DELIVERY',
-          methodName: '送货',
-          surcharge: '0.00',
-        },
-        pricingPolicy: {
-          defaultPremiumUnitPrice: '0.00',
-          defaultDiscountUnitPrice: '0.00',
-          costItems: [],
-          thirdPartyIntermediaryFixedUnitCost: '0.00',
-          thirdPartyIntermediaryVariableUnitCost: '0.00',
-        },
-        creditLimits: [{ currency: 'CNY', amount: '1000000.00' }],
-        primarySalesAttribution: {
-          type: 'INTERNAL_EMPLOYEE',
-          objectId: manager.objectId,
-          code: manager.code,
-          name: manager.name,
-        },
-        internalReminder: '',
-        defaultSalesOrderRemark: '',
-        attachments: [],
-        enabled: true,
-      },
-    ],
     enabled: true,
+    contactName: '',
+    address: '',
+    customerType: auxReference('dictionary-item'),
+    settlementMethod: auxReference('settlement-method'),
+    paymentMethod: null,
+    transportPolicy: {
+      methodCode: 'DELIVERY',
+      methodName: '送货',
+      surcharge: '0.00',
+    },
+    pricingPolicy: {
+      defaultPremiumUnitPrice: '0.00',
+      defaultDiscountUnitPrice: '0.00',
+      costItems: [],
+      thirdPartyIntermediaryFixedUnitCost: '0.00',
+      thirdPartyIntermediaryVariableUnitCost: '0.00',
+    },
+    creditLimits: [{ currency: 'CNY', amount: '1000000.00' }],
+    primarySalesAttribution: {
+      type: 'INTERNAL_EMPLOYEE',
+      objectId: manager.objectId,
+      code: manager.code,
+      name: manager.name,
+    },
+    internalReminder: '',
+    defaultSalesOrderRemark: '',
+    attachments: [],
+    taxInformation: [],
   })
-  const storedSubunit = await database
-    .selectFrom('dcl_customer_subunit_roots')
-    .select('code')
-    .where('subunit_id', '=', customerSubunit.objectId)
-    .executeTakeFirstOrThrow()
-  customerSubunit.code = storedSubunit.code
   await seedArchiveReference('supplier', reference('supplier'), {
-    identityKind: 'ORGANIZATION',
-    legalName: '目标供应商',
     displayName: '目标供应商',
-    legalIdentifier: `SUP-${suffix}`,
+    taxInformation: [],
     contactName: '',
     phone: '',
     address: '',
@@ -1107,8 +1064,8 @@ async function seedApprovedSourceOrders() {
   const product = vouReferenceFacts.references.find(
     (reference) => reference.key === 'product',
   )!
-  const customerSubunit = vouReferenceFacts.references.find(
-    (reference) => reference.key === 'customerSubunit',
+  const customer = vouReferenceFacts.references.find(
+    (reference) => reference.key === 'customer',
   )!
   const supplier = vouReferenceFacts.references.find(
     (reference) => reference.key === 'supplier',
@@ -1168,9 +1125,9 @@ async function seedApprovedSourceOrders() {
         businessDate: '2026-08-01',
         currency: 'CNY',
         attachments: [],
-        customerSubunit: {
-          objectId: customerSubunit.objectId,
-          approvalEntryId: customerSubunit.approvalEntryId,
+        customer: {
+          objectId: customer.objectId,
+          approvalEntryId: customer.approvalEntryId,
           selectionOrigin: 'HISTORICAL' as const,
         },
         paymentMethod: null,
@@ -1272,7 +1229,7 @@ async function verifyTrustedSystemVouLifecycle() {
         attachments: [],
         parentEntity: 'sale-order',
         parentDocumentId: vouSourceFacts.saleOrder.documentId,
-        customerSubunit: reference('customerSubunit'),
+        customer: reference('customer'),
         expectedSolventContainers: 1,
         expectedResinContainers: 0,
         returnedSolventContainers: 0,
@@ -1442,7 +1399,7 @@ async function seedPendingOrderPages() {
   async function pending(
     entity: 'sale-order' | 'purchase-order',
     sourceDocumentId: string,
-    referenceKey: 'customerSubunit' | 'supplier',
+    referenceKey: 'customer' | 'supplier',
   ) {
     const source = await vou.get(
       entity,
@@ -1480,7 +1437,7 @@ async function seedPendingOrderPages() {
     sale: await pending(
       'sale-order',
       vouSourceFacts.saleOrder.documentId,
-      'customerSubunit',
+      'customer',
     ),
     purchase: await pending(
       'purchase-order',

@@ -106,11 +106,6 @@ try {
         .execute()),
     ].map((row) => [row.id, row.code]),
   )
-  const subunit = await db
-    .selectFrom('dcl_customer_subunit_roots')
-    .select('code')
-    .where('subunit_id', '=', financial.subunitAllocations[0].subunit.objectId)
-    .executeTakeFirstOrThrow()
   const assetPayload = fixture.documents['asset-acquisition'].payload
   const assetId =
     fixture.documents['asset-sale'].payload.assetSaleLines[0].assetId
@@ -168,7 +163,7 @@ try {
     operatingEntity: financialCodes[financial.operatingEntity.objectId],
     fundAccount: financialCodes[financial.fundAccount.objectId],
     employee: financialCodes[financial.handler.objectId],
-    subunit: subunit.code,
+
     warehouse: fixture.references.warehouseCode,
     supplier: codes[fixture.supplierId],
     product: codes[fixture.references.archiveSubjectIds[1]],

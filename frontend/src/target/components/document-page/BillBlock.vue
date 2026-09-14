@@ -78,8 +78,8 @@ const cashFields = [
   />
   <VouReference
     v-if="modelValue.entity === 'bill-receipt'"
-    entity="customer-subunit"
-    caption="客户子单位"
+    entity="customer"
+    caption="客户"
     :model-value="modelValue.party"
     :disabled="disabled"
     @update:model-value="patch({ party: $event, origin: 'CURRENT' })"

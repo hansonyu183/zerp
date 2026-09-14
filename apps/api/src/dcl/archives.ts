@@ -35,6 +35,7 @@ type ArchiveEntity = DclArchiveEntity
 import {
   AuxApplicationError,
   resolveAuxCurrentReference,
+  resolveTaxInformation,
 } from '../aux/service.ts'
 import {
   ApprovalPersistence,
@@ -110,10 +111,11 @@ type PreparedArchiveResult =
     }
 
 type IdentitySetRow = {
-  kind: string
-  legal_name: string
+  kind?: string
+  legal_name?: string
   display_name: string
-  legal_identifier: string | null
+  legal_identifier?: string | null
+  tax_information?: JsonValue
   contact_name: string | null
   contact_phone: string | null
   address: string | null
@@ -298,7 +300,7 @@ export async function readBusinessIdentitySnapshot(
 ): Promise<ArchiveSnapshot> {
   const row =
     entity === 'supplier'
-      ? await sql<IdentitySetRow>`SELECT kind, legal_name, display_name, legal_identifier, contact_name, contact_phone, address, default_operating_entity_id, default_purchaser_employee_id, default_purchaser_approval_entry_id, default_purchaser_code, default_purchaser_name, remark, settlement_method_snapshot, default_purchaser_snapshot, NULL::jsonb AS capabilities FROM dcl_supplier_versions WHERE approval_entry_id = ${submissionId}`.execute(
+      ? await sql<IdentitySetRow>`SELECT tax_information, display_name, contact_name, contact_phone, address, default_operating_entity_id, default_purchaser_employee_id, default_purchaser_approval_entry_id, default_purchaser_code, default_purchaser_name, remark, settlement_method_snapshot, default_purchaser_snapshot, NULL::jsonb AS capabilities FROM dcl_supplier_versions WHERE approval_entry_id = ${submissionId}`.execute(
           tx,
         )
       : entity === 'other-unit'
@@ -323,10 +325,14 @@ export async function readBusinessIdentitySnapshot(
             tx,
           )
   const base: ArchiveSnapshot = {
-    identityKind: item.kind,
-    legalName: item.legal_name,
+    ...(entity === 'supplier'
+      ? { taxInformation: array(item.tax_information) }
+      : {
+          identityKind: item.kind,
+          legalName: item.legal_name,
+          legalIdentifier: item.legal_identifier ?? '',
+        }),
     displayName: item.display_name,
-    legalIdentifier: item.legal_identifier ?? '',
     contactName: item.contact_name ?? '',
     phone: item.contact_phone ?? '',
     address: item.address ?? '',
@@ -814,7 +820,9 @@ export class DclArchiveService {
             tx,
             entity,
             input.snapshot,
-            (entity === 'product' || entity === 'customer') &&
+            (entity === 'product' ||
+              entity === 'customer' ||
+              entity === 'supplier') &&
               action === 'submit-change' &&
               history.some(
                 (entry) =>
@@ -891,27 +899,6 @@ export class DclArchiveService {
             .where('id', '=', input.subjectId)
             .executeTakeFirstOrThrow()
           code = current.code
-        }
-        if (entity === 'customer')
-          plan.data = await this.assignCustomerSubunitCodes(
-            tx,
-            input.subjectId.trim(),
-            plan.data,
-          )
-        if (entity === 'customer' && action === 'submit-new')
-          requirePermission(actor, '/dcl/customer/save-subunits')
-        if (entity === 'customer' && action === 'submit-change') {
-          const latest = [...history]
-            .filter((item) => item.status === 'APPROVED')
-            .at(-1)
-          if (
-            latest &&
-            !isDeepStrictEqual(
-              array((await this.readSnapshot(tx, entity, latest.id)).subunits),
-              array(plan.data.subunits),
-            )
-          )
-            requirePermission(actor, '/dcl/customer/save-subunits')
         }
         await this.approval.create(tx, {
           entryId: input.submissionId.trim(),
@@ -1387,21 +1374,6 @@ export class DclArchiveService {
         revision: String(row.revision),
       })),
     }
-    if (
-      entity === 'customer' &&
-      !array(input.snapshot.subunits).some(
-        (item) => record(item).enabled === true,
-      )
-    ) {
-      const current = await tx
-        .selectFrom('bob_archive_objects')
-        .select('enabled')
-        .where('id', '=', input.subjectId)
-        .where('entity', '=', 'customer')
-        .executeTakeFirst()
-      if (!current || current.enabled)
-        return { ok: false, errorKey: 'customer_invalid_data', blockers: [] }
-    }
     const result = (await this.prepareByEntity(
       entity,
       command,
@@ -1496,19 +1468,15 @@ export class DclArchiveService {
             subject,
             defaultOperatingEntity: adoptedAuxFact(data.defaultOperatingEntity),
             customerTypes: (
-              await this.auxFacts(
-                tx,
-                array(data.subunits).map((value) => [
-                  'customerType',
-                  record(record(value).customerType).id,
-                ]),
-              )
+              await this.auxFacts(tx, [
+                ['customerType', record(data.customerType).id],
+              ])
             ).map((fact) => ({
               objectId: fact.objectId,
               available: fact.available,
             })),
             salesAttributions: await Promise.all(
-              array(data.subunits).map(async (value) => {
+              [data].map(async (value) => {
                 const attribution = record(
                   record(value).primarySalesAttribution,
                 )
@@ -1541,18 +1509,7 @@ export class DclArchiveService {
                     fact.latestApprovedEntryId,
                   )
                   enabled =
-                    enabled &&
-                    array(snapshot.capabilities).includes(type) &&
-                    !(
-                      data.identityKind !== 'OTHER' &&
-                      String(data.legalIdentifier ?? '').trim() &&
-                      String(data.legalIdentifier)
-                        .replace(/\s/g, '')
-                        .toUpperCase() ===
-                        String(snapshot.legalIdentifier ?? '')
-                          .replace(/\s/g, '')
-                          .toUpperCase()
-                    )
+                    enabled && array(snapshot.capabilities).includes(type)
                 }
                 return {
                   objectId: fact.objectId,
@@ -1699,14 +1656,11 @@ export class DclArchiveService {
         throw new DclArchiveApplicationError('product_duplicate_barcode')
       return
     }
+    if (entity === 'customer' || entity === 'supplier') return
     const table =
-      entity === 'customer'
-        ? 'dcl_customer_versions'
-        : entity === 'supplier'
-          ? 'dcl_supplier_versions'
-          : entity === 'other-unit'
-            ? 'dcl_other_unit_versions'
-            : 'dcl_sales_partner_versions'
+      entity === 'other-unit'
+        ? 'dcl_other_unit_versions'
+        : 'dcl_sales_partner_versions'
     const errorKey = `${entity.replace('-', '_')}_duplicate_legal_identifier`
     const value = data.legalIdentifier
     if (typeof value !== 'string' || !value.trim()) return
@@ -2038,6 +1992,23 @@ export class DclArchiveService {
     snapshot: ArchiveSnapshot,
     previous?: ArchiveSnapshot,
   ): Promise<ArchiveSnapshot> {
+    if (entity === 'customer' || entity === 'supplier') {
+      const ids = array(snapshot.taxInformation).map((item) =>
+        String(record(item).id ?? ''),
+      )
+      if (ids.length !== new Set(ids).size)
+        throw new DclArchiveApplicationError(`${entity}_invalid_data`)
+      const adopted = new Map(
+        array(previous?.taxInformation).map((item) => [
+          String(record(item).id),
+          item,
+        ]),
+      )
+      const byId = new Map<string, unknown>()
+      for (const id of [...ids].sort())
+        byId.set(id, adopted.get(id) ?? (await resolveTaxInformation(tx, id)))
+      snapshot = { ...snapshot, taxInformation: ids.map((id) => byId.get(id)) }
+    }
     if (entity === 'customer')
       return {
         ...snapshot,
@@ -2055,46 +2026,33 @@ export class DclArchiveService {
                   'operating-entity',
                   snapshot.defaultOperatingEntity,
                 ),
-        subunits: await Promise.all(
-          array(snapshot.subunits).map(async (item) => {
-            const subunit = record(item)
-            const old = array(previous?.subunits)
-              .map(record)
-              .find((value) => value.id === subunit.id)
-            const attribution = record(subunit.primarySalesAttribution)
-            const attributionType = String(attribution.type ?? '')
-            return {
-              ...subunit,
-              customerType:
-                old && isDeepStrictEqual(old.customerType, subunit.customerType)
-                  ? old.customerType
-                  : await this.freezeCustomerType(tx, subunit.customerType),
-              settlementMethod: subunit.settlementMethod,
-              paymentMethod: subunit.paymentMethod,
-              primarySalesAttribution:
-                old &&
-                isDeepStrictEqual(
-                  old.primarySalesAttribution,
-                  subunit.primarySalesAttribution,
-                )
-                  ? old.primarySalesAttribution
-                  : {
-                      ...(attributionType === 'INTERNAL_EMPLOYEE'
-                        ? await this.freezeCurrentReference(
-                            tx,
-                            'employee',
-                            attribution,
-                          )
-                        : await this.freezeApprovedReference(
-                            tx,
-                            'sales-partner',
-                            attribution,
-                          )),
-                      type: attributionType,
-                    },
-            }
-          }),
-        ),
+        customerType:
+          previous &&
+          isDeepStrictEqual(previous.customerType, snapshot.customerType)
+            ? previous.customerType
+            : await this.freezeCustomerType(tx, snapshot.customerType),
+        primarySalesAttribution:
+          previous &&
+          isDeepStrictEqual(
+            previous.primarySalesAttribution,
+            snapshot.primarySalesAttribution,
+          )
+            ? previous.primarySalesAttribution
+            : {
+                ...(record(snapshot.primarySalesAttribution).type ===
+                'INTERNAL_EMPLOYEE'
+                  ? await this.freezeCurrentReference(
+                      tx,
+                      'employee',
+                      snapshot.primarySalesAttribution,
+                    )
+                  : await this.freezeApprovedReference(
+                      tx,
+                      'sales-partner',
+                      snapshot.primarySalesAttribution,
+                    )),
+                type: record(snapshot.primarySalesAttribution).type,
+              },
       }
     if (entity === 'product')
       return {
@@ -2235,15 +2193,14 @@ export class DclArchiveService {
           'defaultOperatingEntity',
           String(record(snapshot.defaultOperatingEntity).objectId ?? ''),
         ])
-      array(snapshot.subunits).forEach((value, index) => {
-        const ref = record(record(value).primarySalesAttribution)
-        if (ref.type === 'INTERNAL_EMPLOYEE')
-          references.push([
-            `subunits[${index}].primarySalesAttribution`,
-            String(ref.objectId ?? ''),
-          ])
-      })
+      const ref = record(snapshot.primarySalesAttribution)
+      if (ref.type === 'INTERNAL_EMPLOYEE')
+        references.push(['primarySalesAttribution', String(ref.objectId ?? '')])
     }
+    if (entity === 'customer' || entity === 'supplier')
+      array(snapshot.taxInformation).forEach((item, index) =>
+        references.push([`taxInformation[${index}]`, String(record(item).id)]),
+      )
     for (const [field, id] of references)
       await sql`INSERT INTO aux_reference_facts(id,aux_object_id,source) VALUES (${ulid()},${id},${`${archiveDomain(entity)}:${entity}:${submissionId}:${field}`})`.execute(
         tx,
@@ -2255,138 +2212,45 @@ export class DclArchiveService {
     id: string,
     d: ArchiveSnapshot,
   ): Promise<void> {
-    const oe = record(d.defaultOperatingEntity)
+    const oe = record(d.defaultOperatingEntity),
+      attribution = record(d.primarySalesAttribution)
     await tx
       .insertInto('dcl_customer_versions')
       .values({
         approval_entry_id: id,
-        kind: String(d.identityKind ?? ''),
-        legal_name: nullable(d.legalName),
-        display_name: String(d.displayName ?? ''),
-        legal_identifier: nullable(d.legalIdentifier),
+        display_name: String(d.displayName),
         phone: nullable(d.phone),
         email: nullable(d.email),
         address: nullable(d.address),
-        invoice_title: nullable(d.invoiceTitle),
-        invoice_address: nullable(d.invoiceAddress),
-        invoice_phone: nullable(d.invoicePhone),
-        invoice_bank: nullable(d.invoiceBank),
-        invoice_account: nullable(d.invoiceAccount),
-        remittance_profiles: json(array(d.remittanceProfiles)),
+        contact_name: nullable(d.contactName),
         default_operating_entity_id: nullable(oe.objectId),
-        default_operating_entity_approval_entry_id: nullable(
-          oe.approvalEntryId,
-        ),
         default_operating_entity_code: nullable(oe.code),
         default_operating_entity_name: nullable(oe.name),
-        tax_attachments: json(array(d.identityAttachments)),
+        customer_type_id: String(record(d.customerType).id),
+        customer_type_snapshot: json(record(d.customerType)),
+        settlement_method_id: nullable(record(d.settlementMethod).id),
+        settlement_snapshot:
+          d.settlementMethod === null ? null : json(record(d.settlementMethod)),
+        payment_snapshot:
+          d.paymentMethod === null ? null : json(record(d.paymentMethod)),
+        transport_snapshot: json(record(d.transportPolicy)),
+        pricing_snapshot: json(record(d.pricingPolicy)),
+        credit_limits: json(array(d.creditLimits)),
+        primary_sales_attribution_type: nullable(attribution.type),
+        primary_sales_attribution_object_id: nullable(attribution.objectId),
+        primary_sales_attribution_approval_entry_id: nullable(
+          attribution.approvalEntryId,
+        ),
+        primary_sales_attribution_code: nullable(attribution.code),
+        primary_sales_attribution_name: nullable(attribution.name),
+        sales_attribution_snapshot: json(attribution),
+        internal_reminder: nullable(d.internalReminder),
+        default_order_remark: nullable(d.defaultSalesOrderRemark),
+        attachments: json(array(d.attachments)),
+        remittance_profiles: json(array(d.remittanceProfiles)),
+        tax_information: json(array(d.taxInformation)),
       })
       .execute()
-    const owner = await tx
-      .selectFrom('approval_entries')
-      .select('subject_id')
-      .where('id', '=', id)
-      .executeTakeFirstOrThrow()
-    for (const item of array(d.subunits)) {
-      const s = record(item)
-      const root = await tx
-        .selectFrom('dcl_customer_subunit_roots')
-        .select(['customer_id', 'code'])
-        .where('subunit_id', '=', String(s.id ?? ''))
-        .executeTakeFirst()
-      if (root) {
-        if (
-          root.customer_id !== owner.subject_id ||
-          root.code !== String(s.code ?? '')
-        )
-          throw new DclArchiveApplicationError('customer_subunit_conflict')
-      } else {
-        await tx
-          .insertInto('dcl_customer_subunit_roots')
-          .values({
-            subunit_id: String(s.id ?? ''),
-            customer_id: owner.subject_id,
-            code: String(s.code ?? ''),
-          })
-          .execute()
-      }
-      await tx
-        .insertInto('dcl_customer_version_subunits')
-        .values({
-          customer_approval_entry_id: id,
-          subunit_id: String(s.id ?? ''),
-          name: String(s.name ?? ''),
-          contact_name: nullable(s.contactName),
-          contact_phone: null,
-          business_address: nullable(s.address),
-          customer_type_id: String(record(s.customerType).id),
-          customer_type_snapshot: json(record(s.customerType)),
-          settlement_method_id: nullable(record(s.settlementMethod).id),
-          settlement_snapshot:
-            s.settlementMethod === null
-              ? null
-              : json(record(s.settlementMethod)),
-          payment_snapshot:
-            s.paymentMethod === null ? null : json(record(s.paymentMethod)),
-          transport_snapshot: json(record(s.transportPolicy)),
-          pricing_snapshot: json(record(s.pricingPolicy)),
-          credit_limits: json(array(s.creditLimits)),
-          primary_sales_attribution_type: nullable(
-            record(s.primarySalesAttribution).type,
-          ),
-          primary_sales_attribution_object_id: nullable(
-            record(s.primarySalesAttribution).objectId,
-          ),
-          primary_sales_attribution_approval_entry_id: nullable(
-            record(s.primarySalesAttribution).approvalEntryId,
-          ),
-          primary_sales_attribution_code: nullable(
-            record(s.primarySalesAttribution).code,
-          ),
-          primary_sales_attribution_name: nullable(
-            record(s.primarySalesAttribution).name,
-          ),
-          sales_attribution_snapshot: json(record(s.primarySalesAttribution)),
-          internal_reminder: nullable(s.internalReminder),
-          default_order_remark: nullable(s.defaultSalesOrderRemark),
-          business_attachments: json(array(s.attachments)),
-          enabled: s.enabled === true,
-        })
-        .execute()
-    }
-  }
-
-  private async assignCustomerSubunitCodes(
-    tx: Executor,
-    customerId: string,
-    snapshot: ArchiveSnapshot,
-  ): Promise<ArchiveSnapshot> {
-    const roots = await tx
-      .selectFrom('dcl_customer_subunit_roots')
-      .select('code')
-      .where('customer_id', '=', customerId)
-      .execute()
-    let next = roots.reduce((highest, root) => {
-      const match = /^SUB-(\d+)$/.exec(root.code)
-      return match ? Math.max(highest, Number(match[1])) : highest
-    }, 0)
-    const knownCodes = new Set(roots.map((root) => root.code))
-    const subunits = []
-    for (const item of array(snapshot.subunits)) {
-      const subunit = record(item)
-      if (subunit.intent === 'NEW') {
-        next += 1
-        const code = `SUB-${String(next).padStart(4, '0')}`
-        knownCodes.add(code)
-        subunits.push({ ...subunit, code })
-        continue
-      }
-      const code = String(subunit.code ?? '')
-      if (!knownCodes.has(code))
-        throw new DclArchiveApplicationError('customer_subunit_conflict')
-      subunits.push(subunit)
-    }
-    return { ...snapshot, subunits }
   }
 
   private async promoteCustomerAttachments(
@@ -2401,12 +2265,7 @@ export class DclArchiveService {
       .select('subject_id')
       .where('id', '=', approvalEntryId)
       .executeTakeFirstOrThrow()
-    const attachments = [
-      ...array(snapshot.identityAttachments),
-      ...array(snapshot.subunits).flatMap((item) =>
-        array(record(item).attachments),
-      ),
-    ].map(record)
+    const attachments = array(snapshot.attachments).map(record)
     for (const attachment of attachments) {
       const stagingId =
         typeof attachment.stagingId === 'string' ? attachment.stagingId : null
@@ -2503,12 +2362,7 @@ export class DclArchiveService {
   }
 
   private customerStagingAttachments(snapshot: ArchiveSnapshot) {
-    return [
-      ...array(snapshot.identityAttachments),
-      ...array(snapshot.subunits).flatMap((item) =>
-        array(record(item).attachments),
-      ),
-    ]
+    return array(snapshot.attachments)
       .map(record)
       .filter(
         (
@@ -2619,11 +2473,18 @@ export class DclArchiveService {
       ),
       remark: nullable(d.remark),
     }
+    const {
+      kind: _kind,
+      legal_name: _legalName,
+      legal_identifier: _legalIdentifier,
+      ...supplierCommon
+    } = common
     if (entity === 'supplier')
       await tx
         .insertInto('dcl_supplier_versions')
         .values({
-          ...common,
+          ...supplierCommon,
+          tax_information: json(array(d.taxInformation)),
           settlement_method_snapshot:
             d.settlementMethod === null
               ? null
@@ -2682,31 +2543,12 @@ export class DclArchiveService {
       .selectAll()
       .where('approval_entry_id', '=', id)
       .executeTakeFirstOrThrow()
-    const subs = await tx
-      .selectFrom('dcl_customer_version_subunits as v')
-      .innerJoin(
-        'dcl_customer_subunit_roots as r',
-        'r.subunit_id',
-        'v.subunit_id',
-      )
-      .selectAll('v')
-      .select('r.code as root_code')
-      .where('v.customer_approval_entry_id', '=', id)
-      .execute()
     return {
-      identityKind: r.kind,
-      legalName: r.legal_name ?? '',
       displayName: r.display_name,
-      legalIdentifier: r.legal_identifier ?? '',
       phone: r.phone ?? '',
       email: r.email ?? '',
       address: r.address ?? '',
-      invoiceTitle: r.invoice_title ?? '',
-      invoiceAddress: r.invoice_address ?? '',
-      invoicePhone: r.invoice_phone ?? '',
-      invoiceBank: r.invoice_bank ?? '',
-      invoiceAccount: r.invoice_account ?? '',
-      remittanceProfiles: array(r.remittance_profiles),
+      contactName: r.contact_name ?? '',
       defaultOperatingEntity: r.default_operating_entity_id
         ? {
             objectId: r.default_operating_entity_id,
@@ -2714,39 +2556,18 @@ export class DclArchiveService {
             name: r.default_operating_entity_name ?? '',
           }
         : null,
-      identityAttachments: array(r.tax_attachments),
-      subunits: subs.map((s) => ({
-        intent: 'EXISTING',
-        id: s.subunit_id,
-        code: s.root_code,
-        name: s.name,
-        contactName: s.contact_name ?? '',
-        address: s.business_address ?? '',
-        customerType: record(s.customer_type_snapshot),
-        settlementMethod: s.settlement_snapshot,
-        paymentMethod: s.payment_snapshot,
-        transportPolicy: record(s.transport_snapshot),
-        pricingPolicy: record(s.pricing_snapshot),
-        creditLimits: array(s.credit_limits),
-        primarySalesAttribution: s.primary_sales_attribution_object_id
-          ? {
-              type: s.primary_sales_attribution_type,
-              objectId: s.primary_sales_attribution_object_id,
-              ...(s.primary_sales_attribution_type === 'INTERNAL_EMPLOYEE'
-                ? {}
-                : {
-                    approvalEntryId:
-                      s.primary_sales_attribution_approval_entry_id ?? '',
-                  }),
-              code: s.primary_sales_attribution_code ?? '',
-              name: s.primary_sales_attribution_name ?? '',
-            }
-          : {},
-        internalReminder: s.internal_reminder ?? '',
-        defaultSalesOrderRemark: s.default_order_remark ?? '',
-        attachments: array(s.business_attachments),
-        enabled: s.enabled,
-      })),
+      customerType: record(r.customer_type_snapshot),
+      settlementMethod: r.settlement_snapshot,
+      paymentMethod: r.payment_snapshot,
+      transportPolicy: record(r.transport_snapshot),
+      pricingPolicy: record(r.pricing_snapshot),
+      creditLimits: array(r.credit_limits),
+      primarySalesAttribution: record(r.sales_attribution_snapshot),
+      internalReminder: r.internal_reminder ?? '',
+      defaultSalesOrderRemark: r.default_order_remark ?? '',
+      attachments: array(r.attachments),
+      remittanceProfiles: array(r.remittance_profiles),
+      taxInformation: array(r.tax_information),
     }
   }
 
@@ -2903,23 +2724,6 @@ export class DclArchiveService {
         (candidate) =>
           candidate.id !== entry.id && candidate.status === 'APPROVED',
       )
-      if (previous && entity === 'customer') {
-        const root = await tx
-          .selectFrom('bob_archive_objects')
-          .select('enabled')
-          .where('id', '=', entry.subjectId)
-          .executeTakeFirstOrThrow()
-        const snapshot = await this.readSnapshot(tx, entity, previous.id)
-        if (
-          root.enabled &&
-          !array(snapshot.subunits).some(
-            (subunit) => record(subunit).enabled === true,
-          )
-        )
-          throw new DclArchiveApplicationError(
-            'customer_enabled_subunit_required',
-          )
-      }
       if (previous)
         await this.ensureNoDuplicateBusinessKey(
           tx,
@@ -2950,9 +2754,9 @@ export class DclArchiveService {
       }>`
         SELECT e.domain,e.entity,e.subject_id,e.id,r.field FROM vou_reference_snapshots r JOIN approval_entries e ON e.id=r.approval_entry_id WHERE r.approval_reference_id=${entry.id} AND e.status='APPROVED'
         UNION
-        SELECT e.domain,e.entity,e.subject_id,e.id,'containers.subunit' FROM acc_opening_container_balances r JOIN approval_entries e ON e.id=r.opening_approval_entry_id WHERE r.customer_approval_entry_id=${entry.id} AND e.status='APPROVED'
+        SELECT e.domain,e.entity,e.subject_id,e.id,'containers.customer' FROM acc_opening_container_balances r JOIN approval_entries e ON e.id=r.opening_approval_entry_id WHERE r.customer_approval_entry_id=${entry.id} AND e.status='APPROVED'
         UNION
-        SELECT e.domain,e.entity,e.subject_id,e.id,'customerSubunit' FROM acc_container_entries r JOIN approval_entries e ON e.id=r.vou_approval_entry_id WHERE r.customer_approval_entry_id=${entry.id} AND e.status='APPROVED'
+        SELECT e.domain,e.entity,e.subject_id,e.id,'customer' FROM acc_container_entries r JOIN approval_entries e ON e.id=r.vou_approval_entry_id WHERE r.customer_approval_entry_id=${entry.id} AND e.status='APPROVED'
         UNION
         SELECT e.domain,e.entity,e.subject_id,e.id,'bills.originatingCounterparty' FROM acc_opening_snapshots s JOIN approval_entries e ON e.id=s.approval_entry_id CROSS JOIN LATERAL jsonb_array_elements(COALESCE(s.payload->'bills','[]'::jsonb)) bill WHERE bill->'originatingCounterparty'->>'approvalEntryId'=${entry.id} AND e.status='APPROVED'
         ORDER BY domain,entity,subject_id,id,field`.execute(tx)

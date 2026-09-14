@@ -313,7 +313,7 @@ onBeforeUnmount(dispose)
         :prepend-icon="actionIcons.create"
         v-if="can('save')"
         @click="create"
-        >新增映射</v-btn
+        >新增</v-btn
       >
     </div>
     <v-btn v-if="!catalogReady" :loading="catalogLoading" @click="initialize"
@@ -346,7 +346,7 @@ onBeforeUnmount(dispose)
       scrollable
       @update:model-value="!$event && close()"
     >
-      <v-card title="当前会计映射">
+      <v-card :title="draft.expectedRevision ? '当前会计映射' : '新增'">
         <v-card-text>
           <v-alert v-if="error" type="error" class="mb-3">{{ error }}</v-alert>
           <v-alert v-if="feedback" type="success" class="mb-3">{{

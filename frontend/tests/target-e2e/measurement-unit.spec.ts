@@ -46,9 +46,7 @@ test('measurement units use typed fields through menu on desktop and 390px', asy
     }
     await expect(page.getByTestId('business-unimplemented')).toHaveCount(0)
     for (let index = 0; index < (width === 1440 ? 21 : 1); index++) {
-      await page
-        .getByRole('button', { name: '新增计量单位', exact: true })
-        .click()
+      await page.getByRole('button', { name: '新增', exact: true }).click()
       const dialog = page.getByRole('dialog')
       await expect(dialog.getByLabel('说明', { exact: true })).toHaveCount(0)
       await dialog

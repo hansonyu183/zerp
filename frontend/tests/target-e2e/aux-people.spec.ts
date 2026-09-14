@@ -106,7 +106,7 @@ test('operating entities and employees use direct AUX ListPages on desktop and 3
   const operatingEntityName = `E2E经营主体${tag}`
   const operatingEntityIdentifier = `A0${tag}`
   await openFromMenu(page, '/aux/operating-entity', 1440)
-  await page.getByRole('button', { name: '新增经营主体', exact: true }).click()
+  await page.getByRole('button', { name: '新增', exact: true }).click()
   const discarded = page.getByRole('dialog')
   await discarded
     .getByLabel('法定名称', { exact: true })
@@ -114,7 +114,7 @@ test('operating entities and employees use direct AUX ListPages on desktop and 3
   await page.reload()
   await expect(page.getByRole('dialog')).toHaveCount(0)
 
-  await page.getByRole('button', { name: '新增经营主体', exact: true }).click()
+  await page.getByRole('button', { name: '新增', exact: true }).click()
   const operatingEntityEditor = page.getByRole('dialog')
   await operatingEntityEditor
     .getByLabel('法定名称', { exact: true })
@@ -204,7 +204,7 @@ test('operating entities and employees use direct AUX ListPages on desktop and 3
 
   const employeeName = `E2E员工${tag}`
   await openFromMenu(page, '/aux/employee', 1440)
-  await page.getByRole('button', { name: '新增员工', exact: true }).click()
+  await page.getByRole('button', { name: '新增', exact: true }).click()
   const employeeEditor = page.getByRole('dialog')
   await expect(
     employeeEditor.getByRole('button', { name: '保存', exact: true }),

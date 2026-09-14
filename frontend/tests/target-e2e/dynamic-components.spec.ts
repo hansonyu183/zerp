@@ -37,7 +37,7 @@ test('shared mobile cards, form spacing, nested draft cancellation and compact d
     ).toBe(true)
   }
   await page.setViewportSize({ width: 375, height: 844 })
-  await page.getByRole('button', { name: '新增客户', exact: true }).click()
+  await page.getByRole('button', { name: '新增', exact: true }).click()
   const parent = page.getByRole('dialog').last()
   const fields = parent
     .locator('.form-block')
@@ -60,7 +60,8 @@ test('shared mobile cards, form spacing, nested draft cancellation and compact d
   await page
     .getByRole('dialog')
     .last()
-    .getByRole('button', { name: '添加信用额度', exact: true })
+    .locator('.collection-block[aria-label="信用额度"] > .collection-heading')
+    .getByRole('button', { name: '新增', exact: true })
     .click()
   await page
     .getByRole('dialog')

@@ -214,7 +214,7 @@ test('employee categories support three-field search, CRUD, enablement, and both
   const desktop = {
     entity: 'employee-category',
     title: '员工分类',
-    createLabel: '新增员工分类',
+    createLabel: '新增',
     prefix: 'ECT',
     baseName: '采购',
     renamedBaseName: '高级采购',
@@ -244,7 +244,7 @@ test('positions support three-field search, CRUD, enablement, and both required 
   const desktop = {
     entity: 'position',
     title: '岗位',
-    createLabel: '新增岗位',
+    createLabel: '新增',
     prefix: 'POS',
     baseName: '采购',
     renamedBaseName: '高级采购',

@@ -17,7 +17,9 @@ export async function editItem(
 export async function confirmItems(wrapper: VueWrapper) {
   // Select the deepest dialog, then its own confirmation button.
   for (let level = 0; level < 8; level++) {
-    const dialog = wrapper.findAll('div[aria-label^="编辑"]').at(-1)
+    const dialog = wrapper
+      .findAll('div[aria-label="新增"], div[aria-label^="编辑"]')
+      .at(-1)
     const button = dialog
       ?.findAll('button')
       .filter((button) => button.text() === '确定')

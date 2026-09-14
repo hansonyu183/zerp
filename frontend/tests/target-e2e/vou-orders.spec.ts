@@ -62,7 +62,7 @@ test('sales and purchases open from menus, share date range fields, show immutab
       page.getByText('专用单据编辑器尚未实施', { exact: false }),
     ).toHaveCount(0)
     await expect(
-      page.getByRole('button', { name: '新建', exact: true }),
+      page.getByRole('button', { name: '新增', exact: true }),
     ).toBeVisible()
     await page.setViewportSize({ width: 390, height: 844 })
     await setDateRange(page, '期间', row.businessDate, row.businessDate)
@@ -167,7 +167,7 @@ test('creates and clones sales and purchase orders from real menu candidates, in
   for (const entity of ['purchase-order', 'sale-order'] as const) {
     await page.setViewportSize({ width: 1280, height: 900 })
     await openMenu(page, `/vou/${entity}`)
-    await page.getByRole('button', { name: '新建', exact: true }).click()
+    await page.getByRole('button', { name: '新增', exact: true }).click()
     const editor = page.getByRole('dialog').last()
     await expect(editor).toBeVisible()
     const choose = async (label: string, name: string) => {
@@ -210,7 +210,8 @@ test('creates and clones sales and purchase orders from real menu candidates, in
     await editor.getByLabel('业务日期', { exact: true }).fill('2026-09-09')
     await editor.getByLabel('备注', { exact: true }).fill(`动态录入${entity}`)
     await editor
-      .getByRole('button', { name: '添加商品行', exact: true })
+      .locator('.collection-block[aria-label="商品行"] > .collection-heading')
+      .getByRole('button', { name: '新增', exact: true })
       .click()
     await choose('产品', references.product!.name)
     if (entity === 'sale-order') {

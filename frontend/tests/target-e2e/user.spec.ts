@@ -33,7 +33,7 @@ async function openUserManagement(page: Page): Promise<void> {
   await drawer.locator('a[href="/app/user"]').click()
   await page.waitForURL('**/app/user')
   await expect(
-    page.getByRole('button', { name: '新增用户', exact: true }),
+    page.getByRole('button', { name: '新增', exact: true }),
   ).toBeVisible()
   await expect(
     page.getByLabel('编码、拼音或名称', { exact: true }),
@@ -57,7 +57,7 @@ async function openRoleManagement(page: Page): Promise<void> {
   await drawer.locator('a[href="/app/role"]').click()
   await page.waitForURL('**/app/role')
   await expect(
-    page.getByRole('button', { name: '新增角色', exact: true }),
+    page.getByRole('button', { name: '新增', exact: true }),
   ).toBeVisible()
   await expect(
     page.getByLabel('编码、拼音或名称', { exact: true }),
@@ -109,7 +109,7 @@ async function createRole(
   page: Page,
   input: { name: string; permissionText: string },
 ): Promise<void> {
-  await page.getByRole('button', { name: '新增角色', exact: true }).click()
+  await page.getByRole('button', { name: '新增', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
   await dialog.getByLabel('名称', { exact: true }).fill(input.name)
@@ -144,7 +144,7 @@ async function createUser(
   page: Page,
   input: { code: string; name: string; password: string },
 ): Promise<void> {
-  await page.getByRole('button', { name: '新增用户', exact: true }).click()
+  await page.getByRole('button', { name: '新增', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
   await dialog.getByLabel('用户编码', { exact: true }).fill(input.code)
@@ -362,7 +362,7 @@ test('user list and reused editor remain usable at desktop and 390px in both the
       for (const theme of ['light', 'dark']) {
         if (theme === 'dark') await page.getByLabel('切换深色模式').click()
         await expect(
-          page.getByRole('button', { name: '新增用户', exact: true }),
+          page.getByRole('button', { name: '新增', exact: true }),
         ).toBeVisible()
         expect(
           await page.evaluate(
@@ -371,7 +371,7 @@ test('user list and reused editor remain usable at desktop and 390px in both the
         ).toBe(true)
         await expect(
           page
-            .getByRole('button', { name: '新增用户', exact: true })
+            .getByRole('button', { name: '新增', exact: true })
             .locator('.mdi-plus'),
         ).toHaveAttribute('aria-hidden', 'true')
         await expect(
@@ -383,9 +383,7 @@ test('user list and reused editor remain usable at desktop and 390px in both the
           animations: 'disabled',
           path: resolve(directory, `${width}-${theme}-list.png`),
         })
-        await page
-          .getByRole('button', { name: '新增用户', exact: true })
-          .click()
+        await page.getByRole('button', { name: '新增', exact: true }).click()
         const dialog = page.getByRole('dialog')
         await expect(dialog.getByLabel('角色', { exact: true })).toBeEnabled()
         await expect(
@@ -438,7 +436,7 @@ test('role management creates, edits and changes enablement at desktop and 390px
 
       if (width === 390) {
         await expect(
-          page.getByRole('button', { name: '新增角色', exact: true }),
+          page.getByRole('button', { name: '新增', exact: true }),
         ).toBeVisible()
         await page.screenshot({
           animations: 'disabled',

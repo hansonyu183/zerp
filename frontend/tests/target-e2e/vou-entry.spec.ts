@@ -93,7 +93,7 @@ for (const width of [1280, 390])
           await group.locator('.v-list-group__header').click()
         await drawer.locator(`a[href="/vou/${entity}"]`).click()
         await expect(page.getByTestId('vou-list-page')).toBeVisible()
-        await page.getByRole('button', { name: '新建', exact: true }).click()
+        await page.getByRole('button', { name: '新增', exact: true }).click()
         const editor = page.getByRole('dialog').last()
         await expect(editor).toBeVisible()
         const choose = async (label: string, code: string) => {
@@ -142,7 +142,10 @@ for (const width of [1280, 390])
             await choose('供应商', facts.supplier)
           if (entity === 'asset-sale') await choose('相对方', facts.subunit)
           await editor
-            .getByRole('button', { name: '添加资产行', exact: true })
+            .locator(
+              '.collection-block[aria-label="资产行"] > .collection-heading',
+            )
+            .getByRole('button', { name: '新增', exact: true })
             .click()
           if (entity === 'asset-acquisition') {
             await editor
@@ -196,7 +199,10 @@ for (const width of [1280, 390])
           if (entity === 'bill-discount')
             await choose('贴现相对方', facts.otherUnit)
           await editor
-            .getByRole('button', { name: '添加票据行', exact: true })
+            .locator(
+              '.collection-block[aria-label="票据行"] > .collection-heading',
+            )
+            .getByRole('button', { name: '新增', exact: true })
             .click()
           if (entity === 'bill-receipt' || entity === 'bill-issue') {
             await editor
@@ -222,7 +228,10 @@ for (const width of [1280, 390])
             )
           await confirmCollections(page)
           await editor
-            .getByRole('button', { name: '添加现金行', exact: true })
+            .locator(
+              '.collection-block[aria-label="现金行"] > .collection-heading',
+            )
+            .getByRole('button', { name: '新增', exact: true })
             .click()
           await choose('现金资金账户', facts.fundAccount)
           await editor.getByLabel('现金金额', { exact: true }).fill('999.99')
@@ -250,7 +259,10 @@ for (const width of [1280, 390])
             await choose('客户', facts.customer)
             await choose('经营主体', facts.operatingEntity)
             await editor
-              .getByRole('button', { name: '添加分摊行', exact: true })
+              .locator(
+                '.collection-block[aria-label="分摊行"] > .collection-heading',
+              )
+              .getByRole('button', { name: '新增', exact: true })
               .click()
             await choose('客户子单位', facts.subunit)
             await editor.getByLabel('分摊金额', { exact: true }).fill('12.34')
@@ -280,7 +292,10 @@ for (const width of [1280, 390])
           } else await choose('相对方', facts.subunit)
           if (expenses) {
             await editor
-              .getByRole('button', { name: '添加费用行', exact: true })
+              .locator(
+                '.collection-block[aria-label="费用行"] > .collection-heading',
+              )
+              .getByRole('button', { name: '新增', exact: true })
               .click()
             await editor.getByLabel('费用类别', { exact: true }).fill('差旅')
             await editor
@@ -299,7 +314,10 @@ for (const width of [1280, 390])
           await choose('材料仓库', facts.warehouse)
           await choose('成品仓库', facts.warehouse)
           await editor
-            .getByRole('button', { name: '添加成品行', exact: true })
+            .locator(
+              '.collection-block[aria-label="成品行"] > .collection-heading',
+            )
+            .getByRole('button', { name: '新增', exact: true })
             .click()
           if (entity === 'order-production')
             await choose('来源行', facts.sources[entity]!)
@@ -323,7 +341,10 @@ for (const width of [1280, 390])
             entity === 'sale-pricing'
           ) {
             await editor
-              .getByRole('button', { name: '添加商品行', exact: true })
+              .locator(
+                '.collection-block[aria-label="商品行"] > .collection-heading',
+              )
+              .getByRole('button', { name: '新增', exact: true })
               .click()
             await choose('产品', facts.product)
             if (entity !== 'inventory-count')
@@ -334,7 +355,10 @@ for (const width of [1280, 390])
             }
           } else {
             await editor
-              .getByRole('button', { name: '添加来源明细', exact: true })
+              .locator(
+                '.collection-block[aria-label="来源明细"] > .collection-heading',
+              )
+              .getByRole('button', { name: '新增', exact: true })
               .click()
             await choose('来源行', facts.sources[entity]!)
             await editor
@@ -457,7 +481,7 @@ for (const [width, month, cloneMonth] of [
     await expect(page.getByTestId('vou-list-page')).toBeVisible()
     await setDateRange(page, '期间', `${month.slice(0, 7)}-01`, cloneMonth)
     await page.getByTestId('list-search').click()
-    await page.getByRole('button', { name: '新建', exact: true }).click()
+    await page.getByRole('button', { name: '新增', exact: true }).click()
     const editor = page.getByRole('dialog').last()
     await editor.getByLabel('计算月末日期', { exact: true }).fill(month)
     await editor

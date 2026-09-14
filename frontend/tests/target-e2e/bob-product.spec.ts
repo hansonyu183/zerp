@@ -95,11 +95,11 @@ test('product temporary form, exact quantity trial, approval and independent ena
     }
     await page.setViewportSize({ width: 1440, height: 960 })
     await page.goto('/bob/product')
-    await page.getByRole('button', { name: '新增产品', exact: true }).click()
+    await page.getByRole('button', { name: '新增', exact: true }).click()
     let dialog = page.getByRole('dialog').last()
     await dialog.getByLabel('名称', { exact: true }).fill('关闭即丢弃')
     await dialog.getByRole('button', { name: '取消', exact: true }).click()
-    await page.getByRole('button', { name: '新增产品', exact: true }).click()
+    await page.getByRole('button', { name: '新增', exact: true }).click()
     dialog = page.getByRole('dialog').last()
     await expect(dialog.getByLabel('名称', { exact: true })).toHaveValue('')
     await dialog.getByRole('button', { name: '提交', exact: true }).click()
@@ -116,7 +116,8 @@ test('product temporary form, exact quantity trial, approval and independent ena
       .getByLabel('默认包装规格（基准数量）', { exact: true })
       .fill('1.000001')
     await dialog
-      .getByRole('button', { name: '添加单位换算', exact: true })
+      .locator('.collection-block[aria-label="单位换算"] > .collection-heading')
+      .getByRole('button', { name: '新增', exact: true })
       .click()
     await select(page, dialog, '录入单位', unitName)
     await dialog.getByLabel('换算系数', { exact: true }).fill('2.5')
@@ -167,7 +168,8 @@ test('product temporary form, exact quantity trial, approval and independent ena
       .getByLabel('配方产量基准数量', { exact: true })
       .fill('9007199254740993.000001')
     await dialog
-      .getByRole('button', { name: '添加配方原料', exact: true })
+      .locator('.collection-block[aria-label="配方原料"] > .collection-heading')
+      .getByRole('button', { name: '新增', exact: true })
       .click()
     await expect(
       dialog.getByLabel('原料基准用量', { exact: true }),

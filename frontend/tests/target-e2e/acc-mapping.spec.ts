@@ -39,12 +39,12 @@ test('ACC current mapping saves through the real resource page and discards temp
   expect(loadedCatalog.request().headers()['x-csrf-token']).toBeUndefined()
   expect((await loadedCatalog.json()).code).toBe(0)
   await expect(
-    page.getByRole('button', { name: '新增映射', exact: true }),
+    page.getByRole('button', { name: '新增', exact: true }),
   ).toBeVisible()
   await expect(
     page.locator('.v-navigation-drawer a[href="/acc/mapping"]'),
   ).toHaveCount(1)
-  await page.getByRole('button', { name: '新增映射', exact: true }).click()
+  await page.getByRole('button', { name: '新增', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await select(page, dialog, '映射账簿', facts.book.name)
   await select(page, dialog, '单据类型', facts.vouEntity.name)
@@ -68,7 +68,10 @@ test('ACC current mapping saves through the real resource page and discards temp
   await expect(dialog).not.toContainText('批准')
   await expect(dialog.getByLabel('映射账簿', { exact: true })).toBeDisabled()
   await page.setViewportSize({ width: 390, height: 844 })
-  await dialog.getByRole('button', { name: '添加规则', exact: true }).click()
+  await dialog
+    .locator('section[aria-label="条件规则"] > button')
+    .filter({ hasText: '新增' })
+    .click()
   await expect(
     dialog.getByRole('button', { name: '移除规则', exact: true }),
   ).toBeVisible()

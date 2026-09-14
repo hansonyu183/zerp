@@ -1,13 +1,14 @@
 import { expect, type Page } from '@playwright/test'
 export async function confirmCollection(page: Page) {
-  const dialog = page.getByRole('dialog', { name: /^编辑/ }).last()
+  const dialog = page.getByRole('dialog', { name: /^(新增$|编辑)/ }).last()
   const element = await dialog.elementHandle()
   await dialog.getByRole('button', { name: '确定', exact: true }).click()
   await element!.waitForElementState('hidden')
 }
 export async function confirmCollections(page: Page) {
   for (let depth = 0; depth < 8; depth++) {
-    if (!(await page.getByRole('dialog', { name: /^编辑/ }).count())) return
+    if (!(await page.getByRole('dialog', { name: /^(新增$|编辑)/ }).count()))
+      return
     await confirmCollection(page)
   }
   throw new Error('子项编辑弹窗未关闭')

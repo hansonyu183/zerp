@@ -83,17 +83,17 @@ test('all 36 real menus query their own summaries and open readable snapshots', 
     ) {
       await expect(list).not.toContainText('专用单据编辑器尚未实施')
       await expect(
-        page.getByRole('button', { name: '新建', exact: true }),
+        page.getByRole('button', { name: '新增', exact: true }),
       ).toHaveCount(0)
     } else {
       await expect(list).toContainText('专用单据编辑器尚未实施')
       await expect(
-        page.getByRole('button', { name: '新建', exact: true }),
+        page.getByRole('button', { name: '新增', exact: true }),
       ).toHaveCount(0)
     }
     if (systemGeneratedVouEntities.some((value) => value === entity))
       await expect(
-        page.getByText('此类型由系统生成，不支持人工新建。'),
+        page.getByText('此类型由系统生成，不支持人工新增。'),
       ).toBeVisible()
     await setDateRange(page, '期间', fact.businessDate, fact.businessDate)
     await page.getByLabel('单号', { exact: true }).fill(fact.documentNo)

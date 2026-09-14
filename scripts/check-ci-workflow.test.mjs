@@ -42,26 +42,63 @@ test('changes classifies the tested merge against its base parent', async () => 
   assert.match(changes, /scripts\/ci\/classify\.mjs/)
   assert.match(changes, /git show "\$base_sha:scripts\/ci\/classify\.mjs"/)
   assert.match(changes, /L3:\*\|\*:L3\) level=L3/)
+  assert.match(changes, /L2:\*\|\*:L2\) level=L2/)
   assert.match(changes, /L1:\*\|\*:L1\) level=L1/)
   assert.match(changes, /baseline_level=L3/)
   assert.match(changes, /GITHUB_OUTPUT/)
 })
 
-test('CI routes L1 and L3 work and always applies the required summary', async () => {
+test('CI routes L1, L2 and L3 work and always applies the required summary', async () => {
   const workflow = await readFile(ciPath, 'utf8')
   const tooling = jobBlock(workflow, 'tooling')
+  const frontend = jobBlock(workflow, 'frontend')
   const target = jobBlock(workflow, 'target')
   const common = jobBlock(workflow, 'common')
   const required = jobBlock(workflow, 'ci-required')
 
   assert.match(tooling, /needs\.changes\.outputs\.level != 'L0'/)
   assert.match(tooling, /pnpm check:ci-workflow/)
+  assert.match(frontend, /needs\.changes\.outputs\.level == 'L2'/)
   assert.match(target, /needs\.changes\.outputs\.level == 'L3'/)
   assert.match(target, /^    uses: \.\/\.github\/workflows\/target\.yml$/m)
   assert.match(common, /make check-common/)
   assert.match(required, /^    if: always\(\)$/m)
+  assert.match(required, /--frontend '\$\{\{ needs\.frontend\.result \}\}'/)
   assert.match(required, /scripts\/ci\/required\.mjs/)
-  assert.match(required, /needs: \[changes, common, tooling, target\]/)
+  assert.match(
+    required,
+    /needs: \[changes, common, tooling, frontend, target\]/,
+  )
+})
+
+test('L2 validates the frontend without provisioning full runtime dependencies', async () => {
+  const workflow = await readFile(ciPath, 'utf8')
+  const frontend = jobBlock(workflow, 'frontend')
+  for (const command of [
+    'pnpm install --frozen-lockfile',
+    'pnpm --filter @zerp/frontend typecheck',
+    'pnpm --filter @zerp/frontend check:architecture',
+    'pnpm --filter @zerp/frontend check',
+  ])
+    assert.ok(frontend.includes(command), command)
+  assert.doesNotMatch(
+    frontend,
+    /setup-go|playwright install|target-e2e|docker|postgres/i,
+  )
+  const pkg = JSON.parse(
+    await readFile(
+      new URL('../frontend/package.json', import.meta.url),
+      'utf8',
+    ),
+  )
+  assert.equal(
+    pkg.scripts.check,
+    'pnpm lint && pnpm format:check && pnpm test:unit && pnpm build:target',
+  )
+  assert.match(
+    pkg.scripts['test:unit'],
+    /vitest\.config\.ts.*vitest\.vuetify\.config\.ts/,
+  )
 })
 
 test('reusable target workflow owns the complete target E2E and cleanup only', async () => {

@@ -74,3 +74,8 @@ export const supplierPage = defineVersionPage<'bob/supplier'>({
       ),
   },
 })
+
+export const supplierChangesPage = {
+  ...supplierPage,
+  resource: 'dcl/supplier' as const,
+}

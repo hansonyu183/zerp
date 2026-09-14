@@ -30,7 +30,7 @@ export type WorkbenchQueryInput = {
 }
 
 export type WorkbenchItem = {
-  domain: 'bob' | 'wfl' | 'vou'
+  domain: 'dcl' | 'wfl' | 'vou'
   entity: string
   subjectOrDocumentId: string
   submissionId: string
@@ -46,7 +46,7 @@ export type WorkbenchItem = {
 
 type WorkbenchRow = {
   id: string
-  domain: 'bob' | 'wfl' | 'vou'
+  domain: 'dcl' | 'wfl' | 'vou'
   entity: string
   subject_id: string
   status: ApprovalStatus
@@ -64,13 +64,13 @@ type WorkbenchRow = {
 
 function visibleEntities(
   actor: ApprovalActor,
-  domain: 'bob' | 'wfl' | 'vou',
+  domain: 'dcl' | 'wfl' | 'vou',
   candidates: readonly string[],
 ) {
   const queryable = new Set(
     actor.permissions.flatMap((permission) => {
       const action = domain !== 'vou' ? 'submission-query' : 'query'
-      const match = permission.match(/^\/(bob|wfl|vou)\/([^/]+)\/([^/]+)$/)
+      const match = permission.match(/^\/(dcl|wfl|vou)\/([^/]+)\/([^/]+)$/)
       return match?.[1] === domain && match[3] === action ? [match[2]!] : []
     }),
   )
@@ -117,7 +117,7 @@ export class WorkbenchService {
 
   async query(input: WorkbenchQueryInput, actor: ApprovalActor) {
     const wflEntities = visibleEntities(actor, 'wfl', wflApprovalEntities)
-    const bobEntities = visibleEntities(actor, 'bob', bobApprovalEntities)
+    const bobEntities = visibleEntities(actor, 'dcl', bobApprovalEntities)
     const vouVisibleEntities = visibleEntities(actor, 'vou', vouTypes)
     const rows = await Promise.all([
       this.queryWfl(wflEntities),
@@ -278,13 +278,13 @@ export class WorkbenchService {
           product.name, customer.display_name, s.code, e.subject_id
         ) AS name
       FROM approval_entries e
-      INNER JOIN bob_subjects s ON s.id = e.subject_id
-      LEFT JOIN bob_supplier_versions supplier ON supplier.approval_entry_id = e.id
-      LEFT JOIN bob_other_unit_versions other_unit ON other_unit.approval_entry_id = e.id
-      LEFT JOIN bob_sales_partner_versions sales_partner ON sales_partner.approval_entry_id = e.id
-      LEFT JOIN bob_customer_versions customer ON customer.approval_entry_id=e.id
-      LEFT JOIN bob_product_versions product ON product.approval_entry_id=e.id
-      WHERE e.domain = 'bob'
+      INNER JOIN bob_archive_objects s ON s.id = e.subject_id
+      LEFT JOIN dcl_supplier_versions supplier ON supplier.approval_entry_id = e.id
+      LEFT JOIN dcl_other_unit_versions other_unit ON other_unit.approval_entry_id = e.id
+      LEFT JOIN dcl_sales_partner_versions sales_partner ON sales_partner.approval_entry_id = e.id
+      LEFT JOIN dcl_customer_versions customer ON customer.approval_entry_id=e.id
+      LEFT JOIN dcl_product_versions product ON product.approval_entry_id=e.id
+      WHERE e.domain = 'dcl'
         AND e.status IN ('PENDING', 'REJECTED')
         AND e.entity IN (${sql.join(entities)})
     `.execute(this.db)

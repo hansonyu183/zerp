@@ -16,12 +16,12 @@ const emit = defineEmits<{
 }>()
 const session = useTargetSession()
 const readonly = computed(
-  () => props.disabled || !session.can('/bob/customer/save-subunits'),
+  () => props.disabled || !session.can('/dcl/customer/save-subunits'),
 )
 const fields = customerDetails.find((field) => field.key === 'subunits')!.fields
 </script>
 <template>
-  <v-alert v-if="!session.can('/bob/customer/save-subunits')" type="info"
+  <v-alert v-if="!session.can('/dcl/customer/save-subunits')" type="info"
     >当前账号没有子单位维护权限，子单位资料只读。</v-alert
   >
   <CollectionBlock

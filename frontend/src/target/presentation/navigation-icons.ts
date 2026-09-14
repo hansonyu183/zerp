@@ -52,6 +52,7 @@ export function navigationIcon(value: unknown): string | undefined {
   return navigationIcons[value as NavigationIcon]
 }
 const domains: Record<string, NavigationIcon> = {
+  dcl: 'business',
   bob: 'business',
   vou: 'documents',
   app: 'system',
@@ -62,10 +63,15 @@ const domains: Record<string, NavigationIcon> = {
 }
 const resources: Record<string, NavigationIcon> = {
   'bob/customer': 'customer',
+  'dcl/customer': 'customer',
   'bob/product': 'product',
+  'dcl/product': 'product',
   'bob/supplier': 'supplier',
+  'dcl/supplier': 'supplier',
   'bob/other-unit': 'unit',
+  'dcl/other-unit': 'unit',
   'bob/sales-partner': 'partner',
+  'dcl/sales-partner': 'partner',
   'app/user': 'user',
   'app/role': 'role',
   'app/permission': 'permission',

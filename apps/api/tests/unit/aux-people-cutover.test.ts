@@ -13,7 +13,7 @@ test('migrated people expose no old DCL lifecycle or BOB current routes', async 
   })
   assert.notEqual(
     (
-      await app.request('/bob/product/submit-new', {
+      await app.request('/dcl/product/submit-new', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: '{}',

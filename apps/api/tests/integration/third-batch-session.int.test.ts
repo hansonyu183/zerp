@@ -26,7 +26,7 @@ const migratedResources = [
   ['wfl-process-definition', 'wfl/process-definition'],
 ] as const
 
-test('real Session exposes all migrated owners and rejects every old DCL entry without compatibility aliases', async () => {
+test('real Session exposes all migrated owners and rejects retired entries and keeps five DCL writers without compatibility aliases', async () => {
   await withWflDatabase(async (db) => {
     const password = randomBytes(24).toString('base64url')
     const principal = {
@@ -63,10 +63,7 @@ test('real Session exposes all migrated owners and rejects every old DCL entry w
     assert.equal(session.code, 0)
     assert.deepEqual(session.data.apiPaths, signedIn.data.apiPaths)
     const paths: string[] = session.data.apiPaths
-    assert.equal(
-      paths.some((path) => path.startsWith('/dcl/')),
-      false,
-    )
+    assert.equal(paths.includes('/dcl/customer/submit-new'), true)
     for (const [oldEntity, resource] of migratedResources) {
       assert.ok(
         paths.includes(
@@ -74,10 +71,25 @@ test('real Session exposes all migrated owners and rejects every old DCL entry w
         ),
         resource,
       )
-      const versioned =
-        resource.startsWith('bob/') || resource.startsWith('wfl/')
+      const versioned = resource.startsWith('wfl/')
       assert.equal(paths.includes(`/${resource}/approve`), versioned, resource)
-      assert.equal(paths.includes(`/${resource}/versions`), versioned, resource)
+      assert.equal(
+        paths.includes(`/${resource}/versions`),
+        versioned || resource.startsWith('bob/'),
+        resource,
+      )
+      if (resource.startsWith('bob/')) {
+        for (const action of [
+          'submission-query',
+          'submission-get',
+          'submit-new',
+          'submit-change',
+          'approve',
+          'delete',
+        ])
+          assert.ok(paths.includes(`/dcl/${oldEntity}/${action}`))
+        continue
+      }
       if (versioned) {
         assert.ok(paths.includes(`/${resource}/submission-query`))
         assert.ok(paths.includes(`/${resource}/submission-get`))

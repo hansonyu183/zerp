@@ -12,7 +12,7 @@ import { loadConfig } from './platform/config.ts'
 import { AttachmentStore } from './platform/attachment-store.ts'
 import { jsonLogger } from './platform/logging.ts'
 import { closeRuntime } from './platform/shutdown.ts'
-import { BobArchiveService } from './bob/archives.ts'
+import { DclArchiveService } from './dcl/archives.ts'
 import { AccMappingCatalogService } from './acc/mapping-catalog.ts'
 import { VouService } from './vou/service.ts'
 import { AccService } from './acc/service.ts'
@@ -54,7 +54,7 @@ const app = createApp({
   management: new ManagementService(database, config),
   aux: new AuxService(database),
   bob: new BobService(database),
-  bobArchives: new BobArchiveService(database, { attachmentStore }),
+  dclArchives: new DclArchiveService(database, { attachmentStore }),
   accMappingCatalog: new AccMappingCatalogService(database),
   vou,
   acc,

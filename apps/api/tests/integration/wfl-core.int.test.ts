@@ -1,4 +1,4 @@
-import { BobArchiveService } from '../../src/bob/archives.ts'
+import { DclArchiveService } from '../../src/dcl/archives.ts'
 import {
   seedSaleOrderReferences,
   saleOrderPayload,
@@ -119,7 +119,7 @@ test('WFL definition compiles, trials against a real VOU, approves and becomes c
       )
       .execute()
     refs = await seedSaleOrderReferences(
-      new BobArchiveService(db),
+      new DclArchiveService(db),
       new AuxService(db),
       submitterId,
       reviewerId,
@@ -248,7 +248,7 @@ test('WFL definition lifecycle exposes candidates, history and a derived current
       )
       .execute()
     refs = await seedSaleOrderReferences(
-      new BobArchiveService(db),
+      new DclArchiveService(db),
       new AuxService(db),
       actorId,
       reviewerId,
@@ -367,7 +367,7 @@ test('WFL instance persists exact-entry nodes and six typed actions through its 
       )
       .execute()
     refs = await seedSaleOrderReferences(
-      new BobArchiveService(db),
+      new DclArchiveService(db),
       new AuxService(db),
       actorId,
       reviewerId,

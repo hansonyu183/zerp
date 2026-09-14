@@ -1,7 +1,7 @@
 import {
   archiveCapabilityPermissionMetadata,
-  bobArchiveSnapshotSchemas,
-} from '../src/bob/archive-contract.ts'
+  dclArchiveSnapshotSchemas,
+} from '../src/dcl/archive-contract.ts'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
@@ -10,10 +10,10 @@ import { auxRouteBinding } from '../src/app/aux-contract.ts'
 import { targetRouteMetadata as appTargetRouteMetadata } from '../src/app/contract.ts'
 
 import {
-  bobArchiveRouteSets,
+  dclArchiveRouteSets,
   archiveReviewSchemas,
-  archiveBlockerSchema as bobArchiveBlockerSchema,
-} from '../src/bob/archive-contract.ts'
+  archiveBlockerSchema as dclArchiveBlockerSchema,
+} from '../src/dcl/archive-contract.ts'
 import { validateTargetRouteMetadata } from './target-artifacts.ts'
 import { vouEntities, userCreatableVouEntities } from '@zerp/model'
 
@@ -116,29 +116,29 @@ test('target artifact gate emits action permissions without presentation state',
 
 test('target catalog emits a customer-subunit capability without inventing HTTP routes', () => {
   const catalog = validateTargetRouteMetadata(
-    ['POST /bob/customer/submit-new'],
+    ['POST /dcl/customer/submit-new'],
     [
       {
         method: 'post',
-        path: '/bob/customer/submit-new',
-        permission: '/bob/customer/submit-new',
+        path: '/dcl/customer/submit-new',
+        permission: '/dcl/customer/submit-new',
         title: '提交客户申报',
       },
     ],
     archiveCapabilityPermissionMetadata,
   )
   assert.ok(
-    catalog.some((entry) => entry.path === '/bob/customer/save-subunits'),
+    catalog.some((entry) => entry.path === '/dcl/customer/save-subunits'),
   )
   assert.throws(
     () =>
       validateTargetRouteMetadata(
-        ['POST /bob/customer/submit-new'],
+        ['POST /dcl/customer/submit-new'],
         [
           {
             method: 'post',
-            path: '/bob/customer/submit-new',
-            permission: '/bob/customer/save-subunits',
+            path: '/dcl/customer/submit-new',
+            permission: '/dcl/customer/save-subunits',
             title: '错误的路由权限',
           },
         ],
@@ -163,7 +163,7 @@ test('archive wire contract closes review reason and reference semantics', () =>
     archiveReviewSchemas.withReason.parse({ ...review, reason: '  reason  ' }),
     { ...review, reason: 'reason' },
   )
-  const customer = bobArchiveSnapshotSchemas.customer
+  const customer = dclArchiveSnapshotSchemas.customer
   assert.throws(() =>
     customer.parse({
       identityKind: 'OTHER',
@@ -260,7 +260,7 @@ test('archive query contract uses the fixed page shell and entity-specific filte
     filters: { keyword: 'water', status: 'APPROVED', enabled: true },
   }
   const vehicle =
-    bobArchiveRouteSets['sales-partner'].query.request.body.content[
+    dclArchiveRouteSets['sales-partner'].query.request.body.content[
       'application/json'
     ].schema
   assert.deepEqual(vehicle.parse(input), input)
@@ -275,7 +275,7 @@ test('archive query contract uses the fixed page shell and entity-specific filte
   )
 
   const product =
-    bobArchiveRouteSets.product.query.request.body.content['application/json']
+    dclArchiveRouteSets.product.query.request.body.content['application/json']
       .schema
   assert.deepEqual(
     product.parse({
@@ -298,7 +298,7 @@ test('archive query contract uses the fixed page shell and entity-specific filte
 
 test('archive failures expose typed current AUX and ACC blockers', () => {
   assert.deepEqual(
-    bobArchiveBlockerSchema.parse({
+    dclArchiveBlockerSchema.parse({
       kind: 'AUX_CURRENT_REFERENCE',
       entity: 'vehicle',
       objectId: '01J00000000000000000000001',
@@ -314,7 +314,7 @@ test('archive failures expose typed current AUX and ACC blockers', () => {
     },
   )
   assert.throws(() =>
-    bobArchiveBlockerSchema.parse({
+    dclArchiveBlockerSchema.parse({
       entity: 'vehicle',
       field: 'carrier',
     }),
@@ -421,7 +421,7 @@ test('target OpenAPI contains the complete issue 363 APP, AUX, and BOB inventory
   )
 })
 
-test('target OpenAPI keeps BOB lifecycle and removes DCL RPT lifecycle', async () => {
+test('target OpenAPI splits DCL lifecycle from BOB formal history and keeps RPT current-only', async () => {
   const document = JSON.parse(await readFile(generatedOpenApi, 'utf8')) as {
     paths: Record<string, unknown>
   }
@@ -461,18 +461,18 @@ test('target OpenAPI keeps BOB lifecycle and removes DCL RPT lifecycle', async (
       'disable',
     ])
       assert.ok(
-        paths.has(`/bob/${entity}/${action}`),
-        `missing BOB archive path ${entity}/${action}`,
+        paths.has(
+          `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable'].includes(action) ? 'bob' : 'dcl'}/${entity}/${action}`,
+        ),
+        `missing archive path ${entity}/${action}`,
       )
-    assert.ok(
-      ![...paths].some((path) => path.startsWith(`/dcl/${entity}/`)),
-      `retired DCL archive entry remains: ${entity}`,
-    )
+    assert.ok(!paths.has(`/bob/${entity}/submit-new`))
+    assert.ok(!paths.has(`/dcl/${entity}/versions`))
     for (const legacy of ['create', 'save', 'submit', 'unsubmit'])
       assert.ok(!paths.has(`/bob/${entity}/${legacy}`))
   }
-  assert.ok(paths.has('/bob/customer/attachment-stage'))
-  assert.ok(paths.has('/bob/customer/attachment-cleanup'))
+  assert.ok(paths.has('/dcl/customer/attachment-stage'))
+  assert.ok(paths.has('/dcl/customer/attachment-cleanup'))
   for (const legacy of ['create', 'save', 'submit', 'unsubmit'])
     for (const entity of entities)
       assert.ok(
@@ -496,7 +496,7 @@ test('archive query exposes summaries while RPT get reads only current configura
     >
   }
   const querySchema =
-    document.paths['/bob/product/submission-query']!.post.responses[200]
+    document.paths['/dcl/product/submission-query']!.post.responses[200]
       .content['application/json'].schema
   assert.doesNotMatch(JSON.stringify(querySchema), /"snapshot"/)
 
@@ -506,7 +506,7 @@ test('archive query exposes summaries while RPT get reads only current configura
     ].schema
   assert.doesNotMatch(JSON.stringify(rptGetSchema), /"approvalEntryId"/)
   const productGetSchema =
-    document.paths['/bob/product/submission-get']!.post.requestBody.content[
+    document.paths['/dcl/product/submission-get']!.post.requestBody.content[
       'application/json'
     ].schema
   assert.doesNotMatch(JSON.stringify(productGetSchema), /"approvalEntryId"/)

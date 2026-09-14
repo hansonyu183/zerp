@@ -14,15 +14,15 @@ import { currentRequestId } from '../platform/request-id.ts'
 import type { AuxService } from '../aux/service.ts'
 import type { BobService } from '../bob/service.ts'
 import {
-  BobArchiveApplicationError,
-  type BobArchiveService,
-  type ArchiveReviewInput as BobArchiveReviewInput,
-  type ArchiveSubmitInput as BobArchiveSubmitInput,
-} from '../bob/archives.ts'
+  DclArchiveApplicationError,
+  type DclArchiveService,
+  type ArchiveReviewInput as DclArchiveReviewInput,
+  type ArchiveSubmitInput as DclArchiveSubmitInput,
+} from '../dcl/archives.ts'
 import {
-  archiveQuerySchemas as bobArchiveQuerySchemas,
-  type BobArchiveRouteHandler,
-} from '../bob/archive-contract.ts'
+  archiveQuerySchemas as dclArchiveQuerySchemas,
+  type DclArchiveRouteHandler,
+} from '../dcl/archive-contract.ts'
 import {
   AccMappingCatalogError,
   type AccMappingCatalogService,
@@ -110,7 +110,7 @@ function archiveFailure(
   requestId: string,
   error: {
     errorKey: string
-    data: BobArchiveApplicationError['data']
+    data: DclArchiveApplicationError['data']
   },
 ) {
   const code: 1002 | 3001 = error.errorKey === 'forbidden' ? 1002 : 3001
@@ -127,7 +127,7 @@ export function registerAppRoutes(
   app: OpenAPIHono<TargetRouteEnvironment>,
   service: SessionService,
   config: TargetConfig,
-  bobArchives?: BobArchiveService,
+  dclArchives?: DclArchiveService,
   accMappingCatalog?: AccMappingCatalogService,
   management?: ManagementService,
   aux?: AuxService,
@@ -168,7 +168,7 @@ export function registerAppRoutes(
       }
     } catch (error) {
       if (error instanceof SessionError) return sessionFailure(error, requestId)
-      if (error instanceof BobArchiveApplicationError)
+      if (error instanceof DclArchiveApplicationError)
         return archiveFailure(requestId, error)
       throw error
     }
@@ -311,7 +311,7 @@ export function registerAppRoutes(
       throw error
     }
   }
-  const bobArchiveHandler: BobArchiveRouteHandler = async (
+  const dclArchiveHandler: DclArchiveRouteHandler = async (
     entity,
     action,
     context,
@@ -319,53 +319,63 @@ export function registerAppRoutes(
     const requestId = currentRequestId(context)
     const input = context.req.valid('json')
     const response = await executeArchive(context, requestId, async (actor) => {
-      if (!bobArchives) throw new Error('BOB archive service is unavailable')
+      if (!dclArchives) throw new Error('BOB archive service is unavailable')
       if (action === 'query')
-        return bobArchives.query(
+        return dclArchives.query(
           entity,
-          bobArchiveQuerySchemas[entity].parse(input),
+          dclArchiveQuerySchemas[entity].parse(input),
           actor,
         )
       if (action === 'get')
-        return bobArchives.get(
+        return dclArchives.get(
           entity,
           (input as { subjectId: string }).subjectId,
           actor,
           (input as { submissionId?: string }).submissionId,
         )
       if (action === 'versions') {
-        const items = await bobArchives.versions(
-          entity,
-          (input as { subjectId: string }).subjectId,
-          actor,
-        )
+        const selectedId = (input as { submissionId?: string }).submissionId
+        const items = selectedId
+          ? [
+              await dclArchives.historyGet(
+                entity,
+                (input as { subjectId: string }).subjectId,
+                selectedId,
+                actor,
+              ),
+            ]
+          : await dclArchives.versions(
+              entity,
+              (input as { subjectId: string }).subjectId,
+              actor,
+            )
         return { items, total: items.length }
       }
       if (action === 'audit-history')
-        return bobArchives.auditHistory(
+        return dclArchives.auditHistory(
           entity,
           (input as { subjectId: string }).subjectId,
           actor,
         )
       if (action === 'submit-new' || action === 'submit-change')
-        return bobArchives.submit(
+        return dclArchives.submit(
           entity,
           action,
-          input as BobArchiveSubmitInput,
+          input as DclArchiveSubmitInput,
           actor,
           requestId,
         )
       if (action === 'delete')
-        return bobArchives.delete(
+        return dclArchives.delete(
           entity,
-          input as BobArchiveReviewInput,
+          input as DclArchiveReviewInput,
           actor,
           requestId,
         )
-      return bobArchives.review(
+      return dclArchives.review(
         entity,
         action,
-        input as BobArchiveReviewInput,
+        input as DclArchiveReviewInput,
         actor,
         requestId,
       )
@@ -380,22 +390,34 @@ export function registerAppRoutes(
       aux,
       bob,
     }),
-    bobArchive: bobArchiveHandler,
+    dclArchive: dclArchiveHandler,
     archiveAttachments: {
       read: async (context) =>
         context.json(
           (await executeArchive(context, currentRequestId(context), (actor) =>
-            bobArchives!.readCustomerAttachment(
+            dclArchives!.readCustomerAttachment(
               context.req.valid('json'),
               actor,
+              'bob',
             ),
           )) as never,
+          200,
+        ),
+      submissionRead: async (context) =>
+        context.json(
+          (await executeArchive(context, currentRequestId(context), (actor) =>
+            dclArchives!.readCustomerAttachment(
+              context.req.valid('json'),
+              actor,
+              'dcl',
+            ),
+          )) as any,
           200,
         ),
       stage: async (context) =>
         context.json(
           (await executeArchive(context, currentRequestId(context), (actor) =>
-            bobArchives!.stageCustomerAttachment(
+            dclArchives!.stageCustomerAttachment(
               context.req.valid('json'),
               actor,
             ),
@@ -405,7 +427,7 @@ export function registerAppRoutes(
       cleanup: async (context) =>
         context.json(
           (await executeArchive(context, currentRequestId(context), (actor) =>
-            bobArchives!.cleanupCustomerAttachments(actor),
+            dclArchives!.cleanupCustomerAttachments(actor),
           )) as never,
           200,
         ),

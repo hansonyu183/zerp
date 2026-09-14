@@ -39,7 +39,7 @@ _Avoid_: 领域自定义审批状态机
 _Authority_: [Approval 生命周期](docs/domains/approval.md#3-生命周期)
 
 **Approval Version（审批版本）**:
-中央 Approval 为版本化 stable subject 管理的审批记录；版本组件拥有版本号、唯一开放 Submission、最高已批准选择和版本并发，BOB 与 WFL 可以各自在自己的领域事务中消费它。
+中央 Approval 为版本化 stable subject 管理的审批记录；版本组件拥有版本号、唯一开放 Submission、最高已批准选择和版本并发，DCL 与 WFL 可以各自在自己的领域事务中消费它。
 _Avoid_: Domain 版本头、领域自有版本管理、把版本组件硬编码为 BOB 专属、分支或合并
 _Authority_: [Approval Version](docs/domains/approval.md#6-approval-version)
 
@@ -71,11 +71,11 @@ _Avoid_: 编辑即停用、候选待审期间无可用版本、AUX 修改后重�
 _Authority_: [BOB 当前有效资料读取](docs/domains/bob.md#4-当前有效资料读取)、[AUX Stable-ID Direct CRUD](docs/domains/aux.md#2-stable-id-direct-crud-生命周期)
 
 **Business Identity Record（业务身份档案）**:
-客户、供应商、员工、其他单位或销售合作方各自拥有的身份档案；同一现实个人或组织具有多种业务身份时分别建档，不跨类型共享或同步身份资料。BOB 档案分别审批，AUX 员工直接维护 current data。
+客户、供应商、员工、其他单位或销售合作方各自拥有的身份档案；同一现实个人或组织具有多种业务身份时分别建档，不跨类型共享或同步身份资料。DCL 档案分别审批，AUX 员工直接维护 current data。
 _Avoid_: Party、主体主档、跨业务身份共享档案、自动识别同一现实主体
 
 **Legal Identifier（法定识别号）**:
-一种业务身份档案保存的唯一法律身份号码；BOB 档案随版本保存，AUX 员工在 current data 中保存。Customer 的客户身份资料中的法定识别号是精确 Customer Version 的 `legalIdentifier`：大陆企业、大陆个人或其他；前两者分别使用完整校验的统一社会信用代码与 18 位居民身份证，其他仅 trim 后在 Customer 内去重。Supplier、Employee、Other Unit 与 Sales Partner 保持各自既有身份范围，均只保存一个法定识别号。
+一种业务身份档案保存的唯一法律身份号码；DCL 档案随版本保存，AUX 员工在 current data 中保存。Customer 的客户身份资料中的法定识别号是精确 Customer Version 的 `legalIdentifier`：大陆企业、大陆个人或其他；前两者分别使用完整校验的统一社会信用代码与 18 位居民身份证，其他仅 trim 后在 Customer 内去重。Supplier、Employee、Other Unit 与 Sales Partner 保持各自既有身份范围，均只保存一个法定识别号。
 _Avoid_: 强标识数组、标识类型、重复法定识别号、跨档案自动合并
 
 **Person（个人）**:
@@ -87,7 +87,7 @@ _Avoid_: 个人客户、兼职员工主体、跨业务身份共享的个人主�
 _Avoid_: 企业主体、机构主体、跨业务身份共享的组织主档、没有业务规则用途的组织分类
 
 **Customer（客户）**:
-BOB 内整体消费 Approval 与 Version、拥有独立对象启停的客户聚合；可以向我方任一经营主体下单的外部销售相对方，独立拥有法定身份、法定识别号及汇款识别资料；客户不维护可交易经营主体名单，默认经营主体只用于新单据预填，实际经营主体由每张单据明确保存。
+DCL 内整体消费 Approval 与 Version、由 BOB 持有独立对象启停的客户聚合；可以向我方任一经营主体下单的外部销售相对方，独立拥有法定身份、法定识别号及汇款识别资料；客户不维护可交易经营主体名单，默认经营主体只用于新单据预填，实际经营主体由每张单据明确保存。
 _Avoid_: Party 的客户关系、按我方经营主体重复建立客户、客户经营主体白名单、把默认经营主体当作交易事实
 
 **Employee（员工）**:
@@ -366,3 +366,15 @@ _Authority_: [ACC 会计科目](docs/domains/acc.md#5-会计科目)
 其他往来流水的可选业务分类。
 _Avoid_: 单据类型、主体类型
 _Authority_: [AUX 收支类型](docs/domains/aux.md#37-收支类型)
+
+## Archive Boundaries
+
+**资料变更（DCL）**:
+五类业务档案的稳定身份与类型化内容所有者，承载提交件及审批。
+_Avoid_: 正式资料维护、第二套审批
+_Authority_: [DCL](docs/domains/dcl.md)
+
+**正式资料（BOB）**:
+供业务采用的最高已批准档案，独立持有对象启停；对象历史解释各版本的状态与内容。
+_Avoid_: 候选即正式资料、审批覆盖启停
+_Authority_: [BOB](docs/domains/bob.md#4-当前有效资料读取)

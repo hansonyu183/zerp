@@ -1,3 +1,4 @@
+import { insertArchiveObjects } from '../fixtures/archive-objects.ts'
 import { BobService } from '../../src/bob/service.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
@@ -77,7 +78,7 @@ test('sales orders adopt explicit customer or current payment snapshots without 
       await sql`DELETE FROM dcl_subjects WHERE id IN (${sql.join(Object.values(subjects))})`.execute(
         db,
       )
-      await sql`DELETE FROM bob_subjects WHERE id IN (${sql.join(Object.values(subjects))})`.execute(
+      await sql`DELETE FROM dcl_subjects WHERE id IN (${sql.join(Object.values(subjects))})`.execute(
         db,
       )
       await sql`DELETE FROM aux_objects WHERE created_by = ${actorId}`.execute(
@@ -167,16 +168,13 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     .toString()
     .padStart(4, '0')
   for (const [entity, id] of Object.entries(subjects)) {
-    await db
-      .insertInto('bob_subjects')
-      .values({
-        id,
-        entity,
-        code: `${prefix[entity as keyof typeof prefix]}-${codeSuffix}`,
-        created_at: now,
-        created_by: actorId,
-      })
-      .execute()
+    await insertArchiveObjects(db, {
+      id,
+      entity,
+      code: `${prefix[entity as keyof typeof prefix]}-${codeSuffix}`,
+      created_at: now,
+      created_by: actorId,
+    })
   }
   await db
     .insertInto('approval_entries')
@@ -184,7 +182,7 @@ test('sales orders adopt explicit customer or current payment snapshots without 
       Object.entries(entries).map(([entity, id]) => ({
         id,
         domain: ['customer', 'product'].includes(String(entity))
-          ? 'bob'
+          ? 'dcl'
           : 'dcl',
         entity,
         subject_id: subjects[entity as keyof typeof subjects],
@@ -201,7 +199,7 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     )
     .execute()
   await db
-    .insertInto('bob_customer_versions')
+    .insertInto('dcl_customer_versions')
     .values({
       approval_entry_id: entries.customer,
       kind: 'ENTERPRISE',
@@ -209,7 +207,7 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     })
     .execute()
   await db
-    .insertInto('bob_customer_subunit_roots')
+    .insertInto('dcl_customer_subunit_roots')
     .values(
       [subunitId, emptySubunitId].map((id) => ({
         subunit_id: id,
@@ -219,7 +217,7 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     )
     .execute()
   await db
-    .insertInto('bob_customer_version_subunits')
+    .insertInto('dcl_customer_version_subunits')
     .values(
       [subunitId, emptySubunitId].map((id) => ({
         customer_approval_entry_id: entries.customer,
@@ -245,7 +243,7 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     )
     .execute()
   await db
-    .insertInto('bob_product_versions')
+    .insertInto('dcl_product_versions')
     .values({
       approval_entry_id: entries.product,
       name: '收款测试商品',
@@ -517,7 +515,7 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     ),
   )
   for (const [method, source] of [
-    [disabledFirst, 'bob_customer_version_subunits'],
+    [disabledFirst, 'dcl_customer_version_subunits'],
     [disabledAlternate, 'vou_sale_order_details'],
   ] as const) {
     await assert.rejects(

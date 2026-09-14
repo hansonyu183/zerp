@@ -136,26 +136,26 @@ function businessIdentityCurrent(
   if (entity === 'customer')
     return sql<StoredBobObject>`SELECT subject.id AS object_id,subject.entity,subject.code,subject.enabled,subject.revision::text AS revision,entry.id AS source_approval_entry_id,entry.version_no AS source_version_no,entry.updated_at,
     jsonb_build_object('identityKind',COALESCE(v.kind,''),'legalName',COALESCE(v.legal_name,''),'displayName',COALESCE(v.display_name,''),'legalIdentifier',COALESCE(v.legal_identifier,''),'phone',COALESCE(v.phone,''),'email',COALESCE(v.email,''),'address',COALESCE(v.address,''),'invoiceTitle',COALESCE(v.invoice_title,''),'invoiceAddress',COALESCE(v.invoice_address,''),'invoicePhone',COALESCE(v.invoice_phone,''),'invoiceBank',COALESCE(v.invoice_bank,''),'invoiceAccount',COALESCE(v.invoice_account,''),'remittanceProfiles',v.remittance_profiles,'identityAttachments',v.tax_attachments,'defaultOperatingEntity', CASE WHEN v.default_operating_entity_id IS NULL THEN NULL ELSE jsonb_build_object('objectId',v.default_operating_entity_id,'code',v.default_operating_entity_code,'name',v.default_operating_entity_name) END,
-    'subunits',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',COALESCE(u.subunit_id,''),'code',COALESCE(r.code,''),'name',COALESCE(u.name,''),'contactName',COALESCE(u.contact_name,''),'address',COALESCE(u.business_address,''),'internalReminder',COALESCE(u.internal_reminder,''),'defaultSalesOrderRemark',COALESCE(u.default_order_remark,''),'intent','EXISTING','customerType',u.customer_type_snapshot,'settlementMethod',u.settlement_snapshot,'paymentMethod',u.payment_snapshot,'transportPolicy',u.transport_snapshot,'pricingPolicy',u.pricing_snapshot,'creditLimits',u.credit_limits,'primarySalesAttribution',u.sales_attribution_snapshot,'attachments',u.business_attachments,'enabled',u.enabled) ORDER BY r.code) FROM bob_customer_version_subunits u JOIN bob_customer_subunit_roots r ON r.subunit_id=u.subunit_id WHERE u.customer_approval_entry_id=entry.id),'[]'::jsonb)) AS data
-    FROM bob_subjects subject JOIN LATERAL (SELECT id,version_no,updated_at FROM approval_entries WHERE domain='bob' AND entity='customer' AND subject_id=subject.id AND status='APPROVED' ${approvalEntryId ? sql`AND id = ${approvalEntryId}` : sql``} ORDER BY version_no DESC LIMIT 1) entry ON true JOIN bob_customer_versions v ON v.approval_entry_id=entry.id WHERE subject.entity='customer'`
+    'subunits',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',COALESCE(u.subunit_id,''),'code',COALESCE(r.code,''),'name',COALESCE(u.name,''),'contactName',COALESCE(u.contact_name,''),'address',COALESCE(u.business_address,''),'internalReminder',COALESCE(u.internal_reminder,''),'defaultSalesOrderRemark',COALESCE(u.default_order_remark,''),'intent','EXISTING','customerType',u.customer_type_snapshot,'settlementMethod',u.settlement_snapshot,'paymentMethod',u.payment_snapshot,'transportPolicy',u.transport_snapshot,'pricingPolicy',u.pricing_snapshot,'creditLimits',u.credit_limits,'primarySalesAttribution',u.sales_attribution_snapshot,'attachments',u.business_attachments,'enabled',u.enabled) ORDER BY r.code) FROM dcl_customer_version_subunits u JOIN dcl_customer_subunit_roots r ON r.subunit_id=u.subunit_id WHERE u.customer_approval_entry_id=entry.id),'[]'::jsonb)) AS data
+    FROM bob_archive_objects subject JOIN LATERAL (SELECT id,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status='APPROVED' ${approvalEntryId ? sql`AND id = ${approvalEntryId}` : sql``} ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_customer_versions v ON v.approval_entry_id=entry.id WHERE subject.entity='customer'`
 
   if (entity === 'product')
     return sql<StoredBobObject>`SELECT subject.id AS object_id,subject.entity,subject.code,subject.enabled,subject.revision::text AS revision,entry.id AS source_approval_entry_id,entry.version_no AS source_version_no,entry.updated_at,
     jsonb_build_object('name',v.name,'barcode',COALESCE(v.barcode,''),'specification',COALESCE(v.specification,''),'model',COALESCE(v.model,''),'productType',v.source_snapshots->'productType','productCategory',v.source_snapshots->'productCategory','pricingUnit',v.source_snapshots->'pricingUnit','defaultInputUnit',v.source_snapshots->'defaultInputUnit','unitConversions',v.unit_conversions,'defaultPackagingSpec',v.default_packaging_snapshot->>'defaultPackagingSpec','recyclable',v.recyclable,'fixedFormula',v.fixed_formula,'remark',COALESCE(v.remark,'')) AS data
-    FROM bob_subjects subject JOIN LATERAL (SELECT id,version_no,updated_at FROM approval_entries WHERE domain='bob' AND entity='product' AND subject_id=subject.id AND status='APPROVED' ${approvalEntryId ? sql`AND id = ${approvalEntryId}` : sql``} ORDER BY version_no DESC LIMIT 1) entry ON true JOIN bob_product_versions v ON v.approval_entry_id=entry.id WHERE subject.entity='product'`
+    FROM bob_archive_objects subject JOIN LATERAL (SELECT id,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=subject.id AND status='APPROVED' ${approvalEntryId ? sql`AND id = ${approvalEntryId}` : sql``} ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_product_versions v ON v.approval_entry_id=entry.id WHERE subject.entity='product'`
 
   const tables = {
     supplier: [
-      'bob_supplier_versions',
-      'bob_supplier_version_operating_entities',
+      'dcl_supplier_versions',
+      'dcl_supplier_version_operating_entities',
     ],
     'other-unit': [
-      'bob_other_unit_versions',
-      'bob_other_unit_version_operating_entities',
+      'dcl_other_unit_versions',
+      'dcl_other_unit_version_operating_entities',
     ],
     'sales-partner': [
-      'bob_sales_partner_versions',
-      'bob_sales_partner_version_operating_entities',
+      'dcl_sales_partner_versions',
+      'dcl_sales_partner_version_operating_entities',
     ],
   } as const
   const [versions, operatingEntities] = tables[entity]
@@ -175,8 +175,8 @@ function businessIdentityCurrent(
       'operatingEntities',COALESCE((SELECT jsonb_agg(jsonb_build_object('objectId',r.operating_entity_id,'code',r.operating_entity_code,'name',r.operating_entity_name) ORDER BY r.operating_entity_id)
         FROM ${sql.table(operatingEntities)} r WHERE r.approval_entry_id=entry.id),'[]'::jsonb)
     ) || ${specific} AS data
-    FROM bob_subjects subject
-    JOIN LATERAL (SELECT id,version_no,updated_at FROM approval_entries WHERE domain='bob' AND entity=${entity} AND subject_id=subject.id AND status='APPROVED' ${approvalEntryId ? sql`AND id = ${approvalEntryId}` : sql``} ORDER BY version_no DESC LIMIT 1) entry ON true
+    FROM bob_archive_objects subject
+    JOIN LATERAL (SELECT id,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity=${entity} AND subject_id=subject.id AND status='APPROVED' ${approvalEntryId ? sql`AND id = ${approvalEntryId}` : sql``} ORDER BY version_no DESC LIMIT 1) entry ON true
     JOIN ${sql.table(versions)} v ON v.approval_entry_id=entry.id
     WHERE subject.entity=${entity}`
 }
@@ -442,7 +442,7 @@ export class BobService {
       `/bob/${entity}/${enabled ? 'enable' : 'disable'}`,
     )
     return this.db.transaction().execute(async (tx) => {
-      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`bob:archive:${entity}:${input.objectId}`}, 0))`.execute(
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:archive:${entity}:${input.objectId}`}, 0))`.execute(
         tx,
       )
       await changeEnablement(
@@ -459,20 +459,25 @@ export class BobService {
         {
           read: async (executor, id) => {
             const row = await executor
-              .selectFrom('bob_subjects')
+              .selectFrom('bob_archive_objects')
               .select(['id', 'enabled', 'revision'])
               .where('id', '=', id)
               .where('entity', '=', entity)
               .forUpdate()
               .executeTakeFirst()
-            return row ? { ...row, revision: String(row.revision) } : undefined
+            return row && row.id !== null && row.enabled !== null
+              ? {
+                  id: row.id,
+                  enabled: row.enabled,
+                  revision: String(row.revision),
+                }
+              : undefined
           },
           write: async (executor, current, nextEnabled, revision) => {
             const result = await executor
-              .updateTable('bob_subjects')
+              .updateTable('bob_objects')
               .set({ enabled: nextEnabled, revision })
               .where('id', '=', current.id)
-              .where('entity', '=', entity)
               .where('revision', '=', current.revision)
               .executeTakeFirst()
             return result.numUpdatedRows === 1n
@@ -484,7 +489,7 @@ export class BobService {
               const current = await sql<{
                 id: string
                 active: boolean
-              }>`SELECT e.id,EXISTS(SELECT 1 FROM bob_customer_version_subunits u WHERE u.customer_approval_entry_id=e.id AND u.enabled) AS active FROM approval_entries e WHERE domain='bob' AND entity='customer' AND subject_id=${input.objectId} AND status='APPROVED' ORDER BY version_no DESC LIMIT 1`.execute(
+              }>`SELECT e.id,EXISTS(SELECT 1 FROM dcl_customer_version_subunits u WHERE u.customer_approval_entry_id=e.id AND u.enabled) AS active FROM approval_entries e WHERE domain='dcl' AND entity='customer' AND subject_id=${input.objectId} AND status='APPROVED' ORDER BY version_no DESC LIMIT 1`.execute(
                 tx,
               )
               if (current.rows[0] && !current.rows[0].active)
@@ -510,7 +515,7 @@ export class BobService {
         },
       )
       const current = await tx
-        .selectFrom('bob_subjects')
+        .selectFrom('bob_archive_objects')
         .select(['id', 'enabled', 'revision'])
         .where('id', '=', input.objectId)
         .executeTakeFirstOrThrow()
@@ -527,7 +532,7 @@ export class BobService {
     let objectId = input.objectId
     if (entity === 'customer-subunit') {
       const root = await this.db
-        .selectFrom('bob_customer_subunit_roots')
+        .selectFrom('dcl_customer_subunit_roots')
         .select('customer_id')
         .where('subunit_id', '=', objectId)
         .executeTakeFirst()
@@ -670,10 +675,10 @@ export class BobService {
       )
     }
     const source = sql`
-      FROM bob_customer_subunit_roots root
-      JOIN LATERAL (SELECT * FROM approval_entries WHERE domain = 'bob' AND entity = 'customer' AND subject_id = root.customer_id AND status = 'APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
-      JOIN bob_subjects customer ON customer.id = root.customer_id
-      JOIN bob_customer_version_subunits subunit ON subunit.customer_approval_entry_id = entry.id AND subunit.subunit_id = root.subunit_id
+      FROM dcl_customer_subunit_roots root
+      JOIN LATERAL (SELECT * FROM approval_entries WHERE domain = 'dcl' AND entity = 'customer' AND subject_id = root.customer_id AND status = 'APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
+      JOIN bob_archive_objects customer ON customer.id = root.customer_id
+      JOIN dcl_customer_version_subunits subunit ON subunit.customer_approval_entry_id = entry.id AND subunit.subunit_id = root.subunit_id
       WHERE ${sql.join(where, sql` AND `)}`
     const [result, count] = await Promise.all([
       sql<{

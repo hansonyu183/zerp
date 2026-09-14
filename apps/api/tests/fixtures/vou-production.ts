@@ -3,7 +3,7 @@ import { ulid } from 'ulid'
 import type { ProductData, VouPayloadFor, VouEntity } from '@zerp/model'
 import type { DB } from '../../src/db/generated.ts'
 import { AuxService } from '../../src/aux/service.ts'
-import { BobArchiveService } from '../../src/bob/archives.ts'
+import { DclArchiveService } from '../../src/dcl/archives.ts'
 import { seedOrderListFixture } from './vou-orders.ts'
 
 export async function seedProductionFixture(
@@ -19,7 +19,7 @@ export async function seedProductionFixture(
     },
     reviewer = { ...actor, id: fixture.reviewer.userId }
   const aux = new AuxService(db),
-    bob = new BobArchiveService(db)
+    bob = new DclArchiveService(db)
   const rawId = fixture.references.archiveSubjectIds[1]!
   const raw = await bob.get('product', rawId, actor)
   const rawData = raw.snapshot as unknown as ProductData

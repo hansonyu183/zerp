@@ -75,7 +75,7 @@ describe('target session', () => {
     expect(session.resourceGroups).toEqual([
       {
         domain: 'bob',
-        displayName: '业务资料',
+        displayName: '正式资料',
         resources: [
           {
             key: 'bob/customer',

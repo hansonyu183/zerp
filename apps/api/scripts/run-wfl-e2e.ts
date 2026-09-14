@@ -12,7 +12,7 @@ import { AccService } from '../src/acc/service.ts'
 import { WflService, type WflVouPort } from '../src/wfl/service.ts'
 import { VouService } from '../src/vou/service.ts'
 import { AuxService } from '../src/aux/service.ts'
-import { BobArchiveService } from '../src/bob/archives.ts'
+import { DclArchiveService } from '../src/dcl/archives.ts'
 const require = createRequire(new URL('../package.json', import.meta.url))
 const { ulid } = require('ulid')
 import { createDatabase } from '../src/db/database.ts'
@@ -55,7 +55,7 @@ try {
   const wfl = new WflService(db, runtime, port)
   vou = new VouService(db, { acc: new AccService(db), wfl })
   const refs = await seedSaleOrderReferences(
-    new BobArchiveService(db),
+    new DclArchiveService(db),
     new AuxService(db),
     owner.userId,
     reviewer.userId,

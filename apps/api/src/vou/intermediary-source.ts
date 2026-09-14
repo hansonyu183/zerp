@@ -170,8 +170,8 @@ export async function intermediarySource(
     }>`
       SELECT ref.object_id, ref.approval_reference_id, root.code AS reference_code, subunit.name AS reference_name
       FROM vou_reference_snapshots ref
-      JOIN bob_customer_subunit_roots root ON root.subunit_id = ref.object_id
-      JOIN bob_customer_version_subunits subunit ON subunit.subunit_id = ref.object_id AND subunit.customer_approval_entry_id = ref.approval_reference_id
+      JOIN dcl_customer_subunit_roots root ON root.subunit_id = ref.object_id
+      JOIN dcl_customer_version_subunits subunit ON subunit.subunit_id = ref.object_id AND subunit.customer_approval_entry_id = ref.approval_reference_id
       WHERE ref.approval_entry_id = ${approvalEntryId} AND ref.field = ${field} AND ref.line_no = 0 AND ref.item_no = 0
     `.execute(tx)
     const row = result.rows[0]
@@ -246,7 +246,7 @@ export async function intermediarySource(
       pricing_snapshot: import('@zerp/model').CustomerPricingPolicy
     }>`SELECT primary_sales_attribution_type, primary_sales_attribution_object_id, primary_sales_attribution_approval_entry_id,
       primary_sales_attribution_code, primary_sales_attribution_name, settlement_snapshot, customer_type_snapshot, transport_snapshot, pricing_snapshot
-      FROM bob_customer_version_subunits WHERE customer_approval_entry_id = ${orderPayload.customerSubunit.approvalEntryId} AND subunit_id = ${orderPayload.customerSubunit.objectId}`.execute(
+      FROM dcl_customer_version_subunits WHERE customer_approval_entry_id = ${orderPayload.customerSubunit.approvalEntryId} AND subunit_id = ${orderPayload.customerSubunit.objectId}`.execute(
       tx,
     )
     const basis = customer.rows[0]
@@ -324,8 +324,8 @@ export async function intermediarySource(
         SELECT ref.object_id, line.sales_product_approval_entry_id AS approval_reference_id, subject.code AS reference_code, product.name AS reference_name, product.behavior_profile,
           line.standard_piece_base_quantity_micros::text, line.sales_reference_unit_price_minor::text
         FROM vou_product_line_snapshots line JOIN vou_reference_snapshots ref ON ref.approval_entry_id = line.approval_entry_id AND ref.line_no = line.line_no AND ref.field = 'product'
-        JOIN bob_product_versions product ON product.approval_entry_id = line.sales_product_approval_entry_id
-        JOIN bob_subjects subject ON subject.id = ref.object_id
+        JOIN dcl_product_versions product ON product.approval_entry_id = line.sales_product_approval_entry_id
+        JOIN bob_archive_objects subject ON subject.id = ref.object_id
         WHERE line.approval_entry_id = ${order.approvalEntryId} AND line.line_id = ${signed.sourceLineId}
       `.execute(tx)
       const productBasis = product.rows[0]

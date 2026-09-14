@@ -19,7 +19,7 @@ import { sql, type Kysely, type Transaction } from 'kysely'
 import { ulid } from 'ulid'
 
 import type {
-  BobArchiveEntity,
+  DclArchiveEntity,
   CustomerAttachmentReadInput,
 } from './archive-contract.ts'
 import type { DB, JsonValue } from '../db/generated.ts'
@@ -31,7 +31,7 @@ import {
   enqueueAttachmentDeletions,
   lockAttachmentStorageKey,
 } from '../platform/attachment-deletion.ts'
-type ArchiveEntity = BobArchiveEntity
+type ArchiveEntity = DclArchiveEntity
 import {
   AuxApplicationError,
   resolveAuxCurrentReference,
@@ -84,7 +84,7 @@ function fixedAuxMoney(value: unknown, errorKey: string): string {
     typeof value !== 'string' ||
     !/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(value.trim())
   )
-    throw new BobArchiveApplicationError(errorKey)
+    throw new DclArchiveApplicationError(errorKey)
   const [whole, fraction = ''] = value.trim().split('.')
   return `${whole}.${fraction.padEnd(2, '0')}`
 }
@@ -212,7 +212,7 @@ type ArchiveQueryDetails = Omit<
 export type ArchiveBlocker =
   | {
       kind: 'PRODUCT_REFERENCE' | 'CUSTOMER_REFERENCE'
-      domain: 'bob' | 'vou' | 'acc'
+      domain: 'dcl' | 'vou' | 'acc'
       entity: string
       objectId: string
       approvalEntryId: string
@@ -278,13 +278,13 @@ export interface CustomerAttachmentStageView {
   expiresAt: string
 }
 
-export class BobArchiveApplicationError extends Error {
+export class DclArchiveApplicationError extends Error {
   readonly errorKey: string
   readonly data: { blockers: ArchiveBlocker[] } | null
 
   constructor(errorKey: string, blockers: ArchiveBlocker[] = []) {
     super(errorKey)
-    this.name = 'BobArchiveApplicationError'
+    this.name = 'DclArchiveApplicationError'
     this.errorKey = errorKey
     this.data = blockers.length === 0 ? null : { blockers }
   }
@@ -298,28 +298,28 @@ export async function readBusinessIdentitySnapshot(
 ): Promise<ArchiveSnapshot> {
   const row =
     entity === 'supplier'
-      ? await sql<IdentitySetRow>`SELECT kind, legal_name, display_name, legal_identifier, contact_name, contact_phone, address, default_operating_entity_id, default_purchaser_employee_id, default_purchaser_approval_entry_id, default_purchaser_code, default_purchaser_name, remark, settlement_method_snapshot, default_purchaser_snapshot, NULL::jsonb AS capabilities FROM bob_supplier_versions WHERE approval_entry_id = ${submissionId}`.execute(
+      ? await sql<IdentitySetRow>`SELECT kind, legal_name, display_name, legal_identifier, contact_name, contact_phone, address, default_operating_entity_id, default_purchaser_employee_id, default_purchaser_approval_entry_id, default_purchaser_code, default_purchaser_name, remark, settlement_method_snapshot, default_purchaser_snapshot, NULL::jsonb AS capabilities FROM dcl_supplier_versions WHERE approval_entry_id = ${submissionId}`.execute(
           tx,
         )
       : entity === 'other-unit'
-        ? await sql<IdentitySetRow>`SELECT kind, legal_name, display_name, legal_identifier, contact_name, contact_phone, address, default_operating_entity_id, NULL::varchar AS default_purchaser_employee_id, NULL::varchar AS default_purchaser_approval_entry_id, NULL::varchar AS default_purchaser_code, NULL::varchar AS default_purchaser_name, remark, settlement_method_snapshot, NULL::jsonb AS default_purchaser_snapshot, NULL::jsonb AS capabilities FROM bob_other_unit_versions WHERE approval_entry_id = ${submissionId}`.execute(
+        ? await sql<IdentitySetRow>`SELECT kind, legal_name, display_name, legal_identifier, contact_name, contact_phone, address, default_operating_entity_id, NULL::varchar AS default_purchaser_employee_id, NULL::varchar AS default_purchaser_approval_entry_id, NULL::varchar AS default_purchaser_code, NULL::varchar AS default_purchaser_name, remark, settlement_method_snapshot, NULL::jsonb AS default_purchaser_snapshot, NULL::jsonb AS capabilities FROM dcl_other_unit_versions WHERE approval_entry_id = ${submissionId}`.execute(
             tx,
           )
-        : await sql<IdentitySetRow>`SELECT kind, legal_name, display_name, legal_identifier, contact_name, contact_phone, address, default_operating_entity_id, NULL::varchar AS default_purchaser_employee_id, NULL::varchar AS default_purchaser_approval_entry_id, NULL::varchar AS default_purchaser_code, NULL::varchar AS default_purchaser_name, remark, NULL::jsonb AS settlement_method_snapshot, NULL::jsonb AS default_purchaser_snapshot, capabilities FROM bob_sales_partner_versions WHERE approval_entry_id = ${submissionId}`.execute(
+        : await sql<IdentitySetRow>`SELECT kind, legal_name, display_name, legal_identifier, contact_name, contact_phone, address, default_operating_entity_id, NULL::varchar AS default_purchaser_employee_id, NULL::varchar AS default_purchaser_approval_entry_id, NULL::varchar AS default_purchaser_code, NULL::varchar AS default_purchaser_name, remark, NULL::jsonb AS settlement_method_snapshot, NULL::jsonb AS default_purchaser_snapshot, capabilities FROM dcl_sales_partner_versions WHERE approval_entry_id = ${submissionId}`.execute(
             tx,
           )
   const item = row.rows[0]
-  if (!item) throw new BobArchiveApplicationError('approval_not_found')
+  if (!item) throw new DclArchiveApplicationError('approval_not_found')
   const operatingEntities =
     entity === 'supplier'
-      ? await sql<OperatingEntityReferenceRow>`SELECT operating_entity_id, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name FROM bob_supplier_version_operating_entities WHERE approval_entry_id = ${submissionId}`.execute(
+      ? await sql<OperatingEntityReferenceRow>`SELECT operating_entity_id, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name FROM dcl_supplier_version_operating_entities WHERE approval_entry_id = ${submissionId}`.execute(
           tx,
         )
       : entity === 'other-unit'
-        ? await sql<OperatingEntityReferenceRow>`SELECT operating_entity_id, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name FROM bob_other_unit_version_operating_entities WHERE approval_entry_id = ${submissionId}`.execute(
+        ? await sql<OperatingEntityReferenceRow>`SELECT operating_entity_id, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name FROM dcl_other_unit_version_operating_entities WHERE approval_entry_id = ${submissionId}`.execute(
             tx,
           )
-        : await sql<OperatingEntityReferenceRow>`SELECT operating_entity_id, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name FROM bob_sales_partner_version_operating_entities WHERE approval_entry_id = ${submissionId}`.execute(
+        : await sql<OperatingEntityReferenceRow>`SELECT operating_entity_id, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name FROM dcl_sales_partner_version_operating_entities WHERE approval_entry_id = ${submissionId}`.execute(
             tx,
           )
   const base: ArchiveSnapshot = {
@@ -453,17 +453,17 @@ const entityCodes: Record<ArchiveEntity, string> = {
   'sales-partner': 'SLP',
 }
 
-type ArchiveDomain = 'bob'
+type ArchiveDomain = 'dcl'
 
 export function archiveDomain(_entity: ArchiveEntity): ArchiveDomain {
-  return 'bob'
+  return 'dcl'
 }
 
 function archiveScope(
   entity: ArchiveEntity,
   subjectId: string,
 ): VersionedArchiveScope<ArchiveDomain, ArchiveEntity> {
-  return { domain: 'bob', entity, subjectId }
+  return { domain: 'dcl', entity, subjectId }
 }
 
 function archiveActionPath(entity: ArchiveEntity, action: string): string {
@@ -473,12 +473,12 @@ function archiveActionPath(entity: ArchiveEntity, action: string): string {
       : action === 'get'
         ? 'submission-get'
         : action
-  return `/bob/${entity}/${routedAction}`
+  return `/${action === 'versions' || action === 'audit-history' ? 'bob' : 'dcl'}/${entity}/${routedAction}`
 }
 
 function requirePermission(actor: ApprovalActor, path: string): void {
   if (actor.trusted !== true && !actor.permissions.includes(path))
-    throw new BobArchiveApplicationError('forbidden')
+    throw new DclArchiveApplicationError('forbidden')
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -519,7 +519,7 @@ function nullable(value: unknown): string | null {
 
 function requiredVersionNo(value: number | null): number {
   if (value === null)
-    throw new BobArchiveApplicationError('archive_invalid_history')
+    throw new DclArchiveApplicationError('archive_invalid_history')
   return value
 }
 
@@ -543,7 +543,7 @@ function requestHash(
 }
 
 /** Versioned archive persistence. Entity payloads remain explicit below. */
-export class BobArchiveService {
+export class DclArchiveService {
   private readonly attachmentStore: AttachmentStore
   private readonly db: Kysely<DB>
   private readonly approval = new ApprovalPersistence()
@@ -567,7 +567,7 @@ export class BobArchiveService {
     actor: ApprovalActor,
   ): Promise<{ items: ArchiveQueryView[]; total: number }> {
     requirePermission(actor, archiveActionPath(entity, 'query'))
-    const subjectTable = 'bob_subjects'
+    const subjectTable = 'bob_archive_objects'
     const selected = await sql<{
       id: string
       subject_id: string
@@ -670,12 +670,37 @@ export class BobArchiveService {
         const entry = approvalEntryId
           ? await this.versioning.exact(tx, scope, approvalEntryId)
           : (await this.versioning.history(tx, scope))[0]
-        if (!entry) throw new BobArchiveApplicationError('approval_not_found')
+        if (!entry) throw new DclArchiveApplicationError('approval_not_found')
         return this.readSubmission(tx, entity, entry.id, actor)
       })
     } catch (error) {
       if (error instanceof VersionedArchiveError)
-        throw new BobArchiveApplicationError(error.errorKey)
+        throw new DclArchiveApplicationError(error.errorKey)
+      throw error
+    }
+  }
+
+  async historyGet(
+    entity: ArchiveEntity,
+    subjectId: string,
+    submissionId: string,
+    actor: ApprovalActor,
+  ): Promise<ArchiveSubmissionView> {
+    requirePermission(actor, `/bob/${entity}/versions`)
+    try {
+      return await this.db.transaction().execute(async (tx) => {
+        const entry = await this.versioning.exact(
+          tx,
+          archiveScope(entity, subjectId),
+          submissionId,
+        )
+        if (!entry) throw new DclArchiveApplicationError('approval_not_found')
+        const view = await this.readSubmission(tx, entity, entry.id, actor)
+        return { ...view, availableApprovalActions: [], canDelete: false }
+      })
+    } catch (error) {
+      if (error instanceof VersionedArchiveError)
+        throw new DclArchiveApplicationError(error.errorKey)
       throw error
     }
   }
@@ -694,13 +719,17 @@ export class BobArchiveService {
         )
         return Promise.all(
           history.map((entry) =>
-            this.readSubmission(tx, entity, entry.id, actor),
+            this.readSubmission(tx, entity, entry.id, actor).then((view) => ({
+              ...view,
+              availableApprovalActions: [],
+              canDelete: false,
+            })),
           ),
         )
       })
     } catch (error) {
       if (error instanceof VersionedArchiveError)
-        throw new BobArchiveApplicationError(error.errorKey)
+        throw new DclArchiveApplicationError(error.errorKey)
       throw error
     }
   }
@@ -739,7 +768,7 @@ export class BobArchiveService {
   ): Promise<ArchiveSubmissionView> {
     requirePermission(actor, archiveActionPath(entity, action))
     const domain = archiveDomain(entity)
-    const subjectTable = 'bob_subjects'
+    const subjectTable = 'dcl_subjects'
     const idempotencyKey = input.idempotencyKey.trim()
     const hash = requestHash(action, entity, input)
     const preparedPermanentKeys = new Set<string>()
@@ -757,7 +786,7 @@ export class BobArchiveService {
           .executeTakeFirst()
         if (prior) {
           if (prior.request_hash !== hash)
-            throw new BobArchiveApplicationError('archive_idempotency_conflict')
+            throw new DclArchiveApplicationError('archive_idempotency_conflict')
           return prior.response as unknown as ArchiveSubmissionView
         }
         await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${domain}:archive:${entity}:${input.subjectId}`}, 0))`.execute(
@@ -817,7 +846,7 @@ export class BobArchiveService {
           tx,
         )
         if (!prepared.ok)
-          throw new BobArchiveApplicationError(
+          throw new DclArchiveApplicationError(
             prepared.errorKey,
             prepared.blockers,
           )
@@ -843,10 +872,16 @@ export class BobArchiveService {
               id: input.subjectId.trim(),
               entity,
               code,
-              enabled: true,
-              revision: '1',
               created_at: occurredAt,
               created_by: actor.id,
+            })
+            .execute()
+          await tx
+            .insertInto('bob_objects')
+            .values({
+              id: input.subjectId.trim(),
+              enabled: true,
+              revision: '1',
             })
             .execute()
         } else {
@@ -864,7 +899,7 @@ export class BobArchiveService {
             plan.data,
           )
         if (entity === 'customer' && action === 'submit-new')
-          requirePermission(actor, '/bob/customer/save-subunits')
+          requirePermission(actor, '/dcl/customer/save-subunits')
         if (entity === 'customer' && action === 'submit-change') {
           const latest = [...history]
             .filter((item) => item.status === 'APPROVED')
@@ -876,7 +911,7 @@ export class BobArchiveService {
               array(plan.data.subunits),
             )
           )
-            requirePermission(actor, '/bob/customer/save-subunits')
+            requirePermission(actor, '/dcl/customer/save-subunits')
         }
         await this.approval.create(tx, {
           entryId: input.submissionId.trim(),
@@ -931,11 +966,11 @@ export class BobArchiveService {
     } catch (error) {
       if (entity === 'customer')
         await this.discardPreparedCustomerAttachments(preparedPermanentKeys)
-      if (error instanceof BobArchiveApplicationError) throw error
+      if (error instanceof DclArchiveApplicationError) throw error
       if (error instanceof VersionedArchiveError)
-        throw new BobArchiveApplicationError(error.errorKey)
+        throw new DclArchiveApplicationError(error.errorKey)
       if (pgCode(error) === '23505')
-        throw new BobArchiveApplicationError('archive_conflict')
+        throw new DclArchiveApplicationError('archive_conflict')
       throw error
     }
     if (entity === 'customer')
@@ -1001,9 +1036,9 @@ export class BobArchiveService {
       })
     } catch (error) {
       if (error instanceof ApprovalPersistenceError)
-        throw new BobArchiveApplicationError(error.errorKey)
+        throw new DclArchiveApplicationError(error.errorKey)
       if (error instanceof VersionedArchiveError)
-        throw new BobArchiveApplicationError(error.errorKey)
+        throw new DclArchiveApplicationError(error.errorKey)
       throw error
     }
   }
@@ -1035,7 +1070,7 @@ export class BobArchiveService {
         const candidateStorageKeys =
           entity === 'customer'
             ? await tx
-                .selectFrom('bob_customer_attachments')
+                .selectFrom('dcl_customer_attachments')
                 .select('storage_key')
                 .where('approval_entry_id', '=', entry.id)
                 .execute()
@@ -1056,7 +1091,7 @@ export class BobArchiveService {
         let unreferencedStorageKeys = candidateStorageKeys
         if (candidateStorageKeys.length > 0) {
           const referenced = await tx
-            .selectFrom('bob_customer_attachments')
+            .selectFrom('dcl_customer_attachments')
             .select('storage_key')
             .where('storage_key', 'in', candidateStorageKeys)
             .execute()
@@ -1075,7 +1110,7 @@ export class BobArchiveService {
       })
     } catch (error) {
       if (error instanceof ApprovalPersistenceError)
-        throw new BobArchiveApplicationError(error.errorKey)
+        throw new DclArchiveApplicationError(error.errorKey)
       throw error
     }
     await drainAttachmentDeletions(
@@ -1089,13 +1124,18 @@ export class BobArchiveService {
   async readCustomerAttachment(
     input: CustomerAttachmentReadInput,
     actor: ApprovalActor,
+    domain: 'bob' | 'dcl',
   ) {
-    requirePermission(actor, '/bob/customer/attachment-read')
+    if (domain === 'dcl' && input.source !== 'submission')
+      throw new DclArchiveApplicationError('customer_attachment_not_found')
+    requirePermission(actor, `/${domain}/customer/attachment-read`)
     requirePermission(
       actor,
       input.source === 'current'
         ? '/bob/customer/get'
-        : '/bob/customer/submission-get',
+        : domain === 'bob'
+          ? '/bob/customer/versions'
+          : '/dcl/customer/submission-get',
     )
     try {
       return await this.db.transaction().execute(async (tx) => {
@@ -1108,22 +1148,22 @@ export class BobArchiveService {
             ? await this.versioning.latestApproved(tx, scope)
             : await this.versioning.exact(tx, scope, input.submissionId)
         if (!entry)
-          throw new BobArchiveApplicationError('customer_attachment_not_found')
+          throw new DclArchiveApplicationError('customer_attachment_not_found')
         const file = await tx
-          .selectFrom('bob_customer_attachments')
+          .selectFrom('dcl_customer_attachments')
           .selectAll()
           .where('approval_entry_id', '=', entry.id)
           .where('file_id', '=', input.fileId)
           .executeTakeFirst()
         if (!file)
-          throw new BobArchiveApplicationError('customer_attachment_not_found')
+          throw new DclArchiveApplicationError('customer_attachment_not_found')
         await lockAttachmentStorageKey(tx, file.storage_key)
         const content = await this.attachmentStore.read(file.storage_key)
         if (
           content.length !== file.size_bytes ||
           createHash('sha256').update(content).digest('hex') !== file.digest
         )
-          throw new BobArchiveApplicationError(
+          throw new DclArchiveApplicationError(
             'customer_attachment_invalid_content',
           )
         return {
@@ -1136,7 +1176,7 @@ export class BobArchiveService {
       })
     } catch (error) {
       if (error instanceof VersionedArchiveError)
-        throw new BobArchiveApplicationError(error.errorKey)
+        throw new DclArchiveApplicationError(error.errorKey)
       throw error
     }
   }
@@ -1145,7 +1185,7 @@ export class BobArchiveService {
     input: CustomerAttachmentStageInput,
     actor: ApprovalActor,
   ): Promise<CustomerAttachmentStageView> {
-    requirePermission(actor, '/bob/customer/attachment-stage')
+    requirePermission(actor, '/dcl/customer/attachment-stage')
     const content = Buffer.from(input.contentBase64, 'base64')
     const digest = createHash('sha256').update(content).digest('hex')
     if (
@@ -1156,7 +1196,7 @@ export class BobArchiveService {
       input.size > 10_485_760 ||
       !customerAttachmentContentMatches(input.mimeType, content)
     )
-      throw new BobArchiveApplicationError(
+      throw new DclArchiveApplicationError(
         'customer_attachment_invalid_content',
       )
     const now = new Date(),
@@ -1164,12 +1204,12 @@ export class BobArchiveService {
     const storageKey = `staging/${actor.id}/${input.stagingId}`
     try {
       return await this.db.transaction().execute(async (tx) => {
-        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`bob:customer:attachment:${input.stagingId}`}, 0))`.execute(
+        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:customer:attachment:${input.stagingId}`}, 0))`.execute(
           tx,
         )
         await lockAttachmentStorageKey(tx, storageKey)
         const existing = await tx
-          .selectFrom('bob_customer_attachment_staging')
+          .selectFrom('dcl_customer_attachment_staging')
           .selectAll()
           .where('id', '=', input.stagingId)
           .executeTakeFirst()
@@ -1182,7 +1222,7 @@ export class BobArchiveService {
             existing.digest !== input.digest ||
             existing.size_bytes !== input.size
           )
-            throw new BobArchiveApplicationError(
+            throw new DclArchiveApplicationError(
               'customer_attachment_staging_conflict',
             )
           await this.attachmentStore.stage({
@@ -1192,7 +1232,7 @@ export class BobArchiveService {
           })
           if (existing.expires_at <= now)
             await tx
-              .updateTable('bob_customer_attachment_staging')
+              .updateTable('dcl_customer_attachment_staging')
               .set({
                 storage_key: storageKey,
                 created_at: now,
@@ -1220,7 +1260,7 @@ export class BobArchiveService {
           content,
         })
         await tx
-          .insertInto('bob_customer_attachment_staging')
+          .insertInto('dcl_customer_attachment_staging')
           .values({
             id: input.stagingId,
             file_id: input.fileId,
@@ -1257,32 +1297,32 @@ export class BobArchiveService {
   async cleanupCustomerAttachments(
     actor: ApprovalActor,
   ): Promise<{ deleted: number }> {
-    requirePermission(actor, '/bob/customer/attachment-cleanup')
+    requirePermission(actor, '/dcl/customer/attachment-cleanup')
     await drainAttachmentDeletions(this.db, this.attachmentStore)
     const expired = await this.db
-      .selectFrom('bob_customer_attachment_staging')
+      .selectFrom('dcl_customer_attachment_staging')
       .select('id')
       .where('expires_at', '<=', new Date())
       .execute()
     let deleted = 0
     for (const attachment of expired) {
       const storageKey = await this.db.transaction().execute(async (tx) => {
-        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`bob:customer:attachment:${attachment.id}`}, 0))`.execute(
+        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:customer:attachment:${attachment.id}`}, 0))`.execute(
           tx,
         )
         const staged = await tx
-          .selectFrom('bob_customer_attachment_staging')
+          .selectFrom('dcl_customer_attachment_staging')
           .select(['id', 'storage_key', 'expires_at'])
           .where('id', '=', attachment.id)
           .forUpdate()
           .executeTakeFirst()
         if (!staged || staged.expires_at > new Date()) return null
         const result = await tx
-          .deleteFrom('bob_customer_attachment_staging')
+          .deleteFrom('dcl_customer_attachment_staging')
           .where('id', '=', staged.id)
           .executeTakeFirst()
         if (Number(result.numDeletedRows) !== 1)
-          throw new BobArchiveApplicationError(
+          throw new DclArchiveApplicationError(
             'customer_attachment_staging_invalid',
           )
         await enqueueAttachmentDeletions(tx, [staged.storage_key])
@@ -1354,7 +1394,7 @@ export class BobArchiveService {
       )
     ) {
       const current = await tx
-        .selectFrom('bob_subjects')
+        .selectFrom('bob_archive_objects')
         .select('enabled')
         .where('id', '=', input.subjectId)
         .where('entity', '=', 'customer')
@@ -1431,7 +1471,7 @@ export class BobArchiveService {
       tx,
     )
     if (!prepared.ok)
-      throw new BobArchiveApplicationError(prepared.errorKey, prepared.blockers)
+      throw new DclArchiveApplicationError(prepared.errorKey, prepared.blockers)
     await this.ensureNoDuplicateBusinessKey(
       tx,
       entity,
@@ -1594,7 +1634,7 @@ export class BobArchiveService {
     objectId: string,
   ) {
     if (!objectId) return undefined
-    await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`bob:archive:${entity}:${objectId}`},0))`.execute(
+    await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:archive:${entity}:${objectId}`},0))`.execute(
       tx,
     )
     const result = await sql<{
@@ -1602,7 +1642,7 @@ export class BobArchiveService {
       code: string
       enabled: boolean
       name: string
-    }>`SELECT e.id,s.code,s.enabled,v.display_name AS name FROM bob_subjects s JOIN LATERAL(SELECT id FROM approval_entries WHERE domain='bob' AND entity=${entity} AND subject_id=s.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true JOIN bob_sales_partner_versions v ON v.approval_entry_id=e.id WHERE s.id=${objectId} AND s.entity=${entity}`.execute(
+    }>`SELECT e.id,s.code,s.enabled,v.display_name AS name FROM bob_archive_objects s JOIN LATERAL(SELECT id FROM approval_entries WHERE domain='dcl' AND entity=${entity} AND subject_id=s.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true JOIN dcl_sales_partner_versions v ON v.approval_entry_id=e.id WHERE s.id=${objectId} AND s.entity=${entity}`.execute(
       tx,
     )
     const row = result.rows[0]
@@ -1648,38 +1688,38 @@ export class BobArchiveService {
     if (entity === 'product') {
       const barcode = nullable(data.barcode)?.toUpperCase()
       if (!barcode) return
-      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`bob:archive:product:barcode:${barcode}`},0))`.execute(
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:archive:product:barcode:${barcode}`},0))`.execute(
         tx,
       )
       const duplicate =
-        await sql`SELECT e.id FROM bob_product_versions v JOIN approval_entries e ON e.id=v.approval_entry_id WHERE e.domain='bob' AND e.entity='product' AND e.subject_id<>${subjectId} AND upper(trim(v.barcode))=${barcode} AND (e.status IN ('PENDING','REJECTED') OR (e.status='APPROVED' AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain=e.domain AND newer.entity=e.entity AND newer.subject_id=e.subject_id AND newer.status='APPROVED' AND newer.version_no>e.version_no))) LIMIT 1`.execute(
+        await sql`SELECT e.id FROM dcl_product_versions v JOIN approval_entries e ON e.id=v.approval_entry_id WHERE e.domain='dcl' AND e.entity='product' AND e.subject_id<>${subjectId} AND upper(trim(v.barcode))=${barcode} AND (e.status IN ('PENDING','REJECTED') OR (e.status='APPROVED' AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain=e.domain AND newer.entity=e.entity AND newer.subject_id=e.subject_id AND newer.status='APPROVED' AND newer.version_no>e.version_no))) LIMIT 1`.execute(
           tx,
         )
       if (duplicate.rows.length)
-        throw new BobArchiveApplicationError('product_duplicate_barcode')
+        throw new DclArchiveApplicationError('product_duplicate_barcode')
       return
     }
     const table =
       entity === 'customer'
-        ? 'bob_customer_versions'
+        ? 'dcl_customer_versions'
         : entity === 'supplier'
-          ? 'bob_supplier_versions'
+          ? 'dcl_supplier_versions'
           : entity === 'other-unit'
-            ? 'bob_other_unit_versions'
-            : 'bob_sales_partner_versions'
+            ? 'dcl_other_unit_versions'
+            : 'dcl_sales_partner_versions'
     const errorKey = `${entity.replace('-', '_')}_duplicate_legal_identifier`
     const value = data.legalIdentifier
     if (typeof value !== 'string' || !value.trim()) return
     const normalized = value.trim().toUpperCase()
-    await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`bob:archive:${entity}:business-key:legal_identifier:${normalized}`}, 0))`.execute(
+    await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:archive:${entity}:business-key:legal_identifier:${normalized}`}, 0))`.execute(
       tx,
     )
     const duplicate = await sql<{
       id: string
-    }>`SELECT e.id FROM ${sql.table(table)} AS v JOIN approval_entries e ON e.id = v.approval_entry_id WHERE e.domain = 'bob' AND e.entity = ${entity} AND e.subject_id <> ${subjectId} AND (e.status IN ('PENDING','REJECTED') OR (e.status='APPROVED' AND (${entity} <> 'customer' OR NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain=e.domain AND newer.entity=e.entity AND newer.subject_id=e.subject_id AND newer.status='APPROVED' AND newer.version_no>e.version_no)))) AND v.legal_identifier = ${value} LIMIT 1`.execute(
+    }>`SELECT e.id FROM ${sql.table(table)} AS v JOIN approval_entries e ON e.id = v.approval_entry_id WHERE e.domain = 'dcl' AND e.entity = ${entity} AND e.subject_id <> ${subjectId} AND (e.status IN ('PENDING','REJECTED') OR (e.status='APPROVED' AND (${entity} <> 'customer' OR NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain=e.domain AND newer.entity=e.entity AND newer.subject_id=e.subject_id AND newer.status='APPROVED' AND newer.version_no>e.version_no)))) AND v.legal_identifier = ${value} LIMIT 1`.execute(
       tx,
     )
-    if (duplicate.rows[0]) throw new BobArchiveApplicationError(errorKey)
+    if (duplicate.rows[0]) throw new DclArchiveApplicationError(errorKey)
   }
 
   private async lockProductSubjects(
@@ -1698,7 +1738,7 @@ export class BobArchiveService {
       .filter(Boolean)
       .sort()
     await tx
-      .selectFrom('bob_subjects')
+      .selectFrom('bob_archive_objects')
       .select('id')
       .where('entity', '=', 'product')
       .where('id', 'in', ids)
@@ -1741,7 +1781,7 @@ export class BobArchiveService {
 
   private async productApprovedFact(tx: Executor, objectId: string) {
     await tx
-      .selectFrom('bob_subjects')
+      .selectFrom('bob_archive_objects')
       .select('id')
       .where('id', '=', objectId)
       .where('entity', '=', 'product')
@@ -1753,7 +1793,7 @@ export class BobArchiveService {
       enabled: boolean
       code: string
       name: string
-    }>`SELECT s.id AS object_id,e.id,s.enabled,s.code,v.name FROM bob_subjects s JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='bob' AND entity='product' AND subject_id=s.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true JOIN bob_product_versions v ON v.approval_entry_id=e.id WHERE s.id=${objectId} AND s.entity='product'`.execute(
+    }>`SELECT s.id AS object_id,e.id,s.enabled,s.code,v.name FROM bob_archive_objects s JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=s.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true JOIN dcl_product_versions v ON v.approval_entry_id=e.id WHERE s.id=${objectId} AND s.entity='product'`.execute(
       tx,
     )
     const row = result.rows[0]
@@ -1813,7 +1853,7 @@ export class BobArchiveService {
       }
     } catch (error) {
       if (error instanceof AuxApplicationError)
-        throw new BobArchiveApplicationError('archive_reference_unavailable', [
+        throw new DclArchiveApplicationError('archive_reference_unavailable', [
           { kind: 'AUX_REFERENCE', entity, objectId },
         ])
       throw error
@@ -1831,7 +1871,7 @@ export class BobArchiveService {
         ['settlementMethod', String(requested.id ?? '')],
       ])
     )[0]
-    if (!fact || !fact.available) throw new BobArchiveApplicationError(errorKey)
+    if (!fact || !fact.available) throw new DclArchiveApplicationError(errorKey)
     const termCode =
       typeof fact.data.termCode === 'string' ? fact.data.termCode : ''
     const ruleType =
@@ -1858,7 +1898,7 @@ export class BobArchiveService {
       !Number.isInteger(dayOfMonth) ||
       !Number.isInteger(dayOffset)
     )
-      throw new BobArchiveApplicationError(errorKey)
+      throw new DclArchiveApplicationError(errorKey)
     return {
       id: fact.objectId,
       code: fact.code,
@@ -1922,7 +1962,7 @@ export class BobArchiveService {
       if (adopted) return adopted
     }
     const fact = (await this.auxFacts(tx, [[field, record(reference).id]]))[0]
-    if (!fact || !fact.available) throw new BobArchiveApplicationError(errorKey)
+    if (!fact || !fact.available) throw new DclArchiveApplicationError(errorKey)
     if (auxiliaryEntities[field] === 'measurement-unit') {
       const symbol = fact.data.symbol
       const quantityScale = fact.data.quantityScale
@@ -1933,7 +1973,7 @@ export class BobArchiveService {
         Number(quantityScale) < 0 ||
         Number(quantityScale) > 6
       )
-        throw new BobArchiveApplicationError(errorKey)
+        throw new DclArchiveApplicationError(errorKey)
       return {
         id: fact.objectId,
         code: fact.code,
@@ -1950,7 +1990,7 @@ export class BobArchiveService {
         behaviorProfile !== 'CUSTOM_FINISHED' &&
         behaviorProfile !== 'PACKAGING'
       )
-        throw new BobArchiveApplicationError(errorKey)
+        throw new DclArchiveApplicationError(errorKey)
       return {
         id: fact.objectId,
         code: fact.code,
@@ -1988,7 +2028,7 @@ export class BobArchiveService {
       ])
     )[0]
     if (!fact?.available)
-      throw new BobArchiveApplicationError('customer_invalid_data')
+      throw new DclArchiveApplicationError('customer_invalid_data')
     return { id: fact.objectId, code: fact.code, name: fact.name }
   }
 
@@ -2217,7 +2257,7 @@ export class BobArchiveService {
   ): Promise<void> {
     const oe = record(d.defaultOperatingEntity)
     await tx
-      .insertInto('bob_customer_versions')
+      .insertInto('dcl_customer_versions')
       .values({
         approval_entry_id: id,
         kind: String(d.identityKind ?? ''),
@@ -2250,7 +2290,7 @@ export class BobArchiveService {
     for (const item of array(d.subunits)) {
       const s = record(item)
       const root = await tx
-        .selectFrom('bob_customer_subunit_roots')
+        .selectFrom('dcl_customer_subunit_roots')
         .select(['customer_id', 'code'])
         .where('subunit_id', '=', String(s.id ?? ''))
         .executeTakeFirst()
@@ -2259,10 +2299,10 @@ export class BobArchiveService {
           root.customer_id !== owner.subject_id ||
           root.code !== String(s.code ?? '')
         )
-          throw new BobArchiveApplicationError('customer_subunit_conflict')
+          throw new DclArchiveApplicationError('customer_subunit_conflict')
       } else {
         await tx
-          .insertInto('bob_customer_subunit_roots')
+          .insertInto('dcl_customer_subunit_roots')
           .values({
             subunit_id: String(s.id ?? ''),
             customer_id: owner.subject_id,
@@ -2271,7 +2311,7 @@ export class BobArchiveService {
           .execute()
       }
       await tx
-        .insertInto('bob_customer_version_subunits')
+        .insertInto('dcl_customer_version_subunits')
         .values({
           customer_approval_entry_id: id,
           subunit_id: String(s.id ?? ''),
@@ -2322,7 +2362,7 @@ export class BobArchiveService {
     snapshot: ArchiveSnapshot,
   ): Promise<ArchiveSnapshot> {
     const roots = await tx
-      .selectFrom('bob_customer_subunit_roots')
+      .selectFrom('dcl_customer_subunit_roots')
       .select('code')
       .where('customer_id', '=', customerId)
       .execute()
@@ -2343,7 +2383,7 @@ export class BobArchiveService {
       }
       const code = String(subunit.code ?? '')
       if (!knownCodes.has(code))
-        throw new BobArchiveApplicationError('customer_subunit_conflict')
+        throw new DclArchiveApplicationError('customer_subunit_conflict')
       subunits.push(subunit)
     }
     return { ...snapshot, subunits }
@@ -2372,7 +2412,7 @@ export class BobArchiveService {
         typeof attachment.stagingId === 'string' ? attachment.stagingId : null
       if (!stagingId) {
         const prior = await tx
-          .selectFrom('bob_customer_attachments as a')
+          .selectFrom('dcl_customer_attachments as a')
           .innerJoin('approval_entries as e', 'e.id', 'a.approval_entry_id')
           .select([
             'a.file_id',
@@ -2391,11 +2431,11 @@ export class BobArchiveService {
           .orderBy('e.version_no', 'desc')
           .executeTakeFirst()
         if (!prior)
-          throw new BobArchiveApplicationError(
+          throw new DclArchiveApplicationError(
             'customer_attachment_staging_invalid',
           )
         await tx
-          .insertInto('bob_customer_attachments')
+          .insertInto('dcl_customer_attachments')
           .values({
             file_id: prior.file_id,
             approval_entry_id: approvalEntryId,
@@ -2410,7 +2450,7 @@ export class BobArchiveService {
         continue
       }
       const staged = await tx
-        .selectFrom('bob_customer_attachment_staging')
+        .selectFrom('dcl_customer_attachment_staging')
         .selectAll()
         .where('id', '=', stagingId)
         .where('owner_user_id', '=', actorId)
@@ -2425,7 +2465,7 @@ export class BobArchiveService {
         staged.size_bytes !== attachment.sizeBytes ||
         staged.digest !== attachment.sha256
       )
-        throw new BobArchiveApplicationError(
+        throw new DclArchiveApplicationError(
           'customer_attachment_staging_invalid',
         )
       const content = await this.attachmentStore.read(staged.storage_key)
@@ -2434,16 +2474,16 @@ export class BobArchiveService {
         !customerAttachmentContentMatches(staged.mime_type, content) ||
         createHash('sha256').update(content).digest('hex') !== staged.digest
       )
-        throw new BobArchiveApplicationError(
+        throw new DclArchiveApplicationError(
           'customer_attachment_staging_invalid',
         )
       const prepared = await this.attachmentStore.promote({
         stagingKey: staged.storage_key,
-        permanentKey: `permanent/bob/customer/${approvalEntryId}/${staged.file_id}`,
+        permanentKey: `permanent/dcl/customer/${approvalEntryId}/${staged.file_id}`,
       })
       if (prepared.created) preparedPermanentKeys.add(prepared.key)
       await tx
-        .insertInto('bob_customer_attachments')
+        .insertInto('dcl_customer_attachments')
         .values({
           file_id: staged.file_id,
           approval_entry_id: approvalEntryId,
@@ -2456,7 +2496,7 @@ export class BobArchiveService {
         })
         .execute()
       await tx
-        .deleteFrom('bob_customer_attachment_staging')
+        .deleteFrom('dcl_customer_attachment_staging')
         .where('id', '=', staged.id)
         .execute()
     }
@@ -2523,7 +2563,7 @@ export class BobArchiveService {
     if (entity === 'customer') return this.writeCustomer(tx, id, snapshot)
     if (entity === 'product') {
       await tx
-        .insertInto('bob_product_versions')
+        .insertInto('dcl_product_versions')
         .values({
           approval_entry_id: id,
           name: String(d.name ?? ''),
@@ -2581,7 +2621,7 @@ export class BobArchiveService {
     }
     if (entity === 'supplier')
       await tx
-        .insertInto('bob_supplier_versions')
+        .insertInto('dcl_supplier_versions')
         .values({
           ...common,
           settlement_method_snapshot:
@@ -2604,7 +2644,7 @@ export class BobArchiveService {
         .execute()
     if (entity === 'other-unit')
       await tx
-        .insertInto('bob_other_unit_versions')
+        .insertInto('dcl_other_unit_versions')
         .values({
           ...common,
           settlement_method_snapshot:
@@ -2615,17 +2655,17 @@ export class BobArchiveService {
         .execute()
     if (entity === 'sales-partner')
       await tx
-        .insertInto('bob_sales_partner_versions')
+        .insertInto('dcl_sales_partner_versions')
         .values({ ...common, capabilities: json(array(d.capabilities)) })
         .execute()
     for (const item of array(d.operatingEntities)) {
       const ref = record(item)
       const table =
         entity === 'supplier'
-          ? 'bob_supplier_version_operating_entities'
+          ? 'dcl_supplier_version_operating_entities'
           : entity === 'other-unit'
-            ? 'bob_other_unit_version_operating_entities'
-            : 'bob_sales_partner_version_operating_entities'
+            ? 'dcl_other_unit_version_operating_entities'
+            : 'dcl_sales_partner_version_operating_entities'
       await sql`INSERT INTO ${sql.table(table)} (approval_entry_id,operating_entity_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name)
         VALUES (${id},${String(ref.objectId ?? '')},NULL,${String(ref.code ?? '')},${String(ref.name ?? '')})`.execute(
         tx,
@@ -2638,14 +2678,14 @@ export class BobArchiveService {
     id: string,
   ): Promise<ArchiveSnapshot> {
     const r = await tx
-      .selectFrom('bob_customer_versions')
+      .selectFrom('dcl_customer_versions')
       .selectAll()
       .where('approval_entry_id', '=', id)
       .executeTakeFirstOrThrow()
     const subs = await tx
-      .selectFrom('bob_customer_version_subunits as v')
+      .selectFrom('dcl_customer_version_subunits as v')
       .innerJoin(
-        'bob_customer_subunit_roots as r',
+        'dcl_customer_subunit_roots as r',
         'r.subunit_id',
         'v.subunit_id',
       )
@@ -2718,7 +2758,7 @@ export class BobArchiveService {
     if (entity === 'customer') return this.readCustomer(tx, id)
     if (entity === 'product') {
       const r = await tx
-        .selectFrom('bob_product_versions')
+        .selectFrom('dcl_product_versions')
         .selectAll()
         .where('approval_entry_id', '=', id)
         .executeTakeFirstOrThrow()
@@ -2770,11 +2810,11 @@ export class BobArchiveService {
         lock,
       )
       if (entry.versionNo === null)
-        throw new BobArchiveApplicationError('approval_not_versioned')
+        throw new DclArchiveApplicationError('approval_not_versioned')
       return entry
     } catch (error) {
       if (error instanceof ApprovalPersistenceError)
-        throw new BobArchiveApplicationError(error.errorKey)
+        throw new DclArchiveApplicationError(error.errorKey)
       throw error
     }
   }
@@ -2785,7 +2825,7 @@ export class BobArchiveService {
     submissionId: string,
     actor: ApprovalActor,
   ): Promise<ArchiveSubmissionView> {
-    const subjectTable = 'bob_subjects'
+    const subjectTable = 'dcl_subjects'
     const selected = await sql<{
       id: string
       subject_id: string
@@ -2808,7 +2848,7 @@ export class BobArchiveService {
        WHERE e.id = ${submissionId} AND e.domain = ${archiveDomain(entity)}
          AND e.entity = ${entity}`.execute(tx)
     const row = selected.rows[0]
-    if (!row) throw new BobArchiveApplicationError('approval_not_found')
+    if (!row) throw new DclArchiveApplicationError('approval_not_found')
     const entry = await this.loadEntry(
       tx,
       entity,
@@ -2852,10 +2892,10 @@ export class BobArchiveService {
       scope,
     )
     if (latest?.id !== entry.id)
-      throw new BobArchiveApplicationError('approval_not_latest_approved')
+      throw new DclArchiveApplicationError('approval_not_latest_approved')
     const open = await this.versioning.open(tx as Transaction<DB>, scope)
     if (open)
-      throw new BobArchiveApplicationError('approval_open_version_exists')
+      throw new DclArchiveApplicationError('approval_open_version_exists')
     if (entity === 'product' || entity === 'customer') {
       const previous = (
         await this.versioning.history(tx as Transaction<DB>, scope)
@@ -2865,7 +2905,7 @@ export class BobArchiveService {
       )
       if (previous && entity === 'customer') {
         const root = await tx
-          .selectFrom('bob_subjects')
+          .selectFrom('bob_archive_objects')
           .select('enabled')
           .where('id', '=', entry.subjectId)
           .executeTakeFirstOrThrow()
@@ -2876,7 +2916,7 @@ export class BobArchiveService {
             (subunit) => record(subunit).enabled === true,
           )
         )
-          throw new BobArchiveApplicationError(
+          throw new DclArchiveApplicationError(
             'customer_enabled_subunit_required',
           )
       }
@@ -2890,7 +2930,7 @@ export class BobArchiveService {
     }
     const blockers = await this.exactReferenceBlockers(tx, entry)
     if (blockers.length)
-      throw new BobArchiveApplicationError(
+      throw new DclArchiveApplicationError(
         'approval_strong_reference_exists',
         blockers,
       )
@@ -2927,7 +2967,7 @@ export class BobArchiveService {
     }
     if (entry.entity === 'product') {
       const references = await sql<{
-        domain: 'bob' | 'vou'
+        domain: 'dcl' | 'vou'
         entity: string
         subject_id: string
         id: string
@@ -2938,7 +2978,7 @@ export class BobArchiveService {
         WHERE r.approval_reference_id=${entry.id} AND e.status='APPROVED'
         UNION ALL
         SELECT e.domain,e.entity,e.subject_id,e.id,'fixedFormula.components[' || (component.ordinality-1)::text || '].material'
-        FROM bob_product_versions v JOIN approval_entries e ON e.id=v.approval_entry_id
+        FROM dcl_product_versions v JOIN approval_entries e ON e.id=v.approval_entry_id
         CROSS JOIN LATERAL jsonb_array_elements(COALESCE(v.fixed_formula->'components','[]'::jsonb)) WITH ORDINALITY AS component(value,ordinality)
         WHERE e.status='APPROVED' AND component.value->'material'->>'approvalEntryId'=${entry.id}
         ORDER BY domain,entity,subject_id,id,field`.execute(tx)

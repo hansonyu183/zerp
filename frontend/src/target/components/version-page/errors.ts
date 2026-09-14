@@ -75,7 +75,7 @@ const archiveErrorLabels = {
   product_duplicate_barcode: '条码已被其他产品的正式版本或提交件占用。',
 } as const
 
-export function describeBobArchiveFailure(cause: unknown): string | null {
+export function describeDclArchiveFailure(cause: unknown): string | null {
   if (!(cause instanceof TargetApiError)) return null
   const products = blockersOf(cause).filter(
     (item) =>

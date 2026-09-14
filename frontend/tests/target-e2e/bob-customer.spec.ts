@@ -1,3 +1,4 @@
+import { openArchive, findArchive } from './archive-navigation.ts'
 import { confirmCollection, editCollection } from './collection-helpers.ts'
 import { randomBytes } from 'node:crypto'
 import { expect, test, type Page, type Locator } from '@playwright/test'
@@ -34,20 +35,20 @@ async function select(
     .click()
   await page.getByRole('option').filter({ hasText: option }).click()
 }
-async function approve(page: Page, name: string, compare = false) {
-  await page.goto('/bob/customer')
+async function approve(page: Page, name: string) {
+  await openArchive(page, 'dcl', 'customer')
   await page.getByRole('button', { name: '提交记录', exact: true }).click()
   const dialog = page.getByRole('dialog').last()
   await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
   const queried = page.waitForResponse(
     (response) =>
-      response.url().endsWith('/bob/customer/submission-query') &&
+      response.url().endsWith('/dcl/customer/submission-query') &&
       response.request().postDataJSON()?.filters?.keyword === name,
   )
   await page.getByRole('button', { name: '查询', exact: true }).click()
   await queried
   const detailResponse = page.waitForResponse((response) =>
-    response.url().endsWith('/bob/customer/submission-get'),
+    response.url().endsWith('/dcl/customer/submission-get'),
   )
   await page
     .locator('tr, .list-card')
@@ -57,10 +58,9 @@ async function approve(page: Page, name: string, compare = false) {
   const detail = await (await detailResponse).json()
   expect(detail.data.availableApprovalActions).toContain('approve')
   await expect(dialog).toContainText('汇款识别')
-  if (compare) {
-    await expect(dialog).toContainText('客户定价差异')
-    await expect(dialog).toContainText('金额变化')
-  }
+  await expect(dialog.getByRole('button', { name: /^查看版本 / })).toHaveCount(
+    0,
+  )
   await dialog.getByRole('button', { name: '批准', exact: true }).click()
   await expect(
     dialog.getByRole('button', { name: '反批准', exact: true }),
@@ -80,11 +80,11 @@ test('customer full temporary form, two subunits, history and independent enable
     await signin(reviewer, true)
     let staged = 0
     page.on('response', (response) => {
-      if (response.url().endsWith('/bob/customer/attachment-stage')) staged += 1
+      if (response.url().endsWith('/dcl/customer/attachment-stage')) staged += 1
     })
     const tag = randomBytes(5).toString('hex'),
       name = `浏览器客户${tag}`
-    await page.goto('/bob/customer')
+    await openArchive(page, 'dcl', 'customer')
     await page.getByRole('button', { name: '新增', exact: true }).click()
     let dialog = page.getByRole('dialog').last()
     await expect(dialog.getByLabel('身份类型', { exact: true })).toHaveValue(
@@ -191,10 +191,14 @@ test('customer full temporary form, two subunits, history and independent enable
     await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
     await page.getByRole('button', { name: '查询', exact: true }).click()
     let row = page.locator('tr, .list-card').filter({ hasText: name })
+    await openArchive(page, 'bob', 'customer')
+    await findArchive(page, name)
     await row.getByRole('button', { name: '停用', exact: true }).click()
     await expect(
       row.getByRole('button', { name: '启用', exact: true }),
     ).toBeVisible()
+    await openArchive(page, 'dcl', 'customer')
+    await findArchive(page, name)
     await row.getByRole('button', { name: '提交变更', exact: true }).click()
     dialog = page.getByRole('dialog').last()
     await expect(
@@ -211,8 +215,8 @@ test('customer full temporary form, two subunits, history and independent enable
     await confirmCollection(page)
     await dialog.getByRole('button', { name: '提交', exact: true }).click()
     await expect(dialog).toHaveCount(0)
-    await approve(reviewer, name, true)
-    await page.reload()
+    await approve(reviewer, name)
+    await openArchive(page, 'bob', 'customer')
     await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
     await page.getByRole('button', { name: '查询', exact: true }).click()
     row = page.locator('tr, .list-card').filter({ hasText: name })
@@ -230,6 +234,12 @@ test('customer full temporary form, two subunits, history and independent enable
       .getByRole('button', { name: '查看', exact: true })
       .click()
     await expect(page.getByRole('dialog').last()).toContainText('SUB-0002')
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: '查看版本 2', exact: true })
+      .click()
+    await expect(page.getByRole('dialog')).toContainText('客户定价差异')
+    await expect(page.getByRole('dialog')).toContainText('金额变化')
     const downloading = page.waitForEvent('download')
     await page
       .getByRole('dialog')

@@ -1006,7 +1006,7 @@
                                     "type": "string",
                                     "enum": [
                                       "wfl",
-                                      "bob",
+                                      "dcl",
                                       "vou"
                                     ]
                                   },
@@ -44561,7 +44561,7 @@
         }
       }
     },
-    "/bob/customer/submission-query": {
+    "/dcl/customer/submission-query": {
       "post": {
         "requestBody": {
           "content": {
@@ -45067,7 +45067,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -45130,7 +45130,7 @@
         }
       }
     },
-    "/bob/customer/submission-get": {
+    "/dcl/customer/submission-get": {
       "post": {
         "requestBody": {
           "content": {
@@ -46562,7 +46562,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -46634,6 +46634,11 @@
                 "type": "object",
                 "properties": {
                   "subjectId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
                     "type": "string",
                     "minLength": 26,
                     "maxLength": 26
@@ -48068,7 +48073,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -48447,7 +48452,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -48510,7 +48515,7 @@
         }
       }
     },
-    "/bob/customer/submit-new": {
+    "/dcl/customer/submit-new": {
       "post": {
         "requestBody": {
           "content": {
@@ -51056,7 +51061,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -51119,7 +51124,7 @@
         }
       }
     },
-    "/bob/customer/submit-change": {
+    "/dcl/customer/submit-change": {
       "post": {
         "requestBody": {
           "content": {
@@ -53665,7 +53670,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -53728,7 +53733,7 @@
         }
       }
     },
-    "/bob/customer/approve": {
+    "/dcl/customer/approve": {
       "post": {
         "requestBody": {
           "content": {
@@ -55166,7 +55171,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -55229,7 +55234,7 @@
         }
       }
     },
-    "/bob/customer/reject": {
+    "/dcl/customer/reject": {
       "post": {
         "requestBody": {
           "content": {
@@ -56673,7 +56678,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -56736,7 +56741,7 @@
         }
       }
     },
-    "/bob/customer/unreject": {
+    "/dcl/customer/unreject": {
       "post": {
         "requestBody": {
           "content": {
@@ -58174,7 +58179,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -58237,7 +58242,7 @@
         }
       }
     },
-    "/bob/customer/unapprove": {
+    "/dcl/customer/unapprove": {
       "post": {
         "requestBody": {
           "content": {
@@ -59681,7 +59686,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -59744,7 +59749,7 @@
         }
       }
     },
-    "/bob/customer/delete": {
+    "/dcl/customer/delete": {
       "post": {
         "requestBody": {
           "content": {
@@ -60007,7 +60012,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -60389,7 +60394,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -60452,7 +60457,389 @@
         }
       }
     },
-    "/bob/customer/attachment-stage": {
+    "/dcl/customer/attachment-read": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "current"
+                        ]
+                      },
+                      "objectId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      },
+                      "fileId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "objectId",
+                      "fileId"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "submission"
+                        ]
+                      },
+                      "subjectId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      },
+                      "submissionId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      },
+                      "fileId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "subjectId",
+                      "submissionId",
+                      "fileId"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Read an attachment adopted by the authorized customer version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "enum": [
+                            ""
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "fileName": {
+                              "type": "string"
+                            },
+                            "mimeType": {
+                              "type": "string",
+                              "enum": [
+                                "application/pdf",
+                                "image/jpeg",
+                                "image/png"
+                              ]
+                            },
+                            "size": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "exclusiveMinimum": true
+                            },
+                            "digest": {
+                              "type": "string"
+                            },
+                            "contentBase64": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fileName",
+                            "mimeType",
+                            "size",
+                            "digest",
+                            "contentBase64"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "requestId",
+                        "data"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "enum": [
+                                1001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                1002
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                2001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                3001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                5000
+                              ]
+                            }
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "anyOf": [
+                            {
+                              "nullable": true
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "blockers": {
+                                  "type": "array",
+                                  "items": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "AUX_CURRENT_REFERENCE"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string",
+                                            "enum": [
+                                              "vehicle"
+                                            ]
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "field": {
+                                            "type": "string",
+                                            "enum": [
+                                              "carrier"
+                                            ]
+                                          },
+                                          "approvalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "entity",
+                                          "objectId",
+                                          "field",
+                                          "approvalEntryId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "AUX_REFERENCE"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string",
+                                            "enum": [
+                                              "operating-entity",
+                                              "employee"
+                                            ]
+                                          },
+                                          "objectId": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "entity",
+                                          "objectId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "SUBMISSION_REFERENCE"
+                                            ]
+                                          },
+                                          "field": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "expectedApprovalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "currentApprovalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "field",
+                                          "objectId",
+                                          "expectedApprovalEntryId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "PRODUCT_REFERENCE",
+                                              "CUSTOMER_REFERENCE"
+                                            ]
+                                          },
+                                          "domain": {
+                                            "type": "string",
+                                            "enum": [
+                                              "dcl",
+                                              "vou",
+                                              "acc"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string"
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "approvalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "field": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "domain",
+                                          "entity",
+                                          "objectId",
+                                          "approvalEntryId",
+                                          "field"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "blockers"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dcl/customer/attachment-stage": {
       "post": {
         "requestBody": {
           "content": {
@@ -60762,7 +61149,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -60825,7 +61212,7 @@
         }
       }
     },
-    "/bob/customer/attachment-cleanup": {
+    "/dcl/customer/attachment-cleanup": {
       "post": {
         "requestBody": {
           "content": {
@@ -61062,7 +61449,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -61125,7 +61512,7 @@
         }
       }
     },
-    "/bob/product/submission-query": {
+    "/dcl/product/submission-query": {
       "post": {
         "requestBody": {
           "content": {
@@ -61641,7 +62028,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -61704,7 +62091,7 @@
         }
       }
     },
-    "/bob/product/submission-get": {
+    "/dcl/product/submission-get": {
       "post": {
         "requestBody": {
           "content": {
@@ -62470,7 +62857,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -62542,6 +62929,11 @@
                 "type": "object",
                 "properties": {
                   "subjectId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
                     "type": "string",
                     "minLength": 26,
                     "maxLength": 26
@@ -63310,7 +63702,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -63689,7 +64081,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -63752,7 +64144,7 @@
         }
       }
     },
-    "/bob/product/submit-new": {
+    "/dcl/product/submit-new": {
       "post": {
         "requestBody": {
           "content": {
@@ -64966,7 +65358,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -65029,7 +65421,7 @@
         }
       }
     },
-    "/bob/product/submit-change": {
+    "/dcl/product/submit-change": {
       "post": {
         "requestBody": {
           "content": {
@@ -66243,7 +66635,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -66306,7 +66698,7 @@
         }
       }
     },
-    "/bob/product/approve": {
+    "/dcl/product/approve": {
       "post": {
         "requestBody": {
           "content": {
@@ -67078,7 +67470,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -67141,7 +67533,7 @@
         }
       }
     },
-    "/bob/product/reject": {
+    "/dcl/product/reject": {
       "post": {
         "requestBody": {
           "content": {
@@ -67919,7 +68311,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -67982,7 +68374,7 @@
         }
       }
     },
-    "/bob/product/unreject": {
+    "/dcl/product/unreject": {
       "post": {
         "requestBody": {
           "content": {
@@ -68754,7 +69146,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -68817,7 +69209,7 @@
         }
       }
     },
-    "/bob/product/unapprove": {
+    "/dcl/product/unapprove": {
       "post": {
         "requestBody": {
           "content": {
@@ -69595,7 +69987,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -69658,7 +70050,7 @@
         }
       }
     },
-    "/bob/product/delete": {
+    "/dcl/product/delete": {
       "post": {
         "requestBody": {
           "content": {
@@ -69921,7 +70313,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -69984,7 +70376,7 @@
         }
       }
     },
-    "/bob/supplier/submission-query": {
+    "/dcl/supplier/submission-query": {
       "post": {
         "requestBody": {
           "content": {
@@ -70490,7 +70882,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -70553,7 +70945,7 @@
         }
       }
     },
-    "/bob/supplier/submission-get": {
+    "/dcl/supplier/submission-get": {
       "post": {
         "requestBody": {
           "content": {
@@ -71076,7 +71468,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -71148,6 +71540,11 @@
                 "type": "object",
                 "properties": {
                   "subjectId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
                     "type": "string",
                     "minLength": 26,
                     "maxLength": 26
@@ -71673,7 +72070,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -72052,7 +72449,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -72115,7 +72512,7 @@
         }
       }
     },
-    "/bob/supplier/submit-new": {
+    "/dcl/supplier/submit-new": {
       "post": {
         "requestBody": {
           "content": {
@@ -72843,7 +73240,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -72906,7 +73303,7 @@
         }
       }
     },
-    "/bob/supplier/submit-change": {
+    "/dcl/supplier/submit-change": {
       "post": {
         "requestBody": {
           "content": {
@@ -73634,7 +74031,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -73697,7 +74094,7 @@
         }
       }
     },
-    "/bob/supplier/approve": {
+    "/dcl/supplier/approve": {
       "post": {
         "requestBody": {
           "content": {
@@ -74226,7 +74623,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -74289,7 +74686,7 @@
         }
       }
     },
-    "/bob/supplier/reject": {
+    "/dcl/supplier/reject": {
       "post": {
         "requestBody": {
           "content": {
@@ -74824,7 +75221,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -74887,7 +75284,7 @@
         }
       }
     },
-    "/bob/supplier/unreject": {
+    "/dcl/supplier/unreject": {
       "post": {
         "requestBody": {
           "content": {
@@ -75416,7 +75813,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -75479,7 +75876,7 @@
         }
       }
     },
-    "/bob/supplier/unapprove": {
+    "/dcl/supplier/unapprove": {
       "post": {
         "requestBody": {
           "content": {
@@ -76014,7 +76411,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -76077,7 +76474,7 @@
         }
       }
     },
-    "/bob/supplier/delete": {
+    "/dcl/supplier/delete": {
       "post": {
         "requestBody": {
           "content": {
@@ -76340,7 +76737,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -76403,7 +76800,7 @@
         }
       }
     },
-    "/bob/other-unit/submission-query": {
+    "/dcl/other-unit/submission-query": {
       "post": {
         "requestBody": {
           "content": {
@@ -76909,7 +77306,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -76972,7 +77369,7 @@
         }
       }
     },
-    "/bob/other-unit/submission-get": {
+    "/dcl/other-unit/submission-get": {
       "post": {
         "requestBody": {
           "content": {
@@ -77467,7 +77864,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -77539,6 +77936,11 @@
                 "type": "object",
                 "properties": {
                   "subjectId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
                     "type": "string",
                     "minLength": 26,
                     "maxLength": 26
@@ -78036,7 +78438,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -78415,7 +78817,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -78478,7 +78880,7 @@
         }
       }
     },
-    "/bob/other-unit/submit-new": {
+    "/dcl/other-unit/submit-new": {
       "post": {
         "requestBody": {
           "content": {
@@ -79150,7 +79552,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -79213,7 +79615,7 @@
         }
       }
     },
-    "/bob/other-unit/submit-change": {
+    "/dcl/other-unit/submit-change": {
       "post": {
         "requestBody": {
           "content": {
@@ -79885,7 +80287,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -79948,7 +80350,7 @@
         }
       }
     },
-    "/bob/other-unit/approve": {
+    "/dcl/other-unit/approve": {
       "post": {
         "requestBody": {
           "content": {
@@ -80449,7 +80851,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -80512,7 +80914,7 @@
         }
       }
     },
-    "/bob/other-unit/reject": {
+    "/dcl/other-unit/reject": {
       "post": {
         "requestBody": {
           "content": {
@@ -81019,7 +81421,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -81082,7 +81484,7 @@
         }
       }
     },
-    "/bob/other-unit/unreject": {
+    "/dcl/other-unit/unreject": {
       "post": {
         "requestBody": {
           "content": {
@@ -81583,7 +81985,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -81646,7 +82048,7 @@
         }
       }
     },
-    "/bob/other-unit/unapprove": {
+    "/dcl/other-unit/unapprove": {
       "post": {
         "requestBody": {
           "content": {
@@ -82153,7 +82555,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -82216,7 +82618,7 @@
         }
       }
     },
-    "/bob/other-unit/delete": {
+    "/dcl/other-unit/delete": {
       "post": {
         "requestBody": {
           "content": {
@@ -82479,7 +82881,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -82542,7 +82944,7 @@
         }
       }
     },
-    "/bob/sales-partner/submission-query": {
+    "/dcl/sales-partner/submission-query": {
       "post": {
         "requestBody": {
           "content": {
@@ -83048,7 +83450,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -83111,7 +83513,7 @@
         }
       }
     },
-    "/bob/sales-partner/submission-get": {
+    "/dcl/sales-partner/submission-get": {
       "post": {
         "requestBody": {
           "content": {
@@ -83551,7 +83953,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -83623,6 +84025,11 @@
                 "type": "object",
                 "properties": {
                   "subjectId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "submissionId": {
                     "type": "string",
                     "minLength": 26,
                     "maxLength": 26
@@ -84065,7 +84472,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -84444,7 +84851,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -84507,7 +84914,7 @@
         }
       }
     },
-    "/bob/sales-partner/submit-new": {
+    "/dcl/sales-partner/submit-new": {
       "post": {
         "requestBody": {
           "content": {
@@ -85069,7 +85476,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -85132,7 +85539,7 @@
         }
       }
     },
-    "/bob/sales-partner/submit-change": {
+    "/dcl/sales-partner/submit-change": {
       "post": {
         "requestBody": {
           "content": {
@@ -85694,7 +86101,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -85757,7 +86164,7 @@
         }
       }
     },
-    "/bob/sales-partner/approve": {
+    "/dcl/sales-partner/approve": {
       "post": {
         "requestBody": {
           "content": {
@@ -86203,7 +86610,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -86266,7 +86673,7 @@
         }
       }
     },
-    "/bob/sales-partner/reject": {
+    "/dcl/sales-partner/reject": {
       "post": {
         "requestBody": {
           "content": {
@@ -86718,7 +87125,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -86781,7 +87188,7 @@
         }
       }
     },
-    "/bob/sales-partner/unreject": {
+    "/dcl/sales-partner/unreject": {
       "post": {
         "requestBody": {
           "content": {
@@ -87227,7 +87634,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -87290,7 +87697,7 @@
         }
       }
     },
-    "/bob/sales-partner/unapprove": {
+    "/dcl/sales-partner/unapprove": {
       "post": {
         "requestBody": {
           "content": {
@@ -87742,7 +88149,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]
@@ -87805,7 +88212,7 @@
         }
       }
     },
-    "/bob/sales-partner/delete": {
+    "/dcl/sales-partner/delete": {
       "post": {
         "requestBody": {
           "content": {
@@ -88068,7 +88475,7 @@
                                           "domain": {
                                             "type": "string",
                                             "enum": [
-                                              "bob",
+                                              "dcl",
                                               "vou",
                                               "acc"
                                             ]

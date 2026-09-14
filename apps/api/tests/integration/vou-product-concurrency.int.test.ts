@@ -1,3 +1,4 @@
+import { insertArchiveObjects } from '../fixtures/archive-objects.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
@@ -12,7 +13,7 @@ import {
   type AuxWriteData,
 } from '../../src/aux/service.ts'
 import { createDatabase } from '../../src/db/database.ts'
-import { BobArchiveService } from '../../src/bob/archives.ts'
+import { DclArchiveService } from '../../src/dcl/archives.ts'
 import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { VouService } from '../../src/vou/service.ts'
 
@@ -80,7 +81,7 @@ test('VOU product adoption serializes with BOB approval without cross-subject ad
   const observer = new pg.Client({
     connectionString: databaseUrlFor(`vou-product-observer-${suffix}`),
   })
-  const archives = new BobArchiveService(dclDb)
+  const archives = new DclArchiveService(dclDb)
   const vou = new VouService(vouDb, {
     acc: { async apply() {} },
     wfl: { async apply() {} },
@@ -164,7 +165,7 @@ test('VOU product adoption serializes with BOB approval without cross-subject ad
         .where('id', 'in', Object.values(directSubjectIds))
         .execute()
       await db
-        .deleteFrom('bob_subjects')
+        .deleteFrom('dcl_subjects')
         .where('id', 'in', [...productIds, ...Object.values(directSubjectIds)])
         .execute()
       await db
@@ -414,25 +415,22 @@ test('VOU product adoption serializes with BOB approval without cross-subject ad
   const codeSeed = Math.floor(Math.random() * 10_000)
   const code = (prefix: string, offset: number) =>
     `${prefix}-${String((codeSeed + offset) % 10_000).padStart(4, '0')}`
-  await db
-    .insertInto('bob_subjects')
-    .values([
-      {
-        id: directSubjectIds.customer,
-        entity: 'customer',
-        code: code('CUS', 0),
-        created_at: now,
-        created_by: actorId,
-      },
-    ])
-    .execute()
+  await insertArchiveObjects(db, [
+    {
+      id: directSubjectIds.customer,
+      entity: 'customer',
+      code: code('CUS', 0),
+      created_at: now,
+      created_by: actorId,
+    },
+  ])
   await db
     .insertInto('approval_entries')
     .values(
       [[directApprovalIds.customer, 'customer', directSubjectIds.customer]].map(
         ([id, entity, subjectId]) => ({
           id: id!,
-          domain: 'bob',
+          domain: 'dcl',
           entity: entity!,
           subject_id: subjectId!,
           version_no: 1,
@@ -449,7 +447,7 @@ test('VOU product adoption serializes with BOB approval without cross-subject ad
     )
     .execute()
   await db
-    .insertInto('bob_customer_versions')
+    .insertInto('dcl_customer_versions')
     .values({
       approval_entry_id: directApprovalIds.customer,
       kind: 'ENTERPRISE',
@@ -457,7 +455,7 @@ test('VOU product adoption serializes with BOB approval without cross-subject ad
     })
     .execute()
   await db
-    .insertInto('bob_customer_subunit_roots')
+    .insertInto('dcl_customer_subunit_roots')
     .values({
       subunit_id: customerSubunitId,
       customer_id: directSubjectIds.customer,
@@ -465,7 +463,7 @@ test('VOU product adoption serializes with BOB approval without cross-subject ad
     })
     .execute()
   await db
-    .insertInto('bob_customer_version_subunits')
+    .insertInto('dcl_customer_version_subunits')
     .values({
       customer_approval_entry_id: directApprovalIds.customer,
       subunit_id: customerSubunitId,
@@ -522,9 +520,10 @@ test('VOU product adoption serializes with BOB approval without cross-subject ad
 
   await blocker.query('BEGIN')
   blockerTransactionOpen = true
-  await blocker.query('SELECT id FROM bob_subjects WHERE id = $1 FOR UPDATE', [
-    blockingProductId,
-  ])
+  await blocker.query(
+    'SELECT id FROM bob_archive_objects WHERE id = $1 FOR UPDATE',
+    [blockingProductId],
+  )
   const vouSubmission = vou.submit(
     'sale-order',
     'submit-new',
@@ -539,7 +538,7 @@ test('VOU product adoption serializes with BOB approval without cross-subject ad
     'vou-product-concurrent-submit',
   )
   let review:
-    Promise<Awaited<ReturnType<BobArchiveService['review']>>> | undefined
+    Promise<Awaited<ReturnType<DclArchiveService['review']>>> | undefined
   try {
     await waitForLock(observer, vouApplication)
     review = archives.review(

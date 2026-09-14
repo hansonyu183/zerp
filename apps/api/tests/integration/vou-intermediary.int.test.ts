@@ -184,8 +184,8 @@ for (const unitPrice of ['0.00', '1.00'])
   test(`signed sales at ${unitPrice} use frozen pieces, FIFO collection and proportional posted reversals`, async (context) => {
     await withWflDatabase(async (db) => {
       const fixture = await seedVouCatalogFixture(db)
-      const { BobArchiveService } = await import('../../src/bob/archives.ts')
-      const bob = new BobArchiveService(db)
+      const { DclArchiveService } = await import('../../src/dcl/archives.ts')
+      const bob = new DclArchiveService(db)
       const productId = fixture.salePayload.productLines[0]!.product.objectId
       const product = await bob.get('product', productId, fixture.actor)
       const versionId = ulid()

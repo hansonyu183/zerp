@@ -1,10 +1,16 @@
 import { processDefinitionPage } from '../definitions/process-definition.ts'
-import { productPage } from '../definitions/product.ts'
-import { customerPage } from '../definitions/customer.ts'
-import { salesPartnerPage } from '../definitions/sales-partner.ts'
-import { otherUnitPage } from '../definitions/other-unit.ts'
+import { productPage, productChangesPage } from '../definitions/product.ts'
+import { customerPage, customerChangesPage } from '../definitions/customer.ts'
+import {
+  salesPartnerPage,
+  salesPartnerChangesPage,
+} from '../definitions/sales-partner.ts'
+import {
+  otherUnitPage,
+  otherUnitChangesPage,
+} from '../definitions/other-unit.ts'
 import type { VersionDefinition } from '../components/version-page/definition.ts'
-import { supplierPage } from '../definitions/supplier.ts'
+import { supplierPage, supplierChangesPage } from '../definitions/supplier.ts'
 import { fundAccountPage } from '../definitions/fund-account.ts'
 import { warehousePage } from '../definitions/warehouse.ts'
 import { operatingEntityPage } from '../definitions/operating-entity.ts'
@@ -211,10 +217,22 @@ export const targetResourceRegistry = createResourceRegistry(
       useCaseKey: 'aux/assets-maintenance',
     },
     {
+      domain: 'dcl',
+      entity: 'customer',
+      definition: customerChangesPage,
+      useCaseKey: 'dcl/customer-management',
+    },
+    {
       domain: 'bob',
       entity: 'customer',
       definition: customerPage,
       useCaseKey: 'bob/customer-management',
+    },
+    {
+      domain: 'dcl',
+      entity: 'product',
+      definition: productChangesPage,
+      useCaseKey: 'dcl/product-management',
     },
     {
       domain: 'bob',
@@ -223,16 +241,34 @@ export const targetResourceRegistry = createResourceRegistry(
       useCaseKey: 'bob/product-management',
     },
     {
+      domain: 'dcl',
+      entity: 'supplier',
+      definition: supplierChangesPage,
+      useCaseKey: 'dcl/supplier-management',
+    },
+    {
       domain: 'bob',
       entity: 'supplier',
       definition: supplierPage,
       useCaseKey: 'bob/supplier-management',
     },
     {
+      domain: 'dcl',
+      entity: 'other-unit',
+      definition: otherUnitChangesPage,
+      useCaseKey: 'dcl/other-unit-management',
+    },
+    {
       domain: 'bob',
       entity: 'other-unit',
       definition: otherUnitPage,
       useCaseKey: 'bob/other-unit-management',
+    },
+    {
+      domain: 'dcl',
+      entity: 'sales-partner',
+      definition: salesPartnerChangesPage,
+      useCaseKey: 'dcl/sales-partner-management',
     },
     {
       domain: 'bob',

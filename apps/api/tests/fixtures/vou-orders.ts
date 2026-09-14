@@ -6,7 +6,7 @@ import type { DB } from '../../src/db/generated.ts'
 import { TargetBootstrapService } from '../../src/app/bootstrap.ts'
 import { hashPassword } from '../../src/app/session.ts'
 import { AuxService } from '../../src/aux/service.ts'
-import { BobArchiveService } from '../../src/bob/archives.ts'
+import { DclArchiveService } from '../../src/dcl/archives.ts'
 import { VouService } from '../../src/vou/service.ts'
 import {
   saleOrderPayload,
@@ -48,7 +48,7 @@ export async function seedOrderListFixture(
     noQuery = await principal([
       ...entities.map((entity) => `/vou/${entity}/approve`),
     ])
-  const bob = new BobArchiveService(db)
+  const bob = new DclArchiveService(db)
   const references = await seedSaleOrderReferences(
     bob,
     new AuxService(db),

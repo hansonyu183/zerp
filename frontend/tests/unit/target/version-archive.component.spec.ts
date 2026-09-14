@@ -60,7 +60,7 @@ beforeEach(() => {
   const session = useTargetSession()
   session.user = { id: 'maintainer', code: 'maintainer', name: '维护者' }
   session.csrfToken = 'test-csrf'
-  session.apiPaths = ['/bob/supplier/submit-new']
+  session.apiPaths = ['/dcl/supplier/submit-new']
 })
 async function click(
   wrapper: VueWrapper,
@@ -79,7 +79,7 @@ it('keeps an unknown submission locked after closing its Draft without query per
     new TypeError('network interrupted'),
   )
   const wrapper = mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'supplier' },
+    props: { domain: 'dcl', entity: 'supplier' },
     global: { stubs },
   })
   await flushPromises()
@@ -112,7 +112,7 @@ const supplierSnapshot = (name: string) => ({
   settlementMethod: null,
   defaultPurchaser: null,
 })
-it('keeps current and candidate snapshots separate and selects a historical difference before approval', async () => {
+it('keeps current and candidate snapshots separate and gives DCL no object history before approval', async () => {
   const session = useTargetSession()
   session.apiPaths = [
     'query',
@@ -122,7 +122,10 @@ it('keeps current and candidate snapshots separate and selects a historical diff
     'versions',
     'audit-history',
     'approve',
-  ].map((action) => `/bob/supplier/${action}`)
+  ].map(
+    (action) =>
+      `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/supplier/${action}`,
+  )
   const approved = {
     entity: 'supplier',
     subjectId: 'supplier',
@@ -191,7 +194,7 @@ it('keeps current and candidate snapshots separate and selects a historical diff
     availableApprovalActions: [],
   } as never)
   const wrapper = mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'supplier' },
+    props: { domain: 'dcl', entity: 'supplier' },
     global: { stubs },
   })
   await flushPromises()
@@ -206,8 +209,8 @@ it('keeps current and candidate snapshots separate and selects a historical diff
     submissionId: 'v2',
   })
   expect(wrapper.text()).toContain('候选乙')
-  expect(wrapper.text()).toContain('版本差异')
-  expect(wrapper.text()).toContain('正式甲')
+  expect(wrapper.text()).not.toContain('版本差异')
+  expect(api.queryTargetSupplierVersions).not.toHaveBeenCalled()
   await click(wrapper, '批准')
   expect(api.approveTargetSupplier).toHaveBeenCalledWith('test-csrf', {
     subjectId: 'supplier',
@@ -221,7 +224,7 @@ it('keeps current and candidate snapshots separate and selects a historical diff
 
 it('loads independent supplier reference sources and submits their adopted snapshots', async () => {
   useTargetSession().apiPaths = [
-    '/bob/supplier/submit-new',
+    '/dcl/supplier/submit-new',
     '/aux/operating-entity/query',
     '/aux/employee/query',
   ]
@@ -256,7 +259,7 @@ it('loads independent supplier reference sources and submits their adopted snaps
   )
   vi.mocked(api.submitNewTargetSupplier).mockResolvedValue({} as never)
   const wrapper = mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'supplier' },
+    props: { domain: 'dcl', entity: 'supplier' },
     global: { stubs },
   })
   await flushPromises()
@@ -292,11 +295,11 @@ it('loads independent supplier reference sources and submits their adopted snaps
 
 it('locates invalid remittance rows in the registered customer Draft and discards it on close', async () => {
   useTargetSession().apiPaths = [
-    '/bob/customer/submit-new',
-    '/bob/customer/save-subunits',
+    '/dcl/customer/submit-new',
+    '/dcl/customer/save-subunits',
   ]
   const wrapper = mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'customer' },
+    props: { domain: 'dcl', entity: 'customer' },
     global: { stubs },
   })
   await flushPromises()
@@ -373,7 +376,7 @@ it('opening a new product candidate adopts current material versions without cha
   useTargetSession().apiPaths = [
     '/bob/product/query',
     '/bob/product/versions',
-    '/bob/product/submit-change',
+    '/dcl/product/submit-change',
   ]
   const { data, unit } = productFacts()
   vi.mocked(api.queryTargetProducts).mockResolvedValue({
@@ -416,7 +419,7 @@ it('opening a new product candidate adopts current material versions without cha
   )
   vi.mocked(api.submitChangeTargetProduct).mockResolvedValue({} as never)
   const wrapper = mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'product' },
+    props: { domain: 'dcl', entity: 'product' },
     global: { stubs },
   })
   await flushPromises()
@@ -523,7 +526,8 @@ it('chooses an authorized real trial document, shows evaluation results, and inv
 
 function authorizeSupplier(...actions: string[]) {
   useTargetSession().apiPaths = actions.map(
-    (action) => `/bob/supplier/${action}`,
+    (action) =>
+      `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/supplier/${action}`,
   )
 }
 const supplierRow = () => ({
@@ -551,9 +555,9 @@ const supplierVersion = (
   canDelete: status !== 'APPROVED',
   snapshot: supplierSnapshot(id === 'v1' ? '正式甲' : '候选乙'),
 })
-function supplierHost() {
+function supplierHost(domain: 'bob' | 'dcl' = 'dcl') {
   return mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'supplier' },
+    props: { domain, entity: 'supplier' },
     global: { stubs },
   })
 }
@@ -576,7 +580,7 @@ it('uses the exact current revision for enablement and preserves the applied que
     enabled: false,
     revision: '9007199254740994',
   })
-  const wrapper = supplierHost()
+  const wrapper = supplierHost('bob')
   await flushPromises()
   await wrapper.get('[aria-label="编码、拼音或名称"]').setValue('已提交关键词')
   await wrapper.get('form').trigger('submit')
@@ -613,7 +617,7 @@ it('shows a vehicle blocker and keeps formal state without replaying disable', a
       ],
     }),
   )
-  const wrapper = supplierHost()
+  const wrapper = supplierHost('bob')
   await flushPromises()
   await click(wrapper, '停用')
   expect(wrapper.text()).toContain('启用车辆（vehicle）')
@@ -665,7 +669,7 @@ it('retains write success when its list refresh fails and never repeats the muta
     enabled: false,
     revision: '9007199254740994',
   })
-  const wrapper = supplierHost()
+  const wrapper = supplierHost('bob')
   await flushPromises()
   await click(wrapper, '停用')
   expect(wrapper.text()).toContain('操作已成功，但列表刷新失败')
@@ -674,7 +678,12 @@ it('retains write success when its list refresh fails and never repeats the muta
   wrapper.unmount()
 })
 it('lets versions permission select real returned snapshots without a submission-get request', async () => {
-  authorizeSupplier('submission-query', 'versions')
+  authorizeSupplier('query', 'get', 'versions')
+  vi.mocked(api.queryTargetSuppliers).mockResolvedValue({
+    items: [supplierRow()],
+    total: 1,
+  } as never)
+  vi.mocked(api.getTargetSupplier).mockResolvedValue(supplierRow() as never)
   const first = supplierVersion(),
     next = supplierVersion('v2', 'PENDING')
   vi.mocked(api.queryTargetSupplierSubmissions).mockResolvedValue({
@@ -691,11 +700,14 @@ it('lets versions permission select real returned snapshots without a submission
   vi.mocked(api.queryTargetSupplierVersions).mockResolvedValue({
     items: [first, next],
   } as never)
-  const wrapper = supplierHost()
+  const wrapper = supplierHost('bob')
   await flushPromises()
-  await click(wrapper, '提交记录')
   await click(wrapper, '查看')
+  await click(wrapper, '查看版本 2')
   expect(wrapper.text()).toContain('候选乙')
+  expect(
+    wrapper.findAll('button').some((button) => button.text() === '批准'),
+  ).toBe(false)
   await click(wrapper, '查看版本 1')
   expect(wrapper.text()).toContain('正式甲')
   expect(api.getTargetSupplierSubmission).not.toHaveBeenCalled()
@@ -740,9 +752,9 @@ it('keeps a versions read failure visible inside the change dialog', async () =>
   wrapper.unmount()
 })
 it('requires customer subunit capability for create and preserves root-only changes', async () => {
-  useTargetSession().apiPaths = ['/bob/customer/submit-new']
+  useTargetSession().apiPaths = ['/dcl/customer/submit-new']
   const wrapper = mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'customer' },
+    props: { domain: 'dcl', entity: 'customer' },
     global: { stubs },
   })
   await flushPromises()
@@ -757,10 +769,10 @@ it.each([
 ] as const)(
   'submits %s with no invented operating-entity minimum',
   async (entity, title, method) => {
-    useTargetSession().apiPaths = [`/bob/${entity}/submit-new`]
+    useTargetSession().apiPaths = [`/dcl/${entity}/submit-new`]
     vi.mocked(api[method]).mockResolvedValue({} as never)
     const wrapper = mount(ResourceHost, {
-      props: { domain: 'bob', entity },
+      props: { domain: 'dcl', entity },
       global: { stubs },
     })
     await flushPromises()
@@ -874,7 +886,8 @@ const customerSnapshot = () => ({
 })
 it('preserves exact existing subunits in a root-only customer change', async () => {
   useTargetSession().apiPaths = ['query', 'versions', 'submit-change'].map(
-    (action) => `/bob/customer/${action}`,
+    (action) =>
+      `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
   )
   const data = customerSnapshot()
   vi.mocked(api.queryTargetCustomers).mockResolvedValue({
@@ -904,7 +917,7 @@ it('preserves exact existing subunits in a root-only customer change', async () 
   } as never)
   vi.mocked(api.submitChangeTargetCustomer).mockResolvedValue({} as never)
   const wrapper = mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'customer' },
+    props: { domain: 'dcl', entity: 'customer' },
     global: { stubs },
   })
   await flushPromises()
@@ -933,7 +946,8 @@ it('preserves exact existing subunits in a root-only customer change', async () 
 })
 it('clones customer data with fresh subunit identities and no inherited attachments', async () => {
   useTargetSession().apiPaths = ['query', 'submit-new', 'save-subunits'].map(
-    (action) => `/bob/customer/${action}`,
+    (action) =>
+      `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
   )
   const data = {
     ...customerSnapshot(),
@@ -955,7 +969,7 @@ it('clones customer data with fresh subunit identities and no inherited attachme
   } as never)
   vi.mocked(api.submitNewTargetCustomer).mockResolvedValue({} as never)
   const wrapper = mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'customer' },
+    props: { domain: 'dcl', entity: 'customer' },
     global: { stubs },
   })
   await flushPromises()
@@ -979,7 +993,10 @@ it('keeps files local until submit, retries a failed stage with the same identit
     'versions',
     'submit-change',
     'attachment-stage',
-  ].map((action) => `/bob/customer/${action}`)
+  ].map(
+    (action) =>
+      `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
+  )
   const data = customerSnapshot()
   vi.mocked(api.queryTargetCustomers).mockResolvedValue({
     items: [
@@ -1004,7 +1021,7 @@ it('keeps files local until submit, retries a failed stage with the same identit
     .mockResolvedValueOnce({} as never)
   vi.mocked(api.submitChangeTargetCustomer).mockResolvedValue({} as never)
   const wrapper = mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'customer' },
+    props: { domain: 'dcl', entity: 'customer' },
     global: { stubs },
   })
   await flushPromises()
@@ -1237,11 +1254,14 @@ it('opens WFL current detail without any submission permission', async () => {
 
 it('renders normalized customer pricing changes for an unnumbered candidate against the approved version', async () => {
   useTargetSession().apiPaths = [
-    'submission-query',
-    'submission-get',
+    'query',
+    'get',
     'versions',
     'audit-history',
-  ].map((action) => `/bob/customer/${action}`)
+  ].map(
+    (action) =>
+      `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
+  )
   const before = {
     ...customerSnapshot(),
     subunits: customerSnapshot().subunits.map((sub) => ({
@@ -1322,13 +1342,25 @@ it('renders normalized customer pricing changes for an unnumbered candidate agai
       reason: null,
     },
   ] as never)
+  const row = {
+    objectId: 'customer',
+    code: 'C01',
+    name: '客户',
+    enabled: true,
+    data: before,
+  }
+  vi.mocked(api.queryTargetCustomers).mockResolvedValue({
+    items: [row],
+    total: 1,
+  } as never)
+  vi.mocked(api.getTargetCustomer).mockResolvedValue(row as never)
   const wrapper = mount(ResourceHost, {
     props: { domain: 'bob', entity: 'customer' },
     global: { stubs },
   })
   await flushPromises()
-  await click(wrapper, '提交记录')
   await click(wrapper, '查看')
+  await click(wrapper, '查看版本 待分配')
   const text = wrapper.get('[aria-label="客户定价差异"]').text()
   expect(text).toContain('口径变化按单价 1.00按订单金额 1.00')
   expect(text).toContain('删除项删除')
@@ -1340,7 +1372,8 @@ it('renders normalized customer pricing changes for an unnumbered candidate agai
 })
 it('downloads only the exact adopted attachment from the authorized current customer', async () => {
   useTargetSession().apiPaths = ['query', 'get', 'attachment-read'].map(
-    (action) => `/bob/customer/${action}`,
+    (action) =>
+      `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
   )
   const data = {
     ...customerSnapshot(),
@@ -1388,11 +1421,15 @@ it('downloads only the exact adopted attachment from the authorized current cust
     await flushPromises()
     await click(wrapper, '查看')
     await click(wrapper, '下载附件')
-    expect(api.readTargetCustomerAttachment).toHaveBeenCalledWith('test-csrf', {
-      source: 'current',
-      objectId: 'customer',
-      fileId: 'file',
-    })
+    expect(api.readTargetCustomerAttachment).toHaveBeenCalledWith(
+      'test-csrf',
+      {
+        source: 'current',
+        objectId: 'customer',
+        fileId: 'file',
+      },
+      'bob',
+    )
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:test')
   } finally {
     wrapper.unmount()
@@ -1421,29 +1458,18 @@ it('never offers a server action without its exact permission and retains an unk
     enabled: false,
     revision: '9007199254740996',
   } as never)
-  const wrapper = supplierHost()
+  const wrapper = supplierHost('bob')
   await flushPromises()
   await click(wrapper, '停用')
   await click(wrapper, '核实结果')
   expect(wrapper.text()).toContain('保持锁定')
   expect(api.setTargetSupplierEnabled).toHaveBeenCalledTimes(1)
-  const pending = supplierVersion('v2', 'PENDING')
-  vi.mocked(api.queryTargetSupplierSubmissions).mockResolvedValue({
-    items: [
-      {
-        subjectId: 'supplier',
-        code: 'S1',
-        openCandidate: pending,
-        latestApproved: null,
-      },
-    ],
-    total: 1,
-  } as never)
-  vi.mocked(api.getTargetSupplierSubmission).mockResolvedValue(pending as never)
-  await click(wrapper, '提交记录')
-  await click(wrapper, '查看')
   expect(
-    wrapper.findAll('button').some((button) => button.text() === '批准'),
+    wrapper
+      .findAll('button')
+      .some((button) =>
+        ['提交记录', '新增', '提交变更', '批准'].includes(button.text()),
+      ),
   ).toBe(false)
   expect(wrapper.text()).toContain('保持写入锁定')
   wrapper.unmount()
@@ -1453,7 +1479,7 @@ it('does not let initial material resolution overwrite a subsequent user choice'
   useTargetSession().apiPaths = [
     '/bob/product/query',
     '/bob/product/versions',
-    '/bob/product/submit-change',
+    '/dcl/product/submit-change',
   ]
   const { data } = productFacts()
   vi.mocked(api.queryTargetProducts).mockResolvedValue({
@@ -1497,7 +1523,7 @@ it('does not let initial material resolution overwrite a subsequent user choice'
     .mockReturnValueOnce(initial.promise)
   vi.mocked(api.submitChangeTargetProduct).mockResolvedValue({} as never)
   const wrapper = mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'product' },
+    props: { domain: 'dcl', entity: 'product' },
     global: { stubs },
   })
   await flushPromises()
@@ -1639,7 +1665,10 @@ it('keeps submission blocked until both independent attachment reads finish and 
     'submit-change',
     'attachment-stage',
     'save-subunits',
-  ].map((action) => `/bob/customer/${action}`)
+  ].map(
+    (action) =>
+      `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
+  )
   const data = customerSnapshot()
   vi.mocked(api.queryTargetCustomers).mockResolvedValue({
     items: [
@@ -1660,7 +1689,7 @@ it('keeps submission blocked until both independent attachment reads finish and 
     ],
   } as never)
   const wrapper = mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'customer' },
+    props: { domain: 'dcl', entity: 'customer' },
     global: { stubs },
   })
   await flushPromises()

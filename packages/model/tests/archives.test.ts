@@ -14,10 +14,10 @@ import {
 const actor: ApprovalActor = {
   id: 'user-1',
   permissions: [
-    '/bob/product/submit-new',
-    '/bob/product/submit-change',
-    '/bob/customer/submit-new',
-    '/bob/sales-partner/submit-new',
+    '/dcl/product/submit-new',
+    '/dcl/product/submit-change',
+    '/dcl/customer/submit-new',
+    '/dcl/sales-partner/submit-new',
   ],
 }
 
@@ -564,7 +564,7 @@ test('rechecks exact submit permission, one open version, latest approval revisi
     prepareProductSubmit(
       {
         ...productCommand,
-        actor: { ...actor, permissions: ['/bob/product/submit-new'] },
+        actor: { ...actor, permissions: ['/dcl/product/submit-new'] },
       },
       productFacts,
     ),

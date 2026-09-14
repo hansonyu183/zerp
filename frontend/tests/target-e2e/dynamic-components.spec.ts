@@ -20,7 +20,7 @@ test('shared mobile cards, form spacing, nested draft cancellation and compact d
     .fill(process.env.TARGET_E2E_PASSWORD!)
   await page.getByRole('button', { name: '登录', exact: true }).click()
   await expect(page.getByLabel('用户编码', { exact: true })).toHaveCount(0)
-  await page.goto('/bob/customer')
+  await page.goto('/dcl/customer')
   for (const width of [375, 599, 600, 1280]) {
     await page.setViewportSize({ width, height: 900 })
     if (width < 600) {

@@ -6,10 +6,15 @@ import type * as api from '../../api.ts'
 import type { WflData } from './wfl-data.ts'
 export type VersionSnapshots = {
   'bob/supplier': api.TargetSupplierSubmitInput['snapshot']
+  'dcl/supplier': api.TargetSupplierSubmitInput['snapshot']
   'bob/other-unit': api.TargetOtherUnitSubmitInput['snapshot']
+  'dcl/other-unit': api.TargetOtherUnitSubmitInput['snapshot']
   'bob/sales-partner': api.TargetSalesPartnerSubmitInput['snapshot']
+  'dcl/sales-partner': api.TargetSalesPartnerSubmitInput['snapshot']
   'bob/customer': api.TargetCustomerSubmitInput['snapshot']
+  'dcl/customer': api.TargetCustomerSubmitInput['snapshot']
   'bob/product': api.TargetProductSubmitInput['snapshot']
+  'dcl/product': api.TargetProductSubmitInput['snapshot']
   'wfl/process-definition': WflData
 }
 export type VersionResource = keyof VersionSnapshots

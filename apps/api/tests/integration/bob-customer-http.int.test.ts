@@ -7,7 +7,7 @@ import { createApp } from '../../src/app.ts'
 import { TargetBootstrapService } from '../../src/app/bootstrap.ts'
 import { hashPassword, SessionService } from '../../src/app/session.ts'
 import { AuxService } from '../../src/aux/service.ts'
-import { BobArchiveService } from '../../src/bob/archives.ts'
+import { DclArchiveService } from '../../src/dcl/archives.ts'
 import { BobService } from '../../src/bob/service.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { loadConfig } from '../../src/platform/config.ts'
@@ -46,13 +46,16 @@ test('Customer HTTP preserves subunit identity, exact snapshots and independent 
     'delete',
     'save-subunits',
   ]
-  const permissions = actions.map((action) => `/bob/customer/${action}`)
+  const permissions = actions.map(
+    (action) =>
+      `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
+  )
   await bootstrap.createE2EPrincipal(submitter, false, permissions)
   await bootstrap.createE2EPrincipal(reviewer, false, permissions)
   context.after(async () => {
     try {
       const subjects = db
-        .selectFrom('bob_subjects')
+        .selectFrom('bob_archive_objects')
         .select('id')
         .where('created_by', '=', submitter.userId)
       await db
@@ -68,7 +71,7 @@ test('Customer HTTP preserves subunit identity, exact snapshots and independent 
         .where('subject_id', 'in', subjects)
         .execute()
       await db
-        .deleteFrom('bob_subjects')
+        .deleteFrom('dcl_subjects')
         .where('created_by', '=', submitter.userId)
         .execute()
       await bootstrap.deleteE2EPrincipal(submitter)
@@ -86,7 +89,7 @@ test('Customer HTTP preserves subunit identity, exact snapshots and independent 
     config,
     session: new SessionService(db, config),
     bob: new BobService(db),
-    bobArchives: new BobArchiveService(db),
+    dclArchives: new DclArchiveService(db),
   })
   const login = async (code: string) => {
     const response = await app.request('/session/auth/signin', {
@@ -106,11 +109,14 @@ test('Customer HTTP preserves subunit identity, exact snapshots and independent 
       cookie: response.headers.getSetCookie()[0]!,
     }
     return async (action: string, input: unknown) => {
-      const response = await app.request(`/bob/customer/${action}`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(input),
-      })
+      const response = await app.request(
+        `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(input),
+        },
+      )
       return response.json()
     }
   }
@@ -169,7 +175,7 @@ test('Customer HTTP preserves subunit identity, exact snapshots and independent 
     )
   ).id
   const customerType = await aux.get('dictionary-item', { id: typeId }, actor)
-  const archives = new BobArchiveService(db)
+  const archives = new DclArchiveService(db)
   const partnerId = ulid(),
     partnerEntry = ulid()
   const trusted = {
@@ -368,7 +374,7 @@ test('Customer HTTP preserves subunit identity, exact snapshots and independent 
       expectedLatestApprovedRevision: approved.data.revision,
       snapshot: { ...approved.data.snapshot, phone: '789' },
     },
-    { id: submitter.userId, permissions: ['/bob/customer/submit-change'] },
+    { id: submitter.userId, permissions: ['/dcl/customer/submit-change'] },
     ulid(),
   )
   assert.deepEqual(

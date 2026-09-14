@@ -14,7 +14,7 @@ import { AccMappingCatalogService } from '../../src/acc/mapping-catalog.ts'
 import { VouOpeningService } from '../../src/vou/opening-service.ts'
 import { VouService } from '../../src/vou/service.ts'
 import { AuxService } from '../../src/aux/service.ts'
-import { BobArchiveService } from '../../src/bob/archives.ts'
+import { DclArchiveService } from '../../src/dcl/archives.ts'
 import { vouPayloadSchemaByEntity } from '../../src/vou/contract.ts'
 import { seedProductionFixture } from './vou-production.ts'
 
@@ -36,7 +36,7 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
   }
   const reviewer = { ...actor, id: fixture.reviewer.userId }
   const aux = new AuxService(db),
-    bob = new BobArchiveService(db)
+    bob = new DclArchiveService(db)
   const {
     warehouse,
     operatingEntity,

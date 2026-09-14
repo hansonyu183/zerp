@@ -1,7 +1,7 @@
 import { approveEmptyIntermediaryMonth } from '../fixtures/vou-intermediary.ts'
 import { VouOpeningService } from '../../src/vou/opening-service.ts'
 import { withWflDatabase } from './wfl-fixture.ts'
-import { BobArchiveService } from '../../src/bob/archives.ts'
+import { DclArchiveService } from '../../src/dcl/archives.ts'
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
 import test from 'node:test'
@@ -169,7 +169,7 @@ function post(
 }
 
 async function seedSaleOrderReferences(
-  bobArchives: BobArchiveService,
+  dclArchives: DclArchiveService,
   aux: AuxService,
   actorId: string,
   reviewerId: string,
@@ -258,7 +258,7 @@ async function seedSaleOrderReferences(
       const { enabled: _enabled, ...content } = snapshot
       snapshot = content
     }
-    const domain = 'bob'
+    const domain = 'dcl'
     const objectId = ulid(),
       approvalEntryId = ulid()
     const input = {
@@ -288,7 +288,7 @@ async function seedSaleOrderReferences(
       )
     const pending = pendingResponse
       ? pendingResponse.data
-      : await bobArchives.submit(
+      : await dclArchives.submit(
           entity,
           'submit-new',
           input,
@@ -316,7 +316,7 @@ async function seedSaleOrderReferences(
       )
     const approved = approvedResponse
       ? approvedResponse.data
-      : await bobArchives.review(
+      : await dclArchives.review(
           entity,
           'approve',
           reviewInput,
@@ -327,7 +327,7 @@ async function seedSaleOrderReferences(
       const readback = await post(
         origin,
         reviewerSession,
-        `/${domain}/${entity}/${domain === 'bob' ? 'submission-get' : 'get'}`,
+        `/${domain}/${entity}/submission-get`,
         { subjectId: objectId },
       )
       assert.equal(readback.code, 0)
@@ -917,7 +917,7 @@ test('WFL definition, current, trial, instance and six actions cross the authent
       acc,
       opening: new VouOpeningService(db, acc),
       wfl,
-      bobArchives: new BobArchiveService(db),
+      dclArchives: new DclArchiveService(db),
       aux,
       logger: {
         info() {},
@@ -939,14 +939,14 @@ test('WFL definition, current, trial, instance and six actions cross the authent
     assert.ok(address && typeof address !== 'string')
     const origin = `http://127.0.0.1:${address.port}`
     const wflPaths = [
-      '/bob/product/submit-new',
-      '/bob/product/approve',
-      '/bob/product/submission-get',
-      '/bob/customer/submit-new',
-      '/bob/customer/save-subunits',
-      '/bob/customer/approve',
+      '/dcl/product/submit-new',
+      '/dcl/product/approve',
+      '/dcl/product/submission-get',
+      '/dcl/customer/submit-new',
+      '/dcl/customer/save-subunits',
+      '/dcl/customer/approve',
       '/bob/customer/get',
-      '/bob/customer/submission-get',
+      '/dcl/customer/submission-get',
       '/wfl/process-definition/submit-new',
       '/wfl/process-definition/submission-query',
       '/wfl/process-definition/submission-get',
@@ -1007,7 +1007,7 @@ test('WFL definition, current, trial, instance and six actions cross the authent
       permissions: allPermissions,
     }
     refs = await seedSaleOrderReferences(
-      new BobArchiveService(db),
+      new DclArchiveService(db),
       aux,
       submitter.id,
       reviewer.id,

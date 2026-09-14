@@ -9,7 +9,7 @@ import { createApp } from '../../src/app.ts'
 import { TargetBootstrapService } from '../../src/app/bootstrap.ts'
 import { hashPassword, SessionService } from '../../src/app/session.ts'
 import { AuxService } from '../../src/aux/service.ts'
-import { BobArchiveService } from '../../src/bob/archives.ts'
+import { DclArchiveService } from '../../src/dcl/archives.ts'
 import { BobService } from '../../src/bob/service.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { loadConfig } from '../../src/platform/config.ts'
@@ -34,6 +34,12 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
     username: `bob-review-${suffix}`,
     passwordHash: await hashPassword(password),
   }
+  const historyReader = {
+    userId: ulid(),
+    roleId: ulid(),
+    username: `history-${suffix}`,
+    passwordHash: await hashPassword(password),
+  }
   const entities = ['supplier', 'other-unit', 'sales-partner'] as const
   const auxPaths = ['vehicle', 'dictionary-type', 'dictionary-item'].flatMap(
     (entity) =>
@@ -49,12 +55,14 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
   ]
   const submitPaths = entities.flatMap((entity) =>
     [...read, 'submit-new', 'submit-change', 'enable', 'disable', 'delete'].map(
-      (action) => `/bob/${entity}/${action}`,
+      (action) =>
+        `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable'].includes(action) ? 'bob' : 'dcl'}/${entity}/${action}`,
     ),
   )
   const reviewPaths = entities.flatMap((entity) =>
     [...read, 'approve', 'unapprove', 'reject', 'unreject'].map(
-      (action) => `/bob/${entity}/${action}`,
+      (action) =>
+        `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable'].includes(action) ? 'bob' : 'dcl'}/${entity}/${action}`,
     ),
   )
   await bootstrap.createE2EPrincipal(submitter, false, [
@@ -62,11 +70,17 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
     ...auxPaths,
   ])
   await bootstrap.createE2EPrincipal(reviewer, false, reviewPaths)
+  await bootstrap.createE2EPrincipal(
+    historyReader,
+    false,
+    entities.map((entity) => `/bob/${entity}/versions`),
+  )
   context.after(async () => {
     try {
       await bootstrap.deleteE2EWarehouseFixtures(submitter.userId)
       await bootstrap.deleteE2EPrincipal(submitter)
       await bootstrap.deleteE2EPrincipal(reviewer)
+      await bootstrap.deleteE2EPrincipal(historyReader)
     } finally {
       await db.destroy()
     }
@@ -80,7 +94,7 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
     config,
     session: new SessionService(db, config),
     bob: new BobService(db),
-    bobArchives: new BobArchiveService(db),
+    dclArchives: new DclArchiveService(db),
   })
   async function client(code: string) {
     const response = await app.request('/session/auth/signin', {
@@ -110,6 +124,7 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
   }
   const write = await client(submitter.username),
     review = await client(reviewer.username)
+  const historyOnly = await client(historyReader.username)
   for (const entity of entities) {
     const subjectId = ulid(),
       submissionId = ulid()
@@ -137,15 +152,52 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
       expectedLatestApprovedRevision: null,
       snapshot,
     }
-    const submitted = await write(`/bob/${entity}/submit-new`, input)
+    const submitted = await write(`/dcl/${entity}/submit-new`, input)
     assert.equal(submitted.code, 0, submitted.errorKey)
     assert.equal(submitted.data.status, 'PENDING')
+    const historic = await historyOnly(`/bob/${entity}/versions`, {
+      subjectId,
+      submissionId,
+    })
+    assert.equal(historic.code, 0, historic.errorKey)
+    assert.equal(historic.data.items[0].status, 'PENDING')
+    assert.deepEqual(historic.data.items[0].availableApprovalActions, [])
+    assert.equal(historic.data.items[0].canDelete, false)
+    for (const invalid of [
+      { subjectId: ulid(), submissionId },
+      { subjectId, submissionId: ulid() },
+    ]) {
+      assert.notEqual(
+        (await historyOnly(`/bob/${entity}/versions`, invalid)).code,
+        0,
+      )
+    }
+    assert.equal(
+      (
+        await historyOnly(`/dcl/${entity}/submission-get`, {
+          subjectId,
+          submissionId,
+        })
+      ).errorKey,
+      'forbidden',
+    )
+    assert.equal(
+      (
+        await historyOnly(`/dcl/${entity}/approve`, {
+          subjectId,
+          submissionId,
+          expectedRevision: '1',
+        })
+      ).errorKey,
+      'forbidden',
+    )
+
     assert.equal('enabled' in submitted.data.snapshot, false)
     assert.deepEqual(
-      (await write(`/bob/${entity}/submit-new`, input)).data,
+      (await write(`/dcl/${entity}/submit-new`, input)).data,
       submitted.data,
     )
-    const pending = await write(`/bob/${entity}/submission-query`, {
+    const pending = await write(`/dcl/${entity}/submission-query`, {
       page: 1,
       pageSize: 20,
       filters: { keyword: subjectId },
@@ -172,7 +224,7 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
       enabled: false,
       revision: '2',
     })
-    const approved = await review(`/bob/${entity}/approve`, {
+    const approved = await review(`/dcl/${entity}/approve`, {
       subjectId,
       submissionId,
       expectedRevision: '1',
@@ -196,7 +248,7 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
       true,
     )
     const secondId = ulid()
-    const changed = await write(`/bob/${entity}/submit-change`, {
+    const changed = await write(`/dcl/${entity}/submit-change`, {
       ...input,
       submissionId: secondId,
       idempotencyKey: ulid(),
@@ -207,7 +259,7 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
     assert.equal(changed.code, 0, changed.errorKey)
     const unchanged = await write(`/bob/${entity}/get`, { objectId: subjectId })
     assert.equal(unchanged.data.sourceApprovalEntryId, submissionId)
-    const second = await review(`/bob/${entity}/approve`, {
+    const second = await review(`/dcl/${entity}/approve`, {
       subjectId,
       submissionId: secondId,
       expectedRevision: '1',
@@ -217,7 +269,7 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
       (await write(`/bob/${entity}/get`, { objectId: subjectId })).data.enabled,
       false,
     )
-    const reversed = await review(`/bob/${entity}/unapprove`, {
+    const reversed = await review(`/dcl/${entity}/unapprove`, {
       subjectId,
       submissionId: secondId,
       expectedRevision: second.data.revision,
@@ -232,7 +284,7 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
     assert.equal(fallenBack.data.revision, '2')
     const history = await write(`/bob/${entity}/versions`, { subjectId })
     assert.equal(history.data.items.length, 2)
-    const exact = await write(`/bob/${entity}/submission-get`, {
+    const exact = await write(`/dcl/${entity}/submission-get`, {
       subjectId,
       submissionId,
     })
@@ -324,7 +376,7 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
       )
       assert.equal(
         (
-          await write('/bob/other-unit/delete', {
+          await write('/dcl/other-unit/delete', {
             subjectId,
             submissionId: secondId,
             expectedRevision: reversed.data.revision,
@@ -332,7 +384,7 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
         ).code,
         0,
       )
-      const referenced = await review('/bob/other-unit/unapprove', {
+      const referenced = await review('/dcl/other-unit/unapprove', {
         subjectId,
         submissionId,
         expectedRevision: approved.data.revision,

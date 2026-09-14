@@ -29,7 +29,7 @@ function pending(key: string, value: boolean) {
 }
 const session = useTargetSession()
 const readonly = computed(
-  () => props.disabled || !session.can('/bob/customer/save-subunits'),
+  () => props.disabled || !session.can('/dcl/customer/save-subunits'),
 )
 const fields = [
   { key: 'name', type: 'text', caption: '子单位名称', required: true },

@@ -1174,18 +1174,18 @@ async function resolveExternalCarrier(
       SELECT subject.code,
         COALESCE(NULLIF(version.display_name, ''), version.legal_name) AS name
       FROM approval_entries entry
-      JOIN bob_subjects subject ON subject.id = entry.subject_id
+      JOIN bob_archive_objects subject ON subject.id = entry.subject_id
         AND subject.entity = 'other-unit'
-      JOIN bob_other_unit_versions version ON version.approval_entry_id = entry.id
+      JOIN dcl_other_unit_versions version ON version.approval_entry_id = entry.id
       WHERE entry.id = ${approvalEntryId}
         AND entry.subject_id = ${otherUnitId}
-        AND entry.domain = 'bob'
+        AND entry.domain = 'dcl'
         AND entry.entity = 'other-unit'
         AND entry.status = 'APPROVED'
         AND subject.enabled = true
         AND NOT EXISTS (
           SELECT 1 FROM approval_entries newer
-          WHERE newer.domain = 'bob' AND newer.entity = 'other-unit'
+          WHERE newer.domain = 'dcl' AND newer.entity = 'other-unit'
             AND newer.subject_id = entry.subject_id
             AND newer.status = 'APPROVED'
             AND newer.version_no > entry.version_no
@@ -1513,8 +1513,8 @@ export class AuxService {
       ]
       if (entity === 'measurement-unit') {
         references.push(sql`
-          SELECT 'bob_product_versions' AS source
-          FROM bob_product_versions
+          SELECT 'dcl_product_versions' AS source
+          FROM dcl_product_versions
           WHERE default_input_unit_id = ${id} OR pricing_unit_id = ${id}
             OR EXISTS (
               SELECT 1 FROM jsonb_array_elements(unit_conversions) conversion
@@ -1545,8 +1545,8 @@ export class AuxService {
       }
       if (entity === 'payment-method')
         references.push(sql`
-          SELECT 'bob_customer_version_subunits' AS source
-          FROM bob_customer_version_subunits
+          SELECT 'dcl_customer_version_subunits' AS source
+          FROM dcl_customer_version_subunits
           WHERE payment_snapshot->>'id' = ${id}
           UNION ALL
           SELECT 'vou_sale_order_details' AS source
@@ -2106,7 +2106,7 @@ export class AuxService {
     ) {
       const reference = await sql<{
         exists: boolean
-      }>`SELECT EXISTS(SELECT 1 FROM aux_reference_facts WHERE aux_object_id = ${objectId} AND source = 'bob_product_versions') AS exists`.execute(
+      }>`SELECT EXISTS(SELECT 1 FROM aux_reference_facts WHERE aux_object_id = ${objectId} AND source = 'dcl_product_versions') AS exists`.execute(
         transaction,
       )
       if (reference.rows[0]?.exists) applicationError('validation_failed')

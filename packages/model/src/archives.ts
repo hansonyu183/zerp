@@ -144,7 +144,7 @@ function mechanics<T, E extends string>(
   facts: ArchiveFacts,
 ): ArchiveDecision<T, E> | SubmissionMechanicsPlan {
   const result = prepareSubmissionMechanics(
-    { domain: 'bob', entity },
+    { domain: 'dcl', entity },
     command,
     facts,
   )

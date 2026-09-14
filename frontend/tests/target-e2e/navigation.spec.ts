@@ -128,7 +128,7 @@ test('navigation and Host retain the shell at desktop and 390px in both themes',
     try {
       const page = await context.newPage()
       await signIn(page)
-      await page.goto('/bob/customer')
+      await page.goto('/dcl/customer')
       await expect(
         page.getByRole('button', { name: '新增', exact: true }),
       ).toBeVisible()
@@ -218,7 +218,7 @@ test('navigation and Host retain the shell at desktop and 390px in both themes',
           path: resolve(directory, `${width}-${theme}-intermediary.png`),
         })
         await editor.getByRole('button', { name: '取消', exact: true }).click()
-        await page.goto('/bob/customer')
+        await page.goto('/dcl/customer')
         await expect(
           page.getByRole('button', { name: '新增', exact: true }),
         ).toBeVisible()

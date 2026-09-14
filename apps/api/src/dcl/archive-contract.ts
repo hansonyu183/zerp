@@ -7,7 +7,7 @@ import {
 import type { TargetRouteEnvironment } from '../app/contract.ts'
 import { archiveEntityPresentation } from '@zerp/model'
 
-export const bobArchiveEntities = [
+export const dclArchiveEntities = [
   'customer',
   'product',
   'supplier',
@@ -15,9 +15,9 @@ export const bobArchiveEntities = [
   'sales-partner',
 ] as const
 
-export type BobArchiveEntity = (typeof bobArchiveEntities)[number]
+export type DclArchiveEntity = (typeof dclArchiveEntities)[number]
 
-export type ArchiveEntity = BobArchiveEntity
+export type ArchiveEntity = DclArchiveEntity
 
 export const archiveActions = [
   'query',
@@ -345,15 +345,15 @@ const salesPartnerSnapshot = z
   })
   .strict()
 
-export const bobArchiveSnapshotSchemas = {
+export const dclArchiveSnapshotSchemas = {
   customer: customerSnapshot,
   product: productSnapshot,
   supplier: supplierSnapshot,
   'other-unit': otherUnitSnapshot,
   'sales-partner': salesPartnerSnapshot,
-} as const satisfies Record<BobArchiveEntity, z.ZodType>
+} as const satisfies Record<DclArchiveEntity, z.ZodType>
 
-export const archiveSnapshotSchemas = bobArchiveSnapshotSchemas
+export const archiveSnapshotSchemas = dclArchiveSnapshotSchemas
 
 const identity = z.object({ subjectId: z.string().length(26) }).strict()
 
@@ -387,7 +387,7 @@ export const archiveQuerySchemas = {
   supplier: archiveQueryInput(archiveQueryBaseFilters),
   'other-unit': archiveQueryInput(archiveQueryBaseFilters),
   'sales-partner': archiveQueryInput(archiveQueryBaseFilters),
-} as const satisfies Record<BobArchiveEntity, z.ZodType>
+} as const satisfies Record<DclArchiveEntity, z.ZodType>
 
 const reviewBase = z
   .object({
@@ -433,7 +433,7 @@ export const archiveBlockerSchema = z.discriminatedUnion('kind', [
   z
     .object({
       kind: z.enum(['PRODUCT_REFERENCE', 'CUSTOMER_REFERENCE']),
-      domain: z.enum(['bob', 'vou', 'acc']),
+      domain: z.enum(['dcl', 'vou', 'acc']),
       entity: z.string(),
       objectId: z.string().length(26),
       approvalEntryId: z.string().length(26),
@@ -463,7 +463,6 @@ function defineArchiveRoutes<const Entity extends ArchiveEntity>(
   entity: Entity,
   snapshot: (typeof archiveSnapshotSchemas)[Entity],
 ) {
-  const domain = 'bob'
   const queryAction = 'submission-query'
   const getAction = 'submission-get'
   const submission = z.object({
@@ -599,7 +598,7 @@ function defineArchiveRoutes<const Entity extends ArchiveEntity>(
   ) =>
     createRoute({
       method: 'post',
-      path: `/${domain}/${entity}/${action}` as const,
+      path: `/${action === 'versions' || action === 'audit-history' ? 'bob' : 'dcl'}/${entity}/${action}` as `/${Action extends 'versions' | 'audit-history' ? 'bob' : 'dcl'}/${Entity}/${Action}`,
       request: {
         body: { content: { 'application/json': { schema: request } } },
       },
@@ -613,7 +612,13 @@ function defineArchiveRoutes<const Entity extends ArchiveEntity>(
   return {
     query: route(queryAction, archiveQuerySchemas[entity], queryPageEnvelope),
     get: route(getAction, get, envelope),
-    versions: route('versions', identity, submissionPageEnvelope),
+    versions: route(
+      'versions',
+      identity
+        .extend({ submissionId: z.string().length(26).optional() })
+        .strict(),
+      submissionPageEnvelope,
+    ),
     'audit-history': route('audit-history', identity, auditEnvelope),
     'submit-new': route('submit-new', submit, envelope),
     'submit-change': route('submit-change', submit, envelope),
@@ -629,7 +634,7 @@ function defineArchiveRoutes<const Entity extends ArchiveEntity>(
   } as const
 }
 
-export const bobArchiveRouteSets = {
+export const dclArchiveRouteSets = {
   customer: defineArchiveRoutes('customer', archiveSnapshotSchemas.customer),
   product: defineArchiveRoutes('product', archiveSnapshotSchemas.product),
 
@@ -643,14 +648,14 @@ export const bobArchiveRouteSets = {
     archiveSnapshotSchemas['sales-partner'],
   ),
 } as const
-export const archiveRouteSets = bobArchiveRouteSets
+export const archiveRouteSets = dclArchiveRouteSets
 
-export const bobArchiveRouteMetadata: Array<{
+export const dclArchiveRouteMetadata: Array<{
   method: string
   path: string
   permission: string
   title: string
-}> = bobArchiveEntities.flatMap((entity) =>
+}> = dclArchiveEntities.flatMap((entity) =>
   archiveActions.map((action) => ({
     method: archiveRouteSets[entity][action].method,
     path: archiveRouteSets[entity][action].path,
@@ -669,7 +674,7 @@ export const bobArchiveRouteMetadata: Array<{
  */
 export const archiveCapabilityPermissionMetadata = [
   {
-    permission: '/bob/customer/save-subunits',
+    permission: '/dcl/customer/save-subunits',
     title: '维护客户子单位',
   },
 ] as const
@@ -779,9 +784,14 @@ export const customerAttachmentReadRoute = createRoute({
   },
 })
 
+export const customerSubmissionAttachmentReadRoute = createRoute({
+  ...customerAttachmentReadRoute,
+  path: '/dcl/customer/attachment-read' as const,
+})
+
 export const customerAttachmentStageRoute = createRoute({
   method: 'post',
-  path: '/bob/customer/attachment-stage',
+  path: '/dcl/customer/attachment-stage',
   request: {
     body: {
       content: { 'application/json': { schema: attachmentStageRequest } },
@@ -796,7 +806,7 @@ export const customerAttachmentStageRoute = createRoute({
 })
 export const customerAttachmentCleanupRoute = createRoute({
   method: 'post',
-  path: '/bob/customer/attachment-cleanup',
+  path: '/dcl/customer/attachment-cleanup',
   request: {
     body: {
       content: {
@@ -812,7 +822,13 @@ export const customerAttachmentCleanupRoute = createRoute({
   },
 })
 
-bobArchiveRouteMetadata.push(
+dclArchiveRouteMetadata.push(
+  {
+    method: 'post',
+    path: customerSubmissionAttachmentReadRoute.path,
+    permission: customerSubmissionAttachmentReadRoute.path,
+    title: '读取客户提交件附件',
+  },
   {
     method: customerAttachmentReadRoute.method,
     path: customerAttachmentReadRoute.path,
@@ -833,23 +849,27 @@ bobArchiveRouteMetadata.push(
   },
 )
 
-export type BobArchiveRouteHandler = (
-  entity: BobArchiveEntity,
+export type DclArchiveRouteHandler = (
+  entity: DclArchiveEntity,
   action: ArchiveAction,
   context: Parameters<
     RouteHandler<
-      (typeof archiveRouteSets)[BobArchiveEntity][ArchiveAction],
+      (typeof archiveRouteSets)[DclArchiveEntity][ArchiveAction],
       TargetRouteEnvironment
     >
   >[0],
 ) => ReturnType<
   RouteHandler<
-    (typeof archiveRouteSets)[BobArchiveEntity][ArchiveAction],
+    (typeof archiveRouteSets)[DclArchiveEntity][ArchiveAction],
     TargetRouteEnvironment
   >
 >
 
 export interface ArchiveAttachmentHandlers {
+  submissionRead: RouteHandler<
+    typeof customerSubmissionAttachmentReadRoute,
+    TargetRouteEnvironment
+  >
   read: RouteHandler<typeof customerAttachmentReadRoute, TargetRouteEnvironment>
 
   stage: RouteHandler<
@@ -863,16 +883,16 @@ export interface ArchiveAttachmentHandlers {
 }
 
 function archiveHandler(
-  handler: BobArchiveRouteHandler,
-  entity: BobArchiveEntity,
+  handler: DclArchiveRouteHandler,
+  entity: DclArchiveEntity,
   action: ArchiveAction,
 ) {
   return handler.bind(null, entity, action)
 }
 
-export function registerBobArchiveRoutes(
+export function registerDclArchiveRoutes(
   app: OpenAPIHono<TargetRouteEnvironment>,
-  handler: BobArchiveRouteHandler,
+  handler: DclArchiveRouteHandler,
   attachments: ArchiveAttachmentHandlers,
 ) {
   return app.openapiRoutes([
@@ -922,6 +942,10 @@ export function registerBobArchiveRoutes(
     },
 
     { route: customerAttachmentReadRoute, handler: attachments.read },
+    {
+      route: customerSubmissionAttachmentReadRoute,
+      handler: attachments.submissionRead,
+    },
     { route: customerAttachmentStageRoute, handler: attachments.stage },
     { route: customerAttachmentCleanupRoute, handler: attachments.cleanup },
     {

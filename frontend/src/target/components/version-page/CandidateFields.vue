@@ -93,14 +93,14 @@ const identityEditor = computed(() => {
     @pending="emit('pending', $event)"
   />
   <ProductDetailsEditor
-    v-else-if="resource === 'bob/product'"
+    v-else-if="resource === 'bob/product' || resource === 'dcl/product'"
     :model-value="productEditor"
     :disabled="disabled"
     @update:model-value="patch"
     @pending="emit('pending', $event)"
   />
   <CustomerDetailsEditor
-    v-else-if="resource === 'bob/customer'"
+    v-else-if="resource === 'bob/customer' || resource === 'dcl/customer'"
     :model-value="customerEditor"
     :disabled="disabled"
     @update:model-value="patch"

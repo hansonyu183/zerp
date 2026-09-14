@@ -738,7 +738,7 @@ test('receipt credits its customer subunit for new bills plus cash minus change 
     assert.equal('customer' in saved.payload, false)
     const badId = ulid()
     const root = await db
-      .selectFrom('bob_customer_subunit_roots')
+      .selectFrom('dcl_customer_subunit_roots')
       .select('customer_id')
       .where('subunit_id', '=', payload.customerSubunit.objectId)
       .executeTakeFirstOrThrow()

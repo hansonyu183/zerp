@@ -41,10 +41,14 @@ function pricingSubunits(snapshot: Record<string, unknown> | undefined) {
   )
 }
 const customerPricingBefore = computed(() =>
-  props.resource === 'bob/customer' ? pricingSubunits(props.previous) : [],
+  props.resource === 'bob/customer' || props.resource === 'dcl/customer'
+    ? pricingSubunits(props.previous)
+    : [],
 )
 const customerPricingAfter = computed(() =>
-  props.resource === 'bob/customer' ? pricingSubunits(props.value) : [],
+  props.resource === 'bob/customer' || props.resource === 'dcl/customer'
+    ? pricingSubunits(props.value)
+    : [],
 )
 </script>
 <template>
@@ -73,7 +77,10 @@ const customerPricingAfter = computed(() =>
     :previous-source="previousSource"
   />
   <CustomerPricingDifference
-    v-if="resource === 'bob/customer' && previous"
+    v-if="
+      (resource === 'bob/customer' || props.resource === 'dcl/customer') &&
+      previous
+    "
     :before="customerPricingBefore"
     :after="customerPricingAfter"
   />

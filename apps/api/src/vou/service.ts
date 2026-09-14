@@ -975,7 +975,7 @@ export class VouService implements WflVouPort {
           throw new VouApplicationError('vou_invalid_payload')
         sum += value
         const root = await tx
-          .selectFrom('bob_customer_subunit_roots')
+          .selectFrom('dcl_customer_subunit_roots')
           .select('customer_id')
           .where('subunit_id', '=', line.subunit.objectId)
           .forUpdate()
@@ -1358,18 +1358,18 @@ export class VouService implements WflVouPort {
     const counterpartyName = sql`(SELECT CASE
         WHEN r.approval_reference_id IS NULL THEN r.reference_name
         WHEN a.entity = 'customer' AND a.subject_id = r.object_id THEN
-          (SELECT v.display_name FROM bob_customer_versions v WHERE v.approval_entry_id = a.id)
+          (SELECT v.display_name FROM dcl_customer_versions v WHERE v.approval_entry_id = a.id)
         WHEN a.entity = 'customer' THEN
-          (SELECT u.name FROM bob_customer_version_subunits u WHERE u.customer_approval_entry_id = a.id AND u.subunit_id = r.object_id)
+          (SELECT u.name FROM dcl_customer_version_subunits u WHERE u.customer_approval_entry_id = a.id AND u.subunit_id = r.object_id)
         WHEN a.entity = 'supplier' THEN
-          (SELECT v.display_name FROM bob_supplier_versions v WHERE v.approval_entry_id = a.id)
+          (SELECT v.display_name FROM dcl_supplier_versions v WHERE v.approval_entry_id = a.id)
         WHEN a.entity = 'other-unit' THEN
-          (SELECT v.display_name FROM bob_other_unit_versions v WHERE v.approval_entry_id = a.id)
+          (SELECT v.display_name FROM dcl_other_unit_versions v WHERE v.approval_entry_id = a.id)
         WHEN a.entity = 'sales-partner' THEN
-          (SELECT v.display_name FROM bob_sales_partner_versions v WHERE v.approval_entry_id = a.id)
+          (SELECT v.display_name FROM dcl_sales_partner_versions v WHERE v.approval_entry_id = a.id)
         END
       FROM vou_reference_snapshots r
-      LEFT JOIN approval_entries a ON a.id = r.approval_reference_id AND a.domain = 'bob'
+      LEFT JOIN approval_entries a ON a.id = r.approval_reference_id AND a.domain = 'dcl'
       WHERE r.approval_entry_id = e.id AND r.field = ${capability.counterpartyField}
         AND r.line_no = 0 AND r.item_no = 0)`
     const headerName = (
@@ -1643,7 +1643,7 @@ export class VouService implements WflVouPort {
               id: string
               code: string
               name: string
-            }>`SELECT subject.id, subject.code, version.name FROM bob_subjects subject JOIN LATERAL (SELECT id FROM approval_entries WHERE domain = 'bob' AND entity = 'product' AND subject_id = subject.id AND status = 'APPROVED' ORDER BY version_no DESC LIMIT 1) approval ON TRUE JOIN bob_product_versions version ON version.approval_entry_id = approval.id WHERE subject.id IN (${sql.join(ids)})`.execute(
+            }>`SELECT subject.id, subject.code, version.name FROM bob_archive_objects subject JOIN LATERAL (SELECT id FROM approval_entries WHERE domain = 'dcl' AND entity = 'product' AND subject_id = subject.id AND status = 'APPROVED' ORDER BY version_no DESC LIMIT 1) approval ON TRUE JOIN dcl_product_versions version ON version.approval_entry_id = approval.id WHERE subject.id IN (${sql.join(ids)})`.execute(
               tx,
             )
           ).rows
@@ -1979,15 +1979,15 @@ export class VouService implements WflVouPort {
   ): string {
     const bob = (name: string, table: string, label: string) => `
       SELECT subject.id AS object_id, approval.id AS approval_entry_id, NULL::varchar AS customer_id, subject.code, ${label} AS name
-      FROM bob_subjects subject
-      JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'bob' AND entry.entity = '${name}' AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
+      FROM bob_archive_objects subject
+      JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'dcl' AND entry.entity = '${name}' AND entry.subject_id = subject.id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
       JOIN ${table} version ON version.approval_entry_id = approval.id
       WHERE subject.entity = '${name}' AND subject.enabled`
     switch (entity) {
       case 'customer':
-        return bob('customer', 'bob_customer_versions', 'version.display_name')
+        return bob('customer', 'dcl_customer_versions', 'version.display_name')
       case 'supplier':
-        return bob('supplier', 'bob_supplier_versions', 'version.display_name')
+        return bob('supplier', 'dcl_supplier_versions', 'version.display_name')
       case 'operating-entity':
         return `SELECT id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, code, COALESCE(NULLIF(data->>'shortName',''),data->>'legalName') AS name FROM aux_objects WHERE entity='operating-entity' AND enabled`
       case 'employee':
@@ -1997,7 +1997,7 @@ export class VouService implements WflVouPort {
       case 'other-unit':
         return bob(
           'other-unit',
-          'bob_other_unit_versions',
+          'dcl_other_unit_versions',
           'version.display_name',
         )
       case 'vehicle':
@@ -2007,18 +2007,18 @@ export class VouService implements WflVouPort {
       case 'sales-partner':
         return bob(
           'sales-partner',
-          'bob_sales_partner_versions',
+          'dcl_sales_partner_versions',
           'version.display_name',
         )
       case 'product':
-        return bob('product', 'bob_product_versions', 'version.name')
+        return bob('product', 'dcl_product_versions', 'version.name')
       case 'customer-subunit':
         return `
         SELECT root.subunit_id AS object_id, approval.id AS approval_entry_id, root.customer_id, root.code, subunit.name, subunit.payment_snapshot
-        FROM bob_customer_subunit_roots root
-        JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'bob' AND entry.entity = 'customer' AND entry.subject_id = root.customer_id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
-        JOIN bob_subjects customer ON customer.id = root.customer_id AND customer.enabled
-        JOIN bob_customer_version_subunits subunit ON subunit.customer_approval_entry_id = approval.id AND subunit.subunit_id = root.subunit_id AND subunit.enabled`
+        FROM dcl_customer_subunit_roots root
+        JOIN LATERAL (SELECT id FROM approval_entries entry WHERE entry.domain = 'dcl' AND entry.entity = 'customer' AND entry.subject_id = root.customer_id AND entry.status = 'APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON TRUE
+        JOIN bob_archive_objects customer ON customer.id = root.customer_id AND customer.enabled
+        JOIN dcl_customer_version_subunits subunit ON subunit.customer_approval_entry_id = approval.id AND subunit.subunit_id = root.subunit_id AND subunit.enabled`
       case 'settlement-method':
       case 'measurement-unit':
       case 'department':
@@ -2774,7 +2774,7 @@ export class VouService implements WflVouPort {
       throw new VouApplicationError('vou_reference_unavailable')
     if (newAdoption && entity === 'bill-issue' && 'supplier' in payload) {
       const supplier = await tx
-        .selectFrom('bob_subjects')
+        .selectFrom('bob_archive_objects')
         .select('id')
         .where('id', '=', payload.supplier.objectId)
         .where('entity', '=', 'supplier')
@@ -2801,7 +2801,7 @@ export class VouService implements WflVouPort {
     ].sort()
     if (productIds.length)
       await transaction
-        .selectFrom('bob_subjects')
+        .selectFrom('bob_archive_objects')
         .select('id')
         .where('entity', '=', 'product')
         .where('id', 'in', productIds)
@@ -2936,7 +2936,7 @@ export class VouService implements WflVouPort {
   ): Promise<VouReferenceBlocker[]> {
     const selected = payload.paymentMethod
     const customer = await transaction
-      .selectFrom('bob_customer_version_subunits')
+      .selectFrom('dcl_customer_version_subunits')
       .select('payment_snapshot')
       .where(
         'customer_approval_entry_id',
@@ -3024,7 +3024,7 @@ export class VouService implements WflVouPort {
 
     const productIds = [...new Set(facts.map((fact) => fact.productId))].sort()
     await transaction
-      .selectFrom('bob_subjects')
+      .selectFrom('bob_archive_objects')
       .select('id')
       .where('entity', '=', 'product')
       .where('id', 'in', productIds)
@@ -3042,10 +3042,10 @@ export class VouService implements WflVouPort {
         subject.enabled,
         version.unit_conversions
       FROM approval_entries approval
-      JOIN bob_subjects subject ON subject.id=approval.subject_id
-      JOIN bob_product_versions version
+      JOIN bob_archive_objects subject ON subject.id=approval.subject_id
+      JOIN dcl_product_versions version
         ON version.approval_entry_id = approval.id
-      WHERE approval.domain = 'bob'
+      WHERE approval.domain = 'dcl'
         AND approval.entity = 'product'
         AND approval.status = 'APPROVED'
         AND approval.subject_id IN (${sql.join(productIds)})
@@ -3177,7 +3177,7 @@ export class VouService implements WflVouPort {
 
   private async quantityProduct(tx: Transaction<DB>, id: string) {
     await tx
-      .selectFrom('bob_subjects')
+      .selectFrom('bob_archive_objects')
       .select('id')
       .where('id', '=', id)
       .forShare()
@@ -3188,9 +3188,9 @@ export class VouService implements WflVouPort {
       unit_conversions: import('@zerp/model').ProductUnitConversion[]
     }>`
         SELECT version.behavior_profile, version.fixed_formula, version.unit_conversions
-        FROM bob_subjects subject
-        JOIN LATERAL (SELECT id FROM approval_entries WHERE domain = 'bob' AND entity = 'product' AND subject_id = subject.id AND status = 'APPROVED' ORDER BY version_no DESC LIMIT 1) approval ON TRUE
-        JOIN bob_product_versions version ON version.approval_entry_id = approval.id
+        FROM bob_archive_objects subject
+        JOIN LATERAL (SELECT id FROM approval_entries WHERE domain = 'dcl' AND entity = 'product' AND subject_id = subject.id AND status = 'APPROVED' ORDER BY version_no DESC LIMIT 1) approval ON TRUE
+        JOIN dcl_product_versions version ON version.approval_entry_id = approval.id
         WHERE subject.id = ${id} AND subject.entity = 'product' AND subject.enabled
       `.execute(tx)
     if (!result.rows[0])
@@ -3545,14 +3545,14 @@ export class VouService implements WflVouPort {
     if (entity === 'customer-subunit') {
       const row = await sql`
         SELECT 1
-        FROM bob_customer_subunit_roots root
+        FROM dcl_customer_subunit_roots root
         JOIN approval_entries approval
           ON approval.id = ${approvalEntryId}
-          AND approval.domain = 'bob'
+          AND approval.domain = 'dcl'
           AND approval.entity = 'customer'
           AND approval.subject_id = root.customer_id
           AND approval.status = 'APPROVED'
-        JOIN bob_customer_version_subunits subunit
+        JOIN dcl_customer_version_subunits subunit
           ON subunit.customer_approval_entry_id = approval.id
           AND subunit.subunit_id = root.subunit_id
         WHERE root.subunit_id = ${objectId}
@@ -3571,7 +3571,7 @@ export class VouService implements WflVouPort {
       ].includes(entity)
     )
       return false
-    const domain = entity === 'service-contract' ? 'vou' : 'bob'
+    const domain = entity === 'service-contract' ? 'vou' : 'dcl'
     const row = await transaction
       .selectFrom('approval_entries')
       .select('id')
@@ -3941,9 +3941,9 @@ export class VouService implements WflVouPort {
         approval_entry_id: string
       }>`
         SELECT product.default_packaging_snapshot->>'defaultPackagingSpec' AS packaging, product.behavior_profile, product.approval_entry_id
-        FROM bob_subjects subject
-        JOIN LATERAL (SELECT id FROM approval_entries WHERE domain = 'bob' AND entity = 'product' AND subject_id = subject.id AND status = 'APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON TRUE
-        JOIN bob_product_versions product ON product.approval_entry_id = approved.id
+        FROM bob_archive_objects subject
+        JOIN LATERAL (SELECT id FROM approval_entries WHERE domain = 'dcl' AND entity = 'product' AND subject_id = subject.id AND status = 'APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON TRUE
+        JOIN dcl_product_versions product ON product.approval_entry_id = approved.id
         WHERE subject.id = ${line.product.objectId} AND subject.enabled
         FOR SHARE OF subject
       `.execute(tx)
@@ -4376,7 +4376,7 @@ export class VouService implements WflVouPort {
         settlement_snapshot: { termCode?: string } | null
       }>`
         SELECT subunit.settlement_snapshot
-        FROM bob_customer_version_subunits subunit
+        FROM dcl_customer_version_subunits subunit
         WHERE subunit.customer_approval_entry_id = ${order.customerSubunit.approvalEntryId}
           AND subunit.subunit_id = ${order.customerSubunit.objectId}
         FOR UPDATE
@@ -4389,7 +4389,7 @@ export class VouService implements WflVouPort {
       settlement_method_snapshot: { termCode?: string } | null
     }>`
       SELECT supplier.settlement_method_snapshot
-      FROM bob_supplier_versions supplier
+      FROM dcl_supplier_versions supplier
       WHERE supplier.approval_entry_id = ${order.supplier.approvalEntryId}
       FOR UPDATE
     `.execute(tx)
@@ -4446,7 +4446,7 @@ export class VouService implements WflVouPort {
       if (entity === 'sale-order') {
         const limit = await sql<{ credit_limit: string | null }>`
           SELECT item->>'amount' AS credit_limit
-          FROM bob_customer_version_subunits subunit, jsonb_array_elements(subunit.credit_limits) item
+          FROM dcl_customer_version_subunits subunit, jsonb_array_elements(subunit.credit_limits) item
           WHERE subunit.customer_approval_entry_id = ${order.customerSubunit.approvalEntryId}
             AND subunit.subunit_id = ${order.customerSubunit.objectId}
             AND item->>'currency' = ${source.payload.currency}

@@ -23,8 +23,8 @@ import { AccMappingCatalogService } from '../src/acc/mapping-catalog.ts'
 import { AccService } from '../src/acc/service.ts'
 import { AuxService } from '../src/aux/service.ts'
 import { createDatabase } from '../src/db/database.ts'
-import { BobArchiveService } from '../src/bob/archives.ts'
-import type { ArchiveSnapshot } from '../src/bob/archives.ts'
+import { DclArchiveService } from '../src/dcl/archives.ts'
+import type { ArchiveSnapshot } from '../src/dcl/archives.ts'
 import { VouService } from '../src/vou/service.ts'
 
 const databaseUrl = process.env.TARGET_DATABASE_URL
@@ -69,7 +69,7 @@ const rpt = new RptService(
   database,
   new PgRptDefinitionValidator(rptPool, database),
 )
-const bobArchives = new BobArchiveService(database)
+const dclArchives = new DclArchiveService(database)
 const acc = new AccService(database)
 const openingService = new VouOpeningService(database, acc)
 const aux = new AuxService(database)
@@ -576,7 +576,7 @@ async function seedArchiveReference(
     expectedLatestApprovedRevision: null,
     snapshot,
   }
-  const pending = await bobArchives.submit(
+  const pending = await dclArchives.submit(
     entity,
     'submit-new',
     input,
@@ -588,7 +588,7 @@ async function seedArchiveReference(
     submissionId: reference.approvalEntryId,
     expectedRevision: pending.revision,
   }
-  const approved = await bobArchives.review(
+  const approved = await dclArchives.review(
     entity,
     'approve',
     review,
@@ -723,7 +723,7 @@ async function seedVouReferences(aux: AuxService) {
 
   const partnerSubjectId = ulid(),
     partnerSubmissionId = ulid()
-  const partner = await bobArchives.submit(
+  const partner = await dclArchives.submit(
     'sales-partner',
     'submit-new',
     {
@@ -755,7 +755,7 @@ async function seedVouReferences(aux: AuxService) {
     serviceActor(submitter.userId),
     'e2e-customer-partner-submit',
   )
-  await bobArchives.review(
+  await dclArchives.review(
     'sales-partner',
     'approve',
     {
@@ -822,7 +822,7 @@ async function seedVouReferences(aux: AuxService) {
     enabled: true,
   })
   const storedSubunit = await database
-    .selectFrom('bob_customer_subunit_roots')
+    .selectFrom('dcl_customer_subunit_roots')
     .select('code')
     .where('subunit_id', '=', customerSubunit.objectId)
     .executeTakeFirstOrThrow()

@@ -1,6 +1,6 @@
 import { ulid } from 'ulid'
 import type { VouPayload } from '@zerp/model'
-import { BobArchiveService } from '../../src/bob/archives.ts'
+import { DclArchiveService } from '../../src/dcl/archives.ts'
 import {
   AuxService,
   type AuxEntity,
@@ -9,7 +9,7 @@ import {
 } from '../../src/aux/service.ts'
 export const sourceOrderLineId = '01J00000000000000000000005'
 export async function seedSaleOrderReferences(
-  bobArchives: BobArchiveService,
+  dclArchives: DclArchiveService,
   aux: AuxService,
   actorId: string,
   reviewerId: string,
@@ -105,14 +105,14 @@ export async function seedSaleOrderReferences(
       expectedLatestApprovedRevision: null,
       snapshot,
     }
-    const pending = await bobArchives.submit(
+    const pending = await dclArchives.submit(
       entity,
       'submit-new',
       input,
       actor,
       'wfl-fixture-submit',
     )
-    const approved = await bobArchives.review(
+    const approved = await dclArchives.review(
       entity,
       'approve',
       {

@@ -6,20 +6,11 @@ import type { AttachmentMetadata } from '@zerp/model'
 import {
   readTargetCustomerAttachment,
   readTargetVoucherAttachment,
-  type TargetCustomerAttachmentReadInput,
   TargetApiError,
 } from '../../api.ts'
 import { useTargetSession } from '../../session/vm.ts'
 type Attachment = AttachmentMetadata
-type Source =
-  | Omit<
-      Extract<TargetCustomerAttachmentReadInput, { source: 'current' }>,
-      'fileId'
-    >
-  | Omit<
-      Extract<TargetCustomerAttachmentReadInput, { source: 'submission' }>,
-      'fileId'
-    >
+type Source = import('../details/detail-fields.ts').AttachmentSource
 type VoucherSource = {
   source: 'voucher'
   entity: import('@zerp/model').VouEntity
@@ -54,11 +45,15 @@ const canRead = computed(
     (props.source.source === 'voucher'
       ? session.can(`/vou/${props.source.entity}/attachment-read`) &&
         session.can(`/vou/${props.source.entity}/get`)
-      : session.can('/bob/customer/attachment-read') &&
+      : session.can(
+          `/${props.source.source === 'current' ? 'bob' : props.source.domain}/customer/attachment-read`,
+        ) &&
         session.can(
           props.source.source === 'current'
             ? '/bob/customer/get'
-            : '/bob/customer/submission-get',
+            : props.source.domain === 'bob'
+              ? '/bob/customer/versions'
+              : '/dcl/customer/submission-get',
         )),
 )
 async function add(value: File | readonly File[] | null) {
@@ -115,10 +110,24 @@ async function download(file: Attachment) {
       link.click()
       return
     }
-    const result = await readTargetCustomerAttachment(session.csrfToken, {
-      ...props.source,
-      fileId: file.id,
-    })
+    const input =
+      props.source.source === 'current'
+        ? {
+            source: 'current' as const,
+            objectId: props.source.objectId,
+            fileId: file.id,
+          }
+        : {
+            source: 'submission' as const,
+            subjectId: props.source.subjectId,
+            submissionId: props.source.submissionId,
+            fileId: file.id,
+          }
+    const result = await readTargetCustomerAttachment(
+      session.csrfToken,
+      input,
+      props.source.source === 'current' ? 'bob' : props.source.domain,
+    )
     if (!owns()) return
     const bytes = Uint8Array.from(atob(result.contentBase64), (value) =>
       value.charCodeAt(0),

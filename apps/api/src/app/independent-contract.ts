@@ -5,7 +5,7 @@ import {
   optionIds,
   optionBoolean,
 } from './options-contract.ts'
-import { bobArchiveSnapshotSchemas } from '../bob/archive-contract.ts'
+import { dclArchiveSnapshotSchemas } from '../dcl/archive-contract.ts'
 import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
 import type { Handler } from 'hono'
 
@@ -400,7 +400,7 @@ const productResolveRoute = auxiliaryRoute(
   '/bob/product/resolve',
   bobResolveInput,
   resolvedIdentity.extend({
-    data: bobArchiveSnapshotSchemas.product.pick({
+    data: dclArchiveSnapshotSchemas.product.pick({
       name: true,
       productType: true,
       pricingUnit: true,
@@ -415,7 +415,7 @@ const supplierResolveRoute = auxiliaryRoute(
   '/bob/supplier/resolve',
   bobResolveInput,
   resolvedIdentity.extend({
-    data: bobArchiveSnapshotSchemas.supplier.pick({ defaultPurchaser: true }),
+    data: dclArchiveSnapshotSchemas.supplier.pick({ defaultPurchaser: true }),
   }),
 )
 const subunitResolveRoute = auxiliaryRoute(
@@ -424,7 +424,7 @@ const subunitResolveRoute = auxiliaryRoute(
   resolvedIdentity.extend({
     data: z.object({
       subunits: z.array(
-        bobArchiveSnapshotSchemas.customer.shape.subunits.element.options[1].pick(
+        dclArchiveSnapshotSchemas.customer.shape.subunits.element.options[1].pick(
           {
             id: true,
             enabled: true,
@@ -518,23 +518,23 @@ function bobCurrentRoutes<
 }
 const customerCurrentRoutes = bobCurrentRoutes(
   'customer',
-  bobArchiveSnapshotSchemas.customer,
+  dclArchiveSnapshotSchemas.customer,
 )
 const productCurrentRoutes = bobCurrentRoutes(
   'product',
-  bobArchiveSnapshotSchemas['product'],
+  dclArchiveSnapshotSchemas['product'],
 )
 const supplierCurrentRoutes = bobCurrentRoutes(
   'supplier',
-  bobArchiveSnapshotSchemas['supplier'],
+  dclArchiveSnapshotSchemas['supplier'],
 )
 const otherUnitCurrentRoutes = bobCurrentRoutes(
   'other-unit',
-  bobArchiveSnapshotSchemas['other-unit'],
+  dclArchiveSnapshotSchemas['other-unit'],
 )
 const salesPartnerCurrentRoutes = bobCurrentRoutes(
   'sales-partner',
-  bobArchiveSnapshotSchemas['sales-partner'],
+  dclArchiveSnapshotSchemas['sales-partner'],
 )
 export const bobEntities = [
   'customer',

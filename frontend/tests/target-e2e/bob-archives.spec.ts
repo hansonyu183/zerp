@@ -1,3 +1,4 @@
+import { openArchive, findArchive } from './archive-navigation.ts'
 import { randomBytes } from 'node:crypto'
 
 import { expect, test, type Page } from '@playwright/test'
@@ -24,7 +25,8 @@ async function signin(page: Page, reviewer = false) {
 
 async function open(page: Page, path: string, width: number) {
   await page.setViewportSize({ width, height: 960 })
-  await page.goto(path)
+  const [, domain, entity] = path.split('/')
+  await openArchive(page, domain as 'bob' | 'dcl', entity!)
   await expect(
     page.getByLabel('编码、拼音或名称', { exact: true }),
   ).toBeVisible()
@@ -70,7 +72,7 @@ for (const [entity, title] of [
       await signin(reviewer, true)
       const tag = randomBytes(8).toString('hex').toUpperCase()
       const name = `浏览器${title}${tag}`
-      const path = `/bob/${entity}`
+      const path = `/dcl/${entity}`
       await open(page, path, 1440)
       await page.getByRole('button', { name: '新增', exact: true }).click()
       let dialog = page.getByRole('dialog')
@@ -125,10 +127,14 @@ for (const [entity, title] of [
         .getByRole('dialog')
         .getByRole('button', { name: '关闭', exact: true })
         .click()
+      await openArchive(page, 'bob', entity)
+      await findArchive(page, name)
       await row.getByRole('button', { name: '停用', exact: true }).click()
       await expect(
         row.getByRole('button', { name: '启用', exact: true }),
       ).toBeVisible()
+      await openArchive(page, 'dcl', entity)
+      await findArchive(page, name)
       await row.getByRole('button', { name: '提交变更', exact: true }).click()
       dialog = page.getByRole('dialog')
       await expect(dialog.getByLabel('法定名称', { exact: true })).toHaveValue(
@@ -144,17 +150,29 @@ for (const [entity, title] of [
         revision.getByRole('button', { name: '反批准', exact: true }),
       ).toBeVisible()
       await revision.getByRole('button', { name: '关闭', exact: true }).click()
-      await page.getByRole('button', { name: '查询', exact: true }).click()
+      await openArchive(page, 'bob', entity)
+      await findArchive(page, name)
       await expect(
         row.getByRole('button', { name: '启用', exact: true }),
       ).toBeVisible()
+      await openArchive(page, 'dcl', entity)
+      await findArchive(page, name)
       await row.getByRole('button', { name: '克隆', exact: true }).click()
       dialog = page.getByRole('dialog')
       await expect(dialog.getByLabel('法定名称', { exact: true })).toHaveValue(
         name,
       )
       await dialog.getByRole('button', { name: '取消', exact: true }).click()
-      const history = await records(page, name)
+      await openArchive(page, 'bob', entity)
+      await findArchive(page, name)
+      await row.getByRole('button', { name: '查看', exact: true }).click()
+      const history = page.getByRole('dialog')
+      await expect(
+        history.getByRole('button', { name: '批准', exact: true }),
+      ).toHaveCount(0)
+      await expect(
+        page.getByRole('button', { name: '新增', exact: true }),
+      ).toHaveCount(0)
       await expect(
         history.getByRole('button', { name: /^查看版本 / }),
       ).toHaveCount(2)

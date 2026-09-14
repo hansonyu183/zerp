@@ -1,3 +1,4 @@
+import { insertArchiveObjects } from '../fixtures/archive-objects.ts'
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
 import test from 'node:test'
@@ -56,24 +57,21 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     .where('id', '=', principal.userId)
     .execute()
   const approvedAt = new Date()
-  await db
-    .insertInto('bob_subjects')
-    .values([
-      {
-        id: customerId,
-        entity: 'customer',
-        code: `CUS-${codeSuffix}`,
-        created_at: approvedAt,
-        created_by: principal.userId,
-      },
-    ])
-    .execute()
+  await insertArchiveObjects(db, [
+    {
+      id: customerId,
+      entity: 'customer',
+      code: `CUS-${codeSuffix}`,
+      created_at: approvedAt,
+      created_by: principal.userId,
+    },
+  ])
   await db
     .insertInto('approval_entries')
     .values([
       {
         id: customerEntryId,
-        domain: 'bob',
+        domain: 'dcl',
         entity: 'customer',
         subject_id: customerId,
         version_no: 2,
@@ -89,7 +87,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     ])
     .execute()
   await db
-    .insertInto('bob_customer_versions')
+    .insertInto('dcl_customer_versions')
     .values({
       approval_entry_id: customerEntryId,
       kind: 'MAINLAND_ENTERPRISE',
@@ -97,7 +95,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     })
     .execute()
   await db
-    .insertInto('bob_customer_subunit_roots')
+    .insertInto('dcl_customer_subunit_roots')
     .values({
       subunit_id: subunitId,
       customer_id: customerId,
@@ -105,7 +103,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     })
     .execute()
   await db
-    .insertInto('bob_customer_version_subunits')
+    .insertInto('dcl_customer_version_subunits')
     .values({
       customer_approval_entry_id: customerEntryId,
       subunit_id: subunitId,
@@ -189,11 +187,11 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
         .where('id', 'in', createdAuxIds)
         .execute()
       await db
-        .deleteFrom('bob_customer_version_subunits')
+        .deleteFrom('dcl_customer_version_subunits')
         .where('subunit_id', '=', subunitId)
         .execute()
       await db
-        .deleteFrom('bob_customer_subunit_roots')
+        .deleteFrom('dcl_customer_subunit_roots')
         .where('subunit_id', '=', subunitId)
         .execute()
       await db
@@ -201,7 +199,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
         .where('id', 'in', [customerEntryId])
         .execute()
       await db
-        .deleteFrom('bob_subjects')
+        .deleteFrom('dcl_subjects')
         .where('id', 'in', [customerId])
         .execute()
       await db
@@ -237,7 +235,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   await assert.rejects(
     () =>
       db
-        .insertInto('bob_subjects')
+        .insertInto('dcl_subjects')
         .values({
           id: `X${suffix}`.padEnd(26, '0'),
           entity: 'customer',
@@ -246,7 +244,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
           created_by: principal.userId,
         })
         .execute(),
-    /bob_subjects_customer_code_ck/,
+    /dcl_subjects_entity_code_ck/,
   )
 
   async function postResponse(

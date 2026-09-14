@@ -388,9 +388,14 @@ export const customerDetails = [
 ] as const satisfies DetailFields<CustomerSnapshot>
 export const extraSnapshotDetails = {
   'bob/supplier': supplierDetails,
+  'dcl/supplier': supplierDetails,
   'bob/other-unit': otherUnitDetails,
+  'dcl/other-unit': otherUnitDetails,
   'bob/sales-partner': salesPartnerDetails,
+  'dcl/sales-partner': salesPartnerDetails,
   'bob/customer': customerDetails,
+  'dcl/customer': customerDetails,
   'bob/product': productDetails,
+  'dcl/product': productDetails,
   'wfl/process-definition': [],
 } satisfies Record<string, readonly DetailField[]>

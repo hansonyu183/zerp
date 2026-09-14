@@ -1,3 +1,4 @@
+import { insertArchiveObjects } from '../fixtures/archive-objects.ts'
 import { VouOpeningService } from '../../src/vou/opening-service.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
@@ -212,7 +213,7 @@ test('VOU approval uses saved mapping while historical postings keep their adopt
           .where('id', 'in', documentIds)
           .execute()
       }
-      await db.deleteFrom('bob_subjects').where('id', '=', productId).execute()
+      await db.deleteFrom('dcl_subjects').where('id', '=', productId).execute()
       await db
         .deleteFrom('acc_subjects')
         .where('book_id', '=', bookId)
@@ -251,21 +252,18 @@ test('VOU approval uses saved mapping while historical postings keep their adopt
       })
       .execute()
   // Already-approved product is a fixture; all actions under test use public domain services.
-  await db
-    .insertInto('bob_subjects')
-    .values({
-      id: productId,
-      entity: 'product',
-      code: `M399-${productId}`,
-      created_at: now,
-      created_by: actorId,
-    })
-    .execute()
+  await insertArchiveObjects(db, {
+    id: productId,
+    entity: 'product',
+    code: `M399-${productId}`,
+    created_at: now,
+    created_by: actorId,
+  })
   await db
     .insertInto('approval_entries')
     .values({
       id: productEntryId,
-      domain: 'bob',
+      domain: 'dcl',
       entity: 'product',
       subject_id: productId,
       version_no: 1,
@@ -280,7 +278,7 @@ test('VOU approval uses saved mapping while historical postings keep their adopt
     })
     .execute()
   await db
-    .insertInto('bob_product_versions')
+    .insertInto('dcl_product_versions')
     .values({
       approval_entry_id: productEntryId,
       name: '映射测试产品',

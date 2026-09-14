@@ -73,3 +73,8 @@ export const otherUnitPage = defineVersionPage<'bob/other-unit'>({
       ),
   },
 })
+
+export const otherUnitChangesPage = {
+  ...otherUnitPage,
+  resource: 'dcl/other-unit' as const,
+}

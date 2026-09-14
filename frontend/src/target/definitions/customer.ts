@@ -59,3 +59,8 @@ export const customerPage = defineVersionPage<'bob/customer'>({
       ),
   },
 })
+
+export const customerChangesPage = {
+  ...customerPage,
+  resource: 'dcl/customer' as const,
+}

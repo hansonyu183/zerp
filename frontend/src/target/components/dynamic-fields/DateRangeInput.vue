@@ -71,7 +71,6 @@ function select(values: unknown) {
           readonly
           clearable
           hide-details
-          variant="outlined"
           prepend-inner-icon="mdi-calendar-range"
           @click:clear.stop="clear"
         />
@@ -116,10 +115,6 @@ function select(values: unknown) {
 <style scoped>
 .date-range-input {
   min-width: 0;
-}
-.date-range-input :deep(input[readonly]) {
-  font-size: 14px;
-  letter-spacing: 0;
 }
 .range-endpoints {
   display: grid;

@@ -312,7 +312,6 @@ onBeforeUnmount(dispose)
       <v-btn
         :prepend-icon="actionIcons.create"
         v-if="can('save')"
-        color="primary"
         @click="create"
         >新增映射</v-btn
       >
@@ -385,7 +384,6 @@ onBeforeUnmount(dispose)
           <v-btn
             :prepend-icon="actionIcons.save"
             v-if="can('save')"
-            color="primary"
             :disabled="unknown || !draft.bookId || !draft.vouEntity"
             :loading="saving"
             @click="save"
@@ -397,15 +395,13 @@ onBeforeUnmount(dispose)
   </ManagementPageFrame>
 </template>
 <style scoped>
-.mapping-toolbar,
-.mapping-rule {
+.mapping-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
 }
-.mapping-toolbar :deep(.v-input),
-.mapping-rule :deep(.v-input) {
+.mapping-toolbar :deep(.v-input) {
   flex: 1 1 180px;
   min-width: 0;
 }

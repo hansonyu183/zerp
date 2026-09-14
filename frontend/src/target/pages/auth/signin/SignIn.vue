@@ -12,15 +12,17 @@ onMounted(() => branding.load())
 
 <template>
   <v-container fluid class="signin-page">
-    <v-card class="signin-card" elevation="8" rounded="xl">
+    <v-card class="signin-card">
       <v-card-text class="pa-8 pa-sm-10">
-        <div class="logo">Z</div>
-        <h1>ZERP</h1>
-        <p v-if="branding.enterpriseName" class="subtitle">
+        <v-avatar color="primary" size="52" class="mb-5 text-h5">Z</v-avatar>
+        <h1 class="text-h4">ZERP</h1>
+        <p v-if="branding.enterpriseName" class="mt-2 mb-7 text-muted">
           {{ branding.enterpriseName }}
         </p>
-        <p v-else-if="branding.loading" class="subtitle">正在加载企业名称…</p>
-        <p v-else class="subtitle">&nbsp;</p>
+        <p v-else-if="branding.loading" class="mt-2 mb-7 text-muted">
+          正在加载企业名称…
+        </p>
+        <p v-else class="mt-2 mb-7 text-muted">&nbsp;</p>
         <AppSnackbar :message="vm.success" type="success" />
         <AppSnackbar :message="vm.error" />
         <AppSnackbar
@@ -34,7 +36,6 @@ onMounted(() => branding.load())
             autocomplete="username"
             label="用户编码"
             prepend-inner-icon="mdi-account-outline"
-            variant="outlined"
           />
           <v-text-field
             v-model="vm.password"
@@ -42,11 +43,9 @@ onMounted(() => branding.load())
             label="密码"
             prepend-inner-icon="mdi-lock-outline"
             type="password"
-            variant="outlined"
           />
           <v-btn
             block
-            color="primary"
             :disabled="!vm.canSubmit"
             :loading="vm.submitting"
             size="large"
@@ -64,33 +63,9 @@ onMounted(() => branding.load())
   display: grid;
   min-height: 100vh;
   padding: 24px;
-  background:
-    radial-gradient(circle at 15% 20%, rgb(21 94 239 / 20%), transparent 30%),
-    linear-gradient(145deg, #f8faff 0%, #eef3ff 52%, #f8fafc 100%);
   place-items: center;
 }
 .signin-card {
   width: min(100%, 440px);
-}
-.logo {
-  display: grid;
-  width: 52px;
-  height: 52px;
-  margin-bottom: 20px;
-  color: white;
-  font-size: 28px;
-  font-weight: 800;
-  background: rgb(var(--v-theme-primary));
-  border-radius: 14px;
-  place-items: center;
-}
-h1 {
-  margin: 0;
-  color: #101828;
-  font-size: 30px;
-}
-.subtitle {
-  margin: 8px 0 28px;
-  color: #667085;
 }
 </style>

@@ -511,7 +511,6 @@ onBeforeUnmount(() => {
         :prepend-icon="actionIcons.create"
         v-if="list.canAction('create')"
         data-testid="list-create"
-        color="primary"
         :loading="list.actionPending"
         :disabled="list.actionPending || list.actionBlocked"
         @click="list.create"

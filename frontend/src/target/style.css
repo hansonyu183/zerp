@@ -1,6 +1,4 @@
 :root {
-  color: #172b4d;
-  font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -12,7 +10,3 @@ body,
   min-height: 100%;
   margin: 0;
 }
-
-body { background: #f4f6f8; }
-
-.v-table thead th { background: rgb(var(--v-theme-table-header)); }

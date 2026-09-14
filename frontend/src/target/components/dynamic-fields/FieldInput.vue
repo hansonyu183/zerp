@@ -162,7 +162,6 @@ function scalarValue(value: unknown): unknown {
     :disabled="inputDisabled"
     hide-details
     :clearable="clearable ?? usage === 'filter'"
-    variant="outlined"
     @update:model-value="update($event ?? (field.type === 'enum' ? '' : null))"
   />
   <v-text-field
@@ -178,7 +177,6 @@ function scalarValue(value: unknown): unknown {
     :disabled="inputDisabled"
     hide-details
     :clearable="clearable ?? usage === 'filter'"
-    variant="outlined"
     @update:model-value="update(scalarValue($event))"
   />
 </template>

@@ -32,7 +32,6 @@ const items = computed(() =>
         :key="resource.key"
         :prepend-icon="resource.resolvedIcon"
         :title="resource.displayName"
-        :to="resource.routePath"
-        rounded="lg" /></v-list-group
+        :to="resource.routePath" /></v-list-group
   ></v-list>
 </template>

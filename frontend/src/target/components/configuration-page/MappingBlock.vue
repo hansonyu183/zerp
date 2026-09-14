@@ -185,7 +185,6 @@ function removeLine(index: number, lineIndex: number) {
   <v-card
     v-for="(rule, index) in draft.definition.rules"
     :key="index"
-    variant="outlined"
     class="pa-3 mb-3"
   >
     <div
@@ -280,7 +279,6 @@ function removeLine(index: number, lineIndex: number) {
   <v-card
     v-for="(template, index) in draft.definition.templates"
     :key="index"
-    variant="outlined"
     class="pa-3 mb-3"
   >
     <FormBlock

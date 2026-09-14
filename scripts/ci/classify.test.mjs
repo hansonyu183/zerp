@@ -62,6 +62,9 @@ test('routes presentation files and frontend tests to L2', () => {
     'frontend/src/target/presentation/action-icons.ts',
     'frontend/tests/unit/target/field-entry.vuetify.spec.ts',
     'frontend/tests/static/architecture.spec.ts',
+    'frontend/tests/target-e2e/navigation.spec.ts',
+    'frontend/tests/target-e2e/collection-helpers.ts',
+    'frontend/tests/target-e2e/wfl-starlark-parity.spec.ts',
   ]
   for (const path of paths) assert.equal(classifyPaths([path]), 'L2', path)
   assert.equal(classifyPaths([...paths, 'README.md']), 'L2')
@@ -76,7 +79,9 @@ test('keeps frontend behavior modules, runtime configuration and cross-stack cha
     'frontend/src/target/session/vm.ts',
     'frontend/src/target/definitions/app/users.ts',
     'frontend/src/target/plugins/new-plugin.ts',
-    'frontend/tests/target-e2e/navigation.spec.ts',
+    'frontend/playwright.target.config.ts',
+    'frontend/tsconfig.node.json',
+    'frontend/tests/target-e2e/fixture.json',
     'frontend/vite.target.config.ts',
     'frontend/vitest.config.ts',
     'frontend/Dockerfile.target',
@@ -86,7 +91,11 @@ test('keeps frontend behavior modules, runtime configuration and cross-stack cha
     'apps/api/db/target-schema.sql',
   ]) {
     assert.equal(
-      classifyPaths(['frontend/src/target/style.css', path]),
+      classifyPaths([
+        'frontend/src/target/style.css',
+        'frontend/tests/target-e2e/navigation.spec.ts',
+        path,
+      ]),
       'L3',
       path,
     )
@@ -152,4 +161,16 @@ test('CLI rejects malformed arguments and unreadable path files', () => {
     assert.equal(result.stdout, '', args.join(' '))
     assert.notEqual(result.stderr, '', args.join(' '))
   }
+})
+
+test('label edits with updated browser locators stay L2', () => {
+  assert.equal(
+    classifyPaths([
+      'frontend/src/target/components/direct-page/DirectPage.vue',
+      'frontend/tests/target-e2e/bob-customer.spec.ts',
+      'frontend/tests/target-e2e/collection-helpers.ts',
+      'docs/use-cases/field-entry.md',
+    ]),
+    'L2',
+  )
 })

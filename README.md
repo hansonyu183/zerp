@@ -52,7 +52,7 @@ make target-down
 
 - L0：`docs/**/*.md`，以及明确列出的 `README.md`、`AGENTS.md`、`CONTEXT.md`、`frontend/README.md`、`frontend/AGENTS.md`。只运行公共检查，不安装 Go 或 Chromium，也不启动 Target 服务。
 - L1：文档检查器、Prettier 配置、CI 分类与汇总脚本、测试及 `.github/workflows/ci.yml`。运行公共检查和工具/CI 行为测试。
-- L2：`frontend/src/target/` 下的 Vue/CSS、`plugins/themes.ts`、`plugins/vuetify.ts`、`presentation/**/*.ts` 和 `frontend/tests/{unit/target,static}/` 下的 TS/Vue 测试。运行公共检查、CI 行为测试，以及前端类型检查、架构检查、lint/format、全部单元/组件测试和生产构建；不启动 PostgreSQL、Docker、Go/WASM 或完整浏览器验收。Vue 文件内的脚本也走前端验证，按文件边界分类，不解析差异猜测是否“纯样式”。
+- L2：`frontend/src/target/` 下的 Vue/CSS、`plugins/themes.ts`、`plugins/vuetify.ts`、`presentation/**/*.ts` 和 `frontend/tests/{unit/target,static}/` 下的 TS/Vue 测试，以及 `frontend/tests/target-e2e/` 下的 TS 测试和辅助文件。运行公共检查、CI 行为测试，以及前端类型检查、架构检查、lint/format、全部单元/组件测试和生产构建；不启动 PostgreSQL、Docker、Go/WASM 或完整浏览器验收。Vue 文件内的脚本也走前端验证，按文件边界分类，不解析差异猜测是否“纯样式”。E2E 文件在此级别执行类型、lint 和格式检查，不执行浏览器场景；定位更新随页面展示变更走 L2，混入 L3 文件仍执行完整验收。
 - L3：其余所有文件，包括 `.github/workflows/target.yml`、API 适配、业务定义及其他 TS 逻辑、后端/共享代码、SQL、依赖、运行配置和 Target 执行定义。运行公共检查、工具/CI 行为测试和完整 `make target-e2e`。
 
 重命名同时按变更前路径删除和变更后路径新增分类；修改分类规则时，基线规则与新规则分别计算并取较高等级。唯一必需检查为 `ci-required`，它会严格汇总各级必须运行的任务。开发者本地用 `make check`、`make test` 运行独立检查，用 `make e2e` 运行完整验证。

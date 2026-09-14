@@ -39,7 +39,8 @@ function levelForPath(path) {
     L2_PATHS.has(path) ||
     /^frontend\/src\/target\/.+\.(vue|css)$/.test(path) ||
     /^frontend\/src\/target\/presentation\/.+\.ts$/.test(path) ||
-    /^frontend\/tests\/(unit\/target|static)\/.+\.(ts|vue)$/.test(path)
+    /^frontend\/tests\/(unit\/target|static)\/.+\.(ts|vue)$/.test(path) ||
+    /^frontend\/tests\/target-e2e\/.+\.ts$/.test(path)
   ) {
     return 'L2'
   }

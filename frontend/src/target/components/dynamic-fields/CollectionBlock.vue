@@ -182,11 +182,11 @@ watch(
           v-if="mode === 'edit' && create"
           icon="mdi-plus"
           variant="text"
-          :aria-label="`添加${caption}`"
+          aria-label="新增"
           :disabled="!editable || busy || modelValue.length >= maximum"
           @click="open(null, true)"
           ><v-icon icon="mdi-plus" /><v-tooltip activator="parent"
-            >添加{{ caption }}</v-tooltip
+            >新增</v-tooltip
           ></v-btn
         ></slot
       >
@@ -236,14 +236,23 @@ watch(
       :model-value="opened"
       :fullscreen="xs"
       max-width="960"
-      :aria-label="`${editing ? '编辑' : '查看'}${caption}`"
+      :aria-label="
+        editing && !original ? '新增' : `${editing ? '编辑' : '查看'}${caption}`
+      "
       @update:model-value="
         (value) => {
           if (!value) close()
         }
       "
     >
-      <v-card v-if="draft" :title="`${editing ? '编辑' : '查看'}${caption}`">
+      <v-card
+        v-if="draft"
+        :title="
+          editing && !original
+            ? '新增'
+            : `${editing ? '编辑' : '查看'}${caption}`
+        "
+      >
         <v-card-text class="collection-editor">
           <slot
             v-if="editing"

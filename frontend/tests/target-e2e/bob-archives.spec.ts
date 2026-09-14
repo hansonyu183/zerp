@@ -72,15 +72,11 @@ for (const [entity, title] of [
       const name = `浏览器${title}${tag}`
       const path = `/bob/${entity}`
       await open(page, path, 1440)
-      await page
-        .getByRole('button', { name: `新增${title}`, exact: true })
-        .click()
+      await page.getByRole('button', { name: '新增', exact: true }).click()
       let dialog = page.getByRole('dialog')
       await dialog.getByLabel('法定名称', { exact: true }).fill('应丢弃的输入')
       await dialog.getByRole('button', { name: '取消', exact: true }).click()
-      await page
-        .getByRole('button', { name: `新增${title}`, exact: true })
-        .click()
+      await page.getByRole('button', { name: '新增', exact: true }).click()
       dialog = page.getByRole('dialog')
       await expect(dialog.getByLabel('法定名称', { exact: true })).toHaveValue(
         '',

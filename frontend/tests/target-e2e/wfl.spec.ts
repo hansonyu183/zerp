@@ -59,7 +59,7 @@ test('WFL definition page edits, trials, submits, approves and preserves an old 
   await expect(
     page.locator('.v-navigation-drawer a[href="/wfl/process-definition"]'),
   ).toHaveCount(1)
-  await page.getByRole('button', { name: '新增流程定义', exact: true }).click()
+  await page.getByRole('button', { name: '新增', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await dialog.getByLabel('Starlark 脚本').fill(facts.script)
   await selectTrial()
@@ -164,15 +164,11 @@ test('WFL definition page edits, trials, submits, approves and preserves an old 
       reviewer.getByRole('region', { name: '运行审计' }),
     ).toContainText('打开单据')
     await expect(reviewer.locator('main')).toContainText('浏览器初版')
-    await page
-      .getByRole('button', { name: '新增流程定义', exact: true })
-      .click()
+    await page.getByRole('button', { name: '新增', exact: true }).click()
     await dialog.getByLabel('Starlark 脚本').fill('未提交输入')
     await page.reload()
     await expect(dialog).toHaveCount(0)
-    await page
-      .getByRole('button', { name: '新增流程定义', exact: true })
-      .click()
+    await page.getByRole('button', { name: '新增', exact: true }).click()
     await expect(dialog.getByLabel('Starlark 脚本')).not.toHaveValue(
       '未提交输入',
     )

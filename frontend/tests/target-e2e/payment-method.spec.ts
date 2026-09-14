@@ -83,9 +83,7 @@ test('payment methods use typed fields through menu on desktop and 390px', async
     }
     await expect(page.getByTestId('business-unimplemented')).toHaveCount(0)
     for (let index = 0; index < (width === 1440 ? 21 : 1); index++) {
-      await page
-        .getByRole('button', { name: '新增收款方式', exact: true })
-        .click()
+      await page.getByRole('button', { name: '新增', exact: true }).click()
       const dialog = page.getByRole('dialog')
       await dialog.getByLabel('说明', { exact: true }).fill('收款说明')
       await dialog

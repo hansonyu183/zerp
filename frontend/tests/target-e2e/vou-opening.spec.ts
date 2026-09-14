@@ -29,7 +29,7 @@ async function signIn(page: Page, reviewer = false) {
   await expect(page.getByTestId('vou-list-page')).toBeVisible()
 }
 async function create(page: Page) {
-  await page.getByRole('button', { name: '新建', exact: true }).click()
+  await page.getByRole('button', { name: '新增', exact: true }).click()
   const editor = page.getByRole('dialog').last()
   const candidates = page.waitForResponse((response) => {
     const url = new URL(response.url())
@@ -102,7 +102,8 @@ test('real opening page submits zero, another operator approves, then replaces e
   await page.setViewportSize({ width: 390, height: 844 })
   await confirmCollections(page)
   await editor
-    .getByRole('button', { name: '添加期初明细', exact: true })
+    .locator('.collection-block[aria-label="期初明细"] > .collection-heading')
+    .getByRole('button', { name: '新增', exact: true })
     .click()
   const debit = page.getByRole('dialog').last()
   await debit.getByLabel('科目', { exact: true }).fill('1001')
@@ -116,7 +117,8 @@ test('real opening page submits zero, another operator approves, then replaces e
   ).toContainText('12.30')
   await confirmCollections(page)
   await editor
-    .getByRole('button', { name: '添加期初明细', exact: true })
+    .locator('.collection-block[aria-label="期初明细"] > .collection-heading')
+    .getByRole('button', { name: '新增', exact: true })
     .click()
   const credit = page.getByRole('dialog').last()
   await credit.getByLabel('科目', { exact: true }).fill('3001')
@@ -138,7 +140,7 @@ test('real opening page submits zero, another operator approves, then replaces e
     .getByTestId('vou-detail')
     .getByRole('button', { name: '关闭', exact: true })
     .click()
-  await page.getByRole('button', { name: '新建', exact: true }).click()
+  await page.getByRole('button', { name: '新增', exact: true }).click()
   await page.reload()
   await expect(page.getByTestId('opening-editor')).toHaveCount(0)
 })
@@ -165,7 +167,7 @@ test('approve-only menu does not send unauthorized opening or reference reads', 
     '当前账号没有查询权限',
   )
   await expect(
-    page.getByRole('button', { name: '新建', exact: true }),
+    page.getByRole('button', { name: '新增', exact: true }),
   ).toHaveCount(0)
   expect(reads).toEqual([])
 })

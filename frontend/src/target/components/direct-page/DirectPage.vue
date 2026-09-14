@@ -345,7 +345,7 @@ const listDefinition = defineListPage<
   { keyword: string; quantityScale?: number | null }
 >({
   title,
-  createLabel: `新增${title.replace(/管理$/, '')}`,
+  createLabel: '新增',
   columns: [
     { key: 'code', type: 'text', caption: '编码' },
     { key: 'name', type: 'text', caption: '名称' },
@@ -524,7 +524,7 @@ onBeforeUnmount(() => {
         class="mb-4"
         >{{ list.queryError || contractError }}</v-alert
       ><v-alert v-if="list.actionBlocked && lastCreatedId" type="info"
-        >新建成功（ID：{{
+        >新增成功（ID：{{
           lastCreatedId
         }}），但列表刷新失败，请先查询核实。</v-alert
       ></template
@@ -557,7 +557,7 @@ onBeforeUnmount(() => {
   <AppSnackbar :message="list.feedback" @dismiss="list.dismissFeedback" />
   <v-dialog :model-value="open" max-width="720" persistent>
     <v-card
-      :title="`${mode === 'create' ? '新增' : '编辑'}${title.replace(/管理$/, '')}`"
+      :title="mode === 'create' ? '新增' : `编辑${title.replace(/管理$/, '')}`"
     >
       <v-card-text>
         <v-alert v-if="error" type="error">{{ error }}</v-alert>

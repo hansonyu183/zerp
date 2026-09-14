@@ -85,14 +85,14 @@ test('customer full temporary form, two subunits, history and independent enable
     const tag = randomBytes(5).toString('hex'),
       name = `浏览器客户${tag}`
     await page.goto('/bob/customer')
-    await page.getByRole('button', { name: '新增客户', exact: true }).click()
+    await page.getByRole('button', { name: '新增', exact: true }).click()
     let dialog = page.getByRole('dialog').last()
     await expect(dialog.getByLabel('身份类型', { exact: true })).toHaveValue(
       '大陆企业',
     )
     await dialog.getByLabel('显示名称', { exact: true }).fill('关闭即丢弃')
     await dialog.getByRole('button', { name: '取消', exact: true }).click()
-    await page.getByRole('button', { name: '新增客户', exact: true }).click()
+    await page.getByRole('button', { name: '新增', exact: true }).click()
     dialog = page.getByRole('dialog').last()
     await expect(dialog.getByLabel('显示名称', { exact: true })).toHaveValue('')
     await select(page, dialog, '身份类型', '其他')
@@ -111,7 +111,8 @@ test('customer full temporary form, two subunits, history and independent enable
     ])
       await dialog.getByLabel(label!, { exact: true }).fill(value!)
     await dialog
-      .getByRole('button', { name: '添加汇款识别', exact: true })
+      .locator('.collection-block[aria-label="汇款识别"] > .collection-heading')
+      .getByRole('button', { name: '新增', exact: true })
       .click()
     await dialog.getByLabel('付款户名', { exact: true }).fill('汇款识别户名')
     await dialog.getByLabel('付款银行', { exact: true }).fill('来款银行')
@@ -131,7 +132,10 @@ test('customer full temporary form, two subunits, history and independent enable
       if (i === 0) await editCollection(page, '客户子单位')
       else
         await dialog
-          .getByRole('button', { name: '添加客户子单位', exact: true })
+          .locator(
+            '.collection-block[aria-label="客户子单位"] > .collection-heading',
+          )
+          .getByRole('button', { name: '新增', exact: true })
           .click()
       const sub = page.getByRole('dialog').last()
       await sub
@@ -153,13 +157,19 @@ test('customer full temporary form, two subunits, history and independent enable
         .getByLabel('默认销售订单备注', { exact: true })
         .fill('订单默认内容')
       await sub
-        .getByRole('button', { name: '添加信用额度', exact: true })
+        .locator(
+          '.collection-block[aria-label="信用额度"] > .collection-heading',
+        )
+        .getByRole('button', { name: '新增', exact: true })
         .click()
       await sub
         .getByRole('textbox', { name: '信用额度', exact: true })
         .fill('10000.00')
       await confirmCollection(page)
-      await sub.getByRole('button', { name: '添加成本项', exact: true }).click()
+      await sub
+        .locator('.collection-block[aria-label="成本项"] > .collection-heading')
+        .getByRole('button', { name: '新增', exact: true })
+        .click()
       await sub.getByLabel('成本名称', { exact: true }).fill('装卸')
       await sub.getByLabel('成本单价或每单金额', { exact: true }).fill('0.20')
       await confirmCollection(page)

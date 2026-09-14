@@ -181,280 +181,284 @@ function removeLine(index: number, lineIndex: number) {
     v-if="draft.defaultResult === 'POST'"
     v-model="draft.definition.defaultTemplateId"
   />
-  <h3 class="mb-3">条件规则</h3>
-  <v-card
-    v-for="(rule, index) in draft.definition.rules"
-    :key="index"
-    class="pa-3 mb-3"
-  >
-    <div
-      v-for="(condition, conditionIndex) in rule.conditions"
-      :key="conditionIndex"
-      class="mapping-rule"
-    >
-      <FormBlock
-        :model-value="condition"
-        :fields="[
-          {
-            key: 'field',
-            type: 'enum',
-            caption: '条件字段',
-            options: mappingFieldOptions(fields).map((o) => ({
-              value: o.value,
-              caption: o.title,
-            })),
-          },
-          {
-            key: 'operator',
-            type: 'enum',
-            caption: '条件',
-            options: Object.entries(mappingOperators).map(
-              ([value, caption]) => ({ value, caption }),
-            ),
-          },
-        ]"
-        :disabled="disabled"
-        @update:model-value="rule.conditions[conditionIndex] = $event"
-      />
-      <v-combobox
-        v-if="!['IS_EMPTY', 'IS_NOT_EMPTY'].includes(condition.operator)"
-        v-model="condition.values"
-        label="匹配值（回车添加）"
-        multiple
-        chips
-      />
-      <v-btn
-        :prepend-icon="actionIcons.remove"
-        variant="text"
-        @click="removeCondition(index, conditionIndex)"
-        >移除条件</v-btn
-      >
-    </div>
-    <v-btn
-      :prepend-icon="actionIcons.add"
-      variant="text"
-      @click="addCondition(index)"
-      >添加条件</v-btn
-    >
-    <FieldInput
-      usage="edit"
-      :field="{
-        key: 'result',
-        type: 'choice',
-        caption: '规则结果',
-        options: options(mappingResults).map((option) => ({
-          value: option.value,
-          caption: option.title,
-        })),
-      }"
-      v-model="rule.result"
-      @update:model-value="changeRuleResult(index)"
-    />
-    <FieldInput
-      usage="edit"
-      :field="{
-        key: 'templateId',
-        type: 'choice',
-        caption: '凭证模板',
-        options: draft.definition.templates.map((option) => ({
-          value: option.templateId,
-          caption: option.templateId,
-        })),
-      }"
-      v-if="rule.result === 'POST'"
-      v-model="rule.templateId"
-    />
-    <v-btn
-      :prepend-icon="actionIcons.remove"
-      variant="text"
-      color="error"
-      @click="removeRule(index)"
-      >移除规则</v-btn
-    >
-  </v-card>
-  <v-btn :prepend-icon="actionIcons.add" class="mb-4" @click="addRule"
-    >添加规则</v-btn
-  >
-  <h3 class="mb-3">凭证模板</h3>
-  <v-card
-    v-for="(template, index) in draft.definition.templates"
-    :key="index"
-    class="pa-3 mb-3"
-  >
-    <FormBlock
-      :model-value="template"
-      :fields="[{ key: 'templateId', type: 'text', caption: '模板名称' }]"
-      :disabled="disabled"
-      @update:model-value="draft.definition.templates[index] = $event"
-    />
-    <FieldInput
-      usage="edit"
-      :field="{
-        key: 'collection',
-        type: 'choice',
-        caption: '单据行集合（留空使用头字段）',
-        options: collections.map((option) => ({
-          value: option.value,
-          caption: option.title,
-        })),
-      }"
-      v-model="template.collection"
-      clearable
-    />
+  <section aria-label="条件规则">
+    <h3 class="mb-3">条件规则</h3>
     <v-card
-      v-for="(line, lineIndex) in template.lines"
-      :key="lineIndex"
-      variant="tonal"
+      v-for="(rule, index) in draft.definition.rules"
+      :key="index"
       class="pa-3 mb-3"
     >
-      <FieldInput
-        usage="edit"
-        :field="{
-          key: 'HEADER',
-          type: 'choice',
-          caption: '本分录来源',
-          options: [
-            { title: '跟随模板', value: 'INHERIT' },
-            { title: '单头', value: 'HEADER' },
-            ...collections,
-          ].map((option) => ({ value: option.value, caption: option.title })),
-        }"
-        :model-value="
-          line.collection === undefined
-            ? 'INHERIT'
-            : (line.collection ?? 'HEADER')
-        "
-        @update:model-value="
-          line.collection =
-            $event === 'INHERIT'
-              ? undefined
-              : $event === 'HEADER'
-                ? null
-                : $event
-        "
-      />
-      <div class="mapping-rule">
+      <div
+        v-for="(condition, conditionIndex) in rule.conditions"
+        :key="conditionIndex"
+        class="mapping-rule"
+      >
         <FormBlock
-          :model-value="line"
+          :model-value="condition"
           :fields="[
             {
-              key: 'subjectSource',
+              key: 'field',
               type: 'enum',
-              caption: '科目来源',
-              options: Object.entries(mappingSubjectSources).map(
-                ([value, caption]) => ({ value, caption }),
-              ),
-            },
-            {
-              key: 'subjectValue',
-              type: 'enum',
-              caption: '科目或字段',
-              options:
-                line.subjectSource === 'FIXED'
-                  ? subjects.map((s) => ({ value: s.id, caption: s.name }))
-                  : mappingFieldOptions(fields).map((o) => ({
-                      value: o.value,
-                      caption: o.title,
-                    })),
-            },
-            {
-              key: 'direction',
-              type: 'enum',
-              caption: '借贷方向',
-              options: Object.entries(mappingDirections).map(
-                ([value, caption]) => ({ value, caption }),
-              ),
-            },
-            {
-              key: 'amountField',
-              type: 'enum',
-              caption: '金额字段',
+              caption: '条件字段',
               options: mappingFieldOptions(fields).map((o) => ({
                 value: o.value,
                 caption: o.title,
               })),
             },
             {
-              key: 'currencyField',
+              key: 'operator',
               type: 'enum',
-              caption: '币种字段',
-              options: mappingFieldOptions(fields).map((o) => ({
-                value: o.value,
-                caption: o.title,
-              })),
+              caption: '条件',
+              options: Object.entries(mappingOperators).map(
+                ([value, caption]) => ({ value, caption }),
+              ),
             },
           ]"
           :disabled="disabled"
-          @update:model-value="template.lines[lineIndex] = $event"
+          @update:model-value="rule.conditions[conditionIndex] = $event"
         />
-        <FieldInput
-          usage="edit"
-          :field="{
-            key: 'quantityField',
-            type: 'choice',
-            caption: '数量字段',
-            options: mappingFieldOptions(fields).map((option) => ({
-              value: option.value,
-              caption: option.title,
-            })),
-          }"
-          v-model="line.quantityField"
-          clearable
+        <v-combobox
+          v-if="!['IS_EMPTY', 'IS_NOT_EMPTY'].includes(condition.operator)"
+          v-model="condition.values"
+          label="匹配值（回车添加）"
+          multiple
+          chips
         />
+        <v-btn
+          :prepend-icon="actionIcons.remove"
+          variant="text"
+          @click="removeCondition(index, conditionIndex)"
+          >移除条件</v-btn
+        >
       </div>
-      <MappingDimensions
-        v-model="line.dimensions"
-        :fields="fields"
-        :dimensions="
-          line.subjectSource === 'FIXED'
-            ? requiredDimensions(line.subjectValue)
-            : Object.keys(mappingDimensions)
-        "
+      <v-btn
+        :prepend-icon="actionIcons.add"
+        variant="text"
+        @click="addCondition(index)"
+        >新增</v-btn
+      >
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'result',
+          type: 'choice',
+          caption: '规则结果',
+          options: options(mappingResults).map((option) => ({
+            value: option.value,
+            caption: option.title,
+          })),
+        }"
+        v-model="rule.result"
+        @update:model-value="changeRuleResult(index)"
       />
       <FieldInput
         usage="edit"
         :field="{
-          key: 'costCounterpartSubjectId',
+          key: 'templateId',
           type: 'choice',
-          caption: '成本对方科目（可选）',
-          options: subjects.map((option) => ({
-            value: option.id,
-            caption: option.name,
+          caption: '凭证模板',
+          options: draft.definition.templates.map((option) => ({
+            value: option.templateId,
+            caption: option.templateId,
           })),
         }"
-        v-model="line.costCounterpartSubjectId"
-        clearable
-      />
-      <MappingDimensions
-        v-model="line.costCounterpartDimensions"
-        :fields="fields"
-        :dimensions="requiredDimensions(line.costCounterpartSubjectId)"
+        v-if="rule.result === 'POST'"
+        v-model="rule.templateId"
       />
       <v-btn
         :prepend-icon="actionIcons.remove"
         variant="text"
         color="error"
-        @click="removeLine(index, lineIndex)"
-        >移除分录行</v-btn
+        @click="removeRule(index)"
+        >移除规则</v-btn
       >
     </v-card>
-    <v-btn
-      :prepend-icon="actionIcons.add"
-      variant="text"
-      @click="addLine(index)"
-      >添加分录行</v-btn
+    <v-btn :prepend-icon="actionIcons.add" class="mb-4" @click="addRule"
+      >新增</v-btn
     >
-    <v-btn
-      :prepend-icon="actionIcons.remove"
-      variant="text"
-      color="error"
-      @click="removeTemplate(index)"
-      >移除模板</v-btn
+  </section>
+  <section aria-label="凭证模板">
+    <h3 class="mb-3">凭证模板</h3>
+    <v-card
+      v-for="(template, index) in draft.definition.templates"
+      :key="index"
+      class="pa-3 mb-3"
     >
-  </v-card>
-  <v-btn :prepend-icon="actionIcons.add" class="mb-4" @click="addTemplate"
-    >添加模板</v-btn
-  >
+      <FormBlock
+        :model-value="template"
+        :fields="[{ key: 'templateId', type: 'text', caption: '模板名称' }]"
+        :disabled="disabled"
+        @update:model-value="draft.definition.templates[index] = $event"
+      />
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'collection',
+          type: 'choice',
+          caption: '单据行集合（留空使用头字段）',
+          options: collections.map((option) => ({
+            value: option.value,
+            caption: option.title,
+          })),
+        }"
+        v-model="template.collection"
+        clearable
+      />
+      <v-card
+        v-for="(line, lineIndex) in template.lines"
+        :key="lineIndex"
+        variant="tonal"
+        class="pa-3 mb-3"
+      >
+        <FieldInput
+          usage="edit"
+          :field="{
+            key: 'HEADER',
+            type: 'choice',
+            caption: '本分录来源',
+            options: [
+              { title: '跟随模板', value: 'INHERIT' },
+              { title: '单头', value: 'HEADER' },
+              ...collections,
+            ].map((option) => ({ value: option.value, caption: option.title })),
+          }"
+          :model-value="
+            line.collection === undefined
+              ? 'INHERIT'
+              : (line.collection ?? 'HEADER')
+          "
+          @update:model-value="
+            line.collection =
+              $event === 'INHERIT'
+                ? undefined
+                : $event === 'HEADER'
+                  ? null
+                  : $event
+          "
+        />
+        <div class="mapping-rule">
+          <FormBlock
+            :model-value="line"
+            :fields="[
+              {
+                key: 'subjectSource',
+                type: 'enum',
+                caption: '科目来源',
+                options: Object.entries(mappingSubjectSources).map(
+                  ([value, caption]) => ({ value, caption }),
+                ),
+              },
+              {
+                key: 'subjectValue',
+                type: 'enum',
+                caption: '科目或字段',
+                options:
+                  line.subjectSource === 'FIXED'
+                    ? subjects.map((s) => ({ value: s.id, caption: s.name }))
+                    : mappingFieldOptions(fields).map((o) => ({
+                        value: o.value,
+                        caption: o.title,
+                      })),
+              },
+              {
+                key: 'direction',
+                type: 'enum',
+                caption: '借贷方向',
+                options: Object.entries(mappingDirections).map(
+                  ([value, caption]) => ({ value, caption }),
+                ),
+              },
+              {
+                key: 'amountField',
+                type: 'enum',
+                caption: '金额字段',
+                options: mappingFieldOptions(fields).map((o) => ({
+                  value: o.value,
+                  caption: o.title,
+                })),
+              },
+              {
+                key: 'currencyField',
+                type: 'enum',
+                caption: '币种字段',
+                options: mappingFieldOptions(fields).map((o) => ({
+                  value: o.value,
+                  caption: o.title,
+                })),
+              },
+            ]"
+            :disabled="disabled"
+            @update:model-value="template.lines[lineIndex] = $event"
+          />
+          <FieldInput
+            usage="edit"
+            :field="{
+              key: 'quantityField',
+              type: 'choice',
+              caption: '数量字段',
+              options: mappingFieldOptions(fields).map((option) => ({
+                value: option.value,
+                caption: option.title,
+              })),
+            }"
+            v-model="line.quantityField"
+            clearable
+          />
+        </div>
+        <MappingDimensions
+          v-model="line.dimensions"
+          :fields="fields"
+          :dimensions="
+            line.subjectSource === 'FIXED'
+              ? requiredDimensions(line.subjectValue)
+              : Object.keys(mappingDimensions)
+          "
+        />
+        <FieldInput
+          usage="edit"
+          :field="{
+            key: 'costCounterpartSubjectId',
+            type: 'choice',
+            caption: '成本对方科目（可选）',
+            options: subjects.map((option) => ({
+              value: option.id,
+              caption: option.name,
+            })),
+          }"
+          v-model="line.costCounterpartSubjectId"
+          clearable
+        />
+        <MappingDimensions
+          v-model="line.costCounterpartDimensions"
+          :fields="fields"
+          :dimensions="requiredDimensions(line.costCounterpartSubjectId)"
+        />
+        <v-btn
+          :prepend-icon="actionIcons.remove"
+          variant="text"
+          color="error"
+          @click="removeLine(index, lineIndex)"
+          >移除分录行</v-btn
+        >
+      </v-card>
+      <v-btn
+        :prepend-icon="actionIcons.add"
+        variant="text"
+        @click="addLine(index)"
+        >新增</v-btn
+      >
+      <v-btn
+        :prepend-icon="actionIcons.remove"
+        variant="text"
+        color="error"
+        @click="removeTemplate(index)"
+        >移除模板</v-btn
+      >
+    </v-card>
+    <v-btn :prepend-icon="actionIcons.add" class="mb-4" @click="addTemplate"
+      >新增</v-btn
+    >
+  </section>
   <FieldInput
     usage="edit"
     :field="{

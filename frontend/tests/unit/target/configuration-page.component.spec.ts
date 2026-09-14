@@ -50,8 +50,8 @@ beforeEach(() => {
   })
   vi.mocked(api.getTargetMapping).mockResolvedValue(structuredClone(current))
 })
-async function click(w: VueWrapper, label: string) {
-  const button = w.findAll('button').find((b) => b.text() === label)
+async function click(w: VueWrapper, label: string, selector = 'button') {
+  const button = w.findAll(selector).find((b) => b.text() === label)
   expect(button, label).toBeDefined()
   await button!.trigger('click')
   await flushPromises()
@@ -73,7 +73,7 @@ it('keeps an unknown save locked after closing, querying and reopening, and only
   await click(w, '保存')
   await click(w, '关闭')
   await click(w, '查询')
-  await click(w, '新增映射')
+  await click(w, '新增')
   expect(w.text()).toContain('保存结果尚未确认')
   expect(
     (w.get('[aria-label="映射账簿"]').element as HTMLSelectElement).value,
@@ -124,7 +124,7 @@ it('saves the loaded revision once and distinguishes a failed list refresh witho
 })
 it('retains invalid input and reports a revision conflict through the public editor', async () => {
   const w = await open()
-  await click(w, '添加模板')
+  await click(w, '新增', 'section[aria-label="凭证模板"] > button')
   await w.get('[aria-label="模板名称"]').setValue('本次模板')
   vi.mocked(api.saveTargetMapping).mockRejectedValue(
     new api.TargetApiError(
@@ -147,8 +147,8 @@ it('keeps a save-only resource accessible without sending unauthorized reads', a
     global: { stubs },
   })
   await flushPromises()
-  await click(w, '新增映射')
-  expect(w.text()).toContain('当前会计映射')
+  await click(w, '新增')
+  expect(w.find('h2').text()).toBe('新增')
   expect(api.getTargetMappingCatalog).toHaveBeenCalledWith()
   expect(w.get('[aria-label="映射账簿"]').text()).toContain('账簿')
   expect(api.queryTargetMappings).not.toHaveBeenCalled()
@@ -157,12 +157,12 @@ it('keeps a save-only resource accessible without sending unauthorized reads', a
 })
 it('preserves visible template input when closing and reopening an unresolved save', async () => {
   const w = await open()
-  await click(w, '添加模板')
+  await click(w, '新增', 'section[aria-label="凭证模板"] > button')
   await w.get('[aria-label="模板名称"]').setValue('待核实模板')
   vi.mocked(api.saveTargetMapping).mockRejectedValue(new TypeError('lost'))
   await click(w, '保存')
   await click(w, '关闭')
-  await click(w, '新增映射')
+  await click(w, '新增')
   expect(w.find('[aria-label="模板名称"]').exists()).toBe(true)
   expect(
     (w.get('[aria-label="模板名称"]').element as HTMLInputElement).value,
@@ -189,7 +189,7 @@ it('shows shared Chinese captions for mapping condition fields instead of wire p
     ],
   })
   const w = await open()
-  await click(w, '添加规则')
+  await click(w, '新增', 'section[aria-label="条件规则"] > button')
   const fields = w.get('[aria-label="条件字段"]')
   expect(fields.text()).toContain('业务日期')
   expect(fields.text()).toContain('客户子单位 · 对象标识')
@@ -209,7 +209,7 @@ it('shows a catalog load failure and retries through the real mapping Host', asy
   await flushPromises()
   expect(w.text()).toContain('网络请求失败')
   await click(w, '重试加载目录')
-  await click(w, '新增映射')
+  await click(w, '新增')
   expect(w.get('[aria-label="映射账簿"]').text()).toContain('账簿')
   expect(api.getTargetMappingCatalog).toHaveBeenCalledTimes(2)
   expect(api.queryTargetMappings).not.toHaveBeenCalled()

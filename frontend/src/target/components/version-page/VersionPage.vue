@@ -763,7 +763,7 @@ onBeforeUnmount(() => {
         v-if="canCreate"
         :disabled="locked"
         @click="create()"
-        >新增{{ title }}</v-btn
+        >新增</v-btn
       ><v-btn
         v-if="can('query')"
         :disabled="tab === 'current'"
@@ -824,7 +824,7 @@ onBeforeUnmount(() => {
     /></template>
   </ManagementPageFrame>
   <v-dialog :model-value="open" persistent max-width="1000"
-    ><v-card :title="`${title}提交`"
+    ><v-card :title="mode === 'create' ? '新增' : `${title}提交`"
       ><v-card-text
         ><v-alert v-if="error" type="error">{{ error }}</v-alert
         ><v-progress-linear v-if="loading" indeterminate /><CandidateFields

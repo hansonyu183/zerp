@@ -521,7 +521,7 @@ onBeforeUnmount(() => {
         v-if="editorAvailable && vm.can('submit-new')"
         :disabled="saving || uncertain || intermediaryScriptUnknown"
         @click="create"
-        >新建</v-btn
+        >新增</v-btn
       ></template
     >
     <template #alerts>
@@ -559,7 +559,7 @@ onBeforeUnmount(() => {
           !userCreatableVouEntities.includes(definition.vouType)
         "
         type="info"
-        >此类型由系统生成，不支持人工新建。</v-alert
+        >此类型由系统生成，不支持人工新增。</v-alert
       >
       <v-alert v-if="!editorAvailable" type="info" class="mb-4"
         >专用单据编辑器尚未实施；已提交内容只读，可打开详情及执行已支持的审批。</v-alert
@@ -788,7 +788,7 @@ onBeforeUnmount(() => {
     @update:model-value="!$event && closeDraft()"
   >
     <v-card
-      :title="openingDraft ? '编辑会计期初' : '新建单据'"
+      :title="openingDraft ? '编辑会计期初' : '新增'"
       :data-testid="openingDraft ? 'opening-editor' : 'document-editor'"
       ><v-card-text>
         <v-alert v-if="editError" type="error">{{ editError }}</v-alert>

@@ -6,7 +6,7 @@ import { type EnabledListItem } from '@/target/components/list-page/vm.ts'
 
 const definition = defineListPage<EnabledListItem>({
   title: '用户管理',
-  createLabel: '新增用户',
+  createLabel: '新增',
   columns: [
     { key: 'code', type: 'text', caption: '编码' },
     { key: 'name', type: 'text', caption: '名称' },

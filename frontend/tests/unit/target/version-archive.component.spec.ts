@@ -62,9 +62,13 @@ beforeEach(() => {
   session.csrfToken = 'test-csrf'
   session.apiPaths = ['/bob/supplier/submit-new']
 })
-async function click(wrapper: VueWrapper, caption: string) {
+async function click(
+  wrapper: VueWrapper,
+  caption: string,
+  selector = 'button',
+) {
   const button = wrapper
-    .findAll('button')
+    .findAll(selector)
     .find((item) => item.text() === caption)
   expect(button, `button ${caption}`).toBeDefined()
   await button!.trigger('click')
@@ -79,7 +83,7 @@ it('keeps an unknown submission locked after closing its Draft without query per
     global: { stubs },
   })
   await flushPromises()
-  await click(wrapper, '新增供应商')
+  await click(wrapper, '新增')
   await wrapper.get('[aria-label="法定名称"]').setValue('供应商甲')
   await wrapper.get('[aria-label="显示名称"]').setValue('供应商甲')
   await confirmItems(wrapper)
@@ -87,7 +91,7 @@ it('keeps an unknown submission locked after closing its Draft without query per
   expect(api.submitNewTargetSupplier).toHaveBeenCalledTimes(1)
   expect(wrapper.text()).toContain('未知')
   await click(wrapper, '取消')
-  await click(wrapper, '新增供应商')
+  await click(wrapper, '新增')
   expect(wrapper.find('[aria-label="法定名称"]').exists()).toBe(false)
   expect(api.queryTargetSuppliers).not.toHaveBeenCalled()
   expect(api.submitNewTargetSupplier).toHaveBeenCalledTimes(1)
@@ -256,7 +260,7 @@ it('loads independent supplier reference sources and submits their adopted snaps
     global: { stubs },
   })
   await flushPromises()
-  await click(wrapper, '新增供应商')
+  await click(wrapper, '新增')
   await wrapper.get('[aria-label="法定名称"]').setValue('供应商甲')
   await wrapper.get('[aria-label="显示名称"]').setValue('供应商甲')
   await wrapper.get('[aria-label="适用经营主体"]').setValue(['entity'])
@@ -296,17 +300,21 @@ it('locates invalid remittance rows in the registered customer Draft and discard
     global: { stubs },
   })
   await flushPromises()
-  await click(wrapper, '新增客户')
+  await click(wrapper, '新增')
   await wrapper.get('[aria-label="法定名称"]').setValue('客户甲')
   await wrapper.get('[aria-label="显示名称"]').setValue('客户甲')
-  await click(wrapper, '添加汇款识别')
+  await click(
+    wrapper,
+    '新增',
+    '.collection-block[aria-label="汇款识别"] > .collection-heading > button',
+  )
   await confirmItems(wrapper)
   await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(wrapper.text()).toContain('汇款识别第 1 行：请填写付款户名。')
   expect(api.submitNewTargetCustomer).not.toHaveBeenCalled()
   await click(wrapper, '取消')
-  await click(wrapper, '新增客户')
+  await click(wrapper, '新增')
   expect(wrapper.find('[aria-label="付款户名"]').exists()).toBe(false)
   expect(api.queryTargetCustomers).not.toHaveBeenCalled()
   wrapper.unmount()
@@ -494,7 +502,7 @@ it('chooses an authorized real trial document, shows evaluation results, and inv
     global: { stubs },
   })
   await flushPromises()
-  await click(wrapper, '新增流程定义')
+  await click(wrapper, '新增')
   await wrapper.get('[aria-label="试算单据"]').setValue('order')
   await click(wrapper, '编译并试算')
   expect(wrapper.text()).toContain('根节点未匹配')
@@ -626,7 +634,7 @@ it('keeps corrected input after a definite submit failure and refreshes only onc
     .mockResolvedValueOnce({} as never)
   const wrapper = supplierHost()
   await flushPromises()
-  await click(wrapper, '新增供应商')
+  await click(wrapper, '新增')
   await wrapper.get('[aria-label="法定名称"]').setValue('原名称')
   await wrapper.get('[aria-label="显示名称"]').setValue('显示名称')
   await confirmItems(wrapper)
@@ -706,7 +714,7 @@ it('ignores a late change baseline after closing and opening a fresh Draft', asy
   await flushPromises()
   await click(wrapper, '提交变更')
   await click(wrapper, '取消')
-  await click(wrapper, '新增供应商')
+  await click(wrapper, '新增')
   baseline.resolve({ items: [supplierVersion()] } as never)
   await flushPromises()
   expect(wrapper.get('[aria-label="法定名称"]').element).toHaveProperty(
@@ -739,7 +747,7 @@ it('requires customer subunit capability for create and preserves root-only chan
   })
   await flushPromises()
   expect(
-    wrapper.findAll('button').some((button) => button.text() === '新增客户'),
+    wrapper.findAll('button').some((button) => button.text() === '新增'),
   ).toBe(false)
   wrapper.unmount()
 })
@@ -756,7 +764,7 @@ it.each([
       global: { stubs },
     })
     await flushPromises()
-    await click(wrapper, `新增${title}`)
+    await click(wrapper, '新增')
     await wrapper.get('[aria-label="法定名称"]').setValue('档案甲')
     await wrapper.get('[aria-label="显示名称"]').setValue('档案甲')
     if (entity === 'sales-partner') {
@@ -787,7 +795,7 @@ it('keeps an unknown submission locked when a lookup cannot see its in-flight tr
   )
   const wrapper = supplierHost()
   await flushPromises()
-  await click(wrapper, '新增供应商')
+  await click(wrapper, '新增')
   await wrapper.get('[aria-label="法定名称"]').setValue('原名称')
   await wrapper.get('[aria-label="显示名称"]').setValue('显示名称')
   await confirmItems(wrapper)
@@ -801,7 +809,7 @@ it('keeps an unknown submission locked when a lookup cannot see its in-flight tr
   expect(
     wrapper
       .findAll('button')
-      .find((button) => button.text() === '新增供应商')!
+      .find((button) => button.text() === '新增')!
       .attributes('disabled'),
   ).toBeDefined()
   expect(api.submitNewTargetSupplier).toHaveBeenCalledTimes(1)
@@ -1090,7 +1098,7 @@ it('ignores obsolete queries and removes the Draft on session changes', async ()
   old.resolve({ items: [supplierRow()], total: 1 } as never)
   await flushPromises()
   expect(wrapper.text()).not.toContain('SUP-1')
-  await click(wrapper, '新增供应商')
+  await click(wrapper, '新增')
   await wrapper.get('[aria-label="法定名称"]').setValue('旧账号输入')
   useTargetSession().generation++
   await flushPromises()
@@ -1269,7 +1277,7 @@ it('renders normalized customer pricing changes for an unnumbered candidate agai
             calculationBasis: 'ORDER_AMOUNT',
             orderAmount: '1.00',
           },
-          { name: '新增项', calculationBasis: 'UNIT_PRICE', unitPrice: '2.00' },
+          { name: '新增', calculationBasis: 'UNIT_PRICE', unitPrice: '2.00' },
           { name: '金额项', calculationBasis: 'UNIT_PRICE', unitPrice: '4.00' },
         ],
       },
@@ -1324,7 +1332,7 @@ it('renders normalized customer pricing changes for an unnumbered candidate agai
   const text = wrapper.get('[aria-label="客户定价差异"]').text()
   expect(text).toContain('口径变化按单价 1.00按订单金额 1.00')
   expect(text).toContain('删除项删除')
-  expect(text).toContain('新增项新增')
+  expect(text).toContain('新增')
   expect(text).toContain('金额项金额变化')
   expect(wrapper.text()).toContain('已提交')
   expect(wrapper.text()).toContain('提交人')
@@ -1587,7 +1595,7 @@ it('treats an invalid submit response as unknown and resolves only its exact sub
   )
   const wrapper = supplierHost()
   await flushPromises()
-  await click(wrapper, '新增供应商')
+  await click(wrapper, '新增')
   await wrapper.get('[aria-label="法定名称"]').setValue('供应商')
   await wrapper.get('[aria-label="显示名称"]').setValue('供应商')
   await confirmItems(wrapper)

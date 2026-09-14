@@ -69,7 +69,7 @@ test('all authorized resources have one menu entry and unregistered pages send n
   await expect(page.getByTestId('list-page-shell')).toBeVisible()
   await expect(
     page
-      .getByRole('button', { name: '新增计量单位', exact: true })
+      .getByRole('button', { name: '新增', exact: true })
       .locator('.mdi-plus'),
   ).toHaveCount(1)
   businessRequests.length = 0
@@ -101,7 +101,7 @@ test('real create-only permissions expose the user page without unauthorized que
   await expect(
     page.getByText('当前账号没有查询权限，仅显示已授权操作。'),
   ).toBeVisible()
-  await page.getByRole('button', { name: '新增用户', exact: true }).click()
+  await page.getByRole('button', { name: '新增', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await expect(
     dialog.getByRole('combobox', { name: '角色', exact: true }),
@@ -130,11 +130,11 @@ test('navigation and Host retain the shell at desktop and 390px in both themes',
       await signIn(page)
       await page.goto('/bob/customer')
       await expect(
-        page.getByRole('button', { name: '新增客户', exact: true }),
+        page.getByRole('button', { name: '新增', exact: true }),
       ).toBeVisible()
       if (width < 600) await expect(page.locator('.list-cards')).toBeVisible()
       else await expect(page.getByRole('table')).toBeVisible()
-      for (const name of ['新增客户', '正式资料', '提交记录'])
+      for (const name of ['新增', '正式资料', '提交记录'])
         await expect(
           page.getByRole('button', { name, exact: true }),
         ).toBeInViewport({ ratio: 1 })
@@ -161,7 +161,7 @@ test('navigation and Host retain the shell at desktop and 390px in both themes',
         await toggle.blur()
         await expect(
           page
-            .getByRole('button', { name: '新增客户', exact: true })
+            .getByRole('button', { name: '新增', exact: true })
             .locator('.v-icon'),
         ).toHaveAttribute('aria-hidden', 'true')
         expect(
@@ -181,9 +181,7 @@ test('navigation and Host retain the shell at desktop and 390px in both themes',
           path: resolve(directory, `${width}-${theme}-navigation.png`),
         })
         if (width === 390) await page.getByLabel('切换导航').click()
-        await page
-          .getByRole('button', { name: '新增客户', exact: true })
-          .click()
+        await page.getByRole('button', { name: '新增', exact: true }).click()
         const candidate = page.getByRole('dialog')
         const submit = candidate.getByRole('button', {
           name: '提交',
@@ -200,7 +198,7 @@ test('navigation and Host retain the shell at desktop and 390px in both themes',
           .getByRole('button', { name: '取消', exact: true })
           .click()
         await page.goto('/vou/intermediary-calculation')
-        await page.getByRole('button', { name: '新建', exact: true }).click()
+        await page.getByRole('button', { name: '新增', exact: true }).click()
         const editor = page.getByRole('dialog')
         await expect(
           editor
@@ -222,7 +220,7 @@ test('navigation and Host retain the shell at desktop and 390px in both themes',
         await editor.getByRole('button', { name: '取消', exact: true }).click()
         await page.goto('/bob/customer')
         await expect(
-          page.getByRole('button', { name: '新增客户', exact: true }),
+          page.getByRole('button', { name: '新增', exact: true }),
         ).toBeVisible()
       }
     } finally {

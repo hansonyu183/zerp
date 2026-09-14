@@ -136,11 +136,11 @@ const containerFields = [
         ><div class="collection-create">
           <v-btn
             icon="mdi-plus"
-            aria-label="新增资产登记"
+            aria-label="新增"
             :disabled="locked"
             @click="create(createOpeningAsset())"
             ><v-icon icon="mdi-plus" /><v-tooltip activator="parent"
-              >新增资产登记</v-tooltip
+              >新增</v-tooltip
             ></v-btn
           ><v-btn
             icon="mdi-link-plus"
@@ -175,11 +175,11 @@ const containerFields = [
         ><div class="collection-create">
           <v-btn
             icon="mdi-plus"
-            aria-label="新增票据登记"
+            aria-label="新增"
             :disabled="locked"
             @click="create(createOpeningBill())"
             ><v-icon icon="mdi-plus" /><v-tooltip activator="parent"
-              >新增票据登记</v-tooltip
+              >新增</v-tooltip
             ></v-btn
           ><v-btn
             icon="mdi-link-plus"

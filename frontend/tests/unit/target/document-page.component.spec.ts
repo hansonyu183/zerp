@@ -37,14 +37,18 @@ beforeEach(() => {
   session.user = { id: 'maintainer', code: 'maintainer', name: '制单人' }
   session.csrfToken = 'test-csrf'
 })
-async function click(wrapper: VueWrapper, caption: string) {
+async function click(
+  wrapper: VueWrapper,
+  caption: string,
+  selector = 'button',
+) {
   if (caption === '查询') {
     await wrapper.get('form.dynamic-form').trigger('submit')
     await flushPromises()
     return
   }
   const button = wrapper
-    .findAll('button')
+    .findAll(selector)
     .find((item) => item.text() === caption)
   expect(button, `button ${caption}`).toBeDefined()
   await button!.trigger('click')
@@ -59,7 +63,7 @@ it.each(['sale-order', 'purchase-order'])(
       global: { stubs },
     })
     await flushPromises()
-    await click(wrapper, '新建')
+    await click(wrapper, '新增')
     expect(wrapper.find('[aria-label="业务日期"]').exists()).toBe(true)
     await click(wrapper, '取消')
     expect(wrapper.find('[aria-label="业务日期"]').exists()).toBe(false)
@@ -105,12 +109,16 @@ it('submits a purchase order from selected candidates and confirmed quantities, 
     global: { stubs },
   })
   await flushPromises()
-  await click(wrapper, '新建')
+  await click(wrapper, '新增')
   await wrapper
     .get('[data-testid="document-editor"] [aria-label="供应商"]')
     .setValue(referenceId)
   await wrapper.get('[aria-label="仓库"]').setValue(referenceId)
-  await click(wrapper, '添加商品行')
+  await click(
+    wrapper,
+    '新增',
+    '.collection-block[aria-label="商品行"] > .collection-heading > button',
+  )
   await wrapper.get('[aria-label="产品"]').setValue(productId)
   await flushPromises()
   await wrapper.get('[aria-label="录入数量"]').setValue('2')
@@ -234,7 +242,7 @@ it('adopts customer defaults, keeps the internal reminder out of the order, and 
     props: { domain: 'vou', entity: 'sale-order' },
     global: { stubs },
   })
-  await click(wrapper, '新建')
+  await click(wrapper, '新增')
   await wrapper
     .get('[data-testid="document-editor"] [aria-label="客户子单位"]')
     .setValue(referenceId)
@@ -245,7 +253,11 @@ it('adopts customer defaults, keeps the internal reminder out of the order, and 
   ).toBe('送货前联系')
   await wrapper.get('[aria-label="仓库"]').setValue(referenceId)
   await wrapper.get('[aria-label="经营主体"]').setValue(referenceId)
-  await click(wrapper, '添加商品行')
+  await click(
+    wrapper,
+    '新增',
+    '.collection-block[aria-label="商品行"] > .collection-heading > button',
+  )
   await wrapper.get('[aria-label="产品"]').setValue(productId)
   await flushPromises()
   await wrapper.get('[aria-label="录入数量"]').setValue('2')
@@ -312,12 +324,16 @@ it('keeps an uncertain order submission locked across closing, querying and reop
     props: { domain: 'vou', entity: 'purchase-order' },
     global: { stubs },
   })
-  await click(wrapper, '新建')
+  await click(wrapper, '新增')
   await wrapper
     .get('[data-testid="document-editor"] [aria-label="供应商"]')
     .setValue(referenceId)
   await wrapper.get('[aria-label="仓库"]').setValue(referenceId)
-  await click(wrapper, '添加商品行')
+  await click(
+    wrapper,
+    '新增',
+    '.collection-block[aria-label="商品行"] > .collection-heading > button',
+  )
   await wrapper.get('[aria-label="产品"]').setValue(productId)
   await flushPromises()
   await wrapper.get('[aria-label="录入数量"]').setValue('1')
@@ -328,7 +344,7 @@ it('keeps an uncertain order submission locked across closing, querying and reop
   expect(wrapper.text()).toContain('未知')
   await click(wrapper, '取消')
   await click(wrapper, '查询')
-  await click(wrapper, '新建')
+  await click(wrapper, '新增')
   expect(wrapper.find('[data-testid="document-editor"]').exists()).toBe(false)
   const original = vi.mocked(api.submitTargetOrder).mock.calls[0]![2]
   vi.mocked(api.getTargetVoucher).mockResolvedValue({
@@ -355,7 +371,7 @@ it('offers the shared attachment input only with exact order staging permission'
     props: { domain: 'vou', entity: 'purchase-order' },
     global: { stubs },
   })
-  await click(wrapper, '新建')
+  await click(wrapper, '新增')
   expect(wrapper.find('[aria-label="添加附件"]').exists()).toBe(true)
   wrapper.unmount()
 })
@@ -380,7 +396,7 @@ it('submits opening with its independent payload and keeps its unknown result lo
     props: { domain: 'vou', entity: 'opening' },
     global: { stubs },
   })
-  await click(wrapper, '新建')
+  await click(wrapper, '新增')
   await wrapper.get('[aria-label="账簿"]').setValue(referenceId)
   await flushPromises()
   await click(wrapper, '提交零期初')
@@ -398,7 +414,7 @@ it('submits opening with its independent payload and keeps its unknown result lo
     vi.mocked(api.submitTargetOpening).mock.calls[0]![1],
   ).not.toHaveProperty('payload')
   await click(wrapper, '取消')
-  await click(wrapper, '新建')
+  await click(wrapper, '新增')
   expect(wrapper.find('[aria-label="账簿"]').exists()).toBe(false)
   expect(api.submitTargetOpening).toHaveBeenCalledTimes(1)
   wrapper.unmount()
@@ -426,10 +442,14 @@ it('keeps a failed opening input and intent, then discards both when starting an
     props: { domain: 'vou', entity: 'opening' },
     global: { stubs },
   })
-  await click(wrapper, '新建')
+  await click(wrapper, '新增')
   await wrapper.get('[aria-label="账簿"]').setValue(referenceId)
   await flushPromises()
-  await click(wrapper, '添加期初明细')
+  await click(
+    wrapper,
+    '新增',
+    '.collection-block[aria-label="期初明细"] > .collection-heading > button',
+  )
   await wrapper.get('[aria-label="金额"]').setValue('12.30')
   await confirmItems(wrapper)
   await click(wrapper, '提交期初')
@@ -444,7 +464,7 @@ it('keeps a failed opening input and intent, then discards both when starting an
     vi.mocked(api.submitTargetOpening).mock.calls[0]![1].submissionId,
   ).toBe(vi.mocked(api.submitTargetOpening).mock.calls[1]![1].submissionId)
   await click(wrapper, '取消')
-  await click(wrapper, '新建')
+  await click(wrapper, '新增')
   expect(wrapper.find('[aria-label="金额"]').exists()).toBe(false)
   wrapper.unmount()
 })
@@ -474,9 +494,13 @@ it('clears the optional opening bill counterparty before submitting', async () =
     props: { domain: 'vou', entity: 'opening' },
     global: { stubs },
   })
-  await click(wrapper, '新建')
+  await click(wrapper, '新增')
   await wrapper.get('[aria-label="账簿"]').setValue(referenceId)
-  await click(wrapper, '新增票据登记')
+  await click(
+    wrapper,
+    '新增',
+    '.collection-block[aria-label="票据登记"] > .collection-heading button',
+  )
   await wrapper.get('[aria-label="原始相对方类型"]').setValue('supplier')
   await flushPromises()
   await wrapper.get('[aria-label="原始相对方"]').setValue(productId)
@@ -518,9 +542,13 @@ it('clears every adopted customer identity from an opening container before subm
     props: { domain: 'vou', entity: 'opening' },
     global: { stubs },
   })
-  await click(wrapper, '新建')
+  await click(wrapper, '新增')
   await wrapper.get('[aria-label="账簿"]').setValue(referenceId)
-  await click(wrapper, '添加空桶登记')
+  await click(
+    wrapper,
+    '新增',
+    '.collection-block[aria-label="空桶登记"] > .collection-heading > button',
+  )
   await wrapper.get('[aria-label="客户子单位"]').setValue(productId)
   await flushPromises()
   await wrapper.get('[aria-label="清空客户子单位"]').trigger('click')
@@ -580,12 +608,16 @@ it.each(['clear', 'cancel'])(
       global: { stubs },
     })
     await flushPromises()
-    await click(wrapper, '新建')
+    await click(wrapper, '新增')
     await wrapper
       .get('[data-testid="document-editor"] [aria-label="供应商"]')
       .setValue(referenceId)
     await wrapper.get('[aria-label="仓库"]').setValue(referenceId)
-    await click(wrapper, '添加商品行')
+    await click(
+      wrapper,
+      '新增',
+      '.collection-block[aria-label="商品行"] > .collection-heading > button',
+    )
     let resolveOld!: (
       value: Awaited<ReturnType<typeof api.resolveTargetProduct>>,
     ) => void
@@ -601,11 +633,17 @@ it.each(['clear', 'cancel'])(
       await wrapper.get('[aria-label="产品"]').setValue('')
     else {
       await wrapper
-        .findAll('div[aria-label^="编辑"] button')
+        .findAll(
+          'div[aria-label="新增"] button, div[aria-label^="编辑"] button',
+        )
         .find((button) => button.text() === '取消')!
         .trigger('click')
       await flushPromises()
-      await click(wrapper, '添加商品行')
+      await click(
+        wrapper,
+        '新增',
+        '.collection-block[aria-label="商品行"] > .collection-heading > button',
+      )
     }
     await wrapper.get('[aria-label="产品"]').setValue(productId)
     await flushPromises()
@@ -838,12 +876,16 @@ it('submits purchase receipt with the selected exact source and refreshes once',
     global: { stubs },
   })
   await flushPromises()
-  await click(wrapper, '新建')
+  await click(wrapper, '新增')
   await wrapper
     .get('[data-testid="document-editor"] [aria-label="供应商"]')
     .setValue(referenceId)
   await wrapper.get('[aria-label="仓库"]').setValue(referenceId)
-  await click(wrapper, '添加来源明细')
+  await click(
+    wrapper,
+    '新增',
+    '.collection-block[aria-label="来源明细"] > .collection-heading > button',
+  )
   await wrapper
     .get('[aria-label="来源行"]')
     .setValue(`${referenceId}:source-line-1`)
@@ -912,11 +954,15 @@ it.each(['sale-return', 'purchase-return'] as const)(
       global: { stubs },
     })
     await flushPromises()
-    await click(wrapper, '新建')
+    await click(wrapper, '新增')
     if (entity === 'purchase-return')
       await wrapper.get('[aria-label="供应商"]').setValue(referenceId)
     await wrapper.get('[aria-label="仓库"]').setValue(referenceId)
-    await click(wrapper, '添加来源明细')
+    await click(
+      wrapper,
+      '新增',
+      '.collection-block[aria-label="来源明细"] > .collection-heading > button',
+    )
     await wrapper.get('[aria-label="来源行"]').setValue(`${entryId}:line-1`)
     await wrapper.get('[aria-label="基准数量"]').setValue('1.000001')
     await confirmItems(wrapper)
@@ -1076,14 +1122,18 @@ it.each(['purchase-inquiry', 'inventory-count', 'sale-pricing'] as const)(
       global: { stubs },
     })
     await flushPromises()
-    await click(wrapper, '新建')
+    await click(wrapper, '新增')
     if (entity !== 'sale-pricing')
       await wrapper
         .get(
           `[aria-label="${entity === 'purchase-inquiry' ? '供应商' : '仓库'}"]`,
         )
         .setValue(referenceId)
-    await click(wrapper, '添加商品行')
+    await click(
+      wrapper,
+      '新增',
+      '.collection-block[aria-label="商品行"] > .collection-heading > button',
+    )
     await wrapper.get('[aria-label="产品"]').setValue(productId)
     await flushPromises()
     if (entity !== 'inventory-count')
@@ -1188,10 +1238,14 @@ it('submits self production from a fixed formula and retains the reason for an a
     global: { stubs },
   })
   await flushPromises()
-  await click(wrapper, '新建')
+  await click(wrapper, '新增')
   await wrapper.get('[aria-label="材料仓库"]').setValue(referenceId)
   await wrapper.get('[aria-label="成品仓库"]').setValue(referenceId)
-  await click(wrapper, '添加成品行')
+  await click(
+    wrapper,
+    '新增',
+    '.collection-block[aria-label="成品行"] > .collection-heading > button',
+  )
   await wrapper.get('[aria-label="成品"]').setValue(productId)
   await flushPromises()
   await wrapper.get('[aria-label="成品数量"]').setValue('2')
@@ -1300,10 +1354,14 @@ it('adopts the exact order production source and immutable formula', async () =>
     global: { stubs },
   })
   await flushPromises()
-  await click(wrapper, '新建')
+  await click(wrapper, '新增')
   await wrapper.get('[aria-label="材料仓库"]').setValue(referenceId)
   await wrapper.get('[aria-label="成品仓库"]').setValue(referenceId)
-  await click(wrapper, '添加成品行')
+  await click(
+    wrapper,
+    '新增',
+    '.collection-block[aria-label="成品行"] > .collection-heading > button',
+  )
   await wrapper
     .get('[aria-label="来源行"]')
     .setValue(`${entryId}:finished-line`)
@@ -1372,7 +1430,7 @@ it('adds a book-balance product as a candidate while requiring an explicit actua
     global: { stubs },
   })
   await flushPromises()
-  await click(wrapper, '新建')
+  await click(wrapper, '新增')
   await wrapper.get('[aria-label="仓库"]').setValue(referenceId)
   await click(wrapper, '查看账面商品')
   useTargetSession().csrfToken = ''
@@ -1433,7 +1491,7 @@ it.each([
       global: { stubs },
     })
     await flushPromises()
-    await click(wrapper, '新建')
+    await click(wrapper, '新增')
     const choose = async (caption: string) => {
       await wrapper.get(`[aria-label="${caption}"]`).setValue(referenceId)
       await flushPromises()
@@ -1444,7 +1502,11 @@ it.each([
     else if (entity === 'sales-receipt') {
       await choose('客户')
       await choose('经营主体')
-      await click(wrapper, '添加分摊行')
+      await click(
+        wrapper,
+        '新增',
+        '.collection-block[aria-label="分摊行"] > .collection-heading > button',
+      )
       await choose('客户子单位')
       await wrapper.get('[aria-label="分摊金额"]').setValue('1234567890123.45')
     } else if (entity === 'sales-refund') await choose('客户子单位')
@@ -1455,7 +1517,11 @@ it.each([
     if (expenses) {
       expect(wrapper.find('[aria-label="资金账户"]').exists()).toBe(false)
       expect(wrapper.find('[aria-label="经办人"]').exists()).toBe(false)
-      await click(wrapper, '添加费用行')
+      await click(
+        wrapper,
+        '新增',
+        '.collection-block[aria-label="费用行"] > .collection-heading > button',
+      )
       await wrapper.get('[aria-label="费用类别"]').setValue('差旅')
       await wrapper.get('[aria-label="费用说明"]').setValue('客户现场服务')
       await wrapper.get('[aria-label="费用金额"]').setValue('1234567890123.45')
@@ -1520,7 +1586,7 @@ it.each(['supplier', 'employee', 'other-unit', 'sales-partner'] as const)(
       global: { stubs },
     })
     await flushPromises()
-    await click(wrapper, '新建')
+    await click(wrapper, '新增')
     await wrapper.get('[aria-label="相对方类型"]').setValue(party)
     await flushPromises()
     expect(api.queryTargetVouOptions).toHaveBeenCalledWith(
@@ -1579,14 +1645,18 @@ it.each(['asset-acquisition', 'asset-sale', 'asset-liquidation'] as const)(
       global: { stubs },
     })
     await flushPromises()
-    await click(wrapper, '新建')
+    await click(wrapper, '新增')
     const choose = async (caption: string) => {
       await wrapper.get(`[aria-label="${caption}"]`).setValue(referenceId)
       await flushPromises()
     }
     if (entity === 'asset-acquisition') await choose('供应商')
     if (entity === 'asset-sale') await choose('相对方')
-    await click(wrapper, '添加资产行')
+    await click(
+      wrapper,
+      '新增',
+      '.collection-block[aria-label="资产行"] > .collection-heading > button',
+    )
     if (entity === 'asset-acquisition') {
       await wrapper.get('[aria-label="资产名称"]').setValue('打印设备')
       await choose('资产类别')
@@ -1685,7 +1755,7 @@ it.each([
       global: { stubs },
     })
     await flushPromises()
-    await click(wrapper, '新建')
+    await click(wrapper, '新增')
     const choose = async (caption: string) => {
       await wrapper.get(`[aria-label="${caption}"]`).setValue(referenceId)
       await flushPromises()
@@ -1700,7 +1770,11 @@ it.each([
     }
     if (entity === 'bill-issue') await choose('供应商')
     if (entity === 'bill-discount') await choose('贴现相对方')
-    await click(wrapper, '添加票据行')
+    await click(
+      wrapper,
+      '新增',
+      '.collection-block[aria-label="票据行"] > .collection-heading > button',
+    )
     if (entity === 'bill-receipt' || entity === 'bill-issue') {
       await wrapper.get('[aria-label="票据号码"]').setValue('TEST-00001')
       await wrapper.get('[aria-label="票面金额"]').setValue('10000.01')
@@ -1710,7 +1784,11 @@ it.each([
         await wrapper.get(`[aria-label="${label}"]`).setValue('测试单位')
     } else await choose('可用票据')
     await confirmItems(wrapper)
-    await click(wrapper, '添加现金行')
+    await click(
+      wrapper,
+      '新增',
+      '.collection-block[aria-label="现金行"] > .collection-heading > button',
+    )
     await choose('现金资金账户')
     await wrapper.get('[aria-label="现金金额"]').setValue('9999.99')
     await confirmItems(wrapper)
@@ -1766,7 +1844,7 @@ it.each(['service-contract', 'service-acceptance'] as const)(
       global: { stubs },
     })
     await flushPromises()
-    await click(wrapper, '新建')
+    await click(wrapper, '新增')
     await wrapper.get('[aria-label="经办员工"]').setValue(referenceId)
     if (entity === 'service-contract') {
       await wrapper.get('[aria-label="相对方"]').setValue(referenceId)
@@ -1845,7 +1923,7 @@ it.each([null, 'network', 'internal_error', 'invalid_response'])(
       global: { stubs },
     })
     await flushPromises()
-    await click(wrapper, '新建')
+    await click(wrapper, '新增')
     await wrapper.get('[aria-label="计算月末日期"]').setValue('2026-09-30')
     await confirmItems(wrapper)
     await click(wrapper, '提交')
@@ -1868,14 +1946,14 @@ it.each([null, 'network', 'internal_error', 'invalid_response'])(
       expect(wrapper.text()).toContain('脚本保存结果未知')
       const createButton = wrapper
         .findAll('button')
-        .find((button) => button.text() === '新建')!
+        .find((button) => button.text() === '新增')!
       expect(createButton.attributes('disabled')).toBeDefined()
       await click(wrapper, '核实脚本保存')
       expect(api.saveTargetIntermediaryScript).toHaveBeenCalledTimes(1)
       expect(createButton.attributes('disabled')).toBeDefined()
       vi.mocked(api.getTargetIntermediaryScript).mockResolvedValue(script)
       await click(wrapper, '核实脚本保存')
-      await click(wrapper, '新建')
+      await click(wrapper, '新增')
       await wrapper.get('[aria-label="计算月末日期"]').setValue('2026-09-30')
       expect(
         wrapper.get('[aria-label="计算脚本"]').attributes('disabled'),

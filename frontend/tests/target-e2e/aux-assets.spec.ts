@@ -76,7 +76,7 @@ test('AUX assets have temporary forms, direct CRUD, enablement, navigation, and 
 
   const operatingEntityName = `E2E资产主体${tag}`
   await openFromMenu(page, '/aux/operating-entity', 1440)
-  await page.getByRole('button', { name: '新增经营主体', exact: true }).click()
+  await page.getByRole('button', { name: '新增', exact: true }).click()
   const entityEditor = page.getByRole('dialog')
   await entityEditor
     .getByLabel('法定名称', { exact: true })
@@ -106,14 +106,14 @@ test('AUX assets have temporary forms, direct CRUD, enablement, navigation, and 
 
   const warehouseName = `E2E仓库${tag}`
   await openFromMenu(page, '/aux/warehouse', 1440)
-  await page.getByRole('button', { name: '新增仓库', exact: true }).click()
+  await page.getByRole('button', { name: '新增', exact: true }).click()
   const warehouseEditor = page.getByRole('dialog')
   await warehouseEditor
     .getByLabel('名称', { exact: true })
     .fill(`未保存仓库${tag}`)
   await page.reload()
   await expect(page.getByRole('dialog')).toHaveCount(0)
-  await page.getByRole('button', { name: '新增仓库', exact: true }).click()
+  await page.getByRole('button', { name: '新增', exact: true }).click()
   await warehouseEditor.getByLabel('名称', { exact: true }).fill(warehouseName)
   await warehouseEditor.getByLabel('地址', { exact: true }).fill('北京')
   await warehouseEditor
@@ -140,7 +140,7 @@ test('AUX assets have temporary forms, direct CRUD, enablement, navigation, and 
 
   const accountName = `E2E资金账户${tag}`
   await openFromMenu(page, '/aux/fund-account', 1440)
-  await page.getByRole('button', { name: '新增资金账户', exact: true }).click()
+  await page.getByRole('button', { name: '新增', exact: true }).click()
   const accountEditor = page.getByRole('dialog')
   await accountEditor.getByLabel('名称', { exact: true }).fill(accountName)
   await selectOption(page, accountEditor, '所属经营主体', operatingEntityName)
@@ -184,7 +184,7 @@ test('AUX assets have temporary forms, direct CRUD, enablement, navigation, and 
   expect(otherUnit).toBeTruthy()
   const vehicleName = `E2E车辆${tag}`
   await openFromMenu(page, '/aux/vehicle', 1440)
-  await page.getByRole('button', { name: '新增车辆', exact: true }).click()
+  await page.getByRole('button', { name: '新增', exact: true }).click()
   const vehicleEditor = page.getByRole('dialog')
   await vehicleEditor.getByLabel('名称', { exact: true }).fill(vehicleName)
   await vehicleEditor
@@ -219,9 +219,7 @@ test('AUX assets have temporary forms, direct CRUD, enablement, navigation, and 
     ['vehicle', '车辆'],
   ] as const) {
     await openFromMenu(page, `/aux/${entity}`, 390)
-    await page
-      .getByRole('button', { name: `新增${caption}`, exact: true })
-      .click()
+    await page.getByRole('button', { name: '新增', exact: true }).click()
     const dialog = page.getByRole('dialog')
     const mobileName = `手机${caption}${tag}`
     await dialog.getByLabel('名称', { exact: true }).fill(mobileName)

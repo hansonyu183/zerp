@@ -63,7 +63,7 @@ test('无角色管理权限从真实用户表单分页选择第 201 条，正式
       new URL(response.url()).pathname === '/app/role/options' &&
       response.request().method() === 'GET',
   )
-  await page.getByRole('button', { name: '新增用户', exact: true }).click()
+  await page.getByRole('button', { name: '新增', exact: true }).click()
   expect((await (await candidateResponse).json()).code).toBe(0)
   const dialog = page.getByRole('dialog')
   const input = dialog.getByRole('combobox', { name: '角色', exact: true })

@@ -240,16 +240,19 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <v-app-bar class="topbar" elevation="0" height="64">
+  <v-app-bar class="topbar">
     <v-app-bar-nav-icon
       :icon="actionIcons.navigation"
       aria-label="切换导航"
       @click="drawer = !drawer"
     />
     <div class="company" @click="router.push('/')">
-      <div class="company__mark">Z</div>
+      <v-avatar color="primary" size="36">Z</v-avatar>
       <div class="company__copy">
-        <strong>ZERP</strong><span>{{ branding.enterpriseName }}</span>
+        <strong>ZERP</strong
+        ><span class="text-caption text-muted">{{
+          branding.enterpriseName
+        }}</span>
       </div>
     </div>
     <v-spacer />
@@ -320,11 +323,15 @@ onBeforeUnmount(() => {
   <v-navigation-drawer v-model="drawer" width="288">
     <NavigationMenu :groups="navigation" />
     <template #append
-      ><div class="sidebar-footer">ZERP · 企业工作台</div></template
+      ><div class="sidebar-footer text-caption text-muted">
+        ZERP · 企业工作台
+      </div></template
     >
   </v-navigation-drawer>
   <v-main
-    ><div class="page-heading">ZERP / {{ pageTitle }}</div>
+    ><div class="page-heading text-body-2 text-muted">
+      ZERP / {{ pageTitle }}
+    </div>
     <router-view
   /></v-main>
   <AppSnackbar :message="accountError" @dismiss="accountError = null" />
@@ -337,16 +344,13 @@ onBeforeUnmount(() => {
         ><v-text-field
           v-model="profileForm.name"
           label="名称"
-          :disabled="profileLoading || saving"
-          variant="outlined" /><v-text-field
+          :disabled="profileLoading || saving" /><v-text-field
           v-model="profileForm.avatarUrl"
           label="头像 HTTPS 地址"
-          :disabled="profileLoading || saving"
-          variant="outlined" /></v-card-text
+          :disabled="profileLoading || saving" /></v-card-text
       ><v-card-actions
         ><v-spacer /><v-btn @click="onProfileDialogChange(false)">取消</v-btn
         ><v-btn
-          color="primary"
           :loading="saving"
           :disabled="profileLoading || saving"
           @click="saveProfile"
@@ -373,7 +377,7 @@ onBeforeUnmount(() => {
           type="password" /></v-card-text
       ><v-card-actions
         ><v-spacer /><v-btn @click="onPasswordDialogChange(false)">取消</v-btn
-        ><v-btn color="primary" :loading="saving" @click="savePassword"
+        ><v-btn :loading="saving" @click="savePassword"
           >保存</v-btn
         ></v-card-actions
       ></v-card
@@ -388,25 +392,12 @@ onBeforeUnmount(() => {
   align-items: center;
   cursor: pointer;
 }
-.company__mark {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  color: white;
-  font-weight: 800;
-  background: rgb(var(--v-theme-primary));
-  border-radius: 10px;
-  place-items: center;
-}
 .company__copy {
   display: grid;
-  line-height: 1.1;
 }
 .company__copy span {
   max-width: 240px;
   overflow: hidden;
-  color: rgb(var(--v-theme-muted));
-  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -417,8 +408,6 @@ onBeforeUnmount(() => {
 .sidebar-footer,
 .page-heading {
   padding: 18px 24px;
-  color: rgb(var(--v-theme-muted));
-  font-size: 13px;
 }
 .page-heading {
   padding-bottom: 0;

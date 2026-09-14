@@ -296,7 +296,6 @@ function enter(event: KeyboardEvent) {
         :prepend-icon="actionIcons.search"
         v-if="canQuery"
         type="submit"
-        color="primary"
         :loading="loading"
         >查询</v-btn
       >

@@ -264,11 +264,7 @@ watch(
           ><v-spacer /><v-btn @click="close">{{
             editing ? '取消' : '关闭'
           }}</v-btn
-          ><v-btn
-            v-if="editing"
-            color="primary"
-            :disabled="busy || !editable"
-            @click="confirm"
+          ><v-btn v-if="editing" :disabled="busy || !editable" @click="confirm"
             >确定</v-btn
           ></v-card-actions
         >

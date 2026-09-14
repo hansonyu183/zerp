@@ -520,7 +520,6 @@ onBeforeUnmount(() => {
         :prepend-icon="actionIcons.create"
         v-if="editorAvailable && vm.can('submit-new')"
         :disabled="saving || uncertain || intermediaryScriptUnknown"
-        color="primary"
         @click="create"
         >新建</v-btn
       ></template
@@ -767,7 +766,6 @@ onBeforeUnmount(() => {
           >取消</v-btn
         >
         <v-btn
-          color="primary"
           :loading="
             Boolean(vm.selected && vm.pending.has(vm.selected.documentId))
           "

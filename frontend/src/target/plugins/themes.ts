@@ -42,7 +42,6 @@ for (const preset of themePresets) {
       dark: mode === 'dark',
       colors: {
         ...official?.colors,
-        'table-header': mode === 'dark' ? '#22262d' : '#f2f4f7',
         muted: mode === 'dark' ? '#aeb7c5' : '#667085',
       },
     }

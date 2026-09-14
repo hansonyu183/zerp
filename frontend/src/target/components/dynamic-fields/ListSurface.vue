@@ -26,7 +26,6 @@ defineSlots<{ cell(props: { item: Row; column: string }): unknown }>()
         <v-card
           v-for="item in items"
           :key="String(item[identityKey])"
-          variant="outlined"
           class="list-card"
         >
           <dl>

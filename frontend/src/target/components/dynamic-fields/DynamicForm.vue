@@ -104,7 +104,6 @@ function onEnter(event: KeyboardEvent): void {
     <v-btn
       :prepend-icon="actionIcons.search"
       data-testid="list-search"
-      color="primary"
       type="submit"
       :disabled="disabled"
     >

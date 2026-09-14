@@ -4,8 +4,6 @@
     title="页面不存在"
     text="请从导航菜单进入已有业务页面。"
     icon="mdi-map-marker-question-outline"
-    ><template #actions
-      ><v-btn color="primary" to="/">返回导航</v-btn></template
-    ></v-empty-state
+    ><template #actions><v-btn to="/">返回导航</v-btn></template></v-empty-state
   >
 </template>

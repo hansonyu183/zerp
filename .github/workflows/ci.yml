@@ -51,6 +51,7 @@ jobs:
 
           case "$baseline_level:$current_level" in
             L3:*|*:L3) level=L3 ;;
+            L2:*|*:L2) level=L2 ;;
             L1:*|*:L1) level=L1 ;;
             L0:L0) level=L0 ;;
             *) echo "invalid classification output" >&2; exit 1 ;;
@@ -93,6 +94,26 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm check:ci-workflow
 
+  frontend:
+    name: frontend
+    needs: changes
+    if: ${{ needs.changes.outputs.level == 'L2' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @zerp/frontend typecheck
+      - run: pnpm --filter @zerp/frontend check:architecture
+      - run: pnpm --filter @zerp/frontend check
+
   target:
     name: target
     needs: changes
@@ -101,7 +122,7 @@ jobs:
 
   ci-required:
     name: ci-required
-    needs: [changes, common, tooling, target]
+    needs: [changes, common, tooling, frontend, target]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -114,4 +135,5 @@ jobs:
           --changes '${{ needs.changes.result }}'
           --common '${{ needs.common.result }}'
           --tooling '${{ needs.tooling.result }}'
+          --frontend '${{ needs.frontend.result }}'
           --target '${{ needs.target.result }}'

@@ -1,10 +1,17 @@
 const REQUIRED_BY_LEVEL = Object.freeze({
   L0: Object.freeze(['changes', 'common']),
   L1: Object.freeze(['changes', 'common', 'tooling']),
+  L2: Object.freeze(['changes', 'common', 'tooling', 'frontend']),
   L3: Object.freeze(['changes', 'common', 'tooling', 'target']),
 })
 
-const JOBS = Object.freeze(['changes', 'common', 'tooling', 'target'])
+const JOBS = Object.freeze([
+  'changes',
+  'common',
+  'tooling',
+  'frontend',
+  'target',
+])
 
 export function requirementsForLevel(level) {
   const requirements = REQUIRED_BY_LEVEL[level]
@@ -49,11 +56,12 @@ function parseArgs(argv) {
     '--changes',
     '--common',
     '--tooling',
+    '--frontend',
     '--target',
   ]
   if (argv.length !== expectedFlags.length * 2) {
     throw new Error(
-      'usage: node scripts/ci/required.mjs --level <L0|L1|L3> --changes <result> --common <result> --tooling <result> --target <result>',
+      'usage: node scripts/ci/required.mjs --level <L0|L1|L2|L3> --changes <result> --common <result> --tooling <result> --frontend <result> --target <result>',
     )
   }
 
@@ -67,14 +75,14 @@ function parseArgs(argv) {
       value.startsWith('--')
     ) {
       throw new Error(
-        'usage: node scripts/ci/required.mjs --level <L0|L1|L3> --changes <result> --common <result> --tooling <result> --target <result>',
+        'usage: node scripts/ci/required.mjs --level <L0|L1|L2|L3> --changes <result> --common <result> --tooling <result> --frontend <result> --target <result>',
       )
     }
     values[flag] = value
   }
   if (Object.keys(values).length !== expectedFlags.length) {
     throw new Error(
-      'usage: node scripts/ci/required.mjs --level <L0|L1|L3> --changes <result> --common <result> --tooling <result> --target <result>',
+      'usage: node scripts/ci/required.mjs --level <L0|L1|L2|L3> --changes <result> --common <result> --tooling <result> --frontend <result> --target <result>',
     )
   }
 
@@ -84,6 +92,7 @@ function parseArgs(argv) {
       changes: values['--changes'],
       common: values['--common'],
       tooling: values['--tooling'],
+      frontend: values['--frontend'],
       target: values['--target'],
     },
   }

@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 
-const LEVELS = Object.freeze({ L0: 0, L1: 1, L3: 3 })
+const LEVELS = Object.freeze({ L0: 0, L1: 1, L2: 2, L3: 3 })
 
 const L0_PATHS = new Set([
   'README.md',
@@ -23,12 +23,25 @@ const L1_PATHS = new Set([
   'scripts/ci/required.test.mjs',
 ])
 
+const L2_PATHS = new Set([
+  'frontend/src/target/plugins/themes.ts',
+  'frontend/src/target/plugins/vuetify.ts',
+])
+
 function levelForPath(path) {
   if (L0_PATHS.has(path) || /^docs\/.+\.md$/.test(path)) {
     return 'L0'
   }
   if (L1_PATHS.has(path)) {
     return 'L1'
+  }
+  if (
+    L2_PATHS.has(path) ||
+    /^frontend\/src\/target\/.+\.(vue|css)$/.test(path) ||
+    /^frontend\/src\/target\/presentation\/.+\.ts$/.test(path) ||
+    /^frontend\/tests\/(unit\/target|static)\/.+\.(ts|vue)$/.test(path)
+  ) {
+    return 'L2'
   }
   return 'L3'
 }

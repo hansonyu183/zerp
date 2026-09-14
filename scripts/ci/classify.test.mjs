@@ -49,6 +49,58 @@ test('classifies the exact CI and documentation tooling L1 allowlist', () => {
   assert.equal(classifyPaths(['.github/workflows/target.yml']), 'L3')
 })
 
+test('routes presentation files and frontend tests to L2', () => {
+  const paths = [
+    'frontend/src/target/App.vue',
+    'frontend/src/target/components/direct-page/DirectPage.vue',
+    'frontend/src/target/layouts/AppLayout.vue',
+    'frontend/src/target/pages/auth/signin/SignIn.vue',
+    'frontend/src/target/style.css',
+    'frontend/src/target/styles/tables.css',
+    'frontend/src/target/plugins/themes.ts',
+    'frontend/src/target/plugins/vuetify.ts',
+    'frontend/src/target/presentation/action-icons.ts',
+    'frontend/tests/unit/target/field-entry.vuetify.spec.ts',
+    'frontend/tests/static/architecture.spec.ts',
+  ]
+  for (const path of paths) assert.equal(classifyPaths([path]), 'L2', path)
+  assert.equal(classifyPaths([...paths, 'README.md']), 'L2')
+  assert.equal(classifyPaths([...paths, 'scripts/ci/classify.mjs']), 'L2')
+})
+
+test('keeps frontend behavior modules, runtime configuration and cross-stack changes at L3', () => {
+  for (const path of [
+    'frontend/src/target/api.ts',
+    'frontend/src/target/main.ts',
+    'frontend/src/target/router/guards.ts',
+    'frontend/src/target/session/vm.ts',
+    'frontend/src/target/definitions/app/users.ts',
+    'frontend/src/target/plugins/new-plugin.ts',
+    'frontend/tests/target-e2e/navigation.spec.ts',
+    'frontend/vite.target.config.ts',
+    'frontend/vitest.config.ts',
+    'frontend/Dockerfile.target',
+    'frontend/nginx.target.conf',
+    'frontend/package.json',
+    'packages/model/src/index.ts',
+    'apps/api/db/target-schema.sql',
+  ]) {
+    assert.equal(
+      classifyPaths(['frontend/src/target/style.css', path]),
+      'L3',
+      path,
+    )
+  }
+  // Rename halves are classified independently, so a TS-to-Vue move stays L3.
+  assert.equal(
+    classifyPaths([
+      'frontend/src/target/old-logic.ts',
+      'frontend/src/target/components/New.vue',
+    ]),
+    'L3',
+  )
+})
+
 test('fails closed to L3 for every unlisted path, including adds, edits, deletes, and rename halves', () => {
   for (const path of [
     'package.json',

@@ -76,7 +76,7 @@ try {
   }
   await new TargetBootstrapService(db).createE2EPrincipal(creator, false)
   const productRows = await db
-    .selectFrom('bob_subjects')
+    .selectFrom('bob_archive_objects')
     .select(['id', 'code'])
     .where('id', 'in', [
       fixture.references.archiveSubjectIds[1],
@@ -95,7 +95,7 @@ try {
   const financialCodes = Object.fromEntries(
     [
       ...(await db
-        .selectFrom('bob_subjects')
+        .selectFrom('bob_archive_objects')
         .select(['id', 'code'])
         .where('id', 'in', financialIds)
         .execute()),
@@ -107,7 +107,7 @@ try {
     ].map((row) => [row.id, row.code]),
   )
   const subunit = await db
-    .selectFrom('bob_customer_subunit_roots')
+    .selectFrom('dcl_customer_subunit_roots')
     .select('code')
     .where('subunit_id', '=', financial.subunitAllocations[0].subunit.objectId)
     .executeTakeFirstOrThrow()
@@ -130,7 +130,7 @@ try {
     .where('id', '=', assetPayload.assetAcquisitionLines[0].department.objectId)
     .executeTakeFirstOrThrow()
   const otherUnit = await db
-    .selectFrom('bob_subjects')
+    .selectFrom('bob_archive_objects')
     .select('code')
     .where(
       'id',

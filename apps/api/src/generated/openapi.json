@@ -92687,21 +92687,29 @@
       }
     },
     "/vou/sale-invoice/unbilled": {
-      "get": {
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
-            },
-            "required": true,
-            "name": "periodMonth",
-            "in": "query"
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "periodMonth": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+                  }
+                },
+                "required": [
+                  "periodMonth"
+                ],
+                "additionalProperties": false
+              }
+            }
           }
-        ],
+        },
         "responses": {
           "200": {
-            "description": "辅助读取",
+            "description": "未开票收入",
             "content": {
               "application/json": {
                 "schema": {
@@ -92847,47 +92855,19 @@
                         "message",
                         "data",
                         "requestId"
-                      ]
+                      ],
+                      "additionalProperties": false
                     },
                     {
                       "type": "object",
                       "properties": {
                         "code": {
-                          "anyOf": [
-                            {
-                              "type": "number",
-                              "enum": [
-                                1001
-                              ]
-                            },
-                            {
-                              "type": "number",
-                              "enum": [
-                                1002
-                              ]
-                            },
-                            {
-                              "type": "number",
-                              "enum": [
-                                2001
-                              ]
-                            },
-                            {
-                              "type": "number",
-                              "enum": [
-                                3001
-                              ]
-                            },
-                            {
-                              "type": "number",
-                              "enum": [
-                                5000
-                              ]
-                            }
-                          ]
+                          "type": "integer",
+                          "minimum": 1
                         },
                         "errorKey": {
-                          "type": "string"
+                          "type": "string",
+                          "minLength": 1
                         },
                         "message": {
                           "type": "string"
@@ -92903,9 +92883,9 @@
                         "code",
                         "errorKey",
                         "message",
-                        "data",
                         "requestId"
-                      ]
+                      ],
+                      "additionalProperties": false
                     }
                   ]
                 }

@@ -670,7 +670,7 @@ export function registerAppRoutes(
       if (action === 'unbilled')
         return context.json(
           await executeVou(context, (actor) =>
-            vou!.unbilledSales(context.req.valid('query').periodMonth, actor),
+            vou!.unbilledSales(context.req.valid('json').periodMonth, actor),
           ),
           200,
         )

@@ -146,28 +146,28 @@ _Avoid_: 物流平台、为自有车辆虚构其他单位、每张送货单临�
 _Authority_: [AUX 仓库、资金账户与车辆](docs/domains/aux.md#310-仓库资金账户与车辆)
 
 **Customer Type（客户类型）**:
-客户子单位的可配置业务分类。
+客户的可配置业务分类。
 _Avoid_: 宣称客户类型当前决定售价、把价格和业绩公式塞进字典项、固定写死两个类型
 _Authority_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)、[VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
 
 **Settlement Method Snapshot（结算方式快照）**:
-客户子单位或 Supplier 版本直接拥有的结算时间事实副本。
+客户或 Supplier 版本直接拥有的结算时间事实副本。
 _Avoid_: 制单时逐层解析结算方式版本、只保存结算方式 ID、把采购单据费用混入结算时间规则
 _Authority_: [AUX 结算方式](docs/domains/aux.md#33-结算方式)、[BOB 客户与供应商结算方式快照](docs/domains/bob.md#22-客户与供应商结算方式快照)
 
 **Settlement Timing（结算时间规则）**:
-预付、现结、货到若干天、当月结或月结若干天等“何时应付款”的规则，由客户子单位或 Supplier 结算方式快照表达。
+预付、现结、货到若干天、当月结或月结若干天等“何时应付款”的规则，由客户或 Supplier 结算方式快照表达。
 _Avoid_: 把银承、电汇、现金等付款媒介当作月结规则
 _Authority_: [AUX 结算方式](docs/domains/aux.md#33-结算方式)、[VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
 
 **Payment Method Snapshot（收款方式快照）**:
-客户子单位或销售单据直接拥有的付款媒介及其销售价格影响副本。
+客户或销售单据直接拥有的付款媒介及其销售价格影响副本。
 _Avoid_: 承兑类型、`cd_type`、把收款方式合并进结算时间规则
 _Authority_: [AUX 收款方式](docs/domains/aux.md#34-收款方式)、[VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
 
 **Customer Transport Policy（客户运输政策）**:
-客户子单位约定的默认运输方式和运输加价。
-_Avoid_: 从当前客户子单位资料回算历史订单、把运输方式和运输价格混成一个字段
+客户约定的默认运输方式和运输加价。
+_Avoid_: 从当前客户资料回算历史订单、把运输方式和运输价格混成一个字段
 _Authority_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)、[VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
 
 **Sales Cost Component（销售成本组成）**:
@@ -186,7 +186,7 @@ _Avoid_: 负溢价、用有符号价格字段同时表达利润和优惠
 _Authority_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)、[VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
 
 **Customer Sales Attribution（客户业务归属）**:
-客户子单位的主要业务归属。
+客户的主要业务归属。
 _Avoid_: 同一客户同时配置多个主要业务归属、把不具名第三方居间另建为客户资料中的具名收款方
 _Authority_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)、[VOU 居间计算单](docs/domains/vou.md#24-居间计算单)
 
@@ -256,17 +256,17 @@ _Avoid_: 要求客户资料绑定具名收款方、把客户优惠或员工销�
 _Authority_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)、[VOU 居间计算单](docs/domains/vou.md#24-居间计算单)
 
 **Customer Credit Limit（客户信用额度）**:
-客户子单位在单一交易币种内获批的最大信用占用。
+客户在单一交易币种内获批的最大信用占用。
 _Avoid_: 按业务员或集团汇总客户额度、只提醒不控制、跨币种直接相加
 _Authority_: [VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)、[ACC 会计期间](docs/domains/acc.md#10-会计期间)
 
 **Customer Internal Reminder（客户内部提醒）**:
-客户子单位资料中的内部业务提示。
+客户资料中的内部业务提示。
 _Avoid_: 客户备注、自动进入对外单据
 _Authority_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)
 
 **Default Sales Order Remark（默认销售订单备注）**:
-客户子单位为新销售订单提供的默认备注。
+客户为新销售订单提供的默认备注。
 _Avoid_: 客户内部提醒、订单保存后继续回查客户当前值
 _Authority_: [VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
 

@@ -768,7 +768,7 @@ export class VouService implements WflVouPort {
     }
   }
   unbilledSales(periodMonth: string, actor: ApprovalActor) {
-    requirePermission(actor, '/vou/sale-invoice/query')
+    requirePermission(actor, '/vou/sale-invoice/unbilled')
     return unbilledSales(this.db, periodMonth)
   }
   invoiceTaxOptions(entity: InvoiceEntity, objectId: string) {
@@ -1211,7 +1211,7 @@ export class VouService implements WflVouPort {
       .executeTakeFirstOrThrow()
     const persistedPayload = await this.readPayload(tx, entity, row.id)
     if (
-      action === 'approve' &&
+      (action === 'approve' || action === 'unreject') &&
       (entity === 'sale-invoice' || entity === 'purchase-invoice') &&
       'invoiceLines' in persistedPayload
     )

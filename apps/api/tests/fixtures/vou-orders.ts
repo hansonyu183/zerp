@@ -42,6 +42,8 @@ export async function seedOrderListFixture(
       )
       .map((action) => `/vou/${entity}/${action}`),
   )
+  if (entities.includes('sale-invoice'))
+    paths.push('/vou/sale-invoice/unbilled')
   const password = randomBytes(24).toString('base64url')
   const passwordHash = await hashPassword(password)
   async function principal(actions: readonly string[]) {

@@ -10,6 +10,7 @@ type PermissionCandidate = Pick<
 const permissionStatusLabels = { ENABLED: '启用', DISABLED: '停用' } as const
 export const permissionActionLabels: Readonly<Record<string, string>> = {
   query: '查询',
+  unbilled: '查询未开票收入',
   get: '查看',
   create: '新增',
   save: '保存',

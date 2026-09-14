@@ -380,11 +380,65 @@ test('customer cutover projects all historical versions, shares tax, splits rece
     beforeReport.rows.map((row) => row.balance).sort(),
     ['-30.00000000', '-70.00000000', '100.00000000'].sort(),
   )
+  const customerDictionary = await auxiliary('dictionary-type', {
+    name: '迁移客户类型',
+    description: '',
+  })
+  const customerType = await auxiliary('dictionary-item', {
+    name: '普通客户',
+    dictionaryTypeId: customerDictionary.id,
+    sortOrder: 1,
+  })
+  const firstVersions = []
+  for (const [status, rootEnabled, childEnabled] of [
+    ['PENDING', true, true],
+    ['REJECTED', true, true],
+    ['PENDING', false, true],
+    ['PENDING', true, false],
+  ] as const) {
+    const subjectId = ulid(),
+      entryId = ulid(),
+      childId = ulid()
+    await sql`INSERT INTO dcl_subjects(id,entity,code,created_at,created_by) VALUES (${subjectId},'customer',${`CUS-${String(50 + firstVersions.length).padStart(4, '0')}`},'2026-01-01',${user.userId})`.execute(
+      db,
+    )
+    await sql`INSERT INTO bob_objects(id,enabled,revision) VALUES (${subjectId},${rootEnabled},1)`.execute(
+      db,
+    )
+    await sql`INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,submitted_by,submitted_at,updated_by,updated_at,rejected_by,rejected_at,rejection_reason) VALUES (${entryId},'dcl','customer',${subjectId},1,${status},1,${user.userId},'2026-01-01',${user.userId},'2026-01-01',${status === 'REJECTED' ? reviewer.userId : null},${status === 'REJECTED' ? '2026-01-02' : null}::timestamptz,${status === 'REJECTED' ? '首版待修订' : null})`.execute(
+      db,
+    )
+    await sql`INSERT INTO dcl_customer_subunit_roots(subunit_id,customer_id,code) VALUES (${childId},${subjectId},'SUB-0001')`.execute(
+      db,
+    )
+    await sql`INSERT INTO dcl_customer_versions(approval_entry_id,kind,display_name,legal_name,legal_identifier) SELECT ${entryId},kind,${`待批首版-${subjectId}`},legal_name,legal_identifier FROM dcl_customer_versions WHERE approval_entry_id=${singleV1}`.execute(
+      db,
+    )
+    await sql`INSERT INTO dcl_customer_version_subunits(customer_approval_entry_id,subunit_id,name,customer_type_id,customer_type_snapshot,credit_limits,enabled) SELECT ${entryId},${childId},name,customer_type_id,customer_type_snapshot,credit_limits,${childEnabled} FROM dcl_customer_version_subunits WHERE customer_approval_entry_id=${singleV1}`.execute(
+      db,
+    )
+    await sql`UPDATE dcl_customer_version_subunits SET customer_type_id=${customerType.id},customer_type_snapshot=${JSON.stringify({ id: customerType.id, code: customerType.code, name: customerType.name })}::jsonb,transport_snapshot='{"methodCode":"SELF_PICKUP","methodName":"自提","surcharge":"0.00"}',pricing_snapshot='{"defaultPremiumUnitPrice":"0.00","defaultDiscountUnitPrice":"0.00","costItems":[],"thirdPartyIntermediaryFixedUnitCost":"0.00","thirdPartyIntermediaryVariableUnitCost":"0.00"}',sales_attribution_snapshot=${JSON.stringify({ type: 'INTERNAL_EMPLOYEE', objectId: handler.id, code: handler.code, name: handler.name })}::jsonb WHERE customer_approval_entry_id=${entryId}`.execute(
+      db,
+    )
+    firstVersions.push({
+      subjectId,
+      entryId,
+      status,
+      enabled: rootEnabled && childEnabled,
+    })
+  }
   const original = await inspectCustomerCutover(db)
   assert.deepEqual(original.review, [])
-  assert.equal(original.customers.length, 3)
-  assert.equal(original.versions.length, 6)
+  assert.equal(original.customers.length, 7)
+  assert.equal(original.versions.length, 10)
   assert.equal(original.receipts.length, 2)
+  for (const first of firstVersions)
+    assert.equal(
+      original.customers.find((row) => row.customerId === first.subjectId)!
+        .enabled,
+      first.enabled,
+    )
+
   assert.equal(
     original.customers.find((row) => row.oldSubunitId === removed)!.enabled,
     false,
@@ -395,6 +449,52 @@ test('customer cutover projects all historical versions, shares tax, splits rece
     targetReleaseSha: 'b'.repeat(40),
     actorId: user.userId,
   }
+  for (const status of ['PENDING', 'REJECTED'] as const) {
+    await sql`UPDATE approval_entries SET status=${status},rejected_by=${status === 'REJECTED' ? reviewer.userId : null},rejected_at=${status === 'REJECTED' ? '2026-01-03' : null}::timestamptz,rejection_reason=${status === 'REJECTED' ? '待处理资料变更' : null} WHERE id=${multiOpen}`.execute(
+      db,
+    )
+    for (const entry of [multiV2, multiOpen])
+      await sql`INSERT INTO dcl_customer_version_subunits(customer_approval_entry_id,subunit_id,name,customer_type_id,customer_type_snapshot,credit_limits,enabled) SELECT ${entry},subunit_id,name,customer_type_id,customer_type_snapshot,credit_limits,enabled FROM dcl_customer_version_subunits WHERE customer_approval_entry_id=${multiV1} AND subunit_id=${removed}`.execute(
+        db,
+      )
+    async function assertAvailabilityChangeBlocked() {
+      const preview = await inspectCustomerCutover(db)
+      assert.equal(preview.ready, false)
+      assert.ok(
+        preview.review.some(
+          (item) =>
+            item.kind === 'OPEN_CUSTOMER_AVAILABILITY_CHANGE' &&
+            item.identity === `${multiOpen}:${removed}`,
+        ),
+      )
+      await assert.rejects(
+        migrateCustomers(db, { ...input, baseline: preview.baseline }, catalog),
+        (error) =>
+          error instanceof CustomerCutoverError &&
+          error.reason === 'customer_cutover_review_required',
+      )
+      assert.deepEqual(await inspectCustomerCutover(db), preview)
+    }
+    await sql`UPDATE dcl_customer_version_subunits SET enabled=false WHERE customer_approval_entry_id=${multiOpen} AND subunit_id=${removed}`.execute(
+      db,
+    )
+    await assertAvailabilityChangeBlocked()
+    await sql`DELETE FROM dcl_customer_version_subunits WHERE customer_approval_entry_id=${multiOpen} AND subunit_id=${removed}`.execute(
+      db,
+    )
+    await assertAvailabilityChangeBlocked()
+    await sql`UPDATE dcl_customer_version_subunits SET customer_approval_entry_id=${multiOpen} WHERE customer_approval_entry_id=${multiV2} AND subunit_id=${removed}`.execute(
+      db,
+    )
+    await assertAvailabilityChangeBlocked()
+    await sql`DELETE FROM dcl_customer_version_subunits WHERE customer_approval_entry_id=${multiOpen} AND subunit_id=${removed}`.execute(
+      db,
+    )
+  }
+  await sql`UPDATE approval_entries SET status='PENDING',rejected_by=NULL,rejected_at=NULL,rejection_reason=NULL WHERE id=${multiOpen}`.execute(
+    db,
+  )
+  assert.deepEqual(await inspectCustomerCutover(db), original)
   await assert.rejects(
     migrateCustomers(db, { ...input, baseline: '0'.repeat(64) }, catalog),
     /baseline_changed/,
@@ -592,6 +692,59 @@ test('customer cutover projects all historical versions, shares tax, splits rece
   })
   const reviewerSession = await reviewerSignin.json()
   assert.equal(reviewerSession.code, 0)
+  async function customerIsSelectable(subjectId: string) {
+    const result = await (
+      await app.request(
+        `/bob/customer/options?page=1&pageSize=20&enabled=true&ids=${subjectId}`,
+        {
+          headers: {
+            'x-zerp-model-build': modelBuildId,
+            cookie: signin.headers.getSetCookie()[0]!,
+          },
+        },
+      )
+    ).json()
+    assert.equal(result.code, 0, result.errorKey)
+    return result.data.items.some(
+      (item: { objectId: string }) => item.objectId === subjectId,
+    )
+  }
+  for (const first of firstVersions) {
+    assert.equal(await customerIsSelectable(first.subjectId), false)
+    assert.notEqual(
+      (await call('/bob/customer/get', { objectId: first.subjectId })).code,
+      0,
+    )
+    let revision = '1'
+    for (const action of first.status === 'REJECTED'
+      ? ['unreject', 'approve']
+      : ['approve']) {
+      const result = await (
+        await app.request(`/dcl/customer/${action}`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-zerp-model-build': modelBuildId,
+            cookie: reviewerSignin.headers.getSetCookie()[0]!,
+            'x-csrf-token': reviewerSession.data.csrfToken,
+          },
+          body: JSON.stringify({
+            subjectId: first.subjectId,
+            submissionId: first.entryId,
+            expectedRevision: revision,
+          }),
+        })
+      ).json()
+      assert.equal(result.code, 0, result.errorKey)
+      revision = result.data.revision
+    }
+    const formal = await call('/bob/customer/get', {
+      objectId: first.subjectId,
+    })
+    assert.equal(formal.code, 0, formal.errorKey)
+    assert.equal(formal.data.enabled, first.enabled)
+    assert.equal(await customerIsSelectable(first.subjectId), first.enabled)
+  }
   const review = async (action: string, expectedRevision: string) =>
     (
       await app.request(`/vou/sales-receipt/${action}`, {

@@ -1,32 +1,13 @@
 <script setup lang="ts">
-import { ref, onBeforeUnmount } from 'vue'
-import { queryTargetUnbilledSales } from '../../api.ts'
+import type { queryTargetUnbilledSales } from '../../api.ts'
 import FieldInput from '../dynamic-fields/FieldInput.vue'
-import { documentError } from './errors.ts'
-import { businessDate } from './business-date.ts'
-const periodMonth = ref(businessDate().slice(0, 7)),
-  busy = ref(false),
-  error = ref('')
-const result = ref<Awaited<ReturnType<typeof queryTargetUnbilledSales>> | null>(
-  null,
-)
-let active = true
-onBeforeUnmount(() => {
-  active = false
-})
-async function query() {
-  if (busy.value) return
-  busy.value = true
-  error.value = ''
-  try {
-    const next = await queryTargetUnbilledSales(periodMonth.value)
-    if (active) result.value = next
-  } catch (cause) {
-    if (active) error.value = documentError(cause)
-  } finally {
-    if (active) busy.value = false
-  }
-}
+const periodMonth = defineModel<string>({ required: true })
+defineProps<{
+  busy: boolean
+  error: string
+  result: Awaited<ReturnType<typeof queryTargetUnbilledSales>> | null
+}>()
+const emit = defineEmits<{ query: [] }>()
 </script>
 <template>
   <v-expansion-panels class="mb-4">
@@ -42,7 +23,7 @@ async function query() {
           v-model="periodMonth"
           :disabled="busy"
         />
-        <v-btn :disabled="busy" @click="query">查询未开票金额</v-btn>
+        <v-btn :disabled="busy" @click="emit('query')">查询未开票金额</v-btn>
         <v-alert v-if="error" type="error">{{ error }}</v-alert>
         <template v-if="result">
           <p>截至 {{ result.periodMonth }} 月末</p>

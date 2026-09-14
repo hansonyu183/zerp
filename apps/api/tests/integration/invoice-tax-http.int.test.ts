@@ -327,7 +327,9 @@ test('invoice HTTP freezes latest tax and allocates partial cross-period sources
     )
     assert.equal(crossCustomer.errorKey, 'vou_invoice_source_unavailable')
     const period = base.businessDate.slice(0, 7)
-    const before = await get(`/vou/sale-invoice/unbilled?periodMonth=${period}`)
+    const before = await post('sale-invoice', 'unbilled', {
+      periodMonth: period,
+    })
     assert.equal(before.code, 0)
     const total = (response: any) =>
       response.data.items.reduce(
@@ -401,7 +403,7 @@ test('invoice HTTP freezes latest tax and allocates partial cross-period sources
     )
     assert.equal(returnApproved.code, 0, returnApproved.errorKey)
     assert.ok(
-      total(await get(`/vou/sale-invoice/unbilled?periodMonth=${period}`)) <
+      total(await post('sale-invoice', 'unbilled', { periodMonth: period })) <
         baseline,
     )
     const returnReversed = await post(
@@ -416,7 +418,7 @@ test('invoice HTTP freezes latest tax and allocates partial cross-period sources
     )
     assert.equal(returnReversed.code, 0, returnReversed.errorKey)
     assert.equal(
-      total(await get(`/vou/sale-invoice/unbilled?periodMonth=${period}`)),
+      total(await post('sale-invoice', 'unbilled', { periodMonth: period })),
       baseline,
     )
     const firstInput = input({
@@ -466,11 +468,11 @@ test('invoice HTTP freezes latest tax and allocates partial cross-period sources
       '开票最新名称',
     )
     assert.equal(
-      total(await get(`/vou/sale-invoice/unbilled?periodMonth=${period}`)),
+      total(await post('sale-invoice', 'unbilled', { periodMonth: period })),
       baseline - 1n,
     )
     assert.equal(
-      total(await get('/vou/sale-invoice/unbilled?periodMonth=2026-10')),
+      total(await post('sale-invoice', 'unbilled', { periodMonth: '2026-10' })),
       baseline - 2n,
     )
     assert.deepEqual(
@@ -510,11 +512,11 @@ test('invoice HTTP freezes latest tax and allocates partial cross-period sources
     )
     assert.equal(reversed.code, 0, reversed.errorKey)
     assert.equal(
-      total(await get(`/vou/sale-invoice/unbilled?periodMonth=${period}`)),
+      total(await post('sale-invoice', 'unbilled', { periodMonth: period })),
       baseline,
     )
     assert.equal(
-      total(await get('/vou/sale-invoice/unbilled?periodMonth=2026-10')),
+      total(await post('sale-invoice', 'unbilled', { periodMonth: '2026-10' })),
       baseline - 1n,
     )
     await assert.rejects(

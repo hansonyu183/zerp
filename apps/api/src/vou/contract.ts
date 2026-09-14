@@ -1157,26 +1157,47 @@ const invoiceSourcesRoute = {
   ...invoiceSourcesRead,
   request: { ...invoiceSourcesRead.request, params: invoiceParams },
 }
-const unbilledSalesRoute = auxiliaryRoute(
-  '/vou/sale-invoice/unbilled',
-  z.object({ periodMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }),
-  z.object({
-    periodMonth: z.string(),
-    items: z.array(
-      z.object({
-        sourceMonth: z.string(),
-        customerId: z.string(),
-        customerCode: z.string(),
-        customerName: z.string(),
-        operatingEntityId: z.string(),
-        operatingEntityName: z.string(),
-        currency: z.string(),
-        amount: z.string(),
-        sources: z.array(invoiceSourceFact),
-      }),
-    ),
-  }),
-)
+const unbilledSalesResult = z.object({
+  periodMonth: z.string(),
+  items: z.array(
+    z.object({
+      sourceMonth: z.string(),
+      customerId: z.string(),
+      customerCode: z.string(),
+      customerName: z.string(),
+      operatingEntityId: z.string(),
+      operatingEntityName: z.string(),
+      currency: z.string(),
+      amount: z.string(),
+      sources: z.array(invoiceSourceFact),
+    }),
+  ),
+})
+const unbilledSalesRoute = createRoute({
+  method: 'post',
+  path: '/vou/sale-invoice/unbilled',
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: z
+            .object({
+              periodMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+            })
+            .strict(),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: '未开票收入',
+      content: {
+        'application/json': { schema: envelope(unbilledSalesResult) },
+      },
+    },
+  },
+})
 const documentOptionsRoute = auxiliaryRoute(
   '/vou/{entity}/options',
   optionPageInput,
@@ -1341,11 +1362,16 @@ export const vouRouteMetadata = [
     sourceLinesRoute,
     invoiceTaxOptionsRoute,
     invoiceSourcesRoute,
-    unbilledSalesRoute,
   ].map((route) => ({
     method: route.method,
     path: route.path,
   })),
+  {
+    method: unbilledSalesRoute.method,
+    path: unbilledSalesRoute.path,
+    permission: '/vou/sale-invoice/unbilled',
+    title: '查询未开票收入',
+  },
   { method: vouOptionsRoute.method, path: vouOptionsRoute.path },
   ...Object.keys(vouRouteSet).map((action) => ({
     method: 'post',

@@ -298,6 +298,41 @@ export function projectArchives(source: Tables): ConversionPlan {
           identity: str(entry.id),
         })
     const current = versions.filter((row) => row.status === 'APPROVED').at(-1)
+    if (current) {
+      const approvedChildren = new Map(
+        children
+          .filter((row) => row.customer_approval_entry_id === current.id)
+          .map((row) => [str(row.subunit_id), row]),
+      )
+      for (const entry of versions.filter(
+        (row) => row.status === 'PENDING' || row.status === 'REJECTED',
+      )) {
+        const openChildren = new Map(
+          children
+            .filter((row) => row.customer_approval_entry_id === entry.id)
+            .map((row) => [str(row.subunit_id), row]),
+        )
+        for (const subunitId of new Set([
+          ...approvedChildren.keys(),
+          ...openChildren.keys(),
+        ])) {
+          const approved = approvedChildren.get(subunitId)
+          const open = openChildren.get(subunitId)
+          if (!approved || !open || approved.enabled !== open.enabled)
+            plan.review.push({
+              kind: 'OPEN_CUSTOMER_AVAILABILITY_CHANGE',
+              table: 'dcl_customer_version_subunits',
+              identity: `${str(entry.id)}:${subunitId}`,
+              field: approved && open ? 'enabled' : 'subunit_id',
+            })
+        }
+      }
+    }
+    const availabilityVersion =
+      current ??
+      versions.find(
+        (row) => row.status === 'PENDING' || row.status === 'REJECTED',
+      )
     const enabled = rows(source, 'bob_objects').find(
       (row) => row.id === subject.id,
     )
@@ -330,10 +365,10 @@ export function projectArchives(source: Tables): ConversionPlan {
         union.length === 1 ? str(subject.code) : allocateCustomerCode(plan)
       const available = Boolean(
         enabled?.enabled &&
-        current &&
+        availabilityVersion &&
         children.some(
           (row) =>
-            row.customer_approval_entry_id === current.id &&
+            row.customer_approval_entry_id === availabilityVersion.id &&
             row.subunit_id === subunitId &&
             row.enabled,
         ),

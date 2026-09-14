@@ -4,13 +4,13 @@
 
 DCL 使用固定标识 `dcl`，拥有 Customer、Product、Supplier、Other Unit、Sales Partner 的 stable identity、业务编码及类型化版本内容。中文名称为“资料变更”；BOB 中文名称为“正式资料”。五类实体 wire value 保持 `customer`、`product`、`supplier`、`other-unit`、`sales-partner`，中文名称复用共享档案映射。
 
-公共 [Approval](approval.md) 持有版本头、状态、Submission revision、版本选择和审批审计；[BOB](bob.md) 持有独立即时启停和正式／历史读取。类型化业务字段及采用规则见 BOB 的对应实体规则，DCL 在其外层事务中执行这些不变量。客户子单位、身份税务模型和 AUX、ACC、RPT、WFL 归属不变。
+公共 [Approval](approval.md) 持有版本头、状态、Submission revision、版本选择和审批审计；[BOB](bob.md) 持有独立即时启停和正式／历史读取。类型化业务字段及采用规则见 BOB 的对应实体规则，DCL 在其外层事务中执行这些不变量。客户是单层对象；客户与供应商引用 AUX 税务信息。AUX、ACC、RPT、WFL 的维护归属不变。
 
 ## 2. 唯一维护边界
 
 临时输入仅在当前页面保留，关闭、刷新或切换账号销毁。新增、克隆生成新稳定身份；变更明确采用正式版本 ID 和 revision。submit-new/submit-change 原子创建不可变 Submission，每个对象最多一份开放提交件。待批期间旧正式版继续可用，批准后采用新版，反批准可回落，但均不改写 BOB enabled/object revision。
 
-审批动作、职责分离、结构化 blocker、拒绝／撤拒与删除开放提交件遵循 Approval 规则。不增加正式对象删除。客户新建及子单位变更仍要求独立 save-subunits 能力；根资料变更保留完整子单位集合。提交、审批及独立启停使用一致的对象锁顺序，失败整笔回滚。
+审批动作、职责分离、结构化 blocker、拒绝／撤拒与删除开放提交件遵循 Approval 规则。不增加正式对象删除。客户新建和变更按对应提交权限维护完整客户业务属性及税务关联。提交、审批及独立启停使用一致的对象锁顺序，失败整笔回滚。
 
 ## 3. 精确授权与附件
 

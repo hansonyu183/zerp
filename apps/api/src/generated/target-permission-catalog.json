@@ -4896,6 +4896,14 @@
     "title": "sale-invoice unapprove"
   },
   {
+    "id": "01J3800FF2BA1770B324B413D8",
+    "path": "/vou/sale-invoice/unbilled",
+    "domain": "vou",
+    "entity": "sale-invoice",
+    "action": "unbilled",
+    "title": "查询未开票收入"
+  },
+  {
     "id": "01JE618326557423FEC7A71752",
     "path": "/vou/sale-invoice/unreject",
     "domain": "vou",

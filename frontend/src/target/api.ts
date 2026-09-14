@@ -3501,10 +3501,16 @@ export async function queryTargetInvoiceSources(
     ).json(),
   )
 }
-export async function queryTargetUnbilledSales(periodMonth: string) {
+export async function queryTargetUnbilledSales(
+  csrfToken: string,
+  periodMonth: string,
+) {
   return unwrapTarget(
     await (
-      await client.vou['sale-invoice'].unbilled.$get({ query: { periodMonth } })
+      await client.vou['sale-invoice'].unbilled.$post(
+        { json: { periodMonth } },
+        csrfHeaders(csrfToken),
+      )
     ).json(),
   )
 }

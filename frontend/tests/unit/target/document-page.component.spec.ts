@@ -29,6 +29,7 @@ vi.mock('@/target/api.ts', async (original) => ({
   submitTargetVoucher: vi.fn(),
   queryTargetVouSourceLines: vi.fn(),
   queryTargetInventoryBookBalance: vi.fn(),
+  queryTargetUnbilledSales: vi.fn(),
 }))
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -54,6 +55,66 @@ async function click(
   await button!.trigger('click')
   await flushPromises()
 }
+it.each(['query', 'submit-new', 'approve'])(
+  'hides the unbilled action from sale-invoice %s-only users',
+  async (action) => {
+    useTargetSession().apiPaths = [`/vou/sale-invoice/${action}`]
+    vi.mocked(api.queryTargetVouchers).mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize: 20,
+    })
+    const wrapper = mount(ResourceHost, {
+      props: { domain: 'vou', entity: 'sale-invoice' },
+      global: { stubs },
+    })
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('查询未开票金额')
+    expect(api.queryTargetUnbilledSales).not.toHaveBeenCalled()
+    wrapper.unmount()
+  },
+)
+it('queries unbilled income with its exact permission and drops a result after switching resource', async () => {
+  useTargetSession().apiPaths = [
+    '/vou/sale-invoice/unbilled',
+    '/vou/purchase-order/query',
+  ]
+  vi.mocked(api.queryTargetVouchers).mockResolvedValue({
+    items: [],
+    total: 0,
+    page: 1,
+    pageSize: 20,
+  })
+  const result = { periodMonth: '2026-09', items: [] }
+  vi.mocked(api.queryTargetUnbilledSales).mockResolvedValueOnce(result)
+  const wrapper = mount(ResourceHost, {
+    props: { domain: 'vou', entity: 'sale-invoice' },
+    global: { stubs },
+  })
+  await flushPromises()
+  await wrapper.get('[aria-label="截至月份（YYYY-MM）"]').setValue('2026-09')
+  await click(wrapper, '查询未开票金额')
+  expect(api.queryTargetUnbilledSales).toHaveBeenCalledWith(
+    'test-csrf',
+    '2026-09',
+  )
+  expect(wrapper.text()).toContain('截至 2026-09 月末')
+  expect(wrapper.text()).toContain('无未开票余额')
+  expect(api.queryTargetVouchers).not.toHaveBeenCalled()
+  let resolve!: (value: typeof result) => void
+  vi.mocked(api.queryTargetUnbilledSales).mockReturnValueOnce(
+    new Promise((done) => {
+      resolve = done
+    }),
+  )
+  await click(wrapper, '查询未开票金额')
+  await wrapper.setProps({ entity: 'purchase-order' })
+  resolve(result)
+  await flushPromises()
+  expect(wrapper.text()).not.toContain('截至 2026-09 月末')
+  wrapper.unmount()
+})
 it.each(['sale-order', 'purchase-order'])(
   'opens and cancels %s Draft through its resource without query permission',
   async (entity) => {

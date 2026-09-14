@@ -131,8 +131,8 @@ const money = (value: bigint) => {
   const digits = (value < 0n ? -value : value).toString().padStart(3, '0')
   return `${sign}${digits.slice(0, -2)}.${digits.slice(-2)}`
 }
-const lineAmount = (quantity: string, price: string) =>
-  (units(quantity, 6) * units(price)) / 1000000n
+const lineAmount = (quantity: bigint, price: string) =>
+  (quantity * units(price) + 500000n) / 1000000n
 const sourceKey = (documentId: string, lineId: string) =>
   `${documentId}:${lineId}`
 export async function lockInvoiceAmounts(tx: Transaction<DB>) {
@@ -141,13 +141,16 @@ export async function lockInvoiceAmounts(tx: Transaction<DB>) {
   )
 }
 
-export async function invoiceSources(
+async function readInvoiceAmounts(
   db: Executor,
   entity: InvoiceEntity,
   asOfDate: string,
   reserved = false,
   excludeDocumentId = '',
-): Promise<InvoiceSource[]> {
+): Promise<{
+  sources: InvoiceSource[]
+  returnedQuantities: Map<string, bigint>
+}> {
   const sourceEntity =
     entity === 'sale-invoice' ? 'sale-signoff' : 'purchase-inbound'
   const returnEntity =
@@ -188,8 +191,7 @@ export async function invoiceSources(
     }
     return doc.payload as VouPayloadFor<'sale-order'>
   }
-  const facts: InvoiceSource[] = [],
-    prices = new Map<string, string>()
+  const facts: InvoiceSource[] = []
   for (const meta of approved.filter((item) => item.entity === sourceEntity)) {
     const doc = await read(meta.subject_id)
     if (doc.businessDate > asOfDate) continue
@@ -203,7 +205,7 @@ export async function invoiceSources(
         if (!product)
           throw new VouApplicationError('vou_invoice_source_unavailable')
         const amount = money(
-          lineAmount(line.signedBaseQuantity, product.unitPrice),
+          lineAmount(units(line.signedBaseQuantity, 6), product.unitPrice),
         )
         facts.push({
           sourceDocumentId: meta.subject_id,
@@ -218,10 +220,6 @@ export async function invoiceSources(
           amount,
           availableAmount: amount,
         })
-        prices.set(
-          sourceKey(meta.subject_id, line.sourceLineId),
-          product.unitPrice,
-        )
       }
     } else {
       const payload = doc.payload as VouPayloadFor<'purchase-inbound'>
@@ -237,7 +235,9 @@ export async function invoiceSources(
         )
         if (!product || order.supplier.objectId !== payload.supplier.objectId)
           throw new VouApplicationError('vou_invoice_source_unavailable')
-        const amount = money(lineAmount(line.baseQuantity, product.unitPrice))
+        const amount = money(
+          lineAmount(units(line.baseQuantity, 6), product.unitPrice),
+        )
         facts.push({
           sourceDocumentId: meta.subject_id,
           sourceApprovalEntryId: meta.id,
@@ -251,32 +251,31 @@ export async function invoiceSources(
           amount,
           availableAmount: amount,
         })
-        prices.set(
-          sourceKey(meta.subject_id, line.sourceLineId),
-          product.unitPrice,
-        )
       }
     }
   }
+  const returnedQuantities = new Map<string, bigint>()
   for (const meta of approved.filter((item) => item.entity === returnEntity)) {
     const doc = await read(meta.subject_id)
     if (doc.businessDate > asOfDate) continue
     for (const line of (doc.payload as VouPayloadFor<'sale-return'>)
       .returnLines) {
-      const fact = facts.find(
-        (item) =>
-          item.sourceDocumentId === line.sourceDocumentId &&
-          item.sourceLineId === line.sourceLineId,
+      const key = sourceKey(line.sourceDocumentId, line.sourceLineId)
+      returnedQuantities.set(
+        key,
+        (returnedQuantities.get(key) ?? 0n) + units(line.baseQuantity, 6),
       )
-      const price = prices.get(
-        sourceKey(line.sourceDocumentId, line.sourceLineId),
-      )
-      if (!fact || price === undefined) continue
-      fact.amount = money(
-        units(fact.amount) - lineAmount(line.baseQuantity, price),
-      )
-      fact.availableAmount = fact.amount
     }
+  }
+  for (const fact of facts) {
+    const returned =
+      returnedQuantities.get(
+        sourceKey(fact.sourceDocumentId, fact.sourceLineId),
+      ) ?? 0n
+    fact.amount = money(
+      units(fact.amount) - lineAmount(returned, fact.unitPrice),
+    )
+    fact.availableAmount = fact.amount
   }
   const invoices = await sql<{
     source_document_id: string
@@ -302,7 +301,19 @@ export async function invoiceSources(
         units(fact.availableAmount) - BigInt(invoice.amount),
       )
   }
-  return facts
+  return { sources: facts, returnedQuantities }
+}
+
+export async function invoiceSources(
+  db: Executor,
+  entity: InvoiceEntity,
+  asOfDate: string,
+  reserved = false,
+  excludeDocumentId = '',
+): Promise<InvoiceSource[]> {
+  return (
+    await readInvoiceAmounts(db, entity, asOfDate, reserved, excludeDocumentId)
+  ).sources
 }
 export async function validateInvoiceSources(
   tx: Transaction<DB>,
@@ -352,7 +363,7 @@ export async function validateReturnInvoiceCapacity(
   payload: VouPayloadFor<'sale-return'>,
 ) {
   await lockInvoiceAmounts(tx)
-  const sources = await invoiceSources(
+  const { sources, returnedQuantities } = await readInvoiceAmounts(
     tx,
     entity === 'sale-return' ? 'sale-invoice' : 'purchase-invoice',
     '9999-12-31',
@@ -367,10 +378,13 @@ export async function validateReturnInvoiceCapacity(
     )
     if (!fact) throw new VouApplicationError('vou_invoice_source_unavailable')
     const key = sourceKey(line.sourceDocumentId, line.sourceLineId)
-    const sum =
-      (requested.get(key) ?? 0n) + lineAmount(line.baseQuantity, fact.unitPrice)
+    const sum = (requested.get(key) ?? 0n) + units(line.baseQuantity, 6)
     requested.set(key, sum)
-    if (sum > units(fact.availableAmount))
+    const returned = returnedQuantities.get(key) ?? 0n
+    const additionalAmount =
+      lineAmount(returned + sum, fact.unitPrice) -
+      lineAmount(returned, fact.unitPrice)
+    if (additionalAmount > units(fact.availableAmount))
       throw new VouApplicationError('vou_invoice_source_unavailable', [
         { kind: 'DOWNSTREAM_DOCUMENT', id: line.sourceDocumentId },
       ])

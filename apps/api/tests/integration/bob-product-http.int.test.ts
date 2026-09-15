@@ -7,7 +7,7 @@ import { createApp } from '../../src/app.ts'
 import { TargetBootstrapService } from '../../src/app/bootstrap.ts'
 import { hashPassword, SessionService } from '../../src/app/session.ts'
 import { AuxService, type AuxWriteData } from '../../src/aux/service.ts'
-import { BobArchiveService } from '../../src/bob/archives.ts'
+import { DclArchiveService } from '../../src/dcl/archives.ts'
 import { BobService } from '../../src/bob/service.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { loadConfig } from '../../src/platform/config.ts'
@@ -45,13 +45,16 @@ test('product HTTP preserves precise formula history and independent enablement 
     'disable',
     'delete',
   ]
-  const permissions = actions.map((action) => `/bob/product/${action}`)
+  const permissions = actions.map(
+    (action) =>
+      `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/product/${action}`,
+  )
   await bootstrap.createE2EPrincipal(submitter, false, permissions)
   await bootstrap.createE2EPrincipal(reviewer, false, permissions)
   context.after(async () => {
     try {
       const subjects = db
-        .selectFrom('bob_subjects')
+        .selectFrom('bob_archive_objects')
         .select('id')
         .where('created_by', '=', submitter.userId)
       await db
@@ -67,7 +70,7 @@ test('product HTTP preserves precise formula history and independent enablement 
         .where('subject_id', 'in', subjects)
         .execute()
       await db
-        .deleteFrom('bob_subjects')
+        .deleteFrom('dcl_subjects')
         .where('created_by', '=', submitter.userId)
         .execute()
       await bootstrap.deleteE2EPrincipal(submitter)
@@ -85,7 +88,7 @@ test('product HTTP preserves precise formula history and independent enablement 
     config,
     session: new SessionService(db, config),
     bob: new BobService(db),
-    bobArchives: new BobArchiveService(db),
+    dclArchives: new DclArchiveService(db),
   })
   const login = async (code: string) => {
     const response = await app.request('/session/auth/signin', {
@@ -105,11 +108,14 @@ test('product HTTP preserves precise formula history and independent enablement 
       cookie: response.headers.getSetCookie()[0]!,
     }
     return async (action: string, input: unknown) => {
-      const response = await app.request(`/bob/product/${action}`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(input),
-      })
+      const response = await app.request(
+        `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/product/${action}`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(input),
+        },
+      )
       return response.json()
     }
   }
@@ -426,7 +432,7 @@ test('product HTTP preserves precise formula history and independent enablement 
     [change.submissionId, input.submissionId],
   )
   assert.equal(
-    (await app.request('/dcl/product/submit-new', { method: 'POST' })).status,
+    (await app.request('/bob/product/submit-new', { method: 'POST' })).status,
     404,
   )
 })

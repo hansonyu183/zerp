@@ -15,7 +15,7 @@ export const mappingSubjectSources = {
   FIELD: '单据字段',
 } as const
 export const mappingDimensions = {
-  CUSTOMER_SUBUNIT: '客户子单位',
+  CUSTOMER: '客户',
   SUPPLIER: '供应商',
   OTHER_UNIT: '其他单位',
   EMPLOYEE: '员工',
@@ -78,7 +78,7 @@ export function mappingFieldOptions(fields: readonly string[]) {
     employeeIntermediaryCosts: '员工收取的第三方居间成本',
     partnerIntermediaryCosts: '销售伙伴收取的第三方居间成本',
     'line.payeeId': '收款方',
-    'line.customerId': '客户子单位',
+    'line.customerId': '客户',
     'line.accrualAmount': '本次计提金额',
     'line.reversalAmount': '本次冲回金额',
     inventoryMovements: '库存数量变动',

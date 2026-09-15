@@ -60,7 +60,7 @@ function updateRange(endpoint: 'from' | 'to', value: unknown) {
         ? 'roles'
         : field.source === 'bob/supplier'
           ? 'suppliers'
-          : 'customer-subunits'
+          : 'customers'
     "
     :caption="field.caption"
     :model-value="(modelValue as string | null) ?? null"

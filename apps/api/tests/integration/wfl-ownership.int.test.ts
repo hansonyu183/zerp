@@ -5,7 +5,7 @@ import { ulid } from 'ulid'
 import { createNodeWflStarlark } from '@zerp/wfl-starlark/node'
 import { createDatabase } from '../../src/db/database.ts'
 import type { DB } from '../../src/db/generated.ts'
-import { BobArchiveService } from '../../src/bob/archives.ts'
+import { DclArchiveService } from '../../src/dcl/archives.ts'
 import { AuxService } from '../../src/aux/service.ts'
 import { VouService } from '../../src/vou/service.ts'
 import { WflService, type WflVouPort } from '../../src/wfl/service.ts'
@@ -58,7 +58,7 @@ test('WFL independently composes shared lifecycle, pins old instances and rolls 
             })
             .execute()
         const refs = await seedSaleOrderReferences(
-          new BobArchiveService(scoped),
+          new DclArchiveService(scoped),
           new AuxService(scoped),
           owner.id,
           reviewer.id,

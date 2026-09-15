@@ -1,3 +1,4 @@
+import { insertArchiveObjects } from '../fixtures/archive-objects.ts'
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
 import test from 'node:test'
@@ -71,13 +72,13 @@ test('real HTTP workbench returns only actionable BOB, WFL and VOU submissions',
   const supplierCode = `SUP-${codeSuffix}`
   const wflDefinitionCode = `wfl-00${codeSuffix}`
   const permissionPaths = [
-    '/bob/product/submission-query',
-    '/bob/product/submission-get',
-    '/bob/product/approve',
-    '/bob/other-unit/submission-query',
-    '/bob/supplier/submission-query',
-    '/bob/supplier/submission-get',
-    '/bob/supplier/approve',
+    '/dcl/product/submission-query',
+    '/dcl/product/submission-get',
+    '/dcl/product/approve',
+    '/dcl/other-unit/submission-query',
+    '/dcl/supplier/submission-query',
+    '/dcl/supplier/submission-get',
+    '/dcl/supplier/approve',
     '/wfl/process-definition/submission-query',
     '/wfl/process-definition/submission-get',
     '/wfl/process-definition/approve',
@@ -111,10 +112,10 @@ test('real HTTP workbench returns only actionable BOB, WFL and VOU submissions',
         .where('id', 'in', [productId, wflDefinitionId])
         .execute()
       await db
-        .deleteFrom('bob_subjects')
+        .deleteFrom('dcl_subjects')
         .where('id', 'in', [productId, wflDefinitionId])
         .execute()
-      await sql`DELETE FROM bob_subjects WHERE id IN (${otherUnitId}, ${supplierId})`.execute(
+      await sql`DELETE FROM dcl_subjects WHERE id IN (${otherUnitId}, ${supplierId})`.execute(
         db,
       )
       await db
@@ -237,30 +238,37 @@ test('real HTTP workbench returns only actionable BOB, WFL and VOU submissions',
       },
     ])
     .execute()
-  await db
-    .insertInto('bob_subjects')
-    .values([
-      {
-        id: productId,
-        entity: 'product',
-        code: productCode,
-        created_at: now,
-        created_by: submitterId,
-      },
-    ])
-    .execute()
-  await sql`
-    INSERT INTO bob_subjects (id, entity, code, enabled, revision, created_at, created_by)
-    VALUES
-      (${otherUnitId}, 'other-unit', ${otherUnitCode}, true, 1, ${now}, ${submitterId}),
-      (${supplierId}, 'supplier', ${supplierCode}, true, 1, ${now}, ${submitterId})
-  `.execute(db)
+  await insertArchiveObjects(db, [
+    {
+      id: productId,
+      entity: 'product',
+      code: productCode,
+      created_at: now,
+      created_by: submitterId,
+    },
+  ])
+  await insertArchiveObjects(db, [
+    {
+      id: otherUnitId,
+      entity: 'other-unit',
+      code: otherUnitCode,
+      created_at: now,
+      created_by: submitterId,
+    },
+    {
+      id: supplierId,
+      entity: 'supplier',
+      code: supplierCode,
+      created_at: now,
+      created_by: submitterId,
+    },
+  ])
   await db
     .insertInto('approval_entries')
     .values([
       {
         id: productSubmissionId,
-        domain: 'bob',
+        domain: 'dcl',
         entity: 'product',
         subject_id: productId,
         version_no: 1,
@@ -278,7 +286,7 @@ test('real HTTP workbench returns only actionable BOB, WFL and VOU submissions',
       },
       {
         id: otherUnitSubmissionId,
-        domain: 'bob',
+        domain: 'dcl',
         entity: 'other-unit',
         subject_id: otherUnitId,
         version_no: 1,
@@ -296,7 +304,7 @@ test('real HTTP workbench returns only actionable BOB, WFL and VOU submissions',
       },
       {
         id: supplierSubmissionId,
-        domain: 'bob',
+        domain: 'dcl',
         entity: 'supplier',
         subject_id: supplierId,
         version_no: 1,
@@ -369,7 +377,7 @@ test('real HTTP workbench returns only actionable BOB, WFL and VOU submissions',
     ])
     .execute()
   await db
-    .insertInto('bob_product_versions')
+    .insertInto('dcl_product_versions')
     .values({
       approval_entry_id: productSubmissionId,
       name: '工作台产品',
@@ -379,7 +387,7 @@ test('real HTTP workbench returns only actionable BOB, WFL and VOU submissions',
     })
     .execute()
   await db
-    .insertInto('bob_other_unit_versions')
+    .insertInto('dcl_other_unit_versions')
     .values({
       approval_entry_id: otherUnitSubmissionId,
       kind: 'ORGANIZATION',
@@ -388,12 +396,11 @@ test('real HTTP workbench returns only actionable BOB, WFL and VOU submissions',
     })
     .execute()
   await db
-    .insertInto('bob_supplier_versions')
+    .insertInto('dcl_supplier_versions')
     .values({
       approval_entry_id: supplierSubmissionId,
-      kind: 'ORGANIZATION',
-      legal_name: '工作台供应商',
       display_name: '工作台供应商',
+      tax_information: JSON.stringify([]),
     })
     .execute()
   await db
@@ -457,9 +464,9 @@ test('real HTTP workbench returns only actionable BOB, WFL and VOU submissions',
     {
       id: submitterId,
       permissions: [
-        '/bob/supplier/submission-query',
-        '/bob/supplier/submission-get',
-        '/bob/supplier/delete',
+        '/dcl/supplier/submission-query',
+        '/dcl/supplier/submission-get',
+        '/dcl/supplier/delete',
       ],
     },
   )
@@ -521,7 +528,7 @@ test('real HTTP workbench returns only actionable BOB, WFL and VOU submissions',
   assert.equal(payload.data.total, 4)
   assert.deepEqual(payload.data.items, [
     {
-      domain: 'bob',
+      domain: 'dcl',
       entity: 'supplier',
       subjectOrDocumentId: supplierId,
       submissionId: supplierSubmissionId,
@@ -545,7 +552,7 @@ test('real HTTP workbench returns only actionable BOB, WFL and VOU submissions',
       updatedAt: '2026-09-05T04:00:00.000Z',
     },
     {
-      domain: 'bob',
+      domain: 'dcl',
       entity: 'product',
       subjectOrDocumentId: productId,
       submissionId: productSubmissionId,

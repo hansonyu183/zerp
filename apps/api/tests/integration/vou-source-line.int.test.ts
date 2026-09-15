@@ -740,11 +740,11 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
     .insertInto('vou_reference_snapshots')
     .values({
       approval_entry_id: withdrawnSignoff.approvalEntryId,
-      field: 'customerSubunit',
+      field: 'customer',
       line_no: 0,
       item_no: 0,
       object_id: ulid(),
-      reference_entity: 'customer-subunit',
+      reference_entity: 'customer',
       reference_code: 'CS-CHAIN',
       reference_name: '来源链客户',
     })

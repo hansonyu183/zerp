@@ -73,7 +73,7 @@ test('VOU order quantities require a complete measurement-unit snapshot', () => 
     businessDate: '2026-09-07',
     currency: 'CNY',
     attachments: [],
-    customerSubunit: {
+    customer: {
       objectId: id,
       approvalEntryId: '01J00000000000000000000002',
       selectionOrigin: 'CURRENT',
@@ -271,7 +271,7 @@ test('VOU sale-order contracts expose exact payment-method snapshots', () => {
     businessDate: '2026-09-07',
     currency: 'CNY',
     attachments: [],
-    customerSubunit: {
+    customer: {
       objectId: id,
       approvalEntryId: '01J00000000000000000000002',
       selectionOrigin: 'CURRENT',

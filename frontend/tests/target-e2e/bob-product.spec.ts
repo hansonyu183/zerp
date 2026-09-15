@@ -1,3 +1,4 @@
+import { openArchive, findArchive } from './archive-navigation.ts'
 import { confirmCollection } from './collection-helpers.ts'
 import { randomBytes } from 'node:crypto'
 import { modelBuildId } from '@zerp/model'
@@ -31,7 +32,7 @@ async function select(page: Page, scope: Locator, label: string, name: string) {
   await page.getByRole('option').filter({ hasText: name }).click()
 }
 async function approve(page: Page, name: string) {
-  await page.goto('/bob/product')
+  await openArchive(page, 'dcl', 'product')
   await page.getByRole('button', { name: '提交记录', exact: true }).click()
   const dialog = page.getByRole('dialog').last()
   await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
@@ -94,7 +95,7 @@ test('product temporary form, exact quantity trial, approval and independent ena
       expect((await response.json()).code).toBe(0)
     }
     await page.setViewportSize({ width: 1440, height: 960 })
-    await page.goto('/bob/product')
+    await openArchive(page, 'dcl', 'product')
     await page.getByRole('button', { name: '新增', exact: true }).click()
     let dialog = page.getByRole('dialog').last()
     await dialog.getByLabel('名称', { exact: true }).fill('关闭即丢弃')
@@ -134,10 +135,14 @@ test('product temporary form, exact quantity trial, approval and independent ena
     await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
     await page.getByRole('button', { name: '查询', exact: true }).click()
     const row = page.locator('tr, .list-card').filter({ hasText: name })
+    await openArchive(page, 'bob', 'product')
+    await findArchive(page, name)
     await row.getByRole('button', { name: '停用', exact: true }).click()
     await expect(
       row.getByRole('button', { name: '启用', exact: true }),
     ).toBeVisible()
+    await openArchive(page, 'dcl', 'product')
+    await findArchive(page, name)
     await row.getByRole('button', { name: '提交变更', exact: true }).click()
     dialog = page.getByRole('dialog').last()
     await expect(dialog.getByLabel('规格', { exact: true })).toHaveValue(
@@ -147,8 +152,7 @@ test('product temporary form, exact quantity trial, approval and independent ena
     await dialog.getByRole('button', { name: '提交', exact: true }).click()
     await expect(dialog).toHaveCount(0)
     await approve(reviewer, name)
-    await page.setViewportSize({ width: 390, height: 960 })
-    await page.reload()
+    await openArchive(page, 'bob', 'product', 390)
     await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
     await page.getByRole('button', { name: '查询', exact: true }).click()
     await expect(
@@ -159,6 +163,8 @@ test('product temporary form, exact quantity trial, approval and independent ena
         () => document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBe(true)
+    await openArchive(page, 'dcl', 'product')
+    await findArchive(page, name)
     await row.getByRole('button', { name: '克隆', exact: true }).click()
     dialog = page.getByRole('dialog').last()
     await select(page, dialog, '产品类型', finishedName)

@@ -1,3 +1,4 @@
+import { insertArchiveObjects } from '../fixtures/archive-objects.ts'
 import { approveEmptyIntermediaryMonth } from '../fixtures/vou-intermediary.ts'
 import { VouOpeningService } from '../../src/vou/opening-service.ts'
 import assert from 'node:assert/strict'
@@ -7,9 +8,9 @@ import { sql } from 'kysely'
 import { ulid } from 'ulid'
 
 import {
-  BobArchiveService,
-  BobArchiveApplicationError,
-} from '../../src/bob/archives.ts'
+  DclArchiveService,
+  DclArchiveApplicationError,
+} from '../../src/dcl/archives.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { AccApplicationError, AccService } from '../../src/acc/service.ts'
 import { AuxApplicationError, AuxService } from '../../src/aux/service.ts'
@@ -575,7 +576,7 @@ test('ACC restores f856118f subject templates and independent book access scopes
   )
 })
 
-test('ACC Opening persists typed asset, bill, and current customer-subunit container facts then reverses them', async (context) => {
+test('ACC Opening persists typed asset, bill, and current customer container facts then reverses them', async (context) => {
   assert.ok(databaseUrl)
   const db = createDatabase(databaseUrl)
   const service = new AccService(db)
@@ -588,7 +589,7 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
     supplierEntryId = ulid(),
     customerId = ulid(),
     customerEntryId = ulid(),
-    subunitId = ulid()
+    subunitId = customerId
   const assetId = ulid(),
     billId = ulid()
   const actor = { id: actorId, permissions: [] as string[], trusted: true }
@@ -647,7 +648,7 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
           customerEntryId,
         ])
         .execute()
-      await sql`DELETE FROM bob_subjects WHERE id IN (${supplierId}, ${customerId})`.execute(
+      await sql`DELETE FROM dcl_subjects WHERE id IN (${supplierId}, ${customerId})`.execute(
         db,
       )
       await db
@@ -746,37 +747,37 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
     },
     actor,
   )
-  await db
-    .insertInto('bob_subjects')
-    .values([
-      {
-        id: customerId,
-        entity: 'customer',
-        code: `CUS-${String(
-          (
-            await db
-              .updateTable('archive_code_counters')
-              .set((eb) => ({ next_value: eb('next_value', '+', 1) }))
-              .where('entity', '=', 'customer')
-              .returning('next_value')
-              .executeTakeFirstOrThrow()
-          ).next_value - 1,
-        ).padStart(4, '0')}`,
-        created_at: now,
-        created_by: actorId,
-      },
-    ])
-    .execute()
-  await sql`
-    INSERT INTO bob_subjects (id, entity, code, enabled, revision, created_at, created_by)
-    VALUES (${supplierId}, 'supplier', 'SUP-0001', true, 1, ${now}, ${actorId})
-  `.execute(db)
+  await insertArchiveObjects(db, [
+    {
+      id: customerId,
+      entity: 'customer',
+      code: `CUS-${String(
+        (
+          await db
+            .updateTable('archive_code_counters')
+            .set((eb) => ({ next_value: eb('next_value', '+', 1) }))
+            .where('entity', '=', 'customer')
+            .returning('next_value')
+            .executeTakeFirstOrThrow()
+        ).next_value - 1,
+      ).padStart(4, '0')}`,
+      created_at: now,
+      created_by: actorId,
+    },
+  ])
+  await insertArchiveObjects(db, {
+    id: supplierId,
+    entity: 'supplier',
+    code: 'SUP-0001',
+    created_at: now,
+    created_by: actorId,
+  })
   await db
     .insertInto('approval_entries')
     .values([
       {
         id: supplierEntryId,
-        domain: 'bob',
+        domain: 'dcl',
         entity: 'supplier',
         subject_id: supplierId,
         version_no: 1,
@@ -791,7 +792,7 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
       },
       {
         id: customerEntryId,
-        domain: 'bob',
+        domain: 'dcl',
         entity: 'customer',
         subject_id: customerId,
         version_no: 1,
@@ -807,13 +808,10 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
     ])
     .execute()
   await db
-    .insertInto('bob_supplier_versions')
+    .insertInto('dcl_supplier_versions')
     .values({
       approval_entry_id: supplierEntryId,
-      kind: 'ORGANIZATION',
-      legal_name: '期初供应商',
       display_name: '期初供应商',
-      legal_identifier: null,
       default_operating_entity_id: null,
       default_purchaser_employee_id: null,
       default_purchaser_approval_entry_id: null,
@@ -826,49 +824,22 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
       default_operating_entity_reference: null,
       settlement_method_snapshot: null,
       default_purchaser_snapshot: null,
+      tax_information: JSON.stringify([]),
     })
     .execute()
   await db
-    .insertInto('bob_customer_versions')
+    .insertInto('dcl_customer_versions')
     .values({
       approval_entry_id: customerEntryId,
-      kind: 'OTHER',
-      legal_identifier: null,
       display_name: '期初客户',
-      legal_name: '期初客户',
       default_operating_entity_id: null,
-      default_operating_entity_approval_entry_id: null,
       default_operating_entity_code: null,
       default_operating_entity_name: null,
       phone: null,
       email: null,
       address: null,
-      invoice_title: null,
-      invoice_address: null,
-      invoice_phone: null,
-      invoice_bank: null,
-      invoice_account: null,
       remittance_profiles: JSON.stringify([]),
-      tax_attachments: JSON.stringify([]),
-    })
-    .execute()
-  await db
-    .insertInto('bob_customer_subunit_roots')
-    .values({
-      subunit_id: subunitId,
-      customer_id: customerId,
-      code: 'SUB-0001',
-    })
-    .execute()
-  await db
-    .insertInto('bob_customer_version_subunits')
-    .values({
-      customer_approval_entry_id: customerEntryId,
-      subunit_id: subunitId,
-      name: '期初客户子单位',
       contact_name: null,
-      contact_phone: null,
-      business_address: null,
       customer_type_id: customerTypeId,
       customer_type_snapshot: JSON.stringify({
         id: customerTypeId,
@@ -889,10 +860,11 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
       credit_limits: JSON.stringify([]),
       internal_reminder: null,
       default_order_remark: null,
-      business_attachments: JSON.stringify([]),
-      enabled: true,
+      attachments: JSON.stringify([]),
+      tax_information: JSON.stringify([]),
     })
     .execute()
+
   await db
     .insertInto('acc_mappings')
     .values({
@@ -992,13 +964,18 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
       ],
       containers: [
         {
-          subunit: {
-            entity: 'customer-subunit',
+          customer: {
+            entity: 'customer',
             objectId: subunitId,
-            customerId,
             approvalEntryId: customerEntryId,
-            code: 'SUB-0001',
-            name: '期初客户子单位',
+            code: (
+              await db
+                .selectFrom('dcl_subjects')
+                .select('code')
+                .where('id', '=', customerId)
+                .executeTakeFirstOrThrow()
+            ).code!,
+            name: '期初客户',
           },
           containerType: 'SOLVENT',
           quantity: 3,
@@ -1050,7 +1027,7 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
     '1',
   )
   await assert.rejects(
-    new BobArchiveService(db).review(
+    new DclArchiveService(db).review(
       'customer',
       'unapprove',
       {
@@ -1063,7 +1040,7 @@ test('ACC Opening persists typed asset, bill, and current customer-subunit conta
       ulid(),
     ),
     (error) =>
-      error instanceof BobArchiveApplicationError &&
+      error instanceof DclArchiveApplicationError &&
       error.errorKey === 'approval_strong_reference_exists' &&
       error.data?.blockers.some(
         (blocker) =>
@@ -1200,7 +1177,7 @@ test('ACC book, subjects, Opening and periods keep one transactional fact bounda
         .deleteFrom('vou_documents')
         .where('created_by', 'in', [submitterId, reviewerId])
         .execute()
-      await db.deleteFrom('bob_subjects').where('id', '=', productId).execute()
+      await db.deleteFrom('dcl_subjects').where('id', '=', productId).execute()
       if (books.length) {
         await db
           .deleteFrom('acc_mappings')
@@ -1244,23 +1221,20 @@ test('ACC book, subjects, Opening and periods keep one transactional fact bounda
     )
     .execute()
   const now = new Date()
-  await db
-    .insertInto('bob_subjects')
-    .values([
-      {
-        id: productId,
-        entity: 'product',
-        code: 'PRD-0001',
-        created_at: now,
-        created_by: submitterId,
-      },
-    ])
-    .execute()
+  await insertArchiveObjects(db, [
+    {
+      id: productId,
+      entity: 'product',
+      code: 'PRD-0001',
+      created_at: now,
+      created_by: submitterId,
+    },
+  ])
   await db
     .insertInto('approval_entries')
     .values({
       id: productApprovalEntryId,
-      domain: 'bob',
+      domain: 'dcl',
       entity: 'product',
       subject_id: productId,
       version_no: 1,
@@ -1275,7 +1249,7 @@ test('ACC book, subjects, Opening and periods keep one transactional fact bounda
     })
     .execute()
   await db
-    .insertInto('bob_product_versions')
+    .insertInto('dcl_product_versions')
     .values({
       approval_entry_id: productApprovalEntryId,
       name: '记账测试产品',
@@ -1818,7 +1792,7 @@ test('ACC automatic inventory posting rejects missing product or warehouse dimen
         .where('book_id', '=', bookId)
         .execute()
       await db
-        .deleteFrom('bob_subjects')
+        .deleteFrom('dcl_subjects')
         .where('created_by', '=', actorId)
         .execute()
       await db
@@ -2094,7 +2068,7 @@ test('ACC records global asset effects for UN_POST and rejects control-book back
         .where('book_id', '=', bookId)
         .execute()
       await db
-        .deleteFrom('bob_subjects')
+        .deleteFrom('dcl_subjects')
         .where('created_by', '=', actorId)
         .execute()
       await db
@@ -2698,8 +2672,7 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
     openingId = ulid()
   const mappingEntryId = ulid()
   const customerId = ulid(),
-    customerApprovalEntryId = ulid(),
-    customerSubunitId = ulid()
+    customerApprovalEntryId = ulid()
   const documentId = ulid(),
     approvalEntryId = ulid()
   const actor = { id: actorId, permissions: [] as string[], trusted: true }
@@ -2732,7 +2705,7 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
         .where('id', '=', documentId)
         .execute()
       await db
-        .deleteFrom('bob_subjects')
+        .deleteFrom('dcl_subjects')
         .where('created_by', '=', actorId)
         .execute()
       await db
@@ -2794,33 +2767,30 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
       updated_at: now,
     })
     .execute()
-  await db
-    .insertInto('bob_subjects')
-    .values([
-      {
-        id: customerId,
-        entity: 'customer',
-        code: `CUS-${String(
-          (
-            await db
-              .updateTable('archive_code_counters')
-              .set((eb) => ({ next_value: eb('next_value', '+', 1) }))
-              .where('entity', '=', 'customer')
-              .returning('next_value')
-              .executeTakeFirstOrThrow()
-          ).next_value - 1,
-        ).padStart(4, '0')}`,
-        created_at: now,
-        created_by: actorId,
-      },
-    ])
-    .execute()
+  await insertArchiveObjects(db, [
+    {
+      id: customerId,
+      entity: 'customer',
+      code: `CUS-${String(
+        (
+          await db
+            .updateTable('archive_code_counters')
+            .set((eb) => ({ next_value: eb('next_value', '+', 1) }))
+            .where('entity', '=', 'customer')
+            .returning('next_value')
+            .executeTakeFirstOrThrow()
+        ).next_value - 1,
+      ).padStart(4, '0')}`,
+      created_at: now,
+      created_by: actorId,
+    },
+  ])
   await db
     .insertInto('approval_entries')
     .values([
       {
         id: customerApprovalEntryId,
-        domain: 'bob',
+        domain: 'dcl',
         entity: 'customer',
         subject_id: customerId,
         version_no: 1,
@@ -2835,27 +2805,22 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
       },
     ])
     .execute()
+
   await db
-    .insertInto('bob_customer_subunit_roots')
+    .insertInto('dcl_customer_versions')
     .values({
-      subunit_id: customerSubunitId,
-      customer_id: customerId,
-      code: 'SUB-0001',
-    })
-    .execute()
-  await db
-    .insertInto('bob_customer_version_subunits')
-    .values({
-      customer_approval_entry_id: customerApprovalEntryId,
-      subunit_id: customerSubunitId,
-      name: '空桶客户子单位',
+      approval_entry_id: customerApprovalEntryId,
+      display_name: '空桶客户',
+      attachments: '[]',
+      remittance_profiles: '[]',
+      tax_information: '[]',
+      credit_limits: '[]',
       customer_type_id: customerTypeId,
       customer_type_snapshot: JSON.stringify({
         id: customerTypeId,
         code: 'CUSTOMER-TYPE-TEST',
         name: '测试客户类型',
       }),
-      enabled: true,
     })
     .execute()
   await db
@@ -2928,8 +2893,8 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
       businessDate: '2026-09-04',
       currency: 'CNY',
       attachments: [],
-      customerSubunit: {
-        objectId: customerSubunitId,
+      customer: {
+        objectId: customerId,
         approvalEntryId: customerApprovalEntryId,
         selectionOrigin: 'CURRENT' as const,
       },
@@ -2949,7 +2914,6 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
   await db.transaction().execute((tx) => service.apply(tx, plan))
   await db.transaction().execute((tx) => service.apply(tx, plan))
   const entries = await sql<{
-    customer_subunit_id: string
     customer_id: string
     customer_approval_entry_id: string
     container_type: string
@@ -2957,7 +2921,7 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
     source_document_id: string
     source_revision: string
   }>`
-    SELECT customer_subunit_id, customer_id, customer_approval_entry_id,
+    SELECT customer_id, customer_approval_entry_id,
       container_type, quantity_delta::text, source_document_id, source_revision::text
     FROM acc_container_entries
     WHERE vou_approval_entry_id = ${approvalEntryId}
@@ -2965,7 +2929,6 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
   `.execute(db)
   assert.deepEqual(entries.rows, [
     {
-      customer_subunit_id: customerSubunitId,
       customer_id: customerId,
       customer_approval_entry_id: customerApprovalEntryId,
       container_type: 'RESIN',
@@ -2974,7 +2937,6 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
       source_revision: '7',
     },
     {
-      customer_subunit_id: customerSubunitId,
       customer_id: customerId,
       customer_approval_entry_id: customerApprovalEntryId,
       container_type: 'SOLVENT',

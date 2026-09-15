@@ -22,7 +22,6 @@ export const openingErrorCaptions: Record<string, string> = {
   acc_opening_asset_invalid: '请检查资产登记及金额。',
   acc_opening_bill_invalid: '请检查票据登记、日期及金额。',
   acc_opening_bill_counterparty_invalid: '票据原始相对方不可用，请重新选择。',
-  acc_opening_container_current_snapshot_invalid:
-    '请选择当前有效的客户子单位。',
+  acc_opening_container_current_snapshot_invalid: '请选择当前有效的客户。',
   vou_reference_unavailable: '所选引用不可用，请重新选择。',
 }

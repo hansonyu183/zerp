@@ -33,13 +33,13 @@ export type AssetDraft = {
   remark: string
   party: VouCandidate | null
   origin: 'CURRENT' | 'HISTORICAL'
-  counterpartyType: 'customer-subunit' | 'other-unit'
+  counterpartyType: 'customer' | 'other-unit'
   lines: AssetLine[]
   attachments: VouAttachmentMetadata[]
 }
-export const assetPartyOptions = (
-  ['customer-subunit', 'other-unit'] as const
-).map((value) => ({ value, title: snapshotEnums.counterpartyType![value]! }))
+export const assetPartyOptions = (['customer', 'other-unit'] as const).map(
+  (value) => ({ value, title: snapshotEnums.counterpartyType![value]! }),
+)
 export function emptyAsset(entity: AssetEntity): AssetDraft {
   return {
     entity,
@@ -48,7 +48,7 @@ export function emptyAsset(entity: AssetEntity): AssetDraft {
     remark: '',
     party: null,
     origin: 'CURRENT',
-    counterpartyType: 'customer-subunit',
+    counterpartyType: 'customer',
     lines: [],
     attachments: [],
   }

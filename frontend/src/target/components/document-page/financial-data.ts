@@ -22,9 +22,9 @@ export const financialEntities = [
 export type FinancialEntity = (typeof financialEntities)[number]
 type Origin = 'CURRENT' | 'HISTORICAL'
 export type FinancialPartyType =
-  'customer-subunit' | 'supplier' | 'other-unit' | 'employee' | 'sales-partner'
+  'customer' | 'supplier' | 'other-unit' | 'employee' | 'sales-partner'
 const partyTypes: FinancialPartyType[] = [
-  'customer-subunit',
+  'customer',
   'supplier',
   'other-unit',
   'employee',
@@ -55,12 +55,6 @@ export type FinancialDraft = {
   fundAccount: VouCandidate | null
   handler: VouCandidate | null
   operatingEntity: VouCandidate | null
-  allocations: {
-    id: string
-    subunit: VouCandidate | null
-    origin: Origin
-    amount: string
-  }[]
   expenses: {
     id: string
     category: string
@@ -82,7 +76,7 @@ export function financialParty(draft: FinancialDraft): {
   if (draft.entity === 'sales-receipt')
     return { entity: 'customer', caption: '客户' }
   if (draft.entity === 'sales-refund')
-    return { entity: 'customer-subunit', caption: '客户子单位' }
+    return { entity: 'customer', caption: '客户' }
   if (draft.entity.startsWith('purchase-'))
     return { entity: 'supplier', caption: '供应商' }
   if (draft.entity.startsWith('employee-') || isExpense(draft.entity))
@@ -98,14 +92,13 @@ export function emptyFinancial(entity: FinancialEntity): FinancialDraft {
     amount: '',
     party: null,
     partyOrigin: 'CURRENT',
-    counterpartyType: 'customer-subunit',
+    counterpartyType: 'customer',
     attachCounterparty: false,
     otherCategory: '',
     sourceName: '',
     fundAccount: null,
     handler: null,
     operatingEntity: null,
-    allocations: [],
     expenses: [],
     attachments: [],
   }
@@ -180,7 +173,7 @@ export function financialPayload(
       ),
     }
   }
-  const total = money(draft.amount)
+  money(draft.amount)
   const amount = {
     ...base,
     amount: draft.amount,
@@ -195,30 +188,6 @@ export function financialPayload(
         draft.partyOrigin,
         '客户',
       )
-      if (!draft.allocations.length || draft.allocations.length > 200)
-        throw new Error('请填写一至两百条分摊明细。')
-      const subunitAllocations = draft.allocations.map((row) => {
-        if (
-          row.subunit &&
-          'customerId' in row.subunit &&
-          row.subunit.customerId !== customer.objectId
-        )
-          throw new Error('分摊子单位必须属于所选客户。')
-        return {
-          subunit: versioned(
-            row.subunit,
-            'customer-subunit',
-            row.origin,
-            '客户子单位',
-          ),
-          amount: row.amount,
-        }
-      })
-      if (
-        subunitAllocations.reduce((sum, row) => sum + money(row.amount), 0n) !==
-        total
-      )
-        throw new Error('分摊合计必须等于来款金额。')
       return {
         ...amount,
         customer,
@@ -227,18 +196,12 @@ export function financialPayload(
           'operating-entity',
           '经营主体',
         ),
-        subunitAllocations,
       }
     }
     case 'sales-refund':
       return {
         ...amount,
-        customer: versioned(
-          draft.party,
-          'customer-subunit',
-          draft.partyOrigin,
-          '客户子单位',
-        ),
+        customer: versioned(draft.party, 'customer', draft.partyOrigin, '客户'),
       }
     case 'purchase-payment':
     case 'purchase-refund':
@@ -259,10 +222,10 @@ export function financialPayload(
       if (!draft.attachCounterparty)
         return { ...amount, sourceName: draft.sourceName }
       if (
-        draft.counterpartyType !== 'customer-subunit' &&
+        draft.counterpartyType !== 'customer' &&
         draft.counterpartyType !== 'supplier'
       )
-        throw new Error('其他收入只能关联客户子单位或供应商。')
+        throw new Error('其他收入只能关联客户或供应商。')
       return {
         ...amount,
         sourceName: draft.sourceName,
@@ -361,13 +324,6 @@ export function cloneFinancial(
       'operating-entity',
       payload.operatingEntity,
     )
-  if ('subunitAllocations' in payload)
-    draft.allocations = payload.subunitAllocations.map((row, index) => ({
-      id: ids[index]!,
-      subunit: candidate('customer-subunit', row.subunit),
-      origin: 'HISTORICAL',
-      amount: row.amount,
-    }))
   if ('expenseLines' in payload)
     draft.expenses = payload.expenseLines.map((row, index) => ({
       id: ids[index]!,

@@ -14,6 +14,7 @@ const resources = [
   'aux/position',
   'aux/measurement-unit',
   'aux/payment-method',
+  'aux/tax-information',
   'aux/asset-category',
   'aux/operating-entity',
   'aux/employee',

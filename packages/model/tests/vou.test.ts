@@ -61,7 +61,7 @@ const base = {
   payload: {
     businessDate: '2026-09-04',
     currency: 'CNY',
-    customerSubunit: reference,
+    customer: reference,
     operatingEntity: auxPeopleReference,
     salesperson: auxPeopleReference,
     warehouse: auxPeopleReference,
@@ -86,9 +86,9 @@ const base = {
   },
 }
 
-test('VOU wire owns 36 entity-discriminated payloads and explicit system writers', () => {
-  assert.equal(vouEntities.length, 36)
-  assert.equal(userCreatableVouEntities.length, 32)
+test('VOU wire owns 38 entity-discriminated payloads and explicit system writers', () => {
+  assert.equal(vouEntities.length, 38)
+  assert.equal(userCreatableVouEntities.length, 34)
   assert.deepEqual(systemGeneratedVouEntities, [
     'sale-outbound',
     'sale-delivery',
@@ -128,11 +128,11 @@ test('VOU wire owns 36 entity-discriminated payloads and explicit system writers
   ])
   assert.deepEqual(vouEntityFieldDescriptors['sale-signoff'].headerReferences, [
     {
-      key: 'customerSubunit',
+      key: 'customer',
       reference: 'versioned',
       required: true,
-      referenceEntity: 'customer-subunit',
-      allowedEntities: ['customer-subunit'],
+      referenceEntity: 'customer',
+      allowedEntities: ['customer'],
     },
   ])
   assert.deepEqual(
@@ -408,8 +408,8 @@ test('recursive VOU reference facts preserve nested paths and strict reference s
     counterpartyType: 'supplier',
     priceLines: [{ product: reference, unitPrice: '1.00' }],
     nested: {
-      subunitAllocations: [
-        { subunit: { ...reference, selectionOrigin: 'HISTORICAL' as const } },
+      customers: [
+        { customer: { ...reference, selectionOrigin: 'HISTORICAL' as const } },
       ],
       billCashLines: [{ fundAccount: reference }],
       intermediaryCalculation: {
@@ -435,11 +435,7 @@ test('recursive VOU reference facts preserve nested paths and strict reference s
       ['supplier', 'supplier', 'CURRENT'],
       ['counterparty', 'supplier', 'CURRENT'],
       ['priceLines[0].product', 'product', 'CURRENT'],
-      [
-        'nested.subunitAllocations[0].subunit',
-        'customer-subunit',
-        'HISTORICAL',
-      ],
+      ['nested.customers[0].customer', 'customer', 'HISTORICAL'],
       ['nested.billCashLines[0].fundAccount', 'fund-account', 'CURRENT'],
       [
         'nested.intermediaryCalculation.source.lines[0].product',
@@ -742,12 +738,12 @@ test('all four system-generated VOU entities reject an ordinary submitter', () =
   }
 })
 
-test('sale signoff owns an exact customer-subunit container fact', () => {
+test('sale signoff owns an exact customer container fact', () => {
   const payload = {
     businessDate: '2026-09-04',
     currency: 'CNY',
     attachments: [],
-    customerSubunit: reference,
+    customer: reference,
     expectedSolventContainers: 5,
     expectedResinContainers: 3,
     returnedSolventContainers: 2,
@@ -767,8 +763,8 @@ test('sale signoff owns an exact customer-subunit container fact', () => {
   )
   assert.deepEqual(vouPayloadReferences('sale-signoff', payload), [
     {
-      field: 'customerSubunit',
-      candidateEntity: 'customer-subunit',
+      field: 'customer',
+      candidateEntity: 'customer',
       reference,
     },
   ])
@@ -870,7 +866,7 @@ test('approve and unapprove retain typed transactional effects', () => {
   })
 })
 
-test('sales refunds resolve the exact customer-subunit while receipts resolve the customer aggregate', () => {
+test('sales refunds resolve the exact customer while receipts resolve the customer aggregate', () => {
   const payload = {
     businessDate: '2026-09-09',
     currency: 'CNY',
@@ -882,7 +878,7 @@ test('sales refunds resolve the exact customer-subunit while receipts resolve th
   }
   assert.equal(
     vouPayloadReferences('sales-refund', payload)[0]?.candidateEntity,
-    'customer-subunit',
+    'customer',
   )
   assert.equal(
     vouPayloadReferences('sales-receipt', payload)[0]?.candidateEntity,

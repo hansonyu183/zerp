@@ -32,3 +32,17 @@ it('presents the inventory book balance permission in Chinese', () => {
     }),
   ).toContain('查询账面库存')
 })
+
+it('presents the unbilled income permission in Chinese', () => {
+  expect(
+    permissionTitle({
+      id: 'unbilled',
+      domain: 'vou',
+      entity: 'sale-invoice',
+      action: 'unbilled',
+      path: '/vou/sale-invoice/unbilled',
+      status: 'ENABLED',
+      description: null,
+    }),
+  ).toContain('查询未开票收入')
+})

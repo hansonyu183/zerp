@@ -21,11 +21,6 @@ function blockersOf(cause: unknown): readonly Blocker[] {
 }
 
 export function describeBobEnablementFailure(cause: unknown): string | null {
-  if (
-    cause instanceof TargetApiError &&
-    cause.errorKey === 'customer_enabled_subunit_required'
-  )
-    return '客户至少需要一个启用子单位；请先提交并批准子单位变更。'
   const blockers = blockersOf(cause)
   if (!blockers.length) return null
   const descriptions = blockers.map((blocker) => {
@@ -57,15 +52,10 @@ const archiveErrorLabels = {
   archive_reference_unavailable: '所选引用当前不可用，请重新选择。',
   customer_attachment_not_found: '附件不存在或不属于此版本。',
 
-  customer_enabled_subunit_required:
-    '启用客户至少需要一个启用子单位，当前不能回落到该版本。',
-  customer_invalid_data:
-    '客户资料或子单位资料不符合规则；启用客户至少需要一个启用子单位。',
+  customer_invalid_data: '客户资料不符合规则，请检查业务属性。',
   customer_reference_unavailable:
     '客户类型、经营主体或业务归属当前不可用，请检查选择。',
   customer_reference_stale: '销售合作方已有新版本，请重新选择。',
-  customer_duplicate_legal_identifier: '法定识别号已被其他客户占用。',
-  customer_subunit_conflict: '子单位身份或编码冲突，请重新打开客户资料。',
   customer_attachment_invalid_content: '附件内容与文件类型不一致。',
   customer_attachment_staging_conflict: '附件暂存请求冲突，请重新添加附件。',
   customer_attachment_staging_invalid: '附件暂存已失效，请重新添加附件。',
@@ -75,7 +65,7 @@ const archiveErrorLabels = {
   product_duplicate_barcode: '条码已被其他产品的正式版本或提交件占用。',
 } as const
 
-export function describeBobArchiveFailure(cause: unknown): string | null {
+export function describeDclArchiveFailure(cause: unknown): string | null {
   if (!(cause instanceof TargetApiError)) return null
   const products = blockersOf(cause).filter(
     (item) =>

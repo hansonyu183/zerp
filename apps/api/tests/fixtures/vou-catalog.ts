@@ -14,7 +14,7 @@ import { AccMappingCatalogService } from '../../src/acc/mapping-catalog.ts'
 import { VouOpeningService } from '../../src/vou/opening-service.ts'
 import { VouService } from '../../src/vou/service.ts'
 import { AuxService } from '../../src/aux/service.ts'
-import { BobArchiveService } from '../../src/bob/archives.ts'
+import { DclArchiveService } from '../../src/dcl/archives.ts'
 import { vouPayloadSchemaByEntity } from '../../src/vou/contract.ts'
 import { seedProductionFixture } from './vou-production.ts'
 
@@ -36,21 +36,17 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
   }
   const reviewer = { ...actor, id: fixture.reviewer.userId }
   const aux = new AuxService(db),
-    bob = new BobArchiveService(db)
+    bob = new DclArchiveService(db)
   const {
     warehouse,
     operatingEntity,
     salesperson: employee,
-    customerSubunit,
+    customer,
   } = fixture.salePayload
   assert.ok(employee)
   const supplier = (
     fixture.purchase.payload as VouPayloadShapes['purchase-order']
   ).supplier
-  const customer = {
-    ...customerSubunit,
-    objectId: references.archiveSubjectIds[0]!,
-  }
   const product = {
     objectId: references.archiveSubjectIds[1]!,
     approvalEntryId: references.archiveApprovalEntryIds[1]!,
@@ -242,7 +238,7 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
       ...base,
       parentEntity: 'sale-order',
       parentDocumentId: fixture.sales[0]!.documentId,
-      customerSubunit,
+      customer,
       expectedSolventContainers: 0,
       expectedResinContainers: 0,
       returnedSolventContainers: 0,
@@ -295,9 +291,8 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
       ...amount,
       customer,
       operatingEntity,
-      subunitAllocations: [{ subunit: customerSubunit, amount: '12.30' }],
     },
-    'sales-refund': { ...base, ...amount, customer: customerSubunit },
+    'sales-refund': { ...base, ...amount, customer: customer },
     'purchase-refund': { ...base, ...amount, supplier },
     'purchase-payment': { ...base, ...amount, supplier },
     'other-receipt': {
@@ -357,7 +352,7 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
     },
     'bill-receipt': {
       ...base,
-      customerSubunit,
+      customer,
       handler: employee,
       billLines: [bill],
     },
@@ -687,6 +682,48 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
       },
     ],
   })
+  const taxInformation = references.taxInformation
+  for (const entity of ['sale-invoice', 'purchase-invoice'] as const) {
+    const party = entity === 'sale-invoice' ? customer : supplier
+    const source =
+      documents[
+        entity === 'sale-invoice' ? 'sale-signoff' : 'purchase-inbound'
+      ]!
+    const sourceLine =
+      entity === 'sale-invoice' ? sourceLines[0]! : purchaseSourceLines[0]!
+    const invoice = {
+      ...base,
+      operatingEntity,
+      taxInformation,
+      invoiceLines: [
+        {
+          sourceDocumentId: source.documentId,
+          sourceApprovalEntryId: source.submissionId,
+          sourceLineId: sourceLine.sourceLineId,
+          amount: '0.01',
+        },
+      ],
+    }
+    await submit(
+      entity,
+      entity === 'sale-invoice'
+        ? { ...invoice, customer: party }
+        : { ...invoice, supplier: party },
+    )
+    const invoiceDocument = documents[entity]!
+    documents[entity] = await vou.review(
+      entity,
+      'reject',
+      {
+        documentId: invoiceDocument.documentId,
+        submissionId: invoiceDocument.submissionId,
+        expectedRevision: invoiceDocument.revision,
+        reason: '目录草稿暂不占用来源',
+      },
+      reviewer,
+      'catalog-invoice-reject',
+    )
+  }
   assert.equal(Object.keys(documents).length, vouEntities.length)
   return {
     ...fixture,

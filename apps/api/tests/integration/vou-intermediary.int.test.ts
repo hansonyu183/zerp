@@ -184,8 +184,8 @@ for (const unitPrice of ['0.00', '1.00'])
   test(`signed sales at ${unitPrice} use frozen pieces, FIFO collection and proportional posted reversals`, async (context) => {
     await withWflDatabase(async (db) => {
       const fixture = await seedVouCatalogFixture(db)
-      const { BobArchiveService } = await import('../../src/bob/archives.ts')
-      const bob = new BobArchiveService(db)
+      const { DclArchiveService } = await import('../../src/dcl/archives.ts')
+      const bob = new DclArchiveService(db)
       const productId = fixture.salePayload.productLines[0]!.product.objectId
       const product = await bob.get('product', productId, fixture.actor)
       const versionId = ulid()
@@ -239,7 +239,11 @@ for (const unitPrice of ['0.00', '1.00'])
         },
       )
       const customerId = fixture.references.archiveSubjectIds[0]!
-      const customer = await bob.get('customer', customerId, fixture.actor),
+      const currentCustomer = await bob.get(
+          'customer',
+          customerId,
+          fixture.actor,
+        ),
         customerVersionId = ulid()
       const customerVersion = await bob.submit(
         'customer',
@@ -248,27 +252,21 @@ for (const unitPrice of ['0.00', '1.00'])
           subjectId: customerId,
           submissionId: customerVersionId,
           idempotencyKey: customerVersionId,
-          expectedLatestApprovedSubmissionId: customer.submissionId,
-          expectedLatestApprovedRevision: customer.revision,
+          expectedLatestApprovedSubmissionId: currentCustomer.submissionId,
+          expectedLatestApprovedRevision: currentCustomer.revision,
           snapshot: {
-            ...customer.snapshot,
-            subunits: (
-              customer.snapshot.subunits as Array<Record<string, unknown>>
-            ).map((subunit) => ({
-              ...subunit,
-              intent: 'EXISTING',
-              settlementMethod: {
-                id: method.id,
-                code: method.code,
-                name: method.name,
-                termCode: 'CASH_ON_DELIVERY',
-                ruleType: 'RELATIVE_DAYS',
-                monthOffset: 0,
-                dayOfMonth: 0,
-                dayOffset: 0,
-                defaultSalesSurcharge: '0.00',
-              },
-            })),
+            ...currentCustomer.snapshot,
+            settlementMethod: {
+              id: method.id,
+              code: method.code,
+              name: method.name,
+              termCode: 'CASH_ON_DELIVERY',
+              ruleType: 'RELATIVE_DAYS',
+              monthOffset: 0,
+              dayOfMonth: 0,
+              dayOffset: 0,
+              defaultSalesSurcharge: '0.00',
+            },
           },
         },
         fixture.actor,
@@ -285,8 +283,8 @@ for (const unitPrice of ['0.00', '1.00'])
         fixture.reviewerActor,
         'source-settlement',
       )
-      const customerSubunit = {
-        ...fixture.salePayload.customerSubunit,
+      const customer = {
+        ...fixture.salePayload.customer,
         approvalEntryId: customerVersionId,
       }
       const lineId = ulid()
@@ -305,7 +303,7 @@ for (const unitPrice of ['0.00', '1.00'])
             parentId: null,
             balanceDirection: 'DEBIT',
             enabled: true,
-            requiredDimensions: ['CUSTOMER_SUBUNIT'],
+            requiredDimensions: ['CUSTOMER'],
             inventoryQuantity: false,
             settlementPurpose: 'RECEIVABLE',
           },
@@ -335,12 +333,9 @@ for (const unitPrice of ['0.00', '1.00'])
               permissions: [...fixture.actor.permissions, '/acc/mapping/get'],
             },
           )
-          const collection =
-            entity === 'sale-signoff' ? 'signoffLines' : 'subunitAllocations'
+          const collection = entity === 'sale-signoff' ? 'signoffLines' : null
           const amountField =
-            entity === 'sale-signoff'
-              ? 'line.signedBaseQuantity'
-              : 'line.amount'
+            entity === 'sale-signoff' ? 'line.signedBaseQuantity' : 'amount'
           await fixture.mappings.save(
             {
               bookId: fixture.book.id,
@@ -364,10 +359,7 @@ for (const unitPrice of ['0.00', '1.00'])
                         amountField,
                         currencyField: 'currency',
                         dimensions: {
-                          CUSTOMER_SUBUNIT:
-                            entity === 'sales-receipt'
-                              ? 'line.subunit.objectId'
-                              : 'customerSubunit.objectId',
+                          CUSTOMER: 'customer.objectId',
                         },
                         quantityField: null,
                         costCounterpartSubjectId: null,
@@ -435,7 +427,7 @@ for (const unitPrice of ['0.00', '1.00'])
       }
       const order = await create('sale-order', {
         ...fixture.salePayload,
-        customerSubunit,
+        customer,
         specialApproval: true,
         productLines: [
           {
@@ -468,7 +460,7 @@ for (const unitPrice of ['0.00', '1.00'])
         ...base,
         parentEntity: 'sale-delivery',
         parentDocumentId: delivery.documentId,
-        customerSubunit,
+        customer,
         expectedSolventContainers: 0,
         expectedResinContainers: 0,
         returnedSolventContainers: 0,
@@ -503,7 +495,6 @@ for (const unitPrice of ['0.00', '1.00'])
             ).customer,
             approvalEntryId: customerVersionId,
           },
-          subunitAllocations: [{ subunit: customerSubunit, amount: '10.00' }],
           amount: '10.00',
         })
       }

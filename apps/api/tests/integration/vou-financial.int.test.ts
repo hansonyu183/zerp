@@ -5,7 +5,7 @@ import type { VouPayloadFor } from '@zerp/model'
 import { withWflDatabase } from './wfl-fixture.ts'
 import { seedVouCatalogFixture } from '../fixtures/vou-catalog.ts'
 
-test('money submissions enforce receipt allocations and exact customer-subunit refund references', async () => {
+test('money submissions enforce single-customer receipts and exact customer refund references', async () => {
   await withWflDatabase(async (db) => {
     const fixture = await seedVouCatalogFixture(db)
     const receipt = fixture.documents['sales-receipt']
@@ -20,44 +20,30 @@ test('money submissions enforce receipt allocations and exact customer-subunit r
         payload,
       }
     }
-    await assert.rejects(
-      fixture.vou.submit(
-        'sales-receipt',
-        'submit-new',
-        input({ ...receipt, amount: '12.31' }),
-        fixture.actor,
-        'receipt-mismatch',
-      ),
-      (error: unknown) =>
-        error instanceof Error &&
-        error.message === 'vou_allocation_total_mismatch',
+    const received = await fixture.vou.submit(
+      'sales-receipt',
+      'submit-new',
+      input({ ...receipt, amount: '12.31' }),
+      fixture.actor,
+      'single-customer-receipt',
     )
-    const { seedOrderListFixture } = await import('../fixtures/vou-orders.ts')
-    const other = await seedOrderListFixture(db, 0)
+    assert.equal('subunitAllocations' in received.payload, false)
+    const mismatched = { ...receipt.customer, objectId: ulid() }
     await assert.rejects(
       fixture.vou.submit(
         'sales-receipt',
         'submit-new',
-        input({
-          ...receipt,
-          subunitAllocations: [
-            {
-              subunit: other.salePayload.customerSubunit,
-              amount: receipt.amount,
-            },
-          ],
-        }),
+        input({ ...receipt, customer: mismatched }),
         fixture.actor,
-        'receipt-other-customer',
+        'receipt-wrong-version',
       ),
-      (error: unknown) =>
-        error instanceof Error && error.message === 'vou_reference_unavailable',
+      /vou_reference_unavailable/,
     )
     const refund = fixture.documents['sales-refund']
       .payload as VouPayloadFor<'sales-refund'>
     assert.equal(
       refund.customer.objectId,
-      fixture.salePayload.customerSubunit.objectId,
+      fixture.salePayload.customer.objectId,
     )
     const wrongId = ulid()
     await assert.rejects(
@@ -69,7 +55,7 @@ test('money submissions enforce receipt allocations and exact customer-subunit r
           submissionId: wrongId,
           idempotencyKey: wrongId,
           expectedRevision: null,
-          payload: { ...refund, customer: receipt.customer },
+          payload: { ...refund, customer: mismatched },
         },
         fixture.actor,
         'refund-parent',

@@ -19,6 +19,9 @@ const errorCaptions: Record<string, string> = {
     '结账需要各月已批准且来源仍有效的居间计算单。',
   forbidden: '没有此操作权限。',
   validation_failed: '输入格式不正确。',
+  vou_invoice_tax_stale: '税务资料或正式关联已变化，请刷新开票资料后重新确认。',
+  vou_invoice_source_unavailable:
+    '来源金额已变化或不属于所选对象、主体及币种，请刷新并检查来源。',
   vou_invalid_payload: '请检查必填内容、金额及数量。',
   vou_allocation_total_mismatch: '分摊合计必须等于来款金额。',
   funds_insufficient: '资金余额不足，或反批准会使历史资金余额为负。',

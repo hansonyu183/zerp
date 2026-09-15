@@ -119,7 +119,7 @@ function money(value: string) {
 }
 function versioned(
   candidate: VouCandidate | null,
-  entity: 'customer-subunit' | 'supplier' | 'other-unit',
+  entity: 'customer' | 'supplier' | 'other-unit',
   origin: BillDraft['origin'],
 ) {
   if (candidate?.entity !== entity || !candidate.approvalEntryId)
@@ -225,11 +225,7 @@ export function billPayload(draft: BillDraft): VouPayloadFor<BillEntity> {
       ? {
           ...base,
           handler,
-          customerSubunit: versioned(
-            draft.party,
-            'customer-subunit',
-            draft.origin,
-          ),
+          customer: versioned(draft.party, 'customer', draft.origin),
           ...(draft.internalCostRateBps !== ''
             ? { internalCostRateBps: rate(draft.internalCostRateBps) }
             : {}),
@@ -297,8 +293,8 @@ export function cloneBill(
     origin: 'HISTORICAL',
     interestOrigin: 'HISTORICAL',
   })
-  if ('customerSubunit' in payload)
-    draft.party = candidate('customer-subunit', payload.customerSubunit)
+  if ('customer' in payload)
+    draft.party = candidate('customer', payload.customer)
   if ('supplier' in payload)
     draft.party = candidate('supplier', payload.supplier)
   if ('counterparty' in payload)

@@ -134,7 +134,7 @@ test('every catalog type has real HTTP summaries, immutable get and strict per-t
       if (entity === 'sales-receipt')
         assert.equal(summary.counterpartyName, 'HTTP 客户', entity)
       if (['sales-refund', 'bill-receipt'].includes(entity))
-        assert.equal(summary.counterpartyName, 'HTTP 客户子单位', entity)
+        assert.equal(summary.counterpartyName, 'HTTP 客户', entity)
       if ('amount' in document.payload)
         assert.equal(summary.amount, '12.30', entity)
       if (entity === 'sale-pricing') assert.equal(summary.amount, null)

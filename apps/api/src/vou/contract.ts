@@ -1,3 +1,4 @@
+import { taxInformationSnapshot } from '../dcl/archive-contract.ts'
 import {
   auxiliaryRoute,
   optionPage,
@@ -339,12 +340,7 @@ const intermediaryVersionedReference = z
   .object({
     objectId: z.string().min(1),
     approvalEntryId: z.string().min(1),
-    entity: z.enum([
-      'customer-subunit',
-      'sales-partner',
-      'other-unit',
-      'product',
-    ]),
+    entity: z.enum(['customer', 'sales-partner', 'other-unit', 'product']),
     code: z.string().min(1),
     name: z.string().min(1),
   })
@@ -510,10 +506,32 @@ export const intermediaryCalculation = z
   })
   .strict()
 
+const invoiceFacts = {
+  operatingEntity: operatingEntityReference,
+  taxInformation: taxInformationSnapshot,
+  invoiceLines: z
+    .array(
+      z
+        .object({
+          sourceDocumentId: z.string().length(26),
+          sourceApprovalEntryId: z.string().length(26),
+          sourceLineId: z.string().min(1),
+          amount: money,
+        })
+        .strict(),
+    )
+    .min(1)
+    .max(200),
+}
 export const vouPayloadSchemaByEntity = {
+  'sale-invoice': payload({ ...invoiceFacts, customer: versionedReference }),
+  'purchase-invoice': payload({
+    ...invoiceFacts,
+    supplier: versionedReference,
+  }),
   'sale-pricing': payload({ priceLines: z.array(priceLine).min(1).max(200) }),
   'sale-order': payload({
-    customerSubunit: versionedReference,
+    customer: versionedReference,
     operatingEntity: operatingEntityReference,
     salesperson: employeeReference.optional(),
     warehouse: warehouseReference,
@@ -531,7 +549,7 @@ export const vouPayloadSchemaByEntity = {
     vehicle: vehicleReference.optional(),
   }),
   'sale-signoff': payload({
-    customerSubunit: versionedReference,
+    customer: versionedReference,
     expectedSolventContainers: containerCount,
     expectedResinContainers: containerCount,
     returnedSolventContainers: containerCount,
@@ -585,10 +603,6 @@ export const vouPayloadSchemaByEntity = {
     ...amountFacts,
     customer: versionedReference,
     operatingEntity: operatingEntityReference,
-    subunitAllocations: z
-      .array(z.object({ subunit: versionedReference, amount: money }).strict())
-      .min(1)
-      .max(200),
   }),
   'purchase-refund': payload({ ...amountFacts, supplier: versionedReference }),
   'other-receipt': z.union([
@@ -602,7 +616,7 @@ export const vouPayloadSchemaByEntity = {
       ...amountFacts,
       counterparty: versionedReference,
       counterpartyType: z.enum([
-        'customer-subunit',
+        'customer',
         'supplier',
         'other-unit',
         'sales-partner',
@@ -623,7 +637,7 @@ export const vouPayloadSchemaByEntity = {
       ...amountFacts,
       counterparty: versionedReference,
       counterpartyType: z.enum([
-        'customer-subunit',
+        'customer',
         'supplier',
         'other-unit',
         'sales-partner',
@@ -649,7 +663,7 @@ export const vouPayloadSchemaByEntity = {
     ...amountFacts,
     sourceName: z.string().min(1).max(200),
     counterparty: versionedReference.optional(),
-    counterpartyType: z.enum(['customer-subunit', 'supplier']).optional(),
+    counterpartyType: z.enum(['customer', 'supplier']).optional(),
   }),
   'asset-acquisition': payload({
     supplier: versionedReference,
@@ -675,7 +689,7 @@ export const vouPayloadSchemaByEntity = {
   }),
   'asset-sale': payload({
     counterparty: versionedReference,
-    counterpartyType: z.enum(['customer-subunit', 'other-unit']),
+    counterpartyType: z.enum(['customer', 'other-unit']),
     assetSaleLines: z
       .array(
         z
@@ -706,7 +720,7 @@ export const vouPayloadSchemaByEntity = {
       .max(200),
   }),
   'bill-receipt': payload({
-    customerSubunit: versionedReference,
+    customer: versionedReference,
     handler: employeeReference,
     internalCostRateBps: z.number().int().min(0).max(100000).optional(),
     billLines: z.array(billLine).min(1).max(20),
@@ -1093,12 +1107,97 @@ const customerLatestLine = auxiliaryRoute(
   '/vou/sale-order/customer-latest-line',
   z
     .object({
-      customerSubunitId: z.string().length(26),
+      customerId: z.string().length(26),
       productId: z.string().length(26),
     })
     .strict(),
   saleOrderLineResult,
 )
+const invoiceParams = z.object({
+  entity: z.enum(['sale-invoice', 'purchase-invoice']),
+})
+const invoiceTaxRead = auxiliaryRoute(
+  '/vou/{entity}/tax-options',
+  z.object({ objectId: z.string().length(26) }).strict(),
+  z.object({
+    approvalEntryId: z.string(),
+    items: z.array(taxInformationSnapshot),
+  }),
+)
+const invoiceTaxOptionsRoute = {
+  ...invoiceTaxRead,
+  request: { ...invoiceTaxRead.request, params: invoiceParams },
+}
+const invoiceSourceFact = z.object({
+  sourceDocumentId: z.string(),
+  sourceApprovalEntryId: z.string(),
+  sourceLineId: z.string(),
+  documentNo: z.string(),
+  businessDate: z.string(),
+  partyId: z.string(),
+  operatingEntityId: z.string().nullable(),
+  currency: z.string(),
+  amount: z.string(),
+  availableAmount: z.string(),
+  unitPrice: z.string(),
+})
+const invoiceSourcesRead = auxiliaryRoute(
+  '/vou/{entity}/invoice-sources',
+  z
+    .object({
+      objectId: z.string().length(26),
+      operatingEntityId: z.string().length(26),
+      businessDate: z.string().date(),
+      currency: z.string().regex(/^[A-Z]{3}$/),
+    })
+    .strict(),
+  z.object({ items: z.array(invoiceSourceFact) }),
+)
+const invoiceSourcesRoute = {
+  ...invoiceSourcesRead,
+  request: { ...invoiceSourcesRead.request, params: invoiceParams },
+}
+const unbilledSalesResult = z.object({
+  periodMonth: z.string(),
+  items: z.array(
+    z.object({
+      sourceMonth: z.string(),
+      customerId: z.string(),
+      customerCode: z.string(),
+      customerName: z.string(),
+      operatingEntityId: z.string(),
+      operatingEntityName: z.string(),
+      currency: z.string(),
+      amount: z.string(),
+      sources: z.array(invoiceSourceFact),
+    }),
+  ),
+})
+const unbilledSalesRoute = createRoute({
+  method: 'post',
+  path: '/vou/sale-invoice/unbilled',
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: z
+            .object({
+              periodMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+            })
+            .strict(),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: '未开票收入',
+      content: {
+        'application/json': { schema: envelope(unbilledSalesResult) },
+      },
+    },
+  },
+})
 const documentOptionsRoute = auxiliaryRoute(
   '/vou/{entity}/options',
   optionPageInput,
@@ -1257,12 +1356,22 @@ export const vouRouteSet = {
 } as const
 
 export const vouRouteMetadata = [
-  ...[saleOrderLineResolve, customerLatestLine, sourceLinesRoute].map(
-    (route) => ({
-      method: route.method,
-      path: route.path,
-    }),
-  ),
+  ...[
+    saleOrderLineResolve,
+    customerLatestLine,
+    sourceLinesRoute,
+    invoiceTaxOptionsRoute,
+    invoiceSourcesRoute,
+  ].map((route) => ({
+    method: route.method,
+    path: route.path,
+  })),
+  {
+    method: unbilledSalesRoute.method,
+    path: unbilledSalesRoute.path,
+    permission: '/vou/sale-invoice/unbilled',
+    title: '查询未开票收入',
+  },
   { method: vouOptionsRoute.method, path: vouOptionsRoute.path },
   ...Object.keys(vouRouteSet).map((action) => ({
     method: 'post',
@@ -1335,6 +1444,9 @@ export const vouCapabilityPermissionMetadata = [
 export type VouRouteAction =
   | keyof typeof vouRouteSet
   | 'attachment-download'
+  | 'invoice-sources'
+  | 'unbilled'
+  | 'tax-options'
   | 'options'
   | 'source-lines'
   | 'line-resolve'
@@ -1352,6 +1464,9 @@ export function registerVouRoutes<
   handler: VouRouteHandler,
 ) {
   const resolved = app
+    .openapi(invoiceTaxOptionsRoute, (c) => handler('tax-options', c) as never)
+    .openapi(invoiceSourcesRoute, (c) => handler('invoice-sources', c) as never)
+    .openapi(unbilledSalesRoute, (c) => handler('unbilled', c) as never)
     .openapi(saleOrderLineResolve, (c) => handler('line-resolve', c) as never)
     .openapi(
       customerLatestLine,

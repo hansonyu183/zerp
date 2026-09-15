@@ -18,7 +18,7 @@ test('ACC exposes the complete current wire-value sets', () => {
     'OTHER',
   ])
   assert.deepEqual(accSubjectDimensions, [
-    'CUSTOMER_SUBUNIT',
+    'CUSTOMER',
     'SUPPLIER',
     'OTHER_UNIT',
     'EMPLOYEE',

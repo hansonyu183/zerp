@@ -31,7 +31,8 @@ describe('business resource registry', () => {
   it('keeps the target domain matrix fixed and registers the completed APP and AUX slices', () => {
     expect(targetDomainCapabilities).toEqual({
       session: { approval: false, businessVersion: false, enabled: false },
-      bob: { approval: true, businessVersion: true, enabled: true },
+      bob: { approval: false, businessVersion: true, enabled: true },
+      dcl: { approval: true, businessVersion: true, enabled: false },
       vou: { approval: true, businessVersion: false, enabled: false },
       app: { approval: false, businessVersion: false, enabled: true },
       aux: { approval: false, businessVersion: false, enabled: true },
@@ -98,7 +99,7 @@ describe('business resource registry', () => {
         domain: 'bob',
         entity,
         capabilities: {
-          approval: true,
+          approval: false,
           businessVersion: true,
           enabled: true,
         },
@@ -112,7 +113,9 @@ describe('business resource registry', () => {
     expect(
       targetResourceRegistry.resolve('bob', 'sales-partner'),
     ).toMatchObject({ useCaseKey: 'bob/sales-partner-management' })
-    expect('dcl' in targetDomainCapabilities).toBe(false)
+    expect(
+      targetResourceRegistry.resolve('dcl', 'customer')?.definition.resource,
+    ).toBe('dcl/customer')
     for (const [domain, entity] of [
       ['app', 'user'],
       ['app', 'role'],

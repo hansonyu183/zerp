@@ -153,12 +153,12 @@ export const vouPages = Object.fromEntries(
       vouType,
       vouEntityPresentation[vouType].label,
       vouType === 'sale-order'
-        ? '客户子单位'
+        ? '客户'
         : vouType === 'purchase-order'
           ? '供应商'
           : '相对方',
       vouType === 'sale-order'
-        ? 'bob/customer-subunit'
+        ? 'bob/customer'
         : vouType === 'purchase-order'
           ? 'bob/supplier'
           : undefined,

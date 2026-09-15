@@ -71,7 +71,7 @@ test('order HTTP lists summarize and filter before pagination, get immutable det
       filters: {
         dateFrom: '2026-09-04',
         dateTo: '2026-09-04',
-        counterpartyObjectId: fixture.salePayload.customerSubunit.objectId,
+        counterpartyObjectId: fixture.salePayload.customer.objectId,
       },
     }
     const result = await read('/vou/sale-order/query', base)
@@ -81,7 +81,7 @@ test('order HTTP lists summarize and filter before pagination, get immutable det
     for (const row of result.data.items) {
       assert.equal(row.vouType, 'sale-order')
       assert.equal(row.handlerName, null)
-      assert.equal(row.counterpartyName, 'HTTP 客户子单位')
+      assert.equal(row.counterpartyName, 'HTTP 客户')
       assert.equal(row.amount, '1.00')
       for (const key of [
         'payload',
@@ -119,7 +119,7 @@ test('order HTTP lists summarize and filter before pagination, get immutable det
       )
     assert.notEqual((await denied('/vou/sale-order/query', base)).code, 0)
     for (const [entity, doc, expectedName] of [
-      ['sale-order', fixture.sales[0]!, 'HTTP 客户子单位'],
+      ['sale-order', fixture.sales[0]!, 'HTTP 客户'],
       ['purchase-order', fixture.purchase, '订单测试供应商'],
     ] as const) {
       const one = await read(`/vou/${entity}/query`, {

@@ -12,13 +12,13 @@ it('retains visible removable dimension inputs when a selected subject no longer
   const wrapper = mount(MappingDimensions, {
     props: {
       fields: ['customer'],
-      dimensions: ['CUSTOMER_SUBUNIT'],
-      modelValue: { CUSTOMER_SUBUNIT: 'customer' },
+      dimensions: ['CUSTOMER'],
+      modelValue: { CUSTOMER: 'customer' },
     },
     global: { stubs: { 'v-select': select } },
   })
   await wrapper.setProps({ dimensions: [] })
-  expect(wrapper.text()).toContain('客户子单位')
+  expect(wrapper.text()).toContain('客户')
   await wrapper.get('button').trigger('click')
   expect(wrapper.emitted('update:modelValue')).toEqual([[{}]])
 })

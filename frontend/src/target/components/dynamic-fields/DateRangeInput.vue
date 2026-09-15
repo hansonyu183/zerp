@@ -116,6 +116,9 @@ function select(values: unknown) {
 .date-range-input {
   min-width: 0;
 }
+.date-range-input :deep(input[readonly]) {
+  font-size: 0.875rem;
+}
 .range-endpoints {
   display: grid;
   gap: 16px;

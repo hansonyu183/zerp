@@ -13,7 +13,7 @@ import type { ManagementService } from './app/management.ts'
 import type { AuxService } from './aux/service.ts'
 import type { BobService } from './bob/service.ts'
 import { noopLogger, type AppLogger } from './platform/logging.ts'
-import type { BobArchiveService } from './bob/archives.ts'
+import type { DclArchiveService } from './dcl/archives.ts'
 import type { AccMappingCatalogService } from './acc/mapping-catalog.ts'
 import type { VouService } from './vou/service.ts'
 import type { AccService } from './acc/service.ts'
@@ -35,7 +35,7 @@ export interface CreateAppOptions {
   bob?: BobService
   config?: TargetConfig
   logger?: AppLogger
-  bobArchives?: BobArchiveService
+  dclArchives?: DclArchiveService
   accMappingCatalog?: AccMappingCatalogService
   vou?: VouService
   opening?: VouOpeningService
@@ -147,7 +147,7 @@ export function createApp(options: CreateAppOptions = {}) {
       app,
       options.session,
       options.config,
-      options.bobArchives,
+      options.dclArchives,
       options.accMappingCatalog,
       options.management,
       options.aux,

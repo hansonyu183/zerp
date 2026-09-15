@@ -198,7 +198,7 @@ const submittedAt = new Date('2026-09-07T00:00:00.000Z')
 function approvedRow(versionNo: number): EntryRow {
   return {
     id: `submission-${versionNo}`,
-    domain: 'bob',
+    domain: 'dcl',
     entity: 'supplier',
     subject_id: 'supplier-1',
     version_no: versionNo,
@@ -221,7 +221,7 @@ test('Approval persistence creates, transitions with CAS, audits, and deletes on
   const approval = new ApprovalPersistence()
   const created = await approval.create(tx as never, {
     entryId: 'submission-1',
-    domain: 'bob',
+    domain: 'dcl',
     entity: 'supplier',
     subjectId: 'supplier-1',
     versionNo: 1,
@@ -240,7 +240,7 @@ test('Approval persistence creates, transitions with CAS, audits, and deletes on
   const transitioned = await approval.transition(tx as never, {
     entry: created,
     action: 'reject',
-    actor: { id: 'reviewer', permissions: ['/bob/supplier/reject'] },
+    actor: { id: 'reviewer', permissions: ['/dcl/supplier/reject'] },
     expectedRevision: '1',
     occurredAt: new Date('2026-09-07T02:00:00.000Z'),
     requestId: 'review-request',
@@ -256,7 +256,7 @@ test('Approval persistence creates, transitions with CAS, audits, and deletes on
 
   await approval.delete(tx as never, {
     entry: transitioned,
-    actor: { id: 'submitter', permissions: ['/bob/supplier/delete'] },
+    actor: { id: 'submitter', permissions: ['/dcl/supplier/delete'] },
     expectedRevision: '2',
     occurredAt: new Date('2026-09-07T03:00:00.000Z'),
     requestId: 'delete-request',
@@ -269,7 +269,7 @@ test('Approval persistence creates, transitions with CAS, audits, and deletes on
   assert.deepEqual(
     (
       await approval.auditHistory(tx as never, {
-        domain: 'bob',
+        domain: 'dcl',
         entity: 'supplier',
         subjectId: 'supplier-1',
       })
@@ -287,7 +287,7 @@ test('Approval persistence reports a failed CAS and does not append its audit ev
       tx as never,
       {
         entryId: 'submission-1',
-        domain: 'bob',
+        domain: 'dcl',
         entity: 'supplier',
         subjectId: 'supplier-1',
       },
@@ -300,7 +300,7 @@ test('Approval persistence reports a failed CAS and does not append its audit ev
     approval.transition(tx as never, {
       entry: staleEntry,
       action: 'unapprove',
-      actor: { id: 'reviewer', permissions: ['/bob/supplier/unapprove'] },
+      actor: { id: 'reviewer', permissions: ['/dcl/supplier/unapprove'] },
       expectedRevision: '1',
       occurredAt: new Date('2026-09-07T02:00:00.000Z'),
       requestId: 'stale-request',
@@ -328,7 +328,7 @@ test('Versioned archives select exact, open, latest approved and prepare the nex
   })
   const versions = new VersionedArchives()
   const scope = {
-    domain: 'bob',
+    domain: 'dcl',
     entity: 'supplier',
     subjectId: 'supplier-1',
   } as const
@@ -350,7 +350,7 @@ test('Versioned archives select exact, open, latest approved and prepare the nex
   await assert.rejects(
     versions.prepareSubmission(tx as never, scope, true, {
       action: 'submit-change',
-      actor: { id: 'submitter', permissions: ['/bob/supplier/submit-change'] },
+      actor: { id: 'submitter', permissions: ['/dcl/supplier/submit-change'] },
       requestId: 'request-2',
       occurredAt: '2026-09-07T03:00:00.000Z',
       submissionId: 'submission-3',
@@ -367,7 +367,7 @@ test('Versioned archives select exact, open, latest approved and prepare the nex
   tx.entries.splice(1, 1)
   const next = await versions.prepareSubmission(tx as never, scope, true, {
     action: 'submit-change',
-    actor: { id: 'submitter', permissions: ['/bob/supplier/submit-change'] },
+    actor: { id: 'submitter', permissions: ['/dcl/supplier/submit-change'] },
     requestId: 'request-3',
     occurredAt: '2026-09-07T03:00:00.000Z',
     submissionId: 'submission-2',

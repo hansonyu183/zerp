@@ -55,7 +55,6 @@ function setCounterparty(entity: Entity, objectId: string) {
       approvalEntryId: row.approvalEntryId,
       code: row.code,
       name: row.name,
-      ...(entity === 'customer' ? { customerId: objectId } : {}),
     }
   update(value)
 }

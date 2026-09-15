@@ -165,7 +165,7 @@ it('keeps two report reference sources independent when their responses arrive i
           key: 'customer',
           name: '客户',
           type: 'REFERENCE',
-          referenceType: 'CUSTOMER_SUBUNIT',
+          referenceType: 'CUSTOMER',
           required: true,
         },
         {

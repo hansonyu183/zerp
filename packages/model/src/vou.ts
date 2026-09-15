@@ -1,3 +1,4 @@
+import type { TaxInformationSnapshot } from './aux-current.ts'
 import type {
   OperatingEntityCurrentData,
   EmployeeCurrentData,
@@ -15,6 +16,8 @@ import {
 import type { SubmitAction } from './submission.ts'
 
 export const vouEntities = [
+  'sale-invoice',
+  'purchase-invoice',
   'sale-pricing',
   'sale-order',
   'sale-outbound',
@@ -63,6 +66,8 @@ export const vouEntityPresentation: Readonly<
   Record<VouType, { label: string }>
 > = {
   opening: { label: '会计期初' },
+  'sale-invoice': { label: '销售发票' },
+  'purchase-invoice': { label: '采购发票' },
   'sale-pricing': { label: '销售定价单' },
   'sale-order': { label: '销售订单' },
   'sale-outbound': { label: '销售出库单' },
@@ -103,6 +108,8 @@ export const vouEntityPresentation: Readonly<
 
 /** Three-letter, domain-authoritative document-number prefixes. */
 export const vouDocumentPrefixes: Readonly<Record<VouEntity, string>> = {
+  'sale-invoice': 'SIV',
+  'purchase-invoice': 'PIV',
   'sale-pricing': 'SPR',
   'sale-order': 'SOR',
   'sale-outbound': 'SOB',
@@ -424,7 +431,7 @@ export type VouIntermediaryReference = {
 } & (
   | { entity: 'employee'; snapshot?: EmployeeCurrentData }
   | {
-      entity: 'customer-subunit' | 'sales-partner' | 'other-unit' | 'product'
+      entity: 'customer' | 'sales-partner' | 'other-unit' | 'product'
       approvalEntryId: string
     }
 )
@@ -436,8 +443,7 @@ type VouMixedCounterparty =
     }
   | {
       counterparty: VouVersionedReferenceInput
-      counterpartyType:
-        'customer-subunit' | 'supplier' | 'other-unit' | 'sales-partner'
+      counterpartyType: 'customer' | 'supplier' | 'other-unit' | 'sales-partner'
     }
 
 export interface VouIntermediaryCalculationInput {
@@ -541,10 +547,23 @@ export interface VouIntermediaryCalculationInput {
 }
 
 /** The 36 exact write shapes; the route entity discriminates the command. */
+export interface VouInvoiceLine {
+  sourceDocumentId: string
+  sourceApprovalEntryId: string
+  sourceLineId: string
+  amount: string
+}
+export interface VouInvoiceFacts extends VouPayloadBase {
+  operatingEntity: VouAuxCurrentReferenceInput
+  taxInformation: TaxInformationSnapshot
+  invoiceLines: readonly VouInvoiceLine[]
+}
 export interface VouPayloadShapes {
+  'sale-invoice': VouInvoiceFacts & { customer: VouVersionedReferenceInput }
+  'purchase-invoice': VouInvoiceFacts & { supplier: VouVersionedReferenceInput }
   'sale-pricing': PricePayload
   'sale-order': ProductPayload & {
-    customerSubunit: VouVersionedReferenceInput
+    customer: VouVersionedReferenceInput
     operatingEntity: VouAuxCurrentReferenceInput
     salesperson?: VouAuxCurrentReferenceInput
     warehouse: VouAuxCurrentReferenceInput
@@ -558,7 +577,7 @@ export interface VouPayloadShapes {
     vehicle?: VouAuxCurrentReferenceInput
   }
   'sale-signoff': VouPayloadBase & {
-    customerSubunit: VouVersionedReferenceInput
+    customer: VouVersionedReferenceInput
     expectedSolventContainers: number
     expectedResinContainers: number
     returnedSolventContainers: number
@@ -619,10 +638,6 @@ export interface VouPayloadShapes {
   'sales-receipt': AmountPayload & {
     customer: VouVersionedReferenceInput
     operatingEntity: VouAuxCurrentReferenceInput
-    subunitAllocations: readonly {
-      subunit: VouVersionedReferenceInput
-      amount: string
-    }[]
   }
   'purchase-refund': AmountPayload & { supplier: VouVersionedReferenceInput }
   'other-receipt': AmountPayload &
@@ -651,7 +666,7 @@ export interface VouPayloadShapes {
   'other-income': AmountPayload & {
     sourceName: string
     counterparty?: VouVersionedReferenceInput
-    counterpartyType?: 'customer-subunit' | 'supplier'
+    counterpartyType?: 'customer' | 'supplier'
   }
   'asset-acquisition': VouPayloadBase & {
     supplier: VouVersionedReferenceInput
@@ -675,7 +690,7 @@ export interface VouPayloadShapes {
   }
   'asset-sale': VouPayloadBase & {
     counterparty: VouVersionedReferenceInput
-    counterpartyType: 'customer-subunit' | 'other-unit'
+    counterpartyType: 'customer' | 'other-unit'
     assetSaleLines: readonly {
       assetId: string
       saleAmount: string
@@ -692,7 +707,7 @@ export interface VouPayloadShapes {
     }[]
   }
   'bill-receipt': BillPayload & {
-    customerSubunit: VouVersionedReferenceInput
+    customer: VouVersionedReferenceInput
     handler: VouAuxCurrentReferenceInput
     internalCostRateBps?: number
   }
@@ -1100,7 +1115,7 @@ function isIntermediaryReference(
         key === 'name',
     )
   return (
-    (reference.entity === 'customer-subunit' ||
+    (reference.entity === 'customer' ||
       reference.entity === 'sales-partner' ||
       reference.entity === 'other-unit' ||
       reference.entity === 'product') &&
@@ -1161,7 +1176,7 @@ function canonicalPayload<Entity extends VouEntity>(
   if (
     entity === 'asset-sale' &&
     (value as unknown as Record<string, unknown>).counterpartyType !==
-      'customer-subunit' &&
+      'customer' &&
     (value as unknown as Record<string, unknown>).counterpartyType !==
       'other-unit'
   )
@@ -1211,9 +1226,21 @@ const payloadBaseFields = [
   'parentDocumentId',
 ] as const
 const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
+  'sale-invoice': [
+    'customer',
+    'operatingEntity',
+    'taxInformation',
+    'invoiceLines',
+  ],
+  'purchase-invoice': [
+    'supplier',
+    'operatingEntity',
+    'taxInformation',
+    'invoiceLines',
+  ],
   'sale-pricing': ['priceLines'],
   'sale-order': [
-    'customerSubunit',
+    'customer',
     'operatingEntity',
     'salesperson',
     'warehouse',
@@ -1225,7 +1252,7 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
   'sale-outbound': ['sourceLines'],
   'sale-delivery': ['sourceLines', 'carrier', 'vehicle'],
   'sale-signoff': [
-    'customerSubunit',
+    'customer',
     'expectedSolventContainers',
     'expectedResinContainers',
     'returnedSolventContainers',
@@ -1255,7 +1282,6 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
     'fundAccount',
     'handler',
     'amount',
-    'subunitAllocations',
   ],
   'purchase-refund': ['supplier', 'fundAccount', 'handler', 'amount'],
   'other-receipt': [
@@ -1293,7 +1319,7 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
   'asset-sale': ['counterparty', 'counterpartyType', 'assetSaleLines'],
   'asset-liquidation': ['assetLiquidationLines'],
   'bill-receipt': [
-    'customerSubunit',
+    'customer',
     'handler',
     'internalCostRateBps',
     'billLines',
@@ -1364,11 +1390,11 @@ export type VouLineKind =
   | 'product'
   | 'price'
   | 'source'
+  | 'invoice'
   | 'signoff'
   | 'return'
   | 'production'
   | 'inventory-count'
-  | 'subunit-allocation'
   | 'expense'
   | 'asset-acquisition'
   | 'asset-sale'
@@ -1389,7 +1415,7 @@ export const vouReferenceCandidateEntities = [
   'operating-entity',
   'employee',
   'warehouse',
-  'customer-subunit',
+  'customer',
   'other-unit',
   'vehicle',
   'fund-account',
@@ -1455,7 +1481,7 @@ export type VouEntityFieldDescriptor = Readonly<{
 
 const versionedReferenceFields = new Set([
   'customer',
-  'customerSubunit',
+  'customer',
   'supplier',
   'operatingEntity',
   'salesperson',
@@ -1472,7 +1498,7 @@ const versionedReferenceFields = new Set([
   'interestParty',
 ])
 const counterpartyCandidates = [
-  'customer-subunit',
+  'customer',
   'supplier',
   'other-unit',
   'employee',
@@ -1482,7 +1508,6 @@ const headerReferenceCandidates: Readonly<
   Record<string, readonly VouReferenceCandidateEntity[]>
 > = {
   customer: ['customer'],
-  customerSubunit: ['customer-subunit'],
   supplier: ['supplier'],
   operatingEntity: ['operating-entity'],
   salesperson: ['employee'],
@@ -1505,12 +1530,11 @@ function headerReferenceCandidatesForEntity(
   entity: VouEntity,
   key: string,
 ): readonly VouReferenceCandidateEntity[] {
-  if (key === 'customer' && entity === 'sales-refund')
-    return ['customer-subunit']
+  if (key === 'customer' && entity === 'sales-refund') return ['customer']
   if (key === 'counterparty' && entity === 'bill-discount')
     return ['other-unit']
   if (key === 'counterparty' && entity === 'asset-sale')
-    return ['customer-subunit', 'other-unit']
+    return ['customer', 'other-unit']
   if (key === 'counterparty' && entity === 'service-acceptance')
     return ['other-unit']
   if (key === 'counterparty' && entity === 'service-contract')
@@ -1528,13 +1552,12 @@ const lineReferenceCandidates: Readonly<
   category: ['asset-category'],
   department: ['department'],
   custodian: ['employee'],
-  subunit: ['customer-subunit'],
   fundAccount: ['fund-account'],
   assetId: ['asset'],
   billId: ['bill'],
 }
 const intermediaryReferenceCandidates = [
-  'customer-subunit',
+  'customer',
   'employee',
   'sales-partner',
   'other-unit',
@@ -1555,11 +1578,11 @@ const collectionKinds = {
   productLines: 'product',
   priceLines: 'price',
   sourceLines: 'source',
+  invoiceLines: 'invoice',
   signoffLines: 'signoff',
   returnLines: 'return',
   productionLines: 'production',
   inventoryCountLines: 'inventory-count',
-  subunitAllocations: 'subunit-allocation',
   expenseLines: 'expense',
   assetAcquisitionLines: 'asset-acquisition',
   assetSaleLines: 'asset-sale',
@@ -1688,6 +1711,12 @@ export const vouLineFieldDescriptors: Readonly<
     { key: 'baseQuantity', required: true },
     { key: 'remark', required: false },
   ],
+  invoice: [
+    { key: 'sourceDocumentId', required: true },
+    { key: 'sourceApprovalEntryId', required: true },
+    { key: 'sourceLineId', required: true },
+    { key: 'amount', required: true },
+  ],
   signoff: [
     { key: 'sourceLineId', required: true },
     { key: 'signedBaseQuantity', required: true },
@@ -1736,15 +1765,6 @@ export const vouLineFieldDescriptors: Readonly<
     },
     { key: 'baseQuantity', required: true },
     { key: 'remark', required: false },
-  ],
-  'subunit-allocation': [
-    {
-      key: 'subunit',
-      required: true,
-      reference: 'versioned',
-      ...referenceCandidateMetadata('subunit'),
-    },
-    { key: 'amount', required: true },
   ],
   expense: [
     { key: 'category', required: true },
@@ -1891,7 +1911,7 @@ const paymentMethodSelectionFields: readonly VouInputFieldDescriptor[] =
 const enumValues: Readonly<Record<string, readonly string[]>> = {
   currency: ['CNY'],
   counterpartyType: [
-    'customer-subunit',
+    'customer',
     'supplier',
     'other-unit',
     'employee',
@@ -2232,7 +2252,7 @@ const intermediarySourceLineFields: readonly VouInputFieldDescriptor[] =
     scalarDescriptor('dueDate', true),
     scalarDescriptor('collectionDate', true),
     scalarDescriptor('collectionDelayDays', true),
-    intermediaryReferenceDescriptor('customer', true, ['customer-subunit']),
+    intermediaryReferenceDescriptor('customer', true, ['customer']),
     intermediaryReferenceDescriptor('salesperson', true, [
       'employee',
       'sales-partner',
@@ -2297,7 +2317,7 @@ const intermediarySourceBillFields: readonly VouInputFieldDescriptor[] =
     scalarDescriptor('receiptDocumentId', true),
     scalarDescriptor('receiptDocumentNo', true),
     scalarDescriptor('receiptDate', true),
-    intermediaryReferenceDescriptor('customer', true, ['customer-subunit']),
+    intermediaryReferenceDescriptor('customer', true, ['customer']),
     scalarDescriptor('billType', true),
     scalarDescriptor('faceAmount', true),
     scalarDescriptor('issueDate', true),
@@ -2327,7 +2347,7 @@ const intermediarySummaryFields: readonly VouInputFieldDescriptor[] =
       'sales-partner',
       'other-unit',
     ]),
-    intermediaryReferenceDescriptor('customer', false, ['customer-subunit']),
+    intermediaryReferenceDescriptor('customer', false, ['customer']),
     {
       key: 'category',
       kind: 'enum',
@@ -2344,6 +2364,18 @@ const intermediarySummaryFields: readonly VouInputFieldDescriptor[] =
 const nestedObjects: Readonly<
   Record<string, readonly VouInputFieldDescriptor[]>
 > = {
+  taxInformation: [
+    'id',
+    'code',
+    'name',
+    'revision',
+    'taxNumber',
+    'registeredAddress',
+    'phone',
+    'bank',
+    'accountNumber',
+    'remark',
+  ].map((key) => scalarDescriptor(key, true)),
   formula: formulaFields,
   materials: materialsFields,
   serviceContract: [
@@ -2558,13 +2590,9 @@ export const vouListCapabilities = Object.fromEntries(
       entity,
       Object.freeze({
         counterpartyField:
-          [
-            'counterparty',
-            'customerSubunit',
-            'customer',
-            'supplier',
-            'employee',
-          ].find((key) => fields.includes(key)) ?? null,
+          ['counterparty', 'customer', 'customer', 'supplier', 'employee'].find(
+            (key) => fields.includes(key),
+          ) ?? null,
         handler: fields.includes('handler'),
         warehouse: fields.includes('warehouse'),
         manualCreate: userCreatableVouEntities.includes(entity),

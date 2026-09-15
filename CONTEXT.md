@@ -39,7 +39,7 @@ _Avoid_: 领域自定义审批状态机
 _Authority_: [Approval 生命周期](docs/domains/approval.md#3-生命周期)
 
 **Approval Version（审批版本）**:
-中央 Approval 为版本化 stable subject 管理的审批记录；版本组件拥有版本号、唯一开放 Submission、最高已批准选择和版本并发，BOB 与 WFL 可以各自在自己的领域事务中消费它。
+中央 Approval 为版本化 stable subject 管理的审批记录；版本组件拥有版本号、唯一开放 Submission、最高已批准选择和版本并发，DCL 与 WFL 可以各自在自己的领域事务中消费它。
 _Avoid_: Domain 版本头、领域自有版本管理、把版本组件硬编码为 BOB 专属、分支或合并
 _Authority_: [Approval Version](docs/domains/approval.md#6-approval-version)
 
@@ -71,12 +71,12 @@ _Avoid_: 编辑即停用、候选待审期间无可用版本、AUX 修改后重�
 _Authority_: [BOB 当前有效资料读取](docs/domains/bob.md#4-当前有效资料读取)、[AUX Stable-ID Direct CRUD](docs/domains/aux.md#2-stable-id-direct-crud-生命周期)
 
 **Business Identity Record（业务身份档案）**:
-客户、供应商、员工、其他单位或销售合作方各自拥有的身份档案；同一现实个人或组织具有多种业务身份时分别建档，不跨类型共享或同步身份资料。BOB 档案分别审批，AUX 员工直接维护 current data。
+客户、供应商、员工、其他单位或销售合作方各自拥有的身份档案；同一现实个人或组织具有多种业务身份时分别建档，不跨类型共享或同步身份资料。DCL 档案分别审批，AUX 员工直接维护 current data。
 _Avoid_: Party、主体主档、跨业务身份共享档案、自动识别同一现实主体
 
 **Legal Identifier（法定识别号）**:
-一种业务身份档案保存的唯一法律身份号码；BOB 档案随版本保存，AUX 员工在 current data 中保存。Customer 的客户身份资料中的法定识别号是精确 Customer Version 的 `legalIdentifier`：大陆企业、大陆个人或其他；前两者分别使用完整校验的统一社会信用代码与 18 位居民身份证，其他仅 trim 后在 Customer 内去重。Supplier、Employee、Other Unit 与 Sales Partner 保持各自既有身份范围，均只保存一个法定识别号。
-_Avoid_: 强标识数组、标识类型、重复法定识别号、跨档案自动合并
+员工、经营主体、其他单位或销售合作方依各自身份规则保存的法律身份号码；客户和供应商的开票身份属于共享税务信息。
+_Avoid_: 客户唯一身份、跨档案自动合并
 
 **Person（个人）**:
 业务身份档案所描述的自然人法律身份。
@@ -87,41 +87,38 @@ _Avoid_: 个人客户、兼职员工主体、跨业务身份共享的个人主�
 _Avoid_: 企业主体、机构主体、跨业务身份共享的组织主档、没有业务规则用途的组织分类
 
 **Customer（客户）**:
-BOB 内整体消费 Approval 与 Version、拥有独立对象启停的客户聚合；可以向我方任一经营主体下单的外部销售相对方，独立拥有法定身份、法定识别号及汇款识别资料；客户不维护可交易经营主体名单，默认经营主体只用于新单据预填，实际经营主体由每张单据明确保存。
-_Avoid_: Party 的客户关系、按我方经营主体重复建立客户、客户经营主体白名单、把默认经营主体当作交易事实
+直接持有销售业务属性、汇款识别资料与税务关联的外部销售相对方，也是唯一客户核算对象；可以向任一经营主体下单，默认经营主体只作预填。
+_Avoid_: 客户子单位、共享客户余额、客户经营主体白名单
 
 **Employee（员工）**:
 具有独立身份和雇佣资料，并且当前设置一个任职经营主体的内部人员档案；该设置描述任职归属，但不限制其他经营主体的业务单据选择该员工。
 _Avoid_: Party 的雇佣关系、没有经营主体的员工、把任职经营主体当作跨主体单据选择权限、用销售合作方代替员工
 
 **Business Identity Detail（业务身份资料）**:
-法定名称、显示名称、法定识别号和联系资料等由一种业务身份档案独立维护的资料；是否审批遵循所属领域规则；客户身份资料始终按精确 Customer Version 的 `legalIdentifier` 解释。
-_Avoid_: Party 身份事实、跨客户与供应商同步、用另一种业务身份的当前值解释历史
+一种业务档案独立维护的名称、联系资料与适用身份字段；客户和供应商的法定与开票内容通过税务信息关联。
+_Avoid_: 跨业务档案同步、用当前值解释历史
 
 **Business Archive Detail（业务档案资料）**:
 业务编码、业务联系人、结算、信用、价格或岗位等只属于一种业务身份档案的资料。服务内容由合同和履约单据表达，不在其他单位档案上另设服务范围。
 _Avoid_: Party 关系明细、任意键值属性、跨业务身份共享业务条件
 
 **Business Object Reference（业务对象引用）**:
-交易或核算对客户子单位、供应商、员工、其他单位或销售合作方等明确类型对象的引用；客户业务同时保存所属 Customer 和精确 Customer Approval Entry。
+交易或核算对客户、供应商、员工、其他单位或销售合作方等明确类型对象的引用；客户业务同时保存所属 Customer 和精确 Customer Approval Entry。
 _Avoid_: Party 引用、对象 ID 加自由文本类型、用一个现实主体合并不同业务身份的往来余额
 
-**Customer Subunit（客户子单位）**:
-客户档案内承载名称、联系人、业务地址、客户类型、结算收款、运输定价、信用额度、业务归属、内部提示、订单默认值和业务附件，并分别核算应收、预收和信用占用的业务与核算分部；它具有客户内唯一且不可复用的编码和稳定 ID，但没有独立审批、版本或修订生命周期。
-_Avoid_: 客户核算账户、客户结算账户、独立客户、独立审批对象、银行结算账户、Contact 实体
-
-**Implicit Customer Subunit Choice（默认客户子单位）**:
-启用 Customer 恰有一个启用客户子单位时，新业务可以派生采用该子单位；存在两个及以上启用子单位时没有默认值，业务单据必须明确选择并保存实际子单位。
-_Avoid_: 持久化默认子单位、第一行默认、最低编码默认、最近使用默认、多个启用子单位时自动选择
+**Tax Information（税务信息）**:
+可由多个客户和供应商共享的开票身份资料，档案历史保留关联时内容，发票冻结提交时采用的内容。
+_Avoid_: 客户身份、默认税务项、按共享税号合并往来余额
+_Authority_: [AUX 税务信息](docs/domains/aux.md#311-税务信息)
 
 **Operating Entity（经营主体）**:
-我方实际承担合同销售方、开票方和收款方责任的法人公司；只有经营主体自身保留税号语义。
+我方实际承担合同销售方、开票方和收款方责任的法人公司；我方开票身份由经营主体自身保存。
 _Avoid_: 商品品牌、客户类型、报表标签、客户的固定归属主体、允许跨经营主体收款分摊
 _Authority_: [AUX 经营主体与员工](docs/domains/aux.md#39-经营主体与员工)、[BOB 领域边界](docs/domains/bob.md#2-领域职责与边界)、[VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
 
-**Sales Receipt Allocation（销售收款分摊）**:
-一笔客户来款分配到该客户下一个或多个客户子单位及其未结应收的金额明细；付款户名和付款银行账号等识别资料属于 Customer，不属于客户子单位。
-_Avoid_: 依付款公司直接冲减共享余额、把一笔银行流水伪造为多笔来款
+**Sales Receipt（销售收款）**:
+一个客户在一个经营主体下的一笔真实来款，超出应收的金额形成该客户预收。
+_Avoid_: 客户分摊、跨客户共享余额、重复银行来款
 _Authority_: [VOU 往来收付款](docs/domains/vou.md#36-往来收款与往来付款)
 
 **Invoicing Requirement（开票义务）**:
@@ -130,8 +127,8 @@ _Avoid_: 是否开票布尔值、由每张订单任意选择是否需要开票�
 _Authority_: [VOU 往来收付款](docs/domains/vou.md#36-往来收款与往来付款)
 
 **Sales Invoice（销售发票）**:
-由一个经营主体向一个客户子单位开具的销售税务凭证；一张发票不得跨经营主体、跨 Customer 或跨客户子单位，购方名称、注册地址、开票电话、开户行及账号取自该子单位所属 Customer 的精确 Customer Version，购方的法定识别号就是该 Customer Version 的 `legalIdentifier`。
-_Avoid_: 客户级跨子单位发票、发票分配到子单位、用付款主体代替客户子单位
+一个经营主体对一个客户开具、采用一条税务信息的销售凭证；发票保留提交时的税务内容与原业务来源。
+_Avoid_: 跨客户合票、按共享税号合并、当前税务重解释历史
 
 **Supplier（供应商）**:
 适用采购订单—仓库收货流程、独立维护和审批身份及采购资料的全局外部业务档案；它保存适用经营主体集合和集合内的默认经营主体。
@@ -149,28 +146,28 @@ _Avoid_: 物流平台、为自有车辆虚构其他单位、每张送货单临�
 _Authority_: [AUX 仓库、资金账户与车辆](docs/domains/aux.md#310-仓库资金账户与车辆)
 
 **Customer Type（客户类型）**:
-客户子单位的可配置业务分类。
+客户的可配置业务分类。
 _Avoid_: 宣称客户类型当前决定售价、把价格和业绩公式塞进字典项、固定写死两个类型
 _Authority_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)、[VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
 
 **Settlement Method Snapshot（结算方式快照）**:
-客户子单位或 Supplier 版本直接拥有的结算时间事实副本。
+客户或 Supplier 版本直接拥有的结算时间事实副本。
 _Avoid_: 制单时逐层解析结算方式版本、只保存结算方式 ID、把采购单据费用混入结算时间规则
 _Authority_: [AUX 结算方式](docs/domains/aux.md#33-结算方式)、[BOB 客户与供应商结算方式快照](docs/domains/bob.md#22-客户与供应商结算方式快照)
 
 **Settlement Timing（结算时间规则）**:
-预付、现结、货到若干天、当月结或月结若干天等“何时应付款”的规则，由客户子单位或 Supplier 结算方式快照表达。
+预付、现结、货到若干天、当月结或月结若干天等“何时应付款”的规则，由客户或 Supplier 结算方式快照表达。
 _Avoid_: 把银承、电汇、现金等付款媒介当作月结规则
 _Authority_: [AUX 结算方式](docs/domains/aux.md#33-结算方式)、[VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
 
 **Payment Method Snapshot（收款方式快照）**:
-客户子单位或销售单据直接拥有的付款媒介及其销售价格影响副本。
+客户或销售单据直接拥有的付款媒介及其销售价格影响副本。
 _Avoid_: 承兑类型、`cd_type`、把收款方式合并进结算时间规则
 _Authority_: [AUX 收款方式](docs/domains/aux.md#34-收款方式)、[VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
 
 **Customer Transport Policy（客户运输政策）**:
-客户子单位约定的默认运输方式和运输加价。
-_Avoid_: 从当前客户子单位资料回算历史订单、把运输方式和运输价格混成一个字段
+客户约定的默认运输方式和运输加价。
+_Avoid_: 从当前客户资料回算历史订单、把运输方式和运输价格混成一个字段
 _Authority_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)、[VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
 
 **Sales Cost Component（销售成本组成）**:
@@ -189,7 +186,7 @@ _Avoid_: 负溢价、用有符号价格字段同时表达利润和优惠
 _Authority_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)、[VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
 
 **Customer Sales Attribution（客户业务归属）**:
-客户子单位的主要业务归属。
+客户的主要业务归属。
 _Avoid_: 同一客户同时配置多个主要业务归属、把不具名第三方居间另建为客户资料中的具名收款方
 _Authority_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)、[VOU 居间计算单](docs/domains/vou.md#24-居间计算单)
 
@@ -259,17 +256,17 @@ _Avoid_: 要求客户资料绑定具名收款方、把客户优惠或员工销�
 _Authority_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)、[VOU 居间计算单](docs/domains/vou.md#24-居间计算单)
 
 **Customer Credit Limit（客户信用额度）**:
-客户子单位在单一交易币种内获批的最大信用占用。
+客户在单一交易币种内获批的最大信用占用。
 _Avoid_: 按业务员或集团汇总客户额度、只提醒不控制、跨币种直接相加
 _Authority_: [VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)、[ACC 会计期间](docs/domains/acc.md#10-会计期间)
 
 **Customer Internal Reminder（客户内部提醒）**:
-客户子单位资料中的内部业务提示。
+客户资料中的内部业务提示。
 _Avoid_: 客户备注、自动进入对外单据
 _Authority_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)
 
 **Default Sales Order Remark（默认销售订单备注）**:
-客户子单位为新销售订单提供的默认备注。
+客户为新销售订单提供的默认备注。
 _Avoid_: 客户内部提醒、订单保存后继续回查客户当前值
 _Authority_: [VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
 
@@ -366,3 +363,15 @@ _Authority_: [ACC 会计科目](docs/domains/acc.md#5-会计科目)
 其他往来流水的可选业务分类。
 _Avoid_: 单据类型、主体类型
 _Authority_: [AUX 收支类型](docs/domains/aux.md#37-收支类型)
+
+## Archive Boundaries
+
+**资料变更（DCL）**:
+五类业务档案的稳定身份与类型化内容所有者，承载提交件及审批。
+_Avoid_: 正式资料维护、第二套审批
+_Authority_: [DCL](docs/domains/dcl.md)
+
+**正式资料（BOB）**:
+供业务采用的最高已批准档案，独立持有对象启停；对象历史解释各版本的状态与内容。
+_Avoid_: 候选即正式资料、审批覆盖启停
+_Authority_: [BOB](docs/domains/bob.md#4-当前有效资料读取)

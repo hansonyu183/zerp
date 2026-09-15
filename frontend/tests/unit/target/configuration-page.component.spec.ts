@@ -177,11 +177,7 @@ it('shows shared Chinese captions for mapping condition fields instead of wire p
       {
         ...current.vouEntity,
         fieldCatalog: {
-          headerFields: [
-            'businessDate',
-            'currency',
-            'customerSubunit.objectId',
-          ],
+          headerFields: ['businessDate', 'currency', 'customer.objectId'],
           lineFields: ['line.unitPrice'],
           collections: ['productLines'],
         },
@@ -192,8 +188,8 @@ it('shows shared Chinese captions for mapping condition fields instead of wire p
   await click(w, '新增', 'section[aria-label="条件规则"] > button')
   const fields = w.get('[aria-label="条件字段"]')
   expect(fields.text()).toContain('业务日期')
-  expect(fields.text()).toContain('客户子单位 · 对象标识')
-  expect(fields.text()).not.toContain('customerSubunit.objectId')
+  expect(fields.text()).toContain('客户 · 对象标识')
+  expect(fields.text()).not.toContain('customer.objectId')
   w.unmount()
 })
 

@@ -47,13 +47,13 @@ const currencyName = computed(() =>
         {{ order.warehouse.name ?? '—' }}
         <small>（标识：{{ order.warehouse.objectId }}）</small>
       </dd>
-      <template v-if="'customerSubunit' in order">
-        <dt>客户子单位标识</dt>
-        <dd>{{ order.customerSubunit.objectId }}</dd>
+      <template v-if="'customer' in order">
+        <dt>客户标识</dt>
+        <dd>{{ order.customer.objectId }}</dd>
         <dt>客户采用版本</dt>
         <dd>
-          {{ order.customerSubunit.approvalEntryId }} ·
-          {{ selectionCaptions[order.customerSubunit.selectionOrigin] }}
+          {{ order.customer.approvalEntryId }} ·
+          {{ selectionCaptions[order.customer.selectionOrigin] }}
         </dd>
         <dt>经营主体</dt>
         <dd>

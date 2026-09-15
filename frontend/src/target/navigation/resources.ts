@@ -2,7 +2,8 @@ import { archiveEntityPresentation, vouEntityPresentation } from '@zerp/model'
 
 export const targetDomainCapabilities = {
   session: { approval: false, businessVersion: false, enabled: false },
-  bob: { approval: true, businessVersion: true, enabled: true },
+  dcl: { approval: true, businessVersion: true, enabled: false },
+  bob: { approval: false, businessVersion: true, enabled: true },
   vou: { approval: true, businessVersion: false, enabled: false },
   app: { approval: false, businessVersion: false, enabled: true },
   aux: { approval: false, businessVersion: false, enabled: true },
@@ -31,7 +32,8 @@ export type NavigationResourceGroup = {
 const domainPresentation: Readonly<
   Record<string, { displayName: string; order: number }>
 > = {
-  bob: { displayName: '业务资料', order: 10 },
+  dcl: { displayName: '资料变更', order: 9 },
+  bob: { displayName: '正式资料', order: 10 },
   vou: { displayName: '业务单据', order: 20 },
   app: { displayName: '系统管理', order: 30 },
   aux: { displayName: '辅助资料', order: 40 },
@@ -61,6 +63,7 @@ const auxPresentation: Readonly<Record<string, string>> = {
   'measurement-unit': '计量单位',
   'income-expense-type': '收支类型',
   'asset-category': '资产类别',
+  'tax-information': '税务信息',
   'operating-entity': '经营主体',
   employee: '员工',
   warehouse: '仓库',
@@ -104,7 +107,7 @@ export function resourceDisplayName(domain: string, entity: string): string {
   if (domain === 'vou' && entity in vouEntityPresentation)
     return vouEntityPresentation[entity as keyof typeof vouEntityPresentation]
       .label
-  if (domain === 'bob') {
+  if (domain === 'bob' || domain === 'dcl') {
     const name = archiveName(entity)
     if (name) return name
   }

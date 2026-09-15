@@ -196,7 +196,7 @@ export function useOrderLineEditor(options: {
   ) {
     const customer = options.context().counterparty?.objectId
     if (!customer) {
-      historyStatus.value[id] = '请选择客户子单位后采用最近有效订单。'
+      historyStatus.value[id] = '请选择客户后采用最近有效订单。'
       return
     }
     const document = await queryTargetCustomerLatestLine(customer, productId)

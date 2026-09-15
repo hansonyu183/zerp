@@ -48,3 +48,8 @@ export const productPage = defineVersionPage<'bob/product'>({
       ),
   },
 })
+
+export const productChangesPage = {
+  ...productPage,
+  resource: 'dcl/product' as const,
+}

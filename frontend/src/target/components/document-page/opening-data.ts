@@ -9,7 +9,7 @@ export function emptyOpening(): OpeningDraft {
 }
 export const directions = { DEBIT: '借方', CREDIT: '贷方' } as const
 export const dimensions: Record<AccSubjectDimension, string> = {
-  CUSTOMER_SUBUNIT: '客户子单位',
+  CUSTOMER: '客户',
   SUPPLIER: '供应商',
   OTHER_UNIT: '其他单位',
   EMPLOYEE: '员工',
@@ -39,7 +39,7 @@ export const options = (captions: Readonly<Record<string, string>>) =>
   Object.entries(captions).map(([value, title]) => ({ value, title }))
 type ReferenceEntity = api.TargetReferenceEntity
 export const dimensionSources: Record<AccSubjectDimension, ReferenceEntity> = {
-  CUSTOMER_SUBUNIT: 'customer-subunit',
+  CUSTOMER: 'customer',
   SUPPLIER: 'supplier',
   OTHER_UNIT: 'other-unit',
   EMPLOYEE: 'employee',

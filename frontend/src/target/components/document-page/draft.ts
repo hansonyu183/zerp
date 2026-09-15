@@ -1,3 +1,9 @@
+import {
+  emptyInvoice,
+  invoicePayload,
+  type InvoiceDraft,
+  type InvoiceEntity,
+} from './invoice-data.ts'
 import type * as api from '../../api.ts'
 import type { VouType } from '@zerp/model'
 import type { VouDetail } from './list-runtime.ts'
@@ -68,6 +74,7 @@ import {
   type IntermediaryDraft,
 } from './intermediary-data.ts'
 export type EditorDraft =
+  | { kind: 'invoice'; value: InvoiceDraft }
   | { kind: 'intermediary'; value: IntermediaryDraft }
   | { kind: 'service'; value: ServiceDraft }
   | { kind: 'bill'; value: BillDraft }
@@ -81,6 +88,9 @@ export type EditorDraft =
 
 export function createDocumentDraft(entity: VouType): EditorDraft | null {
   switch (entity) {
+    case 'sale-invoice':
+    case 'purchase-invoice':
+      return { kind: 'invoice', value: emptyInvoice(entity) }
     case 'sale-order':
     case 'purchase-order':
       return { kind: 'order', value: emptyOrder(entity) }
@@ -133,6 +143,17 @@ export function createDocumentDraft(entity: VouType): EditorDraft | null {
 }
 
 export function cloneDocumentDraft(original: VouDetail): EditorDraft | null {
+  if (
+    original.entity === 'sale-invoice' ||
+    original.entity === 'purchase-invoice'
+  )
+    return {
+      kind: 'invoice',
+      value: {
+        ...emptyInvoice(original.entity),
+        remark: original.payload.remark ?? '',
+      },
+    }
   if (original.entity === 'intermediary-calculation') {
     return {
       kind: 'intermediary',
@@ -186,12 +207,7 @@ export function cloneDocumentDraft(original: VouDetail): EditorDraft | null {
   ) {
     const payload =
       original.payload as import('@zerp/model').VouPayloadFor<FinancialEntity>
-    const count =
-      'expenseLines' in payload
-        ? payload.expenseLines.length
-        : 'subunitAllocations' in payload
-          ? payload.subunitAllocations.length
-          : 0
+    const count = 'expenseLines' in payload ? payload.expenseLines.length : 0
     return {
       kind: 'financial',
       value: cloneFinancial(
@@ -255,7 +271,7 @@ export function cloneDocumentDraft(original: VouDetail): EditorDraft | null {
     (original.entity === 'sale-order' ||
       original.entity === 'purchase-order') &&
     'productLines' in original.payload &&
-    ('customerSubunit' in original.payload || 'supplier' in original.payload)
+    ('customer' in original.payload || 'supplier' in original.payload)
   ) {
     return {
       kind: 'order',
@@ -269,6 +285,11 @@ export function cloneDocumentDraft(original: VouDetail): EditorDraft | null {
   return null
 }
 export type DocumentCommand =
+  | {
+      kind: 'invoice'
+      entity: InvoiceEntity
+      input: api.TargetVoucherInput<InvoiceEntity>
+    }
   | {
       kind: 'intermediary'
       entity: 'intermediary-calculation'
@@ -326,6 +347,16 @@ export function documentCommand(
   identity: DocumentIdentity,
 ): DocumentCommand {
   switch (editor.kind) {
+    case 'invoice':
+      return {
+        kind: 'invoice',
+        entity: editor.value.entity,
+        input: {
+          ...identity,
+          expectedRevision: null,
+          payload: invoicePayload(editor.value),
+        },
+      }
     case 'order': {
       const value = editor.value
       return {

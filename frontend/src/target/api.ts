@@ -101,6 +101,18 @@ export type TargetAssetCategorySaveInput = PostJson<
 export type TargetAssetCategoryEnabledInput = PostJson<
   (typeof client)['aux']['asset-category']['enable']['$post']
 >
+export type TargetTaxInformationQueryInput = PostJson<
+  (typeof client)['aux']['tax-information']['query']['$post']
+>
+export type TargetTaxInformationCreateInput = PostJson<
+  (typeof client)['aux']['tax-information']['create']['$post']
+>
+export type TargetTaxInformationSaveInput = PostJson<
+  (typeof client)['aux']['tax-information']['save']['$post']
+>
+export type TargetTaxInformationEnabledInput = PostJson<
+  (typeof client)['aux']['tax-information']['enable']['$post']
+>
 export type TargetOperatingEntityQueryInput = PostJson<
   (typeof client)['aux']['operating-entity']['query']['$post']
 >
@@ -188,19 +200,19 @@ export type TargetSupplierEnabledInput = PostJson<
   (typeof client)['bob']['supplier']['enable']['$post']
 >
 export type TargetSupplierSubmissionQueryInput = PostJson<
-  (typeof client)['bob']['supplier']['submission-query']['$post']
+  (typeof client)['dcl']['supplier']['submission-query']['$post']
 >
 export type TargetSupplierSubmissionGetInput = PostJson<
-  (typeof client)['bob']['supplier']['submission-get']['$post']
+  (typeof client)['dcl']['supplier']['submission-get']['$post']
 >
 export type TargetSupplierSubmitInput = PostJson<
-  (typeof client)['bob']['supplier']['submit-new']['$post']
+  (typeof client)['dcl']['supplier']['submit-new']['$post']
 >
 export type TargetSupplierReviewInput = PostJson<
-  (typeof client)['bob']['supplier']['approve']['$post']
+  (typeof client)['dcl']['supplier']['approve']['$post']
 >
 export type TargetSupplierRejectInput = PostJson<
-  (typeof client)['bob']['supplier']['reject']['$post']
+  (typeof client)['dcl']['supplier']['reject']['$post']
 >
 export type TargetOtherUnitQueryInput = PostJson<
   (typeof client)['bob']['other-unit']['query']['$post']
@@ -209,19 +221,19 @@ export type TargetOtherUnitEnabledInput = PostJson<
   (typeof client)['bob']['other-unit']['enable']['$post']
 >
 export type TargetOtherUnitSubmissionQueryInput = PostJson<
-  (typeof client)['bob']['other-unit']['submission-query']['$post']
+  (typeof client)['dcl']['other-unit']['submission-query']['$post']
 >
 export type TargetOtherUnitSubmissionGetInput = PostJson<
-  (typeof client)['bob']['other-unit']['submission-get']['$post']
+  (typeof client)['dcl']['other-unit']['submission-get']['$post']
 >
 export type TargetOtherUnitSubmitInput = PostJson<
-  (typeof client)['bob']['other-unit']['submit-new']['$post']
+  (typeof client)['dcl']['other-unit']['submit-new']['$post']
 >
 export type TargetOtherUnitReviewInput = PostJson<
-  (typeof client)['bob']['other-unit']['approve']['$post']
+  (typeof client)['dcl']['other-unit']['approve']['$post']
 >
 export type TargetOtherUnitRejectInput = PostJson<
-  (typeof client)['bob']['other-unit']['reject']['$post']
+  (typeof client)['dcl']['other-unit']['reject']['$post']
 >
 export type TargetSalesPartnerQueryInput = PostJson<
   (typeof client)['bob']['sales-partner']['query']['$post']
@@ -230,19 +242,19 @@ export type TargetSalesPartnerEnabledInput = PostJson<
   (typeof client)['bob']['sales-partner']['enable']['$post']
 >
 export type TargetSalesPartnerSubmissionQueryInput = PostJson<
-  (typeof client)['bob']['sales-partner']['submission-query']['$post']
+  (typeof client)['dcl']['sales-partner']['submission-query']['$post']
 >
 export type TargetSalesPartnerSubmissionGetInput = PostJson<
-  (typeof client)['bob']['sales-partner']['submission-get']['$post']
+  (typeof client)['dcl']['sales-partner']['submission-get']['$post']
 >
 export type TargetSalesPartnerSubmitInput = PostJson<
-  (typeof client)['bob']['sales-partner']['submit-new']['$post']
+  (typeof client)['dcl']['sales-partner']['submit-new']['$post']
 >
 export type TargetSalesPartnerReviewInput = PostJson<
-  (typeof client)['bob']['sales-partner']['approve']['$post']
+  (typeof client)['dcl']['sales-partner']['approve']['$post']
 >
 export type TargetSalesPartnerRejectInput = PostJson<
-  (typeof client)['bob']['sales-partner']['reject']['$post']
+  (typeof client)['dcl']['sales-partner']['reject']['$post']
 >
 
 export class TargetApiError extends Error {
@@ -823,6 +835,88 @@ export async function setTargetAssetCategoryEnabled(
   )
 }
 
+export async function queryTargetTaxInformation(
+  csrfToken: string,
+  input: TargetTaxInformationQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['tax-information'].query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function getTargetTaxInformation(csrfToken: string, id: string) {
+  return unwrapTarget(
+    await (
+      await client.aux['tax-information'].get.$post(
+        { json: { id } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function createTargetTaxInformation(
+  csrfToken: string,
+  input: TargetTaxInformationCreateInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['tax-information'].create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function saveTargetTaxInformation(
+  csrfToken: string,
+  input: TargetTaxInformationSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['tax-information'].save.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function setTargetTaxInformationEnabled(
+  csrfToken: string,
+  input: TargetTaxInformationEnabledInput,
+  enabled: boolean,
+) {
+  const endpoint = enabled
+    ? client.aux['tax-information'].enable
+    : client.aux['tax-information'].disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export async function deleteTargetTaxInformation(
+  csrfToken: string,
+  input: TargetTaxInformationEnabledInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['tax-information'].delete.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
 export async function queryTargetOperatingEntities(
   csrfToken: string,
   input: TargetOperatingEntityQueryInput,
@@ -1204,6 +1298,7 @@ export async function queryTargetPermissionOptions(query: TargetOptionQuery) {
   )
 }
 const auxOptionEndpoints = {
+  'tax-information': client.aux['tax-information'].options,
   'operating-entity': client.aux['operating-entity'].options,
   employee: client.aux['employee'].options,
   warehouse: client.aux['warehouse'].options,
@@ -1234,11 +1329,6 @@ export async function queryTargetBobOptions(
 ) {
   return unwrapTarget(
     await (await client.bob[entity].options.$get({ query })).json(),
-  )
-}
-export async function queryTargetSubunitOptions(query: TargetBobOptionQuery) {
-  return unwrapTarget(
-    await (await client.bob.customer['subunit-options'].$get({ query })).json(),
   )
 }
 export async function queryTargetDocumentOptions(
@@ -1279,8 +1369,8 @@ export async function queryTargetVouOptions(
   entity: TargetReferenceEntity,
   query: Parameters<typeof client.acc.asset.options.$get>[0]['query'],
 ) {
-  if (entity === 'customer-subunit') {
-    const page = await queryTargetSubunitOptions({
+  if (entity === 'customer') {
+    const page = await queryTargetBobOptions('customer', {
       ...query,
       ...(query.ids ? {} : { enabled: 'true' as const }),
     })
@@ -1291,14 +1381,12 @@ export async function queryTargetVouOptions(
         objectId: item.objectId,
         code: item.code,
         name: item.name,
-        customerId: item.customerId,
         approvalEntryId: item.sourceApprovalEntryId,
         paymentMethod: item.paymentMethod,
       })),
     }
   }
   if (
-    entity === 'customer' ||
     entity === 'supplier' ||
     entity === 'other-unit' ||
     entity === 'sales-partner' ||
@@ -1399,12 +1487,12 @@ export async function resolveTargetSaleOrderLine(
   )
 }
 export async function queryTargetCustomerLatestLine(
-  customerSubunitId: string,
+  customerId: string,
   productId: string,
 ) {
   const payload = await (
     await client.vou['sale-order']['customer-latest-line'].$get({
-      query: { customerSubunitId, productId },
+      query: { customerId, productId },
     })
   ).json()
   return payload.code === 0 ? payload.data : unwrapTarget(payload)
@@ -1435,13 +1523,13 @@ export async function resolveTargetSupplier(
     ).json(),
   )
 }
-export async function resolveTargetCustomerSubunit(
+export async function resolveTargetCustomer(
   objectId: string,
   approvalEntryId: string,
 ) {
   return unwrapTarget(
     await (
-      await client.bob.customer['subunit-resolve'].$get({
+      await client.bob.customer.resolve.$get({
         query: { objectId, approvalEntryId },
       })
     ).json(),
@@ -1577,7 +1665,7 @@ export async function queryTargetSupplierSubmissions(
 ) {
   return unwrapTarget(
     await (
-      await client.bob.supplier['submission-query'].$post(
+      await client.dcl.supplier['submission-query'].$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1591,7 +1679,7 @@ export async function getTargetSupplierSubmission(
 ) {
   return unwrapTarget(
     await (
-      await client.bob.supplier['submission-get'].$post(
+      await client.dcl.supplier['submission-get'].$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1633,7 +1721,7 @@ export async function submitNewTargetSupplier(
 ) {
   return unwrapTarget(
     await (
-      await client.bob.supplier['submit-new'].$post(
+      await client.dcl.supplier['submit-new'].$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1647,7 +1735,7 @@ export async function submitChangeTargetSupplier(
 ) {
   return unwrapTarget(
     await (
-      await client.bob.supplier['submit-change'].$post(
+      await client.dcl.supplier['submit-change'].$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1661,7 +1749,7 @@ export async function approveTargetSupplier(
 ) {
   return unwrapTarget(
     await (
-      await client.bob.supplier.approve.$post(
+      await client.dcl.supplier.approve.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1675,7 +1763,7 @@ export async function rejectTargetSupplier(
 ) {
   return unwrapTarget(
     await (
-      await client.bob.supplier.reject.$post(
+      await client.dcl.supplier.reject.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1689,7 +1777,7 @@ export async function unrejectTargetSupplier(
 ) {
   return unwrapTarget(
     await (
-      await client.bob.supplier.unreject.$post(
+      await client.dcl.supplier.unreject.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1703,7 +1791,7 @@ export async function unapproveTargetSupplier(
 ) {
   return unwrapTarget(
     await (
-      await client.bob.supplier.unapprove.$post(
+      await client.dcl.supplier.unapprove.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1717,7 +1805,7 @@ export async function deleteTargetSupplier(
 ) {
   return unwrapTarget(
     await (
-      await client.bob.supplier.delete.$post(
+      await client.dcl.supplier.delete.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1731,7 +1819,7 @@ export async function getTargetOtherUnitSubmission(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['other-unit']['submission-get'].$post(
+      await client.dcl['other-unit']['submission-get'].$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1759,7 +1847,7 @@ export async function submitNewTargetOtherUnit(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['other-unit']['submit-new'].$post(
+      await client.dcl['other-unit']['submit-new'].$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1773,7 +1861,7 @@ export async function submitChangeTargetOtherUnit(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['other-unit']['submit-change'].$post(
+      await client.dcl['other-unit']['submit-change'].$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1787,7 +1875,7 @@ export async function queryTargetOtherUnitSubmissions(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['other-unit']['submission-query'].$post(
+      await client.dcl['other-unit']['submission-query'].$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1815,7 +1903,7 @@ export async function approveTargetOtherUnit(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['other-unit'].approve.$post(
+      await client.dcl['other-unit'].approve.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1829,7 +1917,7 @@ export async function rejectTargetOtherUnit(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['other-unit'].reject.$post(
+      await client.dcl['other-unit'].reject.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1843,7 +1931,7 @@ export async function unrejectTargetOtherUnit(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['other-unit'].unreject.$post(
+      await client.dcl['other-unit'].unreject.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1857,7 +1945,7 @@ export async function unapproveTargetOtherUnit(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['other-unit'].unapprove.$post(
+      await client.dcl['other-unit'].unapprove.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1871,7 +1959,7 @@ export async function deleteTargetOtherUnit(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['other-unit'].delete.$post(
+      await client.dcl['other-unit'].delete.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1885,7 +1973,7 @@ export async function getTargetSalesPartnerSubmission(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['sales-partner']['submission-get'].$post(
+      await client.dcl['sales-partner']['submission-get'].$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1913,7 +2001,7 @@ export async function submitNewTargetSalesPartner(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['sales-partner']['submit-new'].$post(
+      await client.dcl['sales-partner']['submit-new'].$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1927,7 +2015,7 @@ export async function submitChangeTargetSalesPartner(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['sales-partner']['submit-change'].$post(
+      await client.dcl['sales-partner']['submit-change'].$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1941,7 +2029,7 @@ export async function queryTargetSalesPartnerSubmissions(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['sales-partner']['submission-query'].$post(
+      await client.dcl['sales-partner']['submission-query'].$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1969,7 +2057,7 @@ export async function approveTargetSalesPartner(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['sales-partner'].approve.$post(
+      await client.dcl['sales-partner'].approve.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1983,7 +2071,7 @@ export async function rejectTargetSalesPartner(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['sales-partner'].reject.$post(
+      await client.dcl['sales-partner'].reject.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -1997,7 +2085,7 @@ export async function unrejectTargetSalesPartner(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['sales-partner'].unreject.$post(
+      await client.dcl['sales-partner'].unreject.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -2011,7 +2099,7 @@ export async function unapproveTargetSalesPartner(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['sales-partner'].unapprove.$post(
+      await client.dcl['sales-partner'].unapprove.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -2025,7 +2113,7 @@ export async function deleteTargetSalesPartner(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['sales-partner'].delete.$post(
+      await client.dcl['sales-partner'].delete.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -2093,19 +2181,19 @@ export type TargetProductEnabledInput = PostJson<
   (typeof client)['bob']['product']['enable']['$post']
 >
 export type TargetProductSubmissionQueryInput = PostJson<
-  (typeof client)['bob']['product']['submission-query']['$post']
+  (typeof client)['dcl']['product']['submission-query']['$post']
 >
 export type TargetProductSubmissionGetInput = PostJson<
-  (typeof client)['bob']['product']['submission-get']['$post']
+  (typeof client)['dcl']['product']['submission-get']['$post']
 >
 export type TargetProductSubmitInput = PostJson<
-  (typeof client)['bob']['product']['submit-new']['$post']
+  (typeof client)['dcl']['product']['submit-new']['$post']
 >
 export type TargetProductReviewInput = PostJson<
-  (typeof client)['bob']['product']['approve']['$post']
+  (typeof client)['dcl']['product']['approve']['$post']
 >
 export type TargetProductRejectInput = PostJson<
-  (typeof client)['bob']['product']['reject']['$post']
+  (typeof client)['dcl']['product']['reject']['$post']
 >
 
 export async function queryTargetProducts(
@@ -2154,7 +2242,7 @@ export async function getTargetProductSubmission(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['product']['submission-get'].$post(
+      await client.dcl['product']['submission-get'].$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -2182,7 +2270,7 @@ export async function submitNewTargetProduct(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['product']['submit-new'].$post(
+      await client.dcl['product']['submit-new'].$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -2196,7 +2284,7 @@ export async function submitChangeTargetProduct(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['product']['submit-change'].$post(
+      await client.dcl['product']['submit-change'].$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -2210,7 +2298,7 @@ export async function queryTargetProductSubmissions(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['product']['submission-query'].$post(
+      await client.dcl['product']['submission-query'].$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -2238,7 +2326,7 @@ export async function approveTargetProduct(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['product'].approve.$post(
+      await client.dcl['product'].approve.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -2252,7 +2340,7 @@ export async function rejectTargetProduct(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['product'].reject.$post(
+      await client.dcl['product'].reject.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -2266,7 +2354,7 @@ export async function unrejectTargetProduct(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['product'].unreject.$post(
+      await client.dcl['product'].unreject.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -2280,7 +2368,7 @@ export async function unapproveTargetProduct(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['product'].unapprove.$post(
+      await client.dcl['product'].unapprove.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -2294,7 +2382,7 @@ export async function deleteTargetProduct(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['product'].delete.$post(
+      await client.dcl['product'].delete.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -2309,19 +2397,19 @@ export type TargetCustomerEnabledInput = PostJson<
   (typeof client)['bob']['customer']['enable']['$post']
 >
 export type TargetCustomerSubmissionQueryInput = PostJson<
-  (typeof client)['bob']['customer']['submission-query']['$post']
+  (typeof client)['dcl']['customer']['submission-query']['$post']
 >
 export type TargetCustomerSubmissionGetInput = PostJson<
-  (typeof client)['bob']['customer']['submission-get']['$post']
+  (typeof client)['dcl']['customer']['submission-get']['$post']
 >
 export type TargetCustomerSubmitInput = PostJson<
-  (typeof client)['bob']['customer']['submit-new']['$post']
+  (typeof client)['dcl']['customer']['submit-new']['$post']
 >
 export type TargetCustomerReviewInput = PostJson<
-  (typeof client)['bob']['customer']['approve']['$post']
+  (typeof client)['dcl']['customer']['approve']['$post']
 >
 export type TargetCustomerRejectInput = PostJson<
-  (typeof client)['bob']['customer']['reject']['$post']
+  (typeof client)['dcl']['customer']['reject']['$post']
 >
 
 export async function queryTargetCustomers(
@@ -2370,7 +2458,7 @@ export async function getTargetCustomerSubmission(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['customer']['submission-get'].$post(
+      await client.dcl['customer']['submission-get'].$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -2398,7 +2486,7 @@ export async function submitNewTargetCustomer(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['customer']['submit-new'].$post(
+      await client.dcl['customer']['submit-new'].$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -2412,7 +2500,7 @@ export async function submitChangeTargetCustomer(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['customer']['submit-change'].$post(
+      await client.dcl['customer']['submit-change'].$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -2426,7 +2514,7 @@ export async function queryTargetCustomerSubmissions(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['customer']['submission-query'].$post(
+      await client.dcl['customer']['submission-query'].$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -2454,7 +2542,7 @@ export async function approveTargetCustomer(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['customer'].approve.$post(
+      await client.dcl['customer'].approve.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -2468,7 +2556,7 @@ export async function rejectTargetCustomer(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['customer'].reject.$post(
+      await client.dcl['customer'].reject.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -2482,7 +2570,7 @@ export async function unrejectTargetCustomer(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['customer'].unreject.$post(
+      await client.dcl['customer'].unreject.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -2496,7 +2584,7 @@ export async function unapproveTargetCustomer(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['customer'].unapprove.$post(
+      await client.dcl['customer'].unapprove.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -2510,7 +2598,7 @@ export async function deleteTargetCustomer(
 ) {
   return unwrapTarget(
     await (
-      await client.bob['customer'].delete.$post(
+      await client.dcl['customer'].delete.$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -2524,18 +2612,20 @@ export type TargetCustomerAttachmentReadInput = PostJson<
 export async function readTargetCustomerAttachment(
   csrfToken: string,
   input: TargetCustomerAttachmentReadInput,
+  domain: 'bob' | 'dcl',
 ) {
   return unwrapTarget(
     await (
-      await client.bob.customer['attachment-read'].$post(
-        { json: input },
-        csrfHeaders(csrfToken),
-      )
+      await (
+        domain === 'bob'
+          ? client.bob.customer['attachment-read']
+          : client.dcl.customer['attachment-read']
+      ).$post({ json: input }, csrfHeaders(csrfToken))
     ).json(),
   )
 }
 export type TargetCustomerAttachmentStageInput = PostJson<
-  (typeof client)['bob']['customer']['attachment-stage']['$post']
+  (typeof client)['dcl']['customer']['attachment-stage']['$post']
 >
 export async function stageTargetCustomerAttachment(
   csrfToken: string,
@@ -2543,7 +2633,7 @@ export async function stageTargetCustomerAttachment(
 ) {
   return unwrapTarget(
     await (
-      await client.bob.customer['attachment-stage'].$post(
+      await client.dcl.customer['attachment-stage'].$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -3374,6 +3464,51 @@ export async function getTargetIntermediarySource(
     await (
       await client.vou['intermediary-calculation'].source.$post(
         { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function queryTargetInvoiceTaxOptions(
+  entity: 'sale-invoice' | 'purchase-invoice',
+  objectId: string,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou[':entity']['tax-options'].$get({
+        param: { entity },
+        query: { objectId },
+      })
+    ).json(),
+  )
+}
+export async function queryTargetInvoiceSources(
+  entity: 'sale-invoice' | 'purchase-invoice',
+  query: {
+    objectId: string
+    operatingEntityId: string
+    businessDate: string
+    currency: string
+  },
+) {
+  return unwrapTarget(
+    await (
+      await client.vou[':entity']['invoice-sources'].$get({
+        param: { entity },
+        query,
+      })
+    ).json(),
+  )
+}
+export async function queryTargetUnbilledSales(
+  csrfToken: string,
+  periodMonth: string,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou['sale-invoice'].unbilled.$post(
+        { json: { periodMonth } },
         csrfHeaders(csrfToken),
       )
     ).json(),

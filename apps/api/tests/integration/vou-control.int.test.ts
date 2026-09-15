@@ -1,3 +1,4 @@
+import { insertArchiveObjects } from '../fixtures/archive-objects.ts'
 import { VouOpeningService } from '../../src/vou/opening-service.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
@@ -24,7 +25,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     reviewerId = ulid(),
     customerId = ulid(),
     customerEntryId = ulid()
-  const subunitId = ulid(),
+  const subunitId = customerId,
     productId = ulid(),
     productEntryId = ulid(),
     warehouseId = ulid(),
@@ -89,7 +90,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
         ])
         .execute()
       await db
-        .deleteFrom('bob_subjects')
+        .deleteFrom('dcl_subjects')
         .where('id', 'in', [
           mappingId,
           fundMappingId,
@@ -176,36 +177,30 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
       },
     ])
     .execute()
-  await db
-    .insertInto('bob_subjects')
-    .values([
-      {
-        id: customerId,
-        entity: 'customer',
-        code: `CUS-${code}`,
-        created_at: now,
-        created_by: actorId,
-      },
-    ])
-    .execute()
-  await db
-    .insertInto('bob_subjects')
-    .values([
-      {
-        id: productId,
-        entity: 'product',
-        code: `PRD-${code}`,
-        created_at: now,
-        created_by: actorId,
-      },
-    ])
-    .execute()
+  await insertArchiveObjects(db, [
+    {
+      id: customerId,
+      entity: 'customer',
+      code: `CUS-${code}`,
+      created_at: now,
+      created_by: actorId,
+    },
+  ])
+  await insertArchiveObjects(db, [
+    {
+      id: productId,
+      entity: 'product',
+      code: `PRD-${code}`,
+      created_at: now,
+      created_by: actorId,
+    },
+  ])
   await db
     .insertInto('approval_entries')
     .values([
       {
         id: customerEntryId,
-        domain: 'bob',
+        domain: 'dcl',
         entity: 'customer',
         subject_id: customerId,
         version_no: 1,
@@ -220,7 +215,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
       },
       {
         id: productEntryId,
-        domain: 'bob',
+        domain: 'dcl',
         entity: 'product',
         subject_id: productId,
         version_no: 1,
@@ -266,25 +261,11 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     ])
     .execute()
   await db
-    .insertInto('bob_customer_versions')
+    .insertInto('dcl_customer_versions')
     .values({
       approval_entry_id: customerEntryId,
-      kind: 'OTHER',
       display_name: '控制客户',
       remittance_profiles: JSON.stringify([]),
-      tax_attachments: JSON.stringify([]),
-    })
-    .execute()
-  await db
-    .insertInto('bob_customer_subunit_roots')
-    .values({ subunit_id: subunitId, customer_id: customerId, code: 'CONTROL' })
-    .execute()
-  await db
-    .insertInto('bob_customer_version_subunits')
-    .values({
-      customer_approval_entry_id: customerEntryId,
-      subunit_id: subunitId,
-      name: '控制子单位',
       customer_type_id: customerTypeId,
       customer_type_snapshot: JSON.stringify({
         id: customerTypeId,
@@ -300,11 +281,13 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
       }),
       payment_snapshot: null,
       credit_limits: JSON.stringify([{ currency: 'CNY', amount: '1.00' }]),
-      enabled: true,
+      attachments: JSON.stringify([]),
+      tax_information: JSON.stringify([]),
     })
     .execute()
+
   await db
-    .insertInto('bob_product_versions')
+    .insertInto('dcl_product_versions')
     .values({
       approval_entry_id: productEntryId,
       name: '控制产品',
@@ -575,7 +558,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     businessDate: '2026-09-04',
     currency: 'CNY',
     attachments: [],
-    customerSubunit: {
+    customer: {
       objectId: subunitId,
       approvalEntryId: customerEntryId,
       selectionOrigin: 'CURRENT' as const,
@@ -647,7 +630,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     0,
   )
   await db
-    .updateTable('bob_customer_version_subunits')
+    .updateTable('dcl_customer_versions')
     .set({
       settlement_snapshot: JSON.stringify({
         termCode: 'CASH_ON_DELIVERY',
@@ -657,8 +640,8 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
         dayOffset: 0,
       }),
     })
-    .where('customer_approval_entry_id', '=', customerEntryId)
-    .where('subunit_id', '=', subunitId)
+    .where('approval_entry_id', '=', customerEntryId)
+    .where('approval_entry_id', '=', customerEntryId)
     .execute()
   const noReason = await submit()
   await assert.rejects(
@@ -794,7 +777,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     reviewerId = ulid()
   const customerId = ulid(),
     customerEntryId = ulid(),
-    subunitId = ulid()
+    subunitId = customerId
   const supplierId = ulid(),
     supplierEntryId = ulid()
   const productId = ulid(),
@@ -866,10 +849,10 @@ test('sale signoff and purchase inbound price the approved source line batch ins
         .where('id', 'in', [customerId, productId, warehouseId])
         .execute()
       await db
-        .deleteFrom('bob_subjects')
+        .deleteFrom('dcl_subjects')
         .where('id', 'in', [customerId, productId, warehouseId])
         .execute()
-      await sql`DELETE FROM bob_subjects WHERE id = ${supplierId}`.execute(db)
+      await sql`DELETE FROM dcl_subjects WHERE id = ${supplierId}`.execute(db)
       await db
         .deleteFrom('aux_objects')
         .where('created_by', '=', actorId)
@@ -905,40 +888,37 @@ test('sale signoff and purchase inbound price the approved source line batch ins
       })),
     )
     .execute()
-  await db
-    .insertInto('bob_subjects')
-    .values([
-      {
-        id: customerId,
-        entity: 'customer',
-        code: `CUS-${suffix}`,
-        created_at: now,
-        created_by: actorId,
-      },
-    ])
-    .execute()
-  await db
-    .insertInto('bob_subjects')
-    .values([
-      {
-        id: productId,
-        entity: 'product',
-        code: `PRD-${suffix}`,
-        created_at: now,
-        created_by: actorId,
-      },
-    ])
-    .execute()
-  await sql`
-    INSERT INTO bob_subjects (id, entity, code, enabled, revision, created_at, created_by)
-    VALUES (${supplierId}, 'supplier', ${`SUP-${suffix}`}, true, 1, ${now}, ${actorId})
-  `.execute(db)
+  await insertArchiveObjects(db, [
+    {
+      id: customerId,
+      entity: 'customer',
+      code: `CUS-${suffix}`,
+      created_at: now,
+      created_by: actorId,
+    },
+  ])
+  await insertArchiveObjects(db, [
+    {
+      id: productId,
+      entity: 'product',
+      code: `PRD-${suffix}`,
+      created_at: now,
+      created_by: actorId,
+    },
+  ])
+  await insertArchiveObjects(db, {
+    id: supplierId,
+    entity: 'supplier',
+    code: `SUP-${suffix}`,
+    created_at: now,
+    created_by: actorId,
+  })
   await db
     .insertInto('approval_entries')
     .values([
       {
         id: customerEntryId,
-        domain: 'bob',
+        domain: 'dcl',
         entity: 'customer',
         subject_id: customerId,
         version_no: 1,
@@ -953,7 +933,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
       },
       {
         id: supplierEntryId,
-        domain: 'bob',
+        domain: 'dcl',
         entity: 'supplier',
         subject_id: supplierId,
         version_no: 1,
@@ -968,7 +948,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
       },
       {
         id: productEntryId,
-        domain: 'bob',
+        domain: 'dcl',
         entity: 'product',
         subject_id: productId,
         version_no: 1,
@@ -991,29 +971,11 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     dayOffset: 0,
   })
   await db
-    .insertInto('bob_customer_versions')
+    .insertInto('dcl_customer_versions')
     .values({
       approval_entry_id: customerEntryId,
-      kind: 'OTHER',
       display_name: '批次客户',
       remittance_profiles: JSON.stringify([]),
-      tax_attachments: JSON.stringify([]),
-    })
-    .execute()
-  await db
-    .insertInto('bob_customer_subunit_roots')
-    .values({
-      subunit_id: subunitId,
-      customer_id: customerId,
-      code: `SUB-${suffix}`,
-    })
-    .execute()
-  await db
-    .insertInto('bob_customer_version_subunits')
-    .values({
-      customer_approval_entry_id: customerEntryId,
-      subunit_id: subunitId,
-      name: '批次客户子单位',
       customer_type_id: customerTypeId,
       customer_type_snapshot: JSON.stringify({
         id: customerTypeId,
@@ -1023,17 +985,16 @@ test('sale signoff and purchase inbound price the approved source line batch ins
       settlement_snapshot: prepaid,
       payment_snapshot: null,
       credit_limits: JSON.stringify([]),
-      enabled: true,
+      attachments: JSON.stringify([]),
+      tax_information: JSON.stringify([]),
     })
     .execute()
+
   await db
-    .insertInto('bob_supplier_versions')
+    .insertInto('dcl_supplier_versions')
     .values({
       approval_entry_id: supplierEntryId,
-      kind: 'ORGANIZATION',
-      legal_name: '批次供应商',
       display_name: '批次供应商',
-      legal_identifier: null,
       default_operating_entity_id: null,
       default_purchaser_employee_id: null,
       default_purchaser_approval_entry_id: null,
@@ -1046,10 +1007,11 @@ test('sale signoff and purchase inbound price the approved source line batch ins
       default_operating_entity_reference: null,
       settlement_method_snapshot: prepaid,
       default_purchaser_snapshot: null,
+      tax_information: JSON.stringify([]),
     })
     .execute()
   await db
-    .insertInto('bob_product_versions')
+    .insertInto('dcl_product_versions')
     .values({
       approval_entry_id: productEntryId,
       name: '批次产品',
@@ -1108,7 +1070,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
   )
   operatingEntityId = operatingEntityCreated.id
 
-  const customerSubunit = {
+  const customer = {
     objectId: subunitId,
     approvalEntryId: customerEntryId,
     selectionOrigin: 'CURRENT' as const,
@@ -1140,7 +1102,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
             businessDate: '2026-09-04',
             currency: 'CNY',
             attachments: [],
-            customerSubunit,
+            customer,
             paymentMethod: null,
             operatingEntity: {
               objectId: operatingEntityId,
@@ -1196,7 +1158,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
         attachments: [],
         parentEntity: 'sale-order',
         parentDocumentId: saleOrder.documentId,
-        customerSubunit,
+        customer,
         expectedSolventContainers: 0,
         expectedResinContainers: 0,
         returnedSolventContainers: 0,
@@ -1274,8 +1236,8 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     'APPROVED',
   )
   assert.deepEqual(balanceCalls, [
-    `CUSTOMER_SUBUNIT:${subunitId}`,
-    `CUSTOMER_SUBUNIT:${subunitId}`,
+    `CUSTOMER:${subunitId}`,
+    `CUSTOMER:${subunitId}`,
     `SUPPLIER:${supplierId}`,
     `SUPPLIER:${supplierId}`,
   ])

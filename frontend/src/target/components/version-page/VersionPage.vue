@@ -39,7 +39,7 @@ import type {
 } from './definition.ts'
 import type { ArchiveSubmissionCommand } from './metadata.ts'
 import {
-  describeBobArchiveFailure,
+  describeDclArchiveFailure,
   describeBobEnablementFailure,
 } from './errors.ts'
 import type { ArchiveReviewAction, ArchiveAuditEvent } from './metadata.ts'
@@ -57,8 +57,31 @@ let active = true,
   detailRequest = 0,
   editorRequest = 0
 const owns = () => active && session.generation === generation
+const formal = definition.resource.startsWith('bob/')
+const changes = definition.resource.startsWith('dcl/')
+const permissionResource = (action: string) =>
+  changes && ['query', 'get', 'versions', 'audit-history'].includes(action)
+    ? definition.resource.replace('dcl/', 'bob/')
+    : definition.resource
 const can = (action: string) =>
-  owns() && session.can(`/${definition.resource}/${action}`)
+  owns() &&
+  !(
+    formal &&
+    [
+      'submission-query',
+      'submission-get',
+      'submit-new',
+      'submit-change',
+      'approve',
+      'reject',
+      'unreject',
+      'unapprove',
+      'delete',
+      'attachment-stage',
+    ].includes(action)
+  ) &&
+  !(changes && ['enable', 'disable'].includes(action)) &&
+  session.can(`/${permissionResource(action)}/${action}`)
 const token = (action: string) => {
   if (!can(action) || !session.csrfToken)
     throw new Error('当前账号没有此操作权限。')
@@ -167,17 +190,13 @@ type Pending =
 const pending = shallowRef<Pending | null>(null)
 const locked = computed(() => busy.value || pending.value !== null)
 const attachments = createAttachments(
-  'bob/customer',
+  'dcl/customer',
   () => token('attachment-stage'),
   owns,
 )
 provide(attachmentScope, attachments.scope)
 const attachmentReading = ref(false)
-const canCreate = computed(
-  () =>
-    can('submit-new') &&
-    (definition.resource !== 'bob/customer' || can('save-subunits')),
-)
+const canCreate = computed(() => can('submit-new'))
 const canChange = computed(() => can('submit-change') && can('versions'))
 const previousVersion = computed(() =>
   selected.value
@@ -197,6 +216,7 @@ const previousAttachmentSource = computed(() =>
   previousVersion.value
     ? {
         source: 'submission' as const,
+        domain: 'bob' as const,
         subjectId: previousVersion.value.subjectId,
         submissionId: previousVersion.value.submissionId,
       }
@@ -243,7 +263,7 @@ const needsReason = computed(
 function message(cause: unknown) {
   return (
     (cause instanceof TargetApiError ? wflErrors[cause.errorKey] : null) ??
-    describeBobArchiveFailure(cause) ??
+    describeDclArchiveFailure(cause) ??
     (cause instanceof Error ? cause.message : '操作失败。')
   )
 }
@@ -404,7 +424,10 @@ async function openCurrent(item: Current) {
         ? item.code
         : item.objectId,
     )
-    if (owns() && request === detailRequest) currentDetail.value = result
+    if (owns() && request === detailRequest) {
+      currentDetail.value = result
+      if (formal) await readHistory(item.objectId, request)
+    }
   } catch (cause) {
     if (owns() && request === detailRequest) detailError.value = message(cause)
   } finally {
@@ -412,6 +435,7 @@ async function openCurrent(item: Current) {
   }
 }
 async function readHistory(subjectId: string, request: number) {
+  if (changes) return
   const tasks: Promise<void>[] = []
   if (can('versions'))
     tasks.push(
@@ -479,7 +503,7 @@ async function select(
 }
 function openCandidate(item: SubmissionItem) {
   const candidate = item.openCandidate ?? item.latestApproved
-  if (candidate) void select(candidate, true)
+  if (candidate) void select(candidate, !changes)
 }
 async function refreshAfterWrite() {
   try {
@@ -538,15 +562,12 @@ async function submit() {
   }
   const command = { ...intent, snapshot: structuredClone(toRaw(draft.value)) }
   intent = command
-  if (definition.resource === 'bob/customer') {
+  if (definition.resource.endsWith('/customer')) {
     const request = editorRequest
     busy.value = true
     try {
       const customer = command.snapshot as unknown as CustomerSnapshot
-      await attachments.prepare([
-        ...customer.identityAttachments,
-        ...customer.subunits.flatMap((item) => item.attachments),
-      ])
+      await attachments.prepare([...customer.attachments])
     } catch (cause) {
       if (owns()) error.value = message(cause)
       return
@@ -852,7 +873,8 @@ onBeforeUnmount(() => {
     ></v-dialog
   >
   <v-dialog :model-value="detailOpen" persistent max-width="1080"
-    ><v-card :title="`${title}${currentDetail ? '正式资料' : '提交详情'}`"
+    ><v-card
+      :title="`${title}${currentDetail ? '正式资料' : formal ? '历史详情' : '提交详情'}`"
       ><v-card-text
         ><v-progress-linear v-if="detailLoading" indeterminate /><v-alert
           v-if="detailError"
@@ -860,7 +882,7 @@ onBeforeUnmount(() => {
           >{{ detailError }}</v-alert
         ><v-alert v-if="error" type="error">{{ error }}</v-alert>
         <HistoryBlock
-          v-if="versions.length || audits.length"
+          v-if="!changes && (versions.length || audits.length)"
           :versions="historyVersions"
           :audits="audits"
           :selected-id="selected?.submissionId ?? null"
@@ -918,6 +940,7 @@ onBeforeUnmount(() => {
             :previous-source="previousAttachmentSource"
             :source="{
               source: 'submission',
+              domain: formal ? 'bob' : 'dcl',
               subjectId: selected.subjectId,
               submissionId: selected.submissionId,
             }"

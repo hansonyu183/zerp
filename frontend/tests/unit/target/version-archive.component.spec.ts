@@ -60,7 +60,7 @@ beforeEach(() => {
   const session = useTargetSession()
   session.user = { id: 'maintainer', code: 'maintainer', name: '维护者' }
   session.csrfToken = 'test-csrf'
-  session.apiPaths = ['/bob/supplier/submit-new']
+  session.apiPaths = ['/dcl/supplier/submit-new']
 })
 async function click(
   wrapper: VueWrapper,
@@ -79,12 +79,11 @@ it('keeps an unknown submission locked after closing its Draft without query per
     new TypeError('network interrupted'),
   )
   const wrapper = mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'supplier' },
+    props: { domain: 'dcl', entity: 'supplier' },
     global: { stubs },
   })
   await flushPromises()
   await click(wrapper, '新增')
-  await wrapper.get('[aria-label="法定名称"]').setValue('供应商甲')
   await wrapper.get('[aria-label="显示名称"]').setValue('供应商甲')
   await confirmItems(wrapper)
   await click(wrapper, '提交')
@@ -112,7 +111,7 @@ const supplierSnapshot = (name: string) => ({
   settlementMethod: null,
   defaultPurchaser: null,
 })
-it('keeps current and candidate snapshots separate and selects a historical difference before approval', async () => {
+it('keeps current and candidate snapshots separate and gives DCL no object history before approval', async () => {
   const session = useTargetSession()
   session.apiPaths = [
     'query',
@@ -122,7 +121,10 @@ it('keeps current and candidate snapshots separate and selects a historical diff
     'versions',
     'audit-history',
     'approve',
-  ].map((action) => `/bob/supplier/${action}`)
+  ].map(
+    (action) =>
+      `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/supplier/${action}`,
+  )
   const approved = {
     entity: 'supplier',
     subjectId: 'supplier',
@@ -191,7 +193,7 @@ it('keeps current and candidate snapshots separate and selects a historical diff
     availableApprovalActions: [],
   } as never)
   const wrapper = mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'supplier' },
+    props: { domain: 'dcl', entity: 'supplier' },
     global: { stubs },
   })
   await flushPromises()
@@ -206,8 +208,8 @@ it('keeps current and candidate snapshots separate and selects a historical diff
     submissionId: 'v2',
   })
   expect(wrapper.text()).toContain('候选乙')
-  expect(wrapper.text()).toContain('版本差异')
-  expect(wrapper.text()).toContain('正式甲')
+  expect(wrapper.text()).not.toContain('版本差异')
+  expect(api.queryTargetSupplierVersions).not.toHaveBeenCalled()
   await click(wrapper, '批准')
   expect(api.approveTargetSupplier).toHaveBeenCalledWith('test-csrf', {
     subjectId: 'supplier',
@@ -221,7 +223,7 @@ it('keeps current and candidate snapshots separate and selects a historical diff
 
 it('loads independent supplier reference sources and submits their adopted snapshots', async () => {
   useTargetSession().apiPaths = [
-    '/bob/supplier/submit-new',
+    '/dcl/supplier/submit-new',
     '/aux/operating-entity/query',
     '/aux/employee/query',
   ]
@@ -256,12 +258,11 @@ it('loads independent supplier reference sources and submits their adopted snaps
   )
   vi.mocked(api.submitNewTargetSupplier).mockResolvedValue({} as never)
   const wrapper = mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'supplier' },
+    props: { domain: 'dcl', entity: 'supplier' },
     global: { stubs },
   })
   await flushPromises()
   await click(wrapper, '新增')
-  await wrapper.get('[aria-label="法定名称"]').setValue('供应商甲')
   await wrapper.get('[aria-label="显示名称"]').setValue('供应商甲')
   await wrapper.get('[aria-label="适用经营主体"]').setValue(['entity'])
   await wrapper.get('[aria-label="默认采购员"]').setValue('employee')
@@ -291,18 +292,14 @@ it('loads independent supplier reference sources and submits their adopted snaps
 })
 
 it('locates invalid remittance rows in the registered customer Draft and discards it on close', async () => {
-  useTargetSession().apiPaths = [
-    '/bob/customer/submit-new',
-    '/bob/customer/save-subunits',
-  ]
+  useTargetSession().apiPaths = ['/dcl/customer/submit-new']
   const wrapper = mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'customer' },
+    props: { domain: 'dcl', entity: 'customer' },
     global: { stubs },
   })
   await flushPromises()
   await click(wrapper, '新增')
-  await wrapper.get('[aria-label="法定名称"]').setValue('客户甲')
-  await wrapper.get('[aria-label="显示名称"]').setValue('客户甲')
+  await wrapper.get('[aria-label="客户名称"]').setValue('客户甲')
   await click(
     wrapper,
     '新增',
@@ -373,7 +370,7 @@ it('opening a new product candidate adopts current material versions without cha
   useTargetSession().apiPaths = [
     '/bob/product/query',
     '/bob/product/versions',
-    '/bob/product/submit-change',
+    '/dcl/product/submit-change',
   ]
   const { data, unit } = productFacts()
   vi.mocked(api.queryTargetProducts).mockResolvedValue({
@@ -416,7 +413,7 @@ it('opening a new product candidate adopts current material versions without cha
   )
   vi.mocked(api.submitChangeTargetProduct).mockResolvedValue({} as never)
   const wrapper = mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'product' },
+    props: { domain: 'dcl', entity: 'product' },
     global: { stubs },
   })
   await flushPromises()
@@ -523,7 +520,8 @@ it('chooses an authorized real trial document, shows evaluation results, and inv
 
 function authorizeSupplier(...actions: string[]) {
   useTargetSession().apiPaths = actions.map(
-    (action) => `/bob/supplier/${action}`,
+    (action) =>
+      `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/supplier/${action}`,
   )
 }
 const supplierRow = () => ({
@@ -551,9 +549,9 @@ const supplierVersion = (
   canDelete: status !== 'APPROVED',
   snapshot: supplierSnapshot(id === 'v1' ? '正式甲' : '候选乙'),
 })
-function supplierHost() {
+function supplierHost(domain: 'bob' | 'dcl' = 'dcl') {
   return mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'supplier' },
+    props: { domain, entity: 'supplier' },
     global: { stubs },
   })
 }
@@ -576,7 +574,7 @@ it('uses the exact current revision for enablement and preserves the applied que
     enabled: false,
     revision: '9007199254740994',
   })
-  const wrapper = supplierHost()
+  const wrapper = supplierHost('bob')
   await flushPromises()
   await wrapper.get('[aria-label="编码、拼音或名称"]').setValue('已提交关键词')
   await wrapper.get('form').trigger('submit')
@@ -613,7 +611,7 @@ it('shows a vehicle blocker and keeps formal state without replaying disable', a
       ],
     }),
   )
-  const wrapper = supplierHost()
+  const wrapper = supplierHost('bob')
   await flushPromises()
   await click(wrapper, '停用')
   expect(wrapper.text()).toContain('启用车辆（vehicle）')
@@ -635,21 +633,20 @@ it('keeps corrected input after a definite submit failure and refreshes only onc
   const wrapper = supplierHost()
   await flushPromises()
   await click(wrapper, '新增')
-  await wrapper.get('[aria-label="法定名称"]').setValue('原名称')
-  await wrapper.get('[aria-label="显示名称"]').setValue('显示名称')
+  await wrapper.get('[aria-label="显示名称"]').setValue('原名称')
   await confirmItems(wrapper)
   await click(wrapper, '提交')
-  expect(wrapper.get('[aria-label="法定名称"]').element).toHaveProperty(
+  expect(wrapper.get('[aria-label="显示名称"]').element).toHaveProperty(
     'value',
     '原名称',
   )
-  await wrapper.get('[aria-label="法定名称"]').setValue('修正名称')
+  await wrapper.get('[aria-label="显示名称"]').setValue('修正名称')
   await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(api.submitNewTargetSupplier).toHaveBeenLastCalledWith(
     'test-csrf',
     expect.objectContaining({
-      snapshot: expect.objectContaining({ legalName: '修正名称' }),
+      snapshot: expect.objectContaining({ displayName: '修正名称' }),
     }),
   )
   expect(api.queryTargetSuppliers).toHaveBeenCalledTimes(2)
@@ -665,7 +662,7 @@ it('retains write success when its list refresh fails and never repeats the muta
     enabled: false,
     revision: '9007199254740994',
   })
-  const wrapper = supplierHost()
+  const wrapper = supplierHost('bob')
   await flushPromises()
   await click(wrapper, '停用')
   expect(wrapper.text()).toContain('操作已成功，但列表刷新失败')
@@ -674,7 +671,12 @@ it('retains write success when its list refresh fails and never repeats the muta
   wrapper.unmount()
 })
 it('lets versions permission select real returned snapshots without a submission-get request', async () => {
-  authorizeSupplier('submission-query', 'versions')
+  authorizeSupplier('query', 'get', 'versions')
+  vi.mocked(api.queryTargetSuppliers).mockResolvedValue({
+    items: [supplierRow()],
+    total: 1,
+  } as never)
+  vi.mocked(api.getTargetSupplier).mockResolvedValue(supplierRow() as never)
   const first = supplierVersion(),
     next = supplierVersion('v2', 'PENDING')
   vi.mocked(api.queryTargetSupplierSubmissions).mockResolvedValue({
@@ -691,11 +693,14 @@ it('lets versions permission select real returned snapshots without a submission
   vi.mocked(api.queryTargetSupplierVersions).mockResolvedValue({
     items: [first, next],
   } as never)
-  const wrapper = supplierHost()
+  const wrapper = supplierHost('bob')
   await flushPromises()
-  await click(wrapper, '提交记录')
   await click(wrapper, '查看')
+  await click(wrapper, '查看版本 2')
   expect(wrapper.text()).toContain('候选乙')
+  expect(
+    wrapper.findAll('button').some((button) => button.text() === '批准'),
+  ).toBe(false)
   await click(wrapper, '查看版本 1')
   expect(wrapper.text()).toContain('正式甲')
   expect(api.getTargetSupplierSubmission).not.toHaveBeenCalled()
@@ -717,7 +722,7 @@ it('ignores a late change baseline after closing and opening a fresh Draft', asy
   await click(wrapper, '新增')
   baseline.resolve({ items: [supplierVersion()] } as never)
   await flushPromises()
-  expect(wrapper.get('[aria-label="法定名称"]').element).toHaveProperty(
+  expect(wrapper.get('[aria-label="显示名称"]').element).toHaveProperty(
     'value',
     '',
   )
@@ -739,16 +744,16 @@ it('keeps a versions read failure visible inside the change dialog', async () =>
   await click(wrapper, '取消')
   wrapper.unmount()
 })
-it('requires customer subunit capability for create and preserves root-only changes', async () => {
-  useTargetSession().apiPaths = ['/bob/customer/submit-new']
+it('allows customer creation with its exact submit permission alone', async () => {
+  useTargetSession().apiPaths = ['/dcl/customer/submit-new']
   const wrapper = mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'customer' },
+    props: { domain: 'dcl', entity: 'customer' },
     global: { stubs },
   })
   await flushPromises()
   expect(
     wrapper.findAll('button').some((button) => button.text() === '新增'),
-  ).toBe(false)
+  ).toBe(true)
   wrapper.unmount()
 })
 it.each([
@@ -757,10 +762,10 @@ it.each([
 ] as const)(
   'submits %s with no invented operating-entity minimum',
   async (entity, title, method) => {
-    useTargetSession().apiPaths = [`/bob/${entity}/submit-new`]
+    useTargetSession().apiPaths = [`/dcl/${entity}/submit-new`]
     vi.mocked(api[method]).mockResolvedValue({} as never)
     const wrapper = mount(ResourceHost, {
-      props: { domain: 'bob', entity },
+      props: { domain: 'dcl', entity },
       global: { stubs },
     })
     await flushPromises()
@@ -796,15 +801,14 @@ it('keeps an unknown submission locked when a lookup cannot see its in-flight tr
   const wrapper = supplierHost()
   await flushPromises()
   await click(wrapper, '新增')
-  await wrapper.get('[aria-label="法定名称"]').setValue('原名称')
-  await wrapper.get('[aria-label="显示名称"]').setValue('显示名称')
+  await wrapper.get('[aria-label="显示名称"]').setValue('原名称')
   await confirmItems(wrapper)
   await click(wrapper, '提交')
   const original = vi.mocked(api.submitNewTargetSupplier).mock.calls[0]![1]
   await click(wrapper, '核实结果')
   expect(wrapper.text()).toContain('结果仍未知，保持锁定')
   expect(
-    wrapper.get('[aria-label="法定名称"]').attributes('disabled'),
+    wrapper.get('[aria-label="显示名称"]').attributes('disabled'),
   ).toBeDefined()
   expect(
     wrapper
@@ -820,61 +824,44 @@ it('keeps an unknown submission locked when a lookup cannot see its in-flight tr
 })
 
 const customerSnapshot = () => ({
-  identityKind: 'OTHER' as const,
-  legalName: '客户',
   displayName: '客户',
-  legalIdentifier: 'OTHER-ID',
   phone: '',
   email: '',
-  address: '',
-  invoiceTitle: '',
-  invoiceAddress: '',
-  invoicePhone: '',
-  invoiceBank: '',
-  invoiceAccount: '',
   remittanceProfiles: [],
   defaultOperatingEntity: null,
-  identityAttachments: [],
-  subunits: [
-    {
-      intent: 'EXISTING' as const,
-      id: 'subunit',
-      code: 'SUB-0001',
-      name: '总部',
-      contactName: '',
-      address: '',
-      customerType: { id: 'type', code: 'DIRECT', name: '直销' },
-      settlementMethod: null,
-      paymentMethod: null,
-      transportPolicy: {
-        methodCode: 'DELIVERY',
-        methodName: '送货',
-        surcharge: '0.00',
-      },
-      pricingPolicy: {
-        defaultPremiumUnitPrice: '0.00',
-        defaultDiscountUnitPrice: '0.00',
-        costItems: [],
-        thirdPartyIntermediaryFixedUnitCost: '0.00',
-        thirdPartyIntermediaryVariableUnitCost: '0.00',
-      },
-      creditLimits: [],
-      primarySalesAttribution: {
-        type: 'INTERNAL_EMPLOYEE' as const,
-        objectId: 'employee',
-        code: 'EMP1',
-        name: '业务员',
-      },
-      internalReminder: '',
-      defaultSalesOrderRemark: '',
-      attachments: [],
-      enabled: true,
-    },
-  ],
+  contactName: '',
+  address: '',
+  customerType: { id: 'type', code: 'DIRECT', name: '直销' },
+  settlementMethod: null,
+  paymentMethod: null,
+  transportPolicy: {
+    methodCode: 'DELIVERY',
+    methodName: '送货',
+    surcharge: '0.00',
+  },
+  pricingPolicy: {
+    defaultPremiumUnitPrice: '0.00',
+    defaultDiscountUnitPrice: '0.00',
+    costItems: [],
+    thirdPartyIntermediaryFixedUnitCost: '0.00',
+    thirdPartyIntermediaryVariableUnitCost: '0.00',
+  },
+  creditLimits: [],
+  primarySalesAttribution: {
+    type: 'INTERNAL_EMPLOYEE' as const,
+    objectId: 'employee',
+    code: 'EMP1',
+    name: '业务员',
+  },
+  internalReminder: '',
+  defaultSalesOrderRemark: '',
+  attachments: [],
+  taxInformation: [],
 })
-it('preserves exact existing subunits in a root-only customer change', async () => {
+it('preserves adopted business fields when changing the customer name', async () => {
   useTargetSession().apiPaths = ['query', 'versions', 'submit-change'].map(
-    (action) => `/bob/customer/${action}`,
+    (action) =>
+      `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
   )
   const data = customerSnapshot()
   vi.mocked(api.queryTargetCustomers).mockResolvedValue({
@@ -904,18 +891,12 @@ it('preserves exact existing subunits in a root-only customer change', async () 
   } as never)
   vi.mocked(api.submitChangeTargetCustomer).mockResolvedValue({} as never)
   const wrapper = mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'customer' },
+    props: { domain: 'dcl', entity: 'customer' },
     global: { stubs },
   })
   await flushPromises()
   await click(wrapper, '提交变更')
-  expect(
-    wrapper
-      .get('[aria-label="客户子单位"]')
-      .find('[data-testid="row-action-edit"]')
-      .exists(),
-  ).toBe(false)
-  await wrapper.get('[aria-label="显示名称"]').setValue('新客户')
+  await wrapper.get('[aria-label="客户名称"]').setValue('新客户')
   await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(api.submitChangeTargetCustomer).toHaveBeenCalledWith(
@@ -925,19 +906,21 @@ it('preserves exact existing subunits in a root-only customer change', async () 
       expectedLatestApprovedRevision: '9',
       snapshot: expect.objectContaining({
         displayName: '新客户',
-        subunits: data.subunits,
+        pricingPolicy: data.pricingPolicy,
+        primarySalesAttribution: data.primarySalesAttribution,
       }),
     }),
   )
   wrapper.unmount()
 })
-it('clones customer data with fresh subunit identities and no inherited attachments', async () => {
-  useTargetSession().apiPaths = ['query', 'submit-new', 'save-subunits'].map(
-    (action) => `/bob/customer/${action}`,
+it('clones customer business data without inherited attachments', async () => {
+  useTargetSession().apiPaths = ['query', 'submit-new'].map(
+    (action) =>
+      `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
   )
   const data = {
     ...customerSnapshot(),
-    identityAttachments: [
+    attachments: [
       {
         id: 'old-file',
         fileName: 'old.pdf',
@@ -955,7 +938,7 @@ it('clones customer data with fresh subunit identities and no inherited attachme
   } as never)
   vi.mocked(api.submitNewTargetCustomer).mockResolvedValue({} as never)
   const wrapper = mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'customer' },
+    props: { domain: 'dcl', entity: 'customer' },
     global: { stubs },
   })
   await flushPromises()
@@ -963,14 +946,10 @@ it('clones customer data with fresh subunit identities and no inherited attachme
   await confirmItems(wrapper)
   await click(wrapper, '提交')
   const command = vi.mocked(api.submitNewTargetCustomer).mock.calls[0]![1]
-  expect(command.snapshot.identityAttachments).toEqual([])
-  expect(command.snapshot.subunits[0]).toMatchObject({
-    intent: 'NEW',
-    code: null,
-    name: '总部',
-  })
-  expect(command.snapshot.subunits[0]!.id).not.toBe('subunit')
-  expect(data.identityAttachments).toHaveLength(1)
+  expect(command.snapshot.attachments).toEqual([])
+  expect(command.snapshot.pricingPolicy).toEqual(data.pricingPolicy)
+  expect(command.snapshot).not.toHaveProperty('subunits')
+  expect(data.attachments).toHaveLength(1)
   wrapper.unmount()
 })
 it('keeps files local until submit, retries a failed stage with the same identity, then adopts it', async () => {
@@ -979,7 +958,10 @@ it('keeps files local until submit, retries a failed stage with the same identit
     'versions',
     'submit-change',
     'attachment-stage',
-  ].map((action) => `/bob/customer/${action}`)
+  ].map(
+    (action) =>
+      `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
+  )
   const data = customerSnapshot()
   vi.mocked(api.queryTargetCustomers).mockResolvedValue({
     items: [
@@ -1004,12 +986,12 @@ it('keeps files local until submit, retries a failed stage with the same identit
     .mockResolvedValueOnce({} as never)
   vi.mocked(api.submitChangeTargetCustomer).mockResolvedValue({} as never)
   const wrapper = mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'customer' },
+    props: { domain: 'dcl', entity: 'customer' },
     global: { stubs },
   })
   await flushPromises()
   await click(wrapper, '提交变更')
-  const input = wrapper.get('[aria-label="添加身份或税务附件"]')
+  const input = wrapper.get('[aria-label="添加业务附件"]')
   const file = new File(['%PDF-1.4 test'], 'identity.pdf', {
     type: 'application/pdf',
   })
@@ -1028,7 +1010,7 @@ it('keeps files local until submit, retries a failed stage with the same identit
   expect(api.submitChangeTargetCustomer).toHaveBeenCalledTimes(1)
   expect(
     vi.mocked(api.submitChangeTargetCustomer).mock.calls[0]![1].snapshot
-      .identityAttachments[0],
+      .attachments[0],
   ).toMatchObject({
     stagingId: calls[0]![1].stagingId,
     fileName: 'identity.pdf',
@@ -1099,10 +1081,10 @@ it('ignores obsolete queries and removes the Draft on session changes', async ()
   await flushPromises()
   expect(wrapper.text()).not.toContain('SUP-1')
   await click(wrapper, '新增')
-  await wrapper.get('[aria-label="法定名称"]').setValue('旧账号输入')
+  await wrapper.get('[aria-label="显示名称"]').setValue('旧账号输入')
   useTargetSession().generation++
   await flushPromises()
-  expect(wrapper.find('[aria-label="法定名称"]').exists()).toBe(false)
+  expect(wrapper.find('[aria-label="显示名称"]').exists()).toBe(false)
   wrapper.unmount()
 })
 const wflPending = {
@@ -1237,51 +1219,48 @@ it('opens WFL current detail without any submission permission', async () => {
 
 it('renders normalized customer pricing changes for an unnumbered candidate against the approved version', async () => {
   useTargetSession().apiPaths = [
-    'submission-query',
-    'submission-get',
+    'query',
+    'get',
     'versions',
     'audit-history',
-  ].map((action) => `/bob/customer/${action}`)
+  ].map(
+    (action) =>
+      `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
+  )
   const before = {
     ...customerSnapshot(),
-    subunits: customerSnapshot().subunits.map((sub) => ({
-      ...sub,
-      pricingPolicy: {
-        ...sub.pricingPolicy,
-        costItems: [
-          {
-            name: 'Handling',
-            calculationBasis: 'UNIT_PRICE',
-            unitPrice: '1.00',
-          },
-          {
-            name: '删除项',
-            calculationBasis: 'ORDER_AMOUNT',
-            orderAmount: '2.00',
-          },
-          { name: '金额项', calculationBasis: 'UNIT_PRICE', unitPrice: '3.00' },
-        ],
-      },
-    })),
+    pricingPolicy: {
+      ...customerSnapshot().pricingPolicy,
+      costItems: [
+        {
+          name: 'Handling',
+          calculationBasis: 'UNIT_PRICE',
+          unitPrice: '1.00',
+        },
+        {
+          name: '删除项',
+          calculationBasis: 'ORDER_AMOUNT',
+          orderAmount: '2.00',
+        },
+        { name: '金额项', calculationBasis: 'UNIT_PRICE', unitPrice: '3.00' },
+      ],
+    },
   }
   const after = {
     ...before,
-    subunits: before.subunits.map((sub) => ({
-      ...sub,
-      pricingPolicy: {
-        ...sub.pricingPolicy,
-        defaultDiscountUnitPrice: '0.10',
-        costItems: [
-          {
-            name: ' handling ',
-            calculationBasis: 'ORDER_AMOUNT',
-            orderAmount: '1.00',
-          },
-          { name: '新增', calculationBasis: 'UNIT_PRICE', unitPrice: '2.00' },
-          { name: '金额项', calculationBasis: 'UNIT_PRICE', unitPrice: '4.00' },
-        ],
-      },
-    })),
+    pricingPolicy: {
+      ...before.pricingPolicy,
+      defaultDiscountUnitPrice: '0.10',
+      costItems: [
+        {
+          name: ' handling ',
+          calculationBasis: 'ORDER_AMOUNT',
+          orderAmount: '1.00',
+        },
+        { name: '新增', calculationBasis: 'UNIT_PRICE', unitPrice: '2.00' },
+        { name: '金额项', calculationBasis: 'UNIT_PRICE', unitPrice: '4.00' },
+      ],
+    },
   }
   const approved = {
     ...supplierVersion(),
@@ -1322,13 +1301,25 @@ it('renders normalized customer pricing changes for an unnumbered candidate agai
       reason: null,
     },
   ] as never)
+  const row = {
+    objectId: 'customer',
+    code: 'C01',
+    name: '客户',
+    enabled: true,
+    data: before,
+  }
+  vi.mocked(api.queryTargetCustomers).mockResolvedValue({
+    items: [row],
+    total: 1,
+  } as never)
+  vi.mocked(api.getTargetCustomer).mockResolvedValue(row as never)
   const wrapper = mount(ResourceHost, {
     props: { domain: 'bob', entity: 'customer' },
     global: { stubs },
   })
   await flushPromises()
-  await click(wrapper, '提交记录')
   await click(wrapper, '查看')
+  await click(wrapper, '查看版本 待分配')
   const text = wrapper.get('[aria-label="客户定价差异"]').text()
   expect(text).toContain('口径变化按单价 1.00按订单金额 1.00')
   expect(text).toContain('删除项删除')
@@ -1340,11 +1331,12 @@ it('renders normalized customer pricing changes for an unnumbered candidate agai
 })
 it('downloads only the exact adopted attachment from the authorized current customer', async () => {
   useTargetSession().apiPaths = ['query', 'get', 'attachment-read'].map(
-    (action) => `/bob/customer/${action}`,
+    (action) =>
+      `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
   )
   const data = {
     ...customerSnapshot(),
-    identityAttachments: [
+    attachments: [
       {
         id: 'file',
         fileName: 'identity.pdf',
@@ -1388,11 +1380,15 @@ it('downloads only the exact adopted attachment from the authorized current cust
     await flushPromises()
     await click(wrapper, '查看')
     await click(wrapper, '下载附件')
-    expect(api.readTargetCustomerAttachment).toHaveBeenCalledWith('test-csrf', {
-      source: 'current',
-      objectId: 'customer',
-      fileId: 'file',
-    })
+    expect(api.readTargetCustomerAttachment).toHaveBeenCalledWith(
+      'test-csrf',
+      {
+        source: 'current',
+        objectId: 'customer',
+        fileId: 'file',
+      },
+      'bob',
+    )
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:test')
   } finally {
     wrapper.unmount()
@@ -1421,29 +1417,18 @@ it('never offers a server action without its exact permission and retains an unk
     enabled: false,
     revision: '9007199254740996',
   } as never)
-  const wrapper = supplierHost()
+  const wrapper = supplierHost('bob')
   await flushPromises()
   await click(wrapper, '停用')
   await click(wrapper, '核实结果')
   expect(wrapper.text()).toContain('保持锁定')
   expect(api.setTargetSupplierEnabled).toHaveBeenCalledTimes(1)
-  const pending = supplierVersion('v2', 'PENDING')
-  vi.mocked(api.queryTargetSupplierSubmissions).mockResolvedValue({
-    items: [
-      {
-        subjectId: 'supplier',
-        code: 'S1',
-        openCandidate: pending,
-        latestApproved: null,
-      },
-    ],
-    total: 1,
-  } as never)
-  vi.mocked(api.getTargetSupplierSubmission).mockResolvedValue(pending as never)
-  await click(wrapper, '提交记录')
-  await click(wrapper, '查看')
   expect(
-    wrapper.findAll('button').some((button) => button.text() === '批准'),
+    wrapper
+      .findAll('button')
+      .some((button) =>
+        ['提交记录', '新增', '提交变更', '批准'].includes(button.text()),
+      ),
   ).toBe(false)
   expect(wrapper.text()).toContain('保持写入锁定')
   wrapper.unmount()
@@ -1453,7 +1438,7 @@ it('does not let initial material resolution overwrite a subsequent user choice'
   useTargetSession().apiPaths = [
     '/bob/product/query',
     '/bob/product/versions',
-    '/bob/product/submit-change',
+    '/dcl/product/submit-change',
   ]
   const { data } = productFacts()
   vi.mocked(api.queryTargetProducts).mockResolvedValue({
@@ -1497,7 +1482,7 @@ it('does not let initial material resolution overwrite a subsequent user choice'
     .mockReturnValueOnce(initial.promise)
   vi.mocked(api.submitChangeTargetProduct).mockResolvedValue({} as never)
   const wrapper = mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'product' },
+    props: { domain: 'dcl', entity: 'product' },
     global: { stubs },
   })
   await flushPromises()
@@ -1596,7 +1581,6 @@ it('treats an invalid submit response as unknown and resolves only its exact sub
   const wrapper = supplierHost()
   await flushPromises()
   await click(wrapper, '新增')
-  await wrapper.get('[aria-label="法定名称"]').setValue('供应商')
   await wrapper.get('[aria-label="显示名称"]').setValue('供应商')
   await confirmItems(wrapper)
   await click(wrapper, '提交')
@@ -1613,7 +1597,7 @@ it('treats an invalid submit response as unknown and resolves only its exact sub
   })
   expect(api.submitNewTargetSupplier).toHaveBeenCalledTimes(1)
   expect(wrapper.text()).toContain('已核实操作成功')
-  expect(wrapper.find('[aria-label="法定名称"]').exists()).toBe(false)
+  expect(wrapper.find('[aria-label="显示名称"]').exists()).toBe(false)
   wrapper.unmount()
 })
 it('ignores a late approval after the session changes', async () => {
@@ -1632,14 +1616,16 @@ it('ignores a late approval after the session changes', async () => {
   wrapper.unmount()
 })
 
-it('keeps submission blocked until both independent attachment reads finish and discards a closed candidate read', async () => {
+it('keeps submission blocked during an attachment read and discards a closed candidate read', async () => {
   useTargetSession().apiPaths = [
     'query',
     'versions',
     'submit-change',
     'attachment-stage',
-    'save-subunits',
-  ].map((action) => `/bob/customer/${action}`)
+  ].map(
+    (action) =>
+      `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
+  )
   const data = customerSnapshot()
   vi.mocked(api.queryTargetCustomers).mockResolvedValue({
     items: [
@@ -1660,15 +1646,13 @@ it('keeps submission blocked until both independent attachment reads finish and 
     ],
   } as never)
   const wrapper = mount(ResourceHost, {
-    props: { domain: 'bob', entity: 'customer' },
+    props: { domain: 'dcl', entity: 'customer' },
     global: { stubs },
   })
   await flushPromises()
   await click(wrapper, '提交变更')
-  await editItem(wrapper, '客户子单位')
   const inputs = wrapper.findAll('input[type="file"]')
-  expect(inputs.length).toBeGreaterThanOrEqual(2)
-  let finishFirst!: (value: ArrayBuffer) => void
+  expect(inputs).toHaveLength(1)
   let finishSecond!: (value: ArrayBuffer) => void
   const file = (
     name: string,
@@ -1682,25 +1666,14 @@ it('keeps submission blocked until both independent attachment reads finish and 
   }
   Object.defineProperty(inputs[0]!.element, 'files', {
     value: [
-      file('first.pdf', (done) => {
-        finishFirst = done
-      }),
-    ],
-  })
-  Object.defineProperty(inputs[1]!.element, 'files', {
-    value: [
       file('second.pdf', (done) => {
         finishSecond = done
       }),
     ],
   })
   await inputs[0]!.trigger('change')
-  await inputs[1]!.trigger('change')
   const submit = () =>
     wrapper.findAll('button').find((button) => button.text() === '提交')!
-  expect(submit().attributes('disabled')).toBeDefined()
-  finishFirst(new ArrayBuffer(8))
-  await vi.waitFor(() => expect(wrapper.text()).toContain('first.pdf'))
   expect(submit().attributes('disabled')).toBeDefined()
   await confirmItems(wrapper)
   await click(wrapper, '提交')

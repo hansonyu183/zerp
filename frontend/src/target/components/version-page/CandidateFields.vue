@@ -10,6 +10,8 @@ import EditForm from '../dynamic-fields/EditForm.vue'
 import WflScriptBlock from './WflScriptBlock.vue'
 import ProductDetailsEditor from './ProductDetailsEditor.vue'
 import CustomerDetailsEditor from './CustomerDetailsEditor.vue'
+import SnapshotReference from '../dynamic-fields/SnapshotReference.vue'
+import type { TaxInformationSnapshot } from '@zerp/model'
 import IdentityAssociations from './IdentityAssociations.vue'
 const props = defineProps<{
   resource: VersionDefinition['resource']
@@ -25,20 +27,9 @@ const emit = defineEmits<{
 function patch(value: object) {
   emit('update:modelValue', { ...props.modelValue, ...value })
 }
-const customerEditor = computed(() => {
-  const {
-    defaultOperatingEntity,
-    remittanceProfiles,
-    identityAttachments,
-    subunits,
-  } = props.modelValue as unknown as CustomerSnapshot
-  return {
-    defaultOperatingEntity,
-    remittanceProfiles,
-    identityAttachments,
-    subunits,
-  }
-})
+const customerEditor = computed(
+  () => props.modelValue as unknown as CustomerSnapshot,
+)
 const productEditor = computed(() => {
   const {
     productType,
@@ -93,14 +84,14 @@ const identityEditor = computed(() => {
     @pending="emit('pending', $event)"
   />
   <ProductDetailsEditor
-    v-else-if="resource === 'bob/product'"
+    v-else-if="resource === 'bob/product' || resource === 'dcl/product'"
     :model-value="productEditor"
     :disabled="disabled"
     @update:model-value="patch"
     @pending="emit('pending', $event)"
   />
   <CustomerDetailsEditor
-    v-else-if="resource === 'bob/customer'"
+    v-else-if="resource === 'bob/customer' || resource === 'dcl/customer'"
     :model-value="customerEditor"
     :disabled="disabled"
     @update:model-value="patch"
@@ -111,5 +102,16 @@ const identityEditor = computed(() => {
     :model-value="identityEditor"
     :disabled="disabled"
     @update:model-value="patch"
+  />
+  <SnapshotReference
+    v-if="resource.endsWith('/customer') || resource.endsWith('/supplier')"
+    source="tax-information"
+    caption="税务信息"
+    multiple
+    :model-value="modelValue.taxInformation as TaxInformationSnapshot[]"
+    :disabled="disabled"
+    @update:model-value="
+      patch({ taxInformation: Array.isArray($event) ? $event : [] })
+    "
   />
 </template>

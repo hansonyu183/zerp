@@ -66,10 +66,7 @@ test('target schema preserves typed voucher storage and persistence boundaries',
     'vou_bill_line_snapshots',
   ])
     assert.ok(tables.includes(table), table)
-  assert.match(
-    schema,
-    /bob_subjects_customer_code_ck CHECK \(entity <> 'customer' OR code ~ '\^CUS-/,
-  )
+  assert.match(schema, /entity = 'customer' AND code ~ '\^CUS-/)
   for (const [entity, prefix] of [
     ['supplier', 'SUP'],
     ['other-unit', 'OTU'],

@@ -48,6 +48,8 @@ import {
   type DocumentCommand,
 } from './draft.ts'
 import type { IntermediaryScriptEditor } from './intermediary-data.ts'
+import UnbilledSales from './UnbilledSales.vue'
+import { businessDate } from './business-date.ts'
 import type { OrderDraft } from './order-data.ts'
 const props = defineProps<{ definition: DocumentDefinition }>()
 const definition =
@@ -60,6 +62,43 @@ const editorAvailable =
 const session = useTargetSession(),
   generation = session.generation
 let active = true
+const unbilledPeriodMonth = ref(businessDate().slice(0, 7)),
+  unbilledBusy = ref(false),
+  unbilledError = ref('')
+const unbilledResult = ref<Awaited<
+  ReturnType<typeof api.queryTargetUnbilledSales>
+> | null>(null)
+const canQueryUnbilled = computed(
+  () =>
+    active &&
+    session.generation === generation &&
+    definition.vouType === 'sale-invoice' &&
+    vm.can('unbilled'),
+)
+async function queryUnbilled() {
+  const current = () => active && session.generation === generation
+  if (
+    !current() ||
+    !canQueryUnbilled.value ||
+    unbilledBusy.value ||
+    !session.csrfToken
+  )
+    return
+  unbilledBusy.value = true
+  unbilledError.value = ''
+  try {
+    const next = await api.queryTargetUnbilledSales(
+      session.csrfToken,
+      unbilledPeriodMonth.value,
+    )
+    if (current() && canQueryUnbilled.value) unbilledResult.value = next
+  } catch (error) {
+    if (current() && canQueryUnbilled.value)
+      unbilledError.value = documentError(error)
+  } finally {
+    if (current()) unbilledBusy.value = false
+  }
+}
 const attachments = createAttachments(
   definition.vouType === 'opening'
     ? 'vou/purchase-order'
@@ -514,6 +553,14 @@ onBeforeUnmount(() => {
 })
 </script>
 <template>
+  <UnbilledSales
+    v-if="canQueryUnbilled"
+    v-model="unbilledPeriodMonth"
+    :busy="unbilledBusy"
+    :error="unbilledError"
+    :result="unbilledResult"
+    @query="queryUnbilled"
+  />
   <ManagementPageFrame :title="definition.title" data-testid="vou-list-page">
     <template #actions
       ><v-btn

@@ -10,6 +10,7 @@ type PermissionCandidate = Pick<
 const permissionStatusLabels = { ENABLED: '启用', DISABLED: '停用' } as const
 export const permissionActionLabels: Readonly<Record<string, string>> = {
   query: '查询',
+  unbilled: '查询未开票收入',
   get: '查看',
   create: '新增',
   save: '保存',
@@ -37,7 +38,6 @@ export const permissionActionLabels: Readonly<Record<string, string>> = {
   'open-document': '打开单据',
   reference: '查询引用',
   'retry-child': '重试子单据',
-  'save-subunits': '保存子项',
   'submit-change': '提交变更',
   'submit-new': '提交新建',
   trial: '试算',

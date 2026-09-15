@@ -168,10 +168,10 @@ export async function intermediarySource(
       reference_code: string
       reference_name: string
     }>`
-      SELECT ref.object_id, ref.approval_reference_id, root.code AS reference_code, subunit.name AS reference_name
+      SELECT ref.object_id, ref.approval_reference_id, root.code AS reference_code, customer.display_name AS reference_name
       FROM vou_reference_snapshots ref
-      JOIN bob_customer_subunit_roots root ON root.subunit_id = ref.object_id
-      JOIN bob_customer_version_subunits subunit ON subunit.subunit_id = ref.object_id AND subunit.customer_approval_entry_id = ref.approval_reference_id
+      JOIN bob_archive_objects root ON root.id = ref.object_id
+      JOIN dcl_customer_versions customer ON customer.approval_entry_id = ref.approval_reference_id
       WHERE ref.approval_entry_id = ${approvalEntryId} AND ref.field = ${field} AND ref.line_no = 0 AND ref.item_no = 0
     `.execute(tx)
     const row = result.rows[0]
@@ -182,7 +182,7 @@ export async function intermediarySource(
     )
       throw new VouApplicationError('vou_intermediary_source_basis_missing')
     return {
-      entity: 'customer-subunit',
+      entity: 'customer',
       objectId: row.object_id,
       approvalEntryId: row.approval_reference_id,
       code: row.reference_code,
@@ -246,7 +246,7 @@ export async function intermediarySource(
       pricing_snapshot: import('@zerp/model').CustomerPricingPolicy
     }>`SELECT primary_sales_attribution_type, primary_sales_attribution_object_id, primary_sales_attribution_approval_entry_id,
       primary_sales_attribution_code, primary_sales_attribution_name, settlement_snapshot, customer_type_snapshot, transport_snapshot, pricing_snapshot
-      FROM bob_customer_version_subunits WHERE customer_approval_entry_id = ${orderPayload.customerSubunit.approvalEntryId} AND subunit_id = ${orderPayload.customerSubunit.objectId}`.execute(
+      FROM dcl_customer_versions WHERE approval_entry_id = ${orderPayload.customer.approvalEntryId}`.execute(
       tx,
     )
     const basis = customer.rows[0]
@@ -324,8 +324,8 @@ export async function intermediarySource(
         SELECT ref.object_id, line.sales_product_approval_entry_id AS approval_reference_id, subject.code AS reference_code, product.name AS reference_name, product.behavior_profile,
           line.standard_piece_base_quantity_micros::text, line.sales_reference_unit_price_minor::text
         FROM vou_product_line_snapshots line JOIN vou_reference_snapshots ref ON ref.approval_entry_id = line.approval_entry_id AND ref.line_no = line.line_no AND ref.field = 'product'
-        JOIN bob_product_versions product ON product.approval_entry_id = line.sales_product_approval_entry_id
-        JOIN bob_subjects subject ON subject.id = ref.object_id
+        JOIN dcl_product_versions product ON product.approval_entry_id = line.sales_product_approval_entry_id
+        JOIN bob_archive_objects subject ON subject.id = ref.object_id
         WHERE line.approval_entry_id = ${order.approvalEntryId} AND line.line_id = ${signed.sourceLineId}
       `.execute(tx)
       const productBasis = product.rows[0]
@@ -346,7 +346,7 @@ export async function intermediarySource(
       const due = dueDate(payload.businessDate, basis.settlement_snapshot)
       const customerRef = await customerReference(
         order.approvalEntryId,
-        'customerSubunit',
+        'customer',
       )
       facts.push({
         rootLineId: signed.sourceLineId,
@@ -430,7 +430,7 @@ export async function intermediarySource(
     }
     signoffs.push({
       id: meta.documentId,
-      customerId: orderPayload.customerSubunit.objectId,
+      customerId: orderPayload.customer.objectId,
       date: payload.businessDate,
       documentNo: meta.documentNo,
       amount,
@@ -489,15 +489,15 @@ export async function intermediarySource(
     entity: string | null
     amount: string
   }>`
-    SELECT journal.id, journal.business_date::text AS date, line.dimensions->>'CUSTOMER_SUBUNIT' AS customer_id,
+    SELECT journal.id, journal.business_date::text AS date, line.dimensions->>'CUSTOMER' AS customer_id,
       journal.source_kind, document.entity,
       SUM(CASE WHEN line.direction = 'CREDIT' THEN line.amount ELSE -line.amount END)::text AS amount
     FROM acc_journal_entries journal JOIN acc_journal_lines line ON line.journal_entry_id = journal.id
     JOIN acc_subjects subject ON subject.id = line.subject_id
     LEFT JOIN vou_documents document ON document.id = journal.vou_document_id
     WHERE journal.book_id = ${book.id} AND journal.currency = 'CNY' AND journal.business_date <= ${period.periodEnd}::date
-      AND subject.settlement_purpose = 'RECEIVABLE' AND line.dimensions ? 'CUSTOMER_SUBUNIT'
-    GROUP BY journal.id, journal.business_date, line.dimensions->>'CUSTOMER_SUBUNIT', journal.source_kind, document.entity
+      AND subject.settlement_purpose = 'RECEIVABLE' AND line.dimensions ? 'CUSTOMER'
+    GROUP BY journal.id, journal.business_date, line.dimensions->>'CUSTOMER', journal.source_kind, document.entity
     ORDER BY journal.business_date, journal.id
   `.execute(tx)
   const opening = new Map<string, bigint>()
@@ -640,10 +640,7 @@ export async function intermediarySource(
         receiptDocumentId: meta.documentId,
         receiptDocumentNo: meta.documentNo,
         receiptDate: payload.businessDate,
-        customer: await customerReference(
-          meta.approvalEntryId,
-          'customerSubunit',
-        ),
+        customer: await customerReference(meta.approvalEntryId, 'customer'),
         billType: bill.billType,
         faceAmount: bill.faceAmount,
         issueDate: bill.issueDate,

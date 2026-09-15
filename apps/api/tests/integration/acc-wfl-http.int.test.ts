@@ -1,7 +1,7 @@
 import { approveEmptyIntermediaryMonth } from '../fixtures/vou-intermediary.ts'
 import { VouOpeningService } from '../../src/vou/opening-service.ts'
 import { withWflDatabase } from './wfl-fixture.ts'
-import { BobArchiveService } from '../../src/bob/archives.ts'
+import { DclArchiveService } from '../../src/dcl/archives.ts'
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
 import test from 'node:test'
@@ -169,7 +169,7 @@ function post(
 }
 
 async function seedSaleOrderReferences(
-  bobArchives: BobArchiveService,
+  dclArchives: DclArchiveService,
   aux: AuxService,
   actorId: string,
   reviewerId: string,
@@ -258,7 +258,7 @@ async function seedSaleOrderReferences(
       const { enabled: _enabled, ...content } = snapshot
       snapshot = content
     }
-    const domain = 'bob'
+    const domain = 'dcl'
     const objectId = ulid(),
       approvalEntryId = ulid()
     const input = {
@@ -288,7 +288,7 @@ async function seedSaleOrderReferences(
       )
     const pending = pendingResponse
       ? pendingResponse.data
-      : await bobArchives.submit(
+      : await dclArchives.submit(
           entity,
           'submit-new',
           input,
@@ -316,7 +316,7 @@ async function seedSaleOrderReferences(
       )
     const approved = approvedResponse
       ? approvedResponse.data
-      : await bobArchives.review(
+      : await dclArchives.review(
           entity,
           'approve',
           reviewInput,
@@ -327,7 +327,7 @@ async function seedSaleOrderReferences(
       const readback = await post(
         origin,
         reviewerSession,
-        `/${domain}/${entity}/${domain === 'bob' ? 'submission-get' : 'get'}`,
+        `/${domain}/${entity}/submission-get`,
         { subjectId: objectId },
       )
       assert.equal(readback.code, 0)
@@ -371,63 +371,44 @@ async function seedSaleOrderReferences(
     operatingEntityId: operatingEntity.id,
     remark: '',
   })
-  const customerSubunitId = ulid()
   const customer = await submit('customer', {
-    identityKind: 'OTHER',
-    legalName: 'HTTP 客户',
     displayName: 'HTTP 客户',
-    legalIdentifier: `HTTP-CUS-${actorId}`,
     phone: '',
     email: '',
-    address: '',
-    invoiceTitle: '',
-    invoiceAddress: '',
-    invoicePhone: '',
-    invoiceBank: '',
-    invoiceAccount: '',
     remittanceProfiles: [],
     defaultOperatingEntity: null,
-    identityAttachments: [],
-    subunits: [
-      {
-        id: customerSubunitId,
-        intent: 'NEW',
-        code: null,
-        name: 'HTTP 客户子单位',
-        contactName: '',
-        address: '',
-        customerType: {
-          id: customerType.id,
-          code: customerType.code,
-          name: customerType.name,
-        },
-        settlementMethod: null,
-        paymentMethod: null,
-        transportPolicy: {
-          methodCode: 'SELF_PICKUP',
-          methodName: '自提',
-          surcharge: '0.00',
-        },
-        pricingPolicy: {
-          defaultPremiumUnitPrice: '0.00',
-          defaultDiscountUnitPrice: '0.00',
-          costItems: [],
-          thirdPartyIntermediaryFixedUnitCost: '0.00',
-          thirdPartyIntermediaryVariableUnitCost: '0.00',
-        },
-        creditLimits: [],
-        primarySalesAttribution: {
-          type: 'INTERNAL_EMPLOYEE',
-          objectId: employee.id,
-          code: employee.code,
-          name: employee.name,
-        },
-        internalReminder: '',
-        defaultSalesOrderRemark: '',
-        attachments: [],
-        enabled: true,
-      },
-    ],
+    contactName: '',
+    address: '',
+    customerType: {
+      id: customerType.id,
+      code: customerType.code,
+      name: customerType.name,
+    },
+    settlementMethod: null,
+    paymentMethod: null,
+    transportPolicy: {
+      methodCode: 'SELF_PICKUP',
+      methodName: '自提',
+      surcharge: '0.00',
+    },
+    pricingPolicy: {
+      defaultPremiumUnitPrice: '0.00',
+      defaultDiscountUnitPrice: '0.00',
+      costItems: [],
+      thirdPartyIntermediaryFixedUnitCost: '0.00',
+      thirdPartyIntermediaryVariableUnitCost: '0.00',
+    },
+    creditLimits: [],
+    primarySalesAttribution: {
+      type: 'INTERNAL_EMPLOYEE',
+      objectId: employee.id,
+      code: employee.code,
+      name: employee.name,
+    },
+    internalReminder: '',
+    defaultSalesOrderRemark: '',
+    attachments: [],
+    taxInformation: [],
   })
   const product = await submit('product', {
     name: 'HTTP 产品',
@@ -488,9 +469,9 @@ async function seedSaleOrderReferences(
   const warehouseSubjectId = warehouseCurrent.id
   const facts = [
     {
-      entity: 'customer-subunit',
-      field: 'customer-subunit',
-      objectId: customerSubunitId,
+      entity: 'customer',
+      field: 'customer',
+      objectId: customer.objectId,
       approvalEntryId: customer.approvalEntryId,
     },
     {
@@ -550,7 +531,7 @@ async function seedSaleOrderReferences(
 function saleOrderPayload(
   references: Awaited<ReturnType<typeof seedSaleOrderReferences>>,
 ): VouPayload {
-  const versionedReference = (field: 'customer-subunit') => {
+  const versionedReference = (field: 'customer') => {
     const fact = references.facts.find((item) => item.field === field)
     if (!fact || !('approvalEntryId' in fact))
       throw new Error(`missing versioned ${field} fixture`)
@@ -571,7 +552,7 @@ function saleOrderPayload(
     businessDate: '2026-09-04',
     currency: 'CNY',
     attachments: [],
-    customerSubunit: versionedReference('customer-subunit'),
+    customer: versionedReference('customer'),
     paymentMethod: null,
     operatingEntity: currentReference('operating-entity'),
     salesperson: currentReference('salesperson'),
@@ -917,7 +898,7 @@ test('WFL definition, current, trial, instance and six actions cross the authent
       acc,
       opening: new VouOpeningService(db, acc),
       wfl,
-      bobArchives: new BobArchiveService(db),
+      dclArchives: new DclArchiveService(db),
       aux,
       logger: {
         info() {},
@@ -939,14 +920,13 @@ test('WFL definition, current, trial, instance and six actions cross the authent
     assert.ok(address && typeof address !== 'string')
     const origin = `http://127.0.0.1:${address.port}`
     const wflPaths = [
-      '/bob/product/submit-new',
-      '/bob/product/approve',
-      '/bob/product/submission-get',
-      '/bob/customer/submit-new',
-      '/bob/customer/save-subunits',
-      '/bob/customer/approve',
+      '/dcl/product/submit-new',
+      '/dcl/product/approve',
+      '/dcl/product/submission-get',
+      '/dcl/customer/submit-new',
+      '/dcl/customer/approve',
       '/bob/customer/get',
-      '/bob/customer/submission-get',
+      '/dcl/customer/submission-get',
       '/wfl/process-definition/submit-new',
       '/wfl/process-definition/submission-query',
       '/wfl/process-definition/submission-get',
@@ -1007,7 +987,7 @@ test('WFL definition, current, trial, instance and six actions cross the authent
       permissions: allPermissions,
     }
     refs = await seedSaleOrderReferences(
-      new BobArchiveService(db),
+      new DclArchiveService(db),
       aux,
       submitter.id,
       reviewer.id,

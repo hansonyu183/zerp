@@ -2,28 +2,17 @@ import {
   emptyCustomer,
   cloneCustomer,
   validateCustomer,
-  customerIdentityLabels,
   customerTextFields,
 } from '../components/version-page/customer-data.ts'
 import * as api from '../api.ts'
 import { defineVersionPage } from '../components/version-page/definition.ts'
 export const customerPage = defineVersionPage<'bob/customer'>({
   resource: 'bob/customer',
-  fields: [
-    {
-      key: 'identityKind',
-      type: 'enum',
-      caption: '身份类型',
-      options: Object.entries(customerIdentityLabels).map(
-        ([value, caption]) => ({ value, caption }),
-      ),
-    },
-    ...customerTextFields.map((field) => ({
-      key: field.key,
-      type: 'text' as const,
-      caption: field.label,
-    })),
-  ],
+  fields: customerTextFields.map((field) => ({
+    key: field.key,
+    type: 'text' as const,
+    caption: field.label,
+  })),
   adapter: {
     empty: emptyCustomer,
     clone: cloneCustomer,
@@ -59,3 +48,8 @@ export const customerPage = defineVersionPage<'bob/customer'>({
       ),
   },
 })
+
+export const customerChangesPage = {
+  ...customerPage,
+  resource: 'dcl/customer' as const,
+}

@@ -10,6 +10,7 @@ export type SnapshotReferenceSource = Extract<
   | 'settlement-rules'
   | 'sales-settlement-methods'
   | 'sales-payment-methods'
+  | 'tax-information'
   | 'customer-types'
   | 'product-types'
   | 'product-categories'

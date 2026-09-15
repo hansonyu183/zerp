@@ -7,7 +7,7 @@ import {
 import type { TargetRouteEnvironment } from '../app/contract.ts'
 import { archiveEntityPresentation } from '@zerp/model'
 
-export const bobArchiveEntities = [
+export const dclArchiveEntities = [
   'customer',
   'product',
   'supplier',
@@ -15,9 +15,9 @@ export const bobArchiveEntities = [
   'sales-partner',
 ] as const
 
-export type BobArchiveEntity = (typeof bobArchiveEntities)[number]
+export type DclArchiveEntity = (typeof dclArchiveEntities)[number]
 
-export type ArchiveEntity = BobArchiveEntity
+export type ArchiveEntity = DclArchiveEntity
 
 export const archiveActions = [
   'query',
@@ -149,12 +149,6 @@ const settlementSnapshot = auxSnapshot.extend({
   dayOfMonth: z.number().int().min(0).max(31).optional(),
   dayOffset: z.number().int().min(0).max(30).optional(),
 })
-const identityKind = z.enum([
-  'MAINLAND_ENTERPRISE',
-  'MAINLAND_INDIVIDUAL',
-  'OTHER',
-])
-
 // Settlement methods are AUX facts. They intentionally do not carry an
 // Approval Entry: a DCL exact-version reference here would fabricate history.
 // ArchiveService replaces any client-supplied identity with these immutable
@@ -237,64 +231,47 @@ const customerSalesAttribution = z.discriminatedUnion('type', [
   }),
 ])
 
-const customerSubunitBase = {
-  id: z.string().length(26),
-  name: z.string().min(1).max(200),
-  contactName: z.string().max(100),
-  address: z.string().max(500),
-  customerType: auxSnapshot,
-  settlementMethod: customerSettlementSnapshot.nullable(),
-  paymentMethod: paymentMethodSnapshot.nullable(),
-  transportPolicy: z
-    .object({
-      methodCode: z.string().min(1).max(64),
-      methodName: z.string().min(1).max(200),
-      surcharge: z.string().regex(/^(?:0|[1-9]\d*)\.\d{2}$/),
-    })
-    .strict(),
-  pricingPolicy,
-  creditLimits: z.array(
-    z
-      .object({ currency: z.string().min(1).max(16), amount: z.string() })
-      .strict(),
-  ),
-  primarySalesAttribution: customerSalesAttribution,
-  internalReminder: z.string().max(1000),
-  defaultSalesOrderRemark: z.string().max(1000),
-  attachments: z.array(attachmentMetadata),
-  enabled: z.boolean(),
-} as const
-const customerSubunit = z.discriminatedUnion('intent', [
-  z
-    .object({
-      ...customerSubunitBase,
-      intent: z.literal('NEW'),
-      code: z.null(),
-    })
-    .strict(),
-  z
-    .object({
-      ...customerSubunitBase,
-      intent: z.literal('EXISTING'),
-      code: z.string().regex(/^SUB-\d{4}$/),
-    })
-    .strict(),
-])
-
+export const taxInformationSnapshot = z
+  .object({
+    id: z.string().length(26),
+    code: z.string().min(1).max(64),
+    revision: z.string().regex(/^[1-9]\d*$/),
+    name: z.string().min(1).max(200),
+    taxNumber: z.string().min(1).max(128),
+    registeredAddress: z.string().max(500),
+    phone: z.string().max(32),
+    bank: z.string().max(200),
+    accountNumber: z.string().max(128),
+    remark: z.string().max(1000),
+  })
+  .strict()
 const customerSnapshot = z
   .object({
-    identityKind,
-    legalName: z.string().min(1).max(200),
     displayName: z.string().min(1).max(200),
-    legalIdentifier: z.string().max(128),
     phone: z.string().max(32),
     email: z.string().max(320),
+    contactName: z.string().max(100),
     address: z.string().max(500),
-    invoiceTitle: z.string().max(200),
-    invoiceAddress: z.string().max(500),
-    invoicePhone: z.string().max(32),
-    invoiceBank: z.string().max(200),
-    invoiceAccount: z.string().max(128),
+    customerType: auxSnapshot,
+    settlementMethod: customerSettlementSnapshot.nullable(),
+    paymentMethod: paymentMethodSnapshot.nullable(),
+    transportPolicy: z
+      .object({
+        methodCode: z.string().min(1).max(64),
+        methodName: z.string().min(1).max(200),
+        surcharge: z.string().regex(/^(?:0|[1-9]\d*)\.\d{2}$/),
+      })
+      .strict(),
+    pricingPolicy,
+    creditLimits: z.array(
+      z
+        .object({ currency: z.string().min(1).max(16), amount: z.string() })
+        .strict(),
+    ),
+    primarySalesAttribution: customerSalesAttribution,
+    internalReminder: z.string().max(1000),
+    defaultSalesOrderRemark: z.string().max(1000),
+    attachments: z.array(attachmentMetadata),
     remittanceProfiles: z.array(
       z
         .object({
@@ -305,8 +282,7 @@ const customerSnapshot = z
         .strict(),
     ),
     defaultOperatingEntity: stableReference.nullable(),
-    identityAttachments: z.array(attachmentMetadata),
-    subunits: z.array(customerSubunit).min(1),
+    taxInformation: z.array(taxInformationSnapshot),
   })
   .strict()
 
@@ -325,7 +301,14 @@ const archiveIdentityBase = {
 
 const supplierSnapshot = z
   .object({
-    ...archiveIdentityBase,
+    displayName: archiveIdentityBase.displayName,
+    contactName: archiveIdentityBase.contactName,
+    phone: archiveIdentityBase.phone,
+    address: archiveIdentityBase.address,
+    operatingEntities: archiveIdentityBase.operatingEntities,
+    defaultOperatingEntityId: archiveIdentityBase.defaultOperatingEntityId,
+    remark: archiveIdentityBase.remark,
+    taxInformation: z.array(taxInformationSnapshot),
     settlementMethod: settlementSnapshot.nullable(),
     defaultPurchaser: stableReference.nullable(),
   })
@@ -345,15 +328,15 @@ const salesPartnerSnapshot = z
   })
   .strict()
 
-export const bobArchiveSnapshotSchemas = {
+export const dclArchiveSnapshotSchemas = {
   customer: customerSnapshot,
   product: productSnapshot,
   supplier: supplierSnapshot,
   'other-unit': otherUnitSnapshot,
   'sales-partner': salesPartnerSnapshot,
-} as const satisfies Record<BobArchiveEntity, z.ZodType>
+} as const satisfies Record<DclArchiveEntity, z.ZodType>
 
-export const archiveSnapshotSchemas = bobArchiveSnapshotSchemas
+export const archiveSnapshotSchemas = dclArchiveSnapshotSchemas
 
 const identity = z.object({ subjectId: z.string().length(26) }).strict()
 
@@ -387,7 +370,7 @@ export const archiveQuerySchemas = {
   supplier: archiveQueryInput(archiveQueryBaseFilters),
   'other-unit': archiveQueryInput(archiveQueryBaseFilters),
   'sales-partner': archiveQueryInput(archiveQueryBaseFilters),
-} as const satisfies Record<BobArchiveEntity, z.ZodType>
+} as const satisfies Record<DclArchiveEntity, z.ZodType>
 
 const reviewBase = z
   .object({
@@ -433,7 +416,7 @@ export const archiveBlockerSchema = z.discriminatedUnion('kind', [
   z
     .object({
       kind: z.enum(['PRODUCT_REFERENCE', 'CUSTOMER_REFERENCE']),
-      domain: z.enum(['bob', 'vou', 'acc']),
+      domain: z.enum(['dcl', 'vou', 'acc']),
       entity: z.string(),
       objectId: z.string().length(26),
       approvalEntryId: z.string().length(26),
@@ -463,7 +446,6 @@ function defineArchiveRoutes<const Entity extends ArchiveEntity>(
   entity: Entity,
   snapshot: (typeof archiveSnapshotSchemas)[Entity],
 ) {
-  const domain = 'bob'
   const queryAction = 'submission-query'
   const getAction = 'submission-get'
   const submission = z.object({
@@ -599,7 +581,7 @@ function defineArchiveRoutes<const Entity extends ArchiveEntity>(
   ) =>
     createRoute({
       method: 'post',
-      path: `/${domain}/${entity}/${action}` as const,
+      path: `/${action === 'versions' || action === 'audit-history' ? 'bob' : 'dcl'}/${entity}/${action}` as `/${Action extends 'versions' | 'audit-history' ? 'bob' : 'dcl'}/${Entity}/${Action}`,
       request: {
         body: { content: { 'application/json': { schema: request } } },
       },
@@ -613,7 +595,13 @@ function defineArchiveRoutes<const Entity extends ArchiveEntity>(
   return {
     query: route(queryAction, archiveQuerySchemas[entity], queryPageEnvelope),
     get: route(getAction, get, envelope),
-    versions: route('versions', identity, submissionPageEnvelope),
+    versions: route(
+      'versions',
+      identity
+        .extend({ submissionId: z.string().length(26).optional() })
+        .strict(),
+      submissionPageEnvelope,
+    ),
     'audit-history': route('audit-history', identity, auditEnvelope),
     'submit-new': route('submit-new', submit, envelope),
     'submit-change': route('submit-change', submit, envelope),
@@ -629,7 +617,7 @@ function defineArchiveRoutes<const Entity extends ArchiveEntity>(
   } as const
 }
 
-export const bobArchiveRouteSets = {
+export const dclArchiveRouteSets = {
   customer: defineArchiveRoutes('customer', archiveSnapshotSchemas.customer),
   product: defineArchiveRoutes('product', archiveSnapshotSchemas.product),
 
@@ -643,14 +631,14 @@ export const bobArchiveRouteSets = {
     archiveSnapshotSchemas['sales-partner'],
   ),
 } as const
-export const archiveRouteSets = bobArchiveRouteSets
+export const archiveRouteSets = dclArchiveRouteSets
 
-export const bobArchiveRouteMetadata: Array<{
+export const dclArchiveRouteMetadata: Array<{
   method: string
   path: string
   permission: string
   title: string
-}> = bobArchiveEntities.flatMap((entity) =>
+}> = dclArchiveEntities.flatMap((entity) =>
   archiveActions.map((action) => ({
     method: archiveRouteSets[entity][action].method,
     path: archiveRouteSets[entity][action].path,
@@ -661,18 +649,6 @@ export const bobArchiveRouteMetadata: Array<{
         : `${action} ${entity}`,
   })),
 )
-
-/**
- * Capabilities authorize a bounded part of a real route, not a synthetic HTTP
- * endpoint. Keep them out of executable-route completeness checks while still
- * emitting them into the target permission catalog.
- */
-export const archiveCapabilityPermissionMetadata = [
-  {
-    permission: '/bob/customer/save-subunits',
-    title: '维护客户子单位',
-  },
-] as const
 
 const attachmentStageRequest = z
   .object({
@@ -779,9 +755,14 @@ export const customerAttachmentReadRoute = createRoute({
   },
 })
 
+export const customerSubmissionAttachmentReadRoute = createRoute({
+  ...customerAttachmentReadRoute,
+  path: '/dcl/customer/attachment-read' as const,
+})
+
 export const customerAttachmentStageRoute = createRoute({
   method: 'post',
-  path: '/bob/customer/attachment-stage',
+  path: '/dcl/customer/attachment-stage',
   request: {
     body: {
       content: { 'application/json': { schema: attachmentStageRequest } },
@@ -796,7 +777,7 @@ export const customerAttachmentStageRoute = createRoute({
 })
 export const customerAttachmentCleanupRoute = createRoute({
   method: 'post',
-  path: '/bob/customer/attachment-cleanup',
+  path: '/dcl/customer/attachment-cleanup',
   request: {
     body: {
       content: {
@@ -812,7 +793,13 @@ export const customerAttachmentCleanupRoute = createRoute({
   },
 })
 
-bobArchiveRouteMetadata.push(
+dclArchiveRouteMetadata.push(
+  {
+    method: 'post',
+    path: customerSubmissionAttachmentReadRoute.path,
+    permission: customerSubmissionAttachmentReadRoute.path,
+    title: '读取客户提交件附件',
+  },
   {
     method: customerAttachmentReadRoute.method,
     path: customerAttachmentReadRoute.path,
@@ -833,23 +820,27 @@ bobArchiveRouteMetadata.push(
   },
 )
 
-export type BobArchiveRouteHandler = (
-  entity: BobArchiveEntity,
+export type DclArchiveRouteHandler = (
+  entity: DclArchiveEntity,
   action: ArchiveAction,
   context: Parameters<
     RouteHandler<
-      (typeof archiveRouteSets)[BobArchiveEntity][ArchiveAction],
+      (typeof archiveRouteSets)[DclArchiveEntity][ArchiveAction],
       TargetRouteEnvironment
     >
   >[0],
 ) => ReturnType<
   RouteHandler<
-    (typeof archiveRouteSets)[BobArchiveEntity][ArchiveAction],
+    (typeof archiveRouteSets)[DclArchiveEntity][ArchiveAction],
     TargetRouteEnvironment
   >
 >
 
 export interface ArchiveAttachmentHandlers {
+  submissionRead: RouteHandler<
+    typeof customerSubmissionAttachmentReadRoute,
+    TargetRouteEnvironment
+  >
   read: RouteHandler<typeof customerAttachmentReadRoute, TargetRouteEnvironment>
 
   stage: RouteHandler<
@@ -863,16 +854,16 @@ export interface ArchiveAttachmentHandlers {
 }
 
 function archiveHandler(
-  handler: BobArchiveRouteHandler,
-  entity: BobArchiveEntity,
+  handler: DclArchiveRouteHandler,
+  entity: DclArchiveEntity,
   action: ArchiveAction,
 ) {
   return handler.bind(null, entity, action)
 }
 
-export function registerBobArchiveRoutes(
+export function registerDclArchiveRoutes(
   app: OpenAPIHono<TargetRouteEnvironment>,
-  handler: BobArchiveRouteHandler,
+  handler: DclArchiveRouteHandler,
   attachments: ArchiveAttachmentHandlers,
 ) {
   return app.openapiRoutes([
@@ -922,6 +913,10 @@ export function registerBobArchiveRoutes(
     },
 
     { route: customerAttachmentReadRoute, handler: attachments.read },
+    {
+      route: customerSubmissionAttachmentReadRoute,
+      handler: attachments.submissionRead,
+    },
     { route: customerAttachmentStageRoute, handler: attachments.stage },
     { route: customerAttachmentCleanupRoute, handler: attachments.cleanup },
     {

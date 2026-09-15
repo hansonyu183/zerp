@@ -9,9 +9,9 @@ import { sql } from 'kysely'
 import { ulid } from 'ulid'
 
 import {
-  BobArchiveApplicationError,
-  BobArchiveService,
-} from '../../src/bob/archives.ts'
+  DclArchiveApplicationError,
+  DclArchiveService,
+} from '../../src/dcl/archives.ts'
 import { AuxApplicationError, AuxService } from '../../src/aux/service.ts'
 import { createDatabase } from '../../src/db/database.ts'
 import { searchPinyin } from '../../src/platform/pinyin.ts'
@@ -28,7 +28,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   const attachmentStore = new AttachmentStore(attachmentRoot, {
     orphanGraceMs: 0,
   })
-  const bobArchives = new BobArchiveService(db, { attachmentStore })
+  const dclArchives = new DclArchiveService(db, { attachmentStore })
   const submitterId = ulid()
   const reviewerId = ulid()
   const submitter = {
@@ -66,7 +66,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
         .where('created_by', '=', submitterId)
         .execute()
       await db
-        .deleteFrom('bob_subjects')
+        .deleteFrom('dcl_subjects')
         .where('created_by', '=', submitterId)
         .execute()
       if (currentPeopleIds.length)
@@ -164,7 +164,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     )
     .execute()
   async function submitAndApprove(
-    entity: Parameters<BobArchiveService['submit']>[0],
+    entity: Parameters<DclArchiveService['submit']>[0],
     snapshot: Record<string, unknown>,
   ) {
     const subjectId = ulid()
@@ -178,7 +178,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       expectedLatestApprovedRevision: null,
       snapshot,
     }
-    const pending = await bobArchives.submit(
+    const pending = await dclArchives.submit(
       entity,
       'submit-new',
       input,
@@ -190,7 +190,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       submissionId,
       expectedRevision: pending.revision,
     }
-    const approved = await bobArchives.review(
+    const approved = await dclArchives.review(
       entity,
       'approve',
       review,
@@ -199,7 +199,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     )
     assert.equal(approved.status, 'APPROVED')
     assert.deepEqual(approved.snapshot, pending.snapshot)
-    const history = await bobArchives.auditHistory(entity, subjectId, reviewer)
+    const history = await dclArchives.auditHistory(entity, subjectId, reviewer)
     assert.equal(history.length, 2)
     return approved
   }
@@ -424,7 +424,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     behaviorProfile: 'STANDARD_FINISHED',
   })
   const persistedFormula = await db
-    .selectFrom('bob_product_versions')
+    .selectFrom('dcl_product_versions')
     .select(['unit_conversions', 'fixed_formula'])
     .where('approval_entry_id', '=', formulaProduct.submissionId)
     .executeTakeFirstOrThrow()
@@ -433,7 +433,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   const invalidProductSubjectId = ulid()
   subjectIds.push(invalidProductSubjectId)
   await assert.rejects(
-    bobArchives.submit(
+    dclArchives.submit(
       'product',
       'submit-new',
       {
@@ -455,7 +455,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       ulid(),
     ),
     (error: unknown) =>
-      error instanceof BobArchiveApplicationError &&
+      error instanceof DclArchiveApplicationError &&
       error.errorKey === 'product_reference_unavailable',
   )
   await db
@@ -466,7 +466,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   const malformedUnitSubjectId = ulid()
   subjectIds.push(malformedUnitSubjectId)
   await assert.rejects(
-    bobArchives.submit(
+    dclArchives.submit(
       'product',
       'submit-new',
       {
@@ -481,7 +481,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       ulid(),
     ),
     (error: unknown) =>
-      error instanceof BobArchiveApplicationError &&
+      error instanceof DclArchiveApplicationError &&
       error.errorKey === 'product_reference_unavailable',
   )
   await db
@@ -562,26 +562,18 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       .select('domain')
       .where('id', '=', archive.submissionId)
       .executeTakeFirstOrThrow()
-    assert.equal(persisted.domain, 'bob')
+    assert.equal(persisted.domain, 'dcl')
     const subject = await db
-      .selectFrom('bob_subjects')
+      .selectFrom('bob_archive_objects')
       .select(['enabled', 'revision'])
       .where('id', '=', archive.subjectId)
       .executeTakeFirstOrThrow()
     assert.equal(subject.enabled, true)
     assert.equal(String(subject.revision), '1')
-    assert.equal(
-      await db
-        .selectFrom('dcl_subjects')
-        .select('id')
-        .where('id', '=', archive.subjectId)
-        .executeTakeFirst(),
-      undefined,
-    )
   }
   assert.equal(
     (
-      await bobArchives.query(
+      await dclArchives.query(
         'supplier',
         { page: 1, pageSize: 20, filters: { enabled: true } },
         reviewer,
@@ -591,7 +583,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   )
   assert.equal(
     (
-      await bobArchives.query(
+      await dclArchives.query(
         'supplier',
         { page: 1, pageSize: 20, filters: { enabled: false } },
         reviewer,
@@ -604,7 +596,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   const attachmentId = ulid()
   const stagingId = ulid()
   const digest = createHash('sha256').update(attachment).digest('hex')
-  await bobArchives.stageCustomerAttachment(
+  await dclArchives.stageCustomerAttachment(
     {
       stagingId,
       fileId: attachmentId,
@@ -617,7 +609,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     submitter,
   )
   const stagedAttachment = await sql<{ storage_key: string }>`
-    SELECT storage_key FROM bob_customer_attachment_staging WHERE id = ${stagingId}
+    SELECT storage_key FROM dcl_customer_attachment_staging WHERE id = ${stagingId}
   `.execute(db)
   assert.deepEqual(
     await attachmentStore.read(stagedAttachment.rows[0]!.storage_key),
@@ -625,7 +617,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   )
   const failedStagingId = ulid()
   const failedAttachmentId = ulid()
-  await bobArchives.stageCustomerAttachment(
+  await dclArchives.stageCustomerAttachment(
     {
       stagingId: failedStagingId,
       fileId: failedAttachmentId,
@@ -638,7 +630,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     submitter,
   )
   const failedStaging = await db
-    .selectFrom('bob_customer_attachment_staging')
+    .selectFrom('dcl_customer_attachment_staging')
     .select('storage_key')
     .where('id', '=', failedStagingId)
     .executeTakeFirstOrThrow()
@@ -646,7 +638,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     failedSubmissionId = ulid()
   subjectIds.push(failedSubjectId)
   await assert.rejects(
-    bobArchives.submit(
+    dclArchives.submit(
       'customer',
       'submit-new',
       {
@@ -670,7 +662,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
           invoiceAccount: '',
           remittanceProfiles: [],
           defaultOperatingEntity: null,
-          identityAttachments: [
+          attachments: [
             {
               id: failedAttachmentId,
               fileName: 'retry.pdf',
@@ -687,28 +679,28 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       submitter,
       ulid(),
     ),
-    (error: unknown) => error instanceof BobArchiveApplicationError,
+    (error: unknown) => error instanceof DclArchiveApplicationError,
   )
   assert.ok(
     await db
-      .selectFrom('bob_customer_attachment_staging')
+      .selectFrom('dcl_customer_attachment_staging')
       .select('id')
       .where('id', '=', failedStagingId)
       .executeTakeFirst(),
     'failed submit keeps its staged attachment for retry',
   )
   await db
-    .updateTable('bob_customer_attachment_staging')
+    .updateTable('dcl_customer_attachment_staging')
     .set({ created_at: new Date(-1_000), expires_at: new Date(0) })
     .where('id', '=', failedStagingId)
     .execute()
-  assert.deepEqual(await bobArchives.cleanupCustomerAttachments(submitter), {
+  assert.deepEqual(await dclArchives.cleanupCustomerAttachments(submitter), {
     deleted: 1,
   })
   await assert.rejects(attachmentStore.read(failedStaging.storage_key))
   assert.equal(
     await db
-      .selectFrom('bob_customer_attachment_staging')
+      .selectFrom('dcl_customer_attachment_staging')
       .select('id')
       .where('id', '=', failedStagingId)
       .executeTakeFirst(),
@@ -718,7 +710,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     .insertInto('attachment_deletion_jobs')
     .values({ storage_key: failedStaging.storage_key, created_at: new Date() })
     .execute()
-  const restaged = await bobArchives.stageCustomerAttachment(
+  const restaged = await dclArchives.stageCustomerAttachment(
     {
       stagingId: failedStagingId,
       fileId: failedAttachmentId,
@@ -743,7 +735,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     .insertInto('attachment_deletion_jobs')
     .values({ storage_key: failedStaging.storage_key, created_at: new Date() })
     .execute()
-  assert.deepEqual(await bobArchives.cleanupCustomerAttachments(submitter), {
+  assert.deepEqual(await dclArchives.cleanupCustomerAttachments(submitter), {
     deleted: 0,
   })
   assert.deepEqual(
@@ -759,32 +751,68 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     undefined,
   )
   await db
-    .updateTable('bob_customer_attachment_staging')
+    .updateTable('dcl_customer_attachment_staging')
     .set({ created_at: new Date(-1_000), expires_at: new Date(0) })
     .where('id', '=', failedStagingId)
     .execute()
-  assert.deepEqual(await bobArchives.cleanupCustomerAttachments(submitter), {
+  assert.deepEqual(await dclArchives.cleanupCustomerAttachments(submitter), {
     deleted: 1,
   })
-  assert.deepEqual(await bobArchives.cleanupCustomerAttachments(submitter), {
+  assert.deepEqual(await dclArchives.cleanupCustomerAttachments(submitter), {
     deleted: 0,
   })
   const customerSnapshot = {
-    identityKind: 'OTHER',
-    legalName: '全聚合客户',
     displayName: '全聚合客户',
-    legalIdentifier: 'CUSTOMER-001',
     phone: '13600000000',
     email: 'customer@example.test',
-    address: '厦门市',
-    invoiceTitle: '全聚合客户',
-    invoiceAddress: '厦门市',
-    invoicePhone: '0592-7654321',
-    invoiceBank: '目标银行',
-    invoiceAccount: '622200002',
     remittanceProfiles: [],
     defaultOperatingEntity: operatingEntityReference,
-    identityAttachments: [
+    contactName: '客户联系人',
+    address: '厦门市',
+    customerType: {
+      id: auxIds[0],
+      code: 'FORGED-CUSTOMER-TYPE',
+      name: '伪造客户类型',
+    },
+    settlementMethod: {
+      id: auxIds[8],
+      code: 'TST-0009',
+      name: '测试引用 9',
+      termCode: 'MONTHLY_30',
+      ruleType: 'MONTH_END',
+      monthOffset: 1,
+      dayOfMonth: 0,
+      dayOffset: 0,
+      defaultSalesSurcharge: '0.10',
+    },
+    paymentMethod: {
+      id: auxIds[9],
+      code: 'TST-0010',
+      name: '测试引用 10',
+      defaultSalesSurcharge: '0.05',
+    },
+    transportPolicy: {
+      methodCode: 'DELIVERY',
+      methodName: '送货',
+      surcharge: '0.00',
+    },
+    pricingPolicy: {
+      defaultPremiumUnitPrice: '0.00',
+      defaultDiscountUnitPrice: '0.00',
+      costItems: [],
+      thirdPartyIntermediaryFixedUnitCost: '0.00',
+      thirdPartyIntermediaryVariableUnitCost: '0.00',
+    },
+    creditLimits: [{ currency: 'CNY', amount: '10000.00' }],
+    primarySalesAttribution: {
+      type: 'INTERNAL_EMPLOYEE',
+      objectId: employee.id,
+      code: 'FORGED-EMPLOYEE',
+      name: '伪造业务员',
+    },
+    internalReminder: '',
+    defaultSalesOrderRemark: '',
+    attachments: [
       {
         id: attachmentId,
         fileName: 'identity.pdf',
@@ -794,61 +822,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
         stagingId,
       },
     ],
-    subunits: [
-      {
-        id: ulid(),
-        intent: 'NEW',
-        code: null,
-        name: '总部',
-        contactName: '客户联系人',
-        address: '厦门市',
-        customerType: {
-          id: auxIds[0],
-          code: 'FORGED-CUSTOMER-TYPE',
-          name: '伪造客户类型',
-        },
-        settlementMethod: {
-          id: auxIds[8],
-          code: 'TST-0009',
-          name: '测试引用 9',
-          termCode: 'MONTHLY_30',
-          ruleType: 'MONTH_END',
-          monthOffset: 1,
-          dayOfMonth: 0,
-          dayOffset: 0,
-          defaultSalesSurcharge: '0.10',
-        },
-        paymentMethod: {
-          id: auxIds[9],
-          code: 'TST-0010',
-          name: '测试引用 10',
-          defaultSalesSurcharge: '0.05',
-        },
-        transportPolicy: {
-          methodCode: 'DELIVERY',
-          methodName: '送货',
-          surcharge: '0.00',
-        },
-        pricingPolicy: {
-          defaultPremiumUnitPrice: '0.00',
-          defaultDiscountUnitPrice: '0.00',
-          costItems: [],
-          thirdPartyIntermediaryFixedUnitCost: '0.00',
-          thirdPartyIntermediaryVariableUnitCost: '0.00',
-        },
-        creditLimits: [{ currency: 'CNY', amount: '10000.00' }],
-        primarySalesAttribution: {
-          type: 'INTERNAL_EMPLOYEE',
-          objectId: employee.id,
-          code: 'FORGED-EMPLOYEE',
-          name: '伪造业务员',
-        },
-        internalReminder: '',
-        defaultSalesOrderRemark: '',
-        attachments: [],
-        enabled: true,
-      },
-    ],
+    taxInformation: [],
   }
   for (const malformed of [
     {
@@ -895,7 +869,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     const malformedSubjectId = ulid()
     const malformedSubmissionId = ulid()
     subjectIds.push(malformedSubjectId)
-    const adopted = await bobArchives.submit(
+    const adopted = await dclArchives.submit(
       'customer',
       'submit-new',
       {
@@ -906,29 +880,22 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
         expectedLatestApprovedRevision: null,
         snapshot: {
           ...customerSnapshot,
-          legalIdentifier: `ADOPTED-${malformedSubjectId}`,
-          identityAttachments: [],
-          subunits: customerSnapshot.subunits.map((subunit) => ({
-            ...subunit,
-            id: ulid(),
-          })),
+          attachments: [],
         },
       },
       submitter,
       ulid(),
     )
-    const adoptedSubunit = (
-      adopted.snapshot.subunits as Array<Record<string, unknown>>
-    )[0]!
+    const adoptedSubunit = adopted.snapshot
     assert.deepEqual(
       adoptedSubunit.settlementMethod,
-      customerSnapshot.subunits[0]!.settlementMethod,
+      customerSnapshot.settlementMethod,
     )
     assert.deepEqual(
       adoptedSubunit.paymentMethod,
-      customerSnapshot.subunits[0]!.paymentMethod,
+      customerSnapshot.paymentMethod,
     )
-    await bobArchives.delete(
+    await dclArchives.delete(
       'customer',
       {
         subjectId: malformedSubjectId,
@@ -949,7 +916,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     id: reviewerId,
     permissions: [
       '/bob/customer/attachment-read',
-      '/bob/customer/submission-get',
+      '/bob/customer/versions',
       '/bob/customer/get',
     ],
   }
@@ -960,7 +927,11 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     fileId: attachmentId,
   }
   assert.deepEqual(
-    await bobArchives.readCustomerAttachment(exactRead, attachmentReader),
+    await dclArchives.readCustomerAttachment(
+      exactRead,
+      attachmentReader,
+      'bob',
+    ),
     {
       fileName: 'identity.pdf',
       mimeType: 'application/pdf',
@@ -970,54 +941,67 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     },
   )
   assert.deepEqual(
-    await bobArchives.readCustomerAttachment(
+    await dclArchives.readCustomerAttachment(
       { source: 'current', objectId: customer.subjectId, fileId: attachmentId },
       attachmentReader,
+      'bob',
     ),
-    await bobArchives.readCustomerAttachment(exactRead, attachmentReader),
+    await dclArchives.readCustomerAttachment(
+      exactRead,
+      attachmentReader,
+      'bob',
+    ),
   )
   await assert.rejects(
     () =>
-      bobArchives.readCustomerAttachment(exactRead, {
-        id: reviewerId,
-        permissions: ['/bob/customer/submission-get'],
-      }),
+      dclArchives.readCustomerAttachment(
+        exactRead,
+        {
+          id: reviewerId,
+          permissions: ['/dcl/customer/submission-get'],
+        },
+        'bob',
+      ),
     { errorKey: 'forbidden' },
   )
   await assert.rejects(
     () =>
-      bobArchives.readCustomerAttachment(exactRead, {
-        id: reviewerId,
-        permissions: ['/bob/customer/attachment-read'],
-      }),
+      dclArchives.readCustomerAttachment(
+        exactRead,
+        {
+          id: reviewerId,
+          permissions: ['/bob/customer/attachment-read'],
+        },
+        'bob',
+      ),
     { errorKey: 'forbidden' },
   )
   await assert.rejects(
     () =>
-      bobArchives.readCustomerAttachment(
+      dclArchives.readCustomerAttachment(
         { ...exactRead, fileId: ulid() },
         attachmentReader,
+        'bob',
       ),
     { errorKey: 'customer_attachment_not_found' },
   )
   await assert.rejects(
     () =>
-      bobArchives.readCustomerAttachment(
+      dclArchives.readCustomerAttachment(
         { ...exactRead, subjectId: ulid() },
         attachmentReader,
+        'bob',
       ),
     { errorKey: 'customer_attachment_not_found' },
   )
 
-  const customerSubunit = (
-    customer.snapshot.subunits as Array<Record<string, unknown>>
-  )[0]!
-  assert.deepEqual(customerSubunit.customerType, {
+  const customerData = customer.snapshot
+  assert.deepEqual(customerData.customerType, {
     id: auxIds[0],
     code: 'TST-0001',
     name: '测试引用 1',
   })
-  assert.deepEqual(customerSubunit.settlementMethod, {
+  assert.deepEqual(customerData.settlementMethod, {
     id: auxIds[8],
     code: 'TST-0009',
     name: '测试引用 9',
@@ -1028,16 +1012,16 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     dayOffset: 0,
     defaultSalesSurcharge: '0.10',
   })
-  assert.deepEqual(customerSubunit.paymentMethod, {
+  assert.deepEqual(customerData.paymentMethod, {
     id: auxIds[9],
     code: 'TST-0010',
     name: '测试引用 10',
     defaultSalesSurcharge: '0.05',
   })
   const persistedCustomerType = await db
-    .selectFrom('bob_customer_version_subunits')
+    .selectFrom('dcl_customer_versions')
     .select('customer_type_snapshot')
-    .where('customer_approval_entry_id', '=', customer.submissionId)
+    .where('approval_entry_id', '=', customer.submissionId)
     .executeTakeFirstOrThrow()
   assert.deepEqual(persistedCustomerType.customer_type_snapshot, {
     id: auxIds[0],
@@ -1046,7 +1030,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   })
   assert.equal(
     await db
-      .selectFrom('bob_customer_attachments')
+      .selectFrom('dcl_customer_attachments')
       .select(({ fn }) => fn.countAll<string>().as('count'))
       .where('approval_entry_id', '=', customer.submissionId)
       .executeTakeFirstOrThrow()
@@ -1055,14 +1039,14 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   )
   assert.equal(
     await db
-      .selectFrom('bob_customer_attachment_staging')
+      .selectFrom('dcl_customer_attachment_staging')
       .select('id')
       .where('id', '=', stagingId)
       .executeTakeFirst(),
     undefined,
   )
   const permanentAttachment = await sql<{ storage_key: string }>`
-    SELECT storage_key FROM bob_customer_attachments
+    SELECT storage_key FROM dcl_customer_attachments
     WHERE approval_entry_id = ${customer.submissionId} AND file_id = ${attachmentId}
   `.execute(db)
   assert.deepEqual(
@@ -1072,7 +1056,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
 
   const deletedStagingId = ulid()
   const deletedAttachmentId = ulid()
-  await bobArchives.stageCustomerAttachment(
+  await dclArchives.stageCustomerAttachment(
     {
       stagingId: deletedStagingId,
       fileId: deletedAttachmentId,
@@ -1087,7 +1071,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   const deletedCustomerSubjectId = ulid()
   const deletedCustomerSubmissionId = ulid()
   subjectIds.push(deletedCustomerSubjectId)
-  const deletedCustomer = await bobArchives.submit(
+  const deletedCustomer = await dclArchives.submit(
     'customer',
     'submit-new',
     {
@@ -1101,7 +1085,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
         legalName: '待删除客户',
         displayName: '待删除客户',
         legalIdentifier: 'CUSTOMER-DELETE-001',
-        identityAttachments: [
+        attachments: [
           {
             id: deletedAttachmentId,
             fileName: 'delete-me.pdf',
@@ -1111,18 +1095,14 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
             stagingId: deletedStagingId,
           },
         ],
-        subunits: customerSnapshot.subunits.map((subunit) => ({
-          ...subunit,
-          id: ulid(),
-        })),
       },
     },
     submitter,
     ulid(),
   )
-  const deletedPermanentKey = `permanent/bob/customer/${deletedCustomerSubmissionId}/${deletedAttachmentId}`
+  const deletedPermanentKey = `permanent/dcl/customer/${deletedCustomerSubmissionId}/${deletedAttachmentId}`
   assert.deepEqual(await attachmentStore.read(deletedPermanentKey), attachment)
-  await bobArchives.delete(
+  await dclArchives.delete(
     'customer',
     {
       subjectId: deletedCustomerSubjectId,
@@ -1152,7 +1132,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     'other-unit',
     'sales-partner',
   ] as const) {
-    const items = await bobArchives.query(
+    const items = await dclArchives.query(
       entity,
       { page: 1, pageSize: 20, filters: {} },
       reviewer,
@@ -1193,7 +1173,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     unitActor,
     ulid(),
   )
-  const historicalProduct = await bobArchives.get(
+  const historicalProduct = await dclArchives.get(
     'product',
     product.subjectId,
     reviewer,
@@ -1222,7 +1202,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       assert.ok(
         blockers.some(
           (blocker) =>
-            blocker.source === 'bob_product_versions' && blocker.count > 0,
+            blocker.source === 'dcl_product_versions' && blocker.count > 0,
         ),
       )
       return true
@@ -1236,7 +1216,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   const rejectedUnitSubjectId = ulid()
   subjectIds.push(rejectedUnitSubjectId)
   await assert.rejects(
-    bobArchives.submit(
+    dclArchives.submit(
       'product',
       'submit-new',
       {
@@ -1251,7 +1231,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       ulid(),
     ),
     (error: unknown) =>
-      error instanceof BobArchiveApplicationError &&
+      error instanceof DclArchiveApplicationError &&
       error.errorKey === 'product_reference_unavailable',
   )
   const auxActor = {
@@ -1288,7 +1268,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   const rejectedCustomerSubjectId = ulid()
   const rejectedCustomerSubmissionId = ulid()
   subjectIds.push(rejectedCustomerSubjectId)
-  const retainedCustomer = await bobArchives.submit(
+  const retainedCustomer = await dclArchives.submit(
     'customer',
     'submit-new',
     {
@@ -1302,37 +1282,27 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
         legalName: '保留已经采用的收款快照',
         displayName: '保留已经采用的收款快照',
         legalIdentifier: 'CUSTOMER-DISABLED-AUX-001',
-        identityAttachments: [],
-        subunits: customerSnapshot.subunits.map((subunit) => ({
-          ...subunit,
-          id: ulid(),
-        })),
+        attachments: [],
       },
     },
     submitter,
     ulid(),
   )
   assert.deepEqual(
-    (retainedCustomer.snapshot.subunits as Array<Record<string, unknown>>)[0]!
-      .paymentMethod,
-    customerSubunit.paymentMethod,
+    retainedCustomer.snapshot.paymentMethod,
+    customerData.paymentMethod,
   )
-  const historicalCustomer = await bobArchives.get(
+  const historicalCustomer = await dclArchives.get(
     'customer',
     customer.subjectId,
     reviewer,
     customer.submissionId,
   )
-  const historicalSubunit = (
-    historicalCustomer.snapshot.subunits as Array<Record<string, unknown>>
-  )[0]!
-  assert.deepEqual(
-    historicalSubunit.paymentMethod,
-    customerSubunit.paymentMethod,
-  )
+  const historicalSubunit = historicalCustomer.snapshot
+  assert.deepEqual(historicalSubunit.paymentMethod, customerData.paymentMethod)
   assert.deepEqual(
     historicalSubunit.settlementMethod,
-    customerSubunit.settlementMethod,
+    customerData.settlementMethod,
   )
   const paymentAfter = await aux.get(
     'payment-method',

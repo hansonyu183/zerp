@@ -16,7 +16,7 @@ type LocalFile = {
   staged: boolean
 }
 export type AttachmentScope = {
-  resource: 'bob/customer' | `vou/${VouEntity}`
+  resource: 'dcl/customer' | `vou/${VouEntity}`
   add: (file: File) => Promise<Attachment>
   status: (id: string) => string
 }
@@ -24,7 +24,7 @@ export const attachmentScope: InjectionKey<AttachmentScope> = Symbol(
   'customer-attachments',
 )
 export function createAttachments(
-  resource: 'bob/customer' | `vou/${VouEntity}`,
+  resource: 'dcl/customer' | `vou/${VouEntity}`,
   token: () => string,
   owns: () => boolean,
 ) {
@@ -90,7 +90,7 @@ export function createAttachments(
             digest: attachment.sha256,
             contentBase64: btoa(binary),
           }
-          if (resource === 'bob/customer')
+          if (resource === 'dcl/customer')
             await stageTargetCustomerAttachment(token(), input)
           else
             await stageTargetVoucherAttachment(

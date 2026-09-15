@@ -25,10 +25,9 @@ function select(objectId: string) {
   if (!objectId) {
     update({
       ...props.modelValue,
-      subunit: {
-        entity: 'customer-subunit',
+      customer: {
+        entity: 'customer',
         objectId: '',
-        customerId: '',
         approvalEntryId: '',
         code: '',
         name: '',
@@ -37,13 +36,12 @@ function select(objectId: string) {
     return
   }
   const row = references.value.find((row) => row.objectId === objectId)
-  if (row?.entity === 'customer-subunit')
+  if (row?.entity === 'customer')
     update({
       ...props.modelValue,
-      subunit: {
-        entity: 'customer-subunit',
+      customer: {
+        entity: 'customer',
         objectId,
-        customerId: row.customerId,
         approvalEntryId: row.approvalEntryId,
         code: row.code,
         name: row.name,
@@ -60,16 +58,16 @@ function select(objectId: string) {
       @update:model-value="update($event)"
     />
     <ReferencePicker
-      :source="{ kind: 'vou-reference', entity: 'customer-subunit' }"
-      caption="客户子单位"
-      :model-value="modelValue.subunit.objectId"
+      :source="{ kind: 'vou-reference', entity: 'customer' }"
+      caption="客户"
+      :model-value="modelValue.customer.objectId"
       :existing="
-        modelValue.subunit.objectId
+        modelValue.customer.objectId
           ? [
               {
-                id: modelValue.subunit.objectId,
-                name: modelValue.subunit.name,
-                snapshot: modelValue.subunit,
+                id: modelValue.customer.objectId,
+                name: modelValue.customer.name,
+                snapshot: modelValue.customer,
               },
             ]
           : []

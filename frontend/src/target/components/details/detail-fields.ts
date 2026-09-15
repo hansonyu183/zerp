@@ -59,4 +59,9 @@ export type DetailFields<T extends object> = readonly (
 )[]
 export type AttachmentSource =
   | { source: 'current'; objectId: string }
-  | { source: 'submission'; subjectId: string; submissionId: string }
+  | {
+      source: 'submission'
+      domain: 'bob' | 'dcl'
+      subjectId: string
+      submissionId: string
+    }

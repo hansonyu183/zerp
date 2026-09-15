@@ -18,6 +18,7 @@ export type DirectResource =
   | 'aux/measurement-unit'
   | 'aux/payment-method'
   | 'aux/asset-category'
+  | 'aux/tax-information'
   | 'aux/operating-entity'
   | 'aux/employee'
   | 'aux/warehouse'

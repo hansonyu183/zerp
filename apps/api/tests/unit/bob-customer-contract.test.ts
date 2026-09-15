@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { targetRouteMetadata } from '../../src/app/contract.ts'
 
-test('Customer exposes BOB current, submission, lifecycle and attachment actions only', () => {
+test('Customer splits formal/history and maintenance capabilities', () => {
   const paths = targetRouteMetadata.map((route) => route.path)
   for (const action of [
     'query',
@@ -24,10 +24,12 @@ test('Customer exposes BOB current, submission, lifecycle and attachment actions
     'attachment-read',
     'attachment-cleanup',
   ]) {
-    assert.ok(paths.includes(`/bob/customer/${action}`), action)
+    assert.ok(
+      paths.includes(
+        `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
+      ),
+      action,
+    )
   }
-  assert.equal(
-    paths.some((path) => path.startsWith('/dcl/customer/')),
-    false,
-  )
+  assert.equal(paths.includes('/bob/customer/submit-change'), false)
 })

@@ -29,10 +29,10 @@ test('AttachmentStore stages an owner file, prepares a permanent key, finalizes 
   const permanent = await store.promote({
     stagingKey,
     permanentKey:
-      'permanent/bob/customer/01JSUBMISSION00000000000000/01JFILE000000000000000000',
+      'permanent/dcl/customer/01JSUBMISSION00000000000000/01JFILE000000000000000000',
   })
   assert.deepEqual(permanent, {
-    key: 'permanent/bob/customer/01JSUBMISSION00000000000000/01JFILE000000000000000000',
+    key: 'permanent/dcl/customer/01JSUBMISSION00000000000000/01JFILE000000000000000000',
     created: true,
   })
   assert.deepEqual(
@@ -44,7 +44,7 @@ test('AttachmentStore stages an owner file, prepares a permanent key, finalizes 
     Buffer.from('attachment fixture'),
   )
   assert.equal(
-    await store.cleanupOrphans('bob', new Set(), { writersFrozen: true }),
+    await store.cleanupOrphans('dcl', new Set(), { writersFrozen: true }),
     1,
   )
   await assert.rejects(store.read(permanent.key), /attachment_not_found/)

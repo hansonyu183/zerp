@@ -32,17 +32,17 @@ const submitter: ApprovalActor = {
 const reviewer: ApprovalActor = {
   id: 'user-reviewer',
   permissions: [
-    '/bob/product/reject',
-    '/bob/product/approve',
-    '/bob/product/unreject',
-    '/bob/product/unapprove',
+    '/dcl/product/reject',
+    '/dcl/product/approve',
+    '/dcl/product/unreject',
+    '/dcl/product/unapprove',
   ],
 }
 
 function entry(status: ApprovalEntry['status']): ApprovalEntry {
   return {
     id: 'submission-1',
-    domain: 'bob',
+    domain: 'dcl',
     entity: 'product',
     subjectId: 'warehouse-1',
     versionNo: 1,
@@ -225,7 +225,7 @@ test('covers the closed Approval action, actor, permission, and reason matrix', 
       entry: entry(status),
       actor: {
         id: submitter.id,
-        permissions: [`/bob/product/${action}`],
+        permissions: [`/dcl/product/${action}`],
       },
       expectedRevision: '7',
       occurredAt: '2026-09-03T02:00:00Z',

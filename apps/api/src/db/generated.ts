@@ -104,7 +104,6 @@ export interface AccContainerEntries {
   created_at: Timestamp
   customer_approval_entry_id: string
   customer_id: string
-  customer_subunit_id: string
   id: string
   quantity_delta: Int8
   source_document_id: string
@@ -202,10 +201,9 @@ export interface AccOpeningContainerBalances {
   container_type: string
   created_at: Timestamp
   customer_approval_entry_id: string
+  customer_code: string
   customer_id: string
-  customer_subunit_code: string
-  customer_subunit_id: string
-  customer_subunit_name: string
+  customer_name: string
   opening_approval_entry_id: string
   quantity: Int8
 }
@@ -456,7 +454,28 @@ export interface AuxReferenceFacts {
   source: string
 }
 
-export interface BobCustomerAttachments {
+export interface BobArchiveObjects {
+  code: string | null
+  created_at: Timestamp | null
+  created_by: string | null
+  enabled: boolean | null
+  entity: string | null
+  id: string | null
+  revision: Int8 | null
+}
+
+export interface BobLegacyEnablementEvidence {
+  approval_entry_id: string
+  enabled: boolean
+}
+
+export interface BobObjects {
+  enabled: Generated<boolean>
+  id: string
+  revision: Generated<Int8>
+}
+
+export interface DclCustomerAttachments {
   approval_entry_id: string
   created_at: Timestamp
   digest: string
@@ -467,7 +486,7 @@ export interface BobCustomerAttachments {
   storage_key: string
 }
 
-export interface BobCustomerAttachmentStaging {
+export interface DclCustomerAttachmentStaging {
   created_at: Timestamp
   digest: string
   expires_at: Timestamp
@@ -480,167 +499,45 @@ export interface BobCustomerAttachmentStaging {
   storage_key: string
 }
 
-export interface BobCustomerSubunitRoots {
-  code: string
-  customer_id: string
-  subunit_id: string
+export interface DclCustomerConversionEvidence {
+  actor_user_id: string
+  baseline: string
+  created_at: Timestamp
+  originals: Json
+  report: Json
+  source_release_sha: string
+  target_release_sha: string
 }
 
-export interface BobCustomerVersions {
+export interface DclCustomerVersions {
   address: string | null
   approval_entry_id: string
-  default_operating_entity_approval_entry_id: string | null
+  attachments: Json
+  contact_name: string | null
+  credit_limits: Json
+  customer_type_id: string
+  customer_type_snapshot: Json
   default_operating_entity_code: string | null
   default_operating_entity_id: string | null
   default_operating_entity_name: string | null
+  default_order_remark: string | null
   display_name: string
   email: string | null
-  invoice_account: string | null
-  invoice_address: string | null
-  invoice_bank: string | null
-  invoice_phone: string | null
-  invoice_title: string | null
-  kind: string
-  legal_identifier: string | null
-  legal_name: string | null
-  phone: string | null
-  remittance_profiles: Generated<Json>
-  tax_attachments: Generated<Json>
-}
-
-export interface BobCustomerVersionSubunits {
-  business_address: string | null
-  business_attachments: Generated<Json>
-  contact_name: string | null
-  contact_phone: string | null
-  credit_limits: Generated<Json>
-  customer_approval_entry_id: string
-  customer_type_id: string
-  customer_type_snapshot: Json
-  default_order_remark: string | null
-  enabled: boolean
   internal_reminder: string | null
-  name: string
   payment_snapshot: Json | null
+  phone: string | null
   pricing_snapshot: Json | null
   primary_sales_attribution_approval_entry_id: string | null
   primary_sales_attribution_code: string | null
   primary_sales_attribution_name: string | null
   primary_sales_attribution_object_id: string | null
   primary_sales_attribution_type: string | null
+  remittance_profiles: Json
   sales_attribution_snapshot: Json | null
   settlement_method_id: string | null
   settlement_snapshot: Json | null
-  subunit_id: string
+  tax_information: Json
   transport_snapshot: Json | null
-}
-
-export interface BobLegacyEnablementEvidence {
-  approval_entry_id: string
-  enabled: boolean
-}
-
-export interface BobOtherUnitVersionOperatingEntities {
-  approval_entry_id: string
-  operating_entity_approval_entry_id: string | null
-  operating_entity_code: string
-  operating_entity_id: string
-  operating_entity_name: string
-}
-
-export interface BobOtherUnitVersions {
-  address: string | null
-  approval_entry_id: string
-  contact_name: string | null
-  contact_phone: string | null
-  default_operating_entity_id: string | null
-  default_operating_entity_reference: Json | null
-  display_name: string
-  kind: string
-  legal_identifier: string | null
-  legal_name: string
-  remark: string | null
-  settlement_method_snapshot: Json | null
-}
-
-export interface BobProductVersions {
-  approval_entry_id: string
-  barcode: string | null
-  behavior_profile: string | null
-  category_id: string | null
-  default_input_unit_id: string | null
-  default_packaging_snapshot: Json | null
-  fixed_formula: Json | null
-  model: string | null
-  name: string
-  pricing_unit_id: string | null
-  product_type_id: string | null
-  recyclable: Generated<boolean>
-  remark: string | null
-  source_snapshots: Generated<Json>
-  specification: string | null
-  unit_conversions: Generated<Json>
-}
-
-export interface BobSalesPartnerVersionOperatingEntities {
-  approval_entry_id: string
-  operating_entity_approval_entry_id: string | null
-  operating_entity_code: string
-  operating_entity_id: string
-  operating_entity_name: string
-}
-
-export interface BobSalesPartnerVersions {
-  address: string | null
-  approval_entry_id: string
-  capabilities: Generated<Json>
-  contact_name: string | null
-  contact_phone: string | null
-  default_operating_entity_id: string | null
-  default_operating_entity_reference: Json | null
-  display_name: string
-  kind: string
-  legal_identifier: string | null
-  legal_name: string
-  remark: string | null
-}
-
-export interface BobSubjects {
-  code: string
-  created_at: Timestamp
-  created_by: string
-  enabled: Generated<boolean>
-  entity: string
-  id: string
-  revision: Generated<Int8>
-}
-
-export interface BobSupplierVersionOperatingEntities {
-  approval_entry_id: string
-  operating_entity_approval_entry_id: string | null
-  operating_entity_code: string
-  operating_entity_id: string
-  operating_entity_name: string
-}
-
-export interface BobSupplierVersions {
-  address: string | null
-  approval_entry_id: string
-  contact_name: string | null
-  contact_phone: string | null
-  default_operating_entity_id: string | null
-  default_operating_entity_reference: Json | null
-  default_purchaser_approval_entry_id: string | null
-  default_purchaser_code: string | null
-  default_purchaser_employee_id: string | null
-  default_purchaser_name: string | null
-  default_purchaser_snapshot: Json | null
-  display_name: string
-  kind: string
-  legal_identifier: string | null
-  legal_name: string
-  remark: string | null
-  settlement_method_snapshot: Json | null
 }
 
 export interface DclEmployeeVersions {
@@ -697,12 +594,103 @@ export interface DclOperatingEntityVersions {
   short_name: string
 }
 
+export interface DclOtherUnitVersionOperatingEntities {
+  approval_entry_id: string
+  operating_entity_approval_entry_id: string | null
+  operating_entity_code: string
+  operating_entity_id: string
+  operating_entity_name: string
+}
+
+export interface DclOtherUnitVersions {
+  address: string | null
+  approval_entry_id: string
+  contact_name: string | null
+  contact_phone: string | null
+  default_operating_entity_id: string | null
+  default_operating_entity_reference: Json | null
+  display_name: string
+  kind: string
+  legal_identifier: string | null
+  legal_name: string
+  remark: string | null
+  settlement_method_snapshot: Json | null
+}
+
+export interface DclProductVersions {
+  approval_entry_id: string
+  barcode: string | null
+  behavior_profile: string | null
+  category_id: string | null
+  default_input_unit_id: string | null
+  default_packaging_snapshot: Json | null
+  fixed_formula: Json | null
+  model: string | null
+  name: string
+  pricing_unit_id: string | null
+  product_type_id: string | null
+  recyclable: Generated<boolean>
+  remark: string | null
+  source_snapshots: Generated<Json>
+  specification: string | null
+  unit_conversions: Generated<Json>
+}
+
+export interface DclSalesPartnerVersionOperatingEntities {
+  approval_entry_id: string
+  operating_entity_approval_entry_id: string | null
+  operating_entity_code: string
+  operating_entity_id: string
+  operating_entity_name: string
+}
+
+export interface DclSalesPartnerVersions {
+  address: string | null
+  approval_entry_id: string
+  capabilities: Generated<Json>
+  contact_name: string | null
+  contact_phone: string | null
+  default_operating_entity_id: string | null
+  default_operating_entity_reference: Json | null
+  display_name: string
+  kind: string
+  legal_identifier: string | null
+  legal_name: string
+  remark: string | null
+}
+
 export interface DclSubjects {
   code: string | null
   created_at: Timestamp
   created_by: string
   entity: string
   id: string
+}
+
+export interface DclSupplierVersionOperatingEntities {
+  approval_entry_id: string
+  operating_entity_approval_entry_id: string | null
+  operating_entity_code: string
+  operating_entity_id: string
+  operating_entity_name: string
+}
+
+export interface DclSupplierVersions {
+  address: string | null
+  approval_entry_id: string
+  contact_name: string | null
+  contact_phone: string | null
+  default_operating_entity_id: string | null
+  default_operating_entity_reference: Json | null
+  default_purchaser_approval_entry_id: string | null
+  default_purchaser_code: string | null
+  default_purchaser_employee_id: string | null
+  default_purchaser_name: string | null
+  default_purchaser_snapshot: Json | null
+  display_name: string
+  remark: string | null
+  settlement_method_snapshot: Json | null
+  tax_information: Json
 }
 
 export interface DclVehicleVersions {
@@ -810,12 +798,6 @@ export interface RptExecutionAudits {
   parameters: Json
   request_id: string
   row_count: number | null
-}
-
-export interface VouAmountAllocationSnapshots {
-  amount_minor: Int8
-  approval_entry_id: string
-  line_no: number
 }
 
 export interface VouAssetAcquisitionDetails {
@@ -1246,6 +1228,15 @@ export interface VouInventoryCountLineSnapshots {
   remark: string | null
 }
 
+export interface VouInvoiceLineSnapshots {
+  amount_minor: Int8
+  approval_entry_id: string
+  line_no: number
+  source_approval_entry_id: string
+  source_document_id: string
+  source_line_id: string
+}
+
 export interface VouOrderProductionDetails {
   approval_entry_id: string
   business_date: Timestamp
@@ -1385,6 +1376,20 @@ export interface VouPurchaseInquiryDetails {
   total_amount_minor: Int8
 }
 
+export interface VouPurchaseInvoiceDetails {
+  approval_entry_id: string
+  business_date: Timestamp
+  currency: string
+  document_id: string
+  parent_document_id: string | null
+  parent_entity: string | null
+  remark: string | null
+  tax_information_id: string | null
+  tax_information_revision: Int8 | null
+  tax_information_snapshot: Json | null
+  total_amount_minor: Int8
+}
+
 export interface VouPurchaseOrderDetails {
   approval_entry_id: string
   business_date: Timestamp
@@ -1462,6 +1467,20 @@ export interface VouSaleDeliveryDetails {
   parent_document_id: string | null
   parent_entity: string | null
   remark: string | null
+  total_amount_minor: Int8
+}
+
+export interface VouSaleInvoiceDetails {
+  approval_entry_id: string
+  business_date: Timestamp
+  currency: string
+  document_id: string
+  parent_document_id: string | null
+  parent_entity: string | null
+  remark: string | null
+  tax_information_id: string | null
+  tax_information_revision: Int8 | null
+  tax_information_snapshot: Json | null
   total_amount_minor: Int8
 }
 
@@ -1730,24 +1749,24 @@ export interface DB {
   attachment_deletion_jobs: AttachmentDeletionJobs
   aux_objects: AuxObjects
   aux_reference_facts: AuxReferenceFacts
-  bob_customer_attachment_staging: BobCustomerAttachmentStaging
-  bob_customer_attachments: BobCustomerAttachments
-  bob_customer_subunit_roots: BobCustomerSubunitRoots
-  bob_customer_version_subunits: BobCustomerVersionSubunits
-  bob_customer_versions: BobCustomerVersions
+  bob_archive_objects: BobArchiveObjects
   bob_legacy_enablement_evidence: BobLegacyEnablementEvidence
-  bob_other_unit_version_operating_entities: BobOtherUnitVersionOperatingEntities
-  bob_other_unit_versions: BobOtherUnitVersions
-  bob_product_versions: BobProductVersions
-  bob_sales_partner_version_operating_entities: BobSalesPartnerVersionOperatingEntities
-  bob_sales_partner_versions: BobSalesPartnerVersions
-  bob_subjects: BobSubjects
-  bob_supplier_version_operating_entities: BobSupplierVersionOperatingEntities
-  bob_supplier_versions: BobSupplierVersions
+  bob_objects: BobObjects
+  dcl_customer_attachment_staging: DclCustomerAttachmentStaging
+  dcl_customer_attachments: DclCustomerAttachments
+  dcl_customer_conversion_evidence: DclCustomerConversionEvidence
+  dcl_customer_versions: DclCustomerVersions
   dcl_employee_versions: DclEmployeeVersions
   dcl_fund_account_versions: DclFundAccountVersions
   dcl_operating_entity_versions: DclOperatingEntityVersions
+  dcl_other_unit_version_operating_entities: DclOtherUnitVersionOperatingEntities
+  dcl_other_unit_versions: DclOtherUnitVersions
+  dcl_product_versions: DclProductVersions
+  dcl_sales_partner_version_operating_entities: DclSalesPartnerVersionOperatingEntities
+  dcl_sales_partner_versions: DclSalesPartnerVersions
   dcl_subjects: DclSubjects
+  dcl_supplier_version_operating_entities: DclSupplierVersionOperatingEntities
+  dcl_supplier_versions: DclSupplierVersions
   dcl_vehicle_versions: DclVehicleVersions
   dcl_warehouse_versions: DclWarehouseVersions
   object_number_counters: ObjectNumberCounters
@@ -1757,7 +1776,6 @@ export interface DB {
   rpt_definition_validity_history: RptDefinitionValidityHistory
   rpt_definitions: RptDefinitions
   rpt_execution_audits: RptExecutionAudits
-  vou_amount_allocation_snapshots: VouAmountAllocationSnapshots
   vou_asset_acquisition_details: VouAssetAcquisitionDetails
   vou_asset_acquisition_line_snapshots: VouAssetAcquisitionLineSnapshots
   vou_asset_disposal_line_snapshots: VouAssetDisposalLineSnapshots
@@ -1792,6 +1810,7 @@ export interface DB {
   vou_intermediary_summary_snapshots: VouIntermediarySummarySnapshots
   vou_inventory_count_details: VouInventoryCountDetails
   vou_inventory_count_line_snapshots: VouInventoryCountLineSnapshots
+  vou_invoice_line_snapshots: VouInvoiceLineSnapshots
   vou_order_production_details: VouOrderProductionDetails
   vou_other_income_details: VouOtherIncomeDetails
   vou_other_payment_details: VouOtherPaymentDetails
@@ -1802,6 +1821,7 @@ export interface DB {
   vou_production_material_snapshots: VouProductionMaterialSnapshots
   vou_purchase_inbound_details: VouPurchaseInboundDetails
   vou_purchase_inquiry_details: VouPurchaseInquiryDetails
+  vou_purchase_invoice_details: VouPurchaseInvoiceDetails
   vou_purchase_order_details: VouPurchaseOrderDetails
   vou_purchase_payment_details: VouPurchasePaymentDetails
   vou_purchase_refund_details: VouPurchaseRefundDetails
@@ -1809,6 +1829,7 @@ export interface DB {
   vou_reference_snapshots: VouReferenceSnapshots
   vou_return_line_snapshots: VouReturnLineSnapshots
   vou_sale_delivery_details: VouSaleDeliveryDetails
+  vou_sale_invoice_details: VouSaleInvoiceDetails
   vou_sale_order_details: VouSaleOrderDetails
   vou_sale_outbound_details: VouSaleOutboundDetails
   vou_sale_pricing_details: VouSalePricingDetails

@@ -14,10 +14,10 @@ import {
 const actor: ApprovalActor = {
   id: 'user-1',
   permissions: [
-    '/bob/product/submit-new',
-    '/bob/product/submit-change',
-    '/bob/customer/submit-new',
-    '/bob/sales-partner/submit-new',
+    '/dcl/product/submit-new',
+    '/dcl/product/submit-change',
+    '/dcl/customer/submit-new',
+    '/dcl/sales-partner/submit-new',
   ],
 }
 
@@ -201,84 +201,66 @@ test('requires a complete product unit snapshot and confirmed latest fixed formu
 
 test('keeps the complete typed customer aggregate and rejects malformed pricing facts', () => {
   const data = {
-    identityKind: 'MAINLAND_ENTERPRISE' as const,
-    legalName: ' 测试客户有限公司 ',
     displayName: ' 测试客户 ',
-    legalIdentifier: '91350211M000100Y46',
     phone: '021-12345678',
     email: 'contact@example.com',
-    address: '上海',
-    invoiceTitle: '测试客户有限公司',
-    invoiceAddress: '上海',
-    invoicePhone: '021-12345678',
-    invoiceBank: '测试银行',
-    invoiceAccount: ' 6222 0001 ',
     remittanceProfiles: [],
     defaultOperatingEntity: null,
-    identityAttachments: [],
-    subunits: [
-      {
-        id: 'subunit-1',
-        intent: 'NEW' as const,
-        code: null,
-        name: ' 总部 ',
-        contactName: ' 联系人 ',
-        address: ' 业务地址 ',
-        customerType: {
-          id: 'customer-type-1',
-          code: 'DIRECT',
-          name: '直客',
-        },
-        settlementMethod: {
-          id: 'settlement-1',
-          code: 'MONTHLY_30',
-          name: '月结 30 天',
-          termCode: 'MONTHLY_30' as const,
-          ruleType: 'MONTH_END' as const,
-          monthOffset: 1,
-          dayOfMonth: 0,
-          dayOffset: 0,
-          defaultSalesSurcharge: '0.10',
-        },
-        paymentMethod: {
-          id: 'payment-1',
-          code: 'BANK_TRANSFER',
-          name: '银行转账',
-          defaultSalesSurcharge: '0.00',
-        },
-        transportPolicy: {
-          methodCode: 'DELIVERY',
-          methodName: '送货',
-          surcharge: '0.20',
-        },
-        pricingPolicy: {
-          defaultPremiumUnitPrice: '0.10',
-          defaultDiscountUnitPrice: '0.00',
-          costItems: [
-            {
-              name: '装卸',
-              calculationBasis: 'ORDER_AMOUNT' as const,
-              orderAmount: '20.00',
-            },
-          ],
-          thirdPartyIntermediaryFixedUnitCost: '0.00',
-          thirdPartyIntermediaryVariableUnitCost: '0.00',
-        },
-        creditLimits: [{ currency: 'cny', amount: '1000.00' }],
-        primarySalesAttribution: {
-          type: 'INTERNAL_EMPLOYEE' as const,
-          objectId: 'employee-1',
-          approvalEntryId: 'employee-entry-1',
-          code: 'EMP-0001',
-          name: '业务员',
-        },
-        internalReminder: '',
-        defaultSalesOrderRemark: '',
-        attachments: [],
-        enabled: true,
-      },
-    ],
     enabled: true,
+    contactName: ' 联系人 ',
+    address: ' 业务地址 ',
+    customerType: {
+      id: 'customer-type-1',
+      code: 'DIRECT',
+      name: '直客',
+    },
+    settlementMethod: {
+      id: 'settlement-1',
+      code: 'MONTHLY_30',
+      name: '月结 30 天',
+      termCode: 'MONTHLY_30' as const,
+      ruleType: 'MONTH_END' as const,
+      monthOffset: 1,
+      dayOfMonth: 0,
+      dayOffset: 0,
+      defaultSalesSurcharge: '0.10',
+    },
+    paymentMethod: {
+      id: 'payment-1',
+      code: 'BANK_TRANSFER',
+      name: '银行转账',
+      defaultSalesSurcharge: '0.00',
+    },
+    transportPolicy: {
+      methodCode: 'DELIVERY',
+      methodName: '送货',
+      surcharge: '0.20',
+    },
+    pricingPolicy: {
+      defaultPremiumUnitPrice: '0.10',
+      defaultDiscountUnitPrice: '0.00',
+      costItems: [
+        {
+          name: '装卸',
+          calculationBasis: 'ORDER_AMOUNT' as const,
+          orderAmount: '20.00',
+        },
+      ],
+      thirdPartyIntermediaryFixedUnitCost: '0.00',
+      thirdPartyIntermediaryVariableUnitCost: '0.00',
+    },
+    creditLimits: [{ currency: 'cny', amount: '1000.00' }],
+    primarySalesAttribution: {
+      type: 'INTERNAL_EMPLOYEE' as const,
+      objectId: 'employee-1',
+      approvalEntryId: 'employee-entry-1',
+      code: 'EMP-0001',
+      name: '业务员',
+    },
+    internalReminder: '',
+    defaultSalesOrderRemark: '',
+    attachments: [],
+    taxInformation: [],
   }
   const facts = {
     ...newFacts,
@@ -295,11 +277,11 @@ test('keeps the complete typed customer aggregate and rejects malformed pricing 
   const result = prepareCustomerSubmit({ ...command(), data }, facts)
   assert.equal(result.ok, true)
   if (result.ok) {
-    const subunit = result.plan.data.subunits[0]!
-    assert.equal(subunit.customerType.code, 'DIRECT')
-    assert.equal(subunit.paymentMethod?.defaultSalesSurcharge, '0.00')
-    assert.equal(subunit.transportPolicy.surcharge, '0.20')
-    assert.deepEqual(subunit.pricingPolicy.costItems, [
+    const customer = result.plan.data
+    assert.equal(customer.customerType.code, 'DIRECT')
+    assert.equal(customer.paymentMethod?.defaultSalesSurcharge, '0.00')
+    assert.equal(customer.transportPolicy.surcharge, '0.20')
+    assert.deepEqual(customer.pricingPolicy.costItems, [
       {
         name: '装卸',
         calculationBasis: 'ORDER_AMOUNT',
@@ -314,21 +296,16 @@ test('keeps the complete typed customer aggregate and rejects malformed pricing 
         ...command(),
         data: {
           ...data,
-          subunits: [
-            {
-              ...data.subunits[0]!,
-              pricingPolicy: {
-                ...data.subunits[0]!.pricingPolicy,
-                costItems: [
-                  {
-                    name: '成本',
-                    calculationBasis: 'UNIT_PRICE',
-                    unitPrice: amount,
-                  },
-                ],
+          pricingPolicy: {
+            ...data.pricingPolicy,
+            costItems: [
+              {
+                name: '成本',
+                calculationBasis: 'UNIT_PRICE',
+                unitPrice: amount,
               },
-            },
-          ],
+            ],
+          },
         },
       },
       facts,
@@ -345,21 +322,16 @@ test('keeps the complete typed customer aggregate and rejects malformed pricing 
       ...command(),
       data: {
         ...data,
-        subunits: [
-          {
-            ...data.subunits[0]!,
-            pricingPolicy: {
-              ...data.subunits[0]!.pricingPolicy,
-              costItems: [
-                {
-                  name: '装卸',
-                  calculationBasis: 'ORDER_AMOUNT' as const,
-                  orderAmount: '0.00',
-                },
-              ],
+        pricingPolicy: {
+          ...data.pricingPolicy,
+          costItems: [
+            {
+              name: '装卸',
+              calculationBasis: 'ORDER_AMOUNT' as const,
+              orderAmount: '0.00',
             },
-          },
-        ],
+          ],
+        },
       },
     },
     facts,
@@ -373,7 +345,7 @@ test('keeps the complete typed customer aggregate and rejects malformed pricing 
     prepareCustomerSubmit(
       {
         ...command(),
-        data: { ...data, legalIdentifier: '91350211M000100Y40' },
+        data: { ...data, displayName: '  ' },
       },
       facts,
     ),
@@ -564,7 +536,7 @@ test('rechecks exact submit permission, one open version, latest approval revisi
     prepareProductSubmit(
       {
         ...productCommand,
-        actor: { ...actor, permissions: ['/bob/product/submit-new'] },
+        actor: { ...actor, permissions: ['/dcl/product/submit-new'] },
       },
       productFacts,
     ),
@@ -614,7 +586,7 @@ test('rechecks exact submit permission, one open version, latest approval revisi
   )
 })
 
-test('enforces sales partner capabilities, customer subunits, and legal identifier canonicalization', () => {
+test('enforces sales partner capabilities, direct customer business attributes, and legal identifier canonicalization', () => {
   assert.deepEqual(
     prepareSalesPartnerSubmit(
       {
@@ -662,69 +634,43 @@ test('enforces sales partner capabilities, customer subunits, and legal identifi
     {
       ...command(),
       data: {
-        identityKind: 'MAINLAND_ENTERPRISE',
-        legalName: '客户',
         displayName: '客户',
-        legalIdentifier: ' 91350211M000100Y46 ',
         phone: '',
         email: '',
-        address: '',
-        invoiceTitle: '',
-        invoiceAddress: '',
-        invoicePhone: '',
-        invoiceBank: '',
-        invoiceAccount: '',
         remittanceProfiles: [],
         defaultOperatingEntity: null,
-        identityAttachments: [
-          {
-            id: 'att-1',
-            fileName: '执照.pdf',
-            contentType: 'application/pdf',
-            sizeBytes: 1,
-            sha256: 'a'.repeat(64),
-          },
-        ],
-        subunits: [
-          {
-            id: 'sub-1',
-            intent: 'EXISTING',
-            code: 'SUB-0001',
-            name: '总部',
-            contactName: '',
-            address: '',
-            customerType: {
-              id: 'customer-type-1',
-              code: 'DIRECT',
-              name: '直客',
-            },
-            settlementMethod: null,
-            paymentMethod: null,
-            transportPolicy: {
-              methodCode: 'DELIVERY',
-              methodName: '送货',
-              surcharge: '0.00',
-            },
-            pricingPolicy: {
-              defaultPremiumUnitPrice: '0.00',
-              defaultDiscountUnitPrice: '0.00',
-              costItems: [],
-              thirdPartyIntermediaryFixedUnitCost: '0.00',
-              thirdPartyIntermediaryVariableUnitCost: '0.00',
-            },
-            creditLimits: [],
-            primarySalesAttribution: {
-              type: 'INTERNAL_EMPLOYEE',
-              objectId: 'employee-1',
-              code: 'EMP-0001',
-              name: '业务员',
-            },
-            internalReminder: '',
-            defaultSalesOrderRemark: '',
-            attachments: [],
-            enabled: true,
-          },
-        ],
+        contactName: '',
+        address: '',
+        customerType: {
+          id: 'customer-type-1',
+          code: 'DIRECT',
+          name: '直客',
+        },
+        settlementMethod: null,
+        paymentMethod: null,
+        transportPolicy: {
+          methodCode: 'DELIVERY',
+          methodName: '送货',
+          surcharge: '0.00',
+        },
+        pricingPolicy: {
+          defaultPremiumUnitPrice: '0.00',
+          defaultDiscountUnitPrice: '0.00',
+          costItems: [],
+          thirdPartyIntermediaryFixedUnitCost: '0.00',
+          thirdPartyIntermediaryVariableUnitCost: '0.00',
+        },
+        creditLimits: [],
+        primarySalesAttribution: {
+          type: 'INTERNAL_EMPLOYEE',
+          objectId: 'employee-1',
+          code: 'EMP-0001',
+          name: '业务员',
+        },
+        internalReminder: '',
+        defaultSalesOrderRemark: '',
+        attachments: [],
+        taxInformation: [],
       },
     },
     {
@@ -741,8 +687,7 @@ test('enforces sales partner capabilities, customer subunits, and legal identifi
     },
   )
   assert.equal(customer.ok, true)
-  if (customer.ok)
-    assert.equal(customer.plan.data.legalIdentifier, '91350211M000100Y46')
+  if (customer.ok) assert.equal('legalIdentifier' in customer.plan.data, false)
 })
 
 test('keeps ACC mapping configuration typed in its save plan', () => {

@@ -135,7 +135,7 @@ CREATE TABLE aux_objects (
     entity varchar(32) NOT NULL CHECK (entity IN (
         'product-category', 'product-type', 'employee-category', 'department',
         'position', 'settlement-method', 'payment-method', 'dictionary-type',
-        'dictionary-item', 'measurement-unit', 'income-expense-type', 'asset-category',
+        'dictionary-item', 'measurement-unit', 'income-expense-type', 'asset-category', 'tax-information',
         'operating-entity', 'employee', 'warehouse', 'vehicle', 'fund-account'
     )),
     code varchar(64) NOT NULL CHECK (code ~ '^[A-Z]{3}-[0-9]{4}$'),
@@ -176,12 +176,14 @@ INSERT INTO archive_code_counters(entity, next_value) VALUES
 CREATE TABLE dcl_subjects (
     id varchar(26) PRIMARY KEY,
     entity varchar(64) NOT NULL CHECK (entity IN (
-        'supplier', 'other-unit', 'employee', 'sales-partner',
+        'customer', 'product', 'supplier', 'other-unit', 'employee', 'sales-partner',
         'warehouse', 'vehicle', 'fund-account', 'operating-entity',
         'acc-mapping', 'rpt-definition', 'wfl-process-definition'
     )),
     code varchar(64) CONSTRAINT dcl_subjects_entity_code_ck CHECK (
-        (entity = 'supplier' AND code ~ '^SUP-[0-9]{4}$')
+        (entity = 'customer' AND code ~ '^CUS-[0-9]{4}$')
+        OR (entity IN ('product', 'supplier', 'other-unit', 'sales-partner') AND code IS NOT NULL)
+        OR (entity = 'supplier' AND code ~ '^SUP-[0-9]{4}$')
         OR (entity = 'other-unit' AND code ~ '^OTU-[0-9]{4}$')
         OR (entity = 'employee' AND code ~ '^EMP-[0-9]{4}$')
         OR (entity = 'sales-partner' AND code ~ '^SLP-[0-9]{4}$')
@@ -199,16 +201,16 @@ CREATE TABLE dcl_subjects (
 CREATE UNIQUE INDEX dcl_subjects_entity_code_unique
     ON dcl_subjects(entity, upper(code));
 
-CREATE TABLE bob_subjects (
-    id varchar(26) PRIMARY KEY,
-    entity varchar(64) NOT NULL CHECK (entity IN ('supplier', 'other-unit', 'sales-partner', 'product', 'customer')),
-    code varchar(64) NOT NULL CONSTRAINT bob_subjects_customer_code_ck CHECK (entity <> 'customer' OR code ~ '^CUS-[0-9]{4}$'),
+CREATE TABLE bob_objects (
+    id varchar(26) PRIMARY KEY REFERENCES dcl_subjects(id) ON DELETE CASCADE,
     enabled boolean NOT NULL DEFAULT true,
-    revision bigint NOT NULL DEFAULT 1 CHECK (revision > 0),
-    created_at timestamptz NOT NULL,
-    created_by varchar(26) NOT NULL REFERENCES app_users(id),
-    UNIQUE (entity, code)
+    revision bigint NOT NULL DEFAULT 1 CHECK (revision > 0)
 );
+
+-- Read-only identity/enablement projection; version payload remains solely in DCL.
+CREATE VIEW bob_archive_objects AS
+    SELECT s.id, s.entity, s.code, s.created_at, s.created_by, b.enabled, b.revision
+    FROM dcl_subjects s JOIN bob_objects b ON b.id = s.id;
 
 CREATE TABLE approval_entries (
     id varchar(26) PRIMARY KEY,
@@ -240,7 +242,7 @@ CREATE INDEX approval_entries_latest_approved_idx
     ON approval_entries(domain, entity, subject_id, version_no DESC)
     WHERE status = 'APPROVED';
 
--- BOB owns its typed snapshots; current data is the stable subject joined
+-- DCL owns its typed snapshots; current data is the stable subject joined
 -- to its highest APPROVED entry and matching snapshot.
 -- Immutable evidence of enablement carried by pre-BOB submissions. Never read by runtime selection.
 CREATE TABLE bob_legacy_enablement_evidence (
@@ -248,42 +250,13 @@ CREATE TABLE bob_legacy_enablement_evidence (
     enabled boolean NOT NULL
 );
 
-CREATE TABLE bob_customer_versions (
+CREATE TABLE dcl_customer_versions (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
-    kind varchar(32) NOT NULL,
-    legal_identifier varchar(128),
     display_name varchar(200) NOT NULL,
-    legal_name varchar(200),
     default_operating_entity_id varchar(26),
-    default_operating_entity_approval_entry_id varchar(26),
     default_operating_entity_code varchar(64),
     default_operating_entity_name varchar(200),
-    phone varchar(32),
-    email varchar(320),
-    address varchar(500),
-    invoice_title varchar(200),
-    invoice_address varchar(500),
-    invoice_phone varchar(32),
-    invoice_bank varchar(200),
-    invoice_account varchar(128),
-    remittance_profiles jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(remittance_profiles) = 'array'),
-    tax_attachments jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(tax_attachments) = 'array')
-);
-
-CREATE TABLE bob_customer_subunit_roots (
-    subunit_id varchar(26) PRIMARY KEY,
-    customer_id varchar(26) NOT NULL REFERENCES bob_subjects(id) ON DELETE CASCADE,
-    code varchar(64) NOT NULL CHECK (btrim(code) <> ''),
-    UNIQUE (customer_id, code)
-);
-
-CREATE TABLE bob_customer_version_subunits (
-    customer_approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
-    subunit_id varchar(26) NOT NULL REFERENCES bob_customer_subunit_roots(subunit_id) ON DELETE RESTRICT,
-    name varchar(200) NOT NULL,
-    contact_name varchar(100),
-    contact_phone varchar(32),
-    business_address varchar(500),
+    phone varchar(32), email varchar(320), address varchar(500), contact_name varchar(100),
     customer_type_id varchar(26) NOT NULL,
     customer_type_snapshot jsonb NOT NULL CHECK (jsonb_typeof(customer_type_snapshot) = 'object'),
     settlement_method_id varchar(26),
@@ -293,24 +266,17 @@ CREATE TABLE bob_customer_version_subunits (
     primary_sales_attribution_code varchar(64),
     primary_sales_attribution_name varchar(200),
     sales_attribution_snapshot jsonb,
-    settlement_snapshot jsonb,
-    payment_snapshot jsonb,
-    transport_snapshot jsonb,
-    pricing_snapshot jsonb,
-    credit_limits jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(credit_limits) = 'array'),
-    internal_reminder varchar(1000),
-    default_order_remark varchar(1000),
-    business_attachments jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(business_attachments) = 'array'),
-    enabled boolean NOT NULL,
-    PRIMARY KEY (customer_approval_entry_id, subunit_id)
+    settlement_snapshot jsonb, payment_snapshot jsonb, transport_snapshot jsonb, pricing_snapshot jsonb,
+    credit_limits jsonb NOT NULL CHECK (jsonb_typeof(credit_limits) = 'array'),
+    internal_reminder varchar(1000), default_order_remark varchar(1000),
+    attachments jsonb NOT NULL CHECK (jsonb_typeof(attachments) = 'array'),
+    remittance_profiles jsonb NOT NULL CHECK (jsonb_typeof(remittance_profiles) = 'array'),
+    tax_information jsonb NOT NULL CHECK (jsonb_typeof(tax_information) = 'array')
 );
 
-CREATE TABLE bob_supplier_versions (
+CREATE TABLE dcl_supplier_versions (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
-    kind varchar(32) NOT NULL,
-    legal_name varchar(200) NOT NULL,
     display_name varchar(200) NOT NULL,
-    legal_identifier varchar(128),
     default_operating_entity_id varchar(26),
     default_purchaser_employee_id varchar(26),
     default_purchaser_approval_entry_id varchar(26),
@@ -322,10 +288,11 @@ CREATE TABLE bob_supplier_versions (
     remark varchar(1000),
     default_operating_entity_reference jsonb,
     settlement_method_snapshot jsonb,
-    default_purchaser_snapshot jsonb
+    default_purchaser_snapshot jsonb,
+    tax_information jsonb NOT NULL CHECK (jsonb_typeof(tax_information) = 'array')
 );
-CREATE TABLE bob_supplier_version_operating_entities (
-    approval_entry_id varchar(26) NOT NULL REFERENCES bob_supplier_versions(approval_entry_id) ON DELETE CASCADE,
+CREATE TABLE dcl_supplier_version_operating_entities (
+    approval_entry_id varchar(26) NOT NULL REFERENCES dcl_supplier_versions(approval_entry_id) ON DELETE CASCADE,
     operating_entity_id varchar(26) NOT NULL,
     operating_entity_approval_entry_id varchar(26),
     operating_entity_code varchar(64) NOT NULL,
@@ -333,7 +300,7 @@ CREATE TABLE bob_supplier_version_operating_entities (
     PRIMARY KEY (approval_entry_id, operating_entity_id)
 );
 
-CREATE TABLE bob_other_unit_versions (
+CREATE TABLE dcl_other_unit_versions (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     kind varchar(32) NOT NULL,
     legal_name varchar(200) NOT NULL,
@@ -347,8 +314,8 @@ CREATE TABLE bob_other_unit_versions (
     default_operating_entity_reference jsonb,
     settlement_method_snapshot jsonb
 );
-CREATE TABLE bob_other_unit_version_operating_entities (
-    approval_entry_id varchar(26) NOT NULL REFERENCES bob_other_unit_versions(approval_entry_id) ON DELETE CASCADE,
+CREATE TABLE dcl_other_unit_version_operating_entities (
+    approval_entry_id varchar(26) NOT NULL REFERENCES dcl_other_unit_versions(approval_entry_id) ON DELETE CASCADE,
     operating_entity_id varchar(26) NOT NULL,
     operating_entity_approval_entry_id varchar(26),
     operating_entity_code varchar(64) NOT NULL,
@@ -376,7 +343,7 @@ CREATE TABLE dcl_employee_versions (
     enabled boolean NOT NULL
 );
 
-CREATE TABLE bob_sales_partner_versions (
+CREATE TABLE dcl_sales_partner_versions (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     kind varchar(32) NOT NULL,
     legal_name varchar(200) NOT NULL,
@@ -390,8 +357,8 @@ CREATE TABLE bob_sales_partner_versions (
     remark varchar(1000),
     default_operating_entity_reference jsonb
 );
-CREATE TABLE bob_sales_partner_version_operating_entities (
-    approval_entry_id varchar(26) NOT NULL REFERENCES bob_sales_partner_versions(approval_entry_id) ON DELETE CASCADE,
+CREATE TABLE dcl_sales_partner_version_operating_entities (
+    approval_entry_id varchar(26) NOT NULL REFERENCES dcl_sales_partner_versions(approval_entry_id) ON DELETE CASCADE,
     operating_entity_id varchar(26) NOT NULL,
     operating_entity_approval_entry_id varchar(26),
     operating_entity_code varchar(64) NOT NULL,
@@ -399,7 +366,7 @@ CREATE TABLE bob_sales_partner_version_operating_entities (
     PRIMARY KEY (approval_entry_id, operating_entity_id)
 );
 
-CREATE TABLE bob_product_versions (
+CREATE TABLE dcl_product_versions (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     name varchar(200) NOT NULL,
     category_id varchar(26),
@@ -614,7 +581,7 @@ CREATE TABLE archive_idempotency (
     PRIMARY KEY (entity, idempotency_key)
 );
 
-CREATE TABLE bob_customer_attachment_staging (
+CREATE TABLE dcl_customer_attachment_staging (
     id varchar(26) PRIMARY KEY,
     file_id varchar(26) NOT NULL,
     owner_user_id varchar(26) NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
@@ -628,7 +595,7 @@ CREATE TABLE bob_customer_attachment_staging (
     CHECK (expires_at > created_at)
 );
 
-CREATE TABLE bob_customer_attachments (
+CREATE TABLE dcl_customer_attachments (
     approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
     file_id varchar(26) NOT NULL,
     file_name varchar(255) NOT NULL,
@@ -821,6 +788,39 @@ CREATE TABLE vou_sale_delivery_details (
     CHECK ((parent_entity IS NULL) = (parent_document_id IS NULL))
 );
 
+CREATE TABLE vou_sale_invoice_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL,
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64), parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    remark text,
+    tax_information_id varchar(26) REFERENCES aux_objects(id) ON DELETE RESTRICT,
+    tax_information_revision bigint,
+    tax_information_snapshot jsonb
+);
+CREATE TABLE vou_purchase_invoice_details (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    business_date date NOT NULL,
+    currency varchar(3) NOT NULL,
+    total_amount_minor bigint NOT NULL,
+    parent_entity varchar(64), parent_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    remark text,
+    tax_information_id varchar(26) REFERENCES aux_objects(id) ON DELETE RESTRICT,
+    tax_information_revision bigint,
+    tax_information_snapshot jsonb
+);
+CREATE TABLE vou_invoice_line_snapshots (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    line_no integer NOT NULL,
+    source_document_id varchar(26) NOT NULL REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    source_approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE RESTRICT,
+    source_line_id varchar(128) NOT NULL,
+    amount_minor bigint NOT NULL,
+    PRIMARY KEY (approval_entry_id, line_no)
+);
 CREATE TABLE vou_sale_signoff_details (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     document_id varchar(26) NOT NULL UNIQUE REFERENCES vou_documents(id) ON DELETE RESTRICT,
@@ -1364,13 +1364,6 @@ CREATE TABLE vou_expense_line_snapshots (
     PRIMARY KEY (approval_entry_id, line_no)
 );
 
-CREATE TABLE vou_amount_allocation_snapshots (
-    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
-    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
-    amount_minor bigint NOT NULL,
-    PRIMARY KEY (approval_entry_id, line_no)
-);
-
 CREATE TABLE vou_inventory_count_line_snapshots (
     approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
     line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
@@ -1564,7 +1557,7 @@ CREATE TABLE vou_intermediary_summary_snapshots (
 
 CREATE TABLE vou_document_counters (
     entity varchar(64) NOT NULL CHECK (entity IN (
-        'sale-pricing', 'sale-order', 'sale-outbound', 'sale-delivery', 'sale-signoff', 'sale-return',
+        'sale-invoice', 'purchase-invoice', 'sale-pricing', 'sale-order', 'sale-outbound', 'sale-delivery', 'sale-signoff', 'sale-return',
         'purchase-order', 'purchase-inbound', 'purchase-return', 'purchase-inquiry', 'order-production',
         'self-production', 'inventory-count', 'sales-receipt', 'purchase-refund', 'other-receipt',
         'sales-refund', 'purchase-payment', 'other-payment', 'employee-loan', 'employee-repayment',
@@ -1691,8 +1684,7 @@ CREATE INDEX acc_inventory_entries_control_balance_idx
 
 CREATE TABLE acc_container_entries (
     id varchar(26) PRIMARY KEY,
-    customer_subunit_id varchar(26) NOT NULL REFERENCES bob_customer_subunit_roots(subunit_id) ON DELETE RESTRICT,
-    customer_id varchar(26) NOT NULL REFERENCES bob_subjects(id) ON DELETE RESTRICT,
+    customer_id varchar(26) NOT NULL REFERENCES dcl_subjects(id) ON DELETE RESTRICT,
     customer_approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE RESTRICT,
     container_type varchar(16) NOT NULL CHECK (container_type IN ('SOLVENT', 'RESIN')),
     quantity_delta bigint NOT NULL,
@@ -1705,7 +1697,7 @@ CREATE TABLE acc_container_entries (
     UNIQUE (source_document_id, source_revision, container_type)
 );
 CREATE INDEX acc_container_entries_balance_idx
-    ON acc_container_entries(customer_subunit_id, container_type, business_date, created_at, id);
+    ON acc_container_entries(customer_id, container_type, business_date, created_at, id);
 
 CREATE TABLE acc_asset_registers (
     id varchar(26) PRIMARY KEY,
@@ -1788,15 +1780,14 @@ CREATE UNIQUE INDEX acc_register_entries_opening_source_unique
 
 CREATE TABLE acc_opening_container_balances (
     opening_approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
-    customer_subunit_id varchar(26) NOT NULL REFERENCES bob_customer_subunit_roots(subunit_id) ON DELETE RESTRICT,
-    customer_id varchar(26) NOT NULL REFERENCES bob_subjects(id) ON DELETE RESTRICT,
+    customer_id varchar(26) NOT NULL REFERENCES dcl_subjects(id) ON DELETE RESTRICT,
     customer_approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE RESTRICT,
-    customer_subunit_code varchar(64) NOT NULL,
-    customer_subunit_name varchar(200) NOT NULL,
+    customer_code varchar(64) NOT NULL,
+    customer_name varchar(200) NOT NULL,
     container_type varchar(16) NOT NULL CHECK (container_type IN ('SOLVENT', 'RESIN')),
     quantity bigint NOT NULL CHECK (quantity <> 0),
     created_at timestamptz NOT NULL,
-    PRIMARY KEY (opening_approval_entry_id, customer_subunit_id, container_type)
+    PRIMARY KEY (opening_approval_entry_id, customer_id, container_type)
 );
 
 CREATE TABLE wfl_definitions (
@@ -1885,4 +1876,15 @@ CREATE TABLE rpt_execution_audits (
     row_count integer CHECK (row_count IS NULL OR row_count >= 0),
     request_id varchar(128) NOT NULL,
     created_at timestamptz NOT NULL
+);
+
+-- One-shot conversion evidence, never consulted by runtime business readers.
+CREATE TABLE dcl_customer_conversion_evidence (
+    baseline varchar(64) PRIMARY KEY,
+    source_release_sha varchar(40) NOT NULL,
+    target_release_sha varchar(40) NOT NULL,
+    actor_user_id varchar(26) NOT NULL REFERENCES app_users(id),
+    created_at timestamptz NOT NULL,
+    report jsonb NOT NULL,
+    originals jsonb NOT NULL
 );

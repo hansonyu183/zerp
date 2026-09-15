@@ -75,3 +75,8 @@ export const salesPartnerPage = defineVersionPage<'bob/sales-partner'>({
       ),
   },
 })
+
+export const salesPartnerChangesPage = {
+  ...salesPartnerPage,
+  resource: 'dcl/sales-partner' as const,
+}

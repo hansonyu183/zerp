@@ -1,18 +1,9 @@
-import { identityKindOptions } from '../components/version-page/identity-data.ts'
 import * as api from '../api.ts'
 import { defineVersionPage } from '../components/version-page/definition.ts'
 export const supplierPage = defineVersionPage<'bob/supplier'>({
   resource: 'bob/supplier',
   fields: [
-    { key: 'legalName', type: 'text', caption: '法定名称', required: true },
     { key: 'displayName', type: 'text', caption: '显示名称', required: true },
-    { key: 'legalIdentifier', type: 'text', caption: '法定识别号' },
-    {
-      key: 'identityKind',
-      type: 'enum',
-      caption: '身份类型',
-      options: identityKindOptions,
-    },
     { key: 'contactName', type: 'text', caption: '联系人' },
     { key: 'phone', type: 'text', caption: '联系电话' },
     { key: 'address', type: 'textarea', caption: '地址' },
@@ -20,10 +11,8 @@ export const supplierPage = defineVersionPage<'bob/supplier'>({
   ],
   adapter: {
     empty: () => ({
-      identityKind: 'ORGANIZATION',
-      legalName: '',
       displayName: '',
-      legalIdentifier: '',
+      taxInformation: [],
       contactName: '',
       phone: '',
       address: '',
@@ -35,8 +24,8 @@ export const supplierPage = defineVersionPage<'bob/supplier'>({
     }),
     clone: (snapshot) => structuredClone(snapshot),
     validate: (snapshot) =>
-      !snapshot.legalName.trim() || !snapshot.displayName.trim()
-        ? '请填写法定名称和显示名称。'
+      !snapshot.displayName.trim()
+        ? '请填写供应商名称。'
         : snapshot.defaultOperatingEntityId &&
             !snapshot.operatingEntities.some(
               (item) => item.objectId === snapshot.defaultOperatingEntityId,
@@ -74,3 +63,8 @@ export const supplierPage = defineVersionPage<'bob/supplier'>({
       ),
   },
 })
+
+export const supplierChangesPage = {
+  ...supplierPage,
+  resource: 'dcl/supplier' as const,
+}

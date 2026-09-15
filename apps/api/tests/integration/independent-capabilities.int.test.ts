@@ -424,7 +424,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   )
   const measurementUnit = await auxService.create(
     'measurement-unit',
-    { name: `E2E 千克 ${suffix}`, symbol: 'kg', quantityScale: 3 },
+    { name: `E2E 千克 ${suffix}`, fixedFactor: null },
     { id: principal.userId, permissions: ['/aux/measurement-unit/create'] },
   )
   const dictionaryType = await auxService.create(
@@ -484,8 +484,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   })
   assert.equal(unitReferences.data.items[0].objectId, measurementUnit.id)
   assert.equal(unitReferences.data.items[0].name, `E2E 千克 ${suffix}`)
-  assert.equal(unitReferences.data.items[0].symbol, 'kg')
-  assert.equal(unitReferences.data.items[0].quantityScale, 3)
+  assert.equal(unitReferences.data.items[0].fixedFactor, null)
   const dictionaryItemReferences = await get('/aux/dictionary-item/options', {})
   assert.equal(dictionaryItemReferences.code, 0)
   assert.ok(

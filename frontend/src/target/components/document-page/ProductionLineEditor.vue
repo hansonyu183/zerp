@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import type { VouFormulaInput } from '@zerp/model'
 import FormBlock from '../dynamic-fields/FormBlock.vue'
 import CollectionBlock from '../dynamic-fields/CollectionBlock.vue'
@@ -70,7 +70,8 @@ async function select(
   emit('pending', true)
   try {
     let formula: VouFormulaInput | null = null,
-      selected = choice
+      selected = choice,
+      inheritedEnteredQuantity: string | undefined
     if (source) {
       const result = await resolveTargetSaleOrderLine(
         source.rootDocumentId,
@@ -80,6 +81,7 @@ async function select(
       if (!row?.formula || row.formula.sourceType === 'RAW_SELF')
         throw new Error('来源行没有可用的成品配方。')
       formula = row.formula
+      inheritedEnteredQuantity = row.enteredQuantity
       selected = {
         entity: 'product',
         objectId: row.product.objectId,
@@ -104,6 +106,7 @@ async function select(
     if (!owns() || requests.get(id) !== request || !formula) return
     line({
       product: selected,
+      inheritedEnteredQuantity,
       formula,
       enteredQuantity: formula.output.enteredQuantity,
       baseQuantity: formula.output.baseQuantity,
@@ -125,6 +128,31 @@ function materialPending(value: boolean) {
   else pending.delete('material-editor')
   emit('pending', pending.size > 0)
 }
+onMounted(async () => {
+  const source = props.modelValue.source
+  if (!source || props.disabled) return
+  const id = props.modelValue.id,
+    request = Symbol()
+  requests.set(id, request)
+  pending.add(id)
+  emit('pending', true)
+  try {
+    const result = await resolveTargetSaleOrderLine(
+      source.rootDocumentId,
+      source.sourceLineId,
+    )
+    if (owns() && requests.get(id) === request && result?.line)
+      line({ inheritedEnteredQuantity: result.line.enteredQuantity })
+  } catch (cause) {
+    if (owns() && requests.get(id) === request)
+      error.value = cause instanceof Error ? cause.message : '来源读取失败。'
+  } finally {
+    if (owns() && requests.get(id) === request) {
+      pending.delete(id)
+      emit('pending', pending.size > 0)
+    }
+  }
+})
 onBeforeUnmount(() => {
   active = false
   requests.clear()
@@ -158,7 +186,10 @@ onBeforeUnmount(() => {
         {
           key: 'enteredQuantity',
           type: 'decimal',
-          scale: 6,
+          scale:
+            modelValue.enteredQuantity === modelValue.inheritedEnteredQuantity
+              ? 6
+              : 2,
           caption: '成品数量',
           required: true,
         },

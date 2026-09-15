@@ -1,3 +1,4 @@
+import { isInputQuantity, sameFormulaQuantities } from '@zerp/model'
 import { businessDate } from './business-date.ts'
 import type {
   TargetOrderEntity,
@@ -22,6 +23,7 @@ export type OrderLine = {
   settlementSurcharge: string | null
   remark: string
   formula: VouProductLineInput['formula']
+  inheritedFormula?: VouProductLineInput['formula']
   formulaDraft: ProductSnapshot['fixedFormula']
   deliverySpecificationType: 'PACKAGED' | 'BULK_LIQUID'
   quantityPerContainer: string
@@ -68,8 +70,7 @@ export function unitSnapshot(
     objectId: unit.id,
     code: unit.code,
     name: unit.name,
-    symbol: unit.symbol,
-    quantityScale: unit.quantityScale,
+    fixedFactor: unit.fixedFactor,
   }
 }
 export function orderPayload(
@@ -95,10 +96,11 @@ export function orderPayload(
           `商品行第 ${index + 1} 行：填写正数数量，最多六位小数。`,
         )
     if (
-      (line.enteredQuantity.split('.')[1] ?? '').replace(/0+$/, '').length >
-      unit.quantityScale
+      (line.enteredQuantity.split('.')[1] ?? '').replace(/0+$/, '').length > 2
     )
-      throw new Error(`商品行第 ${index + 1} 行：录入数量超出单位精度。`)
+      throw new Error(
+        `商品行第 ${index + 1} 行：录入数量最多两位小数；请显式重新确认历史高精度数量。`,
+      )
     if (!/^\d+(?:\.\d{1,2})?$/.test(line.unitPrice))
       throw new Error(`商品行第 ${index + 1} 行：填写基础单价，最多两位小数。`)
     if (
@@ -109,6 +111,20 @@ export function orderPayload(
     )
       throw new Error(
         `商品行第 ${index + 1} 行：配方原料尚未确认，请重新选择。`,
+      )
+    if (
+      line.formula &&
+      !(
+        line.inheritedFormula &&
+        sameFormulaQuantities(line.formula, line.inheritedFormula)
+      ) &&
+      ![
+        line.formula.output,
+        ...line.formula.components.map((item) => item.quantity),
+      ].every((quantity) => isInputQuantity(quantity.enteredQuantity))
+    )
+      throw new Error(
+        `商品行第 ${index + 1} 行：手工配方录入数量最多两位小数。`,
       )
     const sale = draft.entity === 'sale-order',
       packaging = line.current.data.productType.behaviorProfile === 'PACKAGING'
@@ -253,6 +269,11 @@ export function cloneOrder(
       settlementSurcharge: line.settlementSurcharge ?? null,
       remark: line.remark ?? '',
       formula: line.formula ?? null,
+      inheritedFormula:
+        line.formula?.sourceType === 'PRODUCT_FIXED' ||
+        line.formula?.sourceType === 'CUSTOMER_LATEST'
+          ? structuredClone(line.formula)
+          : null,
       formulaDraft: null,
       deliverySpecificationType: line.deliverySpecificationType ?? 'PACKAGED',
       quantityPerContainer: line.quantityPerContainer ?? '',
@@ -270,8 +291,7 @@ export function formulaDraftFromWire(
       id: input.enteredUnit.objectId,
       code: input.enteredUnit.code,
       name: input.enteredUnit.name,
-      symbol: input.enteredUnit.symbol,
-      quantityScale: input.enteredUnit.quantityScale,
+      fixedFactor: input.enteredUnit.fixedFactor,
     },
   })
   return {

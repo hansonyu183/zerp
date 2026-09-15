@@ -271,8 +271,7 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
     entered_unit_id: unitId,
     entered_unit_code: 'UNIT-SOURCE',
     entered_unit_name: '来源件',
-    entered_unit_symbol: '件',
-    entered_unit_quantity_scale: 0,
+    entered_unit_fixed_factor: null,
   }
   const sourceLineId = ulid()
   const source = await addDocument({

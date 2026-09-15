@@ -233,8 +233,7 @@ export interface VouQuantitySnapshotInput {
 export interface VouMeasurementUnitSnapshotInput extends VouObjectReferenceInput {
   code: string
   name: string
-  symbol: string
-  quantityScale: number
+  fixedFactor: string | null
 }
 
 export interface VouProductQuantitySnapshotInput {
@@ -2172,8 +2171,7 @@ const measurementUnitSnapshotFields: readonly VouInputFieldDescriptor[] =
     { key: 'objectId', kind: 'text', required: true },
     { key: 'code', kind: 'text', required: true },
     { key: 'name', kind: 'text', required: true },
-    { key: 'symbol', kind: 'text', required: true },
-    { key: 'quantityScale', kind: 'integer', required: true },
+    { key: 'fixedFactor', kind: 'decimal', required: true, nullable: true },
   ])
 const productQuantityFields: readonly VouInputFieldDescriptor[] = Object.freeze(
   [

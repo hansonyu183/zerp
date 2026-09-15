@@ -42,7 +42,7 @@ tax-information
 
 ### 2.1 管理查询与并发
 
-全部 AUX 实体采用同一管理身份与并发语义。名称只有 typed data 中一份可写事实；列表的名称与拼音从当前名称派生。拼音复用后端纯转换工具，不另存拼音列或执行 AUX 回填。查询默认包含启用和停用对象，在完整授权集合对编码、拼音、名称作 OR 包含匹配，按编码和稳定 ID 升序排列后分页，每页 20 条，总数来自同一匹配集合；改名后检索立即采用新名称。计量单位查询额外接受可选的 `quantityScale`（0–6 整数），与 `keyword` 作 AND 匹配后再计算总数和分页；该筛选不扩展到其他 AUX 实体。
+全部 AUX 实体采用同一管理身份与并发语义。名称只有 typed data 中一份可写事实；列表的名称与拼音从当前名称派生。拼音复用后端纯转换工具，不另存拼音列或执行 AUX 回填。查询默认包含启用和停用对象，在完整授权集合对编码、拼音、名称作 OR 包含匹配，按编码和稳定 ID 升序排列后分页，每页 20 条，总数来自同一匹配集合；改名后检索立即采用新名称。计量单位沿用通用名称、编码和拼音查询，不设逐单位数量精度筛选。
 
 管理动作资格只有 `edit`、`enable`、`disable`，中文分别为编辑、启用、停用，由服务端结合精确权限和对象事实提供；布尔启用事实显示为启用或停用。动作资格不是执行授权，执行时重新检查。创建不接受服务端身份、编码、拼音、启用事实或 revision；保存只改变 typed data，不能夹带启停。管理输入不接受旧身份别名或数字 revision，所有 revision 运算保持大整数精度。引用候选与历史嵌入快照保留自身身份语义。
 
@@ -104,13 +104,13 @@ tax-information TAX
 
 ### 3.5 计量单位
 
-`measurement-unit` 字段仅为 `name`、`symbol` 和 `quantityScale`。单位名称和符号用于录入与显示，`quantityScale` 决定该单位允许录入和保存的小数位。AUX 不管理计量维度、基准单位、基准单位 ID 或通用换算比例；相同单位名称在不同产品中可以对应不同的实际换算。
+`measurement-unit` 只维护 `name` 和 `fixedFactor`。名称直接显示 kg、吨、桶等；不设独立符号或逐单位数量精度。`fixedFactor` 为正十进制字符串时表示一个可见单位对应的内部基本数量，例如 kg/1、吨/1000；为 `null` 时由产品维护换算，例如产品 A 的桶/200、产品 B 的桶/180。系数最多 18 位小数，不受数量录入两位精度限制。不增加计量维度或产品类型限制。
 
-符号必填，数量精度为 0–6 的整数，两端均合法。改名、修改符号或精度及启停只影响后续显式采用，既有产品和交易继续使用保存时的名称、符号和数量精度。
+内部基本单位仍是产品不可管理、无名称、无符号、无对象 ID 的稳定计算尺度，不出现在候选或产品配置中；kg 也是可见单位，不是内部基本单位对象。
 
-计量单位管理查询的每个摘要行除通用 `id`、`code`、`py`、`name`、`enabled`、`revision` 与动作资格外，还返回必有的 `symbol` 和 `quantityScale`；列表筛选使用同一当前 `quantityScale` 事实，不回查产品或交易快照。
+单位 current 定义可通过 revision 并发控制修改。产品首次采用时冻结 stable ID、code、name、fixedFactor；同一产品后续版本保留已采用的单位定义，current 改动不重新解释它。固定换算在产品中不重复填写，也不允许覆盖；产品相关换算在产品版本中维护。修改固定定义只影响后续首次采用它的产品，历史单据、库存、配方和核算不重算。
 
-产品和服务通过对象 ID 引用计量单位。普通商品仍以 kg 计价，包装物按自身计价单位计价；计价单位和默认录入单位是用户可见语义，产品内部基准单位不是计量单位对象。产品 candidate 选择单位时把 stable ID、code、name、symbol 与 `quantityScale` 一并保存；VOU 按所采用产品版本中的 `quantityScale` 校验录入数量，不回查 AUX。所有产品单位换算都由 BOB 产品页面维护，不进入 AUX 的通用规则。
+新录入数量统一最多两位小数，超出明确拒绝，不静默舍入。价格、金额、系数和底层计算结果按各自规则保留精度。单位查询摘要和候选返回 name、fixedFactor，不返回符号或逐单位精度。
 
 ### 3.6 字典
 
@@ -183,7 +183,7 @@ AUX current 修改不会覆盖既有交易快照。结算方式在客户或供�
 | employee-category / department / position | stable ID、code、name、parentId                                                                      | AUX employee snapshot                                                                          | 不改写既有雇佣或交易人员快照                   |
 | settlement-method                         | stable ID、code、name、termCode、ruleType、monthOffset、dayOfMonth、dayOffset、defaultSalesSurcharge | BOB customer/supplier snapshot；订单复制最终结算事实                                           | 不重算到期日、金额或加价                       |
 | payment-method                            | stable ID、code、name、defaultSalesSurcharge                                                         | BOB Customer Version snapshot；销售订单保存最终方式与加价                                      | 不重算既有订单金额                             |
-| measurement-unit                          | stable ID、code、name、symbol、quantityScale                                                         | BOB product unit/formula snapshot；VOU 采用产品 snapshot                                       | 不改变历史数量精度、换算、库存或展示           |
+| measurement-unit                          | stable ID、code、name、fixedFactor                                                                   | BOB product unit/formula snapshot；VOU 采用产品 snapshot                                       | 不改变历史数量精度、换算、库存或展示           |
 | dictionary-type / dictionary-item         | stable type、item code 与采用时名称                                                                  | 当前只作无业务规则的选择与展示；进入正式 BOB/VOU 字段时由所属 typed snapshot 保存              | 排序与说明从不重解释业务；名称不改写已保存快照 |
 | income-expense-type                       | stable ID、code、name、direction、parentId                                                           | 正式收支分类接入 VOU 时由 VOU line typed snapshot 保存；当前未接入的页面不得用自由字段伪装引用 | 已有单据分类、方向与归集不回查 current         |
 | asset-category                            | stable ID、code、name、defaultUsefulLifeMonths、defaultResidualRate                                  | VOU asset-acquisition line 与批准后资产台账 snapshot                                           | 不重算既有折旧参数                             |

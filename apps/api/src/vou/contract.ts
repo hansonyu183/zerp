@@ -130,8 +130,7 @@ const measurementUnitSnapshot = objectReference
   .extend({
     code: z.string().trim().min(1).max(64),
     name: z.string().trim().min(1).max(200),
-    symbol: z.string().trim().min(1).max(64),
-    quantityScale: z.number().int().min(0).max(6),
+    fixedFactor: z.string().nullable(),
   })
   .strict()
 const productQuantitySnapshot = z
@@ -1085,6 +1084,7 @@ const saleOrderLineResult = z
     approvalEntryId: z.string(),
     line: productLine.pick({
       lineId: true,
+      enteredQuantity: true,
       product: true,
       formula: true,
       deliverySpecificationType: true,

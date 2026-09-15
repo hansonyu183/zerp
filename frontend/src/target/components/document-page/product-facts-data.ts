@@ -120,10 +120,9 @@ export function productFactsPayload(
       )
         throw new Error('实盘数量不得为负，最多六位小数。')
       if (
-        (line.enteredQuantity.split('.')[1] ?? '').replace(/0+$/, '').length >
-        unit.quantityScale
+        (line.enteredQuantity.split('.')[1] ?? '').replace(/0+$/, '').length > 2
       )
-        throw new Error('实盘数量超出单位精度。')
+        throw new Error('实盘录入数量最多两位小数。')
       return {
         product: { objectId: line.product.objectId },
         enteredQuantity: line.enteredQuantity,

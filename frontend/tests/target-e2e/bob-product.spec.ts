@@ -65,8 +65,12 @@ test('product temporary form, exact quantity trial, approval and independent ena
       { data: {}, headers: { 'x-zerp-model-build': modelBuildId } },
     )
     const { data: session } = await restored.json()
+    const kgName = `kg-${tag}`,
+      tonName = `吨-${tag}`
     for (const [entity, data] of [
-      ['measurement-unit', { name: unitName, symbol: 'kg', quantityScale: 6 }],
+      ['measurement-unit', { name: unitName, fixedFactor: null }],
+      ['measurement-unit', { name: kgName, fixedFactor: '1' }],
+      ['measurement-unit', { name: tonName, fixedFactor: '1000' }],
       ['product-category', { name: categoryName, description: '' }],
       [
         'product-type',
@@ -110,8 +114,8 @@ test('product temporary form, exact quantity trial, approval and independent ena
     await dialog.getByLabel('型号', { exact: true }).fill('型号完整')
     await select(page, dialog, '产品类型', typeName)
     await select(page, dialog, '产品分类', categoryName)
-    await select(page, dialog, '计价单位', unitName)
-    await select(page, dialog, '默认录入单位', unitName)
+    await select(page, dialog, '计价单位', kgName)
+    await select(page, dialog, '默认录入单位', tonName)
     await dialog
       .getByLabel('默认包装规格（基准数量）', { exact: true })
       .fill('1.000001')
@@ -120,13 +124,35 @@ test('product temporary form, exact quantity trial, approval and independent ena
       .getByRole('button', { name: '新增', exact: true })
       .click()
     await select(page, dialog, '录入单位', unitName)
-    await dialog.getByLabel('换算系数', { exact: true }).fill('2.5')
+    await dialog.getByLabel('换算系数', { exact: true }).fill('200')
     await confirmCollection(page)
+    for (const fixedName of [kgName, tonName]) {
+      await dialog
+        .locator(
+          '.collection-block[aria-label="单位换算"] > .collection-heading',
+        )
+        .getByRole('button', { name: '新增', exact: true })
+        .click()
+      await select(page, dialog, '录入单位', fixedName)
+      await expect(dialog.getByLabel('换算系数', { exact: true })).toHaveCount(
+        0,
+      )
+      await expect(dialog).toContainText('单位固定系数：')
+      await confirmCollection(page)
+    }
+    for (const [fixedName, amount] of [
+      [kgName, '1000'],
+      [tonName, '1'],
+    ]) {
+      await select(page, dialog, '试算单位', fixedName!)
+      await dialog.getByLabel('试算录入数量', { exact: true }).fill(amount!)
+      await expect(dialog).toContainText('建议基准数量：1000。')
+    }
     await select(page, dialog, '试算单位', unitName)
     await dialog
       .getByLabel('试算录入数量', { exact: true })
-      .fill('9007199254740993.000001')
-    await expect(dialog).toContainText('22517998136852482.5000025')
+      .fill('9007199254740993.01')
+    await expect(dialog).toContainText('1801439850948198602')
     await dialog.getByRole('button', { name: '提交', exact: true }).click()
     await expect(dialog).toHaveCount(0)
     await approve(reviewer, name)

@@ -7,6 +7,7 @@ import {
   prepareSalesPartnerSubmit,
   prepareSupplierSubmit,
   prepareProductSubmit,
+  productInputQuantitiesValid,
   prepareCustomerSubmit,
   type ProductMaterialFact,
   type ApprovalAction,
@@ -859,6 +860,13 @@ export class DclArchiveService {
             prepared.blockers,
           )
         const plan = prepared.plan
+        if (
+          entity === 'product' &&
+          !productInputQuantitiesValid(
+            plan.data as unknown as import('@zerp/model').ProductData,
+          )
+        )
+          throw new DclArchiveApplicationError('product_invalid_data')
         await this.ensureNoDuplicateBusinessKey(
           tx,
           entity,
@@ -1918,22 +1926,19 @@ export class DclArchiveService {
     const fact = (await this.auxFacts(tx, [[field, record(reference).id]]))[0]
     if (!fact || !fact.available) throw new DclArchiveApplicationError(errorKey)
     if (auxiliaryEntities[field] === 'measurement-unit') {
-      const symbol = fact.data.symbol
-      const quantityScale = fact.data.quantityScale
+      const fixedFactor = fact.data.fixedFactor
       if (
-        typeof symbol !== 'string' ||
-        !symbol.trim() ||
-        !Number.isInteger(quantityScale) ||
-        Number(quantityScale) < 0 ||
-        Number(quantityScale) > 6
+        fixedFactor !== null &&
+        (typeof fixedFactor !== 'string' ||
+          !/^(?:0|[1-9]\d*)(?:\.\d{1,18})?$/.test(fixedFactor) ||
+          !/[1-9]/.test(fixedFactor))
       )
         throw new DclArchiveApplicationError(errorKey)
       return {
         id: fact.objectId,
         code: fact.code,
         name: fact.name,
-        symbol: symbol.trim(),
-        quantityScale,
+        fixedFactor,
       }
     }
     if (field === 'productType') {

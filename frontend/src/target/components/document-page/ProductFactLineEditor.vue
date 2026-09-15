@@ -92,7 +92,7 @@ onBeforeUnmount(() => {
         {
           key: 'enteredQuantity',
           type: 'decimal',
-          scale: 6,
+          scale: 2,
           caption: '实盘数量',
           required: true,
         },

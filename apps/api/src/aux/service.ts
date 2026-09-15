@@ -103,8 +103,7 @@ export interface AuxDataByEntity {
   }
   'measurement-unit': {
     name: string
-    symbol: string
-    quantityScale: number
+    fixedFactor: string | null
   }
   'income-expense-type': {
     name: string
@@ -209,7 +208,6 @@ export type AuxSaveInput<Entity extends AuxEntity> = AuxRevisionInput &
 
 export interface AuxQueryInput {
   keyword?: string
-  quantityScale?: number
   page: number
   pageSize: 20
 }
@@ -251,8 +249,7 @@ export interface AuxReferenceCandidate {
   name: string
   behaviorProfile?:
     'RAW_MATERIAL' | 'STANDARD_FINISHED' | 'CUSTOM_FINISHED' | 'PACKAGING'
-  quantityScale?: number
-  symbol?: string
+  fixedFactor?: string | null
   termCode?:
     | 'PREPAID'
     | 'CASH_ON_DELIVERY'
@@ -818,13 +815,17 @@ function normaliseData(entity: AuxEntity, source: unknown): AuxData {
         sortOrder: integer(data.sortOrder, -2_147_483_648, 2_147_483_647),
       }
     case 'measurement-unit':
-      only(data, ['name', 'symbol', 'quantityScale'])
+      only(data, ['name', 'fixedFactor'])
       return {
         name,
-        symbol:
-          optionalString(data.symbol, 64) ||
-          applicationError('validation_failed'),
-        quantityScale: integer(data.quantityScale, 0, 6),
+        fixedFactor:
+          data.fixedFactor === null
+            ? null
+            : typeof data.fixedFactor === 'string' &&
+                /^(?:0|[1-9]\d*)(?:\.\d{1,18})?$/.test(data.fixedFactor) &&
+                /[1-9]/.test(data.fixedFactor)
+              ? data.fixedFactor
+              : applicationError('validation_failed'),
       }
     case 'settlement-method': {
       only(data, [
@@ -1286,22 +1287,13 @@ export class AuxService {
   }> {
     assertEntity(entity)
     assertPermission(actor, `/aux/${entity}/query`)
-    const query = strictInput(
-      input,
-      entity === 'measurement-unit'
-        ? ['keyword', 'quantityScale', 'page', 'pageSize']
-        : ['keyword', 'page', 'pageSize'],
-    )
+    const query = strictInput(input, ['keyword', 'page', 'pageSize'])
     if (
       query.pageSize !== 20 ||
       (query.keyword !== undefined && typeof query.keyword !== 'string')
     )
       applicationError('validation_failed')
     const page = integer(query.page, 1, Number.MAX_SAFE_INTEGER)
-    const quantityScale =
-      entity === 'measurement-unit' && query.quantityScale !== undefined
-        ? integer(query.quantityScale, 0, 6)
-        : undefined
     const rows =
       await sql<StoredAuxObject>`SELECT id, entity, code, enabled, revision, data, updated_at, updated_by FROM aux_objects WHERE entity = ${entity} ORDER BY code, id`.execute(
         this.db,
@@ -1312,13 +1304,10 @@ export class AuxService {
     const matches = rows.rows.map(parseRow).filter((row) => {
       const item = listItem(row, actor)
       return (
-        (!keyword ||
-          item.code.toLocaleLowerCase().includes(keyword) ||
-          item.py.includes(keyword) ||
-          item.name.toLocaleLowerCase().includes(keyword)) &&
-        (quantityScale === undefined ||
-          (row.data as AuxDataByEntity['measurement-unit']).quantityScale ===
-            quantityScale)
+        !keyword ||
+        item.code.toLocaleLowerCase().includes(keyword) ||
+        item.py.includes(keyword) ||
+        item.name.toLocaleLowerCase().includes(keyword)
       )
     })
     const offset = (page - 1) * 20
@@ -1329,8 +1318,7 @@ export class AuxService {
         const data = row.data as AuxDataByEntity['measurement-unit']
         return {
           ...item,
-          symbol: data.symbol,
-          quantityScale: data.quantityScale,
+          fixedFactor: data.fixedFactor,
         }
       }),
       total: matches.length,
@@ -1662,14 +1650,10 @@ export class AuxService {
       code: string
       name: string
       behavior_profile: AuxReferenceCandidate['behaviorProfile'] | null
-      quantity_scale: number | null
-      symbol: string | null
       data: unknown
       revision: number
     }>`SELECT id, enabled, code, data, revision, COALESCE(data->>'name', data->>'displayName', data->>'legalName', '') AS name,
-      CASE WHEN entity = 'product-type' THEN data->>'behaviorProfile' END AS behavior_profile,
-      CASE WHEN entity = 'measurement-unit' THEN NULLIF(data->>'quantityScale', '')::integer END AS quantity_scale,
-      CASE WHEN entity = 'measurement-unit' THEN data->>'symbol' END AS symbol
+      CASE WHEN entity = 'product-type' THEN data->>'behaviorProfile' END AS behavior_profile
       FROM aux_objects WHERE ${sql.join(where, sql` AND `)} ORDER BY COALESCE((data->>'sortOrder')::integer, 2147483647), code, id LIMIT ${input.pageSize} OFFSET ${(input.page - 1) * input.pageSize}`.execute(
       this.db,
     )
@@ -1707,17 +1691,13 @@ export class AuxService {
           applicationError('validation_failed')
         return { ...common, behaviorProfile }
       }
-      if (entity === 'measurement-unit') {
-        if (row.quantity_scale === null || row.symbol === null)
-          applicationError('validation_failed')
-        const symbol = optionalString(row.symbol, 64)
-        if (!symbol) applicationError('validation_failed')
+      if (entity === 'measurement-unit')
         return {
           ...common,
-          quantityScale: row.quantity_scale,
-          symbol,
+          fixedFactor: (
+            parseData(entity, row.data) as AuxDataByEntity['measurement-unit']
+          ).fixedFactor,
         }
-      }
       if (entity === 'settlement-method')
         return {
           ...common,

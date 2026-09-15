@@ -158,9 +158,7 @@ function configureApi(): void {
   queryEmployees.mockResolvedValue(page([identity('employee')]) as never)
   queryPositions.mockResolvedValue(page([identity('position')]) as never)
   queryMeasurementUnits.mockResolvedValue(
-    page([
-      { ...identity('measurement-unit'), symbol: 'kg', quantityScale: 0 },
-    ]) as never,
+    page([{ ...identity('measurement-unit'), fixedFactor: null }]) as never,
   )
   queryPaymentMethods.mockResolvedValue(
     page([identity('payment-method')]) as never,
@@ -357,7 +355,7 @@ describe('registered ListPage consumers', () => {
     wrapper.unmount()
   })
 
-  it('passes an integer quantityScale filter of zero through the registered measurement-unit page', async () => {
+  it('queries measurement units without obsolete precision filters', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
     authorize(['/aux/measurement-unit/query'])
@@ -371,13 +369,14 @@ describe('registered ListPage consumers', () => {
     })
     await flushPromises()
 
-    await wrapper.get('[data-testid="field-quantityScale"]').setValue('0')
+    expect(wrapper.find('[data-testid="field-quantityScale"]').exists()).toBe(
+      false,
+    )
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
     expect(queryMeasurementUnits).toHaveBeenLastCalledWith('csrf-token', {
       keyword: '',
-      quantityScale: 0,
       page: 1,
       pageSize: 20,
     })

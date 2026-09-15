@@ -65,6 +65,7 @@ export function useOrderLineEditor(options: {
       unitId: '',
       formula: null,
       formulaDraft: null,
+      inheritedFormula: null,
     })
     if (!choice) return
     pending.value.add(id)
@@ -128,6 +129,9 @@ export function useOrderLineEditor(options: {
           current.data.productType.behaviorProfile === 'PACKAGING'
             ? '0.00'
             : (retained?.settlementSurcharge ?? options.defaultSurcharge()),
+        inheritedFormula:
+          retained?.inheritedFormula ??
+          orderFormula(current.data.fixedFormula, 'PRODUCT_FIXED'),
         formulaDraft:
           retained?.formula &&
           current.data.productType.behaviorProfile !== 'RAW_MATERIAL' &&
@@ -217,6 +221,7 @@ export function useOrderLineEditor(options: {
         const formulaDraft = formulaDraftFromWire(line.formula)
         lineUpdate(id, {
           formulaDraft,
+          inheritedFormula: structuredClone(line.formula),
           formula: {
             ...line.formula,
             sourceType: 'CUSTOMER_LATEST',
@@ -253,7 +258,7 @@ export function useOrderLineEditor(options: {
       {
         key: 'enteredQuantity',
         type: 'decimal',
-        scale: 6,
+        scale: 2,
         caption: '录入数量',
         required: true,
       },
@@ -265,7 +270,7 @@ export function useOrderLineEditor(options: {
         options:
           line.current?.data.unitConversions.map((item) => ({
             value: item.unit.id,
-            caption: `${item.unit.name}（${item.unit.symbol}，${item.unit.quantityScale} 位小数）`,
+            caption: item.unit.name,
           })) ?? [],
       },
       {

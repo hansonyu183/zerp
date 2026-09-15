@@ -22,8 +22,7 @@ export const referenceDetails = [
 ] as const
 const unitDetails = [
   ...referenceDetails,
-  { key: 'symbol', type: 'text', caption: '符号' },
-  { key: 'quantityScale', type: 'integer', caption: '数量精度' },
+  { key: 'fixedFactor', type: 'decimal', scale: 18, caption: '固定换算系数' },
 ] as const
 const settlementTermLabels = {
   PREPAID: '预付',

@@ -35,8 +35,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
     objectId: ulid(),
     code: 'CONTROL-UNIT',
     name: '件',
-    symbol: '件',
-    quantityScale: 0,
+    fixedFactor: null,
   }
   const mappingId = ulid(),
     mappingEntryId = ulid()
@@ -298,8 +297,7 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
             id: unit.objectId,
             code: unit.code,
             name: unit.name,
-            symbol: unit.symbol,
-            quantityScale: unit.quantityScale,
+            fixedFactor: unit.fixedFactor,
           },
           factor: '1.000000',
         },
@@ -789,8 +787,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     objectId: ulid(),
     code: 'BATCH-UNIT',
     name: '件',
-    symbol: '件',
-    quantityScale: 0,
+    fixedFactor: null,
   }
   const documentIds: string[] = []
   const balanceCalls: string[] = []
@@ -1022,8 +1019,7 @@ test('sale signoff and purchase inbound price the approved source line batch ins
             id: unit.objectId,
             code: unit.code,
             name: unit.name,
-            symbol: unit.symbol,
-            quantityScale: unit.quantityScale,
+            fixedFactor: unit.fixedFactor,
           },
           factor: '1.000000',
         },

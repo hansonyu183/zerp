@@ -133,7 +133,7 @@ test('AUX management exposes native summary and typed employee-category detail',
   assert.deepEqual(fetched.data, detail)
 })
 
-test('measurement-unit query accepts only its quantity-scale filter', async () => {
+test('measurement-unit query returns factors and rejects obsolete precision filters', async () => {
   let received: unknown
   const app = appWith({
     query: async (_entity: unknown, input: unknown) => {
@@ -145,8 +145,7 @@ test('measurement-unit query accepts only its quantity-scale filter', async () =
             code: 'UNT-0001',
             py: 'qianke',
             name: '千克',
-            symbol: 'kg',
-            quantityScale: 0,
+            fixedFactor: null,
             enabled: true,
             revision: '1',
             availableActions: ['edit', 'disable'],
@@ -161,14 +160,12 @@ test('measurement-unit query accepts only its quantity-scale filter', async () =
 
   const queried = await post(app, '/aux/measurement-unit/query', {
     keyword: 'kg',
-    quantityScale: 0,
     page: 1,
     pageSize: 20,
   })
   assert.equal(queried.code, 0)
   assert.deepEqual(received, {
     keyword: 'kg',
-    quantityScale: 0,
     page: 1,
     pageSize: 20,
   })
@@ -177,14 +174,13 @@ test('measurement-unit query accepts only its quantity-scale filter', async () =
     code: 'UNT-0001',
     py: 'qianke',
     name: '千克',
-    symbol: 'kg',
-    quantityScale: 0,
+    fixedFactor: null,
     enabled: true,
     revision: '1',
     availableActions: ['edit', 'disable'],
   })
 
-  for (const quantityScale of [-1, 1.5, 7, '0']) {
+  for (const quantityScale of [0, 2, -1, 1.5, 7, '0']) {
     const rejected = await post(app, '/aux/measurement-unit/query', {
       keyword: 'kg',
       quantityScale,
@@ -356,7 +352,7 @@ test('all twelve AUX entities expose one strict typed management protocol', asyn
       dictionaryTypeId: '01J00000000000000000000004',
       sortOrder: 1,
     },
-    'measurement-unit': { name: '千克', symbol: 'kg', quantityScale: 3 },
+    'measurement-unit': { name: '千克', fixedFactor: null },
     'income-expense-type': {
       name: '主营收入',
       direction: 'INCOME',
@@ -434,24 +430,24 @@ test('all twelve AUX entities expose one strict typed management protocol', asyn
       `${entity} numeric revision`,
     )
   }
-  for (const quantityScale of [0, 6]) {
+  for (const fixedFactor of [null, '1', '1000', '0.0001']) {
     assert.equal(
       (
         await post(app, '/aux/measurement-unit/create', {
-          name: '千克',
-          symbol: 'kg',
-          quantityScale,
+          name: 'kg',
+          fixedFactor,
         })
       ).code,
       0,
     )
   }
   for (const fields of [
-    { name: '千克', symbol: 'kg', quantityScale: -1 },
-    { name: '千克', symbol: 'kg', quantityScale: 7 },
-    { name: '千克', symbol: 'kg', quantityScale: 1.5 },
-    { name: '千克', symbol: '', quantityScale: 3 },
-    { name: '千克', symbol: 'kg', quantityScale: 3, description: '' },
+    { name: 'kg' },
+    { name: 'kg', fixedFactor: '0' },
+    { name: 'kg', fixedFactor: '-1' },
+    { name: 'kg', fixedFactor: 'abc' },
+    { name: 'kg', fixedFactor: null, symbol: 'kg' },
+    { name: 'kg', fixedFactor: null, quantityScale: 2 },
   ])
     assert.equal(
       (await post(app, '/aux/measurement-unit/create', fields)).errorKey,

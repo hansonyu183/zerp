@@ -7,21 +7,21 @@ import type {
 
 interface TypeTestRow {
   name: string
-  quantityScale: number
+  sortOrder: number
   enabled: boolean
   role: ReferenceSummary | null
 }
 
 interface TypeTestFilters {
   keyword: string
-  quantityScale: number | null
+  sortOrder: number | null
   amount: FieldRange<string>
   roleId: string | null
 }
 
 export const validColumnTypeProof = [
   { key: 'name', type: 'text', caption: '名称' },
-  { key: 'quantityScale', type: 'integer', caption: '精度' },
+  { key: 'sortOrder', type: 'integer', caption: '排序' },
   { key: 'enabled', type: 'boolean', caption: '状态' },
   { key: 'role', type: 'reference', caption: '角色', source: 'app/role' },
   { key: '$actions', type: 'actions', caption: '操作' },
@@ -29,16 +29,16 @@ export const validColumnTypeProof = [
 
 export const validFilterTypeProof = [
   { key: 'keyword', type: 'text', caption: '关键词' },
-  { key: 'quantityScale', type: 'integer', caption: '精度' },
+  { key: 'sortOrder', type: 'integer', caption: '排序' },
   { key: 'amount', type: 'decimal', caption: '金额', scale: 2, range: true },
   { key: 'roleId', type: 'reference', caption: '角色', source: 'app/role' },
 ] as const satisfies readonly FilterField<TypeTestFilters>[]
 
 // @ts-expect-error a numeric row value cannot be rendered as text
 export const invalidNumericText: ColumnField<TypeTestRow> = {
-  key: 'quantityScale',
+  key: 'sortOrder',
   type: 'text',
-  caption: '精度',
+  caption: '排序',
 }
 
 // @ts-expect-error a string column is not a reference summary

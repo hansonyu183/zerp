@@ -29,7 +29,7 @@ const quantityFields = [
   {
     key: 'enteredQuantity',
     type: 'decimal',
-    scale: 18,
+    scale: 2,
     caption: '配方产量录入数量',
     required: true,
   },
@@ -63,7 +63,7 @@ const materialDefinition = {
     {
       key: 'enteredQuantity',
       type: 'decimal',
-      scale: 18,
+      scale: 2,
       caption: '原料录入用量',
       required: true,
     },

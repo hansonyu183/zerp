@@ -21,8 +21,7 @@ function formula(count = 1): Formula {
       id: 'kg',
       code: 'KG',
       name: '千克',
-      symbol: 'kg',
-      quantityScale: 2,
+      fixedFactor: null,
     },
     baseQuantity: '3.75',
   }

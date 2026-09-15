@@ -1,3 +1,4 @@
+import { isInputQuantity } from './quantity.ts'
 import type { TaxInformationSnapshot } from './aux-current.ts'
 import {
   prepareSubmissionMechanics,
@@ -206,19 +207,17 @@ export interface ProductAuxReference {
   id: string
   code: string
   name: string
-  quantityScale?: number
   behaviorProfile?:
     'RAW_MATERIAL' | 'STANDARD_FINISHED' | 'CUSTOM_FINISHED' | 'PACKAGING'
 }
 export interface ProductUnitSnapshot extends AuxSnapshot {
-  symbol: string
-  quantityScale: number
+  fixedFactor: string | null
 }
 export type ProductBehaviorProfile =
   'RAW_MATERIAL' | 'STANDARD_FINISHED' | 'CUSTOM_FINISHED' | 'PACKAGING'
 export interface ProductUnitConversion {
   unit: ProductUnitSnapshot
-  factor: string
+  factor: string | null
 }
 export interface ProductQuantitySnapshot {
   enteredQuantity: string
@@ -281,7 +280,6 @@ export type ProductSubmitDecision = ArchiveDecision<
 >
 function normalizeProductReference(
   reference: ProductAuxReference,
-  needsScale: boolean,
 ): ProductAuxReference | undefined {
   const normalized = {
     ...reference,
@@ -289,31 +287,23 @@ function normalizeProductReference(
     code: trim(reference.code),
     name: trim(reference.name),
   }
-  if (
-    !normalized.id ||
-    !normalized.code ||
-    !normalized.name ||
-    (needsScale &&
-      (!Number.isInteger(normalized.quantityScale) ||
-        normalized.quantityScale! < 0 ||
-        normalized.quantityScale! > 12))
-  )
-    return undefined
+  if (!normalized.id || !normalized.code || !normalized.name) return undefined
   return normalized
 }
 const positiveDecimal = /^(?:0*[1-9]\d*)(?:\.\d+)?$|^0*\.\d*[1-9]\d*$/
 function normalizeProductUnit(
   unit: ProductUnitSnapshot,
 ): ProductUnitSnapshot | undefined {
-  const normalized = normalizeProductReference(unit, true)
-  const symbol = trim(unit.symbol)
-  return normalized && symbol
+  const normalized = normalizeProductReference(unit)
+  return normalized &&
+    (unit.fixedFactor === null ||
+      (typeof unit.fixedFactor === 'string' &&
+        positiveDecimal.test(unit.fixedFactor)))
     ? {
         id: normalized.id,
         code: normalized.code,
         name: normalized.name,
-        symbol,
-        quantityScale: normalized.quantityScale!,
+        fixedFactor: unit.fixedFactor,
       }
     : undefined
 }
@@ -337,16 +327,22 @@ export function normalizeProductData(
     onInvalid?.(field)
     return undefined
   }
-  const productType = normalizeProductReference(data.productType, false),
-    productCategory = normalizeProductReference(data.productCategory, false),
+  const productType = normalizeProductReference(data.productType),
+    productCategory = normalizeProductReference(data.productCategory),
     pricingUnit = normalizeProductUnit(data.pricingUnit),
     defaultInputUnit = normalizeProductUnit(data.defaultInputUnit)
   const unitIds = new Set<string>()
   const unitConversions: ProductUnitConversion[] = []
   for (const [index, conversion] of data.unitConversions.entries()) {
     const unit = normalizeProductUnit(conversion.unit)
-    const factor = trim(conversion.factor)
-    if (!unit || !positiveDecimal.test(factor) || unitIds.has(unit.id))
+    const factor = conversion.factor === null ? null : trim(conversion.factor)
+    if (
+      !unit ||
+      (unit.fixedFactor === null
+        ? factor === null || !positiveDecimal.test(factor)
+        : factor !== null) ||
+      unitIds.has(unit.id)
+    )
       return invalid(`unitConversions[${index}]`)
     unitIds.add(unit.id)
     unitConversions.push({ unit, factor })
@@ -1655,4 +1651,39 @@ export function prepareAccMappingSave(
       },
     },
   }
+}
+
+/** Validate only fresh editor input; approval and reads retain adopted quantity facts. */
+export function productInputQuantitiesValid(data: ProductData): boolean {
+  const formula = data.fixedFormula
+  return (
+    !formula ||
+    [formula.output, ...formula.components.map((row) => row.quantity)].every(
+      (row) => isInputQuantity(row.enteredQuantity),
+    )
+  )
+}
+
+/** Editor-only conversion suggestion; callers retain the confirmed base quantity. */
+export function suggestProductBaseQuantity(
+  enteredQuantity: string,
+  conversion: ProductUnitConversion,
+): string | undefined {
+  const factor = conversion.unit.fixedFactor ?? conversion.factor
+  if (
+    !factor ||
+    !positiveDecimal.test(factor) ||
+    !positiveDecimal.test(enteredQuantity) ||
+    !isInputQuantity(enteredQuantity)
+  )
+    return undefined
+  const [integerA, fractionA = ''] = enteredQuantity.split('.')
+  const [integerB, fractionB = ''] = factor.split('.')
+  const scale = fractionA.length + fractionB.length
+  const digits = (BigInt(integerA! + fractionA) * BigInt(integerB! + fractionB))
+    .toString()
+    .padStart(scale + 1, '0')
+  return scale
+    ? `${digits.slice(0, -scale)}.${digits.slice(-scale)}`.replace(/\.?0+$/, '')
+    : digits
 }

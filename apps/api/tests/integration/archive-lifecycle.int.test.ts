@@ -139,9 +139,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
         data: JSON.stringify({
           name: `测试引用 ${index + 1}`,
           ...(index === 1 ? { behaviorProfile: 'RAW_MATERIAL' } : {}),
-          ...(index === 3 || index === 4
-            ? { symbol: 'kg', quantityScale: 3 }
-            : {}),
+          ...(index === 3 || index === 4 ? { fixedFactor: null } : {}),
           ...(index === 8
             ? {
                 termCode: 'MONTHLY_30',
@@ -265,15 +263,13 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       id: auxIds[3],
       code: 'FORGED-PRICING',
       name: '伪造计价单位',
-      symbol: 'FORGED',
-      quantityScale: 0,
+      fixedFactor: null,
     },
     defaultInputUnit: {
       id: auxIds[3],
       code: 'FORGED-INPUT',
       name: '伪造默认单位',
-      symbol: 'FORGED',
-      quantityScale: 0,
+      fixedFactor: null,
     },
     unitConversions: [
       {
@@ -281,8 +277,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
           id: auxIds[3],
           code: 'FORGED-PRICING',
           name: '伪造计价单位',
-          symbol: 'FORGED',
-          quantityScale: 0,
+          fixedFactor: null,
         },
         factor: '1.000000',
       },
@@ -303,8 +298,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     id: auxIds[3],
     code: 'TST-0004',
     name: '测试引用 4',
-    symbol: 'kg',
-    quantityScale: 3,
+    fixedFactor: null,
   })
   assert.deepEqual(product.snapshot.unitConversions, [
     {
@@ -312,8 +306,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
         id: auxIds[3],
         code: 'TST-0004',
         name: '测试引用 4',
-        symbol: 'kg',
-        quantityScale: 3,
+        fixedFactor: null,
       },
       factor: '1.000000',
     },
@@ -349,15 +342,13 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       id: auxIds[3],
       code: 'FORGED-UNIT',
       name: '伪造单位',
-      symbol: 'FORGED',
-      quantityScale: 0,
+      fixedFactor: null,
     },
     defaultInputUnit: {
       id: auxIds[3],
       code: 'FORGED-UNIT',
       name: '伪造单位',
-      symbol: 'FORGED',
-      quantityScale: 0,
+      fixedFactor: null,
     },
     unitConversions: [
       {
@@ -365,8 +356,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
           id: auxIds[3],
           code: 'FORGED-UNIT',
           name: '伪造单位',
-          symbol: 'FORGED',
-          quantityScale: 0,
+          fixedFactor: null,
         },
         factor: '1.000000',
       },
@@ -380,8 +370,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
           id: auxIds[3],
           code: 'FORGED-UNIT',
           name: '伪造单位',
-          symbol: 'FORGED',
-          quantityScale: 0,
+          fixedFactor: null,
         },
         baseQuantity: '1.000000',
       },
@@ -399,8 +388,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
               id: auxIds[3],
               code: 'FORGED-UNIT',
               name: '伪造单位',
-              symbol: 'FORGED',
-              quantityScale: 0,
+              fixedFactor: null,
             },
             baseQuantity: '0.500000',
           },
@@ -489,8 +477,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     .set({
       data: JSON.stringify({
         name: '测试引用 4',
-        symbol: 'kg',
-        quantityScale: 3,
+        fixedFactor: null,
       }),
     })
     .where('id', '=', auxIds[3]!)
@@ -1162,8 +1149,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       id: unitBefore.id,
       revision: unitBefore.revision,
       name: '新的单位名称',
-      symbol: 'new',
-      quantityScale: 6,
+      fixedFactor: null,
     },
     unitActor,
   )
@@ -1183,8 +1169,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     id: auxIds[3],
     code: 'TST-0004',
     name: '测试引用 4',
-    symbol: 'kg',
-    quantityScale: 3,
+    fixedFactor: null,
   })
   await assert.rejects(
     () =>

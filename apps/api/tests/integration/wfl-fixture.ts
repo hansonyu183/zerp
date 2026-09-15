@@ -54,8 +54,7 @@ export async function seedSaleOrderReferences(
   }
   const unit = await auxiliary('measurement-unit', {
     name: '件',
-    symbol: '件',
-    quantityScale: 0,
+    fixedFactor: null,
   })
   const productType = await auxiliary('product-type', {
     name: 'HTTP 产品类型',
@@ -238,15 +237,13 @@ export async function seedSaleOrderReferences(
       id: unit.id,
       code: unit.code,
       name: unit.name,
-      symbol: unit.symbol,
-      quantityScale: unit.quantityScale,
+      fixedFactor: unit.fixedFactor,
     },
     defaultInputUnit: {
       id: unit.id,
       code: unit.code,
       name: unit.name,
-      symbol: unit.symbol,
-      quantityScale: unit.quantityScale,
+      fixedFactor: unit.fixedFactor,
     },
     unitConversions: [
       {
@@ -254,8 +251,7 @@ export async function seedSaleOrderReferences(
           id: unit.id,
           code: unit.code,
           name: unit.name,
-          symbol: unit.symbol,
-          quantityScale: unit.quantityScale,
+          fixedFactor: unit.fixedFactor,
         },
         factor: '1.000000',
       },
@@ -311,8 +307,7 @@ export async function seedSaleOrderReferences(
       objectId: unit.id,
       code: unit.code,
       name: unit.name,
-      symbol: unit.symbol,
-      quantityScale: unit.quantityScale,
+      fixedFactor: unit.fixedFactor,
     },
     auxiliaryIds: [
       tax.id,

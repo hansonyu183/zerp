@@ -1,4 +1,4 @@
-import { normalizeProductData } from '@zerp/model'
+import { normalizeProductData, productInputQuantitiesValid } from '@zerp/model'
 import type { TargetProductSubmitInput } from '../../api.ts'
 export type ProductSnapshot = TargetProductSubmitInput['snapshot']
 export const productBehaviorLabels = {
@@ -15,8 +15,7 @@ export const emptyUnit = () => ({
   id: '',
   code: '',
   name: '',
-  symbol: '',
-  quantityScale: 6,
+  fixedFactor: null as string | null,
 })
 export function emptyProduct(): ProductSnapshot {
   return {
@@ -42,6 +41,8 @@ export function emptyProduct(): ProductSnapshot {
 }
 
 export function validateProduct(snapshot: ProductSnapshot): string | null {
+  if (!productInputQuantitiesValid(snapshot))
+    return '录入数量最多两位小数；历史高精度数量请显式重新确认，不会自动舍入。'
   let field = ''
   if (
     normalizeProductData(snapshot, (value) => {

@@ -261,8 +261,7 @@ describe('真实录入字段', () => {
         code: 'UNIT1',
         py: 'dun',
         name: '吨',
-        symbol: 't',
-        quantityScale: 0,
+        fixedFactor: null,
         revision: '1',
         enabled: true,
         availableActions: [],
@@ -300,8 +299,8 @@ describe('真实录入字段', () => {
       await nextTick()
       const dialog = root.get('[role="dialog"]')
       await byLabel(dialog, '名称').setValue('吨')
-      await byLabel(dialog, '符号').setValue('t')
-      expect(byLabel(dialog, '数量精度').element.value).toBe('0')
+      await byLabel(dialog, '固定换算系数（留空由产品维护）').setValue('1000')
+      expect(dialog.text()).not.toContain('数量精度')
       const save = button(root, '保存')
       expect(
         save.get('.mdi-content-save-outline').attributes('aria-hidden'),
@@ -310,7 +309,7 @@ describe('真实录入字段', () => {
       await flushPromises()
       expect(api.createUnit).toHaveBeenCalledWith(
         'unit-test-csrf',
-        { name: '吨', symbol: 't', quantityScale: 0 },
+        { name: '吨', fixedFactor: '1000' },
         {},
       )
       expect(api.queryUnits).toHaveBeenCalledTimes(2)

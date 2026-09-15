@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { ulid } from 'ulid'
+import { sql } from 'kysely'
 import { withWflDatabase } from './wfl-fixture.ts'
 import { seedOrderListFixture } from '../fixtures/vou-orders.ts'
 import { VouApplicationError } from '../../src/vou/service.ts'
@@ -120,6 +121,26 @@ test('production freezes server formula and calculated amounts, requires adjustm
       read.payload.productionLines[0]!.materials[0]!.actualBaseQuantity,
       '1.000000',
     )
+    const calculated = structuredClone(fixture.productionPayload)
+    calculated.productionLines[0]!.lossRate = '0.01'
+    calculated.productionLines[0]!.materials[0]!.actualEnteredQuantity =
+      '2.0002'
+    calculated.productionLines[0]!.materials[0]!.actualBaseQuantity = '2.0002'
+    const precise = await submit('self-production', calculated)
+    assert.ok('productionLines' in precise.payload)
+    assert.equal(
+      precise.payload.productionLines[0]!.materials[0]!.actualEnteredQuantity,
+      '2.000200',
+    )
+    calculated.productionLines[0]!.materials[0]!.actualEnteredQuantity =
+      '2.0003'
+    calculated.productionLines[0]!.materials[0]!.adjustmentReason = '手工修改'
+    await assert.rejects(
+      submit('self-production', calculated),
+      (error) =>
+        error instanceof VouApplicationError &&
+        error.errorKey === 'vou_reference_unavailable',
+    )
     const orderId = ulid(),
       orderEntry = ulid(),
       lineId = ulid()
@@ -159,11 +180,21 @@ test('production freezes server formula and calculated amounts, requires adjustm
       fixture.reviewerActor,
       'production-order',
     )
+    // Simulate an already approved pre-cutover order; no application write changes this historical fact.
+    await sql`UPDATE vou_product_line_snapshots SET entered_quantity_micros=2123456 WHERE approval_entry_id=${orderEntry}`.execute(
+      db,
+    )
     const orderProduction = structuredClone(fixture.productionPayload)
+    orderProduction.productionLines[0]!.enteredQuantity = '2.123456'
     orderProduction.parentEntity = 'sale-order'
     orderProduction.parentDocumentId = orderId
     orderProduction.productionLines[0]!.sourceOrderLineId = lineId
     const production = await submit('order-production', orderProduction)
+    assert.ok('productionLines' in production.payload)
+    assert.equal(
+      production.payload.productionLines[0]!.enteredQuantity,
+      '2.123456',
+    )
     await assert.rejects(
       submit('order-production', orderProduction),
       (error) =>
@@ -197,6 +228,97 @@ test('production freezes server formula and calculated amounts, requires adjustm
       fixture.actor,
       'production-release',
     )
+    const changed = structuredClone(orderProduction)
+    changed.productionLines[0]!.enteredQuantity = '2.123457'
+    await assert.rejects(
+      submit('order-production', changed),
+      (error) =>
+        error instanceof VouApplicationError &&
+        error.errorKey === 'vou_invalid_payload',
+    )
     await submit('order-production', orderProduction)
+  })
+})
+
+test('orders adopt exact historical product and customer formulas without permitting new high precision input', async () => {
+  await withWflDatabase(async (db) => {
+    const { seedProductionFixture } =
+      await import('../fixtures/vou-production.ts')
+    const fixture = await seedProductionFixture(db)
+    const version = await db
+      .selectFrom('dcl_product_versions')
+      .select('fixed_formula')
+      .where('approval_entry_id', '=', fixture.approvalEntryId)
+      .executeTakeFirstOrThrow()
+    const historical = structuredClone(version.fixed_formula) as {
+      output: { enteredQuantity: string }
+      components: { quantity: { enteredQuantity: string } }[]
+    }
+    historical.output.enteredQuantity = '1.234567'
+    historical.components[0]!.quantity.enteredQuantity = '2.123456'
+    await db
+      .updateTable('dcl_product_versions')
+      .set({ fixed_formula: JSON.stringify(historical) })
+      .where('approval_entry_id', '=', fixture.approvalEntryId)
+      .execute()
+    const formula = structuredClone(fixture.formula)
+    formula.output.enteredQuantity = '1.234567'
+    formula.components[0]!.quantity.enteredQuantity = '2.123456'
+    const submit = async (adopted: import('@zerp/model').VouFormulaInput) => {
+      const submissionId = ulid()
+      return fixture.vou.submit(
+        'sale-order',
+        'submit-new',
+        {
+          documentId: ulid(),
+          submissionId,
+          idempotencyKey: submissionId,
+          expectedRevision: null,
+          payload: {
+            ...fixture.salePayload,
+            productLines: [
+              {
+                ...fixture.salePayload.productLines[0]!,
+                lineId: ulid(),
+                product: { objectId: fixture.productId },
+                enteredQuantity: '1.23',
+                formula: adopted,
+              },
+            ],
+          },
+        },
+        fixture.actor,
+        'historical-formula',
+      )
+    }
+    const first = await submit(formula)
+    assert.ok('productLines' in first.payload)
+    assert.equal(
+      first.payload.productLines[0]!.formula!.output.enteredQuantity,
+      '1.234567',
+    )
+    const copied = {
+      ...formula,
+      sourceType: 'CUSTOMER_LATEST' as const,
+      sourceDocumentId: first.documentId,
+      sourceDocumentNo: first.documentNo,
+    }
+    await submit(copied)
+    for (const source of [formula, copied]) {
+      const changed = structuredClone(source)
+      changed.components[0]!.quantity.enteredQuantity = '2.123457'
+      await assert.rejects(
+        submit(changed),
+        (error) =>
+          error instanceof VouApplicationError &&
+          error.errorKey === 'vou_invalid_payload',
+      )
+    }
+    await assert.rejects(
+      submit({ ...formula, sourceType: 'MANUAL' }),
+      (error) =>
+        error instanceof VouApplicationError &&
+        error.errorKey === 'vou_invalid_payload',
+    )
   })
 })

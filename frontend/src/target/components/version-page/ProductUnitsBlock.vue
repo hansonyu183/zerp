@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { suggestProductBaseQuantity } from '@zerp/model'
 import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { computed, ref } from 'vue'
 import { emptyUnit, type ProductSnapshot } from './product-data.ts'
 import FormBlock from '../dynamic-fields/FormBlock.vue'
-import DetailBlock from '../dynamic-fields/DetailBlock.vue'
+import CollectionBlock from '../dynamic-fields/CollectionBlock.vue'
+import { formDetails } from '../dynamic-fields/form-details.ts'
 import type {
   DetailDefinition,
   FormFields,
@@ -55,25 +57,12 @@ const conversions = {
 } as const satisfies DetailDefinition<Units['unitConversions'][number]>
 const trial = ref({ unitId: '', quantity: '' })
 const suggested = computed(() => {
-  const a = trial.value.quantity,
-    b = props.modelValue.unitConversions.find(
-      (item) => item.unit?.id === trial.value.unitId,
-    )?.factor
-  if (
-    !b ||
-    a.length > 64 ||
-    b.length > 64 ||
-    !/^\d+(?:\.\d+)?$/.test(a) ||
-    !/^\d+(?:\.\d+)?$/.test(b)
+  const conversion = props.modelValue.unitConversions.find(
+    (item) => item.unit.id === trial.value.unitId,
   )
-    return ''
-  const [integerA, fractionA = ''] = a.split('.'),
-    [integerB, fractionB = ''] = b.split('.')
-  const scale = fractionA.length + fractionB.length
-  const digits = (BigInt(integerA! + fractionA) * BigInt(integerB! + fractionB))
-    .toString()
-    .padStart(scale + 1, '0')
-  return scale ? `${digits.slice(0, -scale)}.${digits.slice(-scale)}` : digits
+  return conversion
+    ? suggestProductBaseQuantity(trial.value.quantity, conversion)
+    : undefined
 })
 </script>
 <template>
@@ -83,15 +72,41 @@ const suggested = computed(() => {
       :model-value="modelValue"
       :disabled="disabled"
       @update:model-value="emit('update:modelValue', $event)"
-    /><DetailBlock
-      :definition="conversions"
+    /><CollectionBlock
+      caption="单位换算"
+      :fields="formDetails(conversions.fields)"
+      :create="() => ({ unit: emptyUnit(), factor: null })"
       :model-value="modelValue.unitConversions"
       mode="edit"
       :disabled="disabled"
       @update:model-value="
         emit('update:modelValue', { ...modelValue, unitConversions: $event })
       "
-    /><FieldInput
+    >
+      <template #editor="{ value, disabled: locked, update }">
+        <FormBlock
+          :fields="[conversions.fields[0]]"
+          :model-value="value"
+          :disabled="locked"
+          @update:model-value="
+            update({
+              ...$event,
+              factor: $event.unit.fixedFactor === null ? $event.factor : null,
+            })
+          "
+        />
+        <p v-if="value.unit.fixedFactor !== null">
+          单位固定系数：{{ value.unit.fixedFactor }}
+        </p>
+        <FormBlock
+          v-else
+          :fields="[conversions.fields[1]]"
+          :model-value="value"
+          :disabled="locked"
+          @update:model-value="update"
+        />
+      </template> </CollectionBlock
+    ><FieldInput
       usage="edit"
       :field="{
         key: 'unitId',
@@ -109,7 +124,7 @@ const suggested = computed(() => {
         {
           key: 'quantity',
           type: 'decimal',
-          scale: 18,
+          scale: 2,
           caption: '试算录入数量',
         },
       ]"

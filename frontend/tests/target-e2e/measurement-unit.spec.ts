@@ -52,38 +52,32 @@ test('measurement units use typed fields through menu on desktop and 390px', asy
       await dialog
         .getByLabel('名称', { exact: true })
         .fill(`千克${tag}-${width}-${index}`)
-      await dialog.getByLabel('符号', { exact: true }).fill('kg')
+      await expect(dialog.getByLabel('符号', { exact: true })).toHaveCount(0)
+      await expect(dialog.getByLabel('数量精度', { exact: true })).toHaveCount(
+        0,
+      )
       await dialog
-        .getByLabel('数量精度', { exact: true })
-        .fill(width === 1440 ? '0' : '6')
+        .getByLabel('固定换算系数（留空由产品维护）', { exact: true })
+        .fill(width === 1440 ? '1' : '')
       await dialog.getByRole('button', { name: '保存', exact: true }).click()
       await expect(dialog).toHaveCount(0)
     }
-    // The existing quantityScale fact is both an extension column and a
-    // server-side filter; zero is a submitted value, not an empty input.
     await page
       .getByLabel('编码、拼音或名称', { exact: true })
       .fill(`千克${tag}`)
-    await page.getByLabel('数量精度', { exact: true }).fill('0')
     await page.getByRole('button', { name: '查询', exact: true }).click()
     await expect(
-      page.getByText(`共 ${width === 1440 ? 21 : 20} 项`, { exact: true }),
+      page.getByText(`共 ${width === 1440 ? 21 : 22} 项`, { exact: true }),
     ).toBeVisible()
+    await expect(page.getByLabel('数量精度', { exact: true })).toHaveCount(0)
     await expect(
       width < 600
-        ? page.locator('.list-card dt').filter({ hasText: '数量精度' }).first()
-        : page.getByRole('columnheader', { name: '数量精度', exact: true }),
+        ? page
+            .locator('.list-card dt')
+            .filter({ hasText: '固定换算系数' })
+            .first()
+        : page.getByRole('columnheader', { name: '固定换算系数', exact: true }),
     ).toBeVisible()
-    await page.getByLabel('数量精度', { exact: true }).fill('6')
-    // Input edits alone must not change the submitted result or its total.
-    await expect(
-      page.getByText(`共 ${width === 1440 ? 21 : 20} 项`, { exact: true }),
-    ).toBeVisible()
-    await page.getByRole('button', { name: '查询', exact: true }).click()
-    await expect(
-      page.getByText(`共 ${width === 1440 ? 0 : 2} 项`, { exact: true }),
-    ).toBeVisible()
-    await page.getByLabel('数量精度', { exact: true }).fill('')
     const name = `千克${tag}-1440-20`
     for (const keyword of [name, `qianke${tag}-1440-20`]) {
       await page.getByLabel('编码、拼音或名称', { exact: true }).fill(keyword)
@@ -98,8 +92,12 @@ test('measurement units use typed fields through menu on desktop and 390px', asy
     await page.getByRole('button', { name: '查询', exact: true }).click()
     await row.getByRole('button', { name: '编辑', exact: true }).click()
     const dialog = page.getByRole('dialog')
-    await expect(dialog.getByLabel('符号', { exact: true })).toHaveValue('kg')
-    await dialog.getByLabel('数量精度', { exact: true }).fill('6')
+    await expect(
+      dialog.getByLabel('固定换算系数（留空由产品维护）', { exact: true }),
+    ).toHaveValue(width === 1440 ? '1' : '1000')
+    await dialog
+      .getByLabel('固定换算系数（留空由产品维护）', { exact: true })
+      .fill('1000')
     await dialog.getByRole('button', { name: '保存', exact: true }).click()
     await expect(dialog).toHaveCount(0)
     await row.getByRole('button', { name: '停用', exact: true }).click()

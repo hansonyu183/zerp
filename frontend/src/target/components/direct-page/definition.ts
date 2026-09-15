@@ -27,13 +27,11 @@ export type DirectResource =
 export type DirectRow = EnabledListItem & {
   revision: string
   availableActions: readonly string[]
-  symbol?: string
-  quantityScale?: number
+  fixedFactor?: string | null
   type?: string
 }
 export type DirectQuery = {
   keyword: string
-  quantityScale?: number | null
   page: number
   pageSize: 20
 }

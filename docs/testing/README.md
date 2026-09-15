@@ -57,3 +57,6 @@
 - [#427 实体候选与公共引用 GET 验收](auxiliary-get-issue-427-2026-09-12.md)
 
 - [#439 客户与税务一次性转换验证](issue-439-customer-cutover.md)
+
+- [计量单位一次性转换（#442）](measurement-unit-cutover-442.md)
+- [计量单位简化验收（#442，2026-09-15）](measurement-unit-issue-442-2026-09-15.md)

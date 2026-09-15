@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { suggestProductBaseQuantity } from '@zerp/model'
+import { computed, onMounted } from 'vue'
 import FormBlock from '../dynamic-fields/FormBlock.vue'
 import ProductFormulaBlock from '../version-page/ProductFormulaBlock.vue'
 import VouReference from './VouReference.vue'
@@ -37,6 +38,14 @@ const {
   defaultSurcharge: () => props.defaultSurcharge,
   onPending: (value) => emit('pending', value),
 })
+const suggestedQuantity = computed(() => {
+  const conversion = props.modelValue.current?.data.unitConversions.find(
+    (row) => row.unit.id === props.modelValue.unitId,
+  )
+  return conversion
+    ? suggestProductBaseQuantity(props.modelValue.enteredQuantity, conversion)
+    : undefined
+})
 onMounted(() => {
   if (!props.disabled && props.modelValue.product && !props.modelValue.current)
     void product(
@@ -66,6 +75,17 @@ onMounted(() => {
       :disabled="disabled || pending.has(modelValue.lineId)"
       @update:model-value="lineUpdate(modelValue.lineId, $event)"
     />
+    <p v-if="suggestedQuantity !== undefined">
+      建议基准数量：{{ suggestedQuantity }}
+      <v-btn
+        :disabled="disabled"
+        variant="text"
+        @click="
+          lineUpdate(modelValue.lineId, { baseQuantity: suggestedQuantity })
+        "
+        >采用建议数量</v-btn
+      >
+    </p>
     <template v-if="entity === 'sale-order' && modelValue.current">
       <p
         v-if="

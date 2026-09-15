@@ -341,10 +341,7 @@ async function write(
   }
 }
 const unit = definition.resource === 'aux/measurement-unit'
-const listDefinition = defineListPage<
-  DirectRow,
-  { keyword: string; quantityScale?: number | null }
->({
+const listDefinition = defineListPage<DirectRow, { keyword: string }>({
   title,
   createLabel: '新增',
   columns: [
@@ -359,11 +356,11 @@ const listDefinition = defineListPage<
     },
     ...(unit
       ? [
-          { key: 'symbol' as const, type: 'text' as const, caption: '符号' },
           {
-            key: 'quantityScale' as const,
-            type: 'integer' as const,
-            caption: '数量精度',
+            key: 'fixedFactor' as const,
+            type: 'decimal' as const,
+            scale: 18,
+            caption: '固定换算系数',
           },
         ]
       : definition.resource === 'app/role'
@@ -378,30 +375,15 @@ const listDefinition = defineListPage<
         : []),
     { key: '$actions', type: 'actions', caption: '操作' },
   ],
-  filters: [
-    { key: 'keyword', type: 'text', caption: '编码、拼音或名称' },
-    ...(unit
-      ? [
-          {
-            key: 'quantityScale' as const,
-            type: 'integer' as const,
-            caption: '数量精度',
-          },
-        ]
-      : []),
-  ],
+  filters: [{ key: 'keyword', type: 'text', caption: '编码、拼音或名称' }],
 })
 const list = reactive(
-  useListPageViewModel<
-    DirectRow,
-    { keyword: string; quantityScale?: number | null }
-  >(
+  useListPageViewModel<DirectRow, { keyword: string }>(
     {
       ...(can('query')
         ? {
             onSearch: (input: {
               keyword: string
-              quantityScale?: number | null
               page: number
               pageSize: 20
             }) => adapter.query(token('query'), input),
@@ -427,7 +409,6 @@ const list = reactive(
     {
       initialFilters: () => ({
         keyword: '',
-        ...(unit ? { quantityScale: null } : {}),
       }),
       validateFilters: listDefinition.normalizeFilters,
     },

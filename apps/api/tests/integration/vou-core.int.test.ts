@@ -140,12 +140,12 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
   )
   const createdUnit = await aux.create(
     'measurement-unit',
-    { name: '历史千克', symbol: 'kg', quantityScale: 2 },
+    { name: '历史千克', fixedFactor: null },
     auxActor,
   )
   const createdMaterialUnit = await aux.create(
     'measurement-unit',
-    { name: '历史克', symbol: 'g', quantityScale: 2 },
+    { name: '历史克', fixedFactor: null },
     auxActor,
   )
   const unitV1View = await aux.get(
@@ -162,23 +162,20 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
     objectId: unitV1View.id,
     code: unitV1View.code,
     name: unitV1View.name,
-    symbol: unitV1View.symbol,
-    quantityScale: unitV1View.quantityScale,
+    fixedFactor: unitV1View.fixedFactor,
   }
   const materialUnit = {
     objectId: materialUnitView.id,
     code: materialUnitView.code,
     name: materialUnitView.name,
-    symbol: materialUnitView.symbol,
-    quantityScale: materialUnitView.quantityScale,
+    fixedFactor: materialUnitView.fixedFactor,
   }
   const dclUnit = ({
     objectId: id,
     code,
     name,
-    symbol,
-    quantityScale,
-  }: typeof unitV1) => ({ id, code, name, symbol, quantityScale })
+    fixedFactor,
+  }: typeof unitV1) => ({ id, code, name, fixedFactor })
   const now = new Date()
   const codeSuffix = Math.floor(Math.random() * 10_000)
     .toString()
@@ -526,8 +523,7 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
       id: unitV1.objectId,
       revision: createdUnit.revision,
       name: '当前吨',
-      symbol: 't',
-      quantityScale: 3,
+      fixedFactor: null,
     },
     auxActor,
   )
@@ -545,8 +541,7 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
     objectId: unitV1.objectId,
     code: unitV1.code,
     name: '当前吨',
-    symbol: 't',
-    quantityScale: 3,
+    fixedFactor: null,
   }
   await db
     .insertInto('approval_entries')
@@ -579,12 +574,12 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
     })
     .execute()
 
-  const second = await submit(productLine(unitV2, '1.234'))
+  const second = await submit(productLine(unitV2, '1.23'))
   const secondPayload = second.payload as VouPayloadFor<'sale-order'>
   assert.deepEqual(secondPayload.productLines[0]?.enteredUnit, unitV2)
   const overPrecisionDocumentId = ulid()
   await assert.rejects(
-    () => submit(productLine(unitV2, '1.2345'), overPrecisionDocumentId),
+    () => submit(productLine(unitV2, '1.234'), overPrecisionDocumentId),
     (error: unknown) =>
       error instanceof VouApplicationError &&
       error.errorKey === 'vou_invalid_payload',
@@ -604,7 +599,7 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
       error.errorKey === 'vou_not_found',
   )
   await assert.rejects(
-    () => submit(productLine({ ...unitV2, symbol: 'forged' }, '1.234')),
+    () => submit(productLine({ ...unitV2, fixedFactor: '999' }, '1.23')),
     (error: unknown) => {
       if (
         !(error instanceof VouApplicationError) ||
@@ -633,7 +628,7 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
     },
   )
   await assert.rejects(
-    () => submit(productLine(unitV2, '1.234', unitV2)),
+    () => submit(productLine(unitV2, '1.23', unitV2)),
     (error: unknown) => {
       if (
         !(error instanceof VouApplicationError) ||
@@ -2998,7 +2993,7 @@ test('entity-owned candidates use session without CSRF and return current typed 
         id: unitId,
         entity: 'measurement-unit',
         code: 'AUX-1001',
-        data: { name: 'VOU 有效单位', symbol: 'kg', quantityScale: 3 },
+        data: { name: 'VOU 有效单位', fixedFactor: null },
         enabled: true,
         created_by: actorId,
         updated_by: actorId,
@@ -3007,7 +3002,7 @@ test('entity-owned candidates use session without CSRF and return current typed 
         id: disabledUnitId,
         entity: 'measurement-unit',
         code: 'AUX-1002',
-        data: { name: 'VOU 停用单位', symbol: 'kg', quantityScale: 3 },
+        data: { name: 'VOU 停用单位', fixedFactor: null },
         enabled: false,
         created_by: actorId,
         updated_by: actorId,

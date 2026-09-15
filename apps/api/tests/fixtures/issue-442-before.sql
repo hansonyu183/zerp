@@ -1263,7 +1263,8 @@ CREATE TABLE vou_product_line_snapshots (
     entered_unit_id varchar(26) NOT NULL,
     entered_unit_code varchar(64) NOT NULL,
     entered_unit_name varchar(200) NOT NULL,
-    entered_unit_fixed_factor text,
+    entered_unit_symbol varchar(64) NOT NULL,
+    entered_unit_quantity_scale integer NOT NULL CHECK (entered_unit_quantity_scale BETWEEN 0 AND 6),
     base_quantity_micros bigint NOT NULL,
     unit_price_minor bigint NOT NULL,
     settlement_surcharge_minor bigint,
@@ -1284,7 +1285,8 @@ CREATE TABLE vou_product_line_snapshots (
     formula_output_entered_unit_id varchar(26),
     formula_output_entered_unit_code varchar(64),
     formula_output_entered_unit_name varchar(200),
-    formula_output_entered_unit_fixed_factor text,
+    formula_output_entered_unit_symbol varchar(64),
+    formula_output_entered_unit_quantity_scale integer CHECK (formula_output_entered_unit_quantity_scale BETWEEN 0 AND 6),
     formula_output_base_quantity_micros bigint,
     PRIMARY KEY (approval_entry_id, line_no),
     UNIQUE (approval_entry_id, line_id),
@@ -1293,13 +1295,16 @@ CREATE TABLE vou_product_line_snapshots (
             AND formula_output_entered_unit_id IS NULL
             AND formula_output_entered_unit_code IS NULL
             AND formula_output_entered_unit_name IS NULL
-            AND formula_output_entered_unit_fixed_factor IS NULL
+            AND formula_output_entered_unit_symbol IS NULL
+            AND formula_output_entered_unit_quantity_scale IS NULL
             AND formula_output_base_quantity_micros IS NULL)
         OR
         (formula_output_entered_quantity_micros IS NOT NULL
             AND formula_output_entered_unit_id IS NOT NULL
             AND formula_output_entered_unit_code IS NOT NULL
             AND formula_output_entered_unit_name IS NOT NULL
+            AND formula_output_entered_unit_symbol IS NOT NULL
+            AND formula_output_entered_unit_quantity_scale IS NOT NULL
             AND formula_output_base_quantity_micros IS NOT NULL)
     )
 );
@@ -1313,7 +1318,8 @@ CREATE TABLE vou_formula_component_snapshots (
     entered_unit_id varchar(26) NOT NULL,
     entered_unit_code varchar(64) NOT NULL,
     entered_unit_name varchar(200) NOT NULL,
-    entered_unit_fixed_factor text,
+    entered_unit_symbol varchar(64) NOT NULL,
+    entered_unit_quantity_scale integer NOT NULL CHECK (entered_unit_quantity_scale BETWEEN 0 AND 6),
     base_quantity_micros bigint NOT NULL,
     PRIMARY KEY (approval_entry_id, line_no, component_no),
     FOREIGN KEY (approval_entry_id, line_no) REFERENCES vou_product_line_snapshots(approval_entry_id, line_no) ON DELETE CASCADE
@@ -1874,17 +1880,6 @@ CREATE TABLE rpt_execution_audits (
 
 -- One-shot conversion evidence, never consulted by runtime business readers.
 CREATE TABLE dcl_customer_conversion_evidence (
-    baseline varchar(64) PRIMARY KEY,
-    source_release_sha varchar(40) NOT NULL,
-    target_release_sha varchar(40) NOT NULL,
-    actor_user_id varchar(26) NOT NULL REFERENCES app_users(id),
-    created_at timestamptz NOT NULL,
-    report jsonb NOT NULL,
-    originals jsonb NOT NULL
-);
-
--- One-shot unit conversion evidence; never used by business readers.
-CREATE TABLE aux_measurement_unit_conversion_evidence (
     baseline varchar(64) PRIMARY KEY,
     source_release_sha varchar(40) NOT NULL,
     target_release_sha varchar(40) NOT NULL,

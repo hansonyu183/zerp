@@ -237,7 +237,7 @@ const archiveFacts = {
       id: fixtureId('X', 4),
       entity: 'measurement-unit' as const,
       code: auxCode('UNT'),
-      data: { name: '目标件', quantityScale: 0 },
+      data: { name: '目标件', fixedFactor: null },
     },
     {
       id: fixtureId('X', 5),
@@ -428,7 +428,7 @@ async function seedAuxFacts(aux: AuxService) {
           : fact.entity === 'product-type'
             ? { ...fact.data, description: '' }
             : fact.entity === 'measurement-unit'
-              ? { ...fact.data, symbol: '件' }
+              ? fact.data
               : fact.entity === 'employee-category' ||
                   fact.entity === 'position'
                 ? { ...fact.data, description: '' }
@@ -843,20 +843,17 @@ async function seedVouReferences(aux: AuxService) {
     productCategory: auxReference('product-category'),
     pricingUnit: {
       ...auxReference('measurement-unit'),
-      symbol: '件',
-      quantityScale: 0,
+      fixedFactor: null,
     },
     defaultInputUnit: {
       ...auxReference('measurement-unit'),
-      symbol: '件',
-      quantityScale: 0,
+      fixedFactor: null,
     },
     unitConversions: [
       {
         unit: {
           ...auxReference('measurement-unit'),
-          symbol: '件',
-          quantityScale: 0,
+          fixedFactor: null,
         },
         factor: '1.000000',
       },
@@ -1081,8 +1078,7 @@ async function seedApprovedSourceOrders() {
     objectId: unit.id,
     code: unit.code,
     name: unit.name,
-    symbol: '件',
-    quantityScale: 0,
+    fixedFactor: null,
   }
   const warehouseSnapshot = {
     objectId: warehouseReference.objectId,

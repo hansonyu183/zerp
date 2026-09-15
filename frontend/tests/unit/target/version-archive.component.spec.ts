@@ -325,8 +325,7 @@ function productFacts() {
     id: 'unit',
     code: 'KG',
     name: '千克',
-    symbol: 'kg',
-    quantityScale: 6,
+    fixedFactor: null,
   }
   const data = {
     name: '成品',

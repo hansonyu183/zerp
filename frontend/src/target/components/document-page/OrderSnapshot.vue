@@ -125,15 +125,10 @@ const currencyName = computed(() =>
           <dt>单据行标识</dt>
           <dd>{{ line.lineId }}</dd>
           <dt>交易数量</dt>
-          <dd>
-            {{ line.enteredQuantity }} {{ line.enteredUnit.name }}（{{
-              line.enteredUnit.symbol
-            }}）
-          </dd>
+          <dd>{{ line.enteredQuantity }} {{ line.enteredUnit.name }}</dd>
           <dt>采用单位</dt>
           <dd>
-            {{ line.enteredUnit.code }} · 小数位
-            {{ line.enteredUnit.quantityScale }}
+            {{ line.enteredUnit.code }}
           </dd>
           <dt>基本数量</dt>
           <dd>{{ line.baseQuantity }}</dd>
@@ -174,8 +169,7 @@ const currencyName = computed(() =>
             {{ line.formula.output.enteredUnit.name }}（{{
               line.formula.output.enteredUnit.code
             }}
-            / {{ line.formula.output.enteredUnit.symbol }} / 小数位
-            {{ line.formula.output.enteredUnit.quantityScale }}），基本数量
+            ），基本数量
             {{ line.formula.output.baseQuantity }}
           </p>
           <CollectionBlock
@@ -202,8 +196,7 @@ const currencyName = computed(() =>
                 {{ component.quantity.enteredUnit.name }}（{{
                   component.quantity.enteredUnit.code
                 }}
-                / {{ component.quantity.enteredUnit.symbol }} / 小数位
-                {{ component.quantity.enteredUnit.quantityScale }}），基本数量
+                ），基本数量
                 {{ component.quantity.baseQuantity }}
               </p></template
             >

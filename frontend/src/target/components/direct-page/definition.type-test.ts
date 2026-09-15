@@ -7,7 +7,7 @@ import { measurementUnitPage } from '../../definitions/measurement-unit.ts'
 
 const wrongValue: EditFields<TargetMeasurementUnitCreateInput> = [
   // @ts-expect-error Integer editors cannot bind to string fields.
-  { key: 'symbol', type: 'integer', caption: '符号' },
+  { key: 'fixedFactor', type: 'integer', caption: '固定换算系数' },
 ]
 const nested: EditFields<TargetMeasurementUnitCreateInput> = [
   // @ts-expect-error Only top-level keys of the typed payload are allowed.

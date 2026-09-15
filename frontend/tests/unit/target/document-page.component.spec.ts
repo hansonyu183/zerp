@@ -203,7 +203,7 @@ it('submits a purchase order from selected candidates and confirmed quantities, 
         enteredQuantity: '2',
         baseQuantity: '2',
         unitPrice: '15.00',
-        enteredUnit: { objectId: unitId, quantityScale: 0 },
+        enteredUnit: { objectId: unitId, fixedFactor: null },
       },
     ],
   })
@@ -222,8 +222,7 @@ const unit = {
   id: unitId,
   code: 'PC',
   name: '个',
-  symbol: '个',
-  quantityScale: 0,
+  fixedFactor: null,
 }
 const productCurrent = {
   objectId: productId,
@@ -728,7 +727,7 @@ it.each(['clear', 'cancel'])(
           enteredQuantity: '2',
           baseQuantity: '2',
           unitPrice: '15.00',
-          enteredUnit: { objectId: unitId, quantityScale: 0 },
+          enteredUnit: { objectId: unitId, fixedFactor: null },
         },
       ],
     })
@@ -756,8 +755,7 @@ it.each(['RAW_MATERIAL', 'CUSTOM_FINISHED'] as const)(
         objectId: unitId,
         code: 'PC',
         name: '个',
-        symbol: '个',
-        quantityScale: 0,
+        fixedFactor: null,
       },
       baseQuantity: '2',
     }
@@ -1373,8 +1371,7 @@ it('adopts the exact order production source and immutable formula', async () =>
       objectId: unitId,
       code: 'PC',
       name: '个',
-      symbol: '个',
-      quantityScale: 0,
+      fixedFactor: null,
     },
     baseQuantity: '1',
   }
@@ -2073,3 +2070,70 @@ function optionPage(items: readonly object[]) {
     pageSize: 20,
   }
 }
+
+it('validates manually edited formula precision while retaining an unchanged adopted formula', async () => {
+  const { emptyOrder, orderPayload } =
+    await import('@/target/components/document-page/order-data.ts')
+  const draft = emptyOrder('sale-order')
+  draft.counterparty = { objectId: referenceId, approvalEntryId: entryId }
+  draft.warehouse = { objectId: referenceId }
+  draft.operatingEntity = { objectId: referenceId }
+  const quantity = {
+    enteredQuantity: '1.234567',
+    baseQuantity: '2.123456',
+    enteredUnit: {
+      objectId: unit.id,
+      code: unit.code,
+      name: unit.name,
+      fixedFactor: null,
+    },
+  }
+  const formula = {
+    sourceType: 'PRODUCT_FIXED' as const,
+    output: quantity,
+    components: [
+      {
+        material: { objectId: referenceId },
+        quantity: structuredClone(quantity),
+      },
+    ],
+  }
+  draft.lines = [
+    {
+      lineId: productId,
+      product: { objectId: productId },
+      current: {
+        ...productCurrent,
+        data: {
+          ...productCurrent.data,
+          productType: {
+            ...productCurrent.data.productType,
+            behaviorProfile: 'CUSTOM_FINISHED',
+          },
+        },
+      } as Awaited<ReturnType<typeof api.resolveTargetProduct>>,
+      enteredQuantity: '1.23',
+      unitId: unit.id,
+      baseQuantity: '2.123456',
+      unitPrice: '10',
+      settlementSurcharge: null,
+      remark: '',
+      formula: structuredClone(formula),
+      inheritedFormula: structuredClone(formula),
+      formulaDraft: null,
+      deliverySpecificationType: 'PACKAGED',
+      quantityPerContainer: '',
+      containerType: '',
+    },
+  ]
+  expect(
+    orderPayload(draft).productLines[0]!.formula!.output.enteredQuantity,
+  ).toBe('1.234567')
+  draft.lines[0]!.formula!.output.enteredQuantity = '1.234568'
+  expect(() => orderPayload(draft)).toThrow('手工配方录入数量最多两位小数')
+  draft.lines[0]!.formula!.output.enteredQuantity = '1.23'
+  draft.lines[0]!.formula!.components[0]!.quantity.enteredQuantity = '2.12'
+  expect(
+    orderPayload(draft).productLines[0]!.formula!.output.enteredQuantity,
+  ).toBe('1.23')
+})

@@ -1,6 +1,7 @@
 import { businessDate } from './business-date.ts'
 import {
   productionSuggestedQuantity,
+  isInputQuantity,
   type VouFormulaInput,
   type VouPayloadFor,
   type VouAttachmentMetadata,
@@ -22,6 +23,7 @@ export type ProductionMaterial = {
 export type ProductionLine = {
   id: string
   source: SourceLineChoice | null
+  inheritedEnteredQuantity?: string
   product: VouCandidate | null
   formula: VouFormulaInput | null
   enteredQuantity: string
@@ -80,8 +82,7 @@ export function productionMaterials(
         id: row.quantity.enteredUnit.objectId,
         code: row.quantity.enteredUnit.code,
         name: row.quantity.enteredUnit.name,
-        symbol: row.quantity.enteredUnit.symbol,
-        quantityScale: row.quantity.enteredUnit.quantityScale,
+        fixedFactor: row.quantity.enteredUnit.fixedFactor,
       },
     ],
     enteredQuantity: row.quantity.enteredQuantity,
@@ -148,6 +149,11 @@ export function productionPayload(
       !decimal(row.lossRate)
     )
       throw new Error('请填写有效成品数量与损耗百分比。')
+    if (
+      !isInputQuantity(row.enteredQuantity) &&
+      (!row.source || row.enteredQuantity !== row.inheritedEnteredQuantity)
+    )
+      throw new Error('成品录入数量最多两位小数。')
     if (draft.entity === 'order-production' && !row.source)
       throw new Error('请选择订单来源行。')
     return {
@@ -173,6 +179,25 @@ export function productionPayload(
           const [a, b = ''] = value.split('.')
           return BigInt(a!) * 1000000n + BigInt(b.padEnd(6, '0'))
         }
+        if (
+          !isInputQuantity(material.enteredQuantity) &&
+          !(
+            material.actual.objectId === original?.material.objectId &&
+            material.unitId === original.quantity.enteredUnit.objectId &&
+            normalize(material.enteredQuantity) ===
+              normalize(
+                productionSuggestedQuantity(
+                  original.quantity.enteredQuantity,
+                  row.formula!.output.baseQuantity,
+                  row.baseQuantity,
+                  row.lossRate,
+                ),
+              )
+          )
+        )
+          throw new Error(
+            '实际领料录入数量最多两位小数；自动计算的建议值保留原精度。',
+          )
         if (
           (material.actual.objectId !== original?.material.objectId ||
             normalize(material.baseQuantity) !== normalize(suggested)) &&
@@ -273,8 +298,7 @@ export function cloneProduction(
                   id: material.actualEnteredUnit.objectId,
                   code: '',
                   name: '已采用单位',
-                  symbol: unit.symbol,
-                  quantityScale: unit.quantityScale,
+                  fixedFactor: unit.fixedFactor,
                 },
               ]
             : [],

@@ -144,7 +144,7 @@ test('AUX management searches before stable pagination and keeps current name as
   )
 })
 
-test('measurement-unit quantity-scale query ANDs with keyword before count and pagination', async (context) => {
+test('measurement-unit query paginates named fixed and product-specific units', async (context) => {
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
   const db = createDatabase(databaseUrl)
   const bootstrap = new TargetBootstrapService(db)
@@ -180,8 +180,7 @@ test('measurement-unit quantity-scale query ANDs with keyword before count and p
       'measurement-unit',
       {
         name: `计量筛选${suffix}-${String(index).padStart(2, '0')}`,
-        symbol: `u${index}`,
-        quantityScale: index < 21 ? 0 : 3,
+        fixedFactor: null,
       },
       actor,
     )
@@ -190,23 +189,23 @@ test('measurement-unit quantity-scale query ANDs with keyword before count and p
   const keyword = `jiliangshaixuan${suffix.toLowerCase()}`
   const first = await service.query(
     'measurement-unit',
-    { keyword, quantityScale: 0, page: 1, pageSize: 20 },
+    { keyword, page: 1, pageSize: 20 },
     actor,
   )
   const second = await service.query(
     'measurement-unit',
-    { keyword, quantityScale: 0, page: 2, pageSize: 20 },
+    { keyword, page: 2, pageSize: 20 },
     actor,
   )
-  assert.equal(first.total, 21)
+  assert.equal(first.total, 23)
   assert.equal(first.items.length, 20)
-  assert.equal(second.total, 21)
-  assert.equal(second.items.length, 1)
+  assert.equal(second.total, 23)
+  assert.equal(second.items.length, 3)
   assert.equal(
     (
       await service.query(
         'measurement-unit',
-        { keyword, quantityScale: 6, page: 1, pageSize: 20 },
+        { keyword: 'no-match-' + suffix, page: 1, pageSize: 20 },
         actor,
       )
     ).total,

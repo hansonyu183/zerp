@@ -156,8 +156,7 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     objectId: ulid(),
     code: 'PAY-UNIT',
     name: '千克',
-    symbol: 'kg',
-    quantityScale: 2,
+    fixedFactor: null,
   }
   const now = new Date()
   const prefix = {
@@ -265,8 +264,7 @@ test('sales orders adopt explicit customer or current payment snapshots without 
             id: unit.objectId,
             code: unit.code,
             name: unit.name,
-            symbol: unit.symbol,
-            quantityScale: unit.quantityScale,
+            fixedFactor: unit.fixedFactor,
           },
           factor: '1.000000',
         },

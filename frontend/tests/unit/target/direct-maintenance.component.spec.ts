@@ -211,8 +211,7 @@ function configureApi(): void {
           objectId: entity,
           code: `${entity}-code`,
           name: `${entity} 名称`,
-          symbol: 'kg',
-          quantityScale: 0,
+          fixedFactor: null,
         },
       ]) as never,
   )
@@ -235,9 +234,7 @@ function configureApi(): void {
   queryEmployees.mockResolvedValue(page([identity('employee')]) as never)
   queryPositions.mockResolvedValue(page([identity('position')]) as never)
   queryMeasurementUnits.mockResolvedValue(
-    page([
-      { ...identity('measurement-unit'), symbol: 'kg', quantityScale: 0 },
-    ]) as never,
+    page([{ ...identity('measurement-unit'), fixedFactor: null }]) as never,
   )
   queryPaymentMethods.mockResolvedValue(
     page([identity('payment-method')]) as never,
@@ -285,7 +282,7 @@ describe('direct maintenance through the registered resource Host', () => {
     expect(queryMeasurementUnits).toHaveBeenCalledTimes(1)
     wrapper.unmount()
   })
-  it('creates a unit with zero precision through the typed API then refreshes once', async () => {
+  it('creates a unit with a fixed conversion through the typed API then refreshes once', async () => {
     authorize(['/aux/measurement-unit/query', '/aux/measurement-unit/create'])
     vi.mocked(targetApi.createTargetMeasurementUnit).mockResolvedValue({
       id: 'new-unit',
@@ -301,7 +298,7 @@ describe('direct maintenance through the registered resource Host', () => {
       .get('[data-testid="direct-edit-form"]')
       .findAll('input')
     await inputs[0]!.setValue('千克')
-    await inputs[1]!.setValue('kg')
+    await inputs[1]!.setValue('1')
     await wrapper
       .findAll('button')
       .find((b) => b.text() === '保存')!
@@ -309,7 +306,7 @@ describe('direct maintenance through the registered resource Host', () => {
     await flushPromises()
     expect(targetApi.createTargetMeasurementUnit).toHaveBeenCalledWith(
       'csrf-token',
-      { name: '千克', symbol: 'kg', quantityScale: 0 },
+      { name: '千克', fixedFactor: '1' },
       {},
     )
     expect(queryMeasurementUnits).toHaveBeenCalledTimes(2)
@@ -407,7 +404,7 @@ const scalarCases = [
     entity: 'measurement-unit',
     name: 'MeasurementUnit',
     plural: 'MeasurementUnits',
-    input: { name: '公斤', symbol: 'kg', quantityScale: 0 },
+    input: { name: '公斤', fixedFactor: null },
   },
   {
     entity: 'payment-method',
@@ -735,8 +732,7 @@ function deferred<T>() {
 async function openUnit() {
   prepare('measurement-unit', 'MeasurementUnit', 'MeasurementUnits', {
     name: '计量',
-    symbol: 'kg',
-    quantityScale: 0,
+    fixedFactor: null,
   })
   const wrapper = host('measurement-unit')
   await flushPromises()
@@ -790,7 +786,9 @@ describe('direct runtime failure and asynchronous isolation', () => {
     await button(wrapper, '新增').trigger('click')
     await flushPromises()
     await wrapper.get('input[aria-label="名称"]').setValue('新单位')
-    await wrapper.get('input[aria-label="符号"]').setValue('kg')
+    await wrapper
+      .get('input[aria-label="固定换算系数（留空由产品维护）"]')
+      .setValue('1')
     vi.mocked(targetApi.createTargetMeasurementUnit).mockResolvedValue({
       id: 'confirmed',
     } as never)
@@ -833,8 +831,7 @@ describe('direct runtime failure and asynchronous isolation', () => {
       ...identity('late'),
       revision,
       availableActions: ['edit'],
-      symbol: 'kg',
-      quantityScale: 0,
+      fixedFactor: null,
     } as never)
     await flushPromises()
     expect(wrapper.text()).not.toContain('late')
@@ -949,11 +946,13 @@ describe('fresh editor lifecycle and optional references', () => {
     expect(button(wrapper, '保存').attributes('disabled')).toBeUndefined()
     pending.resolve({
       ...identity('late'),
-      symbol: 'stale',
-      quantityScale: 0,
+      fixedFactor: null,
     } as never)
     await flushPromises()
-    expect(wrapper.get('input[aria-label="符号"]').element.value).toBe('')
+    expect(
+      wrapper.get('input[aria-label="固定换算系数（留空由产品维护）"]').element
+        .value,
+    ).toBe('')
     wrapper.unmount()
   })
   it('creates a warehouse with a null optional manager without employee query permission', async () => {
@@ -1035,13 +1034,10 @@ it('uses the submitted query after editing while discarding a late older respons
   await flushPromises()
   expect(queryMeasurementUnits).toHaveBeenLastCalledWith('csrf-token', {
     keyword: '已提交',
-    quantityScale: undefined,
     page: 1,
     pageSize: 20,
   })
-  prior.resolve(
-    page([{ ...identity('late'), symbol: 'late', quantityScale: 0 }]) as never,
-  )
+  prior.resolve(page([{ ...identity('late'), fixedFactor: null }]) as never)
   await flushPromises()
   expect(wrapper.text()).not.toContain('late 名称')
   wrapper.unmount()
@@ -1055,7 +1051,7 @@ it('does not display a late verification response for a different unknown row wr
     'measurement-unit',
     'MeasurementUnit',
     'MeasurementUnits',
-    { name: '甲', symbol: 'kg', quantityScale: 0 },
+    { name: '甲', fixedFactor: null },
   )
   queryMeasurementUnits.mockResolvedValue(
     page([row, { ...row, id: 'second', name: '乙' }]) as never,

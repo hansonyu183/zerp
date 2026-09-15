@@ -237,40 +237,34 @@ test('VOU product adoption serializes with BOB approval without cross-subject ad
       }),
       createAux('measurement-unit', {
         name: '并发克',
-        symbol: 'g',
-        quantityScale: 2,
+        fixedFactor: null,
       }),
       createAux('measurement-unit', {
         name: '并发旧千克',
-        symbol: 'kg',
-        quantityScale: 2,
+        fixedFactor: null,
       }),
     ])
   const [newFinishedUnit, blockingUnit] = await Promise.all([
     createAux('measurement-unit', {
       name: '并发新吨',
-      symbol: 't',
-      quantityScale: 3,
+      fixedFactor: null,
     }),
     createAux('measurement-unit', {
       name: '并发件',
-      symbol: '件',
-      quantityScale: 0,
+      fixedFactor: null,
     }),
   ])
   const unitSnapshot = (unit: AuxObjectView<'measurement-unit'>) => ({
     id: unit.id,
     code: unit.code,
     name: unit.name,
-    symbol: unit.symbol,
-    quantityScale: unit.quantityScale,
+    fixedFactor: unit.fixedFactor,
   })
   const unitWireSnapshot = (unit: AuxObjectView<'measurement-unit'>) => ({
     objectId: unit.id,
     code: unit.code,
     name: unit.name,
-    symbol: unit.symbol,
-    quantityScale: unit.quantityScale,
+    fixedFactor: unit.fixedFactor,
   })
   const productSnapshot = (
     name: string,

@@ -62,8 +62,7 @@ const exactReference = z
 
 const quantityUnit = auxSnapshot
   .extend({
-    symbol: z.string().min(1).max(32),
-    quantityScale: z.number().int().min(0).max(12),
+    fixedFactor: z.string().nullable(),
   })
   .strict()
 const productType = auxSnapshot
@@ -115,7 +114,11 @@ const productSnapshot = z
     pricingUnit: quantityUnit,
     defaultInputUnit: quantityUnit,
     unitConversions: z
-      .array(z.object({ unit: quantityUnit, factor: positiveDecimal }).strict())
+      .array(
+        z
+          .object({ unit: quantityUnit, factor: positiveDecimal.nullable() })
+          .strict(),
+      )
       .min(1),
     defaultPackagingSpec: z.string().max(64),
     recyclable: z.boolean(),

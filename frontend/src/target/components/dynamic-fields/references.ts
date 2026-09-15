@@ -299,8 +299,12 @@ export async function loadEditReferencePage(
         case 'product-units':
           snapshot = {
             ...base,
-            symbol: required(item.symbol),
-            quantityScale: required(item.quantityScale),
+            fixedFactor:
+              item.fixedFactor === undefined
+                ? (() => {
+                    throw new Error('单位缺少换算定义')
+                  })()
+                : item.fixedFactor,
           }
           break
       }

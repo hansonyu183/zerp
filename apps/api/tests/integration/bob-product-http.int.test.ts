@@ -150,9 +150,8 @@ test('product HTTP preserves precise formula history and independent enablement 
     return aux.get(entity, { id: created.id }, auxActor)
   }
   const measurement = await createAux('measurement-unit', {
-    name: `单位-${suffix}`,
-    symbol: 'kg',
-    quantityScale: 6,
+    name: `kg-${suffix}`,
+    fixedFactor: '1',
   })
   const category = await createAux('product-category', {
     name: `分类-${suffix}`,
@@ -172,8 +171,7 @@ test('product HTTP preserves precise formula history and independent enablement 
     id: measurement.id,
     code: measurement.code,
     name: measurement.name,
-    symbol: 'kg',
-    quantityScale: 6,
+    fixedFactor: measurement.fixedFactor,
   }
   const snapshot = {
     name: `原料-${suffix}`,
@@ -193,7 +191,7 @@ test('product HTTP preserves precise formula history and independent enablement 
     },
     pricingUnit: unit,
     defaultInputUnit: unit,
-    unitConversions: [{ unit, factor: '2.500000' }],
+    unitConversions: [{ unit, factor: null }],
     defaultPackagingSpec: '25.000000',
     recyclable: false,
     fixedFormula: null,
@@ -207,6 +205,15 @@ test('product HTTP preserves precise formula history and independent enablement 
     expectedLatestApprovedRevision: null,
     snapshot,
   }
+  assert.equal(
+    (
+      await write('submit-new', {
+        ...input,
+        snapshot: { ...snapshot, unitConversions: [{ unit, factor: '1' }] },
+      })
+    ).errorKey,
+    'product_invalid_data',
+  )
   const submitted = await write('submit-new', input)
   assert.equal(submitted.code, 0, submitted.errorKey)
   assert.equal('enabled' in submitted.data.snapshot, false)
@@ -255,6 +262,68 @@ test('product HTTP preserves precise formula history and independent enablement 
     ).code,
     0,
   )
+  const unitRevision = await aux.save(
+    'measurement-unit',
+    {
+      id: measurement.id,
+      revision: measurement.revision,
+      name: measurement.name,
+      fixedFactor: '2',
+    },
+    auxActor,
+  )
+  assert.equal(unitRevision.revision, '2')
+  assert.equal(
+    (await write('get', { objectId: input.subjectId })).data.data.pricingUnit
+      .fixedFactor,
+    '1',
+  )
+  // New products adopt current factors. Existing products keep their adopted definition.
+  await aux.save(
+    'measurement-unit',
+    {
+      id: measurement.id,
+      revision: unitRevision.revision,
+      name: measurement.name,
+      fixedFactor: '1',
+    },
+    auxActor,
+  )
+  const barrel = await createAux('measurement-unit', {
+    name: `桶-${suffix}`,
+    fixedFactor: null,
+  })
+  for (const factor of ['200', '180']) {
+    const adopted = {
+      id: barrel.id,
+      code: barrel.code,
+      name: barrel.name,
+      fixedFactor: null,
+    }
+    const request = {
+      ...input,
+      subjectId: ulid(),
+      submissionId: ulid(),
+      idempotencyKey: ulid(),
+      snapshot: {
+        ...snapshot,
+        name: `桶装-${factor}-${suffix}`,
+        barcode: `barrel-${factor}-${suffix}`,
+        pricingUnit: adopted,
+        defaultInputUnit: adopted,
+        unitConversions: [{ unit: adopted, factor }],
+      },
+    }
+    const result = await write('submit-new', request)
+    assert.equal(result.code, 0, result.errorKey)
+    assert.equal(result.data.snapshot.unitConversions[0].factor, factor)
+    const accepted = await review('approve', {
+      subjectId: request.subjectId,
+      submissionId: request.submissionId,
+      expectedRevision: '1',
+    })
+    assert.equal(accepted.code, 0, accepted.errorKey)
+  }
   const formula = {
     output: {
       enteredQuantity: '2.000000',
@@ -297,6 +366,11 @@ test('product HTTP preserves precise formula history and independent enablement 
       fixedFormula: formula,
     },
   }
+  assert.equal(
+    (await write('submit-new', finishedInput)).errorKey,
+    'product_invalid_data',
+  )
+  formula.components[0]!.quantity.enteredQuantity = '1.23'
   assert.equal((await write('submit-new', finishedInput)).code, 0)
   const finished = await review('approve', {
     subjectId: finishedInput.subjectId,

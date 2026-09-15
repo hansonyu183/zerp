@@ -13,3 +13,5 @@ export * from './vou.ts'
 export * from './parity.ts'
 
 export * from './intermediary-calculation.ts'
+
+export * from './quantity.ts'

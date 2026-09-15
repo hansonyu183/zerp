@@ -25,12 +25,16 @@ import {
   availableApprovalActions,
   prepareVouApproval,
   prepareVouSubmission,
+  isInputQuantity,
+  sameFormulaQuantities,
   productionSuggestedQuantity,
   type ApprovalAction,
   type ApprovalActor,
   type ApprovalEntry,
   type ApprovalStatus,
   type VouEntity,
+  type VouFormulaInput,
+  type ProductFixedFormula,
   type VouBillReferenceSnapshot,
   type VouBillCalculation,
   type VouMeasurementUnitSnapshotInput,
@@ -371,10 +375,26 @@ function paymentMethodSnapshot(
   }
 }
 
-function quantityFitsScale(value: string, scale: number): boolean {
-  const match = /^-?(?:0|[1-9]\d*)(?:\.(\d{1,6}))?$/.exec(value)
-  if (!match) return false
-  return (match[1] ?? '').replace(/0+$/, '').length <= scale
+function productFormulaSnapshot(formula: ProductFixedFormula): VouFormulaInput {
+  const quantity = (
+    value: import('@zerp/model').ProductQuantitySnapshot,
+  ): VouProductQuantitySnapshotInput => ({
+    ...value,
+    enteredUnit: {
+      objectId: value.enteredUnit.id,
+      code: value.enteredUnit.code,
+      name: value.enteredUnit.name,
+      fixedFactor: value.enteredUnit.fixedFactor,
+    },
+  })
+  return {
+    sourceType: 'PRODUCT_FIXED',
+    output: quantity(formula.output),
+    components: formula.components.map((row) => ({
+      material: { objectId: row.material.objectId },
+      quantity: quantity(row.quantity),
+    })),
+  }
 }
 
 function matchesProductUnitSnapshot(
@@ -387,8 +407,7 @@ function matchesProductUnitSnapshot(
     unit.id === snapshot.objectId &&
     unit.code === snapshot.code &&
     unit.name === snapshot.name &&
-    unit.symbol === snapshot.symbol &&
-    unit.quantityScale === snapshot.quantityScale
+    unit.fixedFactor === snapshot.fixedFactor
   )
 }
 
@@ -1622,6 +1641,7 @@ export class VouService implements WflVouPort {
           approvalEntryId: row.approval_entry_id,
           line: {
             lineId: line.lineId,
+            enteredQuantity: line.enteredQuantity,
             product: line.product,
             formula: line.formula,
             deliverySpecificationType: line.deliverySpecificationType,
@@ -3103,11 +3123,12 @@ export class VouService implements WflVouPort {
       approval_entry_id: string
       enabled: boolean
       unit_conversions: unknown
+      fixed_formula: ProductFixedFormula | null
     }>`
       SELECT approval.subject_id AS object_id,
         approval.id AS approval_entry_id,
         subject.enabled,
-        version.unit_conversions
+        version.unit_conversions, version.fixed_formula
       FROM approval_entries approval
       JOIN bob_archive_objects subject ON subject.id=approval.subject_id
       JOIN dcl_product_versions version
@@ -3129,6 +3150,58 @@ export class VouService implements WflVouPort {
     const productById = new Map(
       products.rows.map((product) => [product.object_id, product]),
     )
+    const preservedFormulaQuantities =
+      new Set<VouProductQuantitySnapshotInput>()
+    const sourceOrders = new Map<string, VouPayloadFor<'sale-order'> | null>()
+    for (const line of payload.productLines) {
+      const formula = line.formula
+      if (!formula) continue
+      let adopted: VouFormulaInput | null = null
+      if (formula.sourceType === 'PRODUCT_FIXED') {
+        const original = productById.get(line.product.objectId)?.fixed_formula
+        if (original) adopted = productFormulaSnapshot(original)
+      } else if (
+        formula.sourceType === 'CUSTOMER_LATEST' &&
+        formula.sourceDocumentId &&
+        'customer' in payload
+      ) {
+        if (!sourceOrders.has(formula.sourceDocumentId)) {
+          const entry = await transaction
+            .selectFrom('approval_entries')
+            .select('id')
+            .where('domain', '=', 'vou')
+            .where('entity', '=', 'sale-order')
+            .where('subject_id', '=', formula.sourceDocumentId)
+            .where('status', 'in', ['PENDING', 'APPROVED'])
+            .forShare()
+            .executeTakeFirst()
+          sourceOrders.set(
+            formula.sourceDocumentId,
+            entry
+              ? ((await this.readPayload(
+                  transaction,
+                  'sale-order',
+                  entry.id,
+                )) as VouPayloadFor<'sale-order'>)
+              : null,
+          )
+        }
+        const source = sourceOrders.get(formula.sourceDocumentId)
+        if (source?.customer.objectId === payload.customer.objectId)
+          adopted =
+            source.productLines.find(
+              (row) =>
+                row.product.objectId === line.product.objectId &&
+                row.formula &&
+                sameFormulaQuantities(formula, row.formula),
+            )?.formula ?? null
+      }
+      if (adopted && sameFormulaQuantities(formula, adopted)) {
+        preservedFormulaQuantities.add(formula.output)
+        for (const component of formula.components)
+          preservedFormulaQuantities.add(component.quantity)
+      }
+    }
     const blockers: VouReferenceBlocker[] = []
     for (const fact of facts) {
       const product = productById.get(fact.productId)
@@ -3168,10 +3241,8 @@ export class VouService implements WflVouPort {
         continue
       }
       if (
-        !quantityFitsScale(
-          fact.quantity.enteredQuantity,
-          fact.quantity.enteredUnit.quantityScale,
-        )
+        !preservedFormulaQuantities.has(fact.quantity) &&
+        !isInputQuantity(fact.quantity.enteredQuantity)
       )
         throw new VouApplicationError('vou_invalid_payload')
     }
@@ -3202,7 +3273,7 @@ export class VouService implements WflVouPort {
       const unit = product.unit_conversions.find(
         (row) => row.unit.id === line.enteredUnit.objectId,
       )?.unit
-      if (!unit || !quantityFitsScale(line.enteredQuantity, unit.quantityScale))
+      if (!unit || !isInputQuantity(line.enteredQuantity))
         throw new VouApplicationError('vou_reference_unavailable')
     }
   }
@@ -3316,6 +3387,7 @@ export class VouService implements WflVouPort {
         loss > 100000000n
       )
         throw new VouApplicationError('vou_invalid_payload')
+      let inheritedEnteredQuantity: string | undefined
       let formula: import('@zerp/model').VouFormulaInput
       if (source) {
         const sourceLine = source.productLines.find(
@@ -3340,6 +3412,8 @@ export class VouService implements WflVouPort {
           throw new VouApplicationError('vou_source_line_unavailable')
         line.product = { ...sourceLine.product }
         formula = structuredClone(sourceLine.formula)
+        if (line.enteredUnit.objectId === sourceLine.enteredUnit.objectId)
+          inheritedEnteredQuantity = sourceLine.enteredQuantity
       } else {
         if (
           !line.product ||
@@ -3354,35 +3428,15 @@ export class VouService implements WflVouPort {
           !product.fixed_formula
         )
           throw new VouApplicationError('vou_reference_unavailable')
-        const wireQuantity = (
-          value: import('@zerp/model').ProductQuantitySnapshot,
-        ) => ({
-          ...value,
-          enteredUnit: {
-            objectId: value.enteredUnit.id,
-            code: value.enteredUnit.code,
-            name: value.enteredUnit.name,
-            symbol: value.enteredUnit.symbol,
-            quantityScale: value.enteredUnit.quantityScale,
-          },
-        })
-        formula = {
-          sourceType: 'PRODUCT_FIXED',
-          output: wireQuantity(product.fixed_formula.output),
-          components: product.fixed_formula.components.map((row) => ({
-            material: { objectId: row.material.objectId },
-            quantity: wireQuantity(row.quantity),
-          })),
-        }
+        formula = productFormulaSnapshot(product.fixed_formula)
       }
       const output = micros(formula.output.baseQuantity)
       if (
         !output ||
         line.enteredUnit.objectId !== formula.output.enteredUnit.objectId ||
-        !quantityFitsScale(
-          line.enteredQuantity,
-          formula.output.enteredUnit.quantityScale,
-        )
+        (!isInputQuantity(line.enteredQuantity) &&
+          (!inheritedEnteredQuantity ||
+            micros(line.enteredQuantity) !== micros(inheritedEnteredQuantity)))
       )
         throw new VouApplicationError('vou_invalid_payload')
       if (
@@ -3421,7 +3475,21 @@ export class VouService implements WflVouPort {
         if (
           product.behavior_profile !== 'RAW_MATERIAL' ||
           !unit ||
-          !quantityFitsScale(material.actualEnteredQuantity, unit.quantityScale)
+          (!isInputQuantity(material.actualEnteredQuantity) &&
+            !(
+              material.actualMaterial.objectId === original.material.objectId &&
+              material.actualEnteredUnit.objectId ===
+                original.quantity.enteredUnit.objectId &&
+              micros(material.actualEnteredQuantity) ===
+                micros(
+                  productionSuggestedQuantity(
+                    original.quantity.enteredQuantity,
+                    formula.output.baseQuantity,
+                    line.baseQuantity,
+                    line.lossRate,
+                  ),
+                )
+            ))
         )
           throw new VouApplicationError('vou_reference_unavailable')
         material.suggestedBaseQuantity = suggestedQuantity
@@ -3706,19 +3774,19 @@ export class VouService implements WflVouPort {
         await sql`
           INSERT INTO vou_product_line_snapshots (
             approval_entry_id, line_no, line_id, entered_quantity_micros, entered_unit_id,
-            entered_unit_code, entered_unit_name, entered_unit_symbol, entered_unit_quantity_scale,
+            entered_unit_code, entered_unit_name, entered_unit_fixed_factor,
             base_quantity_micros, unit_price_minor, settlement_surcharge_minor,
             purchase_unit_price_minor, remark, delivery_specification_type,
             container_type, quantity_per_container_micros, formula_source_type,
             formula_source_document_id, formula_source_document_no,
             formula_output_entered_quantity_micros, formula_output_entered_unit_id,
             formula_output_entered_unit_code, formula_output_entered_unit_name,
-            formula_output_entered_unit_symbol, formula_output_entered_unit_quantity_scale,
+            formula_output_entered_unit_fixed_factor,
             formula_output_base_quantity_micros
           ) VALUES (
             ${approvalEntryId}, ${lineNo}, ${line.lineId}, ${decimalToFixed(line.enteredQuantity, 6)!},
             ${line.enteredUnit.objectId}, ${line.enteredUnit.code}, ${line.enteredUnit.name},
-            ${line.enteredUnit.symbol}, ${line.enteredUnit.quantityScale},
+            ${line.enteredUnit.fixedFactor},
             ${decimalToFixed(line.baseQuantity, 6)!},
             ${decimalToFixed(line.unitPrice, 2)!}, ${decimalToFixed(line.settlementSurcharge ?? undefined, 2)},
             ${decimalToFixed(line.purchaseUnitPrice, 2)}, ${line.remark ?? null},
@@ -3729,8 +3797,7 @@ export class VouService implements WflVouPort {
             ${line.formula?.output.enteredUnit.objectId ?? null},
             ${line.formula?.output.enteredUnit.code ?? null},
             ${line.formula?.output.enteredUnit.name ?? null},
-            ${line.formula?.output.enteredUnit.symbol ?? null},
-            ${line.formula?.output.enteredUnit.quantityScale ?? null},
+            ${line.formula?.output.enteredUnit.fixedFactor ?? null},
             ${decimalToFixed(line.formula?.output.baseQuantity, 6)}
           )
         `.execute(transaction)
@@ -3749,14 +3816,13 @@ export class VouService implements WflVouPort {
             INSERT INTO vou_formula_component_snapshots (
               approval_entry_id, line_no, component_no, material_id,
               entered_quantity_micros, entered_unit_id, entered_unit_code,
-              entered_unit_name, entered_unit_symbol, entered_unit_quantity_scale,
+              entered_unit_name, entered_unit_fixed_factor,
               base_quantity_micros
             ) VALUES (
               ${approvalEntryId}, ${lineNo}, ${componentIndex + 1}, ${component.material.objectId},
               ${decimalToFixed(component.quantity.enteredQuantity, 6)!},
               ${component.quantity.enteredUnit.objectId}, ${component.quantity.enteredUnit.code},
-              ${component.quantity.enteredUnit.name}, ${component.quantity.enteredUnit.symbol},
-              ${component.quantity.enteredUnit.quantityScale},
+              ${component.quantity.enteredUnit.name}, ${component.quantity.enteredUnit.fixedFactor},
               ${decimalToFixed(component.quantity.baseQuantity, 6)!}
             )
           `.execute(transaction)
@@ -4791,8 +4857,7 @@ export class VouService implements WflVouPort {
         entered_unit_id: string
         entered_unit_code: string
         entered_unit_name: string
-        entered_unit_symbol: string
-        entered_unit_quantity_scale: number
+        entered_unit_fixed_factor: string | null
         base_quantity_micros: string
         unit_price_minor: string
         settlement_surcharge_minor: string | null
@@ -4808,8 +4873,7 @@ export class VouService implements WflVouPort {
         formula_output_entered_unit_id: string | null
         formula_output_entered_unit_code: string | null
         formula_output_entered_unit_name: string | null
-        formula_output_entered_unit_symbol: string | null
-        formula_output_entered_unit_quantity_scale: number | null
+        formula_output_entered_unit_fixed_factor: string | null
         formula_output_base_quantity_micros: string | null
       }>('vou_product_line_snapshots')
       const components = await sql<{
@@ -4820,8 +4884,7 @@ export class VouService implements WflVouPort {
         entered_unit_id: string
         entered_unit_code: string
         entered_unit_name: string
-        entered_unit_symbol: string
-        entered_unit_quantity_scale: number
+        entered_unit_fixed_factor: string | null
         base_quantity_micros: string
       }>`SELECT * FROM vou_formula_component_snapshots WHERE approval_entry_id = ${approvalEntryId} ORDER BY line_no, component_no`.execute(
         executor,
@@ -4886,8 +4949,7 @@ export class VouService implements WflVouPort {
             objectId: line.entered_unit_id,
             code: line.entered_unit_code,
             name: line.entered_unit_name,
-            symbol: line.entered_unit_symbol,
-            quantityScale: line.entered_unit_quantity_scale,
+            fixedFactor: line.entered_unit_fixed_factor,
           },
           baseQuantity: fixed(line.base_quantity_micros, 6),
           unitPrice: fixed(line.unit_price_minor, 2),
@@ -4927,9 +4989,8 @@ export class VouService implements WflVouPort {
                       objectId: line.formula_output_entered_unit_id!,
                       code: line.formula_output_entered_unit_code!,
                       name: line.formula_output_entered_unit_name!,
-                      symbol: line.formula_output_entered_unit_symbol!,
-                      quantityScale:
-                        line.formula_output_entered_unit_quantity_scale!,
+                      fixedFactor:
+                        line.formula_output_entered_unit_fixed_factor,
                     },
                     baseQuantity: fixed(
                       line.formula_output_base_quantity_micros!,
@@ -4958,8 +5019,7 @@ export class VouService implements WflVouPort {
                           objectId: component.entered_unit_id,
                           code: component.entered_unit_code,
                           name: component.entered_unit_name,
-                          symbol: component.entered_unit_symbol,
-                          quantityScale: component.entered_unit_quantity_scale,
+                          fixedFactor: component.entered_unit_fixed_factor,
                         },
                         baseQuantity: fixed(component.base_quantity_micros, 6),
                       },

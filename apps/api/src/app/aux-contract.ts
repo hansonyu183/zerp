@@ -165,8 +165,11 @@ const auxWriteShapes = {
   },
   'measurement-unit': {
     ...nameShape,
-    symbol: z.string().min(1).max(64),
-    quantityScale: z.number().int().min(0).max(6),
+    fixedFactor: z
+      .string()
+      .regex(/^(?:0|[1-9]\d*)(?:\.\d{1,18})?$/)
+      .refine((value) => /[1-9]/.test(value))
+      .nullable(),
   },
   'income-expense-type': {
     ...nameShape,
@@ -303,8 +306,11 @@ const page = z
 
 const measurementUnitListItem = listItem
   .extend({
-    symbol: z.string().min(1).max(64),
-    quantityScale: z.number().int().min(0).max(6),
+    fixedFactor: z
+      .string()
+      .regex(/^(?:0|[1-9]\d*)(?:\.\d{1,18})?$/)
+      .refine((value) => /[1-9]/.test(value))
+      .nullable(),
   })
   .strict()
 
@@ -321,8 +327,6 @@ const queryRequest = z
   .strict()
 
 const measurementUnitQueryRequest = queryRequest
-  .extend({ quantityScale: z.number().int().min(0).max(6).optional() })
-  .strict()
 
 const mutation = z
   .object({
@@ -590,8 +594,7 @@ export const auxReferenceCandidateSchema = z
     code: z.string(),
     name: z.string(),
     behaviorProfile: behaviorProfile.optional(),
-    symbol: z.string().min(1).max(64).optional(),
-    quantityScale: z.number().int().nonnegative().optional(),
+    fixedFactor: z.string().nullable().optional(),
     termCode: settlementTermCode.optional(),
     ruleType: z.enum(['RELATIVE_DAYS', 'MONTH_END']).optional(),
     monthOffset: z.number().int().min(0).max(3).optional(),

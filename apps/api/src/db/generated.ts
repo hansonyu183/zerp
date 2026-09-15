@@ -435,6 +435,16 @@ export interface AttachmentDeletionJobs {
   storage_key: string
 }
 
+export interface AuxMeasurementUnitConversionEvidence {
+  actor_user_id: string
+  baseline: string
+  created_at: Timestamp
+  originals: Json
+  report: Json
+  source_release_sha: string
+  target_release_sha: string
+}
+
 export interface AuxObjects {
   code: string
   created_at: Generated<Timestamp>
@@ -1070,10 +1080,9 @@ export interface VouFormulaComponentSnapshots {
   component_no: number
   entered_quantity_micros: Int8
   entered_unit_code: string
+  entered_unit_fixed_factor: string | null
   entered_unit_id: string
   entered_unit_name: string
-  entered_unit_quantity_scale: number
-  entered_unit_symbol: string
   line_no: number
   material_id: string
 }
@@ -1326,17 +1335,15 @@ export interface VouProductLineSnapshots {
   delivery_specification_type: string | null
   entered_quantity_micros: Int8
   entered_unit_code: string
+  entered_unit_fixed_factor: string | null
   entered_unit_id: string
   entered_unit_name: string
-  entered_unit_quantity_scale: number
-  entered_unit_symbol: string
   formula_output_base_quantity_micros: Int8 | null
   formula_output_entered_quantity_micros: Int8 | null
   formula_output_entered_unit_code: string | null
+  formula_output_entered_unit_fixed_factor: string | null
   formula_output_entered_unit_id: string | null
   formula_output_entered_unit_name: string | null
-  formula_output_entered_unit_quantity_scale: number | null
-  formula_output_entered_unit_symbol: string | null
   formula_source_document_id: string | null
   formula_source_document_no: string | null
   formula_source_type: string | null
@@ -1747,6 +1754,7 @@ export interface DB {
   archive_code_counters: ArchiveCodeCounters
   archive_idempotency: ArchiveIdempotency
   attachment_deletion_jobs: AttachmentDeletionJobs
+  aux_measurement_unit_conversion_evidence: AuxMeasurementUnitConversionEvidence
   aux_objects: AuxObjects
   aux_reference_facts: AuxReferenceFacts
   bob_archive_objects: BobArchiveObjects

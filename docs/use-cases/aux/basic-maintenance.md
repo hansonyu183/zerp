@@ -15,7 +15,7 @@
 
 ## 计量单位管理（#387）
 
-`aux/measurement-unit` 由 Registry 登记，计量单位 definition 由公共 DirectPage 与动态表单消费并调用类型化 API。编辑器只提供名称、符号、数量精度；规则引用 [AUX 计量单位](../../domains/aux.md#35-计量单位)，协议以 [AUX 可执行契约](../../../apps/api/src/app/aux-contract.ts) 为准。新建与编辑显式构造所属输入，编辑保留详情字符串 revision；取消无刷新，确认写成功后刷新失败仍报告成功，未知结果与冲突禁止自动重放。验收覆盖桌面和 390px 的菜单、超过一页的数据检索、创建、编辑与启停。
+`aux/measurement-unit` 由 Registry 登记，计量单位 definition 由公共 DirectPage 与动态表单消费并调用类型化 API。编辑器只提供名称和可空的固定换算系数；空值表示由产品维护换算；规则引用 [AUX 计量单位](../../domains/aux.md#35-计量单位)，协议以 [AUX 可执行契约](../../../apps/api/src/app/aux-contract.ts) 为准。新建与编辑显式构造所属输入，编辑保留详情字符串 revision；取消无刷新，确认写成功后刷新失败仍报告成功，未知结果与冲突禁止自动重放。验收覆盖桌面和 390px 的菜单、超过一页的数据检索、创建、编辑与启停。
 
 ## 收款方式管理（#388）
 

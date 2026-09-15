@@ -220,8 +220,20 @@ test('creates and clones sales and purchase orders from real menu candidates, in
       await confirmCollection(page)
     }
     await expect(editor.getByLabel('录入数量', { exact: true })).toBeEnabled()
+    await editor.getByLabel('录入数量', { exact: true }).fill('1.234')
+    await expect(
+      editor.getByRole('button', { name: '采用建议数量', exact: true }),
+    ).toHaveCount(0)
     await editor.getByLabel('录入数量', { exact: true }).fill('2')
-    await editor.getByLabel('基准数量', { exact: true }).fill('2')
+    await expect(
+      editor.getByRole('button', { name: '采用建议数量', exact: true }),
+    ).toBeVisible()
+    await editor
+      .getByRole('button', { name: '采用建议数量', exact: true })
+      .click()
+    await expect(editor.getByLabel('基准数量', { exact: true })).toHaveValue(
+      '2',
+    )
     await editor.getByLabel('基础单价', { exact: true }).fill('12.50')
     await confirmCollections(page)
     await editor.getByLabel('添加附件', { exact: true }).setInputFiles({

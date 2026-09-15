@@ -23,6 +23,7 @@ import {
 } from '../../src/aux/service.ts'
 import { VouService } from '../../src/vou/service.ts'
 import { AccService } from '../../src/acc/service.ts'
+import { AccMappingCatalogService } from '../../src/acc/mapping-catalog.ts'
 import { RptService, PgRptDefinitionValidator } from '../../src/rpt/service.ts'
 import {
   CustomerCutoverError,
@@ -427,6 +428,9 @@ test('customer cutover projects all historical versions, shares tax, splits rece
       enabled: rootEnabled && childEnabled,
     })
   }
+  await sql`INSERT INTO acc_mapping_vou_entities(id,code,name,field_catalog,enabled) VALUES ('sales-receipt','sales-receipt','销售收款单','{"headerFields":["customer.objectId","amount"],"lineFields":["line.subunit.objectId","line.amount"]}',true) ON CONFLICT(id) DO UPDATE SET field_catalog=excluded.field_catalog`.execute(
+    db,
+  )
   const original = await inspectCustomerCutover(db)
   assert.deepEqual(original.review, [])
   assert.equal(original.customers.length, 7)
@@ -571,6 +575,14 @@ test('customer cutover projects all historical versions, shares tax, splits rece
   const report = await migrateCustomers(db, input, catalog)
   assert.equal(report.preserved, true)
   assert.equal(report.taxInformation, 1)
+  const receiptCatalog = (
+    await new AccMappingCatalogService(db).catalog(actor)
+  ).vouEntities.find((item) => item.id === 'sales-receipt')!
+  assert.ok(
+    receiptCatalog.fieldCatalog.headerFields.includes('customer.objectId'),
+  )
+  assert.deepEqual(receiptCatalog.fieldCatalog.lineFields, [])
+
   const config = loadConfig({
     DATABASE_URL: url.toString(),
     TARGET_DATABASE_SCOPE: 'isolated',

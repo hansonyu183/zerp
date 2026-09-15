@@ -105,10 +105,10 @@ function planConversion(input: Source) {
   convertReferences(plan)
   // No old identifiers may remain in executable rules. Unknown forms require
   // review; an incomplete textual rewrite is never silently installed.
+  // The system-owned VOU field catalog is regenerated in the import transaction.
   for (const table of [
     'acc_mappings',
     'acc_mapping_history',
-    'acc_mapping_vou_entities',
     'wfl_definition_versions',
     'rpt_definitions',
     'rpt_definition_history',

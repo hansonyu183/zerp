@@ -33,7 +33,6 @@ async function select(page: Page, scope: Locator, label: string, name: string) {
 }
 async function approve(page: Page, name: string) {
   await openArchive(page, 'dcl', 'product')
-  await page.getByRole('button', { name: '提交记录', exact: true }).click()
   const dialog = page.getByRole('dialog').last()
   await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
   await page.getByRole('button', { name: '查询', exact: true }).click()
@@ -134,7 +133,9 @@ test('product temporary form, exact quantity trial, approval and independent ena
     await page.reload()
     await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
     await page.getByRole('button', { name: '查询', exact: true }).click()
-    const row = page.locator('tr, .list-card').filter({ hasText: name })
+    const row = page
+      .locator('tr, .list-card')
+      .filter({ has: page.getByRole('button', { name: '查看', exact: true }) })
     await openArchive(page, 'bob', 'product')
     await findArchive(page, name)
     await row.getByRole('button', { name: '停用', exact: true }).click()
@@ -165,7 +166,11 @@ test('product temporary form, exact quantity trial, approval and independent ena
     ).toBe(true)
     await openArchive(page, 'dcl', 'product')
     await findArchive(page, name)
-    await row.getByRole('button', { name: '克隆', exact: true }).click()
+    await row.getByRole('button', { name: '查看', exact: true }).click()
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: '克隆为新档案', exact: true })
+      .click()
     dialog = page.getByRole('dialog').last()
     await select(page, dialog, '产品类型', finishedName)
     await dialog.getByRole('button', { name: '确认切换', exact: true }).click()

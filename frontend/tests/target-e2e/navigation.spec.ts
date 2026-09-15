@@ -134,10 +134,13 @@ test('navigation and Host retain the shell at desktop and 390px in both themes',
       ).toBeVisible()
       if (width < 600) await expect(page.locator('.list-cards')).toBeVisible()
       else await expect(page.getByRole('table')).toBeVisible()
-      for (const name of ['新增', '正式资料', '提交记录'])
+      await expect(
+        page.getByRole('button', { name: '新增', exact: true }),
+      ).toBeInViewport({ ratio: 1 })
+      for (const name of ['正式资料', '提交记录'])
         await expect(
           page.getByRole('button', { name, exact: true }),
-        ).toBeInViewport({ ratio: 1 })
+        ).toHaveCount(0)
       for (const theme of ['light', 'dark']) {
         if (theme === 'dark') await page.getByLabel('切换深色模式').click()
         await expect(page.locator('.topbar')).toBeVisible()

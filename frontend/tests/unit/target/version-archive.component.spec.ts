@@ -24,6 +24,7 @@ vi.mock('@/target/api.ts', async (original) => ({
   submitNewTargetCustomer: vi.fn(),
   queryTargetCustomers: vi.fn(),
   queryTargetProducts: vi.fn(),
+  queryTargetProductSubmissions: vi.fn(),
   queryTargetProductVersions: vi.fn(),
   queryTargetBobOptions: vi.fn(),
   submitChangeTargetProduct: vi.fn(),
@@ -197,11 +198,13 @@ it('keeps current and candidate snapshots separate and gives DCL no object histo
     global: { stubs },
   })
   await flushPromises()
-  await click(wrapper, '查看')
-  expect(wrapper.text()).toContain('正式甲')
-  expect(wrapper.text()).not.toContain('候选乙')
-  await click(wrapper, '关闭')
-  await click(wrapper, '提交记录')
+  expect(api.queryTargetSuppliers).not.toHaveBeenCalled()
+  expect(
+    wrapper.findAll('button').map((button) => button.text()),
+  ).not.toContain('正式资料')
+  expect(
+    wrapper.findAll('button').map((button) => button.text()),
+  ).not.toContain('提交记录')
   await click(wrapper, '查看')
   expect(api.getTargetSupplierSubmission).toHaveBeenCalledWith('test-csrf', {
     subjectId: 'supplier',
@@ -217,7 +220,7 @@ it('keeps current and candidate snapshots separate and gives DCL no object histo
     expectedRevision: '1',
   })
   expect(api.queryTargetSupplierSubmissions).toHaveBeenCalledTimes(2)
-  expect(api.queryTargetSuppliers).toHaveBeenCalledTimes(1)
+  expect(api.queryTargetSuppliers).not.toHaveBeenCalled()
   wrapper.unmount()
 })
 
@@ -368,21 +371,18 @@ function productFacts() {
 }
 it('opening a new product candidate adopts current material versions without changing confirmed quantities or the approved snapshot', async () => {
   useTargetSession().apiPaths = [
-    '/bob/product/query',
+    '/dcl/product/submission-query',
     '/bob/product/versions',
     '/dcl/product/submit-change',
   ]
   const { data, unit } = productFacts()
-  vi.mocked(api.queryTargetProducts).mockResolvedValue({
+  vi.mocked(api.queryTargetProductSubmissions).mockResolvedValue({
     items: [
       {
-        objectId: 'product',
-        code: 'P01',
-        name: '成品',
-        py: 'chengpin',
-        revision: '8',
-        enabled: true,
-        data,
+        subjectId: 'product',
+        code: 'TEST',
+        latestApproved: { versionNo: 1 },
+        openCandidate: null,
       },
     ],
     total: 1,
@@ -620,8 +620,8 @@ it('shows a vehicle blocker and keeps formal state without replaying disable', a
   wrapper.unmount()
 })
 it('keeps corrected input after a definite submit failure and refreshes only once on success', async () => {
-  authorizeSupplier('query', 'submit-new')
-  vi.mocked(api.queryTargetSuppliers).mockResolvedValue({
+  authorizeSupplier('submission-query', 'submit-new')
+  vi.mocked(api.queryTargetSupplierSubmissions).mockResolvedValue({
     items: [],
     total: 0,
   } as never)
@@ -649,7 +649,7 @@ it('keeps corrected input after a definite submit failure and refreshes only onc
       snapshot: expect.objectContaining({ displayName: '修正名称' }),
     }),
   )
-  expect(api.queryTargetSuppliers).toHaveBeenCalledTimes(2)
+  expect(api.queryTargetSupplierSubmissions).toHaveBeenCalledTimes(2)
   wrapper.unmount()
 })
 it('retains write success when its list refresh fails and never repeats the mutation', async () => {
@@ -707,9 +707,21 @@ it('lets versions permission select real returned snapshots without a submission
   wrapper.unmount()
 })
 it('ignores a late change baseline after closing and opening a fresh Draft', async () => {
-  authorizeSupplier('query', 'versions', 'submit-change', 'submit-new')
-  vi.mocked(api.queryTargetSuppliers).mockResolvedValue({
-    items: [supplierRow()],
+  authorizeSupplier(
+    'submission-query',
+    'versions',
+    'submit-change',
+    'submit-new',
+  )
+  vi.mocked(api.queryTargetSupplierSubmissions).mockResolvedValue({
+    items: [
+      {
+        subjectId: 'supplier',
+        code: 'TEST',
+        latestApproved: { versionNo: 1 },
+        openCandidate: null,
+      },
+    ],
     total: 1,
   } as never)
   const baseline =
@@ -729,9 +741,16 @@ it('ignores a late change baseline after closing and opening a fresh Draft', asy
   wrapper.unmount()
 })
 it('keeps a versions read failure visible inside the change dialog', async () => {
-  authorizeSupplier('query', 'versions', 'submit-change')
-  vi.mocked(api.queryTargetSuppliers).mockResolvedValue({
-    items: [supplierRow()],
+  authorizeSupplier('submission-query', 'versions', 'submit-change')
+  vi.mocked(api.queryTargetSupplierSubmissions).mockResolvedValue({
+    items: [
+      {
+        subjectId: 'supplier',
+        code: 'TEST',
+        latestApproved: { versionNo: 1 },
+        openCandidate: null,
+      },
+    ],
     total: 1,
   } as never)
   vi.mocked(api.queryTargetSupplierVersions).mockRejectedValue(
@@ -859,20 +878,22 @@ const customerSnapshot = () => ({
   taxInformation: [],
 })
 it('preserves adopted business fields when changing the customer name', async () => {
-  useTargetSession().apiPaths = ['query', 'versions', 'submit-change'].map(
+  useTargetSession().apiPaths = [
+    'submission-query',
+    'versions',
+    'submit-change',
+  ].map(
     (action) =>
       `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
   )
   const data = customerSnapshot()
-  vi.mocked(api.queryTargetCustomers).mockResolvedValue({
+  vi.mocked(api.queryTargetCustomerSubmissions).mockResolvedValue({
     items: [
       {
-        objectId: 'customer',
-        code: 'C01',
-        name: '客户',
-        enabled: true,
-        revision: '1',
-        data,
+        subjectId: 'customer',
+        code: 'TEST',
+        latestApproved: { versionNo: 1 },
+        openCandidate: null,
       },
     ],
     total: 1,
@@ -914,7 +935,11 @@ it('preserves adopted business fields when changing the customer name', async ()
   wrapper.unmount()
 })
 it('clones customer business data without inherited attachments', async () => {
-  useTargetSession().apiPaths = ['query', 'submit-new'].map(
+  useTargetSession().apiPaths = [
+    'submission-query',
+    'submission-get',
+    'submit-new',
+  ].map(
     (action) =>
       `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
   )
@@ -930,19 +955,37 @@ it('clones customer business data without inherited attachments', async () => {
       },
     ],
   }
-  vi.mocked(api.queryTargetCustomers).mockResolvedValue({
+  const approved = {
+    subjectId: 'customer',
+    submissionId: 'version',
+    versionNo: 1,
+    status: 'APPROVED',
+    revision: '1',
+    availableApprovalActions: [],
+    snapshot: data,
+  }
+  vi.mocked(api.queryTargetCustomerSubmissions).mockResolvedValue({
     items: [
-      { objectId: 'customer', code: 'C01', name: '客户', enabled: true, data },
+      {
+        subjectId: 'customer',
+        code: 'C01',
+        latestApproved: approved,
+        openCandidate: null,
+      },
     ],
     total: 1,
   } as never)
+  vi.mocked(api.getTargetCustomerSubmission).mockResolvedValue(
+    approved as never,
+  )
   vi.mocked(api.submitNewTargetCustomer).mockResolvedValue({} as never)
   const wrapper = mount(ResourceHost, {
     props: { domain: 'dcl', entity: 'customer' },
     global: { stubs },
   })
   await flushPromises()
-  await click(wrapper, '克隆')
+  await click(wrapper, '查看')
+  await click(wrapper, '克隆为新档案')
   await confirmItems(wrapper)
   await click(wrapper, '提交')
   const command = vi.mocked(api.submitNewTargetCustomer).mock.calls[0]![1]
@@ -954,7 +997,7 @@ it('clones customer business data without inherited attachments', async () => {
 })
 it('keeps files local until submit, retries a failed stage with the same identity, then adopts it', async () => {
   useTargetSession().apiPaths = [
-    'query',
+    'submission-query',
     'versions',
     'submit-change',
     'attachment-stage',
@@ -963,9 +1006,14 @@ it('keeps files local until submit, retries a failed stage with the same identit
       `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
   )
   const data = customerSnapshot()
-  vi.mocked(api.queryTargetCustomers).mockResolvedValue({
+  vi.mocked(api.queryTargetCustomerSubmissions).mockResolvedValue({
     items: [
-      { objectId: 'customer', code: 'C01', name: '客户', enabled: true, data },
+      {
+        subjectId: 'customer',
+        code: 'TEST',
+        latestApproved: { versionNo: 1 },
+        openCandidate: null,
+      },
     ],
     total: 1,
   } as never)
@@ -1044,7 +1092,6 @@ it('requires a reason and explicit confirmation before deleting a candidate', as
   vi.mocked(api.deleteTargetSupplier).mockResolvedValue({} as never)
   const wrapper = supplierHost()
   await flushPromises()
-  await click(wrapper, '提交记录')
   await click(wrapper, '查看')
   await click(wrapper, '驳回')
   expect(api.rejectTargetSupplier).not.toHaveBeenCalled()
@@ -1427,7 +1474,9 @@ it('never offers a server action without its exact permission and retains an unk
     wrapper
       .findAll('button')
       .some((button) =>
-        ['提交记录', '新增', '提交变更', '批准'].includes(button.text()),
+        ['正式资料', '提交记录', '新增', '提交变更', '批准'].includes(
+          button.text(),
+        ),
       ),
   ).toBe(false)
   expect(wrapper.text()).toContain('保持写入锁定')
@@ -1436,14 +1485,19 @@ it('never offers a server action without its exact permission and retains an unk
 
 it('does not let initial material resolution overwrite a subsequent user choice', async () => {
   useTargetSession().apiPaths = [
-    '/bob/product/query',
+    '/dcl/product/submission-query',
     '/bob/product/versions',
     '/dcl/product/submit-change',
   ]
   const { data } = productFacts()
-  vi.mocked(api.queryTargetProducts).mockResolvedValue({
+  vi.mocked(api.queryTargetProductSubmissions).mockResolvedValue({
     items: [
-      { objectId: 'product', code: 'P01', name: '成品', enabled: true, data },
+      {
+        subjectId: 'product',
+        code: 'TEST',
+        latestApproved: { versionNo: 1 },
+        openCandidate: null,
+      },
     ],
     total: 1,
   } as never)
@@ -1553,7 +1607,6 @@ it.each([
     } as never)
     const wrapper = supplierHost()
     await flushPromises()
-    await click(wrapper, '提交记录')
     await click(wrapper, '查看')
     if (action === 'unapprove') {
       await click(wrapper, caption)
@@ -1618,7 +1671,7 @@ it('ignores a late approval after the session changes', async () => {
 
 it('keeps submission blocked during an attachment read and discards a closed candidate read', async () => {
   useTargetSession().apiPaths = [
-    'query',
+    'submission-query',
     'versions',
     'submit-change',
     'attachment-stage',
@@ -1627,9 +1680,14 @@ it('keeps submission blocked during an attachment read and discards a closed can
       `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
   )
   const data = customerSnapshot()
-  vi.mocked(api.queryTargetCustomers).mockResolvedValue({
+  vi.mocked(api.queryTargetCustomerSubmissions).mockResolvedValue({
     items: [
-      { objectId: 'customer', code: 'C01', name: '客户', enabled: true, data },
+      {
+        subjectId: 'customer',
+        code: 'TEST',
+        latestApproved: { versionNo: 1 },
+        openCandidate: null,
+      },
     ],
     total: 1,
   } as never)

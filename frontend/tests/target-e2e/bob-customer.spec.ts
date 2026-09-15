@@ -37,7 +37,6 @@ async function select(
 }
 async function approve(page: Page, name: string) {
   await openArchive(page, 'dcl', 'customer')
-  await page.getByRole('button', { name: '提交记录', exact: true }).click()
   const dialog = page.getByRole('dialog').last()
   await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
   const queried = page.waitForResponse(
@@ -163,7 +162,9 @@ test('customer flat temporary form, business fields, history and independent ena
     await page.reload()
     await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
     await page.getByRole('button', { name: '查询', exact: true }).click()
-    let row = page.locator('tr, .list-card').filter({ hasText: name })
+    let row = page
+      .locator('tr, .list-card')
+      .filter({ has: page.getByRole('button', { name: '查看', exact: true }) })
     await openArchive(page, 'bob', 'customer')
     await findArchive(page, name)
     await row.getByRole('button', { name: '停用', exact: true }).click()
@@ -187,7 +188,9 @@ test('customer flat temporary form, business fields, history and independent ena
     await openArchive(page, 'bob', 'customer')
     await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
     await page.getByRole('button', { name: '查询', exact: true }).click()
-    row = page.locator('tr, .list-card').filter({ hasText: name })
+    row = page
+      .locator('tr, .list-card')
+      .filter({ has: page.getByRole('button', { name: '查看', exact: true }) })
     await expect(
       row.getByRole('button', { name: '启用', exact: true }),
     ).toBeVisible()

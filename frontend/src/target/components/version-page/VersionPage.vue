@@ -89,7 +89,7 @@ const token = (action: string) => {
 }
 const [domain, entity] = definition.resource.split('/')
 const title = resourceDisplayName(domain!, entity!)
-const tab = ref<'current' | 'submissions'>('current')
+const tab = ref<'current' | 'submissions'>(changes ? 'submissions' : 'current')
 const filter = ref({ keyword: '' })
 const query = shallowRef<VersionQuery>({ keyword: '', page: 1, pageSize: 20 })
 const rows = shallowRef<readonly Current[]>([]),
@@ -97,10 +97,7 @@ const rows = shallowRef<readonly Current[]>([]),
 function currentActions(item: Current): RowAction[] {
   const actions: RowAction[] = []
   if (can('get')) actions.push({ key: 'view', caption: '查看' })
-  if (
-    canCreate.value &&
-    (definition.resource !== 'wfl/process-definition' || can('submission-get'))
-  )
+  if (canCreate.value && can('submission-get'))
     actions.push({
       key: 'clone',
       caption: '克隆',
@@ -120,7 +117,7 @@ function currentActions(item: Current): RowAction[] {
 function runCurrentAction(key: string, item: Current) {
   if (key === 'view') void openCurrent(item)
   else if (key === 'clone') void cloneCurrent(item)
-  else if (key === 'submit') void change(item)
+  else if (key === 'submit') void change(item.objectId)
   else if (key === 'enable' || key === 'disable') void toggle(item)
 }
 const listRows = computed(() =>
@@ -146,10 +143,14 @@ const listRows = computed(() =>
           approvedVersion: item.latestApproved
             ? String(item.latestApproved.versionNo)
             : '无',
-          actions:
-            can('submission-get') || can('versions')
+          actions: [
+            ...(can('submission-get') || can('versions')
               ? [{ key: 'view', caption: '查看' }]
-              : [],
+              : []),
+            ...(changes && item.latestApproved && canChange.value
+              ? [{ key: 'submit', caption: '提交变更', disabled: locked.value }]
+              : []),
+          ],
         })),
       },
 )
@@ -157,9 +158,12 @@ function currentListAction(key: string, objectId: string) {
   const item = rows.value.find((item) => item.objectId === objectId)
   if (item) runCurrentAction(key, item)
 }
-function candidateListAction(subjectId: string) {
+function candidateListAction(key: string, subjectId: string) {
   const item = candidates.value.find((item) => item.subjectId === subjectId)
-  if (item) void openCandidate(item)
+  if (!item) return
+  if (key === 'view') void openCandidate(item)
+  else if (key === 'submit' && changes && item.latestApproved)
+    void change(item.subjectId)
 }
 const total = ref(0),
   querying = ref(false),
@@ -349,7 +353,7 @@ function create(source?: Snapshot) {
   loading.value = false
   error.value = ''
 }
-async function change(item: Current) {
+async function change(objectId: string) {
   if (locked.value || !canChange.value) return
   const request = ++editorRequest
   attachments.reset()
@@ -361,7 +365,7 @@ async function change(item: Current) {
   mode.value = 'change'
   intent = null
   try {
-    const result = await adapter.versions(token('versions'), item.objectId)
+    const result = await adapter.versions(token('versions'), objectId)
     if (!owns() || request !== editorRequest) return
     const approved = [...result.items]
       .filter((v) => v.status === 'APPROVED')
@@ -372,7 +376,7 @@ async function change(item: Current) {
     }
     draft.value = structuredClone(toRaw(approved.snapshot))
     intent = {
-      subjectId: item.objectId,
+      subjectId: objectId,
       submissionId: ulid(),
       idempotencyKey: ulid(),
       expectedLatestApprovedSubmissionId: approved.submissionId,
@@ -659,10 +663,6 @@ async function toggleVersion(enabled: boolean) {
   )
 }
 async function cloneCurrent(item: Current) {
-  if (definition.resource !== 'wfl/process-definition') {
-    create(item.data)
-    return
-  }
   if (
     locked.value ||
     !canCreate.value ||
@@ -786,13 +786,13 @@ onBeforeUnmount(() => {
         @click="create()"
         >新增</v-btn
       ><v-btn
-        v-if="can('query')"
+        v-if="!changes && !formal && can('query')"
         :disabled="tab === 'current'"
         :prepend-icon="actionIcons.view"
         @click="switchTab('current')"
         >正式资料</v-btn
       ><v-btn
-        v-if="can('submission-query')"
+        v-if="!changes && !formal && can('submission-query')"
         :disabled="tab === 'submissions'"
         :prepend-icon="actionIcons.history"
         @click="switchTab('submissions')"

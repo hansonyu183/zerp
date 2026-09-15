@@ -28,8 +28,18 @@ export async function openArchive(
 }
 export async function findArchive(page: Page, name: string) {
   await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
+  const resource = new URL(page.url()).pathname
+  const action = resource.startsWith('/dcl/') ? 'submission-query' : 'query'
+  const queried = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === `${resource}/${action}` &&
+      response.request().postDataJSON()?.filters?.keyword === name,
+  )
   await page.getByRole('button', { name: '查询', exact: true }).click()
+  await queried
   await expect(
-    page.locator('tr, .list-card').filter({ hasText: name }),
+    page
+      .locator('tr, .list-card')
+      .filter({ has: page.getByRole('button', { name: '查看', exact: true }) }),
   ).toHaveCount(1)
 }

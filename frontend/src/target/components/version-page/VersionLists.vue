@@ -28,7 +28,7 @@ defineProps<{
 }>()
 const emit = defineEmits<{
   currentAction: [key: string, objectId: string]
-  candidate: [subjectId: string]
+  candidate: [key: string, subjectId: string]
 }>()
 </script>
 <template>
@@ -68,6 +68,6 @@ const emit = defineEmits<{
     ><template #actions="{ item }"
       ><RowActions
         :actions="item.actions"
-        @action="emit('candidate', item.subjectId)" /></template
+        @action="emit('candidate', $event, item.subjectId)" /></template
   ></DynamicCols>
 </template>

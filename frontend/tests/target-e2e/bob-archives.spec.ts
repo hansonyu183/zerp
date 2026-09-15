@@ -38,8 +38,6 @@ async function open(page: Page, path: string, width: number) {
 }
 
 async function records(page: Page, name: string) {
-  const tab = page.getByRole('button', { name: '提交记录', exact: true })
-  if (await tab.isEnabled()) await tab.click()
   await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
   const queried = page.waitForResponse(
     (response) =>
@@ -117,8 +115,10 @@ for (const [entity, title] of [
       await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
       await page.getByRole('button', { name: '查询', exact: true }).click()
       await expect(
-        page.locator('tr, .list-card').filter({ hasText: name }),
-      ).toHaveCount(0)
+        page.locator('tr, .list-card').filter({
+          has: page.getByRole('button', { name: '查看', exact: true }),
+        }),
+      ).toHaveCount(1)
       await open(reviewer, path, 1440)
       const approval = await records(reviewer, name)
       await expect(approval).toContainText('浏览器联系人')
@@ -128,9 +128,10 @@ for (const [entity, title] of [
       ).toBeVisible()
       await approval.getByRole('button', { name: '关闭', exact: true }).click()
       await open(page, path, 390)
-      await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
-      await page.getByRole('button', { name: '查询', exact: true }).click()
-      const row = page.locator('tr, .list-card').filter({ hasText: name })
+      await findArchive(page, name)
+      const row = page.locator('tr, .list-card').filter({
+        has: page.getByRole('button', { name: '查看', exact: true }),
+      })
       await expect(row).toBeVisible()
       await row.getByRole('button', { name: '查看', exact: true }).click()
       await expect(page.getByRole('dialog')).toContainText('浏览器联系人')
@@ -170,7 +171,11 @@ for (const [entity, title] of [
       ).toBeVisible()
       await openArchive(page, 'dcl', entity)
       await findArchive(page, name)
-      await row.getByRole('button', { name: '克隆', exact: true }).click()
+      await row.getByRole('button', { name: '查看', exact: true }).click()
+      await page
+        .getByRole('dialog')
+        .getByRole('button', { name: '克隆为新档案', exact: true })
+        .click()
       dialog = page.getByRole('dialog')
       await expect(
         dialog.getByLabel(entity === 'supplier' ? '显示名称' : '法定名称', {

@@ -26,7 +26,8 @@
     "e2e:vou-catalog": "node scripts/run-vou-catalog-e2e.mjs",
     "e2e:vou-opening": "node scripts/run-vou-opening-e2e.mjs",
     "e2e:wfl": "node scripts/run-wfl-e2e.ts",
-    "e2e:vou-entry": "node scripts/run-vou-entry-e2e.mjs"
+    "e2e:vou-entry": "node scripts/run-vou-entry-e2e.mjs",
+    "seed:business": "node scripts/seed-business-data.ts"
   },
   "dependencies": {
     "@hono/node-server": "2.1.1",

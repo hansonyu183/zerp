@@ -46,6 +46,21 @@ make target-down
 
 `make target-e2e` 是 CI L3 的运行时验收入口；CI 的 common/tooling 作业分别负责公共检查和 CI 行为测试，本地完整验收统一用 `make e2e`。完整验收只在 Compose Web 镜像内构建 SPA，独立构建仍可运行 `pnpm --filter @zerp/frontend build:target`。通用浏览器套件与 WFL、VOU catalog、VOU opening、VOU entry 四个专项各使用一次独占数据库准备，始终串行；WFL browser parity 只在专属阶段执行。
 
+## 持久手工测试数据
+
+在已同步目录、已运行 `seed:online-test` 的内测库上，使用同一受控 `TARGET_DATABASE_URL` 执行：
+
+```bash
+pnpm --filter @zerp/wfl-starlark wasm:build
+pnpm --filter @zerp/api seed:business
+```
+
+非 `*_test` 数据库还需显式设置 `TARGET_DATABASE_SCOPE=production`。此命令只补业务数据，不重建数据库，也不修改账号密码。
+
+数据使用首次执行当天的上海日期，以“内测示例”命名：基础组织、员工、仓库、税务、客户、供应商、商品与银行账户；待批准、已批准、已驳回的采购/销售订单；已批准的销售收款、采购付款、费用付款及真实会计分录；待批准的借款、报销、其他收入、销售定价、采购询价；有期初余额的账簿、科目与映射；已批准但未启用的销售流程定义，以及查询实际单据的统计报表。由 `tester` 提交、`test-admin` 批准，两个账号都能访问示例账簿。销售流程可从流程定义页启用后，批准预留的待批准订单进行手工测试。
+
+整个数据集通过领域服务在单一事务内安装，失败回滚；示例账簿的固定 ID 标识已完成安装。重复执行保留已有数据和手工操作结果，不补回删除的数据、不重置审批状态、不刷新业务日期。以后查看示例单据时，查询期间应包含首次安装日期。该入口不自动随服务重启运行。
+
 ## Pull Request 检查
 
 质量门禁只对 Pull Request 的测试合并提交运行；`main` 合并后不重复运行这套 CI。检查采用轻量路径白名单，混合变更取最高级，未知路径默认 L3：

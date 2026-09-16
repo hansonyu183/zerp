@@ -60,3 +60,5 @@
 
 - [计量单位一次性转换（#442）](measurement-unit-cutover-442.md)
 - [计量单位简化验收（#442，2026-09-15）](measurement-unit-issue-442-2026-09-15.md)
+
+- [正式初始化准备与隔离验证（#446，2026-09-16）](formal-initialization-issue-446-2026-09-16.md)

@@ -61,7 +61,7 @@ make target-down
 
 `compose.yaml` 与 `compose.production.yaml` 发布 Hono API 和 target Web。生产配置从根目录 `.env.production.example` 派生；数据库连接必须显式使用 `TARGET_DATABASE_SCOPE=production`，隔离检查仍只接受 `*_test` 数据库。
 
-API 启动前先同步生成的权限目录，再运行 `initialize:admin`。`APP_ADMIN_USERNAME`、`APP_ADMIN_DISPLAY_NAME` 明确正式管理员身份，`APP_ADMIN_PASSWORD_FILE` 指向受控初始密码文件。仅在空账号基线创建管理员并关联 `superadmin`，首次登录必须改密；后续启动保留现有密码、权限、启停状态和会话，不重建测试账号或导入示例。非空账号基线缺少指定账号时初始化失败。初始化与清库步骤见 [正式初始化运行手册](docs/operations/formal-initialization.md)。`/readyz` 同时验证数据库和全部启用的 RPT definition。Web 构建通过 `TARGET_API_BROWSER_URL` 注入浏览器可访问的 HTTPS API 地址，API 与 Web 使用同一完整 `ZERP_RELEASE_SHA`。
+API 启动前先同步生成的权限目录，再运行 `initialize:admin`。`APP_ADMIN_1_*`、`APP_ADMIN_2_*` 分别配置两个正式管理员的 `USERNAME`、`DISPLAY_NAME` 和 `PASSWORD_FILE`。仅在空账号基线原子创建两人并关联同一个 `superadmin`，保留已确认凭证且不要求首次改密；后续启动保留现有密码、权限、启停状态和会话，不重建测试账号或导入示例。非空账号基线缺少任一指定账号时初始化失败。初始化与清库步骤见 [正式初始化运行手册](docs/operations/formal-initialization.md)。`/readyz` 同时验证数据库和全部启用的 RPT definition。Web 构建通过 `TARGET_API_BROWSER_URL` 注入浏览器可访问的 HTTPS API 地址，API 与 Web 使用同一完整 `ZERP_RELEASE_SHA`。
 
 ## 文档
 

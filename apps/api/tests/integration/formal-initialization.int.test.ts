@@ -17,7 +17,7 @@ import {
 } from '../../src/platform/config.ts'
 import { readTargetPermissionCatalog } from '../../scripts/target-artifacts.ts'
 
-test('formal initialization creates one administrator and preserves changed credentials on restart', async (context) => {
+test('formal initialization creates two administrators and preserves changed credentials on restart', async (context) => {
   const source = process.env.TARGET_TEST_DATABASE_URL
   assert.ok(source, 'TARGET_TEST_DATABASE_URL is required')
   assertTargetDatabaseBoundary(source, 'isolated')
@@ -32,6 +32,7 @@ test('formal initialization creates one administrator and preserves changed cred
     import.meta.url,
   )
   const passwordFile = new URL('password', directory)
+  const secondPasswordFile = new URL('second-password', directory)
   context.after(async () => {
     await db.destroy()
     await sql
@@ -55,6 +56,8 @@ test('formal initialization creates one administrator and preserves changed cred
   await mkdir(directory, { recursive: true, mode: 0o700 })
   const password = `Initial!Aa1${suffix}`
   await writeFile(passwordFile, password, { mode: 0o600 })
+  const secondPassword = `Second!Aa2${suffix}`
+  await writeFile(secondPasswordFile, secondPassword, { mode: 0o600 })
   const initialize = (overrides: Record<string, string> = {}) =>
     promisify(execFile)(
       process.execPath,
@@ -64,9 +67,12 @@ test('formal initialization creates one administrator and preserves changed cred
           ...process.env,
           TARGET_DATABASE_URL: url.toString(),
           TARGET_DATABASE_SCOPE: 'isolated',
-          APP_ADMIN_USERNAME: 'formal-admin',
-          APP_ADMIN_DISPLAY_NAME: '正式管理员',
-          APP_ADMIN_PASSWORD_FILE: passwordFile.pathname,
+          APP_ADMIN_1_USERNAME: 'formal-admin',
+          APP_ADMIN_1_DISPLAY_NAME: '正式管理员',
+          APP_ADMIN_1_PASSWORD_FILE: passwordFile.pathname,
+          APP_ADMIN_2_USERNAME: 'second-admin',
+          APP_ADMIN_2_DISPLAY_NAME: '第二管理员',
+          APP_ADMIN_2_PASSWORD_FILE: secondPasswordFile.pathname,
           ...overrides,
         },
       },
@@ -84,8 +90,13 @@ test('formal initialization creates one administrator and preserves changed cred
     }),
   )
   const signedIn = await sessions.signin('formal-admin', password)
-  assert.equal(signedIn.principal.passwordChangeRequired, true)
+  assert.equal(signedIn.principal.passwordChangeRequired, false)
   assert.ok(signedIn.principal.apiPaths.includes('/app/user/create'))
+  const second = await sessions.signin('second-admin', secondPassword)
+  assert.equal(second.principal.passwordChangeRequired, false)
+  assert.equal(second.principal.user.name, '第二管理员')
+  assert.deepEqual(second.principal.apiPaths, signedIn.principal.apiPaths)
+  await assert.rejects(sessions.signin('second-admin', password))
   const nextPassword = `Changed!Aa2${suffix}`
   await sessions.changePassword(
     signedIn.principal,
@@ -97,6 +108,11 @@ test('formal initialization creates one administrator and preserves changed cred
   const repeated = await initialize()
   assert.match(repeated.stdout, /unchanged/)
   assert.equal(
+    (await sessions.signin('second-admin', secondPassword)).principal
+      .passwordChangeRequired,
+    false,
+  )
+  assert.equal(
     (await sessions.authenticate(current.token, undefined, false))
       .passwordChangeRequired,
     false,
@@ -107,7 +123,7 @@ test('formal initialization creates one administrator and preserves changed cred
 
   const management = new ManagementService(db, { passwordMinLength: 12 })
   const query = { keyword: '', page: 1, pageSize: 20 } as const
-  assert.equal((await management.queryUsers(query, current.principal)).total, 1)
+  assert.equal((await management.queryUsers(query, current.principal)).total, 2)
   const roles = await management.queryRoles(query, current.principal)
   const administrator = roles.items.find((role) => role.code === 'superadmin')!
   const successor = await management.createUser(
@@ -166,10 +182,10 @@ test('formal initialization creates one administrator and preserves changed cred
       .enabled,
     true,
   )
-  await assert.rejects(initialize({ APP_ADMIN_USERNAME: 'another-admin' }))
+  await assert.rejects(initialize({ APP_ADMIN_1_USERNAME: 'another-admin' }))
   assert.equal(
     (await management.queryUsers(query, successorCurrent.principal)).total,
-    2,
+    3,
   )
 
   // The operation under test is an explicit database reset, on this owned database only.
@@ -194,8 +210,8 @@ test('formal initialization creates one administrator and preserves changed cred
   )
   await assert.rejects(sessions.signin('successor', nextPassword))
   const reset = await sessions.signin('formal-admin', password)
-  assert.equal(reset.principal.passwordChangeRequired, true)
-  assert.equal((await management.queryUsers(query, reset.principal)).total, 1)
+  assert.equal(reset.principal.passwordChangeRequired, false)
+  assert.equal((await management.queryUsers(query, reset.principal)).total, 2)
   const tables = await sql<{
     tablename: string
   }>`SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename ~ '^(dcl_|vou_|acc_|aux_|approval_|wfl_|rpt_)'`.execute(

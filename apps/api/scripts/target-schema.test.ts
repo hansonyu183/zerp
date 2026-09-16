@@ -158,15 +158,15 @@ test('production compose runs the Hono topology after catalog and formal initial
   assert.match(productionTopology, /pnpm', 'sync:catalog/)
   assert.match(productionTopology, /admin-initialize/)
   assert.match(productionTopology, /pnpm', 'initialize:admin/)
-  assert.match(productionTopology, /APP_ADMIN_USERNAME:/)
-  assert.match(productionTopology, /APP_ADMIN_DISPLAY_NAME:/)
+  assert.match(productionTopology, /APP_ADMIN_1_USERNAME:/)
+  assert.match(productionTopology, /APP_ADMIN_1_DISPLAY_NAME:/)
   assert.match(
     productionTopology,
-    /APP_ADMIN_PASSWORD_FILE: \/run\/secrets\/admin-password/,
+    /APP_ADMIN_1_PASSWORD_FILE: \/run\/secrets\/admin-1-password/,
   )
   assert.match(
     productionTopology,
-    /admin-password:[\s\S]*file: \$\{APP_ADMIN_PASSWORD_FILE:\?set APP_ADMIN_PASSWORD_FILE\}/,
+    /admin-1-password:[\s\S]*file: \$\{APP_ADMIN_1_PASSWORD_FILE:\?set APP_ADMIN_1_PASSWORD_FILE\}/,
   )
   assert.match(
     apiPackage,

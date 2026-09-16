@@ -17,7 +17,6 @@ export interface InitialAdministrator {
   username: string
   displayName: string
   password: string
-  passwordMinLength: number
 }
 
 export interface PermissionCatalogSyncReport {
@@ -141,29 +140,46 @@ export class TargetBootstrapService {
       )
   }
 
-  /** Creates the first identity only; existing accounts remain APP-managed. */
-  async initializeAdministrator(
-    input: InitialAdministrator,
+  /** Initializes the configured identities atomically; existing accounts remain APP-managed. */
+  async initializeAdministrators(
+    inputs: readonly InitialAdministrator[],
+    passwordMinLength: number,
   ): Promise<'created' | 'unchanged'> {
-    const username = input.username.trim().toLowerCase()
-    const displayName = input.displayName.trim()
+    const users = inputs.map((input) => ({
+      ...input,
+      username: input.username.trim().toLowerCase(),
+      displayName: input.displayName.trim(),
+    }))
     if (
-      [...username].length < 3 ||
-      [...username].length > 64 ||
-      ['test-admin', 'tester', 'system'].includes(username) ||
-      !displayName ||
-      [...displayName].length > 128
+      users.length !== 2 ||
+      new Set(users.map((user) => user.username)).size !== 2
     )
-      throw new Error('invalid formal administrator identity')
-    requirePassword(input.password, input.passwordMinLength)
+      throw new Error(
+        'formal initialization requires two distinct administrators',
+      )
+    for (const user of users) {
+      if (
+        [...user.username].length < 3 ||
+        [...user.username].length > 64 ||
+        ['test-admin', 'tester', 'system'].includes(user.username) ||
+        !user.displayName ||
+        [...user.displayName].length > 128
+      )
+        throw new Error('invalid formal administrator identity')
+      requirePassword(user.password, passwordMinLength)
+    }
     return this.db.transaction().execute(async (transaction) => {
       await sql`SELECT pg_advisory_xact_lock(74155001)`.execute(transaction)
       const existing = await transaction
         .selectFrom('app_users')
         .select('id')
-        .where(sql`lower(username)`, '=', username)
-        .executeTakeFirst()
-      if (existing) return 'unchanged'
+        .where(
+          sql<string>`lower(username)`,
+          'in',
+          users.map((user) => user.username),
+        )
+        .execute()
+      if (existing.length === users.length) return 'unchanged'
       const user = await transaction
         .selectFrom('app_users')
         .select('id')
@@ -185,21 +201,7 @@ export class TargetBootstrapService {
         .executeTakeFirst()
       if (!permission)
         throw new Error('formal initialization requires the permission catalog')
-      const userId = ulid()
       const roleId = ulid()
-      await transaction
-        .insertInto('app_users')
-        .values({
-          id: userId,
-          username,
-          display_name: displayName,
-          py: searchPinyin(displayName),
-          password_hash: await hashPassword(input.password),
-          status: 'ENABLED',
-          password_change_required: true,
-          password_changed_at: new Date(),
-        })
-        .execute()
       await transaction
         .insertInto('app_roles')
         .values({
@@ -209,10 +211,26 @@ export class TargetBootstrapService {
           status: 'ENABLED',
         })
         .execute()
-      await transaction
-        .insertInto('app_user_roles')
-        .values({ user_id: userId, role_id: roleId })
-        .execute()
+      for (const administrator of users) {
+        const userId = ulid()
+        await transaction
+          .insertInto('app_users')
+          .values({
+            id: userId,
+            username: administrator.username,
+            display_name: administrator.displayName,
+            py: searchPinyin(administrator.displayName),
+            password_hash: await hashPassword(administrator.password),
+            status: 'ENABLED',
+            password_change_required: false,
+            password_changed_at: new Date(),
+          })
+          .execute()
+        await transaction
+          .insertInto('app_user_roles')
+          .values({ user_id: userId, role_id: roleId })
+          .execute()
+      }
       return 'created'
     })
   }

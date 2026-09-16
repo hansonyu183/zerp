@@ -25,9 +25,13 @@ async function credential(name: string): Promise<string> {
 async function main(): Promise<void> {
   const databaseUrl = required('TARGET_DATABASE_URL')
   assertTargetDatabaseBoundary(databaseUrl, required('TARGET_DATABASE_SCOPE'))
-  const username = required('APP_ADMIN_USERNAME')
-  const displayName = required('APP_ADMIN_DISPLAY_NAME')
-  const password = await credential('APP_ADMIN_PASSWORD_FILE')
+  const users = await Promise.all(
+    [1, 2].map(async (index) => ({
+      username: required(`APP_ADMIN_${index}_USERNAME`),
+      displayName: required(`APP_ADMIN_${index}_DISPLAY_NAME`),
+      password: await credential(`APP_ADMIN_${index}_PASSWORD_FILE`),
+    })),
+  )
   const passwordMinLength = Number(process.env.APP_PASSWORD_MIN_LENGTH ?? '12')
   if (!Number.isSafeInteger(passwordMinLength) || passwordMinLength <= 0)
     throw new Error('APP_PASSWORD_MIN_LENGTH must be a positive integer')
@@ -35,12 +39,7 @@ async function main(): Promise<void> {
   try {
     const result = await new TargetBootstrapService(
       database,
-    ).initializeAdministrator({
-      username,
-      displayName,
-      password,
-      passwordMinLength,
-    })
+    ).initializeAdministrators(users, passwordMinLength)
     process.stdout.write(`formal administrator ${result}\n`)
   } finally {
     await database.destroy()

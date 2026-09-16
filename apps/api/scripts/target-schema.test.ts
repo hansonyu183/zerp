@@ -136,7 +136,7 @@ test('target schema preserves typed voucher storage and persistence boundaries',
   assert.match(compose, /apps\/api\/db\/target-schema\.sql/)
 })
 
-test('production compose runs the Hono topology after catalog and online-test seeding', async () => {
+test('production compose runs the Hono topology after catalog and formal initialization', async () => {
   const compose = await readFile(new URL('compose.yaml', root), 'utf8')
   const productionCompose = await readFile(
     new URL('compose.production.yaml', root),
@@ -156,29 +156,26 @@ test('production compose runs the Hono topology after catalog and online-test se
   assert.match(productionTopology, /apps\/api\/db\/target-schema\.sql/)
   assert.match(productionTopology, /catalog-sync/)
   assert.match(productionTopology, /pnpm', 'sync:catalog/)
-  assert.match(productionTopology, /online-test-seed/)
-  assert.match(productionTopology, /pnpm', 'seed:online-test/)
+  assert.match(productionTopology, /admin-initialize/)
+  assert.match(productionTopology, /pnpm', 'initialize:admin/)
+  assert.match(productionTopology, /APP_ADMIN_USERNAME:/)
+  assert.match(productionTopology, /APP_ADMIN_DISPLAY_NAME:/)
   assert.match(
     productionTopology,
-    /APP_TEST_ADMIN_PASSWORD_FILE: \/run\/secrets\/test-admin-password/,
+    /APP_ADMIN_PASSWORD_FILE: \/run\/secrets\/admin-password/,
   )
   assert.match(
     productionTopology,
-    /APP_TESTER_PASSWORD_FILE: \/run\/secrets\/tester-password/,
-  )
-  assert.match(
-    productionTopology,
-    /test-admin-password:[\s\S]*file: \$\{APP_TEST_ADMIN_PASSWORD_FILE:\?set APP_TEST_ADMIN_PASSWORD_FILE\}/,
-  )
-  assert.match(
-    productionTopology,
-    /tester-password:[\s\S]*file: \$\{APP_TESTER_PASSWORD_FILE:\?set APP_TESTER_PASSWORD_FILE\}/,
+    /admin-password:[\s\S]*file: \$\{APP_ADMIN_PASSWORD_FILE:\?set APP_ADMIN_PASSWORD_FILE\}/,
   )
   assert.match(
     apiPackage,
-    /"seed:online-test": "node scripts\/seed-online-test-users\.ts"/,
+    /"initialize:admin": "node scripts\/initialize-admin\.ts"/,
   )
-  assert.doesNotMatch(apiPackage, /bootstrap:admin/)
+  assert.doesNotMatch(
+    productionTopology,
+    /online-test-seed|APP_TEST_ADMIN|APP_TESTER/,
+  )
   assert.match(productionTopology, /TARGET_DATABASE_SCOPE: production/)
   assert.match(productionTopology, /frontend\/Dockerfile\.target/)
   assert.match(

@@ -12,7 +12,7 @@ services:
     ports:
       - '127.0.0.1:${API_PORT:-8080}:8080'
     depends_on:
-      online-test-seed:
+      admin-initialize:
         condition: service_completed_successfully
     labels:
       io.zerp.release: ${ZERP_RELEASE_SHA:?set ZERP_RELEASE_SHA}
@@ -23,20 +23,20 @@ services:
     labels:
       io.zerp.release: ${ZERP_RELEASE_SHA:?set ZERP_RELEASE_SHA}
 
-  online-test-seed:
+  admin-initialize:
     image: ${ZERP_API_IMAGE:?set ZERP_API_IMAGE}
     build: !reset null
     restart: 'no'
-    command: ['pnpm', 'seed:online-test']
+    command: ['pnpm', 'initialize:admin']
     environment:
       TARGET_DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable
       TARGET_DATABASE_SCOPE: production
       APP_PASSWORD_MIN_LENGTH: ${APP_PASSWORD_MIN_LENGTH:-12}
-      APP_TEST_ADMIN_PASSWORD_FILE: /run/secrets/test-admin-password
-      APP_TESTER_PASSWORD_FILE: /run/secrets/tester-password
+      APP_ADMIN_USERNAME: ${APP_ADMIN_USERNAME:?set APP_ADMIN_USERNAME}
+      APP_ADMIN_DISPLAY_NAME: ${APP_ADMIN_DISPLAY_NAME:?set APP_ADMIN_DISPLAY_NAME}
+      APP_ADMIN_PASSWORD_FILE: /run/secrets/admin-password
     secrets:
-      - test-admin-password
-      - tester-password
+      - admin-password
     depends_on:
       catalog-sync:
         condition: service_completed_successfully
@@ -52,7 +52,5 @@ services:
       io.zerp.release: ${ZERP_RELEASE_SHA:?set ZERP_RELEASE_SHA}
 
 secrets:
-  test-admin-password:
-    file: ${APP_TEST_ADMIN_PASSWORD_FILE:?set APP_TEST_ADMIN_PASSWORD_FILE}
-  tester-password:
-    file: ${APP_TESTER_PASSWORD_FILE:?set APP_TESTER_PASSWORD_FILE}
+  admin-password:
+    file: ${APP_ADMIN_PASSWORD_FILE:?set APP_ADMIN_PASSWORD_FILE}

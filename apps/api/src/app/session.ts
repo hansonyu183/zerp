@@ -126,7 +126,7 @@ export async function hashPassword(password: string): Promise<string> {
   return `$argon2id$v=19$m=65536,t=3,p=2$${salt.toString('base64url')}$${encoded}`
 }
 
-function requirePassword(password: string, minimum: number) {
+export function requirePassword(password: string, minimum: number) {
   if (
     [...password].length < minimum ||
     [...password].length > 256 ||

@@ -1,3 +1,11 @@
+import { SessionError } from '../app/session.ts'
+import { vouEntityDetailTables } from './detail-tables.ts'
+import { customerAccess, assertCustomerAccess } from '../app/customer-access.ts'
+import {
+  documentCustomerPredicate,
+  assertDocumentCustomerAccess,
+  assertPayloadCustomerAccess,
+} from './customer-access.ts'
 import {
   invoiceTaxOptions,
   freezeInvoiceTax,
@@ -135,47 +143,6 @@ export async function readVouPersistence(
       entry.approval_entry_id,
     ),
   }
-}
-
-const vouEntityDetailTables: Readonly<Record<VouEntity, string>> = {
-  'sale-invoice': 'vou_sale_invoice_details',
-  'purchase-invoice': 'vou_purchase_invoice_details',
-  'sale-pricing': 'vou_sale_pricing_details',
-  'sale-order': 'vou_sale_order_details',
-  'sale-outbound': 'vou_sale_outbound_details',
-  'sale-delivery': 'vou_sale_delivery_details',
-  'sale-signoff': 'vou_sale_signoff_details',
-  'sale-return': 'vou_sale_return_details',
-  'purchase-order': 'vou_purchase_order_details',
-  'purchase-inbound': 'vou_purchase_inbound_details',
-  'purchase-return': 'vou_purchase_return_details',
-  'purchase-inquiry': 'vou_purchase_inquiry_details',
-  'order-production': 'vou_order_production_details',
-  'self-production': 'vou_self_production_details',
-  'inventory-count': 'vou_inventory_count_details',
-  'sales-receipt': 'vou_sales_receipt_details',
-  'purchase-refund': 'vou_purchase_refund_details',
-  'other-receipt': 'vou_other_receipt_details',
-  'sales-refund': 'vou_sales_refund_details',
-  'purchase-payment': 'vou_purchase_payment_details',
-  'other-payment': 'vou_other_payment_details',
-  'employee-loan': 'vou_employee_loan_details',
-  'employee-repayment': 'vou_employee_repayment_details',
-  'employee-loan-writeoff': 'vou_employee_loan_writeoff_details',
-  'expense-reimbursement': 'vou_expense_reimbursement_details',
-  'expense-payment': 'vou_expense_payment_details',
-  'other-income': 'vou_other_income_details',
-  'asset-acquisition': 'vou_asset_acquisition_details',
-  'asset-sale': 'vou_asset_sale_details',
-  'asset-liquidation': 'vou_asset_liquidation_details',
-  'bill-receipt': 'vou_bill_receipt_details',
-  'bill-payment': 'vou_bill_payment_details',
-  'bill-issue': 'vou_bill_issue_details',
-  'bill-discount': 'vou_bill_discount_details',
-  'bill-maturity': 'vou_bill_maturity_details',
-  'intermediary-calculation': 'vou_intermediary_calculation_details',
-  'service-contract': 'vou_service_contract_details',
-  'service-acceptance': 'vou_service_acceptance_details',
 }
 
 export interface VouSubmitInput {
@@ -621,6 +588,7 @@ export class VouService implements WflVouPort {
     actor: ApprovalActor,
   ) {
     requirePermission(actor, `/vou/${entity}/attachment-read`)
+    await assertDocumentCustomerAccess(this.db, actor, input.documentId)
     const attachment = await this.db
       .selectFrom('vou_attachments as attachment')
       .innerJoin(
@@ -643,9 +611,9 @@ export class VouService implements WflVouPort {
     const expiresAt = new Date(now.getTime() + 5 * 60 * 1000)
     await sql`
       INSERT INTO vou_attachment_download_tokens (
-        token_hash, approval_entry_id, file_id, created_at, expires_at
+        token_hash, approval_entry_id, file_id, owner_user_id, created_at, expires_at
       ) VALUES (
-        ${tokenHash}, ${input.submissionId}, ${attachment.file_id}, ${now}, ${expiresAt}
+        ${tokenHash}, ${input.submissionId}, ${attachment.file_id}, ${actor.id}, ${now}, ${expiresAt}
       )
     `.execute(this.db)
     return {
@@ -660,8 +628,9 @@ export class VouService implements WflVouPort {
       const row = await sql<{
         approval_entry_id: string
         file_id: string
+        owner_user_id: string
       }>`
-        SELECT approval_entry_id, file_id
+        SELECT approval_entry_id, file_id, owner_user_id
         FROM vou_attachment_download_tokens
         WHERE token_hash = ${tokenHash} AND expires_at > NOW()
         FOR UPDATE
@@ -669,6 +638,31 @@ export class VouService implements WflVouPort {
       const tokenRow = row.rows[0]
       if (!tokenRow)
         throw new VouApplicationError('vou_attachment_download_not_found')
+      const entry = await tx
+        .selectFrom('approval_entries')
+        .select(['subject_id', 'entity'])
+        .where('id', '=', tokenRow.approval_entry_id)
+        .executeTakeFirstOrThrow()
+      const owner = await tx
+        .selectFrom('app_users')
+        .select('id')
+        .where('id', '=', tokenRow.owner_user_id)
+        .where('status', '=', 'ENABLED')
+        .executeTakeFirst()
+      const grants = await sql<{ allowed: boolean }>`SELECT EXISTS (
+        SELECT 1 FROM app_permissions p
+        WHERE p.status = 'ENABLED' AND p.path = ${`/vou/${entry.entity}/attachment-read`}
+        AND EXISTS (SELECT 1 FROM app_user_roles ur JOIN app_roles r ON r.id = ur.role_id AND r.status = 'ENABLED'
+          WHERE ur.user_id = ${tokenRow.owner_user_id} AND (r.code = 'superadmin' OR EXISTS (
+            SELECT 1 FROM app_role_permissions rp WHERE rp.role_id = r.id AND rp.permission_id = p.id
+          )))) AS allowed`.execute(tx)
+      if (!owner || !grants.rows[0]?.allowed)
+        throw new VouApplicationError('vou_attachment_download_not_found')
+      await assertDocumentCustomerAccess(
+        tx,
+        { id: tokenRow.owner_user_id },
+        entry.subject_id,
+      )
       const found = await sql<{
         file_name: string
         mime_type: 'application/pdf' | 'image/jpeg' | 'image/png'
@@ -768,7 +762,10 @@ export class VouService implements WflVouPort {
       businessDate: string
       currency: string
     },
+    actor: ApprovalActor,
   ) {
+    if (entity === 'sale-invoice')
+      await assertCustomerAccess(this.db, actor, input.objectId)
     const items = await invoiceSources(
       this.db,
       entity,
@@ -786,11 +783,27 @@ export class VouService implements WflVouPort {
       ),
     }
   }
-  unbilledSales(periodMonth: string, actor: ApprovalActor) {
+  async unbilledSales(periodMonth: string, actor: ApprovalActor) {
     requirePermission(actor, '/vou/sale-invoice/unbilled')
-    return unbilledSales(this.db, periodMonth)
+    const result = await unbilledSales(this.db, periodMonth)
+    const visible = []
+    for (const item of result.items) {
+      try {
+        await assertCustomerAccess(this.db, actor, item.customerId)
+        visible.push(item)
+      } catch (error) {
+        if (!(error instanceof SessionError)) throw error
+      }
+    }
+    return { ...result, items: visible }
   }
-  invoiceTaxOptions(entity: InvoiceEntity, objectId: string) {
+  async invoiceTaxOptions(
+    entity: InvoiceEntity,
+    objectId: string,
+    actor: ApprovalActor,
+  ) {
+    if (entity === 'sale-invoice')
+      await assertCustomerAccess(this.db, actor, objectId)
     return invoiceTaxOptions(this.db, entity, objectId)
   }
   async submit(
@@ -837,6 +850,8 @@ export class VouService implements WflVouPort {
   ): Promise<VouView> {
     if (!trustedSystemActor)
       requirePermission(actor, `/vou/${entity}/${action}`)
+    await assertPayloadCustomerAccess(tx, actor, entity, input.payload)
+    await assertDocumentCustomerAccess(tx, actor, input.documentId)
     const hash = requestHash(action, entity, input)
     await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`vou:idempotency:${entity}:${input.idempotencyKey}`}, 0))`.execute(
       tx,
@@ -1189,6 +1204,7 @@ export class VouService implements WflVouPort {
     requestId: string,
   ): Promise<VouView> {
     requirePermission(actor, `/vou/${entity}/${action}`)
+    await assertDocumentCustomerAccess(tx, actor, input.documentId)
     await this.lockDocumentPeriod(tx, entity, input.documentId)
     await sql`SELECT id FROM acc_books WHERE control_book FOR UPDATE`.execute(
       tx,
@@ -1432,12 +1448,13 @@ export class VouService implements WflVouPort {
     actor: ApprovalActor,
   ): Promise<VouPage> {
     requirePermission(actor, `/vou/${entity}/query`)
-    return this.readQuery(entity, input)
+    return this.readQuery(entity, input, actor)
   }
 
   private async readQuery(
     entity: VouEntity,
     input: VouQueryInput,
+    actor: ApprovalActor,
   ): Promise<VouPage> {
     const filters = input.filters
     const capability = vouListCapabilities[entity]
@@ -1471,7 +1488,13 @@ export class VouService implements WflVouPort {
     ) => sql`(SELECT r.reference_name FROM vou_reference_snapshots r
       WHERE r.approval_entry_id = e.id AND r.field = ${field} AND r.line_no = 0 AND r.item_no = 0)`
     const handlerName = headerName('handler')
-    const conditions = [sql`d.entity = ${entity}`]
+    const conditions = [
+      sql`d.entity = ${entity}`,
+      documentCustomerPredicate(
+        await customerAccess(this.db, actor),
+        sql`d.id`,
+      ),
+    ]
     if (filters?.documentNo)
       conditions.push(
         sql`strpos(lower(d.document_no), lower(${filters.documentNo})) > 0`,
@@ -1592,6 +1615,7 @@ export class VouService implements WflVouPort {
     input:
       | { documentId: string; lineId: string }
       | { customerId: string; productId: string },
+    actor: ApprovalActor,
   ) {
     return this.db
       .transaction()
@@ -1614,7 +1638,7 @@ export class VouService implements WflVouPort {
         ) e ON true
         JOIN vou_sale_order_details detail ON detail.approval_entry_id = e.id
         JOIN vou_product_line_snapshots line ON line.approval_entry_id = e.id
-        WHERE d.entity = 'sale-order' AND ${condition}
+        WHERE d.entity = 'sale-order' AND ${condition} AND ${documentCustomerPredicate(await customerAccess(tx, actor), sql`d.id`)}
         ORDER BY detail.business_date DESC, d.document_no DESC, line.line_no LIMIT 1`.execute(
           tx,
         )
@@ -1655,6 +1679,7 @@ export class VouService implements WflVouPort {
   async options(
     entity: VouEntity,
     input: { keyword?: string; page: number; pageSize: 20; ids?: string[] },
+    actor: ApprovalActor,
   ) {
     if (input.ids) {
       const rows = await this.db
@@ -1662,6 +1687,12 @@ export class VouService implements WflVouPort {
         .select(['id', 'document_no'])
         .where('entity', '=', entity)
         .where('id', 'in', input.ids)
+        .where(
+          documentCustomerPredicate(
+            await customerAccess(this.db, actor),
+            sql`id`,
+          ),
+        )
         .orderBy('document_no')
         .execute()
       return {
@@ -1678,7 +1709,7 @@ export class VouService implements WflVouPort {
       }
     }
     if (entity === 'service-contract') {
-      const source = sql`FROM (${sql.raw(this.referenceCandidateSource('service-contract'))}) candidate WHERE code ILIKE ${`%${input.keyword ?? ''}%`}`
+      const source = sql`FROM (${sql.raw(this.referenceCandidateSource('service-contract'))}) candidate WHERE code ILIKE ${`%${input.keyword ?? ''}%`} AND ${documentCustomerPredicate(await customerAccess(this.db, actor), sql`candidate.object_id`)}`
       const [rows, count] = await Promise.all([
         sql<{
           objectId: string
@@ -1699,11 +1730,15 @@ export class VouService implements WflVouPort {
         pageSize: 20 as const,
       }
     }
-    const result = await this.readQuery(entity, {
-      page: input.page,
-      pageSize: 20,
-      filters: { documentNo: input.keyword },
-    })
+    const result = await this.readQuery(
+      entity,
+      {
+        page: input.page,
+        pageSize: 20,
+        filters: { documentNo: input.keyword },
+      },
+      actor,
+    )
     return {
       ...result,
       items: result.items.map((item) => ({
@@ -1765,7 +1800,10 @@ export class VouService implements WflVouPort {
     })
   }
 
-  async querySourceLineCandidates(input: VouSourceLineQueryInput): Promise<{
+  async querySourceLineCandidates(
+    input: VouSourceLineQueryInput,
+    actor: ApprovalActor,
+  ): Promise<{
     items: VouSourceLineCandidate[]
     total: number
     page: number
@@ -1864,6 +1902,7 @@ export class VouService implements WflVouPort {
         ) approval ON TRUE
         JOIN ${sql.raw(plan.sourceDetailTable)} detail ON detail.approval_entry_id = approval.id
         WHERE document.entity = ${plan.sourceEntity}
+          AND ${documentCustomerPredicate(await customerAccess(this.db, actor), sql`document.id`)}
           AND approval.status = 'APPROVED'
       ),
       source_roots AS (
@@ -2043,7 +2082,8 @@ export class VouService implements WflVouPort {
       ? Number(result.rows[0].total)
       : input.page === 1
         ? 0
-        : (await this.querySourceLineCandidates({ ...input, page: 1 })).total
+        : (await this.querySourceLineCandidates({ ...input, page: 1 }, actor))
+            .total
     return {
       items: result.rows.map((row) => ({
         sourceDocumentId: row.source_document_id,
@@ -2134,6 +2174,7 @@ export class VouService implements WflVouPort {
     actor: ApprovalActor,
   ) {
     requirePermission(actor, `/vou/${entity}/audit-history`)
+    await assertDocumentCustomerAccess(this.db, actor, documentId)
     const rows = await this.db
       .selectFrom('approval_events')
       .selectAll()
@@ -2184,6 +2225,7 @@ export class VouService implements WflVouPort {
     requestId: string,
   ) {
     requirePermission(actor, `/vou/${entity}/delete`)
+    await assertDocumentCustomerAccess(tx, actor, input.documentId)
     await this.lockDocumentPeriod(tx, entity, input.documentId)
     await sql`SELECT id FROM acc_books WHERE control_book FOR UPDATE`.execute(
       tx,
@@ -2421,6 +2463,7 @@ export class VouService implements WflVouPort {
     documentId: string,
     actor: ApprovalActor,
   ): Promise<VouView> {
+    await assertDocumentCustomerAccess(executor, actor, documentId)
     const row = await executor
       .selectFrom('vou_documents as d')
       .innerJoin('approval_entries as e', (join) =>

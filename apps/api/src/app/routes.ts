@@ -645,24 +645,28 @@ export function registerAppRoutes(
             'Cache-Control': 'no-store',
           })
         } catch (error) {
-          if (error instanceof VouApplicationError)
+          if (
+            error instanceof VouApplicationError ||
+            error instanceof SessionError
+          )
             return context.body(null, 404)
           throw error
         }
       }
       if (action === 'line-resolve' || action === 'customer-latest-line')
         return context.json(
-          (await executeVou(context, () =>
-            vou!.saleOrderLine(context.req.valid('query')),
+          (await executeVou(context, (actor) =>
+            vou!.saleOrderLine(context.req.valid('query'), actor),
           )) as never,
           200,
         )
       if (action === 'invoice-sources')
         return context.json(
-          await executeVou(context, () =>
+          await executeVou(context, (actor) =>
             vou!.invoiceSourceOptions(
               context.req.valid('param').entity,
               context.req.valid('query'),
+              actor,
             ),
           ),
           200,
@@ -676,19 +680,21 @@ export function registerAppRoutes(
         )
       if (action === 'tax-options')
         return context.json(
-          await executeVou(context, () =>
+          await executeVou(context, (actor) =>
             vou!.invoiceTaxOptions(
               context.req.valid('param').entity,
               context.req.valid('query').objectId,
+              actor,
             ),
           ),
           200,
         )
       if (action === 'options') {
-        const response = await executeVou(context, () =>
+        const response = await executeVou(context, (actor) =>
           vou!.options(
             context.req.valid('param').entity,
             context.req.valid('query'),
+            actor,
           ),
         )
         return context.json(response as never, 200)
@@ -718,11 +724,14 @@ export function registerAppRoutes(
       }
       if (action === 'source-lines') {
         const body = context.req.valid('query')
-        const response = await executeVou<unknown>(context, () =>
-          vou!.querySourceLineCandidates({
-            ...body,
-            targetEntity: context.req.valid('param').entity,
-          }),
+        const response = await executeVou<unknown>(context, (actor) =>
+          vou!.querySourceLineCandidates(
+            {
+              ...body,
+              targetEntity: context.req.valid('param').entity,
+            },
+            actor,
+          ),
         )
         return context.json(response as never, 200)
       }
@@ -882,7 +891,8 @@ export function registerAppRoutes(
         const code = context.req.valid('param').code
         if (action === 'query')
           return rpt.query(code, input, actor, currentRequestId(context))
-        if (action === 'referenceQuery') return rpt.referenceQuery(code, input)
+        if (action === 'referenceQuery')
+          return rpt.referenceQuery(code, input, actor)
         return rpt.export(
           code,
           input.parameters,

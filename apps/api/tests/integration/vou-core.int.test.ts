@@ -355,20 +355,26 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
   }
 
   const first = await submit(productLine(unitV1, '1.200000'))
-  const latestLine = await vou.saleOrderLine({
-    customerId,
-    productId: subjectIds.product,
-  })
+  const latestLine = await vou.saleOrderLine(
+    {
+      customerId,
+      productId: subjectIds.product,
+    },
+    actor,
+  )
   assert.equal(latestLine?.documentId, first.documentId)
   assert.deepEqual(
     latestLine?.line.formula,
     (first.payload as VouPayloadFor<'sale-order'>).productLines[0]!.formula,
   )
   assert.equal(
-    await vou.saleOrderLine({
-      customerId: ulid(),
-      productId: subjectIds.product,
-    }),
+    await vou.saleOrderLine(
+      {
+        customerId: ulid(),
+        productId: subjectIds.product,
+      },
+      actor,
+    ),
     null,
   )
   // Real delivery adoption checks the vehicle against its source order owner.
@@ -744,6 +750,7 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
   const aux = new AuxService(db)
   const actorId = ulid()
   const reviewerId = ulid()
+  const scopeRoleId = ulid()
   const actor = { id: actorId, permissions: [] as string[], trusted: true }
   const reviewer = {
     id: reviewerId,
@@ -808,6 +815,11 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
       .deleteFrom('app_audit_events')
       .where('actor_user_id', 'in', [actorId, reviewerId])
       .execute()
+    await db
+      .deleteFrom('app_user_roles')
+      .where('user_id', '=', actorId)
+      .execute()
+    await db.deleteFrom('app_roles').where('code', '=', scopeRoleId).execute()
     await sql`DELETE FROM app_users WHERE id IN (${actorId}, ${reviewerId})`.execute(
       db,
     )
@@ -1084,6 +1096,20 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
       },
     ],
   }
+  await db
+    .insertInto('app_roles')
+    .values({
+      id: scopeRoleId,
+      code: scopeRoleId,
+      name: '范围测试',
+      customer_scope: 'ALL',
+      status: 'ENABLED',
+    })
+    .execute()
+  await db
+    .insertInto('app_user_roles')
+    .values({ user_id: actorId, role_id: scopeRoleId })
+    .execute()
   const untrustedSubmissionId = ulid()
   await assert.rejects(
     Reflect.apply(service.submit, service, [
@@ -1779,6 +1805,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
     productId = ulid(),
     productApprovalId = ulid(),
     currentProductApprovalId = ulid()
+  const scopeRoleId = ulid()
   const owner = { id: ownerId, permissions: [] as string[], trusted: true }
   const other = { id: otherId, permissions: [] as string[], trusted: true }
   const now = new Date()
@@ -1809,6 +1836,15 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
       .deleteFrom('app_audit_events')
       .where('actor_user_id', 'in', [ownerId, otherId])
       .execute()
+    await db
+      .deleteFrom('app_user_roles')
+      .where('user_id', '=', ownerId)
+      .execute()
+    await db
+      .deleteFrom('app_role_permissions')
+      .where('role_id', '=', scopeRoleId)
+      .execute()
+    await db.deleteFrom('app_roles').where('id', '=', scopeRoleId).execute()
     await sql`DELETE FROM app_users WHERE id IN (${ownerId}, ${otherId})`.execute(
       db,
     )
@@ -1839,6 +1875,35 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
         password_change_required: false,
       },
     ])
+    .execute()
+  await db
+    .insertInto('app_roles')
+    .values({
+      id: scopeRoleId,
+      code: scopeRoleId,
+      name: '附件范围测试',
+      customer_scope: 'ALL',
+      status: 'ENABLED',
+    })
+    .execute()
+  await db
+    .insertInto('app_user_roles')
+    .values({ user_id: ownerId, role_id: scopeRoleId })
+    .execute()
+  const attachmentPermissions = await db
+    .selectFrom('app_permissions')
+    .select('id')
+    .where('action', '=', 'attachment-read')
+    .where('domain', '=', 'vou')
+    .execute()
+  await db
+    .insertInto('app_role_permissions')
+    .values(
+      attachmentPermissions.map((p) => ({
+        role_id: scopeRoleId,
+        permission_id: p.id,
+      })),
+    )
     .execute()
   const auxActor = {
     id: ownerId,
@@ -2793,6 +2858,7 @@ test('entity-owned candidates use session without CSRF and return current typed 
   await db
     .insertInto('app_roles')
     .values({
+      customer_scope: 'ALL',
       id: actorRoleId,
       code: `vou-reference-${actorId}`,
       name: 'VOU reference',

@@ -1553,6 +1553,10 @@ export class AuxService {
       const references = [
         sql`SELECT source FROM aux_reference_facts WHERE aux_object_id = ${id}`,
       ]
+      if (entity === 'employee')
+        references.push(
+          sql`SELECT 'app_users' AS source FROM app_users WHERE employee_id = ${id}`,
+        )
       if (entity === 'measurement-unit') {
         references.push(sql`
           SELECT 'dcl_product_versions' AS source

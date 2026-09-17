@@ -149,7 +149,7 @@ async function createUser(
   await expect(dialog).toBeVisible()
   await dialog.getByLabel('用户编码', { exact: true }).fill(input.code)
   await dialog.getByLabel('名称', { exact: true }).fill(input.name)
-  await dialog.locator('.v-autocomplete .v-field').click()
+  await dialog.getByRole('combobox', { name: '角色', exact: true }).click()
   await dialog
     .getByRole('combobox', { name: '角色', exact: true })
     .fill(process.env.TARGET_E2E_USERNAME!)

@@ -1,3 +1,4 @@
+import { customerScopeValues } from '@zerp/model'
 import {
   auxiliaryRoute,
   optionPage,
@@ -120,11 +121,13 @@ const roleReference = z.object({
   assignable: z.boolean(),
 })
 const userDetail = userSummarySchema.extend({
+  employeeId: z.string().nullable(),
   roles: z.array(roleReference),
   manageable: z.boolean(),
   roleAssignmentEditable: z.boolean(),
 })
 const roleListItem = z.object({
+  customerScope: z.enum(customerScopeValues),
   py: z.string(),
   id: z.string(),
   code: z.string(),
@@ -209,6 +212,7 @@ const userCreate = postRoute(
       name: z.string().min(1).max(128),
       password: z.string().min(1).max(1024),
       roleIds: z.array(z.string()).min(1),
+      employeeId: z.string().length(26).nullable().optional(),
     })
     .strict(),
   userDetail,
@@ -220,6 +224,7 @@ const userSave = postRoute(
       id: z.string(),
       name: z.string().min(1).max(128),
       roleIds: z.array(z.string()).min(1),
+      employeeId: z.string().length(26).nullable().optional(),
       revision: userRevisionSchema,
     })
     .strict(),
@@ -265,6 +270,7 @@ const roleCreate = postRoute(
       name: z.string().min(1).max(128),
       description: z.string().max(1000).nullable(),
       permissionIds: z.array(z.string()).min(1),
+      customerScope: z.enum(customerScopeValues).default('NONE'),
     })
     .strict(),
   roleDetail,
@@ -277,6 +283,7 @@ const roleSave = postRoute(
       name: z.string().min(1).max(128),
       description: z.string().max(1000).nullable(),
       permissionIds: z.array(z.string()).min(1),
+      customerScope: z.enum(customerScopeValues).default('NONE'),
       revision: userRevisionSchema,
     })
     .strict(),

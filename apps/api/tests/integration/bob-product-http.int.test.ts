@@ -484,13 +484,16 @@ test('product HTTP preserves precise formula history and independent enablement 
     reason: '恢复旧版本条码冲突',
   })
   assert.equal(restoredBarcode.errorKey, 'product_duplicate_barcode')
-  const candidates = await new BobService(db).options({
-    entity: 'product',
-    behaviorProfile: 'RAW_MATERIAL',
-    page: 1,
-    pageSize: 20,
-    enabled: true,
-  })
+  const candidates = await new BobService(db).options(
+    {
+      entity: 'product',
+      behaviorProfile: 'RAW_MATERIAL',
+      page: 1,
+      pageSize: 20,
+      enabled: true,
+    },
+    { id: submitter.userId, permissions: [] },
+  )
   assert.ok(
     candidates.items.some(
       (item) =>

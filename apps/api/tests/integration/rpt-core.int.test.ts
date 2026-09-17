@@ -50,6 +50,20 @@ async function fixture(context: TestContext) {
       password_change_required: false,
     })
     .execute()
+  await db
+    .insertInto('app_roles')
+    .values({
+      id: roleId,
+      code: `rpt-${roleId}`,
+      name: '报表测试',
+      status: 'ENABLED',
+      customer_scope: 'ALL',
+    })
+    .execute()
+  await db
+    .insertInto('app_user_roles')
+    .values({ user_id: actorId, role_id: roleId })
+    .execute()
   context.after(async () => {
     try {
       await db.transaction().execute(async (tx) => {
@@ -390,11 +404,15 @@ test('RPT deterministic schema drift stops current execution; a validated correc
     .raw(`ALTER TABLE ${table} RENAME COLUMN old_total TO new_total`)
     .execute(db)
   await assert.rejects(
-    service.referenceQuery(current.code, {
-      parameterKey: 'department',
-      page: 1,
-      pageSize: 20,
-    }),
+    service.referenceQuery(
+      current.code,
+      {
+        parameterKey: 'department',
+        page: 1,
+        pageSize: 20,
+      },
+      actor,
+    ),
     isError('rpt_definition_not_executable'),
   )
   assert.equal(
@@ -447,19 +465,6 @@ test('RPT HTTP uses current contracts and exact grants; removed DCL routes are a
     .updateTable('app_users')
     .set({ password_hash: await hashPassword(password) })
     .where('id', '=', actor.id)
-    .execute()
-  await db
-    .insertInto('app_roles')
-    .values({
-      id: roleId,
-      code: `rpt-http-${roleId}`,
-      name: '报表 HTTP 测试',
-      status: 'ENABLED',
-    })
-    .execute()
-  await db
-    .insertInto('app_user_roles')
-    .values({ user_id: actor.id, role_id: roleId })
     .execute()
   const grant = async (paths: string[]) => {
     await db

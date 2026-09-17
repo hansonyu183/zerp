@@ -42,6 +42,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     trusted: true,
   }
   const subjectIds: string[] = []
+  const scopeRoleId = ulid()
   const currentPeopleIds: string[] = []
   const auxIds = Array.from({ length: 10 }, () => ulid())
 
@@ -82,6 +83,11 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
         .deleteFrom('app_audit_events')
         .where('actor_user_id', '=', submitterId)
         .execute()
+      await db
+        .deleteFrom('app_user_roles')
+        .where('user_id', '=', reviewerId)
+        .execute()
+      await db.deleteFrom('app_roles').where('id', '=', scopeRoleId).execute()
       await db
         .deleteFrom('app_users')
         .where('id', 'in', [submitterId, reviewerId])
@@ -899,6 +905,20 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       .execute()
   }
   const customer = await submitAndApprove('customer', customerSnapshot)
+  await db
+    .insertInto('app_roles')
+    .values({
+      id: scopeRoleId,
+      code: scopeRoleId,
+      name: '附件客户范围',
+      customer_scope: 'ALL',
+      status: 'ENABLED',
+    })
+    .execute()
+  await db
+    .insertInto('app_user_roles')
+    .values({ user_id: reviewerId, role_id: scopeRoleId })
+    .execute()
   const attachmentReader = {
     id: reviewerId,
     permissions: [

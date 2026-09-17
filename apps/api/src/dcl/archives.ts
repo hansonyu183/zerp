@@ -1,3 +1,8 @@
+import {
+  assertCustomerAccess,
+  customerAccess,
+  customerPredicate,
+} from '../app/customer-access.ts'
 import { createHash } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 
@@ -587,6 +592,7 @@ export class DclArchiveService {
        FROM approval_entries e
        JOIN ${sql.table(subjectTable)} s ON s.id = e.subject_id
        WHERE e.domain = ${archiveDomain(entity)} AND e.entity = ${entity}
+         AND ${entity === 'customer' ? customerPredicate(await customerAccess(this.db, actor), sql`e.subject_id`) : sql`true`}
        ORDER BY s.code ASC, s.id ASC, e.version_no DESC`.execute(this.db)
     const rows = selected.rows
     const subjectEntries = new Map<
@@ -671,6 +677,8 @@ export class DclArchiveService {
     approvalEntryId?: string,
   ): Promise<ArchiveSubmissionView> {
     requirePermission(actor, archiveActionPath(entity, 'get'))
+    if (entity === 'customer')
+      await assertCustomerAccess(this.db, actor, subjectId)
     try {
       return await this.db.transaction().execute(async (tx) => {
         const scope = archiveScope(entity, subjectId)
@@ -694,6 +702,8 @@ export class DclArchiveService {
     actor: ApprovalActor,
   ): Promise<ArchiveSubmissionView> {
     requirePermission(actor, `/bob/${entity}/versions`)
+    if (entity === 'customer')
+      await assertCustomerAccess(this.db, actor, subjectId)
     try {
       return await this.db.transaction().execute(async (tx) => {
         const entry = await this.versioning.exact(
@@ -718,6 +728,8 @@ export class DclArchiveService {
     actor: ApprovalActor,
   ): Promise<ArchiveSubmissionView[]> {
     requirePermission(actor, archiveActionPath(entity, 'versions'))
+    if (entity === 'customer')
+      await assertCustomerAccess(this.db, actor, subjectId)
     try {
       return await this.db.transaction().execute(async (tx) => {
         const history = await this.versioning.history(
@@ -747,6 +759,8 @@ export class DclArchiveService {
     actor: ApprovalActor,
   ): Promise<ArchiveAuditView[]> {
     requirePermission(actor, archiveActionPath(entity, 'audit-history'))
+    if (entity === 'customer')
+      await assertCustomerAccess(this.db, actor, subjectId)
     const events = await this.approval.auditHistory(
       this.db,
       archiveScope(entity, subjectId),
@@ -782,6 +796,8 @@ export class DclArchiveService {
     let view: ArchiveSubmissionView
     try {
       view = await this.db.transaction().execute(async (tx) => {
+        if (entity === 'customer')
+          await assertCustomerAccess(tx, actor, input.subjectId)
         await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${domain}:archive:${entity}:idempotency:${idempotencyKey}`}, 0))`.execute(
           tx,
         )
@@ -983,6 +999,8 @@ export class DclArchiveService {
     requirePermission(actor, archiveActionPath(entity, action))
     try {
       return await this.db.transaction().execute(async (tx) => {
+        if (entity === 'customer')
+          await assertCustomerAccess(tx, actor, input.subjectId)
         await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${archiveDomain(entity)}:archive:${entity}:${input.subjectId}`}, 0))`.execute(
           tx,
         )
@@ -1052,6 +1070,8 @@ export class DclArchiveService {
     }
     try {
       outcome = await this.db.transaction().execute(async (tx) => {
+        if (entity === 'customer')
+          await assertCustomerAccess(tx, actor, input.subjectId)
         await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${domain}:archive:${entity}:${input.subjectId}`}, 0))`.execute(
           tx,
         )
@@ -1124,6 +1144,11 @@ export class DclArchiveService {
     if (domain === 'dcl' && input.source !== 'submission')
       throw new DclArchiveApplicationError('customer_attachment_not_found')
     requirePermission(actor, `/${domain}/customer/attachment-read`)
+    await assertCustomerAccess(
+      this.db,
+      actor,
+      input.source === 'current' ? input.objectId : input.subjectId,
+    )
     requirePermission(
       actor,
       input.source === 'current'

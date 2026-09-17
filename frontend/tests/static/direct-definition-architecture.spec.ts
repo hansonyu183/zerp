@@ -23,6 +23,7 @@ const resources = [
   'aux/vehicle',
 ]
 const allowedImports = new Set([
+  '@zerp/model',
   '../api.ts',
   '../components/direct-page/definition.ts',
   '../components/dynamic-fields/references.ts',

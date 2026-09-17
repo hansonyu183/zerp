@@ -100,6 +100,7 @@ async function createPrincipal(
   await db
     .insertInto('app_roles')
     .values({
+      customer_scope: 'ALL',
       id: roleId,
       code: `${prefix}-${id}`,
       name: prefix,
@@ -938,7 +939,9 @@ test('WFL definition, current, trial, instance and six actions cross the authent
       '/wfl/process-instance/get',
       '/wfl/process-instance/audit-history',
       '/wfl/process-instance/open-document',
-      '/wfl/process-instance/create-child',
+      '/wfl/process-instance/create-sale-delivery',
+      '/wfl/process-instance/create-sale-signoff',
+      '/wfl/process-instance/create-sale-outbound',
       '/wfl/process-instance/approve-child',
       '/wfl/process-instance/reject-child',
       '/wfl/process-instance/retry-child',

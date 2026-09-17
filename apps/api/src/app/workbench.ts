@@ -1,3 +1,5 @@
+import { customerAccess, customerPredicate } from './customer-access.ts'
+import { documentCustomerPredicate } from '../vou/customer-access.ts'
 import {
   availableApprovalActions,
   type ApprovalActor,
@@ -121,8 +123,8 @@ export class WorkbenchService {
     const vouVisibleEntities = visibleEntities(actor, 'vou', vouTypes)
     const rows = await Promise.all([
       this.queryWfl(wflEntities),
-      this.queryBob(bobEntities),
-      this.queryVou(vouVisibleEntities),
+      this.queryBob(bobEntities, actor),
+      this.queryVou(vouVisibleEntities, actor),
       this.queryOpening(vouVisibleEntities, actor),
     ])
     const keyword = input.filters?.keyword?.trim().toLocaleLowerCase()
@@ -230,7 +232,10 @@ export class WorkbenchService {
     return result.rows
   }
 
-  private async queryVou(entities: readonly string[]): Promise<WorkbenchRow[]> {
+  private async queryVou(
+    entities: readonly string[],
+    actor: ApprovalActor,
+  ): Promise<WorkbenchRow[]> {
     if (entities.length === 0) return []
     const result = await sql<WorkbenchRow>`
       SELECT
@@ -259,13 +264,17 @@ export class WorkbenchService {
       FROM approval_entries e
       INNER JOIN vou_documents d ON d.id = e.subject_id AND d.entity = e.entity
       WHERE e.domain = 'vou'
+        AND ${documentCustomerPredicate(await customerAccess(this.db, actor), sql`d.id`)}
         AND e.status IN ('PENDING', 'REJECTED')
         AND e.entity IN (${sql.join(entities)})
     `.execute(this.db)
     return result.rows
   }
 
-  private async queryBob(entities: readonly string[]): Promise<WorkbenchRow[]> {
+  private async queryBob(
+    entities: readonly string[],
+    actor: ApprovalActor,
+  ): Promise<WorkbenchRow[]> {
     if (entities.length === 0) return []
     const result = await sql<WorkbenchRow>`
       SELECT
@@ -285,6 +294,7 @@ export class WorkbenchService {
       LEFT JOIN dcl_customer_versions customer ON customer.approval_entry_id=e.id
       LEFT JOIN dcl_product_versions product ON product.approval_entry_id=e.id
       WHERE e.domain = 'dcl'
+        AND (e.entity <> 'customer' OR ${customerPredicate(await customerAccess(this.db, actor), sql`e.subject_id`)})
         AND e.status IN ('PENDING', 'REJECTED')
         AND e.entity IN (${sql.join(entities)})
     `.execute(this.db)

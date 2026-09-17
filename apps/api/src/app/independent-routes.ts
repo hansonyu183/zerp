@@ -1,3 +1,4 @@
+import type { CustomerScope } from '@zerp/model'
 import { auxOptionsInput } from './aux-contract.ts'
 import {
   roleOptionsInput,
@@ -201,6 +202,7 @@ export function createIndependentHandlers(
                 name: text(input, 'name'),
                 password: text(input, 'password'),
                 roleIds: strings(input, 'roleIds'),
+                employeeId: input.employeeId as string | null | undefined,
               },
               principal,
               requestId,
@@ -212,6 +214,7 @@ export function createIndependentHandlers(
                 id: text(input, 'id'),
                 name: text(input, 'name'),
                 roleIds: strings(input, 'roleIds'),
+                employeeId: input.employeeId as string | null | undefined,
                 revision: text(input, 'revision'),
               },
               principal,
@@ -253,6 +256,7 @@ export function createIndependentHandlers(
                 name: text(input, 'name'),
                 description: input.description as string | null,
                 permissionIds: strings(input, 'permissionIds'),
+                customerScope: input.customerScope as CustomerScope,
               },
               principal,
               requestId,
@@ -265,6 +269,7 @@ export function createIndependentHandlers(
                 name: text(input, 'name'),
                 description: input.description as string | null,
                 permissionIds: strings(input, 'permissionIds'),
+                customerScope: input.customerScope as CustomerScope,
                 revision: text(input, 'revision'),
               },
               principal,
@@ -418,13 +423,14 @@ export function createIndependentHandlers(
     bobResolve: (entity) => async (context) => {
       const requestId = currentRequestId(context)
       try {
-        await authenticate(context, context.req.path)
+        const principal = await authenticate(context, context.req.path)
         return context.json(
           success(
             requestId,
             await required(services.bob, 'BOB').resolve(
               entity,
               bobResolveInput.parse(context.req.query()),
+              { id: principal.user.id, permissions: principal.apiPaths },
             ),
           ),
           200,
@@ -437,7 +443,7 @@ export function createIndependentHandlers(
     bobOptions: (entity) => async (context) => {
       const requestId = currentRequestId(context)
       try {
-        await authenticate(context, context.req.path)
+        const principal = await authenticate(context, context.req.path)
         const input = bobOptionsInput.parse({
           ...context.req.query(),
           ...(context.req.queries('ids')
@@ -447,7 +453,10 @@ export function createIndependentHandlers(
         return context.json(
           success(
             requestId,
-            await required(services.bob, 'BOB').options({ ...input, entity }),
+            await required(services.bob, 'BOB').options(
+              { ...input, entity },
+              { id: principal.user.id, permissions: principal.apiPaths },
+            ),
           ),
           200,
         )

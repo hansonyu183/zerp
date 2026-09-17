@@ -438,6 +438,7 @@ export class TargetBootstrapService {
           code:
             superadmin && !inheritedAdmin ? 'superadmin' : principal.username,
           name: 'Target E2E Role',
+          customer_scope: 'ALL',
           status: 'ENABLED',
         })
         .execute()

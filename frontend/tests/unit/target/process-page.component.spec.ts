@@ -154,7 +154,7 @@ it('shows the recorded open separately from a failed VOU read', async () => {
   w.unmount()
 })
 it('sends the selected target, revision and reason, then refreshes once without replay on read failure', async () => {
-  useTargetSession().apiPaths.push('/wfl/process-instance/create-child')
+  useTargetSession().apiPaths.push('/wfl/process-instance/create-sale-outbound')
   vi.mocked(api.wflInstance).mockResolvedValue({
     ...instance,
     nodes: [{ ...node, availableActions: ['CREATE_CHILD'] }],
@@ -163,6 +163,7 @@ it('sends the selected target, revision and reason, then refreshes once without 
         parentNodeId: 'node',
         targetNodeKey: 'delivery',
         targetNodeName: '出库',
+        targetEntity: 'sale-outbound',
       },
     ],
   } as never)
@@ -203,7 +204,7 @@ it('does not let a late instance response enter a new Session', async () => {
   w.unmount()
 })
 it('keeps audit-refresh errors visible when the write and list refresh succeeded', async () => {
-  useTargetSession().apiPaths.push('/wfl/process-instance/create-child')
+  useTargetSession().apiPaths.push('/wfl/process-instance/create-sale-outbound')
   vi.mocked(api.wflInstance).mockResolvedValue({
     ...instance,
     nodes: [{ ...node, availableActions: ['CREATE_CHILD'] }],
@@ -212,6 +213,7 @@ it('keeps audit-refresh errors visible when the write and list refresh succeeded
         parentNodeId: 'node',
         targetNodeKey: 'delivery',
         targetNodeName: '出库',
+        targetEntity: 'sale-outbound',
       },
     ],
   } as never)

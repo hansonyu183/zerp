@@ -415,12 +415,15 @@ test('sales orders adopt explicit customer or current payment snapshots without 
     await reject(payload({ ...inherited, ...patch }))
     await reject(payload({ ...selected, ...patch }))
   }
-  const customerCandidates = await new BobService(db).options({
-    entity: 'customer',
-    page: 1,
-    pageSize: 20,
-    enabled: true,
-  })
+  const customerCandidates = await new BobService(db).options(
+    {
+      entity: 'customer',
+      page: 1,
+      pageSize: 20,
+      enabled: true,
+    },
+    actor,
+  )
   assert.deepEqual(
     customerCandidates.items.find((item) => item.objectId === subunitId),
     {

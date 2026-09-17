@@ -563,6 +563,7 @@ describe('direct resource persistence mapping', () => {
       name: '角色',
       description: null,
       type: 'NORMAL',
+      customerScope: 'NONE',
       permissions: [permission],
     })
     const wrapper = host('role', 'app')
@@ -1166,7 +1167,12 @@ it('loads requested permission pages and enforces delegation choices', async () 
   await flushPromises()
   expect(targetApi.createTargetRole).toHaveBeenCalledExactlyOnceWith(
     'csrf-token',
-    { name: '授权角色', description: null, permissionIds: ['allowed'] },
+    {
+      name: '授权角色',
+      description: null,
+      permissionIds: ['allowed'],
+      customerScope: 'NONE',
+    },
     expect.any(Object),
   )
   wrapper.unmount()

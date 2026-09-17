@@ -53,3 +53,7 @@ stable ID、code、全部 Approval Entry/版本/脚本/编译图、试算事实�
 状态闭集保持 `PENDING/APPROVED/REJECTED`（待批准/已批准/已驳回）；审批动作保持 `approve/reject/unreject/unapprove`（批准/驳回/恢复审核/反批准），启停为 `enable/disable`（启用/停用）。错误沿用公共审批、版本与 WFL 稳定 errorKey，页面用中文说明，blocker 保持结构化。版本反批准要求最高已批准、无开放提交且无精确实例引用。
 
 验收覆盖临时编辑、编译试算、提交重试、审批职责分离、新旧版本、运行开关、新实例选择与旧实例继续执行，真实 VOU 下级写入、create-child 幂等、根单据重新批准、审计失败回滚。页面编排见[流程定义管理](../use-cases/wfl/process-definition.md)。
+
+## 部门创建权限与客户范围
+
+流程动作继续通过 `/wfl/process-instance/action` 执行。创建下级权限按目标单据类型登记为 `wfl/process-instance/create-{vouEntity}`；服务端从所选流程图目标确定所需权限，不信任客户端指定业务类型。只返回调用者有权创建的目标，执行和幂等重放重新检查同一权限。普通审批、驳回、取消继续同时遵守对应 VOU 权限和中央 Approval 规则。流程列表、详情和审计遵守 [APP 客户范围](app.md#部门角色与客户数据范围)，根单据与已有节点单据必须全部可见才返回完整流程。

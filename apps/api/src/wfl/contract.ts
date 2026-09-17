@@ -1,6 +1,10 @@
 import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
 import type { Schema } from 'hono'
-import { vouEntities } from '@zerp/model'
+import {
+  vouEntities,
+  workflowCreateAction,
+  workflowCreatePermissionLabels,
+} from '@zerp/model'
 
 import type { TargetRouteEnvironment } from '../app/contract.ts'
 
@@ -473,14 +477,14 @@ export const wflRouteMetadata = [
 ]
 export const wflCapabilityPermissionMetadata = [
   'open-document',
-  'create-child',
+  ...vouEntities.map(workflowCreateAction),
   'approve-child',
   'reject-child',
   'retry-child',
   'cancel-child',
 ].map((action) => ({
   permission: `/wfl/process-instance/${action}`,
-  title: `WFL ${action}`,
+  title: workflowCreatePermissionLabels[action] ?? `WFL ${action}`,
 }))
 export type WflRouteAction = keyof typeof wflRouteSet
 export type WflRouteHandler = (

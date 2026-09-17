@@ -203,6 +203,7 @@ test('real HTTP workbench returns only actionable BOB, WFL and VOU submissions',
   await db
     .insertInto('app_roles')
     .values({
+      customer_scope: 'ALL',
       id: roleId,
       code: `WB-${roleId.slice(-8)}`,
       name: `工作台角色 ${roleId.slice(-6)}`,

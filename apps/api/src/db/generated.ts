@@ -311,6 +311,7 @@ export interface AppRoles {
   code: string
   created_at: Generated<Timestamp>
   created_by: string | null
+  customer_scope: Generated<string>
   description: string | null
   id: string
   name: string
@@ -357,6 +358,11 @@ export interface ApprovalEvents {
   version_no: number | null
 }
 
+export interface AppSeedRuns {
+  completed_at: Generated<Timestamp>
+  key: string
+}
+
 export interface AppSessions {
   absolute_expires_at: Timestamp
   created_at: Generated<Timestamp>
@@ -401,6 +407,7 @@ export interface AppUsers {
   created_at: Generated<Timestamp>
   created_by: string | null
   display_name: string
+  employee_id: string | null
   failed_signin_count: Generated<number>
   id: string
   locked_until: Timestamp | null
@@ -873,6 +880,7 @@ export interface VouAttachmentDownloadTokens {
   created_at: Timestamp
   expires_at: Timestamp
   file_id: string
+  owner_user_id: string
   token_hash: string
 }
 
@@ -1744,6 +1752,7 @@ export interface DB {
   app_role_code_counters: AppRoleCodeCounters
   app_role_permissions: AppRolePermissions
   app_roles: AppRoles
+  app_seed_runs: AppSeedRuns
   app_sessions: AppSessions
   app_system_parameters: AppSystemParameters
   app_user_profiles: AppUserProfiles

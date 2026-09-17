@@ -91,10 +91,87 @@ test('database seed is atomic, concurrent-safe and preserves subsequent book mai
   await emptyBookFacts()
   await sql`ALTER TABLE acc_subjects DROP CONSTRAINT seed_failure`.execute(db)
   const results = await Promise.all([seed(), seed()])
-  assert.deepEqual(results.map((result) => result.stdout.trim()).sort(), [
-    'database seed: internal book created',
-    'database seed: internal book unchanged',
-  ])
+  assert.deepEqual(
+    results.map((result) => result.stdout.trim().split(';')[0]).sort(),
+    [
+      'database seed: internal book created',
+      'database seed: internal book unchanged',
+    ],
+  )
+  const seededRoles = await db.selectFrom('app_roles').selectAll().execute()
+  assert.equal(seededRoles.length, 13)
+  assert.deepEqual(
+    seededRoles
+      .filter((role) => role.code !== 'superadmin')
+      .map((role) => role.name)
+      .sort(),
+    [
+      '客服',
+      '客服主管',
+      '业务员',
+      '业务经理',
+      '采购员',
+      '采购主管',
+      '仓库管理员',
+      '仓库主管',
+      '会计',
+      '会计主管',
+      '档案管理员',
+      '人事主管',
+    ].sort(),
+  )
+  assert.equal(
+    seededRoles.find((role) => role.name === '业务员')!.customer_scope,
+    'OWN',
+  )
+  const grants = async (name: string) =>
+    (
+      await db
+        .selectFrom('app_role_permissions as rp')
+        .innerJoin('app_permissions as p', 'p.id', 'rp.permission_id')
+        .select('p.path')
+        .where(
+          'rp.role_id',
+          '=',
+          seededRoles.find((role) => role.name === name)!.id,
+        )
+        .execute()
+    ).map((row) => row.path)
+  const salespersonPaths = await grants('业务员')
+  assert.ok(salespersonPaths.includes('/vou/sale-order/submit-new'))
+  assert.ok(!salespersonPaths.includes('/vou/sale-order/approve'))
+  assert.ok(!salespersonPaths.some((path) => path.startsWith('/app/')))
+  assert.ok((await grants('业务经理')).includes('/vou/sale-order/approve'))
+  assert.ok((await grants('客服主管')).includes('/vou/sales-receipt/approve'))
+  assert.ok(
+    (await grants('客服')).includes(
+      '/wfl/process-instance/create-sale-delivery',
+    ),
+  )
+  assert.ok(
+    !(await grants('客服')).includes(
+      '/wfl/process-instance/create-sale-outbound',
+    ),
+  )
+  assert.ok(
+    (await grants('仓库管理员')).includes(
+      '/wfl/process-instance/create-sale-outbound',
+    ),
+  )
+  assert.ok(
+    !(await grants('仓库管理员')).includes('/vou/sale-outbound/approve'),
+  )
+  assert.ok((await grants('仓库主管')).includes('/vou/sale-outbound/approve'))
+  assert.ok((await grants('会计主管')).includes('/acc/period/lock'))
+  assert.ok(!(await grants('档案管理员')).includes('/dcl/customer/approve'))
+  assert.equal(
+    (await db.selectFrom('rpt_definitions').select('id').execute()).length,
+    4,
+  )
+  assert.equal(
+    (await db.selectFrom('app_user_roles').selectAll().execute()).length,
+    2,
+  )
   const users = await db
     .selectFrom('app_users')
     .select(['id', 'username'])
@@ -179,6 +256,18 @@ test('database seed is atomic, concurrent-safe and preserves subsequent book mai
     actor,
   )
   const snapshot = async () => ({
+    roles: await db.selectFrom('app_roles').selectAll().orderBy('id').execute(),
+    grants: await db
+      .selectFrom('app_role_permissions')
+      .selectAll()
+      .orderBy('role_id')
+      .orderBy('permission_id')
+      .execute(),
+    reports: await db
+      .selectFrom('rpt_definitions')
+      .selectAll()
+      .orderBy('id')
+      .execute(),
     books: await db.selectFrom('acc_books').selectAll().orderBy('id').execute(),
     access: await db
       .selectFrom('acc_book_access')

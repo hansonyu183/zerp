@@ -1,3 +1,4 @@
+import { upgradeDepartmentAccess } from '../../src/app/department-upgrade.ts'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { createHash, randomBytes } from 'node:crypto'
@@ -58,6 +59,7 @@ test('ownership migration preserves formal/history facts and exact grants, and r
       }),
     ).values(),
   ]
+  await upgradeDepartmentAccess(db)
   const bootstrap = new TargetBootstrapService(db)
   await bootstrap.syncPermissionCatalog(legacy)
   const password = randomBytes(24).toString('hex')

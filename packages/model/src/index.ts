@@ -15,3 +15,5 @@ export * from './parity.ts'
 export * from './intermediary-calculation.ts'
 
 export * from './quantity.ts'
+export * from './customer-access.ts'
+export * from './workflow-permissions.ts'

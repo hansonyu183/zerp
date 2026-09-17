@@ -1,3 +1,8 @@
+import {
+  assertCustomerAccess,
+  customerAccess,
+  customerPredicate,
+} from '../app/customer-access.ts'
 import { searchPinyin } from '../platform/pinyin.ts'
 import { changeEnablement } from '../enablement/service.ts'
 import type { Kysely } from 'kysely'
@@ -279,7 +284,7 @@ export class BobService {
       (input.sort?.length ?? 0) > 1
     )
       fail('validation_failed')
-    return this.queryManaged(entity, input)
+    return this.queryManaged(entity, input, actor)
   }
 
   async get(
@@ -294,6 +299,8 @@ export class BobService {
       .transaction()
       .setIsolationLevel('repeatable read')
       .execute(async (tx) => {
+        if (entity === 'customer')
+          await assertCustomerAccess(tx, actor, objectId)
         const source = currentSource(entity)
         const result =
           await sql<StoredBobObject>`SELECT current.* FROM (${source}) current WHERE object_id = ${objectId}`.execute(
@@ -305,7 +312,11 @@ export class BobService {
       })
   }
 
-  private async queryManaged(entity: ManagedBobEntity, input: BobQueryInput) {
+  private async queryManaged(
+    entity: ManagedBobEntity,
+    input: BobQueryInput,
+    actor: BobActor,
+  ) {
     const filters = input.filters ?? {}
     for (const key of Object.keys(filters))
       if (
@@ -337,7 +348,7 @@ export class BobService {
       .setIsolationLevel('repeatable read')
       .execute(async (tx) => {
         const rows =
-          await sql<StoredBobObject>`SELECT * FROM (${currentSource(entity)}) current ORDER BY updated_at DESC, object_id DESC`.execute(
+          await sql<StoredBobObject>`SELECT * FROM (${currentSource(entity)}) current WHERE ${entity === 'customer' ? customerPredicate(await customerAccess(tx, actor), sql`current.object_id`) : sql`true`} ORDER BY updated_at DESC, object_id DESC`.execute(
             tx,
           )
         const views = rows.rows.map((row) => this.objectView(row))
@@ -427,6 +438,8 @@ export class BobService {
       `/bob/${entity}/${enabled ? 'enable' : 'disable'}`,
     )
     return this.db.transaction().execute(async (tx) => {
+      if (entity === 'customer')
+        await assertCustomerAccess(tx, actor, input.objectId)
       await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:archive:${entity}:${input.objectId}`}, 0))`.execute(
         tx,
       )
@@ -501,10 +514,13 @@ export class BobService {
   async resolve(
     entity: 'product' | 'supplier' | 'customer',
     input: { objectId: string; approvalEntryId: string },
+    actor: BobActor,
   ) {
     if (!validId(input.objectId) || !validId(input.approvalEntryId))
       fail('validation_failed')
     const objectId = input.objectId
+    if (entity === 'customer')
+      await assertCustomerAccess(this.db, actor, objectId)
     const source = businessIdentityCurrent(entity, input.approvalEntryId)
     const result =
       await sql<StoredBobObject>`SELECT * FROM (${source}) current WHERE object_id = ${objectId}`.execute(
@@ -549,7 +565,7 @@ export class BobService {
     }
   }
 
-  async options(input: BobReferenceQueryInput) {
+  async options(input: BobReferenceQueryInput, actor: BobActor) {
     if (!bobEntities.includes(input.entity)) fail('validation_failed')
     if (input.sourceObjectId !== undefined && !validId(input.sourceObjectId))
       fail('validation_failed')
@@ -570,7 +586,14 @@ export class BobService {
     )
       fail('validation_failed')
     const source = currentSource(input.entity)
-    const where = [sql`true`]
+    const where = [
+      input.entity === 'customer'
+        ? customerPredicate(
+            await customerAccess(this.db, actor),
+            sql`object_id`,
+          )
+        : sql`true`,
+    ]
     if (input.enabled !== undefined) where.push(sql`enabled = ${input.enabled}`)
     if (input.ids) where.push(sql`object_id IN (${sql.join(input.ids)})`)
     if (input.capability)

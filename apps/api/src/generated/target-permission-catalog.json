@@ -6080,12 +6080,308 @@
     "title": "WFL cancel-child"
   },
   {
-    "id": "01J9A3A544B38AB36A3CDD9449",
-    "path": "/wfl/process-instance/create-child",
+    "id": "01J23AC982F8A8DFD0D4BD1FCF",
+    "path": "/wfl/process-instance/create-asset-acquisition",
     "domain": "wfl",
     "entity": "process-instance",
-    "action": "create-child",
-    "title": "WFL create-child"
+    "action": "create-asset-acquisition",
+    "title": "创建资产购置单"
+  },
+  {
+    "id": "01J7EF15C9C099C8CC74F2A5F4",
+    "path": "/wfl/process-instance/create-asset-liquidation",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-asset-liquidation",
+    "title": "创建资产清理单"
+  },
+  {
+    "id": "01JF5CF37E2B222BCA6A8946EA",
+    "path": "/wfl/process-instance/create-asset-sale",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-asset-sale",
+    "title": "创建资产出售单"
+  },
+  {
+    "id": "01J0BE129E97134200BEA80371",
+    "path": "/wfl/process-instance/create-bill-discount",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-bill-discount",
+    "title": "创建票据贴现单"
+  },
+  {
+    "id": "01J37BC8E04D7D8687666A2A69",
+    "path": "/wfl/process-instance/create-bill-issue",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-bill-issue",
+    "title": "创建开票单"
+  },
+  {
+    "id": "01J08A803F14852A111470C4BE",
+    "path": "/wfl/process-instance/create-bill-maturity",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-bill-maturity",
+    "title": "创建票据到期单"
+  },
+  {
+    "id": "01J73E0B17A6842C0951D6E0F5",
+    "path": "/wfl/process-instance/create-bill-payment",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-bill-payment",
+    "title": "创建付票单"
+  },
+  {
+    "id": "01J40DE776A34B5DC6A4B00A35",
+    "path": "/wfl/process-instance/create-bill-receipt",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-bill-receipt",
+    "title": "创建收票单"
+  },
+  {
+    "id": "01JD2F4AE6011C2390981C4536",
+    "path": "/wfl/process-instance/create-employee-loan",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-employee-loan",
+    "title": "创建员工借款单"
+  },
+  {
+    "id": "01JDFF5409D93DE37FBA4F5A9A",
+    "path": "/wfl/process-instance/create-employee-loan-writeoff",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-employee-loan-writeoff",
+    "title": "创建员工借款核销单"
+  },
+  {
+    "id": "01J7AC90A194172B1D7C422828",
+    "path": "/wfl/process-instance/create-employee-repayment",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-employee-repayment",
+    "title": "创建员工还款单"
+  },
+  {
+    "id": "01J9052A9BC67A5DA37E0E17F7",
+    "path": "/wfl/process-instance/create-expense-payment",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-expense-payment",
+    "title": "创建费用付款单"
+  },
+  {
+    "id": "01JC6A1DF987F3674D7DE7DFD2",
+    "path": "/wfl/process-instance/create-expense-reimbursement",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-expense-reimbursement",
+    "title": "创建费用报销单"
+  },
+  {
+    "id": "01J74FC104BC0B2B6188E51A52",
+    "path": "/wfl/process-instance/create-intermediary-calculation",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-intermediary-calculation",
+    "title": "创建居间计算单"
+  },
+  {
+    "id": "01JE91F7CB8E22E5AE769BB2C3",
+    "path": "/wfl/process-instance/create-inventory-count",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-inventory-count",
+    "title": "创建库存盘点单"
+  },
+  {
+    "id": "01J8B5307C3AFC0C8CB954F46F",
+    "path": "/wfl/process-instance/create-order-production",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-order-production",
+    "title": "创建生产配货单"
+  },
+  {
+    "id": "01JFEA6808C67142CAE0F89AAD",
+    "path": "/wfl/process-instance/create-other-income",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-other-income",
+    "title": "创建其他收入单"
+  },
+  {
+    "id": "01J7AC9BD2EEC29C42AEC61071",
+    "path": "/wfl/process-instance/create-other-payment",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-other-payment",
+    "title": "创建其他付款单"
+  },
+  {
+    "id": "01J15D8C3D27106CDCB121FFB3",
+    "path": "/wfl/process-instance/create-other-receipt",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-other-receipt",
+    "title": "创建其他收款单"
+  },
+  {
+    "id": "01J97F66E28ED820B1C610C57D",
+    "path": "/wfl/process-instance/create-purchase-inbound",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-purchase-inbound",
+    "title": "创建采购入库单"
+  },
+  {
+    "id": "01JFC2FE7CE9F3463EE37E9879",
+    "path": "/wfl/process-instance/create-purchase-inquiry",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-purchase-inquiry",
+    "title": "创建采购询价单"
+  },
+  {
+    "id": "01J0A88AF28E2C5B8DFC1DC0B4",
+    "path": "/wfl/process-instance/create-purchase-invoice",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-purchase-invoice",
+    "title": "创建采购发票"
+  },
+  {
+    "id": "01J7F063BB9CCBD8FEAB9F14DC",
+    "path": "/wfl/process-instance/create-purchase-order",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-purchase-order",
+    "title": "创建采购订单"
+  },
+  {
+    "id": "01JD0FEB5FCE1493E6A08D5E3C",
+    "path": "/wfl/process-instance/create-purchase-payment",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-purchase-payment",
+    "title": "创建采购付款单"
+  },
+  {
+    "id": "01JDB48055C042451A0F4CB00B",
+    "path": "/wfl/process-instance/create-purchase-refund",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-purchase-refund",
+    "title": "创建采购退款单"
+  },
+  {
+    "id": "01JA6CE1B98C7A9E022DF10795",
+    "path": "/wfl/process-instance/create-purchase-return",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-purchase-return",
+    "title": "创建采购退货单"
+  },
+  {
+    "id": "01JD519335699957688C5BFB6B",
+    "path": "/wfl/process-instance/create-sale-delivery",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-sale-delivery",
+    "title": "创建销售送货单"
+  },
+  {
+    "id": "01J6720BD49C9EB24943F3BA9E",
+    "path": "/wfl/process-instance/create-sale-invoice",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-sale-invoice",
+    "title": "创建销售发票"
+  },
+  {
+    "id": "01JE87FF7E6721070F3442EC81",
+    "path": "/wfl/process-instance/create-sale-order",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-sale-order",
+    "title": "创建销售订单"
+  },
+  {
+    "id": "01J8C172432F2F9A4D833A3E03",
+    "path": "/wfl/process-instance/create-sale-outbound",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-sale-outbound",
+    "title": "创建销售出库单"
+  },
+  {
+    "id": "01JBE1AB1C3702427BD4D834B6",
+    "path": "/wfl/process-instance/create-sale-pricing",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-sale-pricing",
+    "title": "创建销售定价单"
+  },
+  {
+    "id": "01J0B7A983C400D4DF110BB857",
+    "path": "/wfl/process-instance/create-sale-return",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-sale-return",
+    "title": "创建销售退货单"
+  },
+  {
+    "id": "01JEC463CF9A455D546F79D773",
+    "path": "/wfl/process-instance/create-sale-signoff",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-sale-signoff",
+    "title": "创建销售签收单"
+  },
+  {
+    "id": "01JA5FE88E1E8FD1281D82DD95",
+    "path": "/wfl/process-instance/create-sales-receipt",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-sales-receipt",
+    "title": "创建销售收款单"
+  },
+  {
+    "id": "01JCF44AA912807496DF1574D5",
+    "path": "/wfl/process-instance/create-sales-refund",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-sales-refund",
+    "title": "创建销售退款单"
+  },
+  {
+    "id": "01J7874311BA133864494F3F75",
+    "path": "/wfl/process-instance/create-self-production",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-self-production",
+    "title": "创建生产自制品单"
+  },
+  {
+    "id": "01J8A3F8B05DEF17A12F9CCC1D",
+    "path": "/wfl/process-instance/create-service-acceptance",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-service-acceptance",
+    "title": "创建履约验收单"
+  },
+  {
+    "id": "01J30EC79A050F61A0E9FD9619",
+    "path": "/wfl/process-instance/create-service-contract",
+    "domain": "wfl",
+    "entity": "process-instance",
+    "action": "create-service-contract",
+    "title": "创建服务合同"
   },
   {
     "id": "01J72696552CFDD8DFC0D72099",

@@ -1,3 +1,4 @@
+import { upgradeDepartmentAccess } from '../../src/app/department-upgrade.ts'
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
@@ -38,6 +39,7 @@ test('unit cutover blocks conflicting fixed factors, preserves historical decima
       ),
     )
     .execute(db)
+  await upgradeDepartmentAccess(db)
   const bootstrap = new TargetBootstrapService(db)
   await bootstrap.syncPermissionCatalog(await readTargetPermissionCatalog())
   const principal = {

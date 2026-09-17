@@ -1,3 +1,4 @@
+import { workflowCreatePermissionLabels } from '@zerp/model'
 import {
   domainDisplayName,
   resourceDisplayName,
@@ -33,7 +34,7 @@ export const permissionActionLabels: Readonly<Record<string, string>> = {
   'script-get': '读取计算脚本',
   'script-save': '维护计算脚本',
   'book-balance': '查询账面库存',
-  'create-child': '创建子单据',
+  ...workflowCreatePermissionLabels,
   lock: '锁定',
   'open-document': '打开单据',
   reference: '查询引用',

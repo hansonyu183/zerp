@@ -168,6 +168,7 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
   await db
     .insertInto('app_roles')
     .values({
+      customer_scope: 'ALL',
       id: roleId,
       code: `vou-source-${roleId}`,
       name: 'VOU source line',

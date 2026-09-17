@@ -1,3 +1,4 @@
+import { upgradeDepartmentAccess } from '../../src/app/department-upgrade.ts'
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
@@ -56,6 +57,7 @@ test('customer cutover projects all historical versions, shares tax, splits rece
     )
     .execute(db)
   const catalog = await readTargetPermissionCatalog()
+  await upgradeDepartmentAccess(db)
   const bootstrap = new TargetBootstrapService(db)
   const oldPermission = {
     id: ulid(),

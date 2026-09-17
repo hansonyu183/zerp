@@ -3,6 +3,7 @@ CREATE TABLE app_users (
     username varchar(64) NOT NULL,
     display_name varchar(128) NOT NULL,
     py text NOT NULL CONSTRAINT app_users_py_nonempty CHECK (btrim(py) <> ''),
+    employee_id varchar(26),
     password_hash text NOT NULL,
     status varchar(16) NOT NULL CHECK (status IN ('ENABLED', 'DISABLED')),
     failed_signin_count integer NOT NULL DEFAULT 0 CHECK (failed_signin_count >= 0),
@@ -41,11 +42,17 @@ CREATE TABLE app_permissions (
     CHECK (path = '/' || domain || '/' || entity || '/' || action)
 );
 
+CREATE TABLE app_seed_runs (
+    key varchar(64) PRIMARY KEY,
+    completed_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE app_roles (
     id varchar(26) PRIMARY KEY,
     code varchar(64) NOT NULL UNIQUE,
     name varchar(128) NOT NULL,
     description text,
+    customer_scope varchar(8) NOT NULL DEFAULT 'NONE' CHECK (customer_scope IN ('NONE', 'OWN', 'ALL')),
     status varchar(16) NOT NULL CHECK (status IN ('ENABLED', 'DISABLED')),
     created_at timestamptz NOT NULL DEFAULT now(),
     created_by varchar(26),
@@ -1608,6 +1615,7 @@ CREATE TABLE vou_attachment_download_tokens (
     token_hash varchar(64) PRIMARY KEY CHECK (token_hash ~ '^[0-9a-f]{64}$'),
     approval_entry_id varchar(26) NOT NULL,
     file_id varchar(26) NOT NULL,
+    owner_user_id varchar(26) NOT NULL REFERENCES app_users(id),
     created_at timestamptz NOT NULL,
     expires_at timestamptz NOT NULL,
     FOREIGN KEY (approval_entry_id, file_id)
@@ -1893,3 +1901,5 @@ CREATE TABLE aux_measurement_unit_conversion_evidence (
     report jsonb NOT NULL,
     originals jsonb NOT NULL
 );
+
+ALTER TABLE app_users ADD CONSTRAINT app_users_employee_fk FOREIGN KEY (employee_id) REFERENCES aux_objects(id);

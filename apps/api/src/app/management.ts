@@ -1,3 +1,5 @@
+import { customerScopeRank, type CustomerScope } from '@zerp/model'
+import { customerAccess } from './customer-access.ts'
 import { randomBytes } from 'node:crypto'
 
 import type { Kysely } from 'kysely'
@@ -19,6 +21,7 @@ type RoleRow = {
   code: string
   name: string
   description: string | null
+  customer_scope: string
   status: string
   created_at: Date
   updated_at: Date
@@ -128,6 +131,7 @@ export class ManagementService {
       code: string
       name: string
       password: string
+      employeeId?: string | null
       roleIds: string[]
     },
     principal: Principal,
@@ -144,6 +148,12 @@ export class ManagementService {
       await this.lock(tx)
       await this.assertCurrentActor(tx, principal)
       await this.assertAssignableRoles(tx, roleIds, principal)
+      await this.assertEmployee(tx, input.employeeId ?? null)
+      await this.assertEmployeeDelegation(
+        tx,
+        input.employeeId ?? null,
+        principal,
+      )
       const duplicate = await tx
         .selectFrom('app_users')
         .select('id')
@@ -156,6 +166,7 @@ export class ManagementService {
         .values({
           id,
           username,
+          employee_id: input.employeeId ?? null,
           display_name: displayName,
           py: searchPinyin(displayName),
           password_hash: await hashPassword(input.password),
@@ -184,6 +195,7 @@ export class ManagementService {
     input: {
       id: string
       name: string
+      employeeId?: string | null
       roleIds: string[]
       revision: string
     },
@@ -209,7 +221,19 @@ export class ManagementService {
           'conflict',
           'system identity is managed internally',
         )
+      const employeeId =
+        input.employeeId === undefined ? target.employee_id : input.employeeId
+      if (employeeId !== target.employee_id) {
+        await this.assertEmployee(tx, employeeId)
+        await this.assertEmployeeDelegation(tx, employeeId, principal)
+      }
       const self = target.id === principal.user.id
+      if (!self) await this.assertEmployeeDelegation(tx, employeeId, principal)
+      if (self && employeeId !== target.employee_id)
+        throw new AppServiceError(
+          'forbidden',
+          'cannot change own employee association',
+        )
       this.require(principal, '/app/user/save')
       if (self) {
         const existing = await this.roleIds(tx, target.id)
@@ -226,6 +250,7 @@ export class ManagementService {
         .updateTable('app_users')
         .set({
           display_name: displayName,
+          employee_id: employeeId,
           py: searchPinyin(displayName),
           updated_at: new Date(),
           updated_by: principal.user.id,
@@ -461,6 +486,7 @@ export class ManagementService {
     input: {
       name: string
       description?: string | null
+      customerScope?: CustomerScope
       permissionIds: string[]
     },
     principal: Principal,
@@ -474,6 +500,11 @@ export class ManagementService {
       await this.lock(tx)
       await this.assertCurrentActor(tx, principal)
       await this.assertPermissionSet(tx, permissionIds, principal)
+      await this.assertCustomerScope(
+        tx,
+        input.customerScope ?? 'NONE',
+        principal,
+      )
       const existing = await tx
         .selectFrom('app_roles')
         .select('id')
@@ -491,6 +522,7 @@ export class ManagementService {
           code: await this.nextRoleCode(tx),
           name,
           description: this.optionalText(input.description),
+          customer_scope: input.customerScope ?? 'NONE',
           status: 'ENABLED',
           created_by: principal.user.id,
           updated_by: principal.user.id,
@@ -525,6 +557,7 @@ export class ManagementService {
       id: string
       name: string
       description?: string | null
+      customerScope?: CustomerScope
       permissionIds: string[]
       revision: string
     },
@@ -551,6 +584,11 @@ export class ManagementService {
       if (!(await this.roleManageable(role, principal, tx)))
         throw new AppServiceError('forbidden', 'role cannot be maintained')
       await this.assertPermissionSet(tx, permissionIds, principal)
+      await this.assertCustomerScope(
+        tx,
+        input.customerScope ?? 'NONE',
+        principal,
+      )
       const duplicate = await tx
         .selectFrom('app_roles')
         .select('id')
@@ -567,6 +605,7 @@ export class ManagementService {
         .set({
           name,
           description: this.optionalText(input.description),
+          customer_scope: input.customerScope ?? 'NONE',
           updated_at: new Date(),
           updated_by: principal.user.id,
           revision: sql`revision + 1`,
@@ -1099,9 +1138,16 @@ export class ManagementService {
       this.isSuperadmin(tx, id),
       this.isSuperadmin(tx, principal.user.id),
     ])
+    const targetAccess = await customerAccess(tx, { id })
+    const actorAccess = await customerAccess(tx, { id: principal.user.id })
     return (
       actorSuperadmin ||
-      (!targetSuperadmin &&
+      ((targetAccess.scope !== 'OWN' ||
+        actorAccess.scope === 'ALL' ||
+        targetAccess.employeeId === actorAccess.employeeId) &&
+        customerScopeRank(targetAccess.scope) <=
+          customerScopeRank(actorAccess.scope) &&
+        !targetSuperadmin &&
         target.every((path) => principal.apiPaths.includes(path)))
     )
   }
@@ -1168,9 +1214,10 @@ export class ManagementService {
     return (
       !selfHeld &&
       (actorSuperadmin ||
-        permissions.every((permission) =>
-          principal.apiPaths.includes(permission.path),
-        ))
+        ((await this.roleScopeAssignable(tx, role.id, principal)) &&
+          permissions.every((permission) =>
+            principal.apiPaths.includes(permission.path),
+          )))
     )
   }
   private async roleAssignable(
@@ -1182,9 +1229,73 @@ export class ManagementService {
     const actorSuperadmin = await this.isSuperadmin(tx, principal.user.id)
     if (role.code === superadminCode) return actorSuperadmin
     if (actorSuperadmin) return true
+    if (!(await this.roleScopeAssignable(tx, role.id, principal))) return false
     const permissions = await this.rolePermissions(tx, role.id)
     return permissions.every((permission) =>
       principal.apiPaths.includes(permission.path),
+    )
+  }
+  private async assertEmployeeDelegation(
+    tx: AnyDb,
+    employeeId: string | null,
+    principal: Principal,
+  ) {
+    if (!employeeId) return
+    const access = await customerAccess(tx, { id: principal.user.id })
+    if (
+      access.scope !== 'ALL' &&
+      (access.scope !== 'OWN' || access.employeeId !== employeeId)
+    )
+      throw new AppServiceError(
+        'forbidden',
+        'employee association exceeds customer scope',
+      )
+  }
+  private async assertEmployee(tx: AnyDb, employeeId: string | null) {
+    if (!employeeId) return
+    this.id(employeeId)
+    const employee = await tx
+      .selectFrom('aux_objects')
+      .select('id')
+      .where('id', '=', employeeId)
+      .where('entity', '=', 'employee')
+      .where('enabled', '=', true)
+      .executeTakeFirst()
+    if (!employee)
+      throw new AppServiceError(
+        'validation_failed',
+        'employee must be an enabled employee',
+      )
+  }
+  private async assertCustomerScope(
+    tx: AnyDb,
+    scope: CustomerScope,
+    principal: Principal,
+  ) {
+    const own = await customerAccess(tx, { id: principal.user.id })
+    if (
+      customerScopeRank(scope) < 0 ||
+      customerScopeRank(scope) > customerScopeRank(own.scope)
+    )
+      throw new AppServiceError(
+        'forbidden',
+        'customer scope exceeds authorization ceiling',
+      )
+  }
+  private async roleScopeAssignable(
+    tx: AnyDb,
+    id: string,
+    principal: Principal,
+  ) {
+    const role = await tx
+      .selectFrom('app_roles')
+      .select('customer_scope')
+      .where('id', '=', id)
+      .executeTakeFirstOrThrow()
+    const own = await customerAccess(tx, { id: principal.user.id })
+    return (
+      customerScopeRank(role.customer_scope as CustomerScope) <=
+      customerScopeRank(own.scope)
     )
   }
   private async assertAssignableRoles(
@@ -1394,6 +1505,7 @@ export class ManagementService {
     return {
       id: user.id,
       code: user.username,
+      employeeId: user.employee_id,
       py: user.py,
       name: user.display_name,
       enabled: user.status === 'ENABLED',
@@ -1433,6 +1545,9 @@ export class ManagementService {
       code: role.code,
       name: role.name,
       description: role.description,
+      customerScope: (role.code === superadminCode
+        ? 'ALL'
+        : role.customer_scope) as CustomerScope,
       enabled: role.status === 'ENABLED',
       py: searchPinyin(role.name),
       type:

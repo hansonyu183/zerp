@@ -6,7 +6,7 @@ import ListPagination from '../list-page/ListPagination.vue'
 import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { ref, shallowRef, watch, onMounted, onBeforeUnmount } from 'vue'
 import { ulid } from 'ulid'
-import { vouEntityPresentation } from '@zerp/model'
+import { vouEntityPresentation, workflowCreatePermission } from '@zerp/model'
 import * as api from '../../api.ts'
 import { useTargetSession } from '../../session/vm.ts'
 import { wflErrors } from '../version-page/wfl-data.ts'
@@ -308,12 +308,21 @@ function isUnknown(cause: unknown) {
     ['invalid_response', 'internal_error'].includes(cause.errorKey)
   )
 }
+function allowedTargets() {
+  return (
+    instance.value?.availableTargets.filter((target) =>
+      session.can(workflowCreatePermission(target.targetEntity)),
+    ) ?? []
+  )
+}
 function allowedActions(
   node: NonNullable<typeof instance.value>['nodes'][number],
 ) {
   return node.availableActions.filter(
     (action) =>
-      canInstance(action.toLowerCase().replaceAll('_', '-')) &&
+      (action === 'CREATE_CHILD'
+        ? allowedTargets().some((target) => target.parentNodeId === node.nodeId)
+        : canInstance(action.toLowerCase().replaceAll('_', '-'))) &&
       (action !== 'OPEN_DOCUMENT' ||
         Boolean(node.entity && session.can(`/vou/${node.entity}/get`))),
   )
@@ -464,7 +473,7 @@ onBeforeUnmount(dispose)
               availableActions: allowedActions(node),
             }))
           "
-          :targets="instance.availableTargets"
+          :targets="allowedTargets()"
           :disabled="busy || unknown"
           @action="nodeAction"
         />

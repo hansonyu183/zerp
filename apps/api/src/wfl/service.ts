@@ -1,7 +1,14 @@
+import { customerAccess } from '../app/customer-access.ts'
+import {
+  documentCustomerPredicate,
+  assertDocumentCustomerAccess,
+} from '../vou/customer-access.ts'
 import { createHash } from 'node:crypto'
 
 import {
   availableApprovalActions,
+  workflowCreatePermission,
+  vouEntities,
   type ApprovalAction,
   type ApprovalActor,
   type ApprovalEntry,
@@ -564,6 +571,15 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
         'i.definition_name',
         'i.root_document_id',
       ])
+      .where(
+        documentCustomerPredicate(
+          await customerAccess(this.db, actor),
+          sql`i.root_document_id`,
+        ),
+      )
+      .where(
+        sql<boolean>`NOT EXISTS (SELECT 1 FROM wfl_instance_nodes scope_node WHERE scope_node.instance_id = i.id AND scope_node.document_id IS NOT NULL AND NOT (${documentCustomerPredicate(await customerAccess(this.db, actor), sql`scope_node.document_id`)}))`,
+      )
       .orderBy('i.created_at', 'desc')
       .execute()
     const keyword = input.keyword?.trim().toLowerCase()
@@ -650,6 +666,25 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
 
   async instanceAuditHistory(processId: string, actor: ApprovalActor) {
     requirePermission(actor, '/wfl/process-instance/audit-history')
+    const instance = await this.db
+      .selectFrom('wfl_instances')
+      .select('root_document_id')
+      .where('id', '=', processId)
+      .executeTakeFirst()
+    if (!instance) throw new WflApplicationError('wfl_instance_not_found')
+    await assertDocumentCustomerAccess(
+      this.db,
+      actor,
+      instance.root_document_id,
+    )
+    const nodes = await this.db
+      .selectFrom('wfl_instance_nodes')
+      .select('document_id')
+      .where('instance_id', '=', processId)
+      .execute()
+    for (const node of nodes)
+      if (node.document_id)
+        await assertDocumentCustomerAccess(this.db, actor, node.document_id)
     const rows = await this.db
       .selectFrom('wfl_runtime_audits')
       .selectAll()
@@ -672,7 +707,14 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
     requestId: string,
   ): Promise<WflInstanceView> {
     const permission = `/wfl/process-instance/${input.action.toLowerCase().replaceAll('_', '-')}`
-    requirePermission(actor, permission)
+    if (input.action !== 'CREATE_CHILD') requirePermission(actor, permission)
+    else if (
+      actor.trusted !== true &&
+      !vouEntities.some((entity) =>
+        actor.permissions.includes(workflowCreatePermission(entity)),
+      )
+    )
+      throw new WflApplicationError('forbidden')
     return this.db.transaction().execute(async (tx) => {
       const instance = await tx
         .selectFrom('wfl_instances')
@@ -681,6 +723,27 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
         .forUpdate()
         .executeTakeFirst()
       if (!instance) throw new WflApplicationError('wfl_instance_not_found')
+      if (input.action === 'CREATE_CHILD') {
+        const definition = await tx
+          .selectFrom('wfl_instances as i')
+          .innerJoin(
+            'wfl_definition_versions as v',
+            'v.approval_entry_id',
+            'i.approval_entry_id',
+          )
+          .select('v.compiled_graph')
+          .where('i.id', '=', input.processId)
+          .executeTakeFirstOrThrow()
+        const graph = definition.compiled_graph as unknown as WflStarlarkGraph
+        const target = graph.nodes.find(
+          (node) => node.key === input.targetNodeKey,
+        )
+        if (!target) throw new WflApplicationError('wfl_node_not_found')
+        requirePermission(
+          actor,
+          workflowCreatePermission(target.entity as VouEntity),
+        )
+      }
       const view = await this.readInstance(tx, input.processId, actor)
       const node = view.nodes.find((item) => item.nodeId === input.nodeId)
       if (
@@ -1569,6 +1632,19 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
       .where('i.id', '=', processId)
       .executeTakeFirst()
     if (!instance) throw new WflApplicationError('wfl_instance_not_found')
+    await assertDocumentCustomerAccess(
+      executor,
+      actor,
+      instance.root_document_id,
+    )
+    const scopedNodes = await executor
+      .selectFrom('wfl_instance_nodes')
+      .select('document_id')
+      .where('instance_id', '=', processId)
+      .execute()
+    for (const node of scopedNodes)
+      if (node.document_id)
+        await assertDocumentCustomerAccess(executor, actor, node.document_id)
     const graph = instance.compiled_graph as unknown as WflStarlarkGraph
     const rawNodes = await executor
       .selectFrom('wfl_instance_nodes as n')
@@ -1629,7 +1705,10 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
         if (
           !edge ||
           !targetNode ||
-          !this.can(actor, '/wfl/process-instance/create-child')
+          !this.can(
+            actor,
+            workflowCreatePermission(targetNode.entity as VouEntity),
+          )
         )
           return []
         const position = `edge:${row.node_key}:${targetNode.key}:${edge.relation}`

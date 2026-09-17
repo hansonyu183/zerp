@@ -93,12 +93,16 @@ async function invoiceFixture(
       source,
       lineId: original.productLines[0]!.lineId,
       options: () =>
-        vou.invoiceSourceOptions('sale-invoice', {
-          objectId: original.customer.objectId,
-          operatingEntityId: original.operatingEntity.objectId,
-          businessDate: original.businessDate,
-          currency: original.currency,
-        }),
+        vou.invoiceSourceOptions(
+          'sale-invoice',
+          {
+            objectId: original.customer.objectId,
+            operatingEntityId: original.operatingEntity.objectId,
+            businessDate: original.businessDate,
+            currency: original.currency,
+          },
+          fixture.actor,
+        ),
     }
   }
   return { ...fixture, vou, submit, review, approve, saleSource }
@@ -172,12 +176,16 @@ test('restoring rejected sales and purchase invoices rechecks occupied source am
         typeof entity
       >
       const party = 'customer' in base ? base.customer : base.supplier
-      const options = await fixture.vou.invoiceSourceOptions(entity, {
-        objectId: party.objectId,
-        operatingEntityId: base.operatingEntity.objectId,
-        businessDate: base.businessDate,
-        currency: base.currency,
-      })
+      const options = await fixture.vou.invoiceSourceOptions(
+        entity,
+        {
+          objectId: party.objectId,
+          operatingEntityId: base.operatingEntity.objectId,
+          businessDate: base.businessDate,
+          currency: base.currency,
+        },
+        fixture.actor,
+      )
       const source = options.items.find(
         (item) =>
           item.sourceDocumentId === base.invoiceLines[0]!.sourceDocumentId &&

@@ -12401,6 +12401,10 @@
                                 ]
                               }
                             },
+                            "employeeId": {
+                              "type": "string",
+                              "nullable": true
+                            },
                             "roles": {
                               "type": "array",
                               "items": {
@@ -12455,6 +12459,7 @@
                             "enabled",
                             "revision",
                             "availableActions",
+                            "employeeId",
                             "roles",
                             "manageable",
                             "roleAssignmentEditable"
@@ -12567,6 +12572,12 @@
                       "type": "string"
                     },
                     "minItems": 1
+                  },
+                  "employeeId": {
+                    "type": "string",
+                    "nullable": true,
+                    "minLength": 26,
+                    "maxLength": 26
                   }
                 },
                 "required": [
@@ -12642,6 +12653,10 @@
                                 ]
                               }
                             },
+                            "employeeId": {
+                              "type": "string",
+                              "nullable": true
+                            },
                             "roles": {
                               "type": "array",
                               "items": {
@@ -12696,6 +12711,7 @@
                             "enabled",
                             "revision",
                             "availableActions",
+                            "employeeId",
                             "roles",
                             "manageable",
                             "roleAssignmentEditable"
@@ -12802,6 +12818,12 @@
                     },
                     "minItems": 1
                   },
+                  "employeeId": {
+                    "type": "string",
+                    "nullable": true,
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
                   "revision": {
                     "type": "string",
                     "pattern": "^[1-9]\\d*$"
@@ -12880,6 +12902,10 @@
                                 ]
                               }
                             },
+                            "employeeId": {
+                              "type": "string",
+                              "nullable": true
+                            },
                             "roles": {
                               "type": "array",
                               "items": {
@@ -12934,6 +12960,7 @@
                             "enabled",
                             "revision",
                             "availableActions",
+                            "employeeId",
                             "roles",
                             "manageable",
                             "roleAssignmentEditable"
@@ -13106,6 +13133,10 @@
                                 ]
                               }
                             },
+                            "employeeId": {
+                              "type": "string",
+                              "nullable": true
+                            },
                             "roles": {
                               "type": "array",
                               "items": {
@@ -13160,6 +13191,7 @@
                             "enabled",
                             "revision",
                             "availableActions",
+                            "employeeId",
                             "roles",
                             "manageable",
                             "roleAssignmentEditable"
@@ -13332,6 +13364,10 @@
                                 ]
                               }
                             },
+                            "employeeId": {
+                              "type": "string",
+                              "nullable": true
+                            },
                             "roles": {
                               "type": "array",
                               "items": {
@@ -13386,6 +13422,7 @@
                             "enabled",
                             "revision",
                             "availableActions",
+                            "employeeId",
                             "roles",
                             "manageable",
                             "roleAssignmentEditable"
@@ -13681,6 +13718,14 @@
                               "items": {
                                 "type": "object",
                                 "properties": {
+                                  "customerScope": {
+                                    "type": "string",
+                                    "enum": [
+                                      "NONE",
+                                      "OWN",
+                                      "ALL"
+                                    ]
+                                  },
                                   "py": {
                                     "type": "string"
                                   },
@@ -13731,6 +13776,7 @@
                                   }
                                 },
                                 "required": [
+                                  "customerScope",
                                   "py",
                                   "id",
                                   "code",
@@ -14355,6 +14401,14 @@
                         "data": {
                           "type": "object",
                           "properties": {
+                            "customerScope": {
+                              "type": "string",
+                              "enum": [
+                                "NONE",
+                                "OWN",
+                                "ALL"
+                              ]
+                            },
                             "py": {
                               "type": "string"
                             },
@@ -14456,6 +14510,7 @@
                             }
                           },
                           "required": [
+                            "customerScope",
                             "py",
                             "id",
                             "code",
@@ -14573,6 +14628,15 @@
                       "type": "string"
                     },
                     "minItems": 1
+                  },
+                  "customerScope": {
+                    "type": "string",
+                    "enum": [
+                      "NONE",
+                      "OWN",
+                      "ALL"
+                    ],
+                    "default": "NONE"
                   }
                 },
                 "required": [
@@ -14616,6 +14680,14 @@
                         "data": {
                           "type": "object",
                           "properties": {
+                            "customerScope": {
+                              "type": "string",
+                              "enum": [
+                                "NONE",
+                                "OWN",
+                                "ALL"
+                              ]
+                            },
                             "py": {
                               "type": "string"
                             },
@@ -14717,6 +14789,7 @@
                             }
                           },
                           "required": [
+                            "customerScope",
                             "py",
                             "id",
                             "code",
@@ -14838,6 +14911,15 @@
                     },
                     "minItems": 1
                   },
+                  "customerScope": {
+                    "type": "string",
+                    "enum": [
+                      "NONE",
+                      "OWN",
+                      "ALL"
+                    ],
+                    "default": "NONE"
+                  },
                   "revision": {
                     "type": "string",
                     "pattern": "^[1-9]\\d*$"
@@ -14886,6 +14968,14 @@
                         "data": {
                           "type": "object",
                           "properties": {
+                            "customerScope": {
+                              "type": "string",
+                              "enum": [
+                                "NONE",
+                                "OWN",
+                                "ALL"
+                              ]
+                            },
                             "py": {
                               "type": "string"
                             },
@@ -14987,6 +15077,7 @@
                             }
                           },
                           "required": [
+                            "customerScope",
                             "py",
                             "id",
                             "code",
@@ -15138,6 +15229,14 @@
                         "data": {
                           "type": "object",
                           "properties": {
+                            "customerScope": {
+                              "type": "string",
+                              "enum": [
+                                "NONE",
+                                "OWN",
+                                "ALL"
+                              ]
+                            },
                             "py": {
                               "type": "string"
                             },
@@ -15239,6 +15338,7 @@
                             }
                           },
                           "required": [
+                            "customerScope",
                             "py",
                             "id",
                             "code",
@@ -15390,6 +15490,14 @@
                         "data": {
                           "type": "object",
                           "properties": {
+                            "customerScope": {
+                              "type": "string",
+                              "enum": [
+                                "NONE",
+                                "OWN",
+                                "ALL"
+                              ]
+                            },
                             "py": {
                               "type": "string"
                             },
@@ -15491,6 +15599,7 @@
                             }
                           },
                           "required": [
+                            "customerScope",
                             "py",
                             "id",
                             "code",

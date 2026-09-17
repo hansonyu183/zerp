@@ -1,3 +1,10 @@
+import { departmentReports } from './department-reports.ts'
+import {
+  customerAccess,
+  customerPredicate,
+  type CustomerAccess,
+} from '../app/customer-access.ts'
+import { SessionError } from '../app/session.ts'
 import { createHash } from 'node:crypto'
 import type { z } from '@hono/zod-openapi'
 import { definitionInput } from './contract.ts'
@@ -222,6 +229,7 @@ function bindStatement(
   definition: RptDefinition,
   values: Record<string, unknown>,
   onBind?: (parameter: RptParameter) => void,
+  access?: CustomerAccess,
 ): RawBuilder<unknown> {
   const parameters = new Map(
     definition.parameters.map((parameter) => [parameter.key, parameter]),
@@ -233,6 +241,17 @@ function bindStatement(
   for (const match of definition.sql.matchAll(pattern)) {
     parts.push(sql.raw(definition.sql.slice(offset, match.index)))
     const name = match[1]!
+    if (name === 'authorizedCustomerIds') {
+      if (parameters.has(name))
+        throw new RptApplicationError('rpt_parameter_contract_mismatch')
+      parts.push(
+        access
+          ? sql`ARRAY(SELECT scope_subject.id FROM bob_archive_objects scope_subject WHERE scope_subject.entity = 'customer' AND ${customerPredicate(access, sql`scope_subject.id`)})`
+          : sql`ARRAY[]::varchar[]`,
+      )
+      offset = (match.index ?? 0) + match[0].length
+      continue
+    }
     const parameter = parameters.get(name)
     if (!parameter)
       throw new RptApplicationError('rpt_parameter_contract_mismatch')
@@ -271,6 +290,7 @@ export function assertRptDefinitionContract(definition: RptDefinition): void {
     definition.parameters.some(
       (parameter) =>
         !/^[a-z][a-zA-Z0-9]{0,63}$/.test(parameter.key) ||
+        parameter.key === 'authorizedCustomerIds' ||
         !parameter.name ||
         parameter.name.length > 100 ||
         ![
@@ -518,83 +538,143 @@ export class RptService {
     if (!parsed.success)
       throw new RptApplicationError('rpt_definition_invalid_data')
     input = parsed.data
+    return this.db
+      .transaction()
+      .execute((tx) => this.saveInTransaction(tx, input, actor, requestId))
+  }
+
+  private async saveInTransaction(
+    tx: Transaction<DB>,
+    input: z.infer<typeof definitionInput>,
+    actor: ApprovalActor,
+    requestId: string,
+  ) {
+    await sql`SELECT pg_advisory_xact_lock(hashtextextended('rpt:definition:save',0))`.execute(
+      tx,
+    )
+    const existing = await tx
+      .selectFrom('rpt_definitions')
+      .selectAll()
+      .where('id', '=', input.subjectId)
+      .forUpdate()
+      .executeTakeFirst()
+    if (
+      (existing ? String(existing.revision) : null) !== input.expectedRevision
+    )
+      throw new RptApplicationError('rpt_revision_conflict')
+    let code = existing?.code
+    if (!code) {
+      const counter = await sql<{
+        value: string
+      }>`UPDATE rpt_code_counter SET next_value=next_value+1 WHERE key='definition' RETURNING (next_value-1)::text value`.execute(
+        tx,
+      )
+      code = `rpt-${counter.rows[0]!.value.padStart(6, '0')}`
+      if (!/^rpt-[0-9]{6}$/.test(code))
+        throw new RptApplicationError('rpt_code_exhausted')
+    }
+    const revision = String(BigInt(existing?.revision ?? 0) + 1n)
+    const definition = { ...input, code, revision }
+    try {
+      await this.validator.validate(definition)
+    } catch {
+      throw new RptApplicationError('rpt_definition_invalid_data')
+    }
+    const now = new Date()
+    const values = {
+      name: input.name,
+      description: input.description,
+      enabled: input.enabled,
+      sql_text: input.sql,
+      parameters: json(input.parameters),
+      columns: json(input.columns),
+      revision,
+      validity: 'VALID',
+      diagnostic: null,
+      updated_at: now,
+      updated_by: actor.id,
+    }
+    const row = existing
+      ? await tx
+          .updateTable('rpt_definitions')
+          .set(values)
+          .where('id', '=', input.subjectId)
+          .returningAll()
+          .executeTakeFirstOrThrow()
+      : await tx
+          .insertInto('rpt_definitions')
+          .values({
+            ...values,
+            id: input.subjectId,
+            code,
+            created_at: now,
+            created_by: actor.id,
+          })
+          .returningAll()
+          .executeTakeFirstOrThrow()
+    await tx
+      .insertInto('rpt_definition_audits')
+      .values({
+        id: ulid(),
+        definition_id: row.id,
+        revision,
+        actor_id: actor.id,
+        request_id: requestId,
+        created_at: now,
+      })
+      .execute()
+    await this.syncPermissions(tx, row.code, row.name, row.enabled, actor.id)
+    return this.projectDefinition(row)
+  }
+
+  async initializeDepartmentReports(
+    actor: ApprovalActor,
+  ): Promise<'created' | 'unchanged'> {
+    requirePermission(actor, '/rpt/definition/save')
     return this.db.transaction().execute(async (tx) => {
       await sql`SELECT pg_advisory_xact_lock(hashtextextended('rpt:definition:save',0))`.execute(
         tx,
       )
+      const key = 'department-reports-v1'
+      if (
+        await tx
+          .selectFrom('app_seed_runs')
+          .select('key')
+          .where('key', '=', key)
+          .executeTakeFirst()
+      )
+        return 'unchanged'
       const existing = await tx
         .selectFrom('rpt_definitions')
-        .selectAll()
-        .where('id', '=', input.subjectId)
-        .forUpdate()
-        .executeTakeFirst()
-      if (
-        (existing ? String(existing.revision) : null) !== input.expectedRevision
-      )
-        throw new RptApplicationError('rpt_revision_conflict')
-      let code = existing?.code
-      if (!code) {
-        const counter = await sql<{
-          value: string
-        }>`UPDATE rpt_code_counter SET next_value=next_value+1 WHERE key='definition' RETURNING (next_value-1)::text value`.execute(
-          tx,
-        )
-        code = `rpt-${counter.rows[0]!.value.padStart(6, '0')}`
-        if (!/^rpt-[0-9]{6}$/.test(code))
-          throw new RptApplicationError('rpt_code_exhausted')
-      }
-      const revision = String(BigInt(existing?.revision ?? 0) + 1n)
-      const definition = { ...input, code, revision }
-      try {
-        await this.validator.validate(definition)
-      } catch {
-        throw new RptApplicationError('rpt_definition_invalid_data')
-      }
-      const now = new Date()
-      const values = {
-        name: input.name,
-        description: input.description,
-        enabled: input.enabled,
-        sql_text: input.sql,
-        parameters: json(input.parameters),
-        columns: json(input.columns),
-        revision,
-        validity: 'VALID',
-        diagnostic: null,
-        updated_at: now,
-        updated_by: actor.id,
-      }
-      const row = existing
-        ? await tx
-            .updateTable('rpt_definitions')
-            .set(values)
-            .where('id', '=', input.subjectId)
-            .returningAll()
-            .executeTakeFirstOrThrow()
-        : await tx
-            .insertInto('rpt_definitions')
-            .values({
-              ...values,
-              id: input.subjectId,
-              code,
-              created_at: now,
-              created_by: actor.id,
-            })
-            .returningAll()
-            .executeTakeFirstOrThrow()
-      await tx
-        .insertInto('rpt_definition_audits')
-        .values({
-          id: ulid(),
-          definition_id: row.id,
-          revision,
-          actor_id: actor.id,
-          request_id: requestId,
-          created_at: now,
-        })
+        .select(['id', 'name'])
         .execute()
-      await this.syncPermissions(tx, row.code, row.name, row.enabled, actor.id)
-      return this.projectDefinition(row)
+      if (
+        departmentReports.some((report) =>
+          existing.some(
+            (row) => row.id === report.subjectId || row.name === report.name,
+          ),
+        )
+      )
+        throw new Error('department report baseline conflicts')
+      for (const report of departmentReports) {
+        await this.saveInTransaction(
+          tx,
+          {
+            subjectId: report.subjectId,
+            expectedRevision: null,
+            name: report.name,
+            description: '部门初始报表',
+            enabled: true,
+            sql: report.sql,
+            parameters: [...report.parameters],
+            columns: [...report.columns],
+          },
+          actor,
+          'department-report-seed',
+        )
+      }
+      await tx.insertInto('app_seed_runs').values({ key }).execute()
+      return 'created'
     })
   }
 
@@ -682,9 +762,37 @@ export class RptService {
     }
   }
 
+  private async executionAccess(
+    definition: RptDefinition,
+    actor: ApprovalActor,
+  ) {
+    const access = await customerAccess(this.db, actor)
+    if (access.scope !== 'ALL') {
+      const reviewed = departmentReports.find(
+        (report) =>
+          report.subjectId === definition.subjectId &&
+          report.customerScoped &&
+          report.sql === definition.sql,
+      )
+      if (!reviewed) throw new SessionError('forbidden')
+    }
+    return access
+  }
+
   async directory(actor: ApprovalActor) {
     const definitions = await this.enabledDefinitions(this.db)
+    const access = await customerAccess(this.db, actor)
     return definitions
+      .filter(
+        (definition) =>
+          access.scope === 'ALL' ||
+          departmentReports.some(
+            (report) =>
+              report.subjectId === definition.subjectId &&
+              report.customerScoped &&
+              report.sql === definition.sql,
+          ),
+      )
       .filter(
         (definition) =>
           actor.trusted === true ||
@@ -715,7 +823,12 @@ export class RptService {
     if (input.page < 1 || input.pageSize < 1 || input.pageSize > 100)
       throw new RptApplicationError('rpt_pagination_invalid')
     const definition = await this.definitionByCode(this.db, code)
-    const statement = bindStatement(definition, input.parameters)
+    const statement = bindStatement(
+      definition,
+      input.parameters,
+      undefined,
+      await this.executionAccess(definition, actor),
+    )
     const offset = (input.page - 1) * input.pageSize
     const fetchedRows = await this.db
       .transaction()
@@ -726,7 +839,12 @@ export class RptService {
         await sql`SET LOCAL idle_in_transaction_session_timeout = '15s'`.execute(
           tx,
         )
-        await this.assertReferenceParameters(tx, definition, input.parameters)
+        await this.assertReferenceParameters(
+          tx,
+          definition,
+          input.parameters,
+          actor,
+        )
         const result = await sql<
           Record<string, unknown>
         >`SELECT * FROM (${statement}) AS report_result LIMIT ${input.pageSize + 1} OFFSET ${offset}`.execute(
@@ -737,7 +855,8 @@ export class RptService {
       })
       .catch(async (error) => {
         await this.invalidate(definition, error)
-        throw error instanceof RptApplicationError
+        throw error instanceof RptApplicationError ||
+          error instanceof SessionError
           ? error
           : new RptApplicationError('rpt_execution_failed')
       })
@@ -768,7 +887,12 @@ export class RptService {
   ) {
     requirePermission(actor, `/rpt/${code}/export`)
     const definition = await this.definitionByCode(this.db, code)
-    const statement = bindStatement(definition, parameters)
+    const statement = bindStatement(
+      definition,
+      parameters,
+      undefined,
+      await this.executionAccess(definition, actor),
+    )
     const rows = await this.db
       .transaction()
       .execute(async (tx) => {
@@ -778,7 +902,7 @@ export class RptService {
         await sql`SET LOCAL idle_in_transaction_session_timeout = '35s'`.execute(
           tx,
         )
-        await this.assertReferenceParameters(tx, definition, parameters)
+        await this.assertReferenceParameters(tx, definition, parameters, actor)
         const result = await sql<
           Record<string, unknown>
         >`SELECT * FROM (${statement}) AS report_result LIMIT 100001`.execute(
@@ -791,7 +915,8 @@ export class RptService {
       })
       .catch(async (error) => {
         await this.invalidate(definition, error)
-        throw error instanceof RptApplicationError
+        throw error instanceof RptApplicationError ||
+          error instanceof SessionError
           ? error
           : new RptApplicationError('rpt_execution_failed')
       })
@@ -819,6 +944,7 @@ export class RptService {
       page: number
       pageSize: number
     },
+    actor: ApprovalActor,
   ): Promise<RptReferencePage> {
     if (
       !/^[a-z][a-zA-Z0-9]{0,63}$/.test(input.parameterKey) ||
@@ -858,11 +984,23 @@ export class RptService {
     if (!source) throw new RptApplicationError('rpt_reference_unavailable')
     const keyword = input.keyword?.trim()
     const selectedId = input.selectedId?.trim()
-    const filter = selectedId
+    const identityFilter = selectedId
       ? sql`id = ${selectedId}`
       : keyword
         ? sql`(code ILIKE ${`%${keyword}%`} OR name ILIKE ${`%${keyword}%`})`
         : sql`TRUE`
+    const access = await customerAccess(this.db, actor)
+    const scopeFilter =
+      parameter.referenceType === 'CUSTOMER'
+        ? customerPredicate(access, sql`reference_candidate.id`)
+        : parameter.referenceType === 'COUNTERPARTY'
+          ? sql`(entity <> 'customer' OR ${customerPredicate(access, sql`reference_candidate.object_id`)})`
+          : sql`true`
+    const bookFilter =
+      parameter.referenceType === 'ACCOUNTING_BOOK' && !actor.trusted
+        ? sql`EXISTS (SELECT 1 FROM acc_book_access scope_book WHERE scope_book.book_id = reference_candidate.id AND scope_book.user_id = ${actor.id} AND scope_book.can_query)`
+        : sql`true`
+    const filter = sql`${identityFilter} AND ${scopeFilter} AND ${bookFilter}`
     const offset = (input.page - 1) * input.pageSize
     const page = await this.db.transaction().execute(async (tx) => {
       await sql`SET LOCAL TRANSACTION READ ONLY`.execute(tx)
@@ -1075,11 +1213,22 @@ export class RptService {
     executor: Executor,
     definition: RptDefinition,
     values: Record<string, unknown>,
+    actor: ApprovalActor,
   ): Promise<void> {
     for (const parameter of definition.parameters) {
       if (parameter.type !== 'REFERENCE' || !parameter.referenceType) continue
       const value = normalizeRptParameter(parameter, values[parameter.key])
       if (value === null) continue
+      if (parameter.referenceType === 'ACCOUNTING_BOOK' && !actor.trusted) {
+        const allowed = await executor
+          .selectFrom('acc_book_access')
+          .select('book_id')
+          .where('book_id', '=', String(value))
+          .where('user_id', '=', actor.id)
+          .where('can_query', '=', true)
+          .executeTakeFirst()
+        if (!allowed) throw new SessionError('forbidden')
+      }
       if (
         parameter.referenceType === 'ASSET' ||
         parameter.referenceType === 'BILL'

@@ -2,7 +2,7 @@
 
 初始化与验证命令见[根 README](../../README.md)。
 
-- [正式初始化与空业务基线](formal-initialization.md)
+- [正式初始化与数据库 seed](formal-initialization.md)
 
 - [ZERP 前端 API 配置](frontend-api-configuration.md)
 

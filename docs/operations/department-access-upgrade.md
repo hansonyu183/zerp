@@ -4,7 +4,7 @@
 
 1. 只读核对 Compose 项目、容器和数据库、当前完整 SHA、角色、用户关联与报表。先完成测试及候选 API/Web 同 SHA 镜像构建，保留当前镜像。生产环境文件、数据库转储和凭证不得输出或提交。
 2. 停止目标 API/Web，确认没有其他写入方；在仓库忽略的受控目录保存 `pg_dump -Fc`，用 `pg_restore --list` 验证转储可读。记录升级前业务表行数及账号、授权指纹。
-3. 使用候选 API 镜像和正式受控环境运行 `node apps/api/scripts/upgrade-department-access.ts`。命令要求显式 `TARGET_DATABASE_URL` 和 `TARGET_DATABASE_SCOPE=production`；在一个事务中增加用户员工关联 FK、角色客户范围、seed 完成表与下载 token 所有者。无法归属的既有短期下载 token 被撤销，需要重新申请；附件和业务单据保留。
+3. 使用候选 API 镜像和正式受控环境运行 `pnpm --filter @zerp/api exec node scripts/upgrade-department-access.ts`。命令要求显式 `TARGET_DATABASE_URL` 和 `TARGET_DATABASE_SCOPE=production`；在一个事务中增加用户员工关联 FK、角色客户范围、seed 完成表与下载 token 所有者。无法归属的既有短期下载 token 被撤销，需要重新申请；附件和业务单据保留。
 4. 使用正式 Compose 依次运行目录同步、管理员初始化、数据库 seed，再启动同 SHA API/Web。seed 顺序是内账、4 个报表、12 个角色；任何失败保持入口关闭。不得运行清库或 E2E 初始化。
 5. 回读角色共 13 个、部门报表 4 个、两条 seed 完成记录、业务行数和账号/既有授权；重复 seed 验证 `unchanged`。检查容器 SHA、健康及公网 `/readyz`。客户范围和操作权限各自检查，账簿查询仍需单独授权。
 6. 失败时保持入口关闭。DDL 失败由事务回滚；若已提交且候选不能运行，在确认无新业务写入后，从验证过的转储恢复目标数据库并启动先前同 SHA API/Web，复核业务基线。恢复工件仅用于运维恢复。

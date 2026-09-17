@@ -158,6 +158,12 @@ test('production compose runs the Hono topology after catalog and formal initial
   assert.match(productionTopology, /pnpm', 'sync:catalog/)
   assert.match(productionTopology, /admin-initialize/)
   assert.match(productionTopology, /pnpm', 'initialize:admin/)
+  assert.match(productionCompose, /api:[\s\S]*depends_on:\s+database-seed:/)
+  assert.match(
+    productionCompose,
+    /database-seed:[\s\S]*command: \['pnpm', 'seed'\][\s\S]*depends_on:\s+admin-initialize:/,
+  )
+  assert.match(apiPackage, /"seed": "node scripts\/seed-database\.ts"/)
   assert.match(productionTopology, /APP_ADMIN_1_USERNAME:/)
   assert.match(productionTopology, /APP_ADMIN_1_DISPLAY_NAME:/)
   assert.match(

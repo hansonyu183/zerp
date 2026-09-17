@@ -21,6 +21,7 @@
     "check:catalog": "node scripts/check-target-catalog.ts",
     "validate:rpt": "node scripts/validate-rpt-definitions.ts",
     "initialize:admin": "node scripts/initialize-admin.ts",
+    "seed": "node scripts/seed-database.ts",
     "sync:catalog": "node scripts/sync-target-catalog.ts",
     "e2e": "node scripts/run-target-e2e.ts",
     "e2e:vou-catalog": "node scripts/run-vou-catalog-e2e.mjs",

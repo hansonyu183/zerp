@@ -12,7 +12,7 @@ services:
     ports:
       - '127.0.0.1:${API_PORT:-8080}:8080'
     depends_on:
-      admin-initialize:
+      database-seed:
         condition: service_completed_successfully
     labels:
       io.zerp.release: ${ZERP_RELEASE_SHA:?set ZERP_RELEASE_SHA}
@@ -43,6 +43,21 @@ services:
       - admin-2-password
     depends_on:
       catalog-sync:
+        condition: service_completed_successfully
+    labels:
+      io.zerp.release: ${ZERP_RELEASE_SHA:?set ZERP_RELEASE_SHA}
+
+  database-seed:
+    image: ${ZERP_API_IMAGE:?set ZERP_API_IMAGE}
+    restart: 'no'
+    command: ['pnpm', 'seed']
+    environment:
+      TARGET_DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable
+      TARGET_DATABASE_SCOPE: production
+      APP_ADMIN_1_USERNAME: ${APP_ADMIN_1_USERNAME:?set APP_ADMIN_1_USERNAME}
+      APP_ADMIN_2_USERNAME: ${APP_ADMIN_2_USERNAME:?set APP_ADMIN_2_USERNAME}
+    depends_on:
+      admin-initialize:
         condition: service_completed_successfully
     labels:
       io.zerp.release: ${ZERP_RELEASE_SHA:?set ZERP_RELEASE_SHA}

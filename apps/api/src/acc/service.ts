@@ -28,6 +28,7 @@ import type {
   PlanExecutor,
 } from '../platform/transaction-coordinator.ts'
 import { readVouPersistence } from '../vou/service.ts'
+import { internalBookId, internalBookSubjects } from './internal-book-seed.ts'
 import { lockAccountingPeriod } from './period-lock.ts'
 
 type Executor = Kysely<DB> | Transaction<DB>
@@ -1820,52 +1821,122 @@ export class AccService
 
   async createBook(input: AccBookInput, actor: ApprovalActor) {
     requirePermission(actor, '/acc/book/create')
+    return this.db
+      .transaction()
+      .execute((tx) =>
+        this.createBookInTransaction(
+          tx,
+          input,
+          actor,
+          accSubjectTemplates[input.subjectTemplate],
+        ),
+      )
+  }
+
+  /** Formal database seed; all book facts commit together and are never reset on restart. */
+  async initializeInternalBook(
+    administratorUsernames: readonly string[],
+  ): Promise<'created' | 'unchanged'> {
     return this.db.transaction().execute(async (tx) => {
       await sql`SELECT pg_advisory_xact_lock(hashtextextended('acc:book-code', 0))`.execute(
         tx,
       )
-      const latest = await tx
+      const existing = await tx
         .selectFrom('acc_books')
-        .select('code')
-        .orderBy('code', 'desc')
+        .select('id')
+        .where('id', '=', internalBookId)
         .executeTakeFirst()
-      const sequence = latest ? Number(latest.code.slice(4)) + 1 : 1
-      if (!Number.isSafeInteger(sequence) || sequence > 9999)
-        throw new AccApplicationError('acc_book_code_exhausted')
-      const code = `ACC-${String(sequence).padStart(4, '0')}`
-      const controlBook = latest === undefined
-      const now = new Date()
-      await tx
-        .insertInto('acc_books')
-        .values({
-          id: input.id,
-          code,
-          name: input.name.trim(),
-          description: input.description.trim(),
-          start_month: input.startMonth,
-          base_currency: input.baseCurrency,
-          control_book: controlBook,
-          created_at: now,
-          created_by: actor.id,
-          updated_at: now,
-          updated_by: actor.id,
-        })
+      if (existing) return 'unchanged'
+      if (await tx.selectFrom('acc_books').select('id').executeTakeFirst())
+        throw new Error('internal book seed requires an empty book baseline')
+      const usernames = administratorUsernames.map((value) =>
+        value.trim().toLowerCase(),
+      )
+      if (
+        usernames.length !== 2 ||
+        new Set(usernames).size !== 2 ||
+        usernames.some((value) => !value)
+      )
+        throw new Error(
+          'internal book seed requires two configured administrators',
+        )
+      const users = await tx
+        .selectFrom('app_users as u')
+        .innerJoin('app_user_roles as ur', 'ur.user_id', 'u.id')
+        .innerJoin('app_roles as r', 'r.id', 'ur.role_id')
+        .select(['u.id', 'u.username'])
+        .where('u.username', 'in', usernames)
+        .where('u.status', '=', 'ENABLED')
+        .where('r.status', '=', 'ENABLED')
+        .where('r.code', '=', 'superadmin')
+        .forShare('u')
+        .forShare('r')
         .execute()
-      const access = this.bookAccessMap(
-        input.queryUserIds,
-        input.operateUserIds,
+      if (users.length !== 2)
+        throw new Error('internal book seed administrators unavailable')
+      const ids = usernames.map(
+        (username) => users.find((user) => user.username === username)!.id,
       )
-      access.set(actor.id, { canQuery: true, canOperate: true })
-      await this.replaceBookAccess(tx, input.id, access)
-      await this.copySubjectTemplate(
+      await this.createBookInTransaction(
         tx,
-        input.id,
-        input.subjectTemplate,
-        actor.id,
-        now,
+        {
+          id: internalBookId,
+          name: '内账',
+          description: '参考财务资料导入模板初始化的内部会计账簿',
+          startMonth: '2026-01',
+          baseCurrency: 'CNY',
+          subjectTemplate: 'EMPTY',
+          queryUserIds: ids,
+          operateUserIds: ids,
+        },
+        { id: ids[0]!, permissions: [], trusted: true },
+        internalBookSubjects,
       )
-      return this.readBookView(tx, input.id)
+      return 'created'
     })
+  }
+
+  private async createBookInTransaction(
+    tx: Transaction<DB>,
+    input: AccBookInput,
+    actor: ApprovalActor,
+    subjects: readonly AccSubjectTemplateLine[],
+  ) {
+    await sql`SELECT pg_advisory_xact_lock(hashtextextended('acc:book-code', 0))`.execute(
+      tx,
+    )
+    const latest = await tx
+      .selectFrom('acc_books')
+      .select('code')
+      .orderBy('code', 'desc')
+      .executeTakeFirst()
+    const sequence = latest ? Number(latest.code.slice(4)) + 1 : 1
+    if (!Number.isSafeInteger(sequence) || sequence > 9999)
+      throw new AccApplicationError('acc_book_code_exhausted')
+    const code = `ACC-${String(sequence).padStart(4, '0')}`
+    const controlBook = latest === undefined
+    const now = new Date()
+    await tx
+      .insertInto('acc_books')
+      .values({
+        id: input.id,
+        code,
+        name: input.name.trim(),
+        description: input.description.trim(),
+        start_month: input.startMonth,
+        base_currency: input.baseCurrency,
+        control_book: controlBook,
+        created_at: now,
+        created_by: actor.id,
+        updated_at: now,
+        updated_by: actor.id,
+      })
+      .execute()
+    const access = this.bookAccessMap(input.queryUserIds, input.operateUserIds)
+    access.set(actor.id, { canQuery: true, canOperate: true })
+    await this.replaceBookAccess(tx, input.id, access)
+    await this.copySubjects(tx, input.id, subjects, actor.id, now)
+    return this.readBookView(tx, input.id)
   }
 
   async grantBookAccess(
@@ -3620,15 +3691,15 @@ export class AccService
         .execute()
   }
 
-  private async copySubjectTemplate(
+  private async copySubjects(
     tx: Transaction<DB>,
     bookId: string,
-    template: AccBookTemplate,
+    subjects: readonly AccSubjectTemplateLine[],
     actorId: string,
     now: Date,
   ) {
     const ids = new Map<string, string>()
-    for (const line of accSubjectTemplates[template]) {
+    for (const line of subjects) {
       validateAccSubjectAttributes(line)
       const parentId = line.parentCode ? ids.get(line.parentCode) : undefined
       if (line.parentCode && !parentId)

@@ -28,11 +28,14 @@ test('database seed is atomic, concurrent-safe and preserves subsequent book mai
   url.pathname = `/${databaseName}`
   const db = createDatabase(url.toString())
   context.after(async () => {
-    await db.destroy()
-    await sql
-      .raw(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`)
-      .execute(owner)
-    await owner.destroy()
+    try {
+      await db.destroy()
+      // Pool shutdown can precede the socket end callback. Let PostgreSQL wait
+      // for graceful disconnect instead of sending an error to a closing client.
+      await sql.raw(`DROP DATABASE IF EXISTS "${databaseName}"`).execute(owner)
+    } finally {
+      await owner.destroy()
+    }
   })
   await sql.raw(`CREATE DATABASE "${databaseName}"`).execute(owner)
   const schema = await readFile(

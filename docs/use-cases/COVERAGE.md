@@ -6,9 +6,9 @@
 
 统计口径：每个带 `meta.title` 的正式 target 路由必须声明 `meta.useCaseKey`；全部正式 Registry 登记计入分母，缺少 `useCaseKey` 直接失败；多个入口允许共享有实际场景覆盖的用例。VOU/RPT 动态家族不展开参数，layout 与重定向不单独计数。
 
-- 页面入口：38
-- 已覆盖入口：38
-- 已登记唯一用例：28
+- 页面入口：47
+- 已覆盖入口：47
+- 已登记唯一用例：30
 - 缺少用例：0
 - 孤儿用例：0
 
@@ -23,6 +23,22 @@
 | 页面不存在 | `/:pathMatch(.*)*` | [目标路由](../../frontend/src/target/router/index.ts)        | [已文档化](app/not-found.md)         |
 | app/user   | `/app/user`        | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](app/access-management.md) |
 | app/role   | `/app/role`        | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](app/access-management.md) |
+
+## RPT
+
+| 页面           | 路由              | 来源                                                         | 状态                                      |
+| -------------- | ----------------- | ------------------------------------------------------------ | ----------------------------------------- |
+| rpt/definition | `/rpt/definition` | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](rpt/definition-maintenance.md) |
+| rpt/:code      | `/rpt/:code`      | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](rpt/report-query.md)           |
+
+## ACC
+
+| 页面        | 路由           | 来源                                                         | 状态                                   |
+| ----------- | -------------- | ------------------------------------------------------------ | -------------------------------------- |
+| acc/period  | `/acc/period`  | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](acc/book-subject-period.md) |
+| acc/book    | `/acc/book`    | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](acc/book-subject-period.md) |
+| acc/subject | `/acc/subject` | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](acc/book-subject-period.md) |
+| acc/mapping | `/acc/mapping` | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](acc/mapping-management.md)  |
 
 ## VOU
 
@@ -42,27 +58,26 @@
 | wfl/process-instance   | `/wfl/process-instance`   | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](wfl/process-instance.md)   |
 | wfl/process-definition | `/wfl/process-definition` | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](wfl/process-definition.md) |
 
-## ACC
-
-| 页面        | 路由           | 来源                                                         | 状态                                  |
-| ----------- | -------------- | ------------------------------------------------------------ | ------------------------------------- |
-| acc/mapping | `/acc/mapping` | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](acc/mapping-management.md) |
-
 ## AUX
 
-| 页面                  | 路由                     | 来源                                                         | 状态                                  |
-| --------------------- | ------------------------ | ------------------------------------------------------------ | ------------------------------------- |
-| aux/employee-category | `/aux/employee-category` | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
-| aux/position          | `/aux/position`          | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
-| aux/measurement-unit  | `/aux/measurement-unit`  | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
-| aux/payment-method    | `/aux/payment-method`    | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
-| aux/asset-category    | `/aux/asset-category`    | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
-| aux/tax-information   | `/aux/tax-information`   | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
-| aux/operating-entity  | `/aux/operating-entity`  | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/people-maintenance.md) |
-| aux/employee          | `/aux/employee`          | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/people-maintenance.md) |
-| aux/warehouse         | `/aux/warehouse`         | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/assets-maintenance.md) |
-| aux/fund-account      | `/aux/fund-account`      | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/assets-maintenance.md) |
-| aux/vehicle           | `/aux/vehicle`           | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/assets-maintenance.md) |
+| 页面                    | 路由                       | 来源                                                         | 状态                                  |
+| ----------------------- | -------------------------- | ------------------------------------------------------------ | ------------------------------------- |
+| aux/department          | `/aux/department`          | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/product-category    | `/aux/product-category`    | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/dictionary-type     | `/aux/dictionary-type`     | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/dictionary-item     | `/aux/dictionary-item`     | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/income-expense-type | `/aux/income-expense-type` | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/employee-category   | `/aux/employee-category`   | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/position            | `/aux/position`            | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/measurement-unit    | `/aux/measurement-unit`    | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/payment-method      | `/aux/payment-method`      | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/asset-category      | `/aux/asset-category`      | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/tax-information     | `/aux/tax-information`     | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/operating-entity    | `/aux/operating-entity`    | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/people-maintenance.md) |
+| aux/employee            | `/aux/employee`            | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/people-maintenance.md) |
+| aux/warehouse           | `/aux/warehouse`           | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/assets-maintenance.md) |
+| aux/fund-account        | `/aux/fund-account`        | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/assets-maintenance.md) |
+| aux/vehicle             | `/aux/vehicle`             | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/assets-maintenance.md) |
 
 ## DCL
 
@@ -83,9 +98,3 @@
 | bob/supplier      | `/bob/supplier`      | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](bob/supplier-management.md)      |
 | bob/other-unit    | `/bob/other-unit`    | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](bob/other-unit-management.md)    |
 | bob/sales-partner | `/bob/sales-partner` | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](bob/sales-partner-management.md) |
-
-## RPT
-
-| 页面      | 路由         | 来源                                                         | 状态                            |
-| --------- | ------------ | ------------------------------------------------------------ | ------------------------------- |
-| rpt/:code | `/rpt/:code` | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](rpt/report-query.md) |

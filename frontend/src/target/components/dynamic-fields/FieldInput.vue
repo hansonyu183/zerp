@@ -56,7 +56,11 @@ function update(value: unknown) {
 }
 
 const selectItems = computed(() => {
-  if (props.field.type === 'enum' || props.field.type === 'choice')
+  if (
+    props.field.type === 'enum' ||
+    props.field.type === 'multi-enum' ||
+    props.field.type === 'choice'
+  )
     return props.field.options.map((option) => ({
       title: option.caption,
       value: option.value,
@@ -152,17 +156,29 @@ function scalarValue(value: unknown): unknown {
     v-else-if="
       field.type === 'boolean' ||
       field.type === 'enum' ||
+      field.type === 'multi-enum' ||
       field.type === 'choice'
     "
     :model-value="modelValue"
     :data-testid="`field-${field.key}`"
     :label="field.caption"
     :items="selectItems"
-    :multiple="field.type === 'choice' && field.multiple"
+    :multiple="
+      field.type === 'multi-enum' || (field.type === 'choice' && field.multiple)
+    "
     :disabled="inputDisabled"
     hide-details
     :clearable="clearable ?? usage === 'filter'"
-    @update:model-value="update($event ?? (field.type === 'enum' ? '' : null))"
+    @update:model-value="
+      update(
+        $event ??
+          (field.type === 'multi-enum'
+            ? []
+            : field.type === 'enum'
+              ? ''
+              : null),
+      )
+    "
   />
   <v-text-field
     class="form-control"

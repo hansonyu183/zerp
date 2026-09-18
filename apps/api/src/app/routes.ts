@@ -799,6 +799,8 @@ export function registerAppRoutes(
             input,
           )
         if (action === 'bookOptions') return acc.bookOptions(input, actor)
+        if (action === 'subjectParentOptions')
+          return acc.subjectParentOptions(input, actor)
         if (action === 'subjectOptions') return acc.subjectOptions(input, actor)
         if (action === 'bookQuery') return acc.queryBooks(input, actor)
         if (action === 'bookGet') return acc.getBook(input.id, actor)
@@ -885,6 +887,8 @@ export function registerAppRoutes(
       )
       const response = await executeCore<unknown>(context, (actor) => {
         if (action === 'directory') return rpt.directory(actor)
+        if (action === 'definitionQuery')
+          return rpt.queryDefinitions(input, actor)
         if (action === 'get') return rpt.get(input.subjectId, actor)
         if (action === 'save')
           return rpt.save(input, actor, currentRequestId(context))

@@ -123,6 +123,10 @@ async function fixture(context: TestContext) {
           .deleteFrom('aux_objects')
           .where('created_by', '=', actorId)
           .execute()
+        await tx
+          .deleteFrom('app_audit_events')
+          .where('actor_user_id', '=', actorId)
+          .execute()
         await tx.deleteFrom('app_users').where('id', '=', actorId).execute()
       })
     } finally {
@@ -434,6 +438,11 @@ test('RPT deterministic schema drift stops current execution; a validated correc
     'INVALID',
   )
   assert.deepEqual(await service.directory(reader), [])
+  const invalid = await service.queryDefinitions(
+    { keyword: current.code, validity: 'INVALID', page: 1, pageSize: 20 },
+    { ...actor, permissions: [...actor.permissions, '/rpt/definition/query'] },
+  )
+  assert.equal(invalid.items[0]?.subjectId, current.subjectId)
   const repaired = await service.save(
     {
       ...command,
@@ -487,7 +496,11 @@ test('RPT HTTP uses current contracts and exact grants; removed DCL routes are a
       )
       .execute()
   }
-  await grant(['/rpt/definition/save', '/rpt/definition/get'])
+  await grant([
+    '/rpt/definition/query',
+    '/rpt/definition/save',
+    '/rpt/definition/get',
+  ])
   const config = loadConfig({
     DATABASE_URL: databaseUrl,
     TARGET_DATABASE_SCOPE: process.env.TARGET_DATABASE_SCOPE,
@@ -527,7 +540,20 @@ test('RPT HTTP uses current contracts and exact grants; removed DCL routes are a
   assert.equal(saved.code, 0)
   assert.equal(saved.data.revision, '1')
   assert.equal('approvalEntryId' in saved.data, false)
+  const listed = await post('/rpt/definition/query', {
+    keyword: saved.data.code,
+    page: 1,
+    pageSize: 20,
+  })
+  assert.equal(listed.code, 0)
+  assert.equal(listed.data.items[0].subjectId, saved.data.subjectId)
+  assert.equal('sql' in listed.data.items[0], false)
+  assert.deepEqual(listed.data.items[0].availableActions, ['get', 'save'])
   await grant([`/rpt/${saved.data.code}/query`])
+  assert.equal(
+    (await post('/rpt/definition/query', { page: 1, pageSize: 20 })).errorKey,
+    'rpt_permission_denied',
+  )
   const directory = await (
     await app.request('/rpt/directory/options', {
       headers: { cookie: headers.cookie, 'x-zerp-model-build': modelBuildId },
@@ -831,5 +857,64 @@ test('RPT auxiliary HTTP reads need only Session, paginate controlled candidates
   assert.equal(
     (await get('parameterKey=department')).errorKey,
     'rpt_definition_not_executable',
+  )
+})
+
+test('RPT maintenance directory paginates all definitions without SQL and separates exact grants', async (context) => {
+  const { service, actor, input } = await fixture(context)
+  const prefix = `维护${ulid()}`
+  const maintainer = {
+    ...actor,
+    permissions: [...actor.permissions, '/rpt/definition/query'],
+  }
+  const saved = []
+  for (let index = 0; index < 21; index++)
+    saved.push(
+      await service.save(
+        { ...input(), name: `${prefix}-${index}`, enabled: index !== 20 },
+        maintainer,
+        'maintenance-create',
+      ),
+    )
+  const first = await service.queryDefinitions(
+    { keyword: prefix, page: 1, pageSize: 20 },
+    maintainer,
+  )
+  assert.equal(first.total, 21)
+  assert.equal(first.items.length, 20)
+  assert.equal('sql' in first.items[0]!, false)
+  assert.deepEqual(first.items[0]!.availableActions, ['get', 'save'])
+  const last = await service.queryDefinitions(
+    { keyword: prefix, page: 2, pageSize: 20 },
+    maintainer,
+  )
+  assert.equal(last.items[0]!.subjectId, saved[20]!.subjectId)
+  const disabled = await service.queryDefinitions(
+    {
+      keyword: prefix,
+      enabled: false,
+      validity: 'VALID',
+      page: 1,
+      pageSize: 20,
+    },
+    { ...actor, permissions: ['/rpt/definition/query'] },
+  )
+  assert.equal(disabled.total, 1)
+  assert.deepEqual(disabled.items[0]!.availableActions, [])
+  assert.deepEqual(
+    (
+      await service.get(saved[0]!.subjectId, {
+        ...actor,
+        permissions: ['/rpt/definition/get'],
+      })
+    ).availableActions,
+    ['get'],
+  )
+  await assert.rejects(
+    service.queryDefinitions(
+      { page: 1, pageSize: 20 },
+      { ...actor, permissions: [`/rpt/${saved[0]!.code}/query`] },
+    ),
+    isError('rpt_permission_denied'),
   )
 })

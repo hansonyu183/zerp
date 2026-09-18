@@ -3,11 +3,11 @@ import { ref, shallowRef, toRaw, type Ref, type ShallowRef } from 'vue'
 export type ListIdentity = {
   id: string
   code: string
-  py: string
   name: string
 }
 
 export type EnabledListItem = ListIdentity & {
+  py: string
   enabled: boolean
 }
 

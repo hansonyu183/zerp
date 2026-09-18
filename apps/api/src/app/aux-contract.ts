@@ -340,6 +340,55 @@ export function auxQueryRoute<const Path extends string>(path: Path) {
   return postRoute(path, queryRequest, page)
 }
 
+export function auxTreeQueryRoute<const Path extends string>(path: Path) {
+  return postRoute(
+    path,
+    queryRequest,
+    page.extend({
+      items: z.array(
+        listItem.extend({
+          parentId: z.string(),
+          parentName: z.string(),
+        }),
+      ),
+    }),
+  )
+}
+export function incomeExpenseTypeQueryRoute<const Path extends string>(
+  path: Path,
+) {
+  return postRoute(
+    path,
+    queryRequest,
+    page.extend({
+      items: z.array(
+        listItem.extend({
+          parentId: z.string(),
+          parentName: z.string(),
+          direction: z.enum(['INCOME', 'EXPENSE']),
+        }),
+      ),
+    }),
+  )
+}
+export function dictionaryItemQueryRoute<const Path extends string>(
+  path: Path,
+) {
+  return postRoute(
+    path,
+    queryRequest.extend({ dictionaryTypeId: identifierShape.id.optional() }),
+    page.extend({
+      items: z.array(
+        listItem.extend({
+          dictionaryTypeId: identifierShape.id,
+          dictionaryTypeName: z.string(),
+          sortOrder: z.number().int(),
+        }),
+      ),
+    }),
+  )
+}
+
 export function measurementUnitQueryRoute<const Path extends string>(
   path: Path,
 ) {

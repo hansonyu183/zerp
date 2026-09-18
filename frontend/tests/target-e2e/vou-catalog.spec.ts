@@ -1,5 +1,6 @@
 import { setDateRange } from './collection-helpers.ts'
 import { expect, test, type Page } from '@playwright/test'
+import { approvalActionPresentation } from '@zerp/model'
 import {
   vouEntities,
   vouEntityPresentation,
@@ -236,3 +237,108 @@ for (const width of [1280, 390])
         ),
       ).toBe(false)
     })
+
+for (const width of [1280, 390])
+  test(`system-generated sales lists from real menus at ${width}px`, async ({
+    page,
+  }, testInfo) => {
+    await signIn(
+      page,
+      process.env.TARGET_E2E_REVIEWER_USERNAME!,
+      process.env.TARGET_E2E_REVIEWER_PASSWORD!,
+    )
+    for (const entity of [
+      'sale-delivery',
+      'sale-outbound',
+      'sale-signoff',
+    ] as const) {
+      // The persistent desktop drawer is the actual menu entry; then inspect the mobile layout.
+      await page.setViewportSize({ width: 1280, height: 900 })
+      await openMenu(page, entity)
+      await page.setViewportSize({ width, height: 900 })
+      const list = page.getByTestId('vou-list-page'),
+        fact = facts[entity]!
+      await expect(list).toContainText('此类型由系统生成，不支持人工新增。')
+      await expect(list).not.toContainText('编辑器尚未实施')
+      await expect(
+        list.getByRole('button', { name: '新增', exact: true }),
+      ).toHaveCount(0)
+      await setDateRange(page, '期间', fact.businessDate, fact.businessDate)
+      await page.getByTestId('more-filters').click()
+      await expect(page.getByLabel('提交日期', { exact: true })).toBeVisible()
+      await expect(page.getByLabel('经办人姓名', { exact: true })).toHaveCount(
+        0,
+      )
+      await expect(page.getByLabel('仓库名称', { exact: true })).toHaveCount(0)
+      await expect(page.getByLabel('相对方名称', { exact: true })).toHaveCount(
+        entity === 'sale-signoff' ? 1 : 0,
+      )
+      await page.getByTestId('more-filters').click()
+      await page.getByLabel('单号', { exact: true }).fill('NO-MATCH-453')
+      await page.getByTestId('list-search').click()
+      await expect(list).toContainText('暂无数据。')
+      await page.getByLabel('单号', { exact: true }).fill(fact.documentNo)
+      const response = page.waitForResponse(
+        (r) =>
+          new URL(r.url()).pathname === `/vou/${entity}/query` &&
+          r.request().postDataJSON()?.filters?.documentNo === fact.documentNo,
+      )
+      await page.getByTestId('list-search').click()
+      const result = await (await response).json()
+      expect(result.code).toBe(0)
+      expect(result.data.total).toBe(1)
+      expect(result.data.items[0].documentId).toBe(fact.documentId)
+      expect(result.data.items[0].handlerName).toBeNull()
+      await expect(list).toContainText(fact.documentNo)
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth > innerWidth,
+        ),
+      ).toBe(false)
+      await page.screenshot({
+        path: testInfo.outputPath(`${entity}-${width}-list.png`),
+        fullPage: true,
+      })
+      const read = page.waitForResponse(
+        (r) => new URL(r.url()).pathname === `/vou/${entity}/get`,
+      )
+      await page
+        .getByTestId(`vou-row-${fact.documentId}`)
+        .getByRole('button', { name: '打开', exact: true })
+        .click()
+      const submitted = (await (await read).json()).data
+      const detail = page.getByTestId('vou-detail')
+      await expect(detail).toContainText('目录只读完整备注')
+      await expect(detail).toContainText('已提交内容只读')
+      await expect(detail).not.toContainText('复制到临时表单')
+      for (const [action, presentation] of Object.entries(
+        approvalActionPresentation,
+      ))
+        await expect(
+          detail.getByRole('button', { name: presentation.label, exact: true }),
+        ).toHaveCount(
+          submitted.availableApprovalActions.includes(action) ? 1 : 0,
+        )
+      if (submitted.availableApprovalActions.includes('unapprove')) {
+        await detail
+          .getByRole('button', { name: '反批准', exact: true })
+          .click()
+        const confirmation = page
+          .getByRole('dialog')
+          .filter({ hasText: '确认对' })
+        await expect(confirmation).toContainText(fact.documentNo)
+        await confirmation
+          .getByRole('button', { name: '取消', exact: true })
+          .click()
+        await expect(confirmation).not.toBeVisible()
+      }
+      await detail
+        .getByText('已提交内容只读', { exact: false })
+        .scrollIntoViewIfNeeded()
+      await page.screenshot({
+        path: testInfo.outputPath(`${entity}-${width}-detail.png`),
+        fullPage: true,
+      })
+      await detail.getByRole('button', { name: '关闭', exact: true }).click()
+    }
+  })

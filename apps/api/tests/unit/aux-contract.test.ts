@@ -677,3 +677,20 @@ test('AUX operating entities and employees expose current CRUD with server-deriv
     ['create', 'employee', employeeInput],
   )
 })
+
+test('dictionary maintenance accepts a stable type filter through HTTP', async () => {
+  principal.apiPaths.push('/aux/dictionary-item/query')
+  const app = appWith({
+    query: async (entity: string, input: unknown) => {
+      assert.equal(entity, 'dictionary-item')
+      assert.deepEqual(input, { dictionaryTypeId: id, page: 1, pageSize: 20 })
+      return { items: [], total: 0, page: 1, pageSize: 20 }
+    },
+  } as unknown as AuxService)
+  const result = await post(app, '/aux/dictionary-item/query', {
+    dictionaryTypeId: id,
+    page: 1,
+    pageSize: 20,
+  })
+  assert.equal(result.code, 0)
+})

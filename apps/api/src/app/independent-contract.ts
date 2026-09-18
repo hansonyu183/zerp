@@ -21,6 +21,9 @@ import {
   employeeGetRoute,
   fundAccountGetRoute,
   auxQueryRoute,
+  auxTreeQueryRoute,
+  incomeExpenseTypeQueryRoute,
+  dictionaryItemQueryRoute,
   measurementUnitQueryRoute,
   auxOptionsRoute,
   auxRouteBinding,
@@ -240,6 +243,20 @@ const userResetPassword = postRoute(
 export const roleOptionsInput = optionPageInput.extend({
   ids: optionIds.optional(),
 })
+const userOptions = auxiliaryRoute(
+  '/app/user/options',
+  roleOptionsInput,
+  optionPage(
+    z
+      .object({
+        id: z.string(),
+        code: z.string(),
+        name: z.string(),
+        enabled: z.boolean(),
+      })
+      .strict(),
+  ),
+)
 const roleOptions = auxiliaryRoute(
   '/app/role/options',
   roleOptionsInput,
@@ -618,6 +635,14 @@ export function registerIndependentRoutes(
       handler: handlers.auxOptions('employee-category'),
     },
     {
+      route: auxOptionsRoute('dictionary-type'),
+      handler: handlers.auxOptions('dictionary-type'),
+    },
+    {
+      route: auxOptionsRoute('income-expense-type'),
+      handler: handlers.auxOptions('income-expense-type'),
+    },
+    {
       route: auxOptionsRoute('department'),
       handler: handlers.auxOptions('department'),
     },
@@ -669,6 +694,7 @@ export function registerIndependentRoutes(
     { route: userDisable, handler: handlers.app },
     { route: userResetPassword, handler: handlers.app },
     { route: roleQuery, handler: handlers.app },
+    { route: userOptions, handler: handlers.app },
     { route: roleOptions, handler: handlers.app },
     { route: permissionOptions, handler: handlers.app },
     { route: roleGet, handler: handlers.app },
@@ -743,7 +769,7 @@ export function registerIndependentRoutes(
       handler: handlers.aux(auxRouteBinding('employee', 'delete')),
     },
     {
-      route: auxQueryRoute('/aux/product-category/query'),
+      route: auxTreeQueryRoute('/aux/product-category/query'),
       handler: handlers.aux(auxRouteBinding('product-category', 'query')),
     },
     {
@@ -830,7 +856,7 @@ export function registerIndependentRoutes(
       handler: handlers.aux(auxRouteBinding('employee-category', 'delete')),
     },
     {
-      route: auxQueryRoute('/aux/department/query'),
+      route: auxTreeQueryRoute('/aux/department/query'),
       handler: handlers.aux(auxRouteBinding('department', 'query')),
     },
     {
@@ -962,7 +988,7 @@ export function registerIndependentRoutes(
       handler: handlers.aux(auxRouteBinding('dictionary-type', 'delete')),
     },
     {
-      route: auxQueryRoute('/aux/dictionary-item/query'),
+      route: dictionaryItemQueryRoute('/aux/dictionary-item/query'),
       handler: handlers.aux(auxRouteBinding('dictionary-item', 'query')),
     },
     {
@@ -1018,7 +1044,7 @@ export function registerIndependentRoutes(
       handler: handlers.aux(auxRouteBinding('measurement-unit', 'delete')),
     },
     {
-      route: auxQueryRoute('/aux/income-expense-type/query'),
+      route: incomeExpenseTypeQueryRoute('/aux/income-expense-type/query'),
       handler: handlers.aux(auxRouteBinding('income-expense-type', 'query')),
     },
     {
@@ -1329,6 +1355,7 @@ export const independentRouteMetadata = [
   ...[productResolveRoute, supplierResolveRoute, customerResolveRoute].map(
     (route) => ({ method: route.method, path: route.path }),
   ),
+  { method: userOptions.method, path: userOptions.path },
   { method: roleOptions.method, path: roleOptions.path },
   { method: permissionOptions.method, path: permissionOptions.path },
   { method: 'post', path: '/session/app/get' },
@@ -1381,6 +1408,8 @@ export const independentRouteMetadata = [
     'fund-account',
     'employee-category',
     'department',
+    'dictionary-type',
+    'income-expense-type',
     'position',
     'settlement-method',
     'payment-method',

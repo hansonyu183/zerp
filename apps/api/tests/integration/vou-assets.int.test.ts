@@ -97,6 +97,18 @@ test('asset acquisition, sale and liquidation use the real register with downstr
       .orderBy('asset_no')
       .execute()
     assert.equal(assets.length, 2)
+    assert.deepEqual(
+      await db
+        .selectFrom('acc_asset_depreciation_basis')
+        .select('asset_id')
+        .where(
+          'asset_id',
+          'in',
+          assets.map((a) => a.id),
+        )
+        .execute(),
+      [],
+    )
     const salePayload = f.documents['asset-sale']
       .payload as VouPayloadFor<'asset-sale'>
     const duplicate = [
@@ -213,6 +225,36 @@ test('asset acquisition journals use server-created asset identities and persist
       },
       f.actor,
     )
+    const accumulated = await acc.createSubject(
+      {
+        id: ulid(),
+        bookId: f.book.id,
+        code: '1602',
+        name: '累计折旧',
+        parentId: null,
+        balanceDirection: 'CREDIT',
+        enabled: true,
+        requiredDimensions: ['ASSET'],
+        inventoryQuantity: false,
+        settlementPurpose: 'NONE',
+      },
+      f.actor,
+    )
+    const expense = await acc.createSubject(
+      {
+        id: ulid(),
+        bookId: f.book.id,
+        code: '6602',
+        name: '折旧费用',
+        parentId: null,
+        balanceDirection: 'DEBIT',
+        enabled: true,
+        requiredDimensions: [],
+        inventoryQuantity: false,
+        settlementPurpose: 'NONE',
+      },
+      f.actor,
+    )
     const actor = {
       ...f.actor,
       permissions: ['/acc/mapping/get', '/acc/mapping/save'],
@@ -256,7 +298,14 @@ test('asset acquisition journals use server-created asset identities and persist
               ],
             },
           ],
-          assetConfiguration: null,
+          assetConfiguration: {
+            assetSubjectId: asset.id,
+            assetDimensions: { ASSET: 'line.assetId' },
+            accumulatedDepreciationSubjectId: accumulated.id,
+            accumulatedDepreciationDimensions: { ASSET: 'line.assetId' },
+            depreciationExpenseSubjectId: expense.id,
+            depreciationExpenseDimensions: {},
+          },
         },
       },
       actor,
@@ -275,6 +324,120 @@ test('asset acquisition journals use server-created asset identities and persist
       f.actor,
       'asset-post',
     )
+    const configured = await f.mappings.get(
+      f.book.id,
+      'asset-acquisition',
+      actor,
+    )
+    const missing = await f.mappings.save(
+      {
+        bookId: f.book.id,
+        vouEntity: 'asset-acquisition',
+        expectedRevision: configured.revision,
+        defaultResult: 'POST',
+        definition: { ...configured.definition, assetConfiguration: null },
+      },
+      actor,
+    )
+    await assert.rejects(
+      vou.review(
+        'asset-acquisition',
+        'approve',
+        {
+          documentId: saved.documentId,
+          submissionId: id,
+          expectedRevision: saved.revision,
+        },
+        f.reviewerActor,
+        'asset-post',
+      ),
+      /acc_period_depreciation_mapping_invalid/,
+    )
+    assert.deepEqual(
+      await db
+        .selectFrom('acc_asset_registers')
+        .select('id')
+        .where('acquisition_vou_approval_entry_id', '=', id)
+        .execute(),
+      [],
+    )
+    assert.deepEqual(
+      await db
+        .selectFrom('acc_journal_entries')
+        .select('id')
+        .where('vou_approval_entry_id', '=', id)
+        .execute(),
+      [],
+    )
+    const disabledInput = {
+      id: ulid(),
+      bookId: f.book.id,
+      code: '6603',
+      name: '停用前采用的费用',
+      parentId: null,
+      balanceDirection: 'DEBIT' as const,
+      enabled: true,
+      requiredDimensions: [],
+      inventoryQuantity: false,
+      settlementPurpose: 'NONE' as const,
+    }
+    const disabledExpense = await acc.createSubject(disabledInput, f.actor)
+    const obsolete = await f.mappings.save(
+      {
+        bookId: f.book.id,
+        vouEntity: 'asset-acquisition',
+        expectedRevision: missing.revision,
+        defaultResult: 'POST',
+        definition: {
+          ...configured.definition,
+          assetConfiguration: {
+            ...configured.definition.assetConfiguration!,
+            depreciationExpenseSubjectId: disabledExpense.id,
+          },
+        },
+      },
+      actor,
+    )
+    await acc.saveSubject(
+      {
+        ...disabledInput,
+        enabled: false,
+        expectedRevision: disabledExpense.revision,
+      },
+      f.actor,
+    )
+    await assert.rejects(
+      vou.review(
+        'asset-acquisition',
+        'approve',
+        {
+          documentId: saved.documentId,
+          submissionId: id,
+          expectedRevision: saved.revision,
+        },
+        f.reviewerActor,
+        'asset-post',
+      ),
+      /acc_period_depreciation_mapping_invalid/,
+    )
+    assert.deepEqual(
+      await db
+        .selectFrom('acc_asset_registers')
+        .select('id')
+        .where('acquisition_vou_approval_entry_id', '=', id)
+        .execute(),
+      [],
+    )
+    await f.mappings.save(
+      {
+        bookId: f.book.id,
+        vouEntity: 'asset-acquisition',
+        expectedRevision: obsolete.revision,
+        defaultResult: 'POST',
+        definition: configured.definition,
+      },
+      actor,
+    )
     const approved = await vou.review(
       'asset-acquisition',
       'approve',
@@ -291,6 +454,20 @@ test('asset acquisition journals use server-created asset identities and persist
       .select('id')
       .where('acquisition_vou_approval_entry_id', '=', id)
       .executeTakeFirstOrThrow()
+    assert.partialDeepStrictEqual(
+      await db
+        .selectFrom('acc_asset_depreciation_basis')
+        .selectAll()
+        .where('asset_id', '=', card.id)
+        .where('book_id', '=', f.book.id)
+        .executeTakeFirstOrThrow(),
+      {
+        accumulated_subject_id: accumulated.id,
+        accumulated_dimensions: { ASSET: card.id },
+        expense_subject_id: expense.id,
+        expense_dimensions: {},
+      },
+    )
     const entries = await db
       .selectFrom('acc_journal_lines as l')
       .innerJoin('acc_journal_entries as j', 'j.id', 'l.journal_entry_id')

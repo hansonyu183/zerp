@@ -9,6 +9,41 @@ import { useTargetSession } from '@/target/session/vm.ts'
 
 vi.mock('@/target/api.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/target/api.ts')>()),
+  queryTargetAccBook: vi.fn(),
+  getTargetAccBook: vi.fn(),
+  createTargetAccBook: vi.fn(),
+  saveTargetAccBook: vi.fn(),
+  deleteTargetAccBook: vi.fn(),
+  queryTargetUserOptions: vi.fn(),
+  getTargetDepartment: vi.fn(),
+  createTargetDepartment: vi.fn(),
+  saveTargetDepartment: vi.fn(),
+  deleteTargetDepartment: vi.fn(),
+  setTargetDepartmentEnabled: vi.fn(),
+  queryTargetProductCategories: vi.fn(),
+  getTargetProductCategory: vi.fn(),
+  createTargetProductCategory: vi.fn(),
+  saveTargetProductCategory: vi.fn(),
+  deleteTargetProductCategory: vi.fn(),
+  setTargetProductCategoryEnabled: vi.fn(),
+  queryTargetDictionaryTypes: vi.fn(),
+  getTargetDictionaryType: vi.fn(),
+  createTargetDictionaryType: vi.fn(),
+  saveTargetDictionaryType: vi.fn(),
+  deleteTargetDictionaryType: vi.fn(),
+  setTargetDictionaryTypeEnabled: vi.fn(),
+  queryTargetDictionaryItems: vi.fn(),
+  getTargetDictionaryItem: vi.fn(),
+  createTargetDictionaryItem: vi.fn(),
+  saveTargetDictionaryItem: vi.fn(),
+  deleteTargetDictionaryItem: vi.fn(),
+  setTargetDictionaryItemEnabled: vi.fn(),
+  queryTargetIncomeExpenseTypes: vi.fn(),
+  getTargetIncomeExpenseType: vi.fn(),
+  createTargetIncomeExpenseType: vi.fn(),
+  saveTargetIncomeExpenseType: vi.fn(),
+  deleteTargetIncomeExpenseType: vi.fn(),
+  setTargetIncomeExpenseTypeEnabled: vi.fn(),
   getTargetUser: vi.fn(),
   createTargetUser: vi.fn(),
   saveTargetUser: vi.fn(),
@@ -262,6 +297,284 @@ describe('direct maintenance through the registered resource Host', () => {
     setActivePinia(createPinia())
     vi.resetAllMocks()
     configureApi()
+  })
+  it.each([
+    ['department', 'queryTargetDepartments', { parentId: '', parentName: '' }],
+    [
+      'product-category',
+      'queryTargetProductCategories',
+      { parentId: '', parentName: '' },
+    ],
+    ['dictionary-type', 'queryTargetDictionaryTypes', {}],
+    [
+      'dictionary-item',
+      'queryTargetDictionaryItems',
+      { dictionaryTypeId: 'type', dictionaryTypeName: '颜色', sortOrder: 3 },
+    ],
+    [
+      'income-expense-type',
+      'queryTargetIncomeExpenseTypes',
+      { parentId: '', parentName: '', direction: 'INCOME' },
+    ],
+  ] as const)(
+    'registers %s with list, view and create through the Host',
+    async (entity, query, extra) => {
+      authorize([
+        `/aux/${entity}/query`,
+        `/aux/${entity}/get`,
+        `/aux/${entity}/create`,
+      ])
+      vi.mocked(targetApi[query]).mockResolvedValue(
+        page([{ ...identity(entity), ...extra }]) as never,
+      )
+      const wrapper = mount(ResourceHost, {
+        props: { domain: 'aux', entity },
+        global: { stubs },
+      })
+      await flushPromises()
+      expect(wrapper.text()).toContain(`${entity} 名称`)
+      expect(wrapper.findAll('button').some((b) => b.text() === '查看')).toBe(
+        true,
+      )
+      await wrapper.get('[data-testid="list-create"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.find('[data-testid="direct-edit-form"]').exists()).toBe(
+        true,
+      )
+      wrapper.unmount()
+    },
+  )
+  it.each([
+    [
+      'department',
+      'Department',
+      'Departments',
+      { parentId: '', parentName: '', description: '' },
+    ],
+    [
+      'product-category',
+      'ProductCategory',
+      'ProductCategories',
+      { parentId: '', parentName: '', description: '' },
+    ],
+    [
+      'dictionary-type',
+      'DictionaryType',
+      'DictionaryTypes',
+      { description: '' },
+    ],
+    [
+      'dictionary-item',
+      'DictionaryItem',
+      'DictionaryItems',
+      {
+        dictionaryTypeId: 'dictionary-type',
+        dictionaryTypeName: '类型',
+        sortOrder: 3,
+      },
+    ],
+    [
+      'income-expense-type',
+      'IncomeExpenseType',
+      'IncomeExpenseTypes',
+      { parentId: '', parentName: '', direction: 'INCOME', description: '' },
+    ],
+  ] as const)(
+    'maintains %s through real definition, editor and exact API',
+    async (entity, name, plural, extra) => {
+      authorize(
+        ['query', 'get', 'create', 'save', 'enable', 'disable', 'delete'].map(
+          (action) => `/aux/${entity}/${action}`,
+        ),
+      )
+      const row = {
+        ...identity(entity),
+        ...extra,
+        revision: '9007199254740993',
+        availableActions: ['edit', 'disable', 'delete'],
+      }
+      const query = vi.mocked(targetApi[`queryTarget${plural}`])
+      const get = vi.mocked(targetApi[`getTarget${name}`])
+      const save = vi.mocked(targetApi[`saveTarget${name}`])
+      const create = vi.mocked(targetApi[`createTarget${name}`])
+      const remove = vi.mocked(targetApi[`deleteTarget${name}`])
+      const enabled = vi.mocked(targetApi[`setTarget${name}Enabled`])
+      query.mockResolvedValue(page([row]) as never)
+      get.mockResolvedValue(row as never)
+      save.mockResolvedValue({
+        id: entity,
+        revision: '9007199254740994',
+        enabled: true,
+      })
+      create.mockResolvedValue({ id: 'created', revision: '1', enabled: true })
+      remove.mockResolvedValue({ deleted: true })
+      enabled.mockResolvedValue({
+        id: entity,
+        revision: '9007199254740994',
+        enabled: false,
+      })
+      const wrapper = mount(ResourceHost, {
+        props: { domain: 'aux', entity },
+        global: { stubs },
+      })
+      const click = async (caption: string) => {
+        await wrapper
+          .findAll('button')
+          .find((b) => b.text() === caption)!
+          .trigger('click')
+        await flushPromises()
+      }
+      await flushPromises()
+      await click('查看')
+      expect(wrapper.findAll('button').some((b) => b.text() === '保存')).toBe(
+        false,
+      )
+      await click('取消')
+      expect(query).toHaveBeenCalledTimes(1)
+      await click('编辑')
+      await wrapper.get('input[aria-label="名称"]').setValue('已改名称')
+      await click('保存')
+      expect(save).toHaveBeenCalledWith(
+        'csrf-token',
+        expect.objectContaining({
+          id: entity,
+          revision: '9007199254740993',
+          name: '已改名称',
+        }),
+      )
+      expect(query).toHaveBeenCalledTimes(2)
+      await click('新增')
+      await wrapper.get('input[aria-label="名称"]').setValue('新增资料')
+      if (entity === 'dictionary-item') {
+        await wrapper
+          .get('[data-testid="direct-edit-form"] select[aria-label="所属类型"]')
+          .setValue('dictionary-type')
+        await wrapper
+          .get('[data-testid="direct-edit-form"] select[aria-label="所属类型"]')
+          .trigger('change')
+        await flushPromises()
+      }
+      await click('保存')
+      expect(create, wrapper.text()).toHaveBeenCalledWith(
+        'csrf-token',
+        expect.objectContaining({ name: '新增资料' }),
+      )
+      expect(query).toHaveBeenCalledTimes(3)
+      await click('停用')
+      expect(enabled).toHaveBeenCalledWith(
+        'csrf-token',
+        { id: entity, revision: '9007199254740993' },
+        false,
+      )
+      await click('删除')
+      expect(remove).not.toHaveBeenCalled()
+      await click('取消')
+      await click('删除')
+      const buttons = wrapper
+        .findAll('button')
+        .filter((b) => b.text() === '删除')
+      await buttons.at(-1)!.trigger('click')
+      await flushPromises()
+      expect(remove).toHaveBeenCalledWith('csrf-token', {
+        id: entity,
+        revision: '9007199254740993',
+      })
+      expect(query).toHaveBeenCalledTimes(5)
+      wrapper.unmount()
+    },
+  )
+  it('commits dictionary type filtering only on query and shows the matching type', async () => {
+    authorize(['/aux/dictionary-item/query'])
+    vi.mocked(targetApi.queryTargetDictionaryItems).mockImplementation(
+      async (_token, input) =>
+        page(
+          input.dictionaryTypeId
+            ? [
+                {
+                  ...identity('blue'),
+                  dictionaryTypeId: 'dictionary-type',
+                  dictionaryTypeName: '颜色',
+                  sortOrder: 1,
+                },
+              ]
+            : [
+                {
+                  ...identity('blue'),
+                  dictionaryTypeId: 'dictionary-type',
+                  dictionaryTypeName: '颜色',
+                  sortOrder: 1,
+                },
+                {
+                  ...identity('large'),
+                  dictionaryTypeId: 'size',
+                  dictionaryTypeName: '规格',
+                  sortOrder: 2,
+                },
+              ],
+        ) as never,
+    )
+    const wrapper = mount(ResourceHost, {
+      props: { domain: 'aux', entity: 'dictionary-item' },
+      global: { stubs },
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('large 名称')
+    const selector = wrapper.get('select[aria-label="所属类型"]')
+    await selector.setValue('dictionary-type')
+    await selector.trigger('change')
+    expect(wrapper.text()).toContain('large 名称')
+    await wrapper.get('form.dynamic-form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('large 名称')
+    expect(wrapper.text()).toContain('blue 名称')
+    expect(wrapper.text()).toContain('颜色')
+    wrapper.unmount()
+  })
+  it.each([
+    ['department', 'queryTargetDepartments'],
+    ['product-category', 'queryTargetProductCategories'],
+    ['dictionary-type', 'queryTargetDictionaryTypes'],
+    ['dictionary-item', 'queryTargetDictionaryItems'],
+    ['income-expense-type', 'queryTargetIncomeExpenseTypes'],
+  ] as const)(
+    'allows create-only entry for %s without a list read',
+    async (entity, query) => {
+      authorize([`/aux/${entity}/create`])
+      const wrapper = mount(ResourceHost, {
+        props: { domain: 'aux', entity },
+        global: { stubs },
+      })
+      await flushPromises()
+      await wrapper.get('[data-testid="list-create"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.find('[data-testid="direct-edit-form"]').exists()).toBe(
+        true,
+      )
+      expect(targetApi[query]).not.toHaveBeenCalled()
+      wrapper.unmount()
+    },
+  )
+  it('opens a read-only detail with get permission and no save permission', async () => {
+    authorize(['/aux/position/query', '/aux/position/get'])
+    vi.mocked(targetApi.getTargetPosition).mockResolvedValue({
+      ...identity('position'),
+      description: '只读说明',
+    } as never)
+    const wrapper = mount(ResourceHost, {
+      props: { domain: 'aux', entity: 'position' },
+      global: { stubs },
+    })
+    await flushPromises()
+    const view = wrapper.findAll('button').find((b) => b.text() === '查看')
+    expect(view).toBeDefined()
+    await view!.trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('button').some((b) => b.text() === '保存')).toBe(
+      false,
+    )
+    expect(wrapper.get('textarea').element.disabled).toBe(true)
+    expect(wrapper.get('textarea').element.value).toBe('只读说明')
+    wrapper.unmount()
   })
   it('owns measurement-unit creation and cancels without querying again', async () => {
     authorize(['/aux/measurement-unit/query', '/aux/measurement-unit/create'])
@@ -1204,3 +1517,41 @@ function optionPage(items: readonly object[]) {
     pageSize: 20,
   }
 }
+
+it('ACC book Host renders real rows without enabled or pinyin and opens read-only details', async () => {
+  setActivePinia(createPinia())
+  authorize(['/acc/book/query', '/acc/book/get'])
+  const book = {
+    id: '01J00000000000000000000001',
+    code: 'ACC-0001',
+    name: '财务账簿',
+    description: '',
+    startMonth: '2026-01',
+    baseCurrency: 'CNY',
+    controlBook: true,
+    revision: '9007199254740993',
+    queryUserIds: [],
+    operateUserIds: [],
+    availableActions: [],
+  }
+  vi.mocked(targetApi.queryTargetAccBook).mockResolvedValue(page([book]))
+  vi.mocked(targetApi.getTargetAccBook).mockResolvedValue(book)
+  vi.mocked(targetApi.queryTargetUserOptions).mockResolvedValue(page([]))
+  const wrapper = mount(ResourceHost, {
+    props: { domain: 'acc', entity: 'book' },
+    global: { stubs },
+  })
+  await flushPromises()
+  expect(wrapper.text()).toContain('财务账簿')
+  expect(wrapper.text()).not.toContain('启用')
+  const view = wrapper
+    .findAll('button')
+    .find((button) => button.attributes('aria-label') === '查看')!
+  await view.trigger('click')
+  await flushPromises()
+  expect(wrapper.text()).toContain('查看会计账簿')
+  expect(
+    wrapper.findAll('button').some((button) => button.text() === '保存'),
+  ).toBe(false)
+  wrapper.unmount()
+})

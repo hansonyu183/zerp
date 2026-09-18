@@ -1,3 +1,8 @@
+import {
+  adoptDepreciationBasis,
+  settleDepreciation,
+  removeDepreciation,
+} from './depreciation.ts'
 import { VouApplicationError } from '../vou/service.ts'
 import { validateIntermediaryClosing } from '../vou/intermediary-validation.ts'
 import {
@@ -30,6 +35,12 @@ import type {
 import { readVouPersistence } from '../vou/service.ts'
 import { internalBookId, internalBookSubjects } from './internal-book-seed.ts'
 import { lockAccountingPeriod } from './period-lock.ts'
+import { settleInventoryCost, removeInventoryCost } from './month-end.ts'
+import type { AccMappingDefinition } from './mapping-catalog.ts'
+import {
+  sourceInventoryEntities,
+  sourceInventoryMovements,
+} from './inventory-source.ts'
 
 type Executor = Kysely<DB> | Transaction<DB>
 
@@ -566,6 +577,7 @@ export const quantityMovementEntities: readonly string[] = [
   'order-production',
   'self-production',
   'inventory-count',
+  ...sourceInventoryEntities,
 ]
 export const quantityMovementFields = [
   'line.productId',
@@ -748,7 +760,9 @@ export class AccService
       }
     }
     for (const book of books) {
-      const postingPayload = this.postingPayload(
+      let postingPayload: VouPayload & {
+        inventoryMovements?: readonly unknown[]
+      } = this.postingPayload(
         plan.entity,
         accountingPayload,
         book.base_currency,
@@ -764,32 +778,8 @@ export class AccService
       )
       const mapping = mappingResult.rows[0]
       if (!mapping) throw new AccApplicationError('acc_mapping_not_found')
-      const definition = mapping.mapping_definition as unknown as {
-        defaultTemplateId: string | null
-        rules: Array<{
-          conditions: Array<{
-            field: string
-            operator: string
-            values: string[]
-          }>
-          result: 'POST' | 'UN_POST'
-          templateId: string | null
-        }>
-        templates: Array<{
-          templateId: string
-          collection: string | null
-          lines: Array<{
-            collection?: string | null
-            subjectSource: 'FIXED' | 'FIELD'
-            subjectValue: string
-            direction: 'DEBIT' | 'CREDIT'
-            amountField: string
-            currencyField: string
-            dimensions: Record<string, string>
-            quantityField: string | null
-          }>
-        }>
-      }
+      const definition =
+        mapping.mapping_definition as unknown as AccMappingDefinition
       const matching = definition.rules.filter((rule) =>
         rule.conditions.every((condition) =>
           this.mappingCondition(postingPayload, condition),
@@ -805,6 +795,24 @@ export class AccService
       )
       if (!template)
         throw new AccApplicationError('acc_mapping_template_not_found')
+      if (
+        sourceInventoryEntities.includes(plan.entity) &&
+        template.lines.some(
+          (line) =>
+            (line.collection === undefined
+              ? template.collection
+              : line.collection) === 'inventoryMovements',
+        )
+      ) {
+        postingPayload = {
+          ...postingPayload,
+          inventoryMovements: await sourceInventoryMovements(
+            tx,
+            plan.entity,
+            accountingPayload,
+          ),
+        }
+      }
       const rendered: Array<{
         subjectId: string
         direction: 'DEBIT' | 'CREDIT'
@@ -812,6 +820,11 @@ export class AccService
         currency: string
         dimensions: Record<string, string>
         quantity: string | null
+        sourceLineId: string | null
+        costSourceDocumentId: string | null
+        productionLineNo: number | null
+        costCounterpartSubjectId: string | null
+        costCounterpartDimensions: Record<string, string>
       }> = []
       for (const line of template.lines) {
         const collection =
@@ -865,6 +878,31 @@ export class AccService
             amount,
             currency,
             dimensions,
+            sourceLineId:
+              typeof source.sourceLineId === 'string'
+                ? source.sourceLineId
+                : null,
+            costSourceDocumentId:
+              typeof source.costSourceDocumentId === 'string'
+                ? source.costSourceDocumentId
+                : null,
+            productionLineNo:
+              collection === 'inventoryMovements' &&
+              typeof source.productionLineNo === 'number'
+                ? source.productionLineNo
+                : null,
+            costCounterpartSubjectId: line.costCounterpartSubjectId ?? null,
+            costCounterpartDimensions: Object.fromEntries(
+              Object.entries(line.costCounterpartDimensions ?? {}).map(
+                ([dimension, field]) => [
+                  dimension,
+                  String(
+                    this.field({ ...postingPayload, line: source }, field) ??
+                      '',
+                  ),
+                ],
+              ),
+            ),
             quantity: line.quantityField
               ? String(
                   this.field(
@@ -952,12 +990,13 @@ export class AccService
           created_at: new Date(plan.occurredAt),
         })
         .execute()
-      for (const line of rendered) {
+      for (const [lineIndex, line] of rendered.entries()) {
         const subject = byId.get(line.subjectId)!
+        const journalLineId = ulid()
         await tx
           .insertInto('acc_journal_lines')
           .values({
-            id: ulid(),
+            id: journalLineId,
             journal_entry_id: journalId,
             subject_id: line.subjectId,
             direction: line.direction,
@@ -970,10 +1009,10 @@ export class AccService
           await sql`
             INSERT INTO acc_inventory_entries (
               id, vou_approval_entry_id, document_id, opening_approval_entry_id, book_id, subject_id, journal_entry_id,
-              line_id, warehouse_id, product_id, business_date, quantity, created_at
+              line_id, line_no, source_line_id, cost_source_document_id, production_line_no, cost_counterpart_subject_id, cost_counterpart_dimensions, warehouse_id, product_id, business_date, quantity, created_at
             ) VALUES (
               ${ulid()}, ${plan.approvalEntryId}, ${plan.documentId}, ${null}, ${book.id}, ${subject.id}, ${journalId},
-              ${ulid()}, ${line.dimensions.WAREHOUSE}, ${line.dimensions.PRODUCT}, ${plan.payload.businessDate}::date,
+              ${journalLineId}, ${lineIndex + 1}, ${line.sourceLineId}, ${line.costSourceDocumentId}, ${line.productionLineNo}, ${line.costCounterpartSubjectId}, ${JSON.stringify(line.costCounterpartDimensions)}::jsonb, ${line.dimensions.WAREHOUSE}, ${line.dimensions.PRODUCT}, ${plan.payload.businessDate}::date,
               (${line.quantity}::numeric * ${line.direction === 'DEBIT' ? 1 : -1}), ${new Date(plan.occurredAt)}
             )
           `.execute(tx)
@@ -981,6 +1020,21 @@ export class AccService
       }
       if (book.control_book)
         await this.assertControlInventoryNonNegative(tx, inventoryFacts)
+      if ('assetAcquisitionLines' in accountingPayload) {
+        for (const line of accountingPayload.assetAcquisitionLines) {
+          const assetLine = line as typeof line & { assetId: string }
+          await adoptDepreciationBasis(tx, {
+            assetId: assetLine.assetId,
+            bookId: book.id,
+            acquiredOn: plan.payload.businessDate,
+            usefulLifeMonths: line.usefulLifeMonths,
+            residualRate: line.residualRate,
+            currency: accountingPayload.currency,
+            facts: { ...accountingPayload, line: assetLine },
+            configuration: definition.assetConfiguration,
+          })
+        }
+      }
       if (book.control_book) await this.assertControlFundBalances(tx, fundFacts)
     }
   }
@@ -1119,15 +1173,10 @@ export class AccService
     if ('productionLines' in payload)
       return {
         ...payload,
-        inventoryMovements: payload.productionLines.flatMap((line) => {
+        inventoryMovements: payload.productionLines.flatMap((line, index) => {
           if (!line.product)
             throw new AccApplicationError('acc_inventory_dimension_required')
           return [
-            movement(
-              line.product.objectId,
-              payload.finishedWarehouse.objectId,
-              line.baseQuantity,
-            ),
             ...line.materials.map((material) =>
               movement(
                 material.actualMaterial.objectId,
@@ -1135,7 +1184,12 @@ export class AccService
                 `-${material.actualBaseQuantity}`,
               ),
             ),
-          ]
+            movement(
+              line.product.objectId,
+              payload.finishedWarehouse.objectId,
+              line.baseQuantity,
+            ),
+          ].map((item) => ({ ...item, productionLineNo: index + 1 }))
         }),
       }
     if ('inventoryCountLines' in payload)
@@ -1936,7 +1990,7 @@ export class AccService
     access.set(actor.id, { canQuery: true, canOperate: true })
     await this.replaceBookAccess(tx, input.id, access)
     await this.copySubjects(tx, input.id, subjects, actor.id, now)
-    return this.readBookView(tx, input.id)
+    return this.readBookView(tx, input.id, actor)
   }
 
   async grantBookAccess(
@@ -2084,7 +2138,7 @@ export class AccService
     const selected = rows.slice((page - 1) * pageSize, page * pageSize)
     return {
       items: await Promise.all(
-        selected.map((row) => this.bookViewWithAccess(this.db, row)),
+        selected.map((row) => this.bookViewWithAccess(this.db, row, actor)),
       ),
       total: rows.length,
       page,
@@ -2101,7 +2155,7 @@ export class AccService
       .where('id', '=', bookId)
       .executeTakeFirst()
     if (!row) throw new AccApplicationError('acc_book_not_found')
-    return this.bookViewWithAccess(this.db, row)
+    return this.bookViewWithAccess(this.db, row, actor)
   }
 
   async saveBook(
@@ -2161,13 +2215,17 @@ export class AccService
           requestedActor.canOperate || actorAccess?.can_operate === true,
       })
       await this.replaceBookAccess(tx, input.id, access)
-      return this.bookViewWithAccess(tx, {
-        ...row,
-        name: input.name.trim(),
-        description: input.description.trim(),
-        base_currency: input.baseCurrency,
-        revision,
-      })
+      return this.bookViewWithAccess(
+        tx,
+        {
+          ...row,
+          name: input.name.trim(),
+          description: input.description.trim(),
+          base_currency: input.baseCurrency,
+          revision,
+        },
+        actor,
+      )
     })
   }
 
@@ -2229,8 +2287,19 @@ export class AccService
     tx: Transaction<DB>,
     bookId: string,
     parentId: string | null,
+    subjectId: string,
   ) {
     if (!parentId) return
+    const ancestors = await sql<{
+      id: string
+    }>`WITH RECURSIVE ancestors AS (SELECT id, parent_id FROM acc_subjects WHERE id=${parentId} UNION SELECT s.id, s.parent_id FROM acc_subjects s JOIN ancestors a ON s.id=a.parent_id) SELECT id FROM ancestors`.execute(
+      tx,
+    )
+    if (
+      parentId === subjectId ||
+      ancestors.rows.some((row) => row.id === subjectId)
+    )
+      throw new AccApplicationError('acc_subject_parent_invalid')
     const parent = await tx
       .selectFrom('acc_subjects')
       .select('book_id')
@@ -2239,12 +2308,7 @@ export class AccService
       .executeTakeFirst()
     if (!parent || parent.book_id !== bookId)
       throw new AccApplicationError('acc_subject_parent_invalid')
-    const references =
-      await sql`SELECT subject_id FROM acc_mapping_subject_usages WHERE subject_id=${parentId}
-      UNION ALL SELECT subject_id FROM acc_journal_lines WHERE subject_id=${parentId} LIMIT 1`.execute(
-        tx,
-      )
-    if (references.rows.length)
+    if ((await this.subjectReferences(tx, parentId)).length)
       throw new AccApplicationError('acc_subject_frozen')
   }
 
@@ -2252,8 +2316,19 @@ export class AccService
     requirePermission(actor, '/acc/subject/create')
     return this.db.transaction().execute(async (tx) => {
       await this.requireBookAccess(tx, input.bookId, actor, true)
+      await tx
+        .selectFrom('acc_books')
+        .select('id')
+        .where('id', '=', input.bookId)
+        .forUpdate()
+        .executeTakeFirstOrThrow()
       validateAccSubjectAttributes(input)
-      await this.validateSubjectParent(tx, input.bookId, input.parentId)
+      await this.validateSubjectParent(
+        tx,
+        input.bookId,
+        input.parentId,
+        input.id,
+      )
       const now = new Date()
       await tx
         .insertInto('acc_subjects')
@@ -2276,7 +2351,7 @@ export class AccService
           updated_by: actor.id,
         })
         .execute()
-      return { ...input, name: input.name.trim(), revision: '1' }
+      return this.readSubjectView(tx, input.id, actor)
     })
   }
 
@@ -2308,9 +2383,11 @@ export class AccService
     const page = input.page ?? 1
     const pageSize = input.pageSize ?? 20
     return {
-      items: rows
-        .slice((page - 1) * pageSize, page * pageSize)
-        .map((row) => this.subjectView(row)),
+      items: await Promise.all(
+        rows
+          .slice((page - 1) * pageSize, page * pageSize)
+          .map((row) => this.subjectMaintenanceView(this.db, row, actor)),
+      ),
       total: rows.length,
       page,
       pageSize,
@@ -2326,7 +2403,7 @@ export class AccService
       .executeTakeFirst()
     if (!row) throw new AccApplicationError('acc_subject_not_found')
     await this.requireBookAccess(this.db, row.book_id, actor, false)
-    return this.subjectView(row)
+    return this.subjectMaintenanceView(this.db, row, actor)
   }
 
   async saveSubject(
@@ -2336,6 +2413,12 @@ export class AccService
     requirePermission(actor, '/acc/subject/save')
     return this.db.transaction().execute(async (tx) => {
       await this.requireBookAccess(tx, input.bookId, actor, true)
+      await tx
+        .selectFrom('acc_books')
+        .select('id')
+        .where('id', '=', input.bookId)
+        .forUpdate()
+        .executeTakeFirstOrThrow()
       validateAccSubjectAttributes(input)
       const row = await tx
         .selectFrom('acc_subjects')
@@ -2347,18 +2430,9 @@ export class AccService
         throw new AccApplicationError('acc_subject_not_found')
       if (String(row.revision) !== input.expectedRevision)
         throw new AccApplicationError('approval_stale_revision')
-      const referenced = await tx
-        .selectFrom('acc_journal_lines')
-        .select('id')
-        .where('subject_id', '=', input.id)
-        .executeTakeFirst()
-      const mappingReference = await sql<{
-        mapping_id: string
-      }>`SELECT mapping_id FROM acc_mapping_subject_usages WHERE subject_id=${input.id} LIMIT 1`.execute(
-        tx,
-      )
+      const references = await this.subjectReferences(tx, input.id)
       if (
-        (referenced || mappingReference.rows.length > 0) &&
+        references.length > 0 &&
         (row.code !== input.code ||
           row.name !== input.name.trim() ||
           row.parent_id !== input.parentId ||
@@ -2366,11 +2440,17 @@ export class AccService
           JSON.stringify(row.required_dimensions) !==
             JSON.stringify(input.requiredDimensions) ||
           row.inventory_quantity !== input.inventoryQuantity ||
-          row.settlement_purpose !== input.settlementPurpose)
+          row.settlement_purpose !== input.settlementPurpose ||
+          (!row.enabled && input.enabled))
       )
         throw new AccApplicationError('acc_subject_frozen')
       if (row.parent_id !== input.parentId)
-        await this.validateSubjectParent(tx, input.bookId, input.parentId)
+        await this.validateSubjectParent(
+          tx,
+          input.bookId,
+          input.parentId,
+          input.id,
+        )
       const revision = BigInt(row.revision) + 1n
       await tx
         .updateTable('acc_subjects')
@@ -2392,7 +2472,7 @@ export class AccService
         .where('id', '=', input.id)
         .where('revision', '=', row.revision)
         .executeTakeFirstOrThrow()
-      return { ...input, name: input.name.trim(), revision: String(revision) }
+      return this.readSubjectView(tx, input.id, actor)
     })
   }
 
@@ -2418,28 +2498,12 @@ export class AccService
         .select('id')
         .where('parent_id', '=', id)
         .executeTakeFirst()
-      const line = await tx
-        .selectFrom('acc_journal_lines')
-        .select('id')
-        .where('subject_id', '=', id)
-        .executeTakeFirst()
-      const mappingReference = await sql<{
-        mapping_id: string
-      }>`SELECT mapping_id FROM acc_mapping_subject_usages WHERE subject_id=${id} LIMIT 1`.execute(
-        tx,
-      )
-      if (child || line || mappingReference.rows.length > 0)
-        throw new AccApplicationError(
-          'acc_subject_delete_blocked',
-          [
-            mappingReference.rows[0] && {
-              kind: 'MAPPING',
-              id: mappingReference.rows[0].mapping_id,
-            },
-            child && { kind: 'CHILD_SUBJECT', id: child.id },
-            line && { kind: 'JOURNAL_LINE', id: line.id },
-          ].filter(Boolean),
-        )
+      const references = await this.subjectReferences(tx, id)
+      if (child || references.length > 0)
+        throw new AccApplicationError('acc_subject_delete_blocked', [
+          ...references,
+          ...(child ? [{ kind: 'CHILD_SUBJECT', id: child.id }] : []),
+        ])
       await tx
         .deleteFrom('acc_subjects')
         .where('id', '=', id)
@@ -2461,6 +2525,7 @@ export class AccService
         .selectFrom('acc_books')
         .select('start_month')
         .where('id', '=', input.bookId)
+        .forUpdate()
         .executeTakeFirstOrThrow()
       if (input.month < book.start_month)
         throw new AccApplicationError('acc_period_before_book_start')
@@ -2489,6 +2554,8 @@ export class AccService
         if (input.expectedRevision !== null)
           throw new AccApplicationError('approval_stale_revision')
         if (locked) {
+          await settleInventoryCost(tx, input.bookId, input.month)
+          await settleDepreciation(tx, input.bookId, input.month)
           await this.persistPeriodBalances(tx, input.bookId, input.month)
           await this.validatePeriodTrialBalance(tx, input.bookId, input.month)
         }
@@ -2508,14 +2575,23 @@ export class AccService
           month: input.month,
           locked,
           revision: '1',
+          availableActions: this.allowed(actor, '/acc/period/unlock')
+            ? ['unlock' as const]
+            : [],
         }
       }
       if (input.expectedRevision !== String(row.revision))
         throw new AccApplicationError('approval_stale_revision')
       if (locked) {
+        await settleInventoryCost(tx, input.bookId, input.month)
+        await settleDepreciation(tx, input.bookId, input.month)
         await this.persistPeriodBalances(tx, input.bookId, input.month)
         await this.validatePeriodTrialBalance(tx, input.bookId, input.month)
-      } else await this.deletePeriodBalances(tx, input.bookId, input.month)
+      } else {
+        await removeInventoryCost(tx, input.bookId, input.month)
+        await removeDepreciation(tx, input.bookId, input.month)
+        await this.deletePeriodBalances(tx, input.bookId, input.month)
+      }
       const revision = BigInt(row.revision) + 1n
       await tx
         .updateTable('acc_periods')
@@ -2534,6 +2610,12 @@ export class AccService
         month: input.month,
         locked,
         revision: String(revision),
+        availableActions: this.allowed(
+          actor,
+          `/acc/period/${locked ? 'unlock' : 'lock'}`,
+        )
+          ? [locked ? ('unlock' as const) : ('lock' as const)]
+          : [],
       }
     })
   }
@@ -2547,12 +2629,63 @@ export class AccService
       .where('book_id', '=', bookId)
       .orderBy('period_month', 'asc')
       .execute()
-    return rows.map((row) => ({
-      bookId,
-      month: row.period_month,
-      locked: row.locked,
-      revision: String(row.revision),
-    }))
+    const book = await this.db
+      .selectFrom('acc_books')
+      .select('start_month')
+      .where('id', '=', bookId)
+      .executeTakeFirstOrThrow()
+    const currentMonth = new Date().toISOString().slice(0, 7)
+    const months = new Set(rows.map((row) => row.period_month))
+    for (
+      let month = book.start_month;
+      month <= currentMonth;
+      month = nextMonth(month)
+    )
+      months.add(month)
+    const latest = rows.filter((row) => row.locked).at(-1)?.period_month
+    const next = latest ? nextMonth(latest) : book.start_month
+    const canOperate = await this.canOperateBook(this.db, bookId, actor)
+    return [...months].sort().map((month) => {
+      const row = rows.find((item) => item.period_month === month)
+      return {
+        bookId,
+        month,
+        locked: row?.locked ?? false,
+        revision: row ? String(row.revision) : null,
+        availableActions: [
+          ...(canOperate &&
+          month === next &&
+          month < currentMonth &&
+          this.allowed(actor, '/acc/period/lock')
+            ? ['lock' as const]
+            : []),
+          ...(canOperate &&
+          month === latest &&
+          this.allowed(actor, '/acc/period/unlock')
+            ? ['unlock' as const]
+            : []),
+        ],
+      }
+    })
+  }
+
+  private allowed(actor: ApprovalActor, permission: string) {
+    return actor.trusted === true || actor.permissions.includes(permission)
+  }
+
+  private async canOperateBook(
+    executor: Executor,
+    bookId: string,
+    actor: ApprovalActor,
+  ) {
+    if (actor.trusted === true) return true
+    const access = await executor
+      .selectFrom('acc_book_access')
+      .select('can_operate')
+      .where('book_id', '=', bookId)
+      .where('user_id', '=', actor.id)
+      .executeTakeFirst()
+    return access?.can_operate === true
   }
 
   private async validatePeriodLock(
@@ -2599,15 +2732,12 @@ export class AccService
       .where('entity', 'in', vouEntities)
       .execute()
     const monthEntries: typeof vouEntries = []
-    const approvedThroughMonthEntryIds: string[] = []
     for (const entry of vouEntries) {
       const persisted = await readVouPersistence(tx, {
         approvalEntryId: entry.id,
       })
       const entryMonth = persisted.businessDate.slice(0, 7)
       if (entryMonth === month) monthEntries.push(entry)
-      if (entry.status === 'APPROVED' && entryMonth <= month)
-        approvedThroughMonthEntryIds.push(entry.id)
     }
     const openDocument = monthEntries.find(
       (entry) => entry.status !== 'APPROVED',
@@ -2639,24 +2769,6 @@ export class AccService
     if (missingMapping)
       throw new AccApplicationError('acc_period_mapping_missing', [
         { kind: 'MAPPING', entity: missingMapping.entity },
-      ])
-
-    const negativeInventory =
-      approvedThroughMonthEntryIds.length === 0
-        ? undefined
-        : (
-            await sql<{ warehouse_id: string; product_id: string }>`
-      SELECT inventory.warehouse_id, inventory.product_id
-      FROM acc_inventory_entries inventory
-      WHERE inventory.vou_approval_entry_id IN (${sql.join(approvedThroughMonthEntryIds)})
-      GROUP BY inventory.warehouse_id, inventory.product_id
-      HAVING SUM(inventory.quantity) < 0
-      LIMIT 1
-    `.execute(tx)
-          ).rows[0]
-    if (negativeInventory)
-      throw new AccApplicationError('acc_period_negative_inventory', [
-        { kind: 'INVENTORY', ...negativeInventory },
       ])
 
     const unbalanced = await sql<{ currency: string }>`
@@ -2816,11 +2928,12 @@ export class AccService
           ${openingApprovalEntryId}, ${`${book.start_month}-01`}::date, ${currency}, ${occurredAt}
         )
       `.execute(tx)
-      for (const line of lines) {
+      for (const [lineIndex, line] of lines.entries()) {
+        const journalLineId = ulid()
         await tx
           .insertInto('acc_journal_lines')
           .values({
-            id: ulid(),
+            id: journalLineId,
             journal_entry_id: journalId,
             subject_id: line.subjectId,
             direction: line.direction,
@@ -2833,10 +2946,10 @@ export class AccService
           await sql`
             INSERT INTO acc_inventory_entries (
               id, vou_approval_entry_id, document_id, opening_approval_entry_id, book_id, subject_id, journal_entry_id,
-              line_id, warehouse_id, product_id, business_date, quantity, created_at
+              line_id, line_no, warehouse_id, product_id, business_date, quantity, created_at
             ) VALUES (
               ${ulid()}, ${null}, ${null}, ${openingApprovalEntryId}, ${input.bookId}, ${line.subjectId}, ${journalId},
-              ${ulid()}, ${line.dimensions.WAREHOUSE}, ${line.dimensions.PRODUCT}, ${`${book.start_month}-01`}::date,
+              ${journalLineId}, ${lineIndex + 1}, ${line.dimensions.WAREHOUSE}, ${line.dimensions.PRODUCT}, ${`${book.start_month}-01`}::date,
               ${line.direction === 'DEBIT' ? line.quantity! : `-${line.quantity!}`}, ${occurredAt}
             )
           `.execute(tx)
@@ -2881,10 +2994,10 @@ export class AccService
       await sql`
         INSERT INTO acc_asset_book_values (
           asset_id, book_id, acquisition_vou_approval_entry_id,
-          acquisition_opening_approval_entry_id, original_value, created_at
+          acquisition_opening_approval_entry_id, original_value, accumulated_depreciation, created_at
         ) VALUES (
           ${asset.assetId!}, ${input.bookId}, NULL,
-          ${openingApprovalEntryId}, ${asset.originalValue}, ${occurredAt}
+          ${openingApprovalEntryId}, ${asset.originalValue}, ${asset.accumulatedDepreciation}, ${occurredAt}
         )
       `.execute(tx)
       await this.insertOpeningRegisterEntry(
@@ -2896,6 +3009,45 @@ export class AccService
         occurredAt,
       )
       this.assertOpeningAssetLines(input.lines, assetConfiguration!, asset)
+      const registered = await tx
+        .selectFrom('acc_asset_registers')
+        .select('payload')
+        .where('id', '=', asset.assetId!)
+        .executeTakeFirstOrThrow()
+      const global = registered.payload as Record<string, unknown>
+      const acquisition = global.acquisition as
+        Record<string, unknown> | undefined
+      const facts: Record<string, unknown> = acquisition
+        ? { ...acquisition, assetId: asset.assetId }
+        : {
+            ...global,
+            assetId: asset.assetId,
+            category: { objectId: global.categoryId },
+            department: { objectId: global.departmentId },
+          }
+      let acquiredOn = String(global.acquiredOn ?? '')
+      if (acquisition) {
+        const register = await tx
+          .selectFrom('acc_asset_registers')
+          .select('acquisition_vou_approval_entry_id')
+          .where('id', '=', asset.assetId!)
+          .executeTakeFirstOrThrow()
+        acquiredOn = (
+          await readVouPersistence(tx, {
+            approvalEntryId: register.acquisition_vou_approval_entry_id!,
+          })
+        ).businessDate
+      }
+      await adoptDepreciationBasis(tx, {
+        assetId: asset.assetId!,
+        bookId: input.bookId,
+        acquiredOn,
+        usefulLifeMonths: Number(facts.usefulLifeMonths),
+        residualRate: String(facts.residualRate),
+        currency: asset.currency,
+        facts: { ...global, ...asset, line: facts },
+        configuration: assetConfiguration!,
+      })
     }
     for (const bill of input.bills) {
       const existing = await sql<{
@@ -3237,6 +3389,8 @@ export class AccService
       assetDimensions: Record<string, string>
       accumulatedDepreciationSubjectId: string
       accumulatedDepreciationDimensions: Record<string, string>
+      depreciationExpenseSubjectId: string
+      depreciationExpenseDimensions: Record<string, string>
     }> = []
     for (const row of rows.rows) {
       const definition = row.mapping_definition
@@ -3265,6 +3419,10 @@ export class AccService
             value.accumulatedDepreciationSubjectId,
           accumulatedDepreciationDimensions:
             value.accumulatedDepreciationDimensions as Record<string, string>,
+          depreciationExpenseSubjectId:
+            value.depreciationExpenseSubjectId as string,
+          depreciationExpenseDimensions:
+            value.depreciationExpenseDimensions as Record<string, string>,
         })
     }
     const distinct = configurations.filter(
@@ -3424,7 +3582,7 @@ export class AccService
           !asset.usefulLifeMonths ||
           !asset.residualRate ||
           !asset.acquiredOn ||
-          decimalUnits(asset.residualRate) > 100_000_000n)
+          decimalUnits(asset.residualRate) > 10_000_000_000n)
       )
         throw new AccApplicationError('acc_opening_asset_invalid')
       if (!createsObject && asset.assetId) {
@@ -3598,6 +3756,7 @@ export class AccService
       control_book: boolean
       revision: string | number | bigint
     },
+    actor: ApprovalActor,
   ) {
     const access = await executor
       .selectFrom('acc_book_access')
@@ -3607,6 +3766,19 @@ export class AccService
       .execute()
     return {
       ...this.bookView(row),
+      availableActions: [
+        ...(this.allowed(actor, '/acc/book/save') &&
+        (actor.trusted ||
+          access.some((item) => item.user_id === actor.id && item.can_operate))
+          ? ['edit' as const]
+          : []),
+        ...(!row.control_book &&
+        this.allowed(actor, '/acc/book/delete') &&
+        (actor.trusted ||
+          access.some((item) => item.user_id === actor.id && item.can_operate))
+          ? ['delete' as const]
+          : []),
+      ],
       queryUserIds: access
         .filter((item) => item.can_query)
         .map((item) => item.user_id),
@@ -3616,13 +3788,17 @@ export class AccService
     }
   }
 
-  private async readBookView(executor: Executor, bookId: string) {
+  private async readBookView(
+    executor: Executor,
+    bookId: string,
+    actor: ApprovalActor,
+  ) {
     const row = await executor
       .selectFrom('acc_books')
       .selectAll()
       .where('id', '=', bookId)
       .executeTakeFirstOrThrow()
-    return this.bookViewWithAccess(executor, row)
+    return this.bookViewWithAccess(executor, row, actor)
   }
 
   private bookAccessMap(
@@ -3730,6 +3906,107 @@ export class AccService
     }
   }
 
+  private async readSubjectView(
+    executor: Executor,
+    id: string,
+    actor: ApprovalActor,
+  ) {
+    const row = await executor
+      .selectFrom('acc_subjects')
+      .selectAll()
+      .where('id', '=', id)
+      .executeTakeFirstOrThrow()
+    return this.subjectMaintenanceView(executor, row, actor)
+  }
+
+  private async subjectReferences(executor: Executor, id: string) {
+    return (
+      await sql<{
+        kind: 'MAPPING' | 'JOURNAL_LINE' | 'INVENTORY' | 'ASSET'
+        id: string
+      }>`
+      (SELECT 'MAPPING'::text AS kind, mapping_id AS id FROM acc_mapping_subject_usages WHERE subject_id = ${id} LIMIT 1)
+      UNION ALL
+      (SELECT 'JOURNAL_LINE'::text AS kind, id FROM acc_journal_lines WHERE subject_id = ${id} LIMIT 1)
+      UNION ALL
+      (SELECT 'INVENTORY'::text AS kind, id FROM acc_inventory_entries WHERE cost_counterpart_subject_id = ${id} LIMIT 1)
+      UNION ALL
+      (SELECT 'ASSET'::text AS kind, asset_id AS id FROM acc_asset_depreciation_basis WHERE accumulated_subject_id=${id} OR expense_subject_id=${id} LIMIT 1)
+    `.execute(executor)
+    ).rows
+  }
+
+  private async subjectMaintenanceView(
+    executor: Executor,
+    row: Parameters<AccService['subjectView']>[0],
+    actor: ApprovalActor,
+  ) {
+    const frozen = (await this.subjectReferences(executor, row.id)).length > 0
+    const parent = row.parent_id
+      ? await executor
+          .selectFrom('acc_subjects')
+          .select('name')
+          .where('id', '=', row.parent_id)
+          .where('book_id', '=', row.book_id)
+          .executeTakeFirst()
+      : undefined
+    const canOperate = await this.canOperateBook(executor, row.book_id, actor)
+    return {
+      ...this.subjectView(row),
+      parentName: parent?.name ?? null,
+      frozen,
+      availableActions: [
+        ...(canOperate &&
+        (!frozen || row.enabled) &&
+        this.allowed(actor, '/acc/subject/save')
+          ? ['edit' as const]
+          : []),
+        ...(canOperate && this.allowed(actor, '/acc/subject/delete')
+          ? ['delete' as const]
+          : []),
+      ],
+    }
+  }
+
+  async subjectParentOptions(
+    input: {
+      bookId: string
+      subjectId?: string
+      keyword?: string
+      ids?: string[]
+      page: number
+      pageSize: 20
+    },
+    actor: ApprovalActor,
+  ) {
+    await this.requireBookAccess(this.db, input.bookId, actor, false)
+    const where = sql`FROM acc_subjects s WHERE s.book_id=${input.bookId}
+      AND s.id NOT IN (WITH RECURSIVE descendants AS (SELECT id FROM acc_subjects WHERE id=${input.subjectId ?? null} UNION SELECT child.id FROM acc_subjects child JOIN descendants d ON child.parent_id=d.id) SELECT id FROM descendants)
+      AND NOT EXISTS (SELECT 1 FROM acc_mapping_subject_usages u WHERE u.subject_id=s.id)
+      AND NOT EXISTS (SELECT 1 FROM acc_journal_lines l WHERE l.subject_id=s.id)
+      AND NOT EXISTS (SELECT 1 FROM acc_inventory_entries i WHERE i.cost_counterpart_subject_id=s.id)
+      AND NOT EXISTS (SELECT 1 FROM acc_asset_depreciation_basis a WHERE a.accumulated_subject_id=s.id OR a.expense_subject_id=s.id)
+      ${input.ids ? sql`AND s.id IN (${sql.join(input.ids)})` : sql``}
+      AND (s.code ILIKE ${`%${input.keyword ?? ''}%`} OR s.name ILIKE ${`%${input.keyword ?? ''}%`})`
+    const rows = await sql<{
+      id: string
+      code: string
+      name: string
+      enabled: boolean
+    }>`SELECT s.id, s.code, s.name, s.enabled ${where} ORDER BY s.code, s.id LIMIT 20 OFFSET ${(input.page - 1) * 20}`.execute(
+      this.db,
+    )
+    const count = await sql<{
+      total: string
+    }>`SELECT count(*) AS total ${where}`.execute(this.db)
+    return {
+      items: rows.rows,
+      total: Number(count.rows[0]?.total ?? 0),
+      page: input.page,
+      pageSize: 20 as const,
+    }
+  }
+
   private subjectView(row: {
     id: string
     book_id: string
@@ -3749,11 +4026,14 @@ export class AccService
       code: row.code,
       name: row.name,
       parentId: row.parent_id,
-      balanceDirection: row.balance_direction,
+      balanceDirection:
+        row.balance_direction as AccSubjectInput['balanceDirection'],
       enabled: row.enabled,
-      requiredDimensions: row.required_dimensions as unknown as string[],
+      requiredDimensions:
+        row.required_dimensions as unknown as AccSubjectDimension[],
       inventoryQuantity: row.inventory_quantity,
-      settlementPurpose: row.settlement_purpose,
+      settlementPurpose:
+        row.settlement_purpose as AccSubjectInput['settlementPurpose'],
       revision: String(row.revision),
     }
   }

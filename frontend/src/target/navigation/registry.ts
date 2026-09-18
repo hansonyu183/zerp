@@ -1,3 +1,12 @@
+import { reportDefinitionPage } from '../definitions/report-definition.ts'
+import { periodPage } from '../definitions/period.ts'
+import { bookPage } from '../definitions/book.ts'
+import { subjectPage } from '../definitions/subject.ts'
+import { departmentPage } from '../definitions/department.ts'
+import { productCategoryPage } from '../definitions/product-category.ts'
+import { dictionaryTypePage } from '../definitions/dictionary-type.ts'
+import { dictionaryItemPage } from '../definitions/dictionary-item.ts'
+import { incomeExpenseTypePage } from '../definitions/income-expense-type.ts'
 import { taxInformationPage } from '../definitions/tax-information.ts'
 import { processDefinitionPage } from '../definitions/process-definition.ts'
 import { productPage, productChangesPage } from '../definitions/product.ts'
@@ -107,6 +116,30 @@ export function createResourceRegistry(
 export const targetResourceRegistry = createResourceRegistry(
   [
     {
+      domain: 'rpt',
+      entity: 'definition',
+      definition: reportDefinitionPage,
+      useCaseKey: 'rpt/definition-maintenance',
+    },
+    {
+      domain: 'acc',
+      entity: 'period',
+      definition: periodPage,
+      useCaseKey: 'acc/book-subject-period',
+    },
+    {
+      domain: 'acc',
+      entity: 'book',
+      definition: bookPage,
+      useCaseKey: 'acc/book-subject-period',
+    },
+    {
+      domain: 'acc',
+      entity: 'subject',
+      definition: subjectPage,
+      useCaseKey: 'acc/book-subject-period',
+    },
+    {
       domain: 'vou',
       entity: 'opening',
       vouType: 'opening',
@@ -170,6 +203,36 @@ export const targetResourceRegistry = createResourceRegistry(
       entity: 'role',
       definition: rolePage,
       useCaseKey: 'app/access-management',
+    },
+    {
+      domain: 'aux',
+      entity: 'department',
+      definition: departmentPage,
+      useCaseKey: 'aux/basic-maintenance',
+    },
+    {
+      domain: 'aux',
+      entity: 'product-category',
+      definition: productCategoryPage,
+      useCaseKey: 'aux/basic-maintenance',
+    },
+    {
+      domain: 'aux',
+      entity: 'dictionary-type',
+      definition: dictionaryTypePage,
+      useCaseKey: 'aux/basic-maintenance',
+    },
+    {
+      domain: 'aux',
+      entity: 'dictionary-item',
+      definition: dictionaryItemPage,
+      useCaseKey: 'aux/basic-maintenance',
+    },
+    {
+      domain: 'aux',
+      entity: 'income-expense-type',
+      definition: incomeExpenseTypePage,
+      useCaseKey: 'aux/basic-maintenance',
     },
     {
       domain: 'aux',

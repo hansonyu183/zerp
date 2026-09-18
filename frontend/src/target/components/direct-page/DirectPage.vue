@@ -8,6 +8,7 @@ import {
   ref,
   shallowRef,
   toRaw,
+  watch,
 } from 'vue'
 import { TargetApiError } from '../../api.ts'
 import { useTargetSession } from '../../session/vm.ts'
@@ -31,6 +32,9 @@ import {
 } from './definition.ts'
 import EditForm from '../dynamic-fields/EditForm.vue'
 import { formatDecimal, compareDecimal } from '../dynamic-fields/decimal.ts'
+import { incomeExpenseDirectionOptions } from './aux-presentation.ts'
+import type { DirectFilters } from './definition.ts'
+import { accErrorMessage } from './acc-presentation.ts'
 import { roleTypeOptions } from './role-presentation.ts'
 const props = defineProps<{ definition: DirectDefinition }>()
 const definition = props.definition
@@ -52,6 +56,7 @@ function token(action: string) {
 const referenceOptions = ref<Record<string, readonly EditOption[]>>({})
 const referenceReady = ref<Record<string, boolean>>({})
 const open = ref(false)
+const viewing = ref(false)
 const saving = ref(false)
 const writePending = ref(false)
 const lastCreatedId = ref('')
@@ -105,15 +110,42 @@ const mode = computed(() =>
   detail.value ? ('edit' as const) : ('create' as const),
 )
 const fields = computed(() =>
-  definition.fields.filter(
-    (field) =>
-      (!field.createOnly || mode.value === 'create') &&
-      (!field.visibleWhen ||
-        values.value[field.visibleWhen.key] === field.visibleWhen.value),
-  ),
+  definition.fields
+    .filter(
+      (field) =>
+        (!field.createOnly || mode.value === 'create') &&
+        (!field.editOnly || mode.value === 'edit') &&
+        (!field.visibleWhen ||
+          values.value[field.visibleWhen.key] === field.visibleWhen.value),
+    )
+    .map((field) =>
+      field.type === 'reference' && field.source === 'subject-parents'
+        ? {
+            ...field,
+            source: {
+              kind: 'subject-parent' as const,
+              bookId: String(values.value.bookId ?? ''),
+              ...(detail.value ? { subjectId: detail.value.identity.id } : {}),
+            },
+          }
+        : field,
+    ),
+)
+watch(
+  () => values.value.bookId,
+  (book, previous) => {
+    if (
+      definition.resource === 'acc/subject' &&
+      mode.value === 'create' &&
+      previous &&
+      book !== previous
+    )
+      values.value = { ...values.value, parentId: null }
+  },
 )
 const canSave = computed(
   () =>
+    !viewing.value &&
     !saving.value &&
     !loading.value &&
     !blocked.value &&
@@ -138,6 +170,35 @@ function finish(result?: 'changed') {
   completion = null
 }
 function message(cause: unknown) {
+  if (domain === 'acc') return accErrorMessage(cause)
+  if (
+    cause instanceof TargetApiError &&
+    cause.errorKey === 'conflict' &&
+    cause.data &&
+    typeof cause.data === 'object' &&
+    'blockers' in cause.data &&
+    Array.isArray(cause.data.blockers)
+  ) {
+    const sources: Record<string, string> = {
+      aux_children: '下级资料',
+      aux_dictionary_items: '所属字典项',
+    }
+    const blockers = cause.data.blockers.flatMap((item: unknown) => {
+      if (
+        !item ||
+        typeof item !== 'object' ||
+        !('source' in item) ||
+        !('count' in item) ||
+        typeof item.source !== 'string' ||
+        typeof item.count !== 'number'
+      )
+        return []
+      return [`${sources[item.source] ?? '业务引用'} ${item.count} 项`]
+    })
+    if (blockers.length)
+      return `存在引用，无法删除：${blockers.join('、')}。请先通过正常业务流程解除引用。`
+  }
+
   const errors: Record<string, string> = {
     validation_failed: '输入内容不符合要求，请检查后重试。',
     forbidden: '当前账号没有执行此操作的权限。',
@@ -165,10 +226,12 @@ const isConflict = (cause: unknown) =>
     ? cause.errorKey === 'user_changed'
     : definition.resource === 'app/role'
       ? cause.errorKey === 'role_changed'
-      : cause.errorKey === 'conflict')
+      : cause.errorKey === 'conflict' ||
+        cause.errorKey === 'approval_stale_revision')
 const isUnknown = (cause: unknown) =>
   !(cause instanceof TargetApiError) || cause.errorKey === 'invalid_response'
-function begin(row?: DirectRow): Promise<'changed' | void> {
+function begin(row?: DirectRow, readOnly = false): Promise<'changed' | void> {
+  viewing.value = readOnly
   const promise = new Promise<'changed' | void>((resolve, reject) => {
     completion = { resolve, reject }
   })
@@ -177,7 +240,9 @@ function begin(row?: DirectRow): Promise<'changed' | void> {
   referenceReady.value = {}
   loading.value = false
   if (!row) lastCreatedId.value = ''
-  values.value = adapter.empty()
+  values.value = adapter.empty({
+    bookId: list.appliedQuery.bookId ?? list.filterInput.bookId,
+  })
   detail.value = null
   error.value = null
   blocked.value = false
@@ -316,7 +381,7 @@ async function write(
     if (action === 'delete')
       await adapter.delete!(credential, { id: row.id, revision: row.revision })
     else
-      await adapter.setEnabled(
+      await adapter.setEnabled!(
         credential,
         { id: row.id, revision: row.revision },
         action === 'enable',
@@ -341,19 +406,42 @@ async function write(
   }
 }
 const unit = definition.resource === 'aux/measurement-unit'
-const listDefinition = defineListPage<DirectRow, { keyword: string }>({
+const listDefinition = defineListPage<DirectRow, DirectFilters>({
   title,
   createLabel: '新增',
   columns: [
     { key: 'code', type: 'text', caption: '编码' },
     { key: 'name', type: 'text', caption: '名称' },
-    {
-      key: 'enabled',
-      type: 'boolean',
-      caption: '状态',
-      trueCaption: '启用',
-      falseCaption: '停用',
-    },
+    ...(definition.enablement === 'none'
+      ? []
+      : [
+          {
+            key: 'enabled' as const,
+            type: 'boolean' as const,
+            caption: '状态',
+            trueCaption: '启用',
+            falseCaption: '停用',
+          },
+        ]),
+    ...(definition.resource === 'acc/book'
+      ? [
+          {
+            key: 'startMonth' as const,
+            type: 'text' as const,
+            caption: '开始月份',
+          },
+          {
+            key: 'baseCurrency' as const,
+            type: 'text' as const,
+            caption: '本位币',
+          },
+          {
+            key: 'controlBook' as const,
+            type: 'boolean' as const,
+            caption: '控制账簿',
+          },
+        ]
+      : []),
     ...(unit
       ? [
           {
@@ -373,20 +461,82 @@ const listDefinition = defineListPage<DirectRow, { keyword: string }>({
             },
           ]
         : []),
+    ...([
+      'acc/subject',
+      'aux/department',
+      'aux/product-category',
+      'aux/income-expense-type',
+    ].includes(definition.resource)
+      ? [{ key: 'parentName' as const, type: 'text' as const, caption: '上级' }]
+      : []),
+    ...(definition.resource === 'aux/dictionary-item'
+      ? [
+          {
+            key: 'dictionaryTypeName' as const,
+            type: 'text' as const,
+            caption: '所属类型',
+          },
+          {
+            key: 'sortOrder' as const,
+            type: 'integer' as const,
+            caption: '排序',
+          },
+        ]
+      : []),
+    ...(definition.resource === 'aux/income-expense-type'
+      ? [
+          {
+            key: 'direction' as const,
+            type: 'enum' as const,
+            caption: '方向',
+            options: incomeExpenseDirectionOptions,
+          },
+        ]
+      : []),
     { key: '$actions', type: 'actions', caption: '操作' },
   ],
-  filters: [{ key: 'keyword', type: 'text', caption: '编码、拼音或名称' }],
+  filters: [
+    {
+      key: 'keyword',
+      type: 'text',
+      caption: domain === 'acc' ? '编码或名称' : '编码、拼音或名称',
+    },
+    ...(definition.resource === 'acc/subject'
+      ? [
+          {
+            key: 'bookId' as const,
+            type: 'reference' as const,
+            source: 'acc/book' as const,
+            caption: '账簿',
+          },
+        ]
+      : []),
+    ...(definition.resource === 'aux/dictionary-item'
+      ? [
+          {
+            key: 'dictionaryTypeId' as const,
+            type: 'reference' as const,
+            source: 'aux/dictionary-type' as const,
+            caption: '所属类型',
+          },
+        ]
+      : []),
+  ],
 })
 const list = reactive(
-  useListPageViewModel<DirectRow, { keyword: string }>(
+  useListPageViewModel<DirectRow, DirectFilters>(
     {
       ...(can('query')
         ? {
-            onSearch: (input: {
-              keyword: string
-              page: number
-              pageSize: 20
-            }) => adapter.query(token('query'), input),
+            onSearch: async (
+              input: DirectFilters & { page: number; pageSize: 20 },
+            ) => {
+              try {
+                return await adapter.query(token('query'), input)
+              } catch (cause) {
+                throw new Error(message(cause))
+              }
+            },
           }
         : {}),
       onCreate: () => begin(),
@@ -400,6 +550,10 @@ const list = reactive(
         !open.value &&
         !saving.value &&
         !writePending.value &&
+        ((action !== 'enable' && action !== 'disable') ||
+          (definition.enablement !== 'none' &&
+            definition.enablement !== 'save' &&
+            Boolean(adapter.setEnabled))) &&
         can(action === 'edit' ? 'save' : action) &&
         (action === 'create' ||
           Boolean(
@@ -409,6 +563,10 @@ const list = reactive(
     {
       initialFilters: () => ({
         keyword: '',
+        ...(definition.resource === 'acc/subject' ? { bookId: null } : {}),
+        ...(definition.resource === 'aux/dictionary-item'
+          ? { dictionaryTypeId: null }
+          : {}),
       }),
       validateFilters: listDefinition.normalizeFilters,
     },
@@ -425,7 +583,7 @@ const contractError = computed(() => {
 })
 function rowActions(item: DirectRow) {
   const pending = list.isRowPending(item.id)
-  return (
+  const writes = (
     [
       { key: 'edit', caption: '编辑' },
       { key: 'enable', caption: '启用', color: 'success' },
@@ -439,9 +597,21 @@ function rowActions(item: DirectRow) {
       disabled: pending || list.isRowBlocked(item.id),
       loading: pending,
     }))
+  return can('get') && !open.value && !saving.value && !writePending.value
+    ? [
+        {
+          key: 'view',
+          caption: '查看',
+          disabled: pending || list.actionPending,
+        },
+        ...writes,
+      ]
+    : writes
 }
 function runRowAction(key: string, item: DirectRow) {
-  if (key === 'delete') pendingDelete.value = item
+  if (key === 'view') {
+    if (can('get') && !open.value && !list.actionPending) void begin(item, true)
+  } else if (key === 'delete') pendingDelete.value = item
   else if (key === 'edit' || key === 'enable' || key === 'disable')
     void list[key](item)
 }
@@ -539,7 +709,13 @@ onBeforeUnmount(() => {
   <AppSnackbar :message="list.feedback" @dismiss="list.dismissFeedback" />
   <v-dialog :model-value="open" max-width="720" persistent>
     <v-card
-      :title="mode === 'create' ? '新增' : `编辑${title.replace(/管理$/, '')}`"
+      :title="
+        viewing
+          ? `查看${title.replace(/管理$/, '')}`
+          : mode === 'create'
+            ? '新增'
+            : `编辑${title.replace(/管理$/, '')}`
+      "
     >
       <v-card-text>
         <v-alert v-if="error" type="error">{{ error }}</v-alert>
@@ -553,6 +729,7 @@ onBeforeUnmount(() => {
           @click="verify"
           >核实当前资料</v-btn
         >
+        <p v-if="detail">编码：{{ detail.identity.code }}</p>
         <EditForm
           v-if="open && !loading"
           :key="editVersion"
@@ -562,7 +739,7 @@ onBeforeUnmount(() => {
           @ready="(key, ready) => (referenceReady[key] = ready)"
           :fields="fields"
           v-model="values"
-          :disabled="saving || loading || blocked"
+          :disabled="viewing || saving || loading || blocked"
           @submit="save"
         />
       </v-card-text>
@@ -574,6 +751,7 @@ onBeforeUnmount(() => {
           >取消</v-btn
         ><v-btn
           :prepend-icon="actionIcons.save"
+          v-if="!viewing"
           :disabled="!canSave"
           :loading="saving"
           @click="save"

@@ -11,12 +11,10 @@ export type ValidDefinition = ListPageDefinition<
   { keyword: string }
 >
 export type MissingPinyin = ListPageDefinition<
-  // @ts-expect-error hidden py is still mandatory
   Omit<EnabledListItem, 'py'>,
   { keyword: string }
 >
 export type MissingEnabled = ListPageDefinition<
-  // @ts-expect-error enabled is mandatory at registration
   Omit<EnabledListItem, 'enabled'>,
   { keyword: string }
 >

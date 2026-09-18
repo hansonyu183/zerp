@@ -1,4 +1,20 @@
 <script setup lang="ts">
+import DynamicForm from '../dynamic-fields/DynamicForm.vue'
+import ReportDefinitionBlock from './ReportDefinitionBlock.vue'
+import {
+  emptyReport,
+  reportErrors,
+  validityNames,
+  reportOptions,
+} from './report-definition-data.ts'
+import { normalize } from '../report-page/report-data.ts'
+import type {
+  TargetReportSaveInput,
+  TargetReportDefinitionQueryInput,
+} from '../../api.ts'
+import ReferencePicker from '../dynamic-fields/ReferencePicker.vue'
+import type { EditOption } from '../dynamic-fields/edit-fields.ts'
+import { accErrorMessage } from '../direct-page/acc-presentation.ts'
 import { actionIcons } from '../../presentation/action-icons.ts'
 import RowActions from '../dynamic-fields/RowActions.vue'
 import DynamicCols from '../dynamic-fields/DynamicCols.vue'
@@ -6,6 +22,12 @@ import ListPagination from '../list-page/ListPagination.vue'
 import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import {
+  queryTargetReportDefinitions,
+  getTargetReportDefinition,
+  saveTargetReportDefinition,
+  queryTargetAccPeriod,
+  lockTargetAccPeriod,
+  unlockTargetAccPeriod,
   getTargetMappingCatalog,
   queryTargetMappings,
   getTargetMapping,
@@ -65,6 +87,11 @@ const report = (cause: unknown) =>
     : '网络请求失败，请稍后重试。'
 async function initialize() {
   if (!session.user || disposed || catalogLoading.value) return
+  if (props.definition.resource === 'acc/period') return
+  if (props.definition.resource === 'rpt/definition') {
+    await searchDefinitions()
+    return
+  }
   const request = ++catalogRequest
   catalogLoading.value = true
   error.value = ''
@@ -264,6 +291,312 @@ async function verify() {
     if (!disposed && request === editorRequest) saving.value = false
   }
 }
+type PeriodRow = Awaited<ReturnType<typeof queryTargetAccPeriod>>[number]
+const periodRows = ref<PeriodRow[]>([])
+const bookOptions = ref<readonly EditOption[]>([])
+const appliedBookName = ref('')
+const periodStale = ref(false)
+const pendingPeriod = ref<{
+  row: PeriodRow
+  action: 'lock' | 'unlock'
+  bookName: string
+} | null>(null)
+async function readPeriods(book: string) {
+  if (disposed || !can('query') || !session.csrfToken || !book) return
+  const request = ++queryRequest
+  loading.value = true
+  try {
+    const result = await queryTargetAccPeriod(session.csrfToken, {
+      bookId: book,
+    })
+    if (!disposed && request === queryRequest) periodRows.value = result
+  } catch (cause) {
+    if (!disposed && request === queryRequest) throw cause
+  } finally {
+    if (!disposed && request === queryRequest) loading.value = false
+  }
+}
+async function searchPeriods() {
+  if (saving.value || pendingPeriod.value || !bookId.value || !can('query'))
+    return
+  appliedBook = bookId.value
+  appliedBookName.value =
+    bookOptions.value.find((item) => item.id === appliedBook)?.name ??
+    '所选账簿'
+  error.value = ''
+  periodRows.value = []
+  try {
+    await readPeriods(appliedBook)
+  } catch (cause) {
+    if (!disposed) error.value = accErrorMessage(cause)
+  }
+}
+function periodActions(row: PeriodRow) {
+  return row.availableActions
+    .filter((action) => can(action))
+    .map((action) => ({
+      key: action,
+      caption: action === 'lock' ? '锁定' : '解锁',
+      disabled:
+        loading.value ||
+        saving.value ||
+        unknown.value ||
+        Boolean(pendingPeriod.value),
+    }))
+}
+function confirmPeriod(row: PeriodRow, action: string) {
+  if (
+    (action !== 'lock' && action !== 'unlock') ||
+    !can(action) ||
+    !row.availableActions.includes(action) ||
+    loading.value ||
+    saving.value ||
+    unknown.value ||
+    pendingPeriod.value
+  )
+    return
+  periodStale.value = false
+  error.value = ''
+  pendingPeriod.value = { row, action, bookName: appliedBookName.value }
+}
+async function writePeriod() {
+  const pending = pendingPeriod.value
+  if (
+    !pending ||
+    disposed ||
+    saving.value ||
+    unknown.value ||
+    periodStale.value ||
+    !can(pending.action) ||
+    !session.csrfToken
+  )
+    return
+  saving.value = true
+  error.value = ''
+  feedback.value = ''
+  try {
+    const execute =
+      pending.action === 'lock' ? lockTargetAccPeriod : unlockTargetAccPeriod
+    await execute(session.csrfToken, {
+      bookId: pending.row.bookId,
+      month: pending.row.month,
+      expectedRevision: pending.row.revision,
+    })
+    if (disposed) return
+    pendingPeriod.value = null
+    feedback.value = pending.action === 'lock' ? '月份已锁定。' : '月份已解锁。'
+    try {
+      await readPeriods(appliedBook)
+    } catch {
+      if (!disposed) {
+        periodRows.value = []
+        feedback.value += '列表刷新失败，请重新查询。'
+      }
+    }
+  } catch (cause) {
+    if (disposed) return
+    if (
+      !(cause instanceof TargetApiError) ||
+      cause.errorKey === 'invalid_response'
+    ) {
+      unknown.value = true
+      error.value =
+        '请求结果未知，已停止再次提交；查询不能确认此次写入，请核实后重新进入页面。'
+    } else {
+      error.value = accErrorMessage(cause)
+      periodStale.value = cause.errorKey === 'approval_stale_revision'
+    }
+  } finally {
+    if (!disposed) saving.value = false
+  }
+}
+type DefinitionDetail = Awaited<ReturnType<typeof getTargetReportDefinition>>
+const definitionRows = ref<
+  Awaited<ReturnType<typeof queryTargetReportDefinitions>>['items']
+>([])
+const definitionDraft = ref<TargetReportSaveInput | null>(null)
+const definitionCurrent = ref<DefinitionDetail | null>(null)
+const definitionReadOnly = ref(false)
+const definitionFilters = ref<{
+  keyword: string
+  enabled: boolean | null
+  validity: 'VALID' | 'INVALID' | '' | null
+}>({ keyword: '', enabled: null, validity: null })
+let definitionFilter: Omit<
+  TargetReportDefinitionQueryInput,
+  'page' | 'pageSize'
+> = {}
+const definitionDisplayRows = computed(() =>
+  definitionRows.value.map((row) => ({
+    ...row,
+    validityName: validityNames[row.validity],
+  })),
+)
+const definitionMessage = (cause: unknown) =>
+  cause instanceof TargetApiError
+    ? (reportErrors[cause.errorKey] ?? '操作失败，请检查输入或权限。')
+    : '网络请求失败，请稍后重试。'
+async function readDefinitions(nextPage: number) {
+  if (!can('query') || !session.csrfToken || disposed) return
+  const request = ++queryRequest
+  loading.value = true
+  try {
+    const result = await queryTargetReportDefinitions(session.csrfToken, {
+      ...definitionFilter,
+      page: nextPage,
+      pageSize: 20,
+    })
+    if (disposed || request !== queryRequest) return
+    definitionRows.value = result.items
+    total.value = result.total
+    page.value = nextPage
+  } finally {
+    if (!disposed && request === queryRequest) loading.value = false
+  }
+}
+async function searchDefinitions(nextPage = 1, applyFilter = true) {
+  if (saving.value || disposed) return
+  if (applyFilter)
+    definitionFilter = {
+      keyword: definitionFilters.value.keyword,
+      ...(definitionFilters.value.enabled === null
+        ? {}
+        : { enabled: definitionFilters.value.enabled }),
+      ...(!definitionFilters.value.validity
+        ? {}
+        : { validity: definitionFilters.value.validity }),
+    }
+  error.value = ''
+  const request = queryRequest + 1
+  try {
+    await readDefinitions(nextPage)
+  } catch (cause) {
+    if (!disposed && request === queryRequest)
+      error.value = definitionMessage(cause)
+  }
+}
+function createDefinition() {
+  if (!can('save') || saving.value || disposed) return
+  if (unknown.value) {
+    open.value = true
+    return
+  }
+  editorRequest++
+  definitionDraft.value = emptyReport()
+  definitionCurrent.value = null
+  definitionReadOnly.value = false
+  open.value = true
+  error.value = ''
+  feedback.value = ''
+}
+async function openDefinition(subjectId: string, editing: boolean) {
+  if (!can('get') || !session.csrfToken || saving.value || disposed) return
+  if (unknown.value) {
+    open.value = true
+    return
+  }
+  const request = ++editorRequest
+  error.value = ''
+  try {
+    const result = await getTargetReportDefinition(session.csrfToken, subjectId)
+    if (disposed || request !== editorRequest) return
+    definitionCurrent.value = result
+    definitionDraft.value = {
+      subjectId: result.subjectId,
+      expectedRevision: result.revision,
+      name: result.name,
+      description: result.description,
+      enabled: result.enabled,
+      sql: result.sql,
+      parameters: result.parameters,
+      columns: result.columns,
+    }
+    definitionReadOnly.value =
+      !editing || !can('save') || !result.availableActions.includes('save')
+    open.value = true
+  } catch (cause) {
+    if (!disposed && request === editorRequest)
+      error.value = definitionMessage(cause)
+  }
+}
+function definitionActions(row: (typeof definitionRows.value)[number]) {
+  if (!can('get') || !row.availableActions.includes('get')) return []
+  return [
+    { key: 'view', caption: '查看', disabled: saving.value },
+    ...(can('save') && row.availableActions.includes('save')
+      ? [{ key: 'edit', caption: '编辑', disabled: saving.value }]
+      : []),
+  ]
+}
+async function saveDefinition() {
+  if (
+    !definitionDraft.value ||
+    !open.value ||
+    definitionReadOnly.value ||
+    !can('save') ||
+    !session.csrfToken ||
+    saving.value ||
+    unknown.value ||
+    disposed
+  )
+    return
+  const input: TargetReportSaveInput = JSON.parse(
+    JSON.stringify(definitionDraft.value),
+  )
+  try {
+    input.parameters = input.parameters.map((parameter) => {
+      const { defaultValue, ...rest } = parameter
+      const normalized = normalize(
+        { ...parameter, defaultValue: undefined, required: false },
+        defaultValue,
+      )
+      return normalized === null ? rest : { ...rest, defaultValue: normalized }
+    })
+    input.columns = input.columns.map((column) => ({
+      ...column,
+      ...(column.format ? {} : { format: undefined }),
+      ...(column.drilldownEntity ? {} : { drilldownEntity: undefined }),
+    }))
+  } catch {
+    error.value = '默认值与参数类型不匹配，请检查。'
+    return
+  }
+  const request = editorRequest
+  saving.value = true
+  error.value = ''
+  feedback.value = ''
+  queryRequest++
+  loading.value = false
+  try {
+    const result = await saveTargetReportDefinition(session.csrfToken, input)
+    if (disposed || request !== editorRequest) return
+    definitionCurrent.value = result
+    definitionDraft.value.expectedRevision = result.revision
+    feedback.value = '已保存，当前定义已生效。'
+    await session.loadReportDirectory(true)
+    if (disposed || request !== editorRequest) return
+    if (session.reportDirectoryStatus === 'error')
+      feedback.value += '报表目录刷新失败，请重试目录；无需再次保存。'
+    try {
+      await readDefinitions(page.value)
+    } catch {
+      if (!disposed && request === editorRequest)
+        feedback.value += '列表刷新失败，请重新查询。'
+    }
+  } catch (cause) {
+    if (disposed || request !== editorRequest) return
+    if (
+      !(cause instanceof TargetApiError) ||
+      ['invalid_response', 'internal_error'].includes(cause.errorKey)
+    ) {
+      unknown.value = true
+      error.value =
+        '保存结果未知，已停止再次提交。请核实后重新进入，勿重复保存。'
+    } else error.value = definitionMessage(cause)
+  } finally {
+    if (!disposed && request === editorRequest) saving.value = false
+  }
+}
 const stop = watch(() => session.generation, dispose, { flush: 'sync' })
 function dispose() {
   disposed = true
@@ -271,7 +604,13 @@ function dispose() {
   queryRequest++
   catalogRequest++
   pendingInput = null
+  definitionRows.value = []
+  definitionDraft.value = null
+  definitionCurrent.value = null
   rows.value = []
+  periodRows.value = []
+  pendingPeriod.value = null
+  bookOptions.value = []
   catalog.value = { books: [], vouEntities: [], subjects: [] }
   draft.value = emptyMapping()
   open.value = false
@@ -281,7 +620,195 @@ onMounted(initialize)
 onBeforeUnmount(dispose)
 </script>
 <template>
-  <ManagementPageFrame title="会计映射">
+  <ManagementPageFrame
+    v-if="definition.resource === 'rpt/definition'"
+    title="报表定义维护"
+  >
+    <template #actions
+      ><v-btn
+        v-if="can('save')"
+        :prepend-icon="actionIcons.create"
+        :disabled="saving"
+        @click="createDefinition"
+        >新增</v-btn
+      ></template
+    >
+    <v-alert v-if="error" type="error">{{ error }}</v-alert>
+    <v-alert v-if="feedback" type="success">{{ feedback }}</v-alert>
+    <v-btn
+      v-if="session.reportDirectoryStatus === 'error'"
+      @click="session.loadReportDirectory(true)"
+      >重试目录</v-btn
+    >
+    <DynamicForm
+      v-if="can('query')"
+      v-model="definitionFilters"
+      :disabled="saving || loading"
+      :fields="[
+        { key: 'keyword', caption: '关键词', type: 'text' },
+        {
+          key: 'enabled',
+          caption: '启用状态',
+          type: 'boolean',
+          trueCaption: '启用',
+          falseCaption: '停用',
+        },
+        {
+          key: 'validity',
+          caption: '技术有效性',
+          type: 'enum',
+          options: reportOptions(validityNames),
+        },
+      ]"
+      @search="searchDefinitions()"
+    />
+    <DynamicCols
+      v-if="can('query')"
+      class="mt-4"
+      identity-key="subjectId"
+      :items="definitionDisplayRows"
+      :loading="loading"
+      :fields="[
+        { key: 'code', caption: '编码', type: 'text' },
+        { key: 'name', caption: '名称', type: 'text' },
+        { key: 'description', caption: '说明', type: 'text' },
+        { key: 'enabled', caption: '启用', type: 'boolean' },
+        { key: 'validityName', caption: '技术有效性', type: 'text' },
+        { key: '$actions', caption: '操作', type: 'actions' },
+      ]"
+    >
+      <template #actions="{ item }"
+        ><RowActions
+          :actions="definitionActions(item)"
+          @action="openDefinition(item.subjectId, $event === 'edit')"
+      /></template>
+    </DynamicCols>
+    <template v-if="can('query')" #footer
+      ><ListPagination
+        :pagination="{ mode: 'total', page, pageSize: 20, total }"
+        :disabled="loading || saving"
+        @page="searchDefinitions($event, false)"
+    /></template>
+    <v-dialog :model-value="open" max-width="1000" persistent>
+      <v-card
+        v-if="definitionDraft"
+        :title="
+          definitionReadOnly
+            ? '查看报表定义'
+            : definitionCurrent
+              ? '编辑报表定义'
+              : '新增报表定义'
+        "
+      >
+        <v-card-text>
+          <p v-if="definitionCurrent">
+            编码：{{ definitionCurrent.code }} · 技术有效性：{{
+              validityNames[definitionCurrent.validity]
+            }}
+          </p>
+          <v-alert v-if="error" type="error">{{ error }}</v-alert
+          ><v-alert v-if="feedback" type="success">{{ feedback }}</v-alert>
+          <ReportDefinitionBlock
+            v-model="definitionDraft"
+            :disabled="definitionReadOnly || saving || unknown"
+          />
+        </v-card-text>
+        <v-card-actions
+          ><v-spacer /><v-btn :disabled="saving" @click="close">{{
+            definitionReadOnly ? '关闭' : '取消'
+          }}</v-btn
+          ><v-btn
+            v-if="!definitionReadOnly && can('save')"
+            :disabled="saving || unknown"
+            :loading="saving"
+            @click="saveDefinition"
+            >验证保存</v-btn
+          ></v-card-actions
+        >
+      </v-card>
+    </v-dialog>
+  </ManagementPageFrame>
+  <ManagementPageFrame
+    v-else-if="definition.resource === 'acc/period'"
+    title="会计期间"
+  >
+    <v-alert v-if="error" type="error" class="mb-3">{{ error }}</v-alert>
+    <v-alert v-if="feedback" type="success" class="mb-3">{{
+      feedback
+    }}</v-alert>
+    <div class="mapping-toolbar">
+      <ReferencePicker
+        :source="{ kind: 'book' }"
+        caption="账簿"
+        :model-value="bookId"
+        :multiple="false"
+        :existing="[]"
+        :disabled="saving || Boolean(pendingPeriod)"
+        @update:model-value="bookId = typeof $event === 'string' ? $event : ''"
+        @resolved="bookOptions = $event"
+      />
+      <v-btn
+        :prepend-icon="actionIcons.search"
+        :disabled="!can('query') || !bookId || saving || Boolean(pendingPeriod)"
+        :loading="loading"
+        @click="searchPeriods"
+        >查询</v-btn
+      >
+    </div>
+    <DynamicCols
+      identity-key="month"
+      :items="periodRows"
+      :loading="loading"
+      :fields="[
+        { key: 'month', type: 'text', caption: '月份' },
+        {
+          key: 'locked',
+          type: 'boolean',
+          caption: '状态',
+          trueCaption: '已锁定',
+          falseCaption: '未锁定',
+        },
+        { key: '$actions', type: 'actions', caption: '操作' },
+      ]"
+      ><template #actions="{ item }"
+        ><RowActions
+          :actions="periodActions(item)"
+          @action="confirmPeriod(item, $event)" /></template
+    ></DynamicCols>
+    <v-dialog :model-value="Boolean(pendingPeriod)" max-width="520" persistent>
+      <v-card
+        :title="pendingPeriod?.action === 'lock' ? '确认锁定' : '确认解锁'"
+      >
+        <v-card-text>
+          <p>{{ pendingPeriod?.bookName }} · {{ pendingPeriod?.row.month }}</p>
+          <v-alert v-if="error" type="error">{{ error }}</v-alert>
+          <p>
+            确认{{
+              pendingPeriod?.action === 'lock' ? '锁定' : '解锁'
+            }}此月份吗？
+          </p>
+        </v-card-text>
+        <v-card-actions
+          ><v-spacer /><v-btn
+            :prepend-icon="actionIcons.cancel"
+            :disabled="saving"
+            @click="pendingPeriod = null"
+            >取消</v-btn
+          >
+          <v-btn
+            :prepend-icon="actionIcons.confirm"
+            :disabled="saving || unknown || periodStale"
+            :loading="saving"
+            @click="writePeriod"
+            >{{
+              pendingPeriod?.action === 'lock' ? '确认锁定' : '确认解锁'
+            }}</v-btn
+          >
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+  </ManagementPageFrame>
+  <ManagementPageFrame v-else title="会计映射">
     <v-alert v-if="error" type="error" class="mb-3">{{ error }}</v-alert>
     <v-alert v-if="feedback" type="success" class="mb-3">{{
       feedback

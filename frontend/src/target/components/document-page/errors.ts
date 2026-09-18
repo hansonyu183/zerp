@@ -1,3 +1,4 @@
+import { accountingSourceErrorCaptions } from '../../presentation/accounting-errors.ts'
 import { TargetApiError } from '../../api.ts'
 import { openingErrorCaptions } from './opening-errors.ts'
 import { snapshotCaptions } from './snapshot-presentation.ts'
@@ -47,6 +48,7 @@ const errorCaptions: Record<string, string> = {
   vou_source_line_quantity_exceeded: '数量超过来源可用数量。',
   vou_settlement_insufficient: '结算余额不足。',
   ...openingErrorCaptions,
+  ...accountingSourceErrorCaptions,
   vou_delete_blocked: '单据仍有业务引用，不能删除。',
 }
 

@@ -281,3 +281,83 @@ it('automatically loads report candidates without CSRF and retries a failed read
   expect(api.queryTargetReport).not.toHaveBeenCalled()
   w.unmount()
 })
+
+it('shares current directory names with navigation and refreshes after rename without changing grants', async () => {
+  const w = await open()
+  const session = useTargetSession()
+  expect(session.resourceGroups[0]?.resources[0]?.displayName).toBe('测试报表')
+  vi.mocked(api.queryTargetReportDirectory).mockResolvedValue([
+    { ...definition, name: '任意新名称' },
+  ])
+  await session.loadReportDirectory(true)
+  await flushPromises()
+  expect(session.resourceGroups[0]?.resources[0]?.displayName).toBe(
+    '任意新名称',
+  )
+  expect(w.text()).toContain('任意新名称')
+  expect(session.apiPaths).toEqual(['/rpt/rpt-000001/query'])
+  w.unmount()
+})
+
+it('keeps authorized entries on failed and unavailable directories and recovers by retry', async () => {
+  vi.mocked(api.queryTargetReportDirectory).mockRejectedValueOnce(
+    new Error('offline'),
+  )
+  const w = await open()
+  const session = useTargetSession()
+  expect(session.resourceGroups[0]?.resources[0]?.displayName).toBe(
+    '报表名称加载失败',
+  )
+  expect(w.text()).toContain('重试目录')
+  vi.mocked(api.queryTargetReportDirectory).mockResolvedValue([])
+  await click(w, '重试目录')
+  expect(session.resourceGroups[0]?.resources[0]?.displayName).toBe(
+    '报表不可用',
+  )
+  expect(session.hasResource('rpt', 'rpt-000001')).toBe(true)
+  w.unmount()
+})
+it('rejects old directory results after newer rename, account replacement and forced password change', async () => {
+  const session = useTargetSession()
+  let resolve!: (value: (typeof definition)[]) => void
+  vi.mocked(api.queryTargetReportDirectory).mockImplementationOnce(
+    () =>
+      new Promise((done) => {
+        resolve = done
+      }),
+  )
+  const pending = session.loadReportDirectory()
+  expect(session.resourceGroups[0]?.resources[0]?.displayName).toBe(
+    '报表名称加载中',
+  )
+  vi.mocked(api.queryTargetReportDirectory).mockResolvedValue([
+    { ...definition, name: '较新改名' },
+    { ...definition, code: 'rpt-000002', name: '无授权报表' },
+  ])
+  await session.loadReportDirectory(true)
+  resolve([definition])
+  await pending
+  expect(
+    session.resourceGroups[0]?.resources.map((r) => r.displayName),
+  ).toEqual(['较新改名'])
+  vi.mocked(api.queryTargetReportDirectory).mockImplementationOnce(
+    () =>
+      new Promise((done) => {
+        resolve = done
+      }),
+  )
+  const old = session.loadReportDirectory(true)
+  session.clear()
+  session.user = { id: 'other', code: 'other', name: '另一账号' }
+  session.apiPaths = ['/rpt/rpt-000002/export']
+  resolve([definition])
+  await old
+  expect(session.reportDirectory).toEqual([])
+  await session.loadReportDirectory()
+  expect(session.resourceGroups[0]?.resources[0]?.displayName).toBe(
+    '无授权报表',
+  )
+  session.passwordChangeRequired = true
+  expect(session.reportDirectory).toEqual([])
+  expect(session.resourceGroups).toEqual([])
+})

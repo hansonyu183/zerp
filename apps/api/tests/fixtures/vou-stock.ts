@@ -7,7 +7,11 @@ import { VouOpeningService } from '../../src/vou/opening-service.ts'
 import { VouService } from '../../src/vou/service.ts'
 import { seedProductionFixture } from './vou-production.ts'
 
-export async function seedStockFixture(db: Kysely<DB>) {
+export async function seedStockFixture(
+  db: Kysely<DB>,
+  startMonth = '2026-09',
+  initialStock = { quantity: '10', amount: '10.00' },
+) {
   const fixture = await seedProductionFixture(db, 0, [
     'sale-order',
     'purchase-order',
@@ -27,7 +31,7 @@ export async function seedStockFixture(db: Kysely<DB>) {
       id: ulid(),
       name: '库存控制账簿',
       description: '',
-      startMonth: '2026-09',
+      startMonth,
       baseCurrency: 'CNY',
       subjectTemplate: 'EMPTY',
       queryUserIds: [fixture.reviewer.userId],
@@ -77,8 +81,8 @@ export async function seedStockFixture(db: Kysely<DB>) {
           subjectId: subject.id,
           currency: 'CNY',
           direction: 'DEBIT',
-          amount: '10.00',
-          quantity: '10',
+          amount: initialStock.amount,
+          quantity: initialStock.quantity,
           dimensions: {
             PRODUCT: fixture.rawId,
             WAREHOUSE: fixture.salePayload.warehouse.objectId,
@@ -88,7 +92,7 @@ export async function seedStockFixture(db: Kysely<DB>) {
           subjectId: equity.id,
           currency: 'CNY',
           direction: 'CREDIT',
-          amount: '10.00',
+          amount: initialStock.amount,
           dimensions: {},
         },
       ],
@@ -110,7 +114,10 @@ export async function seedStockFixture(db: Kysely<DB>) {
     'stock-opening',
   )
   const catalog = await mappings.catalog(actor)
-  const quantityMapping = async (entity: string) =>
+  const quantityMapping = async (
+    entity: string,
+    costCounterpartSubjectId: string | null = null,
+  ) =>
     mappings.save(
       {
         bookId: book.id,
@@ -136,7 +143,7 @@ export async function seedStockFixture(db: Kysely<DB>) {
                     PRODUCT: 'line.productId',
                     WAREHOUSE: 'line.warehouseId',
                   },
-                  costCounterpartSubjectId: null,
+                  costCounterpartSubjectId,
                   costCounterpartDimensions: {},
                 },
                 {
@@ -166,6 +173,7 @@ export async function seedStockFixture(db: Kysely<DB>) {
     mappings,
     book,
     subject,
+    equity,
     catalog,
     quantityMapping,
     vou,

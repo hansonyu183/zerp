@@ -71,6 +71,41 @@ export class ManagementService {
     this.passwordMinLength = options.passwordMinLength
   }
 
+  async userOptions(input: ManagementQueryInput & { ids?: string[] }) {
+    const pattern = `%${input.keyword ?? ''}%`
+    const query = this.db
+      .selectFrom('app_users')
+      .where((eb) =>
+        eb.or([
+          eb('username', 'ilike', pattern),
+          eb('display_name', 'ilike', pattern),
+          eb('py', 'ilike', pattern),
+        ]),
+      )
+      .$if(Boolean(input.ids), (qb) => qb.where('id', 'in', input.ids!))
+    const rows = await query
+      .select(['id', 'username', 'display_name', 'status'])
+      .orderBy('username')
+      .orderBy('id')
+      .limit(20)
+      .offset((input.page - 1) * 20)
+      .execute()
+    const count = await query
+      .select((eb) => eb.fn.countAll<string>().as('total'))
+      .executeTakeFirstOrThrow()
+    return {
+      items: rows.map((row) => ({
+        id: row.id,
+        code: row.username,
+        name: row.display_name,
+        enabled: row.status === 'ENABLED',
+      })),
+      total: Number(count.total),
+      page: input.page,
+      pageSize: 20 as const,
+    }
+  }
+
   async queryUsers(input: ManagementQueryInput, principal: Principal) {
     this.require(principal, '/app/user/query')
     const page = this.page(input, 20)

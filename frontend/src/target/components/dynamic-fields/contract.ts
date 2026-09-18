@@ -10,6 +10,8 @@ const referenceSources = new Set<ReferenceSource>([
   'app/role',
   'bob/customer',
   'bob/supplier',
+  'aux/dictionary-type',
+  'acc/book',
 ])
 
 const commonKeys = new Set(['key', 'type', 'caption', 'required'])

@@ -17,6 +17,7 @@ try {
       '--config',
       'playwright.target.config.ts',
       'vou-catalog.spec.ts',
+      ...process.argv.slice(2),
     ],
     {
       stdio: 'inherit',

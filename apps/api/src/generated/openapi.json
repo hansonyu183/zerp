@@ -8232,6 +8232,708 @@
         }
       }
     },
+    "/aux/dictionary-type/options": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 100
+                }
+              ]
+            },
+            "required": false,
+            "name": "ids",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "default": ""
+            },
+            "required": false,
+            "name": "keyword",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            },
+            "required": true,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "20"
+              ]
+            },
+            "required": true,
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "enabled",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "required": false,
+            "name": "dictionaryTypeCode",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "辅助读取",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "enum": [
+                            ""
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "enabled": {
+                                    "type": "boolean"
+                                  },
+                                  "taxInformation": {
+                                    "type": "object",
+                                    "properties": {
+                                      "name": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 200
+                                      },
+                                      "taxNumber": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 128
+                                      },
+                                      "registeredAddress": {
+                                        "type": "string",
+                                        "maxLength": 500
+                                      },
+                                      "phone": {
+                                        "type": "string",
+                                        "maxLength": 32
+                                      },
+                                      "bank": {
+                                        "type": "string",
+                                        "maxLength": 200
+                                      },
+                                      "accountNumber": {
+                                        "type": "string",
+                                        "maxLength": 128
+                                      },
+                                      "remark": {
+                                        "type": "string",
+                                        "maxLength": 1000
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "code": {
+                                        "type": "string"
+                                      },
+                                      "revision": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "name",
+                                      "taxNumber",
+                                      "registeredAddress",
+                                      "phone",
+                                      "bank",
+                                      "accountNumber",
+                                      "remark",
+                                      "id",
+                                      "code",
+                                      "revision"
+                                    ]
+                                  },
+                                  "defaultUsefulLifeMonths": {
+                                    "type": "integer"
+                                  },
+                                  "defaultResidualRate": {
+                                    "type": "string"
+                                  },
+                                  "objectId": {
+                                    "type": "string"
+                                  },
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "behaviorProfile": {
+                                    "type": "string",
+                                    "enum": [
+                                      "RAW_MATERIAL",
+                                      "STANDARD_FINISHED",
+                                      "CUSTOM_FINISHED",
+                                      "PACKAGING"
+                                    ]
+                                  },
+                                  "fixedFactor": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "termCode": {
+                                    "type": "string",
+                                    "enum": [
+                                      "PREPAID",
+                                      "CASH_ON_DELIVERY",
+                                      "ARRIVAL_3",
+                                      "ARRIVAL_5",
+                                      "ARRIVAL_7",
+                                      "ARRIVAL_15",
+                                      "ARRIVAL_30",
+                                      "MONTHLY_CURRENT",
+                                      "MONTHLY_30",
+                                      "MONTHLY_60",
+                                      "MONTHLY_90"
+                                    ]
+                                  },
+                                  "ruleType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "RELATIVE_DAYS",
+                                      "MONTH_END"
+                                    ]
+                                  },
+                                  "monthOffset": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 3
+                                  },
+                                  "dayOfMonth": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 31
+                                  },
+                                  "dayOffset": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 30
+                                  },
+                                  "defaultSalesSurcharge": {
+                                    "type": "string",
+                                    "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                                  }
+                                },
+                                "required": [
+                                  "enabled",
+                                  "objectId",
+                                  "code",
+                                  "name"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "total": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "page": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "exclusiveMinimum": true
+                            },
+                            "pageSize": {
+                              "type": "number",
+                              "enum": [
+                                20
+                              ]
+                            }
+                          },
+                          "required": [
+                            "items",
+                            "total",
+                            "page",
+                            "pageSize"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "enum": [
+                                1001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                1002
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                2001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                3001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                5000
+                              ]
+                            }
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "nullable": true
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aux/income-expense-type/options": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 100
+                }
+              ]
+            },
+            "required": false,
+            "name": "ids",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "default": ""
+            },
+            "required": false,
+            "name": "keyword",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            },
+            "required": true,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "20"
+              ]
+            },
+            "required": true,
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "enabled",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "required": false,
+            "name": "dictionaryTypeCode",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "辅助读取",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "enum": [
+                            ""
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "enabled": {
+                                    "type": "boolean"
+                                  },
+                                  "taxInformation": {
+                                    "type": "object",
+                                    "properties": {
+                                      "name": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 200
+                                      },
+                                      "taxNumber": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 128
+                                      },
+                                      "registeredAddress": {
+                                        "type": "string",
+                                        "maxLength": 500
+                                      },
+                                      "phone": {
+                                        "type": "string",
+                                        "maxLength": 32
+                                      },
+                                      "bank": {
+                                        "type": "string",
+                                        "maxLength": 200
+                                      },
+                                      "accountNumber": {
+                                        "type": "string",
+                                        "maxLength": 128
+                                      },
+                                      "remark": {
+                                        "type": "string",
+                                        "maxLength": 1000
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "code": {
+                                        "type": "string"
+                                      },
+                                      "revision": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "name",
+                                      "taxNumber",
+                                      "registeredAddress",
+                                      "phone",
+                                      "bank",
+                                      "accountNumber",
+                                      "remark",
+                                      "id",
+                                      "code",
+                                      "revision"
+                                    ]
+                                  },
+                                  "defaultUsefulLifeMonths": {
+                                    "type": "integer"
+                                  },
+                                  "defaultResidualRate": {
+                                    "type": "string"
+                                  },
+                                  "objectId": {
+                                    "type": "string"
+                                  },
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "behaviorProfile": {
+                                    "type": "string",
+                                    "enum": [
+                                      "RAW_MATERIAL",
+                                      "STANDARD_FINISHED",
+                                      "CUSTOM_FINISHED",
+                                      "PACKAGING"
+                                    ]
+                                  },
+                                  "fixedFactor": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "termCode": {
+                                    "type": "string",
+                                    "enum": [
+                                      "PREPAID",
+                                      "CASH_ON_DELIVERY",
+                                      "ARRIVAL_3",
+                                      "ARRIVAL_5",
+                                      "ARRIVAL_7",
+                                      "ARRIVAL_15",
+                                      "ARRIVAL_30",
+                                      "MONTHLY_CURRENT",
+                                      "MONTHLY_30",
+                                      "MONTHLY_60",
+                                      "MONTHLY_90"
+                                    ]
+                                  },
+                                  "ruleType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "RELATIVE_DAYS",
+                                      "MONTH_END"
+                                    ]
+                                  },
+                                  "monthOffset": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 3
+                                  },
+                                  "dayOfMonth": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 31
+                                  },
+                                  "dayOffset": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 30
+                                  },
+                                  "defaultSalesSurcharge": {
+                                    "type": "string",
+                                    "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                                  }
+                                },
+                                "required": [
+                                  "enabled",
+                                  "objectId",
+                                  "code",
+                                  "name"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "total": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "page": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "exclusiveMinimum": true
+                            },
+                            "pageSize": {
+                              "type": "number",
+                              "enum": [
+                                20
+                              ]
+                            }
+                          },
+                          "required": [
+                            "items",
+                            "total",
+                            "page",
+                            "pageSize"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "enum": [
+                                1001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                1002
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                2001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                3001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                5000
+                              ]
+                            }
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "nullable": true
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/aux/department/options": {
       "get": {
         "parameters": [
@@ -13879,6 +14581,219 @@
                         "code",
                         "errorKey",
                         "message",
+                        "requestId"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/app/user/options": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 100
+                }
+              ]
+            },
+            "required": false,
+            "name": "ids",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "default": ""
+            },
+            "required": false,
+            "name": "keyword",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            },
+            "required": true,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "20"
+              ]
+            },
+            "required": true,
+            "name": "pageSize",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "辅助读取",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "enum": [
+                            ""
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "enabled": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "code",
+                                  "name",
+                                  "enabled"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "total": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "page": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "exclusiveMinimum": true
+                            },
+                            "pageSize": {
+                              "type": "number",
+                              "enum": [
+                                20
+                              ]
+                            }
+                          },
+                          "required": [
+                            "items",
+                            "total",
+                            "page",
+                            "pageSize"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "enum": [
+                                1001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                1002
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                2001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                3001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                5000
+                              ]
+                            }
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "nullable": true
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
                         "requestId"
                       ]
                     }
@@ -19790,6 +20705,12 @@
                                         "delete"
                                       ]
                                     }
+                                  },
+                                  "parentId": {
+                                    "type": "string"
+                                  },
+                                  "parentName": {
+                                    "type": "string"
                                   }
                                 },
                                 "required": [
@@ -19799,7 +20720,9 @@
                                   "name",
                                   "enabled",
                                   "revision",
-                                  "availableActions"
+                                  "availableActions",
+                                  "parentId",
+                                  "parentName"
                                 ],
                                 "additionalProperties": false
                               }
@@ -23363,6 +24286,12 @@
                                         "delete"
                                       ]
                                     }
+                                  },
+                                  "parentId": {
+                                    "type": "string"
+                                  },
+                                  "parentName": {
+                                    "type": "string"
                                   }
                                 },
                                 "required": [
@@ -23372,7 +24301,9 @@
                                   "name",
                                   "enabled",
                                   "revision",
-                                  "availableActions"
+                                  "availableActions",
+                                  "parentId",
+                                  "parentName"
                                 ],
                                 "additionalProperties": false
                               }
@@ -28989,6 +29920,10 @@
                     "enum": [
                       20
                     ]
+                  },
+                  "dictionaryTypeId": {
+                    "type": "string",
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
                   }
                 },
                 "required": [
@@ -29069,6 +30004,16 @@
                                         "delete"
                                       ]
                                     }
+                                  },
+                                  "dictionaryTypeId": {
+                                    "type": "string",
+                                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                                  },
+                                  "dictionaryTypeName": {
+                                    "type": "string"
+                                  },
+                                  "sortOrder": {
+                                    "type": "integer"
                                   }
                                 },
                                 "required": [
@@ -29078,7 +30023,10 @@
                                   "name",
                                   "enabled",
                                   "revision",
-                                  "availableActions"
+                                  "availableActions",
+                                  "dictionaryTypeId",
+                                  "dictionaryTypeName",
+                                  "sortOrder"
                                 ],
                                 "additionalProperties": false
                               }
@@ -31456,6 +32404,19 @@
                                         "delete"
                                       ]
                                     }
+                                  },
+                                  "parentId": {
+                                    "type": "string"
+                                  },
+                                  "parentName": {
+                                    "type": "string"
+                                  },
+                                  "direction": {
+                                    "type": "string",
+                                    "enum": [
+                                      "INCOME",
+                                      "EXPENSE"
+                                    ]
                                   }
                                 },
                                 "required": [
@@ -31465,7 +32426,10 @@
                                   "name",
                                   "enabled",
                                   "revision",
-                                  "availableActions"
+                                  "availableActions",
+                                  "parentId",
+                                  "parentName",
+                                  "direction"
                                 ],
                                 "additionalProperties": false
                               }
@@ -286987,6 +287951,245 @@
         }
       }
     },
+    "/acc/subject/parent-options": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 100
+                }
+              ]
+            },
+            "required": false,
+            "name": "ids",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "default": ""
+            },
+            "required": false,
+            "name": "keyword",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            },
+            "required": true,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "20"
+              ]
+            },
+            "required": true,
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 26,
+              "maxLength": 26
+            },
+            "required": true,
+            "name": "bookId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 26,
+              "maxLength": 26
+            },
+            "required": false,
+            "name": "subjectId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "辅助读取",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "enum": [
+                            ""
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "minLength": 26,
+                                    "maxLength": 26
+                                  },
+                                  "code": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 64
+                                  },
+                                  "name": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "enabled": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "code",
+                                  "name",
+                                  "enabled"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "total": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "page": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "exclusiveMinimum": true
+                            },
+                            "pageSize": {
+                              "type": "number",
+                              "enum": [
+                                20
+                              ]
+                            }
+                          },
+                          "required": [
+                            "items",
+                            "total",
+                            "page",
+                            "pageSize"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "enum": [
+                                1001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                1002
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                2001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                3001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                5000
+                              ]
+                            }
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "nullable": true
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/acc/asset/options": {
       "get": {
         "parameters": [
@@ -287982,6 +289185,16 @@
                                   "controlBook": {
                                     "type": "boolean"
                                   },
+                                  "availableActions": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "enum": [
+                                        "edit",
+                                        "delete"
+                                      ]
+                                    }
+                                  },
                                   "revision": {
                                     "type": "string",
                                     "pattern": "^[1-9]\\d*$"
@@ -288011,6 +289224,7 @@
                                   "startMonth",
                                   "baseCurrency",
                                   "controlBook",
+                                  "availableActions",
                                   "revision",
                                   "queryUserIds",
                                   "operateUserIds"
@@ -288189,6 +289403,16 @@
                             "controlBook": {
                               "type": "boolean"
                             },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "edit",
+                                  "delete"
+                                ]
+                              }
+                            },
                             "revision": {
                               "type": "string",
                               "pattern": "^[1-9]\\d*$"
@@ -288218,6 +289442,7 @@
                             "startMonth",
                             "baseCurrency",
                             "controlBook",
+                            "availableActions",
                             "revision",
                             "queryUserIds",
                             "operateUserIds"
@@ -288422,6 +289647,16 @@
                             "controlBook": {
                               "type": "boolean"
                             },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "edit",
+                                  "delete"
+                                ]
+                              }
+                            },
                             "revision": {
                               "type": "string",
                               "pattern": "^[1-9]\\d*$"
@@ -288451,6 +289686,7 @@
                             "startMonth",
                             "baseCurrency",
                             "controlBook",
+                            "availableActions",
                             "revision",
                             "queryUserIds",
                             "operateUserIds"
@@ -288646,6 +289882,16 @@
                             "controlBook": {
                               "type": "boolean"
                             },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "edit",
+                                  "delete"
+                                ]
+                              }
+                            },
                             "revision": {
                               "type": "string",
                               "pattern": "^[1-9]\\d*$"
@@ -288675,6 +289921,7 @@
                             "startMonth",
                             "baseCurrency",
                             "controlBook",
+                            "availableActions",
                             "revision",
                             "queryUserIds",
                             "operateUserIds"
@@ -289040,6 +290287,23 @@
                                   "revision": {
                                     "type": "string",
                                     "pattern": "^[1-9]\\d*$"
+                                  },
+                                  "frozen": {
+                                    "type": "boolean"
+                                  },
+                                  "parentName": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "availableActions": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "enum": [
+                                        "edit",
+                                        "delete"
+                                      ]
+                                    }
                                   }
                                 },
                                 "required": [
@@ -289053,7 +290317,10 @@
                                   "requiredDimensions",
                                   "inventoryQuantity",
                                   "settlementPurpose",
-                                  "revision"
+                                  "revision",
+                                  "frozen",
+                                  "parentName",
+                                  "availableActions"
                                 ],
                                 "additionalProperties": false
                               }
@@ -289275,6 +290542,23 @@
                             "revision": {
                               "type": "string",
                               "pattern": "^[1-9]\\d*$"
+                            },
+                            "frozen": {
+                              "type": "boolean"
+                            },
+                            "parentName": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "edit",
+                                  "delete"
+                                ]
+                              }
                             }
                           },
                           "required": [
@@ -289288,7 +290572,10 @@
                             "requiredDimensions",
                             "inventoryQuantity",
                             "settlementPurpose",
-                            "revision"
+                            "revision",
+                            "frozen",
+                            "parentName",
+                            "availableActions"
                           ],
                           "additionalProperties": false
                         },
@@ -289559,6 +290846,23 @@
                             "revision": {
                               "type": "string",
                               "pattern": "^[1-9]\\d*$"
+                            },
+                            "frozen": {
+                              "type": "boolean"
+                            },
+                            "parentName": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "edit",
+                                  "delete"
+                                ]
+                              }
                             }
                           },
                           "required": [
@@ -289572,7 +290876,10 @@
                             "requiredDimensions",
                             "inventoryQuantity",
                             "settlementPurpose",
-                            "revision"
+                            "revision",
+                            "frozen",
+                            "parentName",
+                            "availableActions"
                           ],
                           "additionalProperties": false
                         },
@@ -289848,6 +291155,23 @@
                             "revision": {
                               "type": "string",
                               "pattern": "^[1-9]\\d*$"
+                            },
+                            "frozen": {
+                              "type": "boolean"
+                            },
+                            "parentName": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "edit",
+                                  "delete"
+                                ]
+                              }
                             }
                           },
                           "required": [
@@ -289861,7 +291185,10 @@
                             "requiredDimensions",
                             "inventoryQuantity",
                             "settlementPurpose",
-                            "revision"
+                            "revision",
+                            "frozen",
+                            "parentName",
+                            "availableActions"
                           ],
                           "additionalProperties": false
                         },
@@ -290148,14 +291475,26 @@
                               },
                               "revision": {
                                 "type": "string",
+                                "nullable": true,
                                 "pattern": "^[1-9]\\d*$"
+                              },
+                              "availableActions": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": [
+                                    "lock",
+                                    "unlock"
+                                  ]
+                                }
                               }
                             },
                             "required": [
                               "bookId",
                               "month",
                               "locked",
-                              "revision"
+                              "revision",
+                              "availableActions"
                             ],
                             "additionalProperties": false
                           }
@@ -290307,14 +291646,26 @@
                             },
                             "revision": {
                               "type": "string",
+                              "nullable": true,
                               "pattern": "^[1-9]\\d*$"
+                            },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "lock",
+                                  "unlock"
+                                ]
+                              }
                             }
                           },
                           "required": [
                             "bookId",
                             "month",
                             "locked",
-                            "revision"
+                            "revision",
+                            "availableActions"
                           ],
                           "additionalProperties": false
                         },
@@ -290465,14 +291816,26 @@
                             },
                             "revision": {
                               "type": "string",
+                              "nullable": true,
                               "pattern": "^[1-9]\\d*$"
+                            },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "lock",
+                                  "unlock"
+                                ]
+                              }
                             }
                           },
                           "required": [
                             "bookId",
                             "month",
                             "locked",
-                            "revision"
+                            "revision",
+                            "availableActions"
                           ],
                           "additionalProperties": false
                         },
@@ -296726,6 +298089,210 @@
         }
       }
     },
+    "/rpt/definition/query": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "keyword": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "validity": {
+                    "type": "string",
+                    "enum": [
+                      "VALID",
+                      "INVALID"
+                    ]
+                  },
+                  "page": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true
+                  },
+                  "pageSize": {
+                    "type": "number",
+                    "enum": [
+                      20
+                    ]
+                  }
+                },
+                "required": [
+                  "page",
+                  "pageSize"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/rpt/definition/query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "enum": [
+                            ""
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "subjectId": {
+                                    "type": "string",
+                                    "minLength": 26,
+                                    "maxLength": 26
+                                  },
+                                  "revision": {
+                                    "type": "string",
+                                    "pattern": "^[1-9][0-9]*$"
+                                  },
+                                  "code": {
+                                    "type": "string",
+                                    "pattern": "^rpt-[0-9]{6}$"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "description": {
+                                    "type": "string"
+                                  },
+                                  "enabled": {
+                                    "type": "boolean"
+                                  },
+                                  "validity": {
+                                    "type": "string",
+                                    "enum": [
+                                      "VALID",
+                                      "INVALID"
+                                    ]
+                                  },
+                                  "availableActions": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "enum": [
+                                        "get",
+                                        "save"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "subjectId",
+                                  "revision",
+                                  "code",
+                                  "name",
+                                  "description",
+                                  "enabled",
+                                  "validity",
+                                  "availableActions"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "total": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "page": {
+                              "type": "integer"
+                            },
+                            "pageSize": {
+                              "type": "number",
+                              "enum": [
+                                20
+                              ]
+                            }
+                          },
+                          "required": [
+                            "items",
+                            "total",
+                            "page",
+                            "pageSize"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer"
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "nullable": true
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rpt/definition/save": {
       "post": {
         "requestBody": {
@@ -297077,6 +298644,16 @@
                                 "additionalProperties": false
                               }
                             },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "get",
+                                  "save"
+                                ]
+                              }
+                            },
                             "description": {
                               "type": "string"
                             },
@@ -297101,6 +298678,7 @@
                             "name",
                             "parameters",
                             "columns",
+                            "availableActions",
                             "description",
                             "enabled",
                             "sql",
@@ -297354,6 +298932,16 @@
                                 "additionalProperties": false
                               }
                             },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "get",
+                                  "save"
+                                ]
+                              }
+                            },
                             "description": {
                               "type": "string"
                             },
@@ -297378,6 +298966,7 @@
                             "name",
                             "parameters",
                             "columns",
+                            "availableActions",
                             "description",
                             "enabled",
                             "sql",

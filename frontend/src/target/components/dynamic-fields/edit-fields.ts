@@ -1,6 +1,9 @@
 import type { EnumOption } from './types.ts'
 
 export type EditReferenceSource =
+  | 'users'
+  | 'books'
+  | 'subject-parents'
   | 'customers'
   | 'suppliers'
   | 'roles'
@@ -8,6 +11,8 @@ export type EditReferenceSource =
   | 'operating-entities'
   | 'employee-categories'
   | 'departments'
+  | 'dictionary-types'
+  | 'income-expense-types'
   | 'positions'
   | 'employees'
   | 'vehicle-types'
@@ -40,6 +45,7 @@ export type EditField = {
   caption: string
   required?: boolean
   createOnly?: boolean
+  editOnly?: boolean
   visibleWhen?: { key: 'carrierKind'; value: 'INTERNAL' | 'EXTERNAL' }
 } & (
   | { type: 'text' | 'textarea' | 'password' | 'date' }
@@ -47,18 +53,21 @@ export type EditField = {
   | { type: 'decimal'; scale: number; min?: string; max?: string }
   | { type: 'boolean' }
   | { type: 'enum'; options: readonly EnumOption[] }
+  | { type: 'multi-enum'; options: readonly EnumOption[] }
   | {
       type: 'reference'
-      source: Exclude<EditReferenceSource, 'roles' | 'permissions'>
+      source:
+        | Exclude<EditReferenceSource, 'roles' | 'permissions' | 'users'>
+        | { kind: 'subject-parent'; bookId: string; subjectId?: string }
     }
-  | { type: 'multi-reference'; source: 'roles' | 'permissions' }
+  | { type: 'multi-reference'; source: 'roles' | 'permissions' | 'users' }
 )
 type WithKey<F, K extends string> = F extends EditField
   ? Omit<F, 'key'> & { key: K }
   : never
 type FieldFor<Value> =
   NonNullable<Value> extends string[]
-    ? Extract<EditField, { type: 'multi-reference' }>
+    ? Extract<EditField, { type: 'multi-reference' | 'multi-enum' }>
     : NonNullable<Value> extends boolean
       ? Extract<EditField, { type: 'boolean' }>
       : NonNullable<Value> extends number
@@ -66,7 +75,7 @@ type FieldFor<Value> =
         : NonNullable<Value> extends string
           ? Exclude<
               EditField,
-              { type: 'boolean' | 'integer' | 'multi-reference' }
+              { type: 'boolean' | 'integer' | 'multi-reference' | 'multi-enum' }
             >
           : never
 export type EditFields<T extends object> = readonly {
@@ -84,6 +93,7 @@ export type EditReference =
     }
   | { kind: 'book' }
   | { kind: 'subject'; bookId: string }
+  | { kind: 'subject-parent'; bookId: string; subjectId?: string }
   | EditReferenceSource
   | { kind: 'voucher'; entity: import('@zerp/model').VouEntity }
   | {

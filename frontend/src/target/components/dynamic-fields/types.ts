@@ -10,7 +10,12 @@ export interface ReferenceSummary {
   name: string
 }
 
-export type ReferenceSource = 'app/role' | 'bob/customer' | 'bob/supplier'
+export type ReferenceSource =
+  | 'app/role'
+  | 'bob/customer'
+  | 'bob/supplier'
+  | 'aux/dictionary-type'
+  | 'acc/book'
 
 interface FieldBase<K extends string, Type extends string> {
   key: K

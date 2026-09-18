@@ -5,11 +5,7 @@ import ListPagination from '../list-page/ListPagination.vue'
 import FieldInput from '../dynamic-fields/FieldInput.vue'
 import ReferencePicker from '../dynamic-fields/ReferencePicker.vue'
 import { computed, ref, shallowRef, watch, onMounted, onUnmounted } from 'vue'
-import {
-  queryTargetReportDirectory,
-  queryTargetReport,
-  exportTargetReport,
-} from '../../api.ts'
+import { queryTargetReport, exportTargetReport } from '../../api.ts'
 import { useTargetSession } from '../../session/vm.ts'
 import ManagementPageFrame from '../ManagementPageFrame.vue'
 import {
@@ -117,7 +113,10 @@ async function initialize() {
   const generation = ++request
   loading.value = true
   try {
-    const directory = await queryTargetReportDirectory()
+    await session.loadReportDirectory()
+    if (session.reportDirectoryStatus === 'error')
+      throw new Error('报表目录加载失败，请重试。')
+    const directory = session.reportDirectory
     if (disposed || generation !== request) return
     report.value = directory.find((item) => item.code === code) ?? null
     if (!report.value) throw new Error('rpt_definition_not_executable')
@@ -227,7 +226,7 @@ function enter(event: KeyboardEvent) {
 </script>
 <template>
   <ManagementPageFrame
-    :title="report?.name ?? '报表'"
+    :title="session.reportName(code)"
     data-testid="report-page"
   >
     <template #actions>
@@ -241,6 +240,10 @@ function enter(event: KeyboardEvent) {
       >
     </template>
     <template #alerts
+      ><v-btn
+        v-if="session.reportDirectoryStatus === 'error'"
+        @click="initialize"
+        >重试目录</v-btn
       ><v-alert v-if="error" type="error" class="mb-4">{{
         error
       }}</v-alert></template

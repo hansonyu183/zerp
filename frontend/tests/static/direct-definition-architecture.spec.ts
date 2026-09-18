@@ -8,9 +8,16 @@ const definitionRoot = resolve(
   '../../src/target/definitions',
 )
 const resources = [
+  'acc/book',
+  'acc/subject',
   'app/user',
   'app/role',
   'aux/employee-category',
+  'aux/department',
+  'aux/product-category',
+  'aux/dictionary-type',
+  'aux/dictionary-item',
+  'aux/income-expense-type',
   'aux/position',
   'aux/measurement-unit',
   'aux/payment-method',
@@ -24,8 +31,11 @@ const resources = [
 ]
 const allowedImports = new Set([
   '@zerp/model',
+  'ulid',
+  '../components/direct-page/acc-presentation.ts',
   '../api.ts',
   '../components/direct-page/definition.ts',
+  '../components/direct-page/aux-presentation.ts',
   '../components/dynamic-fields/references.ts',
   '../components/dynamic-fields/edit-fields.ts',
 ])
@@ -41,12 +51,13 @@ describe('the actual direct definitions stay stateless and reach one runtime', (
       })
       expect(Object.keys(registration.definition!).sort()).toEqual([
         'adapter',
+        ...(resource.startsWith('acc/') ? ['enablement'] : []),
         'fields',
         'kind',
         'resource',
       ])
     }
-    expect(targetResourceRegistry.resolve('aux', 'department')).toBeNull()
+    expect(targetResourceRegistry.resolve('aux', 'product-type')).toBeNull()
   })
   it('rejects state, templates, arbitrary imports and requests in every registered definition source', () => {
     const files = readdirSync(definitionRoot).filter((filename) =>

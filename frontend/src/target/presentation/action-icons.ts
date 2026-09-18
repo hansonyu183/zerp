@@ -1,5 +1,7 @@
 // Fixed user intents choose their icon here; icons never determine action eligibility.
 export const actionIcons = {
+  lock: 'mdi-lock-outline',
+  unlock: 'mdi-lock-open-variant-outline',
   approve: 'mdi-check-decagram-outline',
   reject: 'mdi-close-circle-outline',
   unreject: 'mdi-backup-restore',

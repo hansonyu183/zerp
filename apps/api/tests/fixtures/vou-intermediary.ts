@@ -19,7 +19,15 @@ export async function approveEmptyIntermediaryMonth(
       {
         bookId: book.id,
         vouEntity: 'intermediary-calculation',
-        expectedRevision: null,
+        expectedRevision:
+          (
+            await db
+              .selectFrom('acc_mappings')
+              .select('revision')
+              .where('book_id', '=', book.id)
+              .where('vou_entity', '=', 'intermediary-calculation')
+              .executeTakeFirst()
+          )?.revision?.toString() ?? null,
         defaultResult: 'UN_POST',
         definition: {
           defaultTemplateId: null,

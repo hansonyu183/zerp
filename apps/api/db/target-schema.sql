@@ -1668,7 +1668,13 @@ CREATE TABLE acc_inventory_entries (
     book_id varchar(26) NOT NULL REFERENCES acc_books(id) ON DELETE RESTRICT,
     subject_id varchar(26) NOT NULL REFERENCES acc_subjects(id) ON DELETE RESTRICT,
     journal_entry_id varchar(26) NOT NULL REFERENCES acc_journal_entries(id) ON DELETE CASCADE,
-    line_id varchar(26) NOT NULL,
+    line_id varchar(26) NOT NULL REFERENCES acc_journal_lines(id) ON DELETE CASCADE,
+    line_no integer NOT NULL CHECK (line_no > 0),
+    source_line_id varchar(128),
+    cost_source_document_id varchar(26) REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    production_line_no integer CHECK (production_line_no > 0),
+    cost_counterpart_subject_id varchar(26) REFERENCES acc_subjects(id) ON DELETE RESTRICT,
+    cost_counterpart_dimensions jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(cost_counterpart_dimensions) = 'object'),
     warehouse_id varchar(26) NOT NULL,
     product_id varchar(26) NOT NULL,
     business_date date NOT NULL,
@@ -1683,6 +1689,19 @@ CREATE TABLE acc_inventory_entries (
 );
 CREATE INDEX acc_inventory_entries_control_balance_idx
     ON acc_inventory_entries(book_id, warehouse_id, product_id, business_date, created_at, id);
+
+CREATE INDEX acc_inventory_entries_cost_counterpart_idx
+    ON acc_inventory_entries(cost_counterpart_subject_id) WHERE cost_counterpart_subject_id IS NOT NULL;
+
+CREATE TABLE acc_inventory_cost_allocations (
+    inventory_entry_id varchar(26) PRIMARY KEY REFERENCES acc_inventory_entries(id) ON DELETE CASCADE,
+    book_id varchar(26) NOT NULL REFERENCES acc_books(id) ON DELETE RESTRICT,
+    period_month varchar(7) NOT NULL,
+    cost_amount numeric(24, 8) NOT NULL,
+    adjustment_amount numeric(24, 8) NOT NULL,
+    journal_entry_id varchar(26) REFERENCES acc_journal_entries(id) ON DELETE CASCADE
+);
+CREATE INDEX acc_inventory_cost_allocations_period_idx ON acc_inventory_cost_allocations(book_id, period_month);
 
 CREATE TABLE acc_container_entries (
     id varchar(26) PRIMARY KEY,
@@ -1723,9 +1742,37 @@ CREATE TABLE acc_asset_book_values (
     acquisition_vou_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
     acquisition_opening_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
     original_value numeric(24, 8) NOT NULL CHECK (original_value >= 0),
+    accumulated_depreciation numeric(24, 8) NOT NULL DEFAULT 0 CHECK (accumulated_depreciation >= 0),
     created_at timestamptz NOT NULL,
     PRIMARY KEY (asset_id, book_id),
     CHECK ((acquisition_vou_approval_entry_id IS NOT NULL) <> (acquisition_opening_approval_entry_id IS NOT NULL))
+);
+
+CREATE TABLE acc_asset_depreciation_basis (
+    asset_id varchar(26) NOT NULL,
+    book_id varchar(26) NOT NULL,
+    acquired_on date NOT NULL,
+    useful_life_months integer NOT NULL CHECK (useful_life_months > 0),
+    residual_rate numeric(12, 8) NOT NULL,
+    currency varchar(3) NOT NULL,
+    accumulated_subject_id varchar(26) NOT NULL REFERENCES acc_subjects(id) ON DELETE RESTRICT,
+    accumulated_dimensions jsonb NOT NULL,
+    expense_subject_id varchar(26) NOT NULL REFERENCES acc_subjects(id) ON DELETE RESTRICT,
+    expense_dimensions jsonb NOT NULL,
+    PRIMARY KEY (asset_id, book_id),
+    FOREIGN KEY (asset_id, book_id) REFERENCES acc_asset_book_values(asset_id, book_id) ON DELETE CASCADE
+);
+CREATE INDEX acc_asset_depreciation_accumulated_subject_idx ON acc_asset_depreciation_basis(accumulated_subject_id);
+CREATE INDEX acc_asset_depreciation_expense_subject_idx ON acc_asset_depreciation_basis(expense_subject_id);
+
+CREATE TABLE acc_asset_depreciation_entries (
+    asset_id varchar(26) NOT NULL,
+    book_id varchar(26) NOT NULL,
+    period_month varchar(7) NOT NULL,
+    amount numeric(24, 8) NOT NULL CHECK (amount > 0),
+    journal_entry_id varchar(26) NOT NULL REFERENCES acc_journal_entries(id) ON DELETE CASCADE,
+    PRIMARY KEY (asset_id, book_id, period_month),
+    FOREIGN KEY (asset_id, book_id) REFERENCES acc_asset_depreciation_basis(asset_id, book_id) ON DELETE CASCADE
 );
 
 CREATE TABLE acc_bill_registers (

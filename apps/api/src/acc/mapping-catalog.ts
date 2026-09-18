@@ -436,13 +436,15 @@ export async function syncMappingSubjectUsages(
 function mappingCollections(code: string): string[] {
   if (code === 'intermediary-calculation') return intermediaryCollections
   if (billMovementEntities.includes(code)) return billMovementCollections
-  if (quantityMovementEntities.includes(code)) return ['inventoryMovements']
   const entity = vouEntities.find((entity) => entity === code)
-  return entity
+  const collections = entity
     ? vouEntityInputDescriptors[entity]
         .filter(
           (field) => field.kind === 'array' && field.key !== 'attachments',
         )
         .map((field) => field.key)
     : []
+  return quantityMovementEntities.includes(code)
+    ? [...new Set(['inventoryMovements', ...collections])]
+    : collections
 }

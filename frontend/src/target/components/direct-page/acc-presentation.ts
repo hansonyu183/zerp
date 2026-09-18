@@ -1,3 +1,4 @@
+import { accountingSourceErrorCaptions } from '../../presentation/accounting-errors.ts'
 import {
   vouEntityPresentation,
   accBookTemplates,
@@ -76,6 +77,14 @@ const errors: Record<string, string> = {
   acc_period_open_vou: '该月份仍有未批准单据。',
   acc_period_mapping_missing: '已批准单据缺少当前会计映射。',
   acc_period_negative_inventory: '存在负库存，不能锁定。',
+  acc_period_cost_currency_unsupported:
+    '库存成本仅支持人民币，请检查原始入账币种。',
+  ...accountingSourceErrorCaptions,
+  acc_period_depreciation_basis_invalid:
+    '资产折旧基础数据无效，请核对原值、累计折旧、残值及币种',
+  acc_period_cost_basis_missing: '库存缺少可确定的成本依据，不能锁定。',
+  acc_period_cost_mapping_invalid:
+    '库存成本对方科目或辅助核算无效，请处理来源映射与单据。',
   acc_period_unbalanced: '会计试算不平衡，不能锁定。',
   acc_period_intermediary_invalid: '居间计算未完成或校验失败，不能锁定。',
   acc_period_not_locked: '该月份尚未锁定。',
@@ -93,6 +102,7 @@ const blockerKinds: Record<string, string> = {
   TRIAL_BALANCE: '试算平衡',
   VOU: '业务单据',
   INVENTORY: '库存',
+  ASSET: '资产',
   INTERMEDIARY: '居间计算',
 }
 export function accErrorMessage(cause: unknown): string {

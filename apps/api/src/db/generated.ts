@@ -33,12 +33,34 @@ export type Numeric = ColumnType<string, number | string, number | string>
 export type Timestamp = ColumnType<Date, Date | string, Date | string>
 
 export interface AccAssetBookValues {
+  accumulated_depreciation: Generated<Numeric>
   acquisition_opening_approval_entry_id: string | null
   acquisition_vou_approval_entry_id: string | null
   asset_id: string
   book_id: string
   created_at: Timestamp
   original_value: Numeric
+}
+
+export interface AccAssetDepreciationBasis {
+  accumulated_dimensions: Json
+  accumulated_subject_id: string
+  acquired_on: Timestamp
+  asset_id: string
+  book_id: string
+  currency: string
+  expense_dimensions: Json
+  expense_subject_id: string
+  residual_rate: Numeric
+  useful_life_months: number
+}
+
+export interface AccAssetDepreciationEntries {
+  amount: Numeric
+  asset_id: string
+  book_id: string
+  journal_entry_id: string
+  period_month: string
 }
 
 export interface AccAssetRegisters {
@@ -111,18 +133,33 @@ export interface AccContainerEntries {
   vou_approval_entry_id: string
 }
 
+export interface AccInventoryCostAllocations {
+  adjustment_amount: Numeric
+  book_id: string
+  cost_amount: Numeric
+  inventory_entry_id: string
+  journal_entry_id: string | null
+  period_month: string
+}
+
 export interface AccInventoryEntries {
   book_id: string
   business_date: Timestamp
+  cost_counterpart_dimensions: Generated<Json>
+  cost_counterpart_subject_id: string | null
+  cost_source_document_id: string | null
   created_at: Timestamp
   document_id: string | null
   id: string
   journal_entry_id: string
   line_id: string
+  line_no: number
   opening_approval_entry_id: string | null
   product_id: string
+  production_line_no: number | null
   quantity: Numeric
   reversed_at: Timestamp | null
+  source_line_id: string | null
   subject_id: string
   vou_approval_entry_id: string | null
   warehouse_id: string
@@ -1727,12 +1764,15 @@ export interface WflTrials {
 
 export interface DB {
   acc_asset_book_values: AccAssetBookValues
+  acc_asset_depreciation_basis: AccAssetDepreciationBasis
+  acc_asset_depreciation_entries: AccAssetDepreciationEntries
   acc_asset_registers: AccAssetRegisters
   acc_bill_book_values: AccBillBookValues
   acc_bill_registers: AccBillRegisters
   acc_book_access: AccBookAccess
   acc_books: AccBooks
   acc_container_entries: AccContainerEntries
+  acc_inventory_cost_allocations: AccInventoryCostAllocations
   acc_inventory_entries: AccInventoryEntries
   acc_journal_entries: AccJournalEntries
   acc_journal_lines: AccJournalLines

@@ -1740,9 +1740,10 @@ try {
   const reportSubjects = await database
     .selectFrom('rpt_definitions')
     .select('code')
-    .where('created_by', '=', submitter.userId)
+    .where('created_by', 'in', [submitter.userId, reportAdmin.userId])
     .execute()
   await bootstrap.deleteE2EWarehouseFixtures(submitter.userId)
+  await bootstrap.deleteE2EWarehouseFixtures(reportAdmin.userId)
   const reportPaths = reportSubjects.flatMap(({ code }) =>
     code ? [`/rpt/${code}/query`, `/rpt/${code}/export`] : [],
   )

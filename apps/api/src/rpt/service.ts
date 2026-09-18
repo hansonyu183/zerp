@@ -517,6 +517,71 @@ export class RptService {
     this.validator = validator
   }
 
+  private definitionActions(actor: ApprovalActor): ('get' | 'save')[] {
+    return (['get', 'save'] as const).filter((action) =>
+      actor.permissions.includes(`/rpt/definition/${action}`),
+    )
+  }
+
+  async queryDefinitions(
+    input: {
+      keyword?: string
+      enabled?: boolean
+      validity?: 'VALID' | 'INVALID'
+      page: number
+      pageSize: 20
+    },
+    actor: ApprovalActor,
+  ) {
+    requirePermission(actor, '/rpt/definition/query')
+    let query = this.db.selectFrom('rpt_definitions')
+    if (input.keyword?.trim()) {
+      const pattern = `%${input.keyword.trim()}%`
+      query = query.where((eb) =>
+        eb.or([
+          eb('code', 'ilike', pattern),
+          eb('name', 'ilike', pattern),
+          eb('description', 'ilike', pattern),
+        ]),
+      )
+    }
+    if (input.enabled !== undefined)
+      query = query.where('enabled', '=', input.enabled)
+    if (input.validity) query = query.where('validity', '=', input.validity)
+    const count = await query
+      .select((eb) => eb.fn.countAll<string>().as('total'))
+      .executeTakeFirstOrThrow()
+    const rows = await query
+      .select([
+        'id',
+        'code',
+        'name',
+        'description',
+        'enabled',
+        'validity',
+        'revision',
+      ])
+      .orderBy('code')
+      .limit(20)
+      .offset((input.page - 1) * 20)
+      .execute()
+    return {
+      items: rows.map((row) => ({
+        subjectId: row.id,
+        code: row.code,
+        name: row.name,
+        description: row.description,
+        enabled: row.enabled,
+        validity: row.validity as 'VALID' | 'INVALID',
+        revision: String(row.revision),
+        availableActions: this.definitionActions(actor),
+      })),
+      total: Number(count.total),
+      page: input.page,
+      pageSize: 20 as const,
+    }
+  }
+
   async get(subjectId: string, actor: ApprovalActor) {
     requirePermission(actor, '/rpt/definition/get')
     const row = await this.db
@@ -525,7 +590,10 @@ export class RptService {
       .where('id', '=', subjectId)
       .executeTakeFirst()
     if (!row) throw new RptApplicationError('rpt_definition_not_found')
-    return this.projectDefinition(row)
+    return {
+      ...this.projectDefinition(row),
+      availableActions: this.definitionActions(actor),
+    }
   }
 
   async save(
@@ -624,7 +692,10 @@ export class RptService {
       })
       .execute()
     await this.syncPermissions(tx, row.code, row.name, row.enabled, actor.id)
-    return this.projectDefinition(row)
+    return {
+      ...this.projectDefinition(row),
+      availableActions: this.definitionActions(actor),
+    }
   }
 
   async initializeDepartmentReports(

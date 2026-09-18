@@ -103,7 +103,26 @@ export const definitionInput = z
     columns: z.array(reportColumn),
   })
   .strict()
+export const definitionQueryInput = z
+  .object({
+    keyword: z.string().max(200).optional(),
+    enabled: z.boolean().optional(),
+    validity: z.enum(['VALID', 'INVALID']).optional(),
+    page: z.number().int().positive(),
+    pageSize: z.literal(20),
+  })
+  .strict()
+const availableActions = z.array(z.enum(['get', 'save']))
+const definitionSummary = directoryItem
+  .omit({ parameters: true, columns: true })
+  .extend({
+    description: z.string(),
+    enabled: z.boolean(),
+    validity: z.enum(['VALID', 'INVALID']),
+    availableActions,
+  })
 const definitionResult = directoryItem.extend({
+  availableActions,
   description: z.string(),
   enabled: z.boolean(),
   sql: z.string(),
@@ -199,6 +218,20 @@ function auxiliary<
   })
 }
 export const rptRouteSet = {
+  definitionQuery: route(
+    '/rpt/definition/query',
+    definitionQueryInput,
+    envelope(
+      z
+        .object({
+          items: z.array(definitionSummary),
+          total: z.number().int().nonnegative(),
+          page: z.number().int(),
+          pageSize: z.literal(20),
+        })
+        .strict(),
+    ),
+  ),
   get: route(
     '/rpt/definition/get',
     z.object({ subjectId: z.string().length(26) }).strict(),
@@ -242,6 +275,12 @@ export const rptRouteSet = {
 export const rptRouteMetadata = [
   {
     method: 'post',
+    path: '/rpt/definition/query',
+    permission: '/rpt/definition/query',
+    title: '报表定义查询',
+  },
+  {
+    method: 'post',
     path: '/rpt/definition/get',
     permission: '/rpt/definition/get',
     title: '报表定义读取',
@@ -277,7 +316,11 @@ export function registerRptRoutes<
   app: OpenAPIHono<TargetRouteEnvironment, AppSchema, BasePath>,
   handler: RptRouteHandler,
 ) {
-  const saved = app.openapi(
+  const listed = app.openapi(
+    rptRouteSet.definitionQuery,
+    (c) => handler('definitionQuery', c) as never,
+  )
+  const saved = listed.openapi(
     rptRouteSet.save,
     (c) => handler('save', c) as never,
   )

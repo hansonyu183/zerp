@@ -1,3 +1,4 @@
+import { reportDefinitionPage } from '../definitions/report-definition.ts'
 import { periodPage } from '../definitions/period.ts'
 import { bookPage } from '../definitions/book.ts'
 import { subjectPage } from '../definitions/subject.ts'
@@ -114,6 +115,12 @@ export function createResourceRegistry(
 
 export const targetResourceRegistry = createResourceRegistry(
   [
+    {
+      domain: 'rpt',
+      entity: 'definition',
+      definition: reportDefinitionPage,
+      useCaseKey: 'rpt/definition-maintenance',
+    },
     {
       domain: 'acc',
       entity: 'period',

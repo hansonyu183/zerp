@@ -34,7 +34,7 @@ describe('apiPath navigation resources', () => {
       'aux/vehicle': '车辆',
       'aux/fund-account': '资金账户',
       'rpt/definition': '报表定义维护',
-      'rpt/rpt-000001': '报表 000001',
+      'rpt/rpt-000001': '报表名称加载中',
       'acc/book': '会计账簿',
       'acc/subject': '会计科目',
       'acc/mapping': '会计映射',

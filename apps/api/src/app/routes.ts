@@ -887,6 +887,8 @@ export function registerAppRoutes(
       )
       const response = await executeCore<unknown>(context, (actor) => {
         if (action === 'directory') return rpt.directory(actor)
+        if (action === 'definitionQuery')
+          return rpt.queryDefinitions(input, actor)
         if (action === 'get') return rpt.get(input.subjectId, actor)
         if (action === 'save')
           return rpt.save(input, actor, currentRequestId(context))

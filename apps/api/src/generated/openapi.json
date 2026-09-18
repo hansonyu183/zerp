@@ -298089,6 +298089,210 @@
         }
       }
     },
+    "/rpt/definition/query": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "keyword": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "validity": {
+                    "type": "string",
+                    "enum": [
+                      "VALID",
+                      "INVALID"
+                    ]
+                  },
+                  "page": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true
+                  },
+                  "pageSize": {
+                    "type": "number",
+                    "enum": [
+                      20
+                    ]
+                  }
+                },
+                "required": [
+                  "page",
+                  "pageSize"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "/rpt/definition/query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "enum": [
+                            ""
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "subjectId": {
+                                    "type": "string",
+                                    "minLength": 26,
+                                    "maxLength": 26
+                                  },
+                                  "revision": {
+                                    "type": "string",
+                                    "pattern": "^[1-9][0-9]*$"
+                                  },
+                                  "code": {
+                                    "type": "string",
+                                    "pattern": "^rpt-[0-9]{6}$"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "description": {
+                                    "type": "string"
+                                  },
+                                  "enabled": {
+                                    "type": "boolean"
+                                  },
+                                  "validity": {
+                                    "type": "string",
+                                    "enum": [
+                                      "VALID",
+                                      "INVALID"
+                                    ]
+                                  },
+                                  "availableActions": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "enum": [
+                                        "get",
+                                        "save"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "subjectId",
+                                  "revision",
+                                  "code",
+                                  "name",
+                                  "description",
+                                  "enabled",
+                                  "validity",
+                                  "availableActions"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "total": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "page": {
+                              "type": "integer"
+                            },
+                            "pageSize": {
+                              "type": "number",
+                              "enum": [
+                                20
+                              ]
+                            }
+                          },
+                          "required": [
+                            "items",
+                            "total",
+                            "page",
+                            "pageSize"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer"
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "nullable": true
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rpt/definition/save": {
       "post": {
         "requestBody": {
@@ -298440,6 +298644,16 @@
                                 "additionalProperties": false
                               }
                             },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "get",
+                                  "save"
+                                ]
+                              }
+                            },
                             "description": {
                               "type": "string"
                             },
@@ -298464,6 +298678,7 @@
                             "name",
                             "parameters",
                             "columns",
+                            "availableActions",
                             "description",
                             "enabled",
                             "sql",
@@ -298717,6 +298932,16 @@
                                 "additionalProperties": false
                               }
                             },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "get",
+                                  "save"
+                                ]
+                              }
+                            },
                             "description": {
                               "type": "string"
                             },
@@ -298741,6 +298966,7 @@
                             "name",
                             "parameters",
                             "columns",
+                            "availableActions",
                             "description",
                             "enabled",
                             "sql",

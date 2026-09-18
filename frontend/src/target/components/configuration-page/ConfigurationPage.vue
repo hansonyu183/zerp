@@ -1,4 +1,17 @@
 <script setup lang="ts">
+import DynamicForm from '../dynamic-fields/DynamicForm.vue'
+import ReportDefinitionBlock from './ReportDefinitionBlock.vue'
+import {
+  emptyReport,
+  reportErrors,
+  validityNames,
+  reportOptions,
+} from './report-definition-data.ts'
+import { normalize } from '../report-page/report-data.ts'
+import type {
+  TargetReportSaveInput,
+  TargetReportDefinitionQueryInput,
+} from '../../api.ts'
 import ReferencePicker from '../dynamic-fields/ReferencePicker.vue'
 import type { EditOption } from '../dynamic-fields/edit-fields.ts'
 import { accErrorMessage } from '../direct-page/acc-presentation.ts'
@@ -9,6 +22,9 @@ import ListPagination from '../list-page/ListPagination.vue'
 import FieldInput from '../dynamic-fields/FieldInput.vue'
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import {
+  queryTargetReportDefinitions,
+  getTargetReportDefinition,
+  saveTargetReportDefinition,
   queryTargetAccPeriod,
   lockTargetAccPeriod,
   unlockTargetAccPeriod,
@@ -72,6 +88,10 @@ const report = (cause: unknown) =>
 async function initialize() {
   if (!session.user || disposed || catalogLoading.value) return
   if (props.definition.resource === 'acc/period') return
+  if (props.definition.resource === 'rpt/definition') {
+    await searchDefinitions()
+    return
+  }
   const request = ++catalogRequest
   catalogLoading.value = true
   error.value = ''
@@ -390,6 +410,193 @@ async function writePeriod() {
     if (!disposed) saving.value = false
   }
 }
+type DefinitionDetail = Awaited<ReturnType<typeof getTargetReportDefinition>>
+const definitionRows = ref<
+  Awaited<ReturnType<typeof queryTargetReportDefinitions>>['items']
+>([])
+const definitionDraft = ref<TargetReportSaveInput | null>(null)
+const definitionCurrent = ref<DefinitionDetail | null>(null)
+const definitionReadOnly = ref(false)
+const definitionFilters = ref<{
+  keyword: string
+  enabled: boolean | null
+  validity: 'VALID' | 'INVALID' | '' | null
+}>({ keyword: '', enabled: null, validity: null })
+let definitionFilter: Omit<
+  TargetReportDefinitionQueryInput,
+  'page' | 'pageSize'
+> = {}
+const definitionDisplayRows = computed(() =>
+  definitionRows.value.map((row) => ({
+    ...row,
+    validityName: validityNames[row.validity],
+  })),
+)
+const definitionMessage = (cause: unknown) =>
+  cause instanceof TargetApiError
+    ? (reportErrors[cause.errorKey] ?? '操作失败，请检查输入或权限。')
+    : '网络请求失败，请稍后重试。'
+async function readDefinitions(nextPage: number) {
+  if (!can('query') || !session.csrfToken || disposed) return
+  const request = ++queryRequest
+  loading.value = true
+  try {
+    const result = await queryTargetReportDefinitions(session.csrfToken, {
+      ...definitionFilter,
+      page: nextPage,
+      pageSize: 20,
+    })
+    if (disposed || request !== queryRequest) return
+    definitionRows.value = result.items
+    total.value = result.total
+    page.value = nextPage
+  } finally {
+    if (!disposed && request === queryRequest) loading.value = false
+  }
+}
+async function searchDefinitions(nextPage = 1, applyFilter = true) {
+  if (saving.value || disposed) return
+  if (applyFilter)
+    definitionFilter = {
+      keyword: definitionFilters.value.keyword,
+      ...(definitionFilters.value.enabled === null
+        ? {}
+        : { enabled: definitionFilters.value.enabled }),
+      ...(!definitionFilters.value.validity
+        ? {}
+        : { validity: definitionFilters.value.validity }),
+    }
+  error.value = ''
+  const request = queryRequest + 1
+  try {
+    await readDefinitions(nextPage)
+  } catch (cause) {
+    if (!disposed && request === queryRequest)
+      error.value = definitionMessage(cause)
+  }
+}
+function createDefinition() {
+  if (!can('save') || saving.value || disposed) return
+  if (unknown.value) {
+    open.value = true
+    return
+  }
+  editorRequest++
+  definitionDraft.value = emptyReport()
+  definitionCurrent.value = null
+  definitionReadOnly.value = false
+  open.value = true
+  error.value = ''
+  feedback.value = ''
+}
+async function openDefinition(subjectId: string, editing: boolean) {
+  if (!can('get') || !session.csrfToken || saving.value || disposed) return
+  if (unknown.value) {
+    open.value = true
+    return
+  }
+  const request = ++editorRequest
+  error.value = ''
+  try {
+    const result = await getTargetReportDefinition(session.csrfToken, subjectId)
+    if (disposed || request !== editorRequest) return
+    definitionCurrent.value = result
+    definitionDraft.value = {
+      subjectId: result.subjectId,
+      expectedRevision: result.revision,
+      name: result.name,
+      description: result.description,
+      enabled: result.enabled,
+      sql: result.sql,
+      parameters: result.parameters,
+      columns: result.columns,
+    }
+    definitionReadOnly.value =
+      !editing || !can('save') || !result.availableActions.includes('save')
+    open.value = true
+  } catch (cause) {
+    if (!disposed && request === editorRequest)
+      error.value = definitionMessage(cause)
+  }
+}
+function definitionActions(row: (typeof definitionRows.value)[number]) {
+  if (!can('get') || !row.availableActions.includes('get')) return []
+  return [
+    { key: 'view', caption: '查看', disabled: saving.value },
+    ...(can('save') && row.availableActions.includes('save')
+      ? [{ key: 'edit', caption: '编辑', disabled: saving.value }]
+      : []),
+  ]
+}
+async function saveDefinition() {
+  if (
+    !definitionDraft.value ||
+    !open.value ||
+    definitionReadOnly.value ||
+    !can('save') ||
+    !session.csrfToken ||
+    saving.value ||
+    unknown.value ||
+    disposed
+  )
+    return
+  const input: TargetReportSaveInput = JSON.parse(
+    JSON.stringify(definitionDraft.value),
+  )
+  try {
+    input.parameters = input.parameters.map((parameter) => {
+      const { defaultValue, ...rest } = parameter
+      const normalized = normalize(
+        { ...parameter, defaultValue: undefined, required: false },
+        defaultValue,
+      )
+      return normalized === null ? rest : { ...rest, defaultValue: normalized }
+    })
+    input.columns = input.columns.map((column) => ({
+      ...column,
+      ...(column.format ? {} : { format: undefined }),
+      ...(column.drilldownEntity ? {} : { drilldownEntity: undefined }),
+    }))
+  } catch {
+    error.value = '默认值与参数类型不匹配，请检查。'
+    return
+  }
+  const request = editorRequest
+  saving.value = true
+  error.value = ''
+  feedback.value = ''
+  queryRequest++
+  loading.value = false
+  try {
+    const result = await saveTargetReportDefinition(session.csrfToken, input)
+    if (disposed || request !== editorRequest) return
+    definitionCurrent.value = result
+    definitionDraft.value.expectedRevision = result.revision
+    feedback.value = '已保存，当前定义已生效。'
+    await session.loadReportDirectory(true)
+    if (disposed || request !== editorRequest) return
+    if (session.reportDirectoryStatus === 'error')
+      feedback.value += '报表目录刷新失败，请重试目录；无需再次保存。'
+    try {
+      await readDefinitions(page.value)
+    } catch {
+      if (!disposed && request === editorRequest)
+        feedback.value += '列表刷新失败，请重新查询。'
+    }
+  } catch (cause) {
+    if (disposed || request !== editorRequest) return
+    if (
+      !(cause instanceof TargetApiError) ||
+      ['invalid_response', 'internal_error'].includes(cause.errorKey)
+    ) {
+      unknown.value = true
+      error.value =
+        '保存结果未知，已停止再次提交。请核实后重新进入，勿重复保存。'
+    } else error.value = definitionMessage(cause)
+  } finally {
+    if (!disposed && request === editorRequest) saving.value = false
+  }
+}
 const stop = watch(() => session.generation, dispose, { flush: 'sync' })
 function dispose() {
   disposed = true
@@ -397,6 +604,9 @@ function dispose() {
   queryRequest++
   catalogRequest++
   pendingInput = null
+  definitionRows.value = []
+  definitionDraft.value = null
+  definitionCurrent.value = null
   rows.value = []
   periodRows.value = []
   pendingPeriod.value = null
@@ -411,7 +621,115 @@ onBeforeUnmount(dispose)
 </script>
 <template>
   <ManagementPageFrame
-    v-if="definition.resource === 'acc/period'"
+    v-if="definition.resource === 'rpt/definition'"
+    title="报表定义维护"
+  >
+    <template #actions
+      ><v-btn
+        v-if="can('save')"
+        :prepend-icon="actionIcons.create"
+        :disabled="saving"
+        @click="createDefinition"
+        >新增</v-btn
+      ></template
+    >
+    <v-alert v-if="error" type="error">{{ error }}</v-alert>
+    <v-alert v-if="feedback" type="success">{{ feedback }}</v-alert>
+    <v-btn
+      v-if="session.reportDirectoryStatus === 'error'"
+      @click="session.loadReportDirectory(true)"
+      >重试目录</v-btn
+    >
+    <DynamicForm
+      v-if="can('query')"
+      v-model="definitionFilters"
+      :disabled="saving || loading"
+      :fields="[
+        { key: 'keyword', caption: '关键词', type: 'text' },
+        {
+          key: 'enabled',
+          caption: '启用状态',
+          type: 'boolean',
+          trueCaption: '启用',
+          falseCaption: '停用',
+        },
+        {
+          key: 'validity',
+          caption: '技术有效性',
+          type: 'enum',
+          options: reportOptions(validityNames),
+        },
+      ]"
+      @search="searchDefinitions()"
+    />
+    <DynamicCols
+      v-if="can('query')"
+      class="mt-4"
+      identity-key="subjectId"
+      :items="definitionDisplayRows"
+      :loading="loading"
+      :fields="[
+        { key: 'code', caption: '编码', type: 'text' },
+        { key: 'name', caption: '名称', type: 'text' },
+        { key: 'description', caption: '说明', type: 'text' },
+        { key: 'enabled', caption: '启用', type: 'boolean' },
+        { key: 'validityName', caption: '技术有效性', type: 'text' },
+        { key: '$actions', caption: '操作', type: 'actions' },
+      ]"
+    >
+      <template #actions="{ item }"
+        ><RowActions
+          :actions="definitionActions(item)"
+          @action="openDefinition(item.subjectId, $event === 'edit')"
+      /></template>
+    </DynamicCols>
+    <template v-if="can('query')" #footer
+      ><ListPagination
+        :pagination="{ mode: 'total', page, pageSize: 20, total }"
+        :disabled="loading || saving"
+        @page="searchDefinitions($event, false)"
+    /></template>
+    <v-dialog :model-value="open" max-width="1000" persistent>
+      <v-card
+        v-if="definitionDraft"
+        :title="
+          definitionReadOnly
+            ? '查看报表定义'
+            : definitionCurrent
+              ? '编辑报表定义'
+              : '新增报表定义'
+        "
+      >
+        <v-card-text>
+          <p v-if="definitionCurrent">
+            编码：{{ definitionCurrent.code }} · 技术有效性：{{
+              validityNames[definitionCurrent.validity]
+            }}
+          </p>
+          <v-alert v-if="error" type="error">{{ error }}</v-alert
+          ><v-alert v-if="feedback" type="success">{{ feedback }}</v-alert>
+          <ReportDefinitionBlock
+            v-model="definitionDraft"
+            :disabled="definitionReadOnly || saving || unknown"
+          />
+        </v-card-text>
+        <v-card-actions
+          ><v-spacer /><v-btn :disabled="saving" @click="close">{{
+            definitionReadOnly ? '关闭' : '取消'
+          }}</v-btn
+          ><v-btn
+            v-if="!definitionReadOnly && can('save')"
+            :disabled="saving || unknown"
+            :loading="saving"
+            @click="saveDefinition"
+            >验证保存</v-btn
+          ></v-card-actions
+        >
+      </v-card>
+    </v-dialog>
+  </ManagementPageFrame>
+  <ManagementPageFrame
+    v-else-if="definition.resource === 'acc/period'"
     title="会计期间"
   >
     <v-alert v-if="error" type="error" class="mb-3">{{ error }}</v-alert>

@@ -44,7 +44,7 @@ RPT 拥有单一当前定义、稳定身份与编码、revision、技术有效�
 
 定义在 RPT 直接保存，稳定 ID/code 不变，以字符串 revision 并发保护。保存先验证 SQL、参数、PREPARE、EXPLAIN、限量试跑和零行结果元数据，全部成功才在事务内更新内容、revision、有效性、审计和精确权限。非法更新不改变旧内容。没有提交、批准、反批准、候选或 versions 入口。
 
-配置维护使用独立 definition/get、definition/save 授权；普通报表 query/export 不授予维护能力。enabled 是当前配置，供维护人员控制可用性，不是使用页的资料启停动作。
+配置维护使用独立 definition/query、definition/get、definition/save 授权；维护查询按关键词、启用状态和技术有效性筛选，每页 20 条，包含停用与无效定义，摘要不返回 SQL。查询与详情由服务端返回精确读取和保存动作资格；普通报表 query/export 不授予维护能力。enabled 是当前配置，供维护人员控制可用性，不是使用页的资料启停动作。
 
 ## 4. 查询 SQL 与类型契约
 

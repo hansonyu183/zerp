@@ -1912,6 +1912,14 @@
     "title": "报表定义读取"
   },
   {
+    "id": "01J5696B5F7FD9E8D7EC63ECF2",
+    "path": "/rpt/definition/query",
+    "domain": "rpt",
+    "entity": "definition",
+    "action": "query",
+    "title": "报表定义查询"
+  },
+  {
     "id": "01J51C7C6E4563E36849AFF3D9",
     "path": "/rpt/definition/save",
     "domain": "rpt",

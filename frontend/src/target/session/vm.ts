@@ -1,7 +1,8 @@
-import { computed, ref } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { defineStore } from 'pinia'
 
 import {
+  queryTargetReportDirectory,
   changeTargetPassword,
   getTargetProfile,
   restoreTargetSession,
@@ -47,10 +48,85 @@ export const useTargetSession = defineStore('target-session', () => {
     request: number
   } | null = null
 
+  const reportDirectory = shallowRef<
+    Awaited<ReturnType<typeof queryTargetReportDirectory>>
+  >([])
+  const reportDirectoryStatus = ref<'idle' | 'loading' | 'ready' | 'error'>(
+    'idle',
+  )
+  let directoryRequest = 0
+  let directoryPromise: Promise<void> | null = null
+  function clearReportDirectory() {
+    directoryRequest++
+    directoryPromise = null
+    reportDirectory.value = []
+    reportDirectoryStatus.value = 'idle'
+  }
+  async function loadReportDirectory(force = false): Promise<void> {
+    if (!user.value || passwordChangeRequired.value) return
+    if (!force && directoryPromise) return directoryPromise
+    if (!force && reportDirectoryStatus.value === 'ready') return
+    const request = ++directoryRequest
+    const sessionGeneration = generation.value
+    reportDirectoryStatus.value = 'loading'
+    const promise = (async () => {
+      try {
+        const result = await queryTargetReportDirectory()
+        if (
+          request !== directoryRequest ||
+          sessionGeneration !== generation.value
+        )
+          return
+        reportDirectory.value = result
+        reportDirectoryStatus.value = 'ready'
+      } catch {
+        if (
+          request !== directoryRequest ||
+          sessionGeneration !== generation.value
+        )
+          return
+        reportDirectoryStatus.value = 'error'
+      } finally {
+        if (request === directoryRequest) directoryPromise = null
+      }
+    })()
+    directoryPromise = promise
+    await promise
+  }
+  function reportName(code: string) {
+    if (
+      reportDirectoryStatus.value === 'loading' ||
+      reportDirectoryStatus.value === 'idle'
+    )
+      return '报表名称加载中'
+    if (reportDirectoryStatus.value === 'error') return '报表名称加载失败'
+    return (
+      reportDirectory.value.find((item) => item.code === code)?.name ??
+      '报表不可用'
+    )
+  }
+  watch(
+    () => [
+      generation.value,
+      user.value?.id,
+      passwordChangeRequired.value,
+      ...apiPaths.value,
+    ],
+    () => clearReportDirectory(),
+    { flush: 'sync' },
+  )
+
   const authenticated = computed(() => user.value !== null)
   const resourceGroups = computed(() =>
     authenticated.value && !passwordChangeRequired.value
-      ? collectNavigationResourceGroups(apiPaths.value)
+      ? collectNavigationResourceGroups(apiPaths.value).map((group) => ({
+          ...group,
+          resources: group.resources.map((resource) =>
+            resource.domain === 'rpt' && /^rpt-[0-9]{6}$/.test(resource.entity)
+              ? { ...resource, displayName: reportName(resource.entity) }
+              : resource,
+          ),
+        }))
       : [],
   )
 
@@ -230,6 +306,10 @@ export const useTargetSession = defineStore('target-session', () => {
   }
 
   return {
+    reportDirectory,
+    reportDirectoryStatus,
+    loadReportDirectory,
+    reportName,
     initialized,
     loading,
     user,

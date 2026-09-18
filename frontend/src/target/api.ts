@@ -2694,6 +2694,22 @@ export async function saveTargetMapping(
   )
 }
 
+export type TargetReportDefinitionQueryInput = PostJson<
+  (typeof client.rpt.definition.query)['$post']
+>
+export async function queryTargetReportDefinitions(
+  csrfToken: string,
+  input: TargetReportDefinitionQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.rpt.definition.query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
 export type TargetReportSaveInput = PostJson<
   (typeof client.rpt.definition.save)['$post']
 >

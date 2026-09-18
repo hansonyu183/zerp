@@ -16,6 +16,19 @@ const router = useRouter()
 const theme = useTheme()
 const session = useTargetSession()
 const branding = useTargetBranding()
+watch(
+  () => [
+    session.generation,
+    session.user?.id,
+    session.passwordChangeRequired,
+    ...session.apiPaths,
+  ],
+  () => {
+    if (session.apiPaths.some((path) => /^\/rpt\/rpt-[0-9]{6}\//.test(path)))
+      void session.loadReportDirectory()
+  },
+  { immediate: true },
+)
 const drawer = ref(!window.matchMedia('(max-width: 959px)').matches)
 const profileDialog = ref(false)
 const passwordDialog = ref(false)
@@ -321,6 +334,11 @@ onBeforeUnmount(() => {
     ></v-menu>
   </v-app-bar>
   <v-navigation-drawer v-model="drawer" width="288">
+    <v-alert v-if="session.reportDirectoryStatus === 'error'" type="error"
+      >报表目录加载失败。<v-btn @click="session.loadReportDirectory(true)"
+        >重试</v-btn
+      ></v-alert
+    >
     <NavigationMenu :groups="navigation" />
     <template #append
       ><div class="sidebar-footer text-caption text-muted">

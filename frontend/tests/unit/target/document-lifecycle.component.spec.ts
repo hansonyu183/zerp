@@ -265,3 +265,158 @@ it('keeps opening deletion locked until the exact deletion audit is visible', as
   expect(api.deleteTargetVoucher).toHaveBeenCalledTimes(1)
   wrapper.unmount()
 })
+
+const generatedSales = [
+  'sale-delivery',
+  'sale-outbound',
+  'sale-signoff',
+] as const
+it.each(generatedSales)(
+  '%s explains system generation without offering manual editing',
+  async (entity) => {
+    useTargetSession().apiPaths = ['query', 'get', 'approve', 'submit-new'].map(
+      (action) => `/vou/${entity}/${action}`,
+    )
+    vi.mocked(api.queryTargetVouchers).mockResolvedValue({
+      ...page,
+      items: [
+        {
+          ...row,
+          vouType: entity,
+          handlerName: null,
+          counterpartyName: null,
+          amount: null,
+        },
+      ],
+    })
+    vi.mocked(api.getTargetVoucher).mockResolvedValue({
+      ...detail,
+      entity,
+      payload: {
+        businessDate: '2026-09-01',
+        currency: 'CNY',
+        remark: '系统生成的不可变内容',
+        attachments: [],
+        ...(entity === 'sale-signoff'
+          ? {
+              customer: { objectId: id, approvalEntryId: id },
+              expectedSolventContainers: 0,
+              expectedResinContainers: 0,
+              returnedSolventContainers: 0,
+              returnedResinContainers: 0,
+              signoffLines: [],
+            }
+          : {
+              parentEntity: 'sale-order',
+              parentDocumentId: id,
+              sourceLines: [],
+            }),
+      },
+    } as typeof detail)
+    const wrapper = host(entity)
+    await flushPromises()
+    expect(wrapper.text()).toContain('此类型由系统生成，不支持人工新增。')
+    expect(wrapper.text()).not.toContain('编辑器尚未实施')
+    expect(wrapper.findAll('button').some((b) => b.text() === '新增')).toBe(
+      false,
+    )
+    await click(wrapper, '打开')
+    expect(wrapper.text()).toContain('系统生成的不可变内容')
+    expect(wrapper.text()).not.toContain('复制到临时表单')
+    expect(wrapper.text()).toContain('已提交内容只读')
+    expect(wrapper.findAll('button').some((b) => b.text() === '批准')).toBe(
+      true,
+    )
+    expect(wrapper.findAll('button').some((b) => b.text() === '驳回')).toBe(
+      false,
+    )
+    wrapper.unmount()
+  },
+)
+
+it.each(generatedSales)(
+  '%s uses submitted search conditions, ignores late queries and clears empty results',
+  async (entity) => {
+    useTargetSession().apiPaths = [`/vou/${entity}/query`]
+    const result = { ...page, items: [{ ...row, vouType: entity }] }
+    const first = deferred<typeof result>()
+    vi.mocked(api.queryTargetVouchers)
+      .mockResolvedValue(result)
+      .mockReturnValueOnce(first.promise)
+    const wrapper = host(entity)
+    await flushPromises()
+    expect(wrapper.get('.list-surface').attributes('aria-busy')).toBe('true')
+    await wrapper.get('[aria-label="单号"]').setValue('CG')
+    expect(api.queryTargetVouchers).toHaveBeenCalledTimes(1)
+    await click(wrapper, '查询')
+    await wrapper.get('[aria-label="单号"]').setValue('未提交条件')
+    await click(wrapper, '下一页')
+    expect(api.queryTargetVouchers).toHaveBeenLastCalledWith(
+      'csrf',
+      entity,
+      expect.objectContaining({
+        page: 2,
+        filters: expect.objectContaining({ documentNo: 'CG' }),
+      }),
+    )
+    first.resolve({
+      ...result,
+      items: [{ ...result.items[0]!, documentNo: '过期查询' }],
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('CG01')
+    expect(wrapper.text()).not.toContain('过期查询')
+    expect(wrapper.findAll('button').some((b) => b.text() === '打开')).toBe(
+      false,
+    )
+    vi.mocked(api.queryTargetVouchers).mockResolvedValue({
+      ...result,
+      items: [],
+      total: 0,
+      page: 1,
+    })
+    await click(wrapper, '查询')
+    expect(wrapper.text()).not.toContain('CG01')
+    expect(wrapper.text()).toContain('共 0 项')
+    wrapper.unmount()
+  },
+)
+it.each(generatedSales)(
+  '%s does not query without exact permission and discards requests on resource and Session switches',
+  async (entity) => {
+    const session = useTargetSession()
+    session.apiPaths = [`/vou/${entity}/approve`]
+    const denied = host(entity)
+    await flushPromises()
+    expect(denied.text()).toContain('当前账号没有查询权限')
+    expect(api.queryTargetVouchers).not.toHaveBeenCalled()
+    denied.unmount()
+    session.apiPaths = [`/vou/${entity}/query`, '/vou/purchase-order/query']
+    const late = deferred<typeof page>()
+    vi.mocked(api.queryTargetVouchers).mockReturnValueOnce(late.promise)
+    const wrapper = host(entity)
+    await flushPromises()
+    await wrapper.setProps({ entity: 'purchase-order' })
+    await flushPromises()
+    late.resolve({
+      ...page,
+      items: [{ ...row, vouType: entity, documentNo: '旧资源内容' }],
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('CG01')
+    expect(wrapper.text()).not.toContain('旧资源内容')
+    const previous = deferred<typeof page>()
+    vi.mocked(api.queryTargetVouchers).mockReturnValueOnce(previous.promise)
+    await wrapper.setProps({ entity })
+    await flushPromises()
+    session.clear()
+    previous.resolve({
+      ...page,
+      items: [{ ...row, vouType: entity, documentNo: '旧账号内容' }],
+    })
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('旧账号内容')
+    expect(wrapper.find('[data-testid="vou-list-page"]').exists()).toBe(false)
+    wrapper.unmount()
+  },
+)

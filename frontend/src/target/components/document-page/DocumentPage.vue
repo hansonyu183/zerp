@@ -606,10 +606,8 @@ onBeforeUnmount(() => {
           !userCreatableVouEntities.includes(definition.vouType)
         "
         type="info"
+        class="mb-4"
         >此类型由系统生成，不支持人工新增。</v-alert
-      >
-      <v-alert v-if="!editorAvailable" type="info" class="mb-4"
-        >专用单据编辑器尚未实施；已提交内容只读，可打开详情及执行已支持的审批。</v-alert
       >
       <v-alert v-if="!vm.searchable" type="info" class="mb-4"
         >当前账号没有查询权限，仅显示已授权操作。</v-alert
@@ -678,7 +676,11 @@ onBeforeUnmount(() => {
           vm.detailError
         }}</v-alert>
         <template v-if="vm.selected">
-          <p>已提交内容只读；修改需复制到临时表单后重新提交。</p>
+          <p>
+            已提交内容只读<span v-if="editorAvailable"
+              >；修改需复制到临时表单后重新提交</span
+            >。
+          </p>
           <p>
             审批状态：{{
               approvalStatusPresentation[vm.selected.status].label

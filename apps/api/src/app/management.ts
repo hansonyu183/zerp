@@ -1414,20 +1414,26 @@ export class ManagementService {
     roleIds: string[],
     actorId: string,
   ) {
-    await tx
-      .deleteFrom('app_user_roles')
-      .where('user_id', '=', userId)
-      .execute()
-    await tx
-      .insertInto('app_user_roles')
-      .values(
-        roleIds.map((roleId) => ({
-          user_id: userId,
-          role_id: roleId,
-          created_by: actorId,
-        })),
-      )
-      .execute()
+    const current = await this.roleIds(tx, userId)
+    const removed = current.filter((roleId) => !roleIds.includes(roleId))
+    const added = roleIds.filter((roleId) => !current.includes(roleId))
+    if (removed.length)
+      await tx
+        .deleteFrom('app_user_roles')
+        .where('user_id', '=', userId)
+        .where('role_id', 'in', removed)
+        .execute()
+    if (added.length)
+      await tx
+        .insertInto('app_user_roles')
+        .values(
+          added.map((roleId) => ({
+            user_id: userId,
+            role_id: roleId,
+            created_by: actorId,
+          })),
+        )
+        .execute()
   }
   private async replaceRolePermissions(
     tx: AnyDb,

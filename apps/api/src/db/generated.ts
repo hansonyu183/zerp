@@ -413,6 +413,26 @@ export interface AppSessions {
   user_id: string
 }
 
+export interface AppSourceUserRoles {
+  role_id: string
+  source: string
+  source_key: string
+}
+
+export interface AppSourceUsers {
+  blocked_reasons: Generated<Json>
+  desired_digest: string
+  revision: Generated<Int8>
+  source: string
+  source_deleted: Generated<boolean>
+  source_employee_key: Generated<string>
+  source_enabled: boolean
+  source_key: string
+  source_revision: Numeric
+  updated_at: Generated<Timestamp>
+  user_id: string
+}
+
 export interface AppSystemParameters {
   configured_value: string
   constraints: Json | null
@@ -1794,6 +1814,8 @@ export interface DB {
   app_roles: AppRoles
   app_seed_runs: AppSeedRuns
   app_sessions: AppSessions
+  app_source_user_roles: AppSourceUserRoles
+  app_source_users: AppSourceUsers
   app_system_parameters: AppSystemParameters
   app_user_profiles: AppUserProfiles
   app_user_roles: AppUserRoles

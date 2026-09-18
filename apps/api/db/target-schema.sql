@@ -77,6 +77,31 @@ CREATE TABLE app_user_roles (
     PRIMARY KEY (user_id, role_id)
 );
 
+-- BEGIN SOURCE USER MIGRATION SCHEMA
+CREATE TABLE app_source_users (
+    source varchar(200) NOT NULL,
+    source_key varchar(128) NOT NULL,
+    user_id varchar(26) NOT NULL UNIQUE REFERENCES app_users(id) ON DELETE RESTRICT,
+    source_revision numeric(30,0) NOT NULL,
+    source_employee_key varchar(128) NOT NULL DEFAULT '',
+    source_enabled boolean NOT NULL,
+    source_deleted boolean NOT NULL DEFAULT false,
+    blocked_reasons jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(blocked_reasons) = 'array'),
+    desired_digest char(64) NOT NULL,
+    revision bigint NOT NULL DEFAULT 1 CHECK (revision >= 1),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (source, source_key)
+);
+
+CREATE TABLE app_source_user_roles (
+    source varchar(200) NOT NULL,
+    source_key varchar(128) NOT NULL,
+    role_id varchar(26) NOT NULL REFERENCES app_roles(id) ON DELETE RESTRICT,
+    PRIMARY KEY (source, source_key, role_id),
+    FOREIGN KEY (source, source_key) REFERENCES app_source_users(source, source_key) ON DELETE CASCADE
+);
+-- END SOURCE USER MIGRATION SCHEMA
+
 CREATE TABLE app_sessions (
     id varchar(26) PRIMARY KEY,
     user_id varchar(26) NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,

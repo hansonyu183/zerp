@@ -10,6 +10,12 @@ import type { DB } from '../db/generated.ts'
 import { AppServiceError, hashPassword, type Principal } from './session.ts'
 import { searchPinyin } from '../platform/pinyin.ts'
 import { changeEnablement } from '../enablement/service.ts'
+import {
+  migrationDigest,
+  sourceUserDigest,
+  sourceUserPlanSchema,
+  SourceUserMigrationError,
+} from './source-users.ts'
 
 const systemUserId = '01JAPPSYST3MACTR0000000000'
 const superadminCode = 'superadmin'
@@ -196,31 +202,19 @@ export class ManagementService {
         .executeTakeFirst()
       if (duplicate)
         throw new AppServiceError('conflict', 'username already exists')
-      await tx
-        .insertInto('app_users')
-        .values({
+      await this.insertUser(
+        tx,
+        {
           id,
           username,
-          employee_id: input.employeeId ?? null,
-          display_name: displayName,
-          py: searchPinyin(displayName),
-          password_hash: await hashPassword(input.password),
+          displayName,
+          password: input.password,
+          employeeId: input.employeeId ?? null,
           status: 'ENABLED',
-          password_change_required: true,
-          password_changed_at: new Date(),
-          created_by: principal.user.id,
-          updated_by: principal.user.id,
-        })
-        .execute()
-      await this.replaceUserRoles(tx, id, roleIds, principal.user.id)
-      await this.audit(
-        tx,
-        'USER_CREATE',
+          roleIds,
+        },
         principal.user.id,
-        'user',
-        id,
         requestId,
-        { roleCount: roleIds.length },
       )
       return this.userDetail(id, principal, tx)
     })
@@ -296,6 +290,29 @@ export class ManagementService {
         .executeTakeFirst()
       if (Number(updated.numUpdatedRows) !== 1)
         throw new AppServiceError('user_changed', 'user revision conflict')
+      let ownership = tx
+        .deleteFrom('app_source_user_roles')
+        .where((eb) =>
+          eb.exists(
+            eb
+              .selectFrom('app_source_users')
+              .select('source')
+              .where('user_id', '=', target.id)
+              .whereRef(
+                'app_source_users.source',
+                '=',
+                'app_source_user_roles.source',
+              )
+              .whereRef(
+                'app_source_users.source_key',
+                '=',
+                'app_source_user_roles.source_key',
+              ),
+          ),
+        )
+      if (roleIds.length)
+        ownership = ownership.where('role_id', 'not in', roleIds)
+      await ownership.execute()
       await this.replaceUserRoles(tx, target.id, roleIds, principal.user.id)
       await this.ensureAuthorizationSafety(tx)
       await this.audit(
@@ -448,6 +465,406 @@ export class ManagementService {
       )
     })
     return { temporaryPassword }
+  }
+
+  /** Controlled source-user command; the current administrator is resolved inside the transaction. */
+  async inspectSourceUsers(source: string, actorUsername: string) {
+    return this.db.transaction().execute(async (tx) => {
+      await this.lock(tx)
+      await this.sourceMigrationPrincipal(tx, actorUsername)
+      const identity = await sql<{
+        name: string
+      }>`SELECT current_database() AS name`.execute(tx)
+      const roles = await this.sourceMigrationRoles(tx)
+      const schema = await sql<{
+        present: boolean
+      }>`SELECT to_regclass('public.app_source_users') IS NOT NULL AS present`.execute(
+        tx,
+      )
+      if (!schema.rows[0].present)
+        return { source, databaseName: identity.rows[0].name, roles, users: [] }
+      const links = await tx
+        .selectFrom('app_source_users as s')
+        .innerJoin('app_users as u', 'u.id', 's.user_id')
+        .select([
+          's.source_key',
+          's.source_revision',
+          's.source_employee_key',
+          's.source_enabled',
+          's.source_deleted',
+          's.blocked_reasons',
+          's.revision',
+          'u.id',
+          'u.username',
+          'u.display_name',
+          'u.status',
+          'u.employee_id',
+        ])
+        .where('s.source', '=', source)
+        .orderBy('s.source_key')
+        .execute()
+      const users = []
+      for (const row of links) {
+        const current = await this.roleIds(tx, row.id)
+        const managed = await tx
+          .selectFrom('app_source_user_roles')
+          .select('role_id')
+          .where('source', '=', source)
+          .where('source_key', '=', row.source_key)
+          .execute()
+        users.push({
+          sourceKey: row.source_key,
+          code: row.username,
+          name: row.display_name,
+          id: row.id,
+          enabled: row.status === 'ENABLED',
+          employeeId: row.employee_id,
+          sourceEnabled: row.source_enabled,
+          sourceEmployeeKey: row.source_employee_key,
+          sourceRevision: row.source_revision,
+          deleted: row.source_deleted,
+          blockedReasons: row.blocked_reasons,
+          revision: String(row.revision),
+          roleCodes: roles
+            .filter((role) => current.includes(role.id))
+            .map((role) => role.code),
+          managedRoleCodes: roles
+            .filter((role) =>
+              managed.some((grant) => grant.role_id === role.id),
+            )
+            .map((role) => role.code),
+        })
+      }
+      return { source, databaseName: identity.rows[0].name, roles, users }
+    })
+  }
+
+  async migrateSourceUsers(
+    raw: unknown,
+    actorUsername: string,
+    passwords: ReadonlyMap<string, string>,
+    requestId: string,
+  ) {
+    const parsed = sourceUserPlanSchema.safeParse(raw)
+    if (!parsed.success) throw new SourceUserMigrationError('invalid_plan')
+    const input = parsed.data
+    if (
+      new Set(input.users.map((user) => user.sourceKey)).size !==
+        input.users.length ||
+      new Set(input.users.map((user) => this.username(user.code))).size !==
+        input.users.length ||
+      new Set(input.roles.map((role) => role.code)).size !== input.roles.length
+    )
+      throw new SourceUserMigrationError('duplicate_plan_identity')
+    return this.db.transaction().execute(async (tx) => {
+      await this.lock(tx)
+      const principal = await this.sourceMigrationPrincipal(tx, actorUsername)
+      const identity = await sql<{
+        name: string
+      }>`SELECT current_database() AS name`.execute(tx)
+      if (identity.rows[0].name !== input.databaseName)
+        throw new SourceUserMigrationError('target_database_mismatch')
+      const roles = await this.sourceMigrationRoles(tx)
+      const selected = new Map(roles.map((role) => [role.code, role]))
+      for (const expected of input.roles) {
+        const role = selected.get(expected.code)
+        if (
+          !role ||
+          !role.enabled ||
+          role.code === 'system' ||
+          role.code === 'superadmin' ||
+          role.fingerprint !== expected.fingerprint
+        )
+          throw new SourceUserMigrationError('role_baseline_changed')
+      }
+      const users = []
+      for (const user of input.users) {
+        const reject = (reason: string): never => {
+          throw new SourceUserMigrationError(reason, user.sourceKey)
+        }
+        const username = this.username(user.code)
+        const displayName = this.displayName(user.name)
+        if (username === 'system') reject('reserved_identity')
+        if (user.deleted && (user.sourceEnabled || user.roleCodes.length))
+          reject('invalid_deleted_user')
+        const codes = [...new Set(user.roleCodes)].sort()
+        if (
+          codes.some((code) => !input.roles.some((role) => role.code === code))
+        )
+          reject('missing_role_baseline')
+        const desiredRoleIds = codes
+          .map((code) => selected.get(code)!.id)
+          .sort()
+        if (desiredRoleIds.length)
+          await this.assertAssignableRoles(tx, desiredRoleIds, principal)
+        const enabled =
+          user.sourceEnabled && !user.deleted && desiredRoleIds.length > 0
+        if (user.sourceEnabled && !enabled && !user.blockedReasons.length)
+          reject('missing_blocked_reason')
+        let status: Status = enabled ? 'ENABLED' : 'DISABLED'
+        const link = await tx
+          .selectFrom('app_source_users')
+          .selectAll()
+          .where('source', '=', input.source)
+          .where('source_key', '=', user.sourceKey)
+          .forUpdate()
+          .executeTakeFirst()
+        const digest = sourceUserDigest(user)
+        if (link && BigInt(input.sourceRevision) < BigInt(link.source_revision))
+          reject('stale_source_revision')
+        if (link?.source_deleted && !user.deleted)
+          reject('deleted_source_identity_reused')
+        const replay =
+          link?.desired_digest === digest &&
+          link.source_revision === input.sourceRevision
+        if (String(link?.revision ?? '0') !== user.expectedRevision && !replay)
+          reject('source_user_changed')
+        const sourceFields = {
+          source_revision: input.sourceRevision,
+          source_employee_key: user.sourceEmployeeKey,
+          source_enabled: user.sourceEnabled,
+          source_deleted: user.deleted,
+          blocked_reasons: JSON.stringify(
+            [...new Set(user.blockedReasons)].sort(),
+          ),
+          desired_digest: digest,
+        }
+        let id: string
+        let outcome: 'created' | 'updated' | 'unchanged' = 'unchanged'
+        let managed: string[] = []
+        let ownershipChanged = !link
+        if (!link) {
+          if (user.deleted) reject('unknown_deleted_identity')
+          if (
+            await tx
+              .selectFrom('app_users')
+              .select('id')
+              .where(sql`lower(username)`, '=', username)
+              .executeTakeFirst()
+          )
+            reject('username_conflict')
+          const password = passwords.get(user.sourceKey)
+          if (!password) reject('initial_password_required')
+          this.password(password!)
+          if (user.employeeId) await this.assertEmployee(tx, user.employeeId)
+          id = ulid()
+          await this.insertUser(
+            tx,
+            {
+              id,
+              username,
+              displayName,
+              password: password!,
+              employeeId: user.employeeId ?? null,
+              status,
+              roleIds: desiredRoleIds,
+            },
+            principal.user.id,
+            requestId,
+          )
+          await tx
+            .insertInto('app_source_users')
+            .values({
+              source: input.source,
+              source_key: user.sourceKey,
+              user_id: id,
+              ...sourceFields,
+            })
+            .execute()
+          managed = desiredRoleIds
+          outcome = 'created'
+        } else {
+          id = link.user_id
+          if (id === systemUserId || id === principal.user.id)
+            reject('reserved_identity')
+          const target = await tx
+            .selectFrom('app_users')
+            .selectAll()
+            .where('id', '=', id)
+            .forUpdate()
+            .executeTakeFirstOrThrow()
+          if (target.username !== username) reject('source_username_changed')
+          const current = await this.roleIds(tx, id)
+          const previous = (
+            await tx
+              .selectFrom('app_source_user_roles')
+              .select('role_id')
+              .where('source', '=', input.source)
+              .where('source_key', '=', user.sourceKey)
+              .execute()
+          ).map((row) => row.role_id)
+          const manual = current.filter((roleId) => !previous.includes(roleId))
+          const next = [...new Set([...manual, ...desiredRoleIds])].sort()
+          managed = desiredRoleIds.filter((roleId) => !manual.includes(roleId))
+          ownershipChanged = !same(previous.sort(), managed)
+          status =
+            user.sourceEnabled && !user.deleted && next.length > 0
+              ? 'ENABLED'
+              : 'DISABLED'
+          const employeeId =
+            user.employeeId === undefined ? target.employee_id : user.employeeId
+          if (employeeId !== target.employee_id)
+            await this.assertEmployee(tx, employeeId)
+          const rolesChanged = !same(current, next)
+          const changed =
+            target.display_name !== displayName ||
+            target.status !== status ||
+            target.employee_id !== employeeId ||
+            rolesChanged
+          if (changed) {
+            await tx
+              .updateTable('app_users')
+              .set({
+                display_name: displayName,
+                py: searchPinyin(displayName),
+                employee_id: employeeId,
+                status,
+                revision: sql`revision + 1`,
+                updated_at: new Date(),
+                updated_by: principal.user.id,
+              })
+              .where('id', '=', id)
+              .execute()
+            if (rolesChanged)
+              await this.replaceUserRoles(tx, id, next, principal.user.id)
+            if (
+              rolesChanged ||
+              target.status !== status ||
+              target.employee_id !== employeeId
+            )
+              await this.revokeUserSessions(tx, id, 'source_user_changed')
+            outcome = 'updated'
+          }
+          if (!replay || changed || ownershipChanged) {
+            await tx
+              .updateTable('app_source_users')
+              .set({
+                ...sourceFields,
+                revision: sql`revision + 1`,
+                updated_at: new Date(),
+              })
+              .where('source', '=', input.source)
+              .where('source_key', '=', user.sourceKey)
+              .execute()
+          }
+        }
+        if (!link || !replay || outcome !== 'unchanged' || ownershipChanged) {
+          await tx
+            .deleteFrom('app_source_user_roles')
+            .where('source', '=', input.source)
+            .where('source_key', '=', user.sourceKey)
+            .execute()
+          if (managed.length)
+            await tx
+              .insertInto('app_source_user_roles')
+              .values(
+                managed.map((roleId) => ({
+                  source: input.source,
+                  source_key: user.sourceKey,
+                  role_id: roleId,
+                })),
+              )
+              .execute()
+          await this.audit(
+            tx,
+            'SOURCE_USER_APPLY',
+            principal.user.id,
+            'user',
+            id,
+            requestId,
+            {
+              source: input.source,
+              sourceKey: user.sourceKey,
+              sourceRevision: input.sourceRevision,
+              outcome,
+              blocked: user.blockedReasons.length > 0,
+            },
+          )
+        }
+        const result = await tx
+          .selectFrom('app_users')
+          .select(['revision', 'status'])
+          .where('id', '=', id)
+          .executeTakeFirstOrThrow()
+        users.push({
+          sourceKey: user.sourceKey,
+          id,
+          code: username,
+          outcome,
+          revision: String(result.revision),
+          enabled: result.status === 'ENABLED',
+          blockedReasons: user.blockedReasons,
+        })
+      }
+      await this.ensureAuthorizationSafety(tx)
+      return {
+        source: input.source,
+        sourceRevision: input.sourceRevision,
+        databaseName: input.databaseName,
+        users,
+      }
+    })
+  }
+
+  private async sourceMigrationPrincipal(
+    tx: AnyDb,
+    actorUsername: string,
+  ): Promise<Principal> {
+    const actor = await tx
+      .selectFrom('app_users')
+      .select([
+        'id',
+        'username',
+        'display_name',
+        'status',
+        'password_change_required',
+      ])
+      .where('username', '=', this.username(actorUsername))
+      .executeTakeFirst()
+    if (
+      !actor ||
+      actor.status !== 'ENABLED' ||
+      actor.password_change_required ||
+      !(await this.isSuperadmin(tx, actor.id))
+    )
+      throw new SourceUserMigrationError('active_administrator_required')
+    return {
+      sessionId: 'controlled-source-user-migration',
+      user: { id: actor.id, code: actor.username, name: actor.display_name },
+      csrfToken: '',
+      apiPaths: await this.permissionsFor(tx, actor.id),
+      passwordChangeRequired: false,
+      passwordMinLength: this.passwordMinLength,
+      absoluteExpiresAt: new Date(),
+    }
+  }
+
+  private async sourceMigrationRoles(tx: AnyDb) {
+    const rows = await tx
+      .selectFrom('app_roles')
+      .selectAll()
+      .orderBy('code')
+      .execute()
+    const result = []
+    for (const role of rows) {
+      const permissions = await this.rolePermissions(tx, role.id, true)
+      const authority = {
+        id: role.id,
+        code: role.code,
+        enabled: role.status === 'ENABLED',
+        customerScope: role.customer_scope,
+        revision: String(role.revision),
+        permissions: permissions
+          .map((p) => ({ path: p.path, status: p.status }))
+          .sort((a, b) => a.path.localeCompare(b.path)),
+      }
+      result.push({
+        ...authority,
+        name: role.name,
+        fingerprint: migrationDigest(authority),
+      })
+    }
+    return result
   }
 
   async queryRoles(input: ManagementQueryInput, principal: Principal) {
@@ -1408,6 +1825,42 @@ export class ManagementService {
         'requested permissions exceed authorization ceiling',
       )
   }
+  private async insertUser(
+    tx: AnyDb,
+    input: {
+      id: string
+      username: string
+      displayName: string
+      password: string
+      employeeId: string | null
+      status: Status
+      roleIds: string[]
+    },
+    actorId: string,
+    requestId: string,
+  ) {
+    await tx
+      .insertInto('app_users')
+      .values({
+        id: input.id,
+        username: input.username,
+        employee_id: input.employeeId,
+        display_name: input.displayName,
+        py: searchPinyin(input.displayName),
+        password_hash: await hashPassword(input.password),
+        status: input.status,
+        password_change_required: true,
+        password_changed_at: new Date(),
+        created_by: actorId,
+        updated_by: actorId,
+      })
+      .execute()
+    await this.replaceUserRoles(tx, input.id, input.roleIds, actorId)
+    await this.audit(tx, 'USER_CREATE', actorId, 'user', input.id, requestId, {
+      roleCount: input.roleIds.length,
+    })
+  }
+
   private async replaceUserRoles(
     tx: AnyDb,
     userId: string,
@@ -1418,6 +1871,7 @@ export class ManagementService {
       .deleteFrom('app_user_roles')
       .where('user_id', '=', userId)
       .execute()
+    if (!roleIds.length) return
     await tx
       .insertInto('app_user_roles')
       .values(

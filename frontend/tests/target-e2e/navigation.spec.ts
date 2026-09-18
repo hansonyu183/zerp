@@ -22,7 +22,7 @@ async function signIn(
   return data.apiPaths
 }
 
-test('all authorized resources have one menu entry and unregistered pages send no business requests', async ({
+test('authorized page resources have one menu entry and excluded resources send no business requests', async ({
   page,
 }) => {
   const businessRequests: string[] = []
@@ -36,7 +36,8 @@ test('all authorized resources have one menu entry and unregistered pages send n
     ...new Set(
       apiPaths
         .filter((path) => !path.startsWith('/session/'))
-        .map((path) => path.slice(0, path.lastIndexOf('/'))),
+        .map((path) => path.slice(0, path.lastIndexOf('/')))
+        .filter((resource) => resource !== '/app/permission'),
     ),
   ].sort()
   expect(expected).toContain('/bob/customer')
@@ -52,6 +53,7 @@ test('all authorized resources have one menu entry and unregistered pages send n
       elements.map((element) => element.getAttribute('href')!).sort(),
     )
   expect(links).toEqual(expected)
+  expect(links).not.toContain('/app/permission')
   expect(links).not.toContain('/acc/opening')
   expect(links).toContain('/vou/opening')
   await expect(
@@ -73,6 +75,9 @@ test('all authorized resources have one menu entry and unregistered pages send n
       .locator('.mdi-plus'),
   ).toHaveCount(1)
   businessRequests.length = 0
+  await page.goto('/app/permission')
+  await expect(page.getByText('无权访问', { exact: true })).toBeVisible()
+  expect(businessRequests).toEqual([])
   await page.goto('/app/no-such-resource')
   await expect(page.getByText('无权访问', { exact: true })).toBeVisible()
   expect(businessRequests).toEqual([])

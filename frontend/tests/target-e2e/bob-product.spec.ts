@@ -23,12 +23,31 @@ async function signin(page: Page, reviewer = false) {
   await page.getByRole('button', { name: '登录', exact: true }).click()
   await expect(page.getByLabel('用户编码', { exact: true })).toHaveCount(0)
 }
-async function select(page: Page, scope: Locator, label: string, name: string) {
-  await scope
+async function select(
+  page: Page,
+  scope: Locator,
+  label: string,
+  name: string,
+  search = false,
+) {
+  const control = scope
     .locator('.v-select, .v-autocomplete')
     .filter({ has: page.getByLabel(label, { exact: true }) })
-    .locator('.v-field')
-    .click()
+  if (search) {
+    // Reference candidates are paginated; search instead of assuming page one.
+    const input = control.getByLabel(label, { exact: true })
+    const candidates = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).searchParams.get('keyword') === name,
+    )
+    await input.fill(name)
+    await candidates
+    await expect(control).not.toHaveClass(/v-input--loading/)
+    if ((await input.getAttribute('aria-expanded')) !== 'true')
+      await input.click()
+  } else {
+    await control.locator('.v-field').click()
+  }
   await page.getByRole('option').filter({ hasText: name }).click()
 }
 async function approve(page: Page, name: string) {
@@ -113,7 +132,7 @@ test('product temporary form, exact quantity trial, approval and independent ena
     await dialog.getByLabel('规格', { exact: true }).fill('规格完整')
     await dialog.getByLabel('型号', { exact: true }).fill('型号完整')
     await select(page, dialog, '产品类型', typeName)
-    await select(page, dialog, '产品分类', categoryName)
+    await select(page, dialog, '产品分类', categoryName, true)
     await select(page, dialog, '计价单位', kgName)
     await select(page, dialog, '默认录入单位', tonName)
     await dialog

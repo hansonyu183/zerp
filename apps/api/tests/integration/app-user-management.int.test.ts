@@ -5,6 +5,7 @@ import test, { type TestContext } from 'node:test'
 import { serve } from '@hono/node-server'
 import { modelBuildId } from '@zerp/model'
 import { ulid } from 'ulid'
+import { sql } from 'kysely'
 
 import { AuxService } from '../../src/aux/service.ts'
 import { createApp } from '../../src/app.ts'
@@ -1703,4 +1704,62 @@ test('auxiliary options search past 200 rows, resolve bounded IDs and strictly r
     ).errorKey,
     'forbidden',
   )
+})
+
+test('real HTTP preserves unchanged role grants and records a new grant after removal and regrant', async (context) => {
+  const harness = await createHarness(context)
+  const actor = await harness.signIn(harness.codes.actor)
+  const id = harness.ids.concurrentTarget
+  const grants = () =>
+    harness.db
+      .selectFrom('app_user_roles')
+      .select([
+        'role_id',
+        'created_by',
+        sql<string>`created_at::text`.as('grantedAt'),
+      ])
+      .where('user_id', '=', id)
+      .orderBy('role_id')
+      .execute()
+  const initial = await grants()
+  const save = async (name: string, roleIds: string[]) => {
+    const user = await harness.userFact(id)
+    const result = await harness.post(actor, '/app/user/save', {
+      id,
+      name,
+      roleIds,
+      revision: String(user.revision),
+    })
+    assert.equal(result.code, 0)
+    assert.deepEqual(
+      (await harness.roleFacts(id)).map((row) => row.role_id).sort(),
+      [...roleIds].sort(),
+    )
+  }
+  await save('Renamed without changing roles', [harness.ids.lowRole])
+  assert.deepEqual(await grants(), initial)
+  await save('Added ordinary role', [
+    harness.ids.lowRole,
+    harness.ids.protectedRole,
+  ])
+  const withAdded = await grants()
+  assert.deepEqual(
+    withAdded.find((row) => row.role_id === harness.ids.lowRole),
+    initial[0],
+  )
+  const firstGrant = withAdded.find(
+    (row) => row.role_id === harness.ids.protectedRole,
+  )!
+  assert.equal(firstGrant.created_by, harness.ids.actor)
+  await save('Removed ordinary role', [harness.ids.lowRole])
+  assert.deepEqual(await grants(), initial)
+  await save('Granted ordinary role again', [
+    harness.ids.lowRole,
+    harness.ids.protectedRole,
+  ])
+  const regranted = (await grants()).find(
+    (row) => row.role_id === harness.ids.protectedRole,
+  )!
+  assert.notEqual(regranted.grantedAt, firstGrant.grantedAt)
+  assert.equal(regranted.created_by, harness.ids.actor)
 })

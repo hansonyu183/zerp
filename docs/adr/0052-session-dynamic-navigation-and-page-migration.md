@@ -43,6 +43,8 @@ DCL 不在目标能力矩阵中。ADR-0053 至 ADR-0058 已完成 13 个原 DCL 
 
 ## Navigation slice: #380
 
+当前导航例外：`app/permission` 仅承担内部授权目录职责，不产生独立导航资源；菜单与直达 URL 均排除该资源。权限查询 API 和角色编辑中的权限选择继续保留。其余资源继续遵循本 ADR 的权限驱动导航规则，不因页面未实现而隐藏。
+
 #380 删除 APP 菜单模板及其 API、权限、生成契约、数据库结构、启动同步、编辑页、专属测试和用例。前端保留现有 AppLayout 的侧栏、顶栏、分组和响应式呈现，但 Navigation Resource 仅由 Session 的非 Session `apiPaths` 装配；不读取或迁移旧菜单树，也不以页面登记、`query`、BusinessRegistry 或路由前缀筛选。
 
 唯一的动态 Resource Host 承载 `/:domain/:entity`。菜单、直达地址和 Session 刷新后的权限变化先以同一个 Navigation Resource 判定资格，之后才装配登记页面。首次进入、关闭后重开和权限变化后的重开都是独立实例；撤销资源权限销毁已挂载实例，卸载或退出后的异步结果被忽略。Host 不缓存页面、不轮询、不保留全局编辑器，也不为旧页面提供别名或回退。

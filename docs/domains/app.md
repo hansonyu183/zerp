@@ -184,7 +184,7 @@ User ──< UserRole >── Role ──< RolePermission >── Permission
 
 辅助 GET 复用有效 Session，保留过期、撤销、停用与强制改密限制，不要求 CSRF 或独立及替代动作权限。apiPaths 只代表授权用户操作及既有能力，不是可调用接口全集；辅助 GET 不进入权限目录或导航。方法分类与逐项平台例外见 [ADR-0061](../adr/0061-action-post-auxiliary-get.md)。
 
-Navigation Resource 只从当前 Session Context 的非 Session `apiPaths` 得出。一个合法的精确业务路径按其 `domain/entity` 归属同一资源，资源内任一动作路径都足以产生入口；资源按 `domain/entity` 去重并按领域分组。`session` 路径绝不产生业务入口。
+Navigation Resource 只从当前 Session Context 的非 Session `apiPaths` 得出。一个合法的精确业务路径按其 `domain/entity` 归属同一资源，资源内任一动作路径都足以产生入口；资源按 `domain/entity` 去重并按领域分组。`session` 路径绝不产生业务入口。`app/permission` 是内部授权目录，不产生独立导航资源、菜单或可进入的页面；其 API 权限和角色编辑中的权限候选继续保留。
 
 导航不得与 `query` 权限、页面登记、BusinessRegistry、被替代的路由目录或任意前缀匹配求交集。只有 `create` 的使用者仍可看到资源入口，但页面不得因此发送查询；未登记资源显示明确的尚未实现状态，不伪造空列表、被替代页面或无权限。缺少资源的直达地址不挂载业务功能或发起业务请求。
 

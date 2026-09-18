@@ -74,7 +74,6 @@ const resources: Record<string, NavigationIcon> = {
   'dcl/sales-partner': 'partner',
   'app/user': 'user',
   'app/role': 'role',
-  'app/permission': 'permission',
   'app/workbench': 'workbench',
   'app/system-parameter': 'system',
   'aux/product-category': 'category',

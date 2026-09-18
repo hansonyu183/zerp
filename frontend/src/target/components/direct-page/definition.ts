@@ -11,6 +11,11 @@ import type {
 } from '../dynamic-fields/edit-fields.ts'
 
 export type DirectResource =
+  | 'aux/department'
+  | 'aux/product-category'
+  | 'aux/dictionary-type'
+  | 'aux/dictionary-item'
+  | 'aux/income-expense-type'
   | 'app/user'
   | 'app/role'
   | 'aux/employee-category'
@@ -28,9 +33,19 @@ export type DirectRow = EnabledListItem & {
   revision: string
   availableActions: readonly string[]
   fixedFactor?: string | null
+  parentId?: string
+  parentName?: string
+  dictionaryTypeId?: string
+  dictionaryTypeName?: string
+  sortOrder?: number
+  direction?: string
   type?: string
 }
-export type DirectQuery = {
+export type DirectFilters = {
+  keyword: string
+  dictionaryTypeId?: string | null
+}
+export type DirectQuery = DirectFilters & {
   keyword: string
   page: number
   pageSize: 20

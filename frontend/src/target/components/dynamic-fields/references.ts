@@ -46,6 +46,8 @@ const auxSources = {
   'operating-entities': 'operating-entity',
   'employee-categories': 'employee-category',
   departments: 'department',
+  'dictionary-types': 'dictionary-type',
+  'income-expense-types': 'income-expense-type',
   positions: 'position',
   employees: 'employee',
   'vehicle-types': 'dictionary-item',

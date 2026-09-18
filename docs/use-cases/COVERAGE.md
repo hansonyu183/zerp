@@ -6,8 +6,8 @@
 
 统计口径：每个带 `meta.title` 的正式 target 路由必须声明 `meta.useCaseKey`；全部正式 Registry 登记计入分母，缺少 `useCaseKey` 直接失败；多个入口允许共享有实际场景覆盖的用例。VOU/RPT 动态家族不展开参数，layout 与重定向不单独计数。
 
-- 页面入口：38
-- 已覆盖入口：38
+- 页面入口：43
+- 已覆盖入口：43
 - 已登记唯一用例：28
 - 缺少用例：0
 - 孤儿用例：0
@@ -50,19 +50,24 @@
 
 ## AUX
 
-| 页面                  | 路由                     | 来源                                                         | 状态                                  |
-| --------------------- | ------------------------ | ------------------------------------------------------------ | ------------------------------------- |
-| aux/employee-category | `/aux/employee-category` | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
-| aux/position          | `/aux/position`          | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
-| aux/measurement-unit  | `/aux/measurement-unit`  | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
-| aux/payment-method    | `/aux/payment-method`    | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
-| aux/asset-category    | `/aux/asset-category`    | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
-| aux/tax-information   | `/aux/tax-information`   | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
-| aux/operating-entity  | `/aux/operating-entity`  | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/people-maintenance.md) |
-| aux/employee          | `/aux/employee`          | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/people-maintenance.md) |
-| aux/warehouse         | `/aux/warehouse`         | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/assets-maintenance.md) |
-| aux/fund-account      | `/aux/fund-account`      | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/assets-maintenance.md) |
-| aux/vehicle           | `/aux/vehicle`           | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/assets-maintenance.md) |
+| 页面                    | 路由                       | 来源                                                         | 状态                                  |
+| ----------------------- | -------------------------- | ------------------------------------------------------------ | ------------------------------------- |
+| aux/department          | `/aux/department`          | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/product-category    | `/aux/product-category`    | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/dictionary-type     | `/aux/dictionary-type`     | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/dictionary-item     | `/aux/dictionary-item`     | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/income-expense-type | `/aux/income-expense-type` | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/employee-category   | `/aux/employee-category`   | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/position            | `/aux/position`            | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/measurement-unit    | `/aux/measurement-unit`    | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/payment-method      | `/aux/payment-method`      | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/asset-category      | `/aux/asset-category`      | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/tax-information     | `/aux/tax-information`     | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/basic-maintenance.md)  |
+| aux/operating-entity    | `/aux/operating-entity`    | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/people-maintenance.md) |
+| aux/employee            | `/aux/employee`            | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/people-maintenance.md) |
+| aux/warehouse           | `/aux/warehouse`           | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/assets-maintenance.md) |
+| aux/fund-account        | `/aux/fund-account`        | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/assets-maintenance.md) |
+| aux/vehicle             | `/aux/vehicle`             | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](aux/assets-maintenance.md) |
 
 ## DCL
 

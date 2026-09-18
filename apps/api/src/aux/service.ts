@@ -207,6 +207,7 @@ export type AuxSaveInput<Entity extends AuxEntity> = AuxRevisionInput &
   AuxWriteData<Entity>
 
 export interface AuxQueryInput {
+  dictionaryTypeId?: string
   keyword?: string
   page: number
   pageSize: 20
@@ -1099,6 +1100,16 @@ function parseRow(row: StoredAuxObject): ParsedAuxRow {
   }
 }
 
+function basicMaintenanceEntity(entity: AuxEntity): boolean {
+  return [
+    'department',
+    'product-category',
+    'dictionary-type',
+    'dictionary-item',
+    'income-expense-type',
+  ].includes(entity)
+}
+
 function availableActions(
   entity: AuxEntity,
   enabled: boolean,
@@ -1116,7 +1127,8 @@ function availableActions(
     (entity === 'warehouse' ||
       entity === 'fund-account' ||
       entity === 'vehicle' ||
-      entity === 'tax-information') &&
+      entity === 'tax-information' ||
+      basicMaintenanceEntity(entity)) &&
     actor.permissions.includes(`/aux/${entity}/delete`)
   )
     actions.push('delete')
@@ -1287,21 +1299,37 @@ export class AuxService {
   }> {
     assertEntity(entity)
     assertPermission(actor, `/aux/${entity}/query`)
-    const query = strictInput(input, ['keyword', 'page', 'pageSize'])
+    const query = strictInput(input, [
+      'keyword',
+      'page',
+      'pageSize',
+      ...(entity === 'dictionary-item' ? ['dictionaryTypeId'] : []),
+    ])
+    const dictionaryTypeId =
+      query.dictionaryTypeId === undefined
+        ? undefined
+        : inputId(query.dictionaryTypeId)
     if (
       query.pageSize !== 20 ||
       (query.keyword !== undefined && typeof query.keyword !== 'string')
     )
       applicationError('validation_failed')
     const page = integer(query.page, 1, Number.MAX_SAFE_INTEGER)
-    const rows =
-      await sql<StoredAuxObject>`SELECT id, entity, code, enabled, revision, data, updated_at, updated_by FROM aux_objects WHERE entity = ${entity} ORDER BY code, id`.execute(
-        this.db,
-      )
+    const rows = await sql<
+      StoredAuxObject & { parent_name: string; dictionary_type_name: string }
+    >`SELECT a.id, a.entity, a.code, a.enabled, a.revision, a.data, a.updated_at, a.updated_by, COALESCE(p.data->>'name', '') AS parent_name, COALESCE(d.data->>'name', '') AS dictionary_type_name FROM aux_objects a LEFT JOIN aux_objects p ON p.id = a.data->>'parentId' AND p.entity = a.entity LEFT JOIN aux_objects d ON d.id = a.data->>'dictionaryTypeId' AND d.entity = 'dictionary-type' WHERE a.entity = ${entity} ORDER BY a.code, a.id`.execute(
+      this.db,
+    )
     const keyword = String(query.keyword ?? '')
       .trim()
       .toLocaleLowerCase()
+    const summaries = new Map(rows.rows.map((row) => [row.id, row]))
     const matches = rows.rows.map(parseRow).filter((row) => {
+      if (
+        dictionaryTypeId &&
+        asRecord(row.data).dictionaryTypeId !== dictionaryTypeId
+      )
+        return false
       const item = listItem(row, actor)
       return (
         !keyword ||
@@ -1314,6 +1342,30 @@ export class AuxService {
     return {
       items: matches.slice(offset, offset + 20).map((row) => {
         const item = listItem(row, actor)
+        if (entity === 'dictionary-item') {
+          const data = row.data as AuxDataByEntity['dictionary-item']
+          return {
+            ...item,
+            dictionaryTypeId: data.dictionaryTypeId,
+            dictionaryTypeName: summaries.get(row.id)!.dictionary_type_name,
+            sortOrder: data.sortOrder,
+          }
+        }
+        if (
+          entity === 'department' ||
+          entity === 'product-category' ||
+          entity === 'income-expense-type'
+        ) {
+          const data = row.data as AuxDataByEntity['income-expense-type']
+          return {
+            ...item,
+            parentId: data.parentId,
+            parentName: summaries.get(row.id)!.parent_name,
+            ...(entity === 'income-expense-type'
+              ? { direction: data.direction }
+              : {}),
+          }
+        }
         if (entity !== 'measurement-unit') return item
         const data = row.data as AuxDataByEntity['measurement-unit']
         return {
@@ -1380,7 +1432,11 @@ export class AuxService {
           id,
           normalised as unknown as AuxDataByEntity[typeof entity],
         )
-      if (currentEntity(entity) || entity === 'tax-information')
+      if (
+        currentEntity(entity) ||
+        entity === 'tax-information' ||
+        basicMaintenanceEntity(entity)
+      )
         await this.recordCurrentAudit(
           transaction,
           entity,
@@ -1495,7 +1551,11 @@ export class AuxService {
           id,
           normalised as unknown as AuxDataByEntity[typeof entity],
         )
-      if (currentEntity(entity) || entity === 'tax-information')
+      if (
+        currentEntity(entity) ||
+        entity === 'tax-information' ||
+        basicMaintenanceEntity(entity)
+      )
         await this.recordCurrentAudit(
           transaction,
           entity,
@@ -1553,6 +1613,18 @@ export class AuxService {
       const references = [
         sql`SELECT source FROM aux_reference_facts WHERE aux_object_id = ${id}`,
       ]
+      if (
+        entity === 'department' ||
+        entity === 'product-category' ||
+        entity === 'income-expense-type'
+      )
+        references.push(
+          sql`SELECT 'aux_children' AS source FROM aux_objects WHERE entity = ${entity} AND data->>'parentId' = ${id}`,
+        )
+      if (entity === 'dictionary-type')
+        references.push(
+          sql`SELECT 'aux_dictionary_items' AS source FROM aux_objects WHERE entity = 'dictionary-item' AND data->>'dictionaryTypeId' = ${id}`,
+        )
       if (entity === 'employee')
         references.push(
           sql`SELECT 'app_users' AS source FROM app_users WHERE employee_id = ${id}`,
@@ -1619,7 +1691,11 @@ export class AuxService {
       await sql`DELETE FROM aux_objects WHERE id = ${id} AND entity = ${entity}`.execute(
         transaction,
       )
-      if (currentEntity(entity) || entity === 'tax-information')
+      if (
+        currentEntity(entity) ||
+        entity === 'tax-information' ||
+        basicMaintenanceEntity(entity)
+      )
         await this.recordCurrentAudit(
           transaction,
           entity,
@@ -2121,6 +2197,14 @@ export class AuxService {
       entity === 'department' ||
       entity === 'income-expense-type'
     ) {
+      if (entity === 'income-expense-type' && objectId) {
+        const children = await sql<{
+          conflict: boolean
+        }>`SELECT EXISTS(SELECT 1 FROM aux_objects WHERE entity = ${entity} AND data->>'parentId' = ${objectId} AND data->>'direction' <> ${String(data.direction)}) AS conflict`.execute(
+          transaction,
+        )
+        if (children.rows[0]?.conflict) applicationError('validation_failed')
+      }
       const parentId = optionalId(data.parentId)
       if (parentId)
         await this.validateParent(
@@ -2129,21 +2213,28 @@ export class AuxService {
           objectId,
           parentId,
           entity === 'income-expense-type' ? String(data.direction) : undefined,
+          current?.parentId === parentId,
         )
     }
     if (entity === 'dictionary-item') {
       const dictionary = await sql<{
         code: string
         name: string
-      }>`SELECT code, COALESCE(data->>'name', '') AS name FROM aux_objects WHERE id = ${String(data.dictionaryTypeId)} AND entity = 'dictionary-type' AND enabled = true FOR SHARE`.execute(
+      }>`SELECT code, COALESCE(data->>'name', '') AS name FROM aux_objects WHERE id = ${String(data.dictionaryTypeId)} AND entity = 'dictionary-type' AND (enabled = true OR ${current?.dictionaryTypeId === data.dictionaryTypeId}) FOR SHARE`.execute(
         transaction,
       )
       const row = dictionary.rows[0]
       if (!row) applicationError('validation_failed')
       return {
         ...data,
-        dictionaryTypeCode: row.code,
-        dictionaryTypeName: row.name,
+        dictionaryTypeCode:
+          current && current.dictionaryTypeId === data.dictionaryTypeId
+            ? current.dictionaryTypeCode
+            : row.code,
+        dictionaryTypeName:
+          current && current.dictionaryTypeId === data.dictionaryTypeId
+            ? current.dictionaryTypeName
+            : row.name,
       }
     }
     if (entity === 'settlement-method' && current) {
@@ -2341,7 +2432,7 @@ export class AuxService {
 
   private async recordCurrentAudit(
     transaction: Transaction<DB>,
-    entity: AuxCurrentEntity | 'tax-information',
+    entity: AuxEntity,
     action: 'CREATED' | 'SAVED' | 'DELETED',
     id: string,
     revision: string,
@@ -2375,11 +2466,12 @@ export class AuxService {
     objectId: string | null,
     parentId: string,
     direction?: string,
+    retained = false,
   ): Promise<void> {
     if (parentId === objectId) applicationError('validation_failed')
     const parent = await sql<{
       data: unknown
-    }>`SELECT data FROM aux_objects WHERE id = ${parentId} AND entity = ${entity} AND enabled = true FOR SHARE`.execute(
+    }>`SELECT data FROM aux_objects WHERE id = ${parentId} AND entity = ${entity} AND (enabled = true OR ${retained}) FOR SHARE`.execute(
       transaction,
     )
     const parentDataValue = parent.rows[0]

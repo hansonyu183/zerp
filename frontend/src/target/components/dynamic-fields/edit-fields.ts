@@ -8,6 +8,8 @@ export type EditReferenceSource =
   | 'operating-entities'
   | 'employee-categories'
   | 'departments'
+  | 'dictionary-types'
+  | 'income-expense-types'
   | 'positions'
   | 'employees'
   | 'vehicle-types'

@@ -31,6 +31,8 @@ import {
 } from './definition.ts'
 import EditForm from '../dynamic-fields/EditForm.vue'
 import { formatDecimal, compareDecimal } from '../dynamic-fields/decimal.ts'
+import { incomeExpenseDirectionOptions } from './aux-presentation.ts'
+import type { DirectFilters } from './definition.ts'
 import { roleTypeOptions } from './role-presentation.ts'
 const props = defineProps<{ definition: DirectDefinition }>()
 const definition = props.definition
@@ -52,6 +54,7 @@ function token(action: string) {
 const referenceOptions = ref<Record<string, readonly EditOption[]>>({})
 const referenceReady = ref<Record<string, boolean>>({})
 const open = ref(false)
+const viewing = ref(false)
 const saving = ref(false)
 const writePending = ref(false)
 const lastCreatedId = ref('')
@@ -114,6 +117,7 @@ const fields = computed(() =>
 )
 const canSave = computed(
   () =>
+    !viewing.value &&
     !saving.value &&
     !loading.value &&
     !blocked.value &&
@@ -138,6 +142,34 @@ function finish(result?: 'changed') {
   completion = null
 }
 function message(cause: unknown) {
+  if (
+    cause instanceof TargetApiError &&
+    cause.errorKey === 'conflict' &&
+    cause.data &&
+    typeof cause.data === 'object' &&
+    'blockers' in cause.data &&
+    Array.isArray(cause.data.blockers)
+  ) {
+    const sources: Record<string, string> = {
+      aux_children: '下级资料',
+      aux_dictionary_items: '所属字典项',
+    }
+    const blockers = cause.data.blockers.flatMap((item: unknown) => {
+      if (
+        !item ||
+        typeof item !== 'object' ||
+        !('source' in item) ||
+        !('count' in item) ||
+        typeof item.source !== 'string' ||
+        typeof item.count !== 'number'
+      )
+        return []
+      return [`${sources[item.source] ?? '业务引用'} ${item.count} 项`]
+    })
+    if (blockers.length)
+      return `存在引用，无法删除：${blockers.join('、')}。请先通过正常业务流程解除引用。`
+  }
+
   const errors: Record<string, string> = {
     validation_failed: '输入内容不符合要求，请检查后重试。',
     forbidden: '当前账号没有执行此操作的权限。',
@@ -168,7 +200,8 @@ const isConflict = (cause: unknown) =>
       : cause.errorKey === 'conflict')
 const isUnknown = (cause: unknown) =>
   !(cause instanceof TargetApiError) || cause.errorKey === 'invalid_response'
-function begin(row?: DirectRow): Promise<'changed' | void> {
+function begin(row?: DirectRow, readOnly = false): Promise<'changed' | void> {
+  viewing.value = readOnly
   const promise = new Promise<'changed' | void>((resolve, reject) => {
     completion = { resolve, reject }
   })
@@ -341,7 +374,7 @@ async function write(
   }
 }
 const unit = definition.resource === 'aux/measurement-unit'
-const listDefinition = defineListPage<DirectRow, { keyword: string }>({
+const listDefinition = defineListPage<DirectRow, DirectFilters>({
   title,
   createLabel: '新增',
   columns: [
@@ -373,12 +406,55 @@ const listDefinition = defineListPage<DirectRow, { keyword: string }>({
             },
           ]
         : []),
+    ...([
+      'aux/department',
+      'aux/product-category',
+      'aux/income-expense-type',
+    ].includes(definition.resource)
+      ? [{ key: 'parentName' as const, type: 'text' as const, caption: '上级' }]
+      : []),
+    ...(definition.resource === 'aux/dictionary-item'
+      ? [
+          {
+            key: 'dictionaryTypeName' as const,
+            type: 'text' as const,
+            caption: '所属类型',
+          },
+          {
+            key: 'sortOrder' as const,
+            type: 'integer' as const,
+            caption: '排序',
+          },
+        ]
+      : []),
+    ...(definition.resource === 'aux/income-expense-type'
+      ? [
+          {
+            key: 'direction' as const,
+            type: 'enum' as const,
+            caption: '方向',
+            options: incomeExpenseDirectionOptions,
+          },
+        ]
+      : []),
     { key: '$actions', type: 'actions', caption: '操作' },
   ],
-  filters: [{ key: 'keyword', type: 'text', caption: '编码、拼音或名称' }],
+  filters: [
+    { key: 'keyword', type: 'text', caption: '编码、拼音或名称' },
+    ...(definition.resource === 'aux/dictionary-item'
+      ? [
+          {
+            key: 'dictionaryTypeId' as const,
+            type: 'reference' as const,
+            source: 'aux/dictionary-type' as const,
+            caption: '所属类型',
+          },
+        ]
+      : []),
+  ],
 })
 const list = reactive(
-  useListPageViewModel<DirectRow, { keyword: string }>(
+  useListPageViewModel<DirectRow, DirectFilters>(
     {
       ...(can('query')
         ? {
@@ -409,6 +485,9 @@ const list = reactive(
     {
       initialFilters: () => ({
         keyword: '',
+        ...(definition.resource === 'aux/dictionary-item'
+          ? { dictionaryTypeId: null }
+          : {}),
       }),
       validateFilters: listDefinition.normalizeFilters,
     },
@@ -425,7 +504,7 @@ const contractError = computed(() => {
 })
 function rowActions(item: DirectRow) {
   const pending = list.isRowPending(item.id)
-  return (
+  const writes = (
     [
       { key: 'edit', caption: '编辑' },
       { key: 'enable', caption: '启用', color: 'success' },
@@ -439,9 +518,21 @@ function rowActions(item: DirectRow) {
       disabled: pending || list.isRowBlocked(item.id),
       loading: pending,
     }))
+  return can('get') && !open.value && !saving.value && !writePending.value
+    ? [
+        {
+          key: 'view',
+          caption: '查看',
+          disabled: pending || list.actionPending,
+        },
+        ...writes,
+      ]
+    : writes
 }
 function runRowAction(key: string, item: DirectRow) {
-  if (key === 'delete') pendingDelete.value = item
+  if (key === 'view') {
+    if (can('get') && !open.value && !list.actionPending) void begin(item, true)
+  } else if (key === 'delete') pendingDelete.value = item
   else if (key === 'edit' || key === 'enable' || key === 'disable')
     void list[key](item)
 }
@@ -539,7 +630,13 @@ onBeforeUnmount(() => {
   <AppSnackbar :message="list.feedback" @dismiss="list.dismissFeedback" />
   <v-dialog :model-value="open" max-width="720" persistent>
     <v-card
-      :title="mode === 'create' ? '新增' : `编辑${title.replace(/管理$/, '')}`"
+      :title="
+        viewing
+          ? `查看${title.replace(/管理$/, '')}`
+          : mode === 'create'
+            ? '新增'
+            : `编辑${title.replace(/管理$/, '')}`
+      "
     >
       <v-card-text>
         <v-alert v-if="error" type="error">{{ error }}</v-alert>
@@ -553,6 +650,7 @@ onBeforeUnmount(() => {
           @click="verify"
           >核实当前资料</v-btn
         >
+        <p v-if="detail">编码：{{ detail.identity.code }}</p>
         <EditForm
           v-if="open && !loading"
           :key="editVersion"
@@ -562,7 +660,7 @@ onBeforeUnmount(() => {
           @ready="(key, ready) => (referenceReady[key] = ready)"
           :fields="fields"
           v-model="values"
-          :disabled="saving || loading || blocked"
+          :disabled="viewing || saving || loading || blocked"
           @submit="save"
         />
       </v-card-text>
@@ -574,6 +672,7 @@ onBeforeUnmount(() => {
           >取消</v-btn
         ><v-btn
           :prepend-icon="actionIcons.save"
+          v-if="!viewing"
           :disabled="!canSave"
           :loading="saving"
           @click="save"

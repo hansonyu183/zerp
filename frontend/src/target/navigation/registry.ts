@@ -1,3 +1,8 @@
+import { departmentPage } from '../definitions/department.ts'
+import { productCategoryPage } from '../definitions/product-category.ts'
+import { dictionaryTypePage } from '../definitions/dictionary-type.ts'
+import { dictionaryItemPage } from '../definitions/dictionary-item.ts'
+import { incomeExpenseTypePage } from '../definitions/income-expense-type.ts'
 import { taxInformationPage } from '../definitions/tax-information.ts'
 import { processDefinitionPage } from '../definitions/process-definition.ts'
 import { productPage, productChangesPage } from '../definitions/product.ts'
@@ -170,6 +175,36 @@ export const targetResourceRegistry = createResourceRegistry(
       entity: 'role',
       definition: rolePage,
       useCaseKey: 'app/access-management',
+    },
+    {
+      domain: 'aux',
+      entity: 'department',
+      definition: departmentPage,
+      useCaseKey: 'aux/basic-maintenance',
+    },
+    {
+      domain: 'aux',
+      entity: 'product-category',
+      definition: productCategoryPage,
+      useCaseKey: 'aux/basic-maintenance',
+    },
+    {
+      domain: 'aux',
+      entity: 'dictionary-type',
+      definition: dictionaryTypePage,
+      useCaseKey: 'aux/basic-maintenance',
+    },
+    {
+      domain: 'aux',
+      entity: 'dictionary-item',
+      definition: dictionaryItemPage,
+      useCaseKey: 'aux/basic-maintenance',
+    },
+    {
+      domain: 'aux',
+      entity: 'income-expense-type',
+      definition: incomeExpenseTypePage,
+      useCaseKey: 'aux/basic-maintenance',
     },
     {
       domain: 'aux',

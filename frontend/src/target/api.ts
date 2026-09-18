@@ -1306,6 +1306,8 @@ const auxOptionEndpoints = {
   'fund-account': client.aux['fund-account'].options,
   'employee-category': client.aux['employee-category'].options,
   department: client.aux['department'].options,
+  'dictionary-type': client.aux['dictionary-type'].options,
+  'income-expense-type': client.aux['income-expense-type'].options,
   position: client.aux['position'].options,
   'settlement-method': client.aux['settlement-method'].options,
   'payment-method': client.aux['payment-method'].options,
@@ -3511,6 +3513,501 @@ export async function queryTargetUnbilledSales(
         { json: { periodMonth } },
         csrfHeaders(csrfToken),
       )
+    ).json(),
+  )
+}
+
+export type TargetDepartmentCreateInput = PostJson<
+  (typeof client)['aux']['department']['create']['$post']
+>
+
+export type TargetDepartmentSaveInput = PostJson<
+  (typeof client)['aux']['department']['save']['$post']
+>
+
+export type TargetDepartmentEnabledInput = PostJson<
+  (typeof client)['aux']['department']['enable']['$post']
+>
+
+export type TargetDepartmentDeleteInput = PostJson<
+  (typeof client)['aux']['department']['delete']['$post']
+>
+
+export async function getTargetDepartment(csrfToken: string, id: string) {
+  return unwrapTarget(
+    await (
+      await client.aux['department'].get.$post(
+        { json: { id } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function createTargetDepartment(
+  csrfToken: string,
+  input: TargetDepartmentCreateInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['department'].create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function saveTargetDepartment(
+  csrfToken: string,
+  input: TargetDepartmentSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['department'].save.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function deleteTargetDepartment(
+  csrfToken: string,
+  input: TargetDepartmentDeleteInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['department'].delete.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function setTargetDepartmentEnabled(
+  csrfToken: string,
+  input: TargetDepartmentEnabledInput,
+  enabled: boolean,
+) {
+  const endpoint = enabled
+    ? client.aux['department'].enable
+    : client.aux['department'].disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export type TargetProductCategoryQueryInput = PostJson<
+  (typeof client)['aux']['product-category']['query']['$post']
+>
+
+export type TargetProductCategoryCreateInput = PostJson<
+  (typeof client)['aux']['product-category']['create']['$post']
+>
+
+export type TargetProductCategorySaveInput = PostJson<
+  (typeof client)['aux']['product-category']['save']['$post']
+>
+
+export type TargetProductCategoryEnabledInput = PostJson<
+  (typeof client)['aux']['product-category']['enable']['$post']
+>
+
+export type TargetProductCategoryDeleteInput = PostJson<
+  (typeof client)['aux']['product-category']['delete']['$post']
+>
+
+export async function queryTargetProductCategories(
+  csrfToken: string,
+  input: TargetProductCategoryQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['product-category'].query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function getTargetProductCategory(csrfToken: string, id: string) {
+  return unwrapTarget(
+    await (
+      await client.aux['product-category'].get.$post(
+        { json: { id } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function createTargetProductCategory(
+  csrfToken: string,
+  input: TargetProductCategoryCreateInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['product-category'].create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function saveTargetProductCategory(
+  csrfToken: string,
+  input: TargetProductCategorySaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['product-category'].save.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function deleteTargetProductCategory(
+  csrfToken: string,
+  input: TargetProductCategoryDeleteInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['product-category'].delete.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function setTargetProductCategoryEnabled(
+  csrfToken: string,
+  input: TargetProductCategoryEnabledInput,
+  enabled: boolean,
+) {
+  const endpoint = enabled
+    ? client.aux['product-category'].enable
+    : client.aux['product-category'].disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export type TargetDictionaryTypeQueryInput = PostJson<
+  (typeof client)['aux']['dictionary-type']['query']['$post']
+>
+
+export type TargetDictionaryTypeCreateInput = PostJson<
+  (typeof client)['aux']['dictionary-type']['create']['$post']
+>
+
+export type TargetDictionaryTypeSaveInput = PostJson<
+  (typeof client)['aux']['dictionary-type']['save']['$post']
+>
+
+export type TargetDictionaryTypeEnabledInput = PostJson<
+  (typeof client)['aux']['dictionary-type']['enable']['$post']
+>
+
+export type TargetDictionaryTypeDeleteInput = PostJson<
+  (typeof client)['aux']['dictionary-type']['delete']['$post']
+>
+
+export async function queryTargetDictionaryTypes(
+  csrfToken: string,
+  input: TargetDictionaryTypeQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['dictionary-type'].query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function getTargetDictionaryType(csrfToken: string, id: string) {
+  return unwrapTarget(
+    await (
+      await client.aux['dictionary-type'].get.$post(
+        { json: { id } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function createTargetDictionaryType(
+  csrfToken: string,
+  input: TargetDictionaryTypeCreateInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['dictionary-type'].create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function saveTargetDictionaryType(
+  csrfToken: string,
+  input: TargetDictionaryTypeSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['dictionary-type'].save.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function deleteTargetDictionaryType(
+  csrfToken: string,
+  input: TargetDictionaryTypeDeleteInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['dictionary-type'].delete.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function setTargetDictionaryTypeEnabled(
+  csrfToken: string,
+  input: TargetDictionaryTypeEnabledInput,
+  enabled: boolean,
+) {
+  const endpoint = enabled
+    ? client.aux['dictionary-type'].enable
+    : client.aux['dictionary-type'].disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export type TargetDictionaryItemQueryInput = PostJson<
+  (typeof client)['aux']['dictionary-item']['query']['$post']
+>
+
+export type TargetDictionaryItemCreateInput = PostJson<
+  (typeof client)['aux']['dictionary-item']['create']['$post']
+>
+
+export type TargetDictionaryItemSaveInput = PostJson<
+  (typeof client)['aux']['dictionary-item']['save']['$post']
+>
+
+export type TargetDictionaryItemEnabledInput = PostJson<
+  (typeof client)['aux']['dictionary-item']['enable']['$post']
+>
+
+export type TargetDictionaryItemDeleteInput = PostJson<
+  (typeof client)['aux']['dictionary-item']['delete']['$post']
+>
+
+export async function queryTargetDictionaryItems(
+  csrfToken: string,
+  input: TargetDictionaryItemQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['dictionary-item'].query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function getTargetDictionaryItem(csrfToken: string, id: string) {
+  return unwrapTarget(
+    await (
+      await client.aux['dictionary-item'].get.$post(
+        { json: { id } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function createTargetDictionaryItem(
+  csrfToken: string,
+  input: TargetDictionaryItemCreateInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['dictionary-item'].create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function saveTargetDictionaryItem(
+  csrfToken: string,
+  input: TargetDictionaryItemSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['dictionary-item'].save.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function deleteTargetDictionaryItem(
+  csrfToken: string,
+  input: TargetDictionaryItemDeleteInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['dictionary-item'].delete.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function setTargetDictionaryItemEnabled(
+  csrfToken: string,
+  input: TargetDictionaryItemEnabledInput,
+  enabled: boolean,
+) {
+  const endpoint = enabled
+    ? client.aux['dictionary-item'].enable
+    : client.aux['dictionary-item'].disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+
+export type TargetIncomeExpenseTypeQueryInput = PostJson<
+  (typeof client)['aux']['income-expense-type']['query']['$post']
+>
+
+export type TargetIncomeExpenseTypeCreateInput = PostJson<
+  (typeof client)['aux']['income-expense-type']['create']['$post']
+>
+
+export type TargetIncomeExpenseTypeSaveInput = PostJson<
+  (typeof client)['aux']['income-expense-type']['save']['$post']
+>
+
+export type TargetIncomeExpenseTypeEnabledInput = PostJson<
+  (typeof client)['aux']['income-expense-type']['enable']['$post']
+>
+
+export type TargetIncomeExpenseTypeDeleteInput = PostJson<
+  (typeof client)['aux']['income-expense-type']['delete']['$post']
+>
+
+export async function queryTargetIncomeExpenseTypes(
+  csrfToken: string,
+  input: TargetIncomeExpenseTypeQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['income-expense-type'].query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function getTargetIncomeExpenseType(
+  csrfToken: string,
+  id: string,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['income-expense-type'].get.$post(
+        { json: { id } },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function createTargetIncomeExpenseType(
+  csrfToken: string,
+  input: TargetIncomeExpenseTypeCreateInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['income-expense-type'].create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function saveTargetIncomeExpenseType(
+  csrfToken: string,
+  input: TargetIncomeExpenseTypeSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['income-expense-type'].save.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function deleteTargetIncomeExpenseType(
+  csrfToken: string,
+  input: TargetIncomeExpenseTypeDeleteInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.aux['income-expense-type'].delete.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+
+export async function setTargetIncomeExpenseTypeEnabled(
+  csrfToken: string,
+  input: TargetIncomeExpenseTypeEnabledInput,
+  enabled: boolean,
+) {
+  const endpoint = enabled
+    ? client.aux['income-expense-type'].enable
+    : client.aux['income-expense-type'].disable
+  return unwrapTarget(
+    await (
+      await endpoint.$post({ json: input }, csrfHeaders(csrfToken))
     ).json(),
   )
 }

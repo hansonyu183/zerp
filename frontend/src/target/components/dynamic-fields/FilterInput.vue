@@ -56,11 +56,13 @@ function updateRange(endpoint: 'from' | 'to', value: unknown) {
   <ReferencePicker
     v-else-if="field.type === 'reference'"
     :source="
-      field.source === 'app/role'
-        ? 'roles'
-        : field.source === 'bob/supplier'
-          ? 'suppliers'
-          : 'customers'
+      field.source === 'aux/dictionary-type'
+        ? 'dictionary-types'
+        : field.source === 'app/role'
+          ? 'roles'
+          : field.source === 'bob/supplier'
+            ? 'suppliers'
+            : 'customers'
     "
     :caption="field.caption"
     :model-value="(modelValue as string | null) ?? null"

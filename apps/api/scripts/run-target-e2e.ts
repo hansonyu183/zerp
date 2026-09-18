@@ -1034,15 +1034,13 @@ async function seedApprovedOpeningAndMappings() {
                 ]
               : [],
             assetConfiguration:
-              mappedBook.book.id === accUiFacts.book.id &&
               vouEntity.code === 'asset-acquisition'
                 ? {
-                    assetSubjectId: accUiFacts.subjects[0]!.id,
+                    assetSubjectId: debitSubject.id,
                     assetDimensions: {},
-                    accumulatedDepreciationSubjectId:
-                      accUiFacts.subjects[1]!.id,
+                    accumulatedDepreciationSubjectId: creditSubject.id,
                     accumulatedDepreciationDimensions: {},
-                    depreciationExpenseSubjectId: accUiFacts.subjects[1]!.id,
+                    depreciationExpenseSubjectId: creditSubject.id,
                     depreciationExpenseDimensions: {},
                   }
                 : null,

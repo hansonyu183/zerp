@@ -46,7 +46,6 @@ const appPresentation: Readonly<Record<string, string>> = {
   workbench: '工作台',
   user: '用户管理',
   role: '角色管理',
-  permission: '权限目录',
   'system-parameter': '系统参数',
 }
 
@@ -124,6 +123,8 @@ function parseApiResource(apiPath: string): NavigationResource | null {
   if (!match || match[1] === 'session') return null
   const domain = match[1]!
   const entity = match[2]!
+  // The permission catalog supports role authorization, not a standalone page.
+  if (domain === 'app' && entity === 'permission') return null
   return {
     key: `${domain}/${entity}`,
     domain,

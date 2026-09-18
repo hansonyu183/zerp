@@ -8,7 +8,7 @@
 
 ## `APP-NAVIGATION-01` 从会话装配入口
 
-1. 登录或恢复成功后，页面从唯一 Session Context 的 `apiPaths` 取出非 Session 精确路径，按 `domain/entity` 去重并按领域分组。
+1. 登录或恢复成功后，页面从唯一 Session Context 的 `apiPaths` 按 APP 导航资源规则排除 Session 和内部权限目录，按 `domain/entity` 去重并按领域分组。
 2. 同一资源只显示一个 Navigation Entry；任一动作路径足以使入口可见，不能要求 `query` 或与页面 Registry 求交集。
 3. 已知资源使用统一中文名称；未知遗留资源显示资源标识及待配置说明，不隐藏或猜测其业务能力。
 4. Session 刷新得到新权限后，导航与直达资格同步重算；被撤销的资源入口和已挂载页面一并移除。

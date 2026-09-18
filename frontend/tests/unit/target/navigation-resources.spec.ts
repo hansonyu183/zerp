@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
-import { collectNavigationResourceGroups } from '@/target/navigation/resources.ts'
+import {
+  collectNavigationResourceGroups,
+  hasNavigationResource,
+} from '@/target/navigation/resources.ts'
 
 describe('apiPath navigation resources', () => {
   it('uses Chinese names for every current static resource family', () => {
     const expectedNames: Readonly<Record<string, string>> = {
       'app/user': '用户管理',
       'app/role': '角色管理',
-      'app/permission': '权限目录',
       'app/system-parameter': '系统参数',
       'aux/product-category': '产品分类',
       'aux/product-type': '产品类型',
@@ -43,9 +45,11 @@ describe('apiPath navigation resources', () => {
       'wfl/process-instance': '流程实例',
       'vou/sale-order': '销售订单',
     }
-    const groups = collectNavigationResourceGroups(
-      Object.keys(expectedNames).map((key) => `/${key}/query`),
-    )
+    const groups = collectNavigationResourceGroups([
+      ...Object.keys(expectedNames).map((key) => `/${key}/query`),
+      '/app/permission/query',
+      '/app/permission/get',
+    ])
     const actual = new Map(
       groups
         .flatMap((group) => group.resources)
@@ -53,6 +57,9 @@ describe('apiPath navigation resources', () => {
     )
 
     expect(Object.fromEntries(actual)).toEqual(expectedNames)
+    expect(
+      hasNavigationResource(['/app/permission/query'], 'app', 'permission'),
+    ).toBe(false)
   })
 
   it('keeps an unknown authorized resource visible with an explicit fallback name', () => {

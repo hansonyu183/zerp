@@ -150,6 +150,22 @@ export async function loadEditReferencePage(
         })),
       }
     }
+    if (source.kind === 'subject-parent') {
+      if (!source.bookId)
+        return { items: [], total: 0, page: search.page, pageSize: 20 }
+      const page = await api.queryTargetSubjectParentOptions({
+        ...query,
+        bookId: source.bookId,
+        ...(source.subjectId ? { subjectId: source.subjectId } : {}),
+      })
+      return {
+        ...page,
+        items: page.items.map((item) => ({
+          id: item.id,
+          name: `${item.code} · ${item.name}`,
+        })),
+      }
+    }
     if (source.kind === 'subject') {
       const page = await api.queryTargetSubjectOptions({
         ...query,
@@ -170,6 +186,19 @@ export async function loadEditReferencePage(
         id: item.objectId,
         name: item.code,
         snapshot: item,
+      })),
+    }
+  }
+  if (source === 'books')
+    return loadEditReferencePage({ kind: 'book' }, search, history)
+  if (source === 'subject-parents') throw new Error('请先选择账簿。')
+  if (source === 'users') {
+    const page = await api.queryTargetUserOptions(query)
+    return {
+      ...page,
+      items: page.items.map((item) => ({
+        ...summaryOption(item),
+        name: `${item.code} · ${item.name}（${item.enabled ? '启用' : '停用'}）`,
       })),
     }
   }

@@ -7,6 +7,10 @@ import { useTargetSession } from '@/target/session/vm.ts'
 import { archiveStubs as stubs } from './helpers/archive-stubs.ts'
 vi.mock('@/target/api.ts', async (original) => ({
   ...(await original<typeof import('@/target/api.ts')>()),
+  queryTargetBookOptions: vi.fn(),
+  queryTargetAccPeriod: vi.fn(),
+  lockTargetAccPeriod: vi.fn(),
+  unlockTargetAccPeriod: vi.fn(),
   getTargetMappingCatalog: vi.fn(),
   queryTargetMappings: vi.fn(),
   getTargetMapping: vi.fn(),
@@ -209,5 +213,178 @@ it('shows a catalog load failure and retries through the real mapping Host', asy
   expect(w.get('[aria-label="映射账簿"]').text()).toContain('账簿')
   expect(api.getTargetMappingCatalog).toHaveBeenCalledTimes(2)
   expect(api.queryTargetMappings).not.toHaveBeenCalled()
+  w.unmount()
+})
+
+it('period Host confirms the book and month, sends null revision and refreshes the real locked state', async () => {
+  const session = useTargetSession()
+  session.apiPaths = ['query', 'lock', 'unlock'].map(
+    (action) => `/acc/period/${action}`,
+  )
+  vi.mocked(api.queryTargetBookOptions).mockResolvedValue({
+    items: [
+      { id: 'book', code: 'ACC-0001', name: '财务账簿', baseCurrency: 'CNY' },
+    ],
+    total: 1,
+    page: 1,
+    pageSize: 20,
+  })
+  const month = {
+    bookId: 'book',
+    month: '2026-01',
+    revision: null,
+    locked: false,
+    availableActions: ['lock' as const],
+  }
+  vi.mocked(api.queryTargetAccPeriod).mockResolvedValue([month])
+  const w = mount(ResourceHost, {
+    props: { domain: 'acc', entity: 'period' },
+    global: { stubs },
+  })
+  await flushPromises()
+  expect(w.text()).toContain('会计期间')
+  await w.get('[aria-label="账簿"]').setValue('book')
+  await click(w, '查询')
+  await w.get('[aria-label="锁定"]').trigger('click')
+  await flushPromises()
+  expect(w.text()).toContain('财务账簿')
+  expect(w.text()).toContain('2026-01')
+  expect(api.lockTargetAccPeriod).not.toHaveBeenCalled()
+  const locked = {
+    ...month,
+    locked: true,
+    revision: '9007199254740993',
+    availableActions: ['unlock' as const],
+  }
+  vi.mocked(api.lockTargetAccPeriod).mockResolvedValue(locked)
+  vi.mocked(api.queryTargetAccPeriod).mockResolvedValue([locked])
+  await click(w, '确认锁定')
+  expect(api.lockTargetAccPeriod).toHaveBeenCalledWith('test', {
+    bookId: 'book',
+    month: '2026-01',
+    expectedRevision: null,
+  })
+  expect(w.text()).toContain('已锁定')
+  await w.get('[aria-label="解锁"]').trigger('click')
+  await flushPromises()
+  vi.mocked(api.unlockTargetAccPeriod).mockRejectedValue(
+    new api.TargetApiError('approval_stale_revision', 'stale', 'req'),
+  )
+  await click(w, '确认解锁')
+  expect(api.unlockTargetAccPeriod).toHaveBeenCalledWith('test', {
+    bookId: 'book',
+    month: '2026-01',
+    expectedRevision: '9007199254740993',
+  })
+  expect(w.text()).toContain('资料已被其他人修改')
+  w.unmount()
+})
+
+it('period queries discard a late failure after a newer book query succeeds', async () => {
+  const session = useTargetSession()
+  session.apiPaths = ['/acc/period/query']
+  vi.mocked(api.queryTargetBookOptions).mockResolvedValue({
+    items: [
+      { id: 'first', code: 'ACC-0001', name: '第一账簿', baseCurrency: 'CNY' },
+      { id: 'second', code: 'ACC-0002', name: '第二账簿', baseCurrency: 'CNY' },
+    ],
+    total: 2,
+    page: 1,
+    pageSize: 20,
+  })
+  let rejectFirst!: (error: Error) => void
+  vi.mocked(api.queryTargetAccPeriod)
+    .mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectFirst = reject
+        }),
+    )
+    .mockResolvedValue([
+      {
+        bookId: 'second',
+        month: '2025-12',
+        locked: false,
+        revision: null,
+        availableActions: [],
+      },
+    ])
+  const w = mount(ResourceHost, {
+    props: { domain: 'acc', entity: 'period' },
+    global: { stubs },
+  })
+  await flushPromises()
+  await w.get('[aria-label="账簿"]').setValue('first')
+  await click(w, '查询')
+  await w.get('[aria-label="账簿"]').setValue('second')
+  // Trigger the public button event even if its loading presentation suppresses a native click.
+  const search = w
+    .findAllComponents(stubs.VBtn)
+    .find((button) => button.text() === '查询')
+  search!.vm.$emit('click')
+  await flushPromises()
+  expect(w.text()).toContain('2025-12')
+  rejectFirst(new api.TargetApiError('acc_book_access_denied', 'denied', 'old'))
+  await flushPromises()
+  expect(w.text()).not.toContain('没有此账簿的访问范围')
+  w.unmount()
+})
+
+it('period closing failure shows the actual mapping and inventory blocker identities in Chinese', async () => {
+  useTargetSession().apiPaths = ['/acc/period/query', '/acc/period/lock']
+  vi.mocked(api.queryTargetBookOptions).mockResolvedValue({
+    items: [
+      { id: 'book', code: 'ACC-0001', name: '财务账簿', baseCurrency: 'CNY' },
+    ],
+    total: 1,
+    page: 1,
+    pageSize: 20,
+  })
+  vi.mocked(api.queryTargetAccPeriod).mockResolvedValue([
+    {
+      bookId: 'book',
+      month: '2026-01',
+      revision: null,
+      locked: false,
+      availableActions: ['lock'],
+    },
+  ])
+  const w = mount(ResourceHost, {
+    props: { domain: 'acc', entity: 'period' },
+    global: { stubs },
+  })
+  await flushPromises()
+  await w.get('[aria-label="账簿"]').setValue('book')
+  await click(w, '查询')
+  await w.get('[aria-label="锁定"]').trigger('click')
+  await flushPromises()
+  vi.mocked(api.lockTargetAccPeriod).mockRejectedValueOnce(
+    new api.TargetApiError('acc_period_mapping_missing', 'mapping', 'request', {
+      blockers: [{ kind: 'MAPPING', entity: 'sale-order' }],
+    }),
+  )
+  await click(w, '确认锁定')
+  expect(w.text()).toContain('销售订单')
+  vi.mocked(api.lockTargetAccPeriod).mockRejectedValueOnce(
+    new api.TargetApiError(
+      'acc_period_negative_inventory',
+      'inventory',
+      'request',
+      {
+        blockers: [
+          {
+            kind: 'INVENTORY',
+            warehouse_id: 'warehouse-stable-id',
+            product_id: 'product-stable-id',
+          },
+        ],
+      },
+    ),
+  )
+  await click(w, '确认锁定')
+  expect(w.text()).toContain('仓库：warehouse-stable-id')
+  expect(w.text()).toContain('产品：product-stable-id')
+  expect(w.text()).not.toContain('warehouse_id')
+  expect(w.text()).not.toContain('sale-order')
   w.unmount()
 })

@@ -9,6 +9,12 @@ import { useTargetSession } from '@/target/session/vm.ts'
 
 vi.mock('@/target/api.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/target/api.ts')>()),
+  queryTargetAccBook: vi.fn(),
+  getTargetAccBook: vi.fn(),
+  createTargetAccBook: vi.fn(),
+  saveTargetAccBook: vi.fn(),
+  deleteTargetAccBook: vi.fn(),
+  queryTargetUserOptions: vi.fn(),
   getTargetDepartment: vi.fn(),
   createTargetDepartment: vi.fn(),
   saveTargetDepartment: vi.fn(),
@@ -1511,3 +1517,41 @@ function optionPage(items: readonly object[]) {
     pageSize: 20,
   }
 }
+
+it('ACC book Host renders real rows without enabled or pinyin and opens read-only details', async () => {
+  setActivePinia(createPinia())
+  authorize(['/acc/book/query', '/acc/book/get'])
+  const book = {
+    id: '01J00000000000000000000001',
+    code: 'ACC-0001',
+    name: '财务账簿',
+    description: '',
+    startMonth: '2026-01',
+    baseCurrency: 'CNY',
+    controlBook: true,
+    revision: '9007199254740993',
+    queryUserIds: [],
+    operateUserIds: [],
+    availableActions: [],
+  }
+  vi.mocked(targetApi.queryTargetAccBook).mockResolvedValue(page([book]))
+  vi.mocked(targetApi.getTargetAccBook).mockResolvedValue(book)
+  vi.mocked(targetApi.queryTargetUserOptions).mockResolvedValue(page([]))
+  const wrapper = mount(ResourceHost, {
+    props: { domain: 'acc', entity: 'book' },
+    global: { stubs },
+  })
+  await flushPromises()
+  expect(wrapper.text()).toContain('财务账簿')
+  expect(wrapper.text()).not.toContain('启用')
+  const view = wrapper
+    .findAll('button')
+    .find((button) => button.attributes('aria-label') === '查看')!
+  await view.trigger('click')
+  await flushPromises()
+  expect(wrapper.text()).toContain('查看会计账簿')
+  expect(
+    wrapper.findAll('button').some((button) => button.text() === '保存'),
+  ).toBe(false)
+  wrapper.unmount()
+})

@@ -97,18 +97,27 @@ const bookView = z
     startMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
     baseCurrency: z.string().regex(/^[A-Z]{3}$/),
     controlBook: z.boolean(),
+    availableActions: z.array(z.enum(['edit', 'delete'])),
     revision,
     queryUserIds: accessUserIdsResponse,
     operateUserIds: accessUserIdsResponse,
   })
   .strict()
-const subjectView = subject.extend({ revision }).strict()
+const subjectView = subject
+  .extend({
+    revision,
+    frozen: z.boolean(),
+    parentName: z.string().nullable(),
+    availableActions: z.array(z.enum(['edit', 'delete'])),
+  })
+  .strict()
 const periodView = z
   .object({
     bookId: z.string().length(26),
     month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
     locked: z.boolean(),
-    revision,
+    revision: revision.nullable(),
+    availableActions: z.array(z.enum(['lock', 'unlock'])),
   })
   .strict()
 const deleted = z
@@ -178,6 +187,16 @@ export const accRouteSet = {
     optionPageInput,
     optionPage(
       bookView.pick({ id: true, code: true, name: true, baseCurrency: true }),
+    ),
+  ),
+  subjectParentOptions: auxiliaryRoute(
+    '/acc/subject/parent-options',
+    optionPageInput.extend({
+      bookId: z.string().length(26),
+      subjectId: z.string().length(26).optional(),
+    }),
+    optionPage(
+      subject.pick({ id: true, code: true, name: true, enabled: true }),
     ),
   ),
   subjectOptions: auxiliaryRoute(
@@ -264,6 +283,11 @@ export function registerAccRoutes<
   handler: AccRouteHandler,
 ) {
   const options = app.openapiRoutes([
+    {
+      route: accRouteSet.subjectParentOptions,
+      handler: (c: import('hono').Context<TargetRouteEnvironment>) =>
+        handler('subjectParentOptions', c) as never,
+    },
     {
       route: accRouteSet.assetOptions,
       handler: (c: import('hono').Context<TargetRouteEnvironment>) =>

@@ -243,6 +243,20 @@ const userResetPassword = postRoute(
 export const roleOptionsInput = optionPageInput.extend({
   ids: optionIds.optional(),
 })
+const userOptions = auxiliaryRoute(
+  '/app/user/options',
+  roleOptionsInput,
+  optionPage(
+    z
+      .object({
+        id: z.string(),
+        code: z.string(),
+        name: z.string(),
+        enabled: z.boolean(),
+      })
+      .strict(),
+  ),
+)
 const roleOptions = auxiliaryRoute(
   '/app/role/options',
   roleOptionsInput,
@@ -680,6 +694,7 @@ export function registerIndependentRoutes(
     { route: userDisable, handler: handlers.app },
     { route: userResetPassword, handler: handlers.app },
     { route: roleQuery, handler: handlers.app },
+    { route: userOptions, handler: handlers.app },
     { route: roleOptions, handler: handlers.app },
     { route: permissionOptions, handler: handlers.app },
     { route: roleGet, handler: handlers.app },
@@ -1340,6 +1355,7 @@ export const independentRouteMetadata = [
   ...[productResolveRoute, supplierResolveRoute, customerResolveRoute].map(
     (route) => ({ method: route.method, path: route.path }),
   ),
+  { method: userOptions.method, path: userOptions.path },
   { method: roleOptions.method, path: roleOptions.path },
   { method: permissionOptions.method, path: permissionOptions.path },
   { method: 'post', path: '/session/app/get' },

@@ -7,6 +7,7 @@ const root = resolve(import.meta.dirname, '../../src/target')
 it('routes the remaining resources to closed page definitions with no VM or arbitrary adapter surface', () => {
   for (const [domain, entity, kind] of [
     ['acc', 'mapping', 'configuration'],
+    ['acc', 'period', 'configuration'],
     ['wfl', 'process-instance', 'process'],
     ['rpt', 'rpt-000001', 'report'],
     ['rpt', 'rpt-000002', 'report'],
@@ -20,7 +21,7 @@ it('routes the remaining resources to closed page definitions with no VM or arbi
     expect(registration).not.toHaveProperty('component')
   }
   expect(targetResourceRegistry.resolve('rpt', 'rpt-invalid')).toBeNull()
-  for (const name of ['mapping', 'report', 'process-instance']) {
+  for (const name of ['mapping', 'period', 'report', 'process-instance']) {
     const source = readFileSync(resolve(root, `definitions/${name}.ts`), 'utf8')
     const imports = [...source.matchAll(/from\s+['"]([^'"]+)['"]/g)].map(
       (m) => m[1],
@@ -56,6 +57,9 @@ it('has exactly six runtime families for the entire registered business set', ()
     ['wfl', 'process-definition'],
     ['wfl', 'process-instance'],
     ['acc', 'mapping'],
+    ['acc', 'book'],
+    ['acc', 'subject'],
+    ['acc', 'period'],
     ['rpt', 'rpt-000001'],
     ...vouEntities.map((e) => ['vou', e]),
     ['vou', 'opening'],

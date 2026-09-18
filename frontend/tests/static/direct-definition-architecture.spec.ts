@@ -8,6 +8,8 @@ const definitionRoot = resolve(
   '../../src/target/definitions',
 )
 const resources = [
+  'acc/book',
+  'acc/subject',
   'app/user',
   'app/role',
   'aux/employee-category',
@@ -29,6 +31,8 @@ const resources = [
 ]
 const allowedImports = new Set([
   '@zerp/model',
+  'ulid',
+  '../components/direct-page/acc-presentation.ts',
   '../api.ts',
   '../components/direct-page/definition.ts',
   '../components/direct-page/aux-presentation.ts',
@@ -47,6 +51,7 @@ describe('the actual direct definitions stay stateless and reach one runtime', (
       })
       expect(Object.keys(registration.definition!).sort()).toEqual([
         'adapter',
+        ...(resource.startsWith('acc/') ? ['enablement'] : []),
         'fields',
         'kind',
         'resource',

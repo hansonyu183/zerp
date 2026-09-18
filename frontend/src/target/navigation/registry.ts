@@ -1,3 +1,6 @@
+import { periodPage } from '../definitions/period.ts'
+import { bookPage } from '../definitions/book.ts'
+import { subjectPage } from '../definitions/subject.ts'
 import { departmentPage } from '../definitions/department.ts'
 import { productCategoryPage } from '../definitions/product-category.ts'
 import { dictionaryTypePage } from '../definitions/dictionary-type.ts'
@@ -111,6 +114,24 @@ export function createResourceRegistry(
 
 export const targetResourceRegistry = createResourceRegistry(
   [
+    {
+      domain: 'acc',
+      entity: 'period',
+      definition: periodPage,
+      useCaseKey: 'acc/book-subject-period',
+    },
+    {
+      domain: 'acc',
+      entity: 'book',
+      definition: bookPage,
+      useCaseKey: 'acc/book-subject-period',
+    },
+    {
+      domain: 'acc',
+      entity: 'subject',
+      definition: subjectPage,
+      useCaseKey: 'acc/book-subject-period',
+    },
     {
       domain: 'vou',
       entity: 'opening',

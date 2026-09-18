@@ -4011,3 +4011,217 @@ export async function setTargetIncomeExpenseTypeEnabled(
     ).json(),
   )
 }
+
+export type TargetAccBookQueryInput = PostJson<
+  (typeof client.acc.book.query)['$post']
+>
+export async function queryTargetAccBook(
+  csrfToken: string,
+  input: TargetAccBookQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.acc.book.query.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+export type TargetAccBookGetInput = PostJson<
+  (typeof client.acc.book.get)['$post']
+>
+export async function getTargetAccBook(
+  csrfToken: string,
+  input: TargetAccBookGetInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.acc.book.get.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+export type TargetAccBookCreateInput = PostJson<
+  (typeof client.acc.book.create)['$post']
+>
+export async function createTargetAccBook(
+  csrfToken: string,
+  input: TargetAccBookCreateInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.acc.book.create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export type TargetAccBookSaveInput = PostJson<
+  (typeof client.acc.book.save)['$post']
+>
+export async function saveTargetAccBook(
+  csrfToken: string,
+  input: TargetAccBookSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.acc.book.save.$post({ json: input }, csrfHeaders(csrfToken))
+    ).json(),
+  )
+}
+export type TargetAccBookDeleteInput = PostJson<
+  (typeof client.acc.book.delete)['$post']
+>
+export async function deleteTargetAccBook(
+  csrfToken: string,
+  input: TargetAccBookDeleteInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.acc.book.delete.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export type TargetAccSubjectQueryInput = PostJson<
+  (typeof client.acc.subject.query)['$post']
+>
+export async function queryTargetAccSubject(
+  csrfToken: string,
+  input: TargetAccSubjectQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.acc.subject.query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export type TargetAccSubjectGetInput = PostJson<
+  (typeof client.acc.subject.get)['$post']
+>
+export async function getTargetAccSubject(
+  csrfToken: string,
+  input: TargetAccSubjectGetInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.acc.subject.get.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export type TargetAccSubjectCreateInput = PostJson<
+  (typeof client.acc.subject.create)['$post']
+>
+export async function createTargetAccSubject(
+  csrfToken: string,
+  input: TargetAccSubjectCreateInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.acc.subject.create.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export type TargetAccSubjectSaveInput = PostJson<
+  (typeof client.acc.subject.save)['$post']
+>
+export async function saveTargetAccSubject(
+  csrfToken: string,
+  input: TargetAccSubjectSaveInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.acc.subject.save.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export type TargetAccSubjectDeleteInput = PostJson<
+  (typeof client.acc.subject.delete)['$post']
+>
+export async function deleteTargetAccSubject(
+  csrfToken: string,
+  input: TargetAccSubjectDeleteInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.acc.subject.delete.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export type TargetAccPeriodQueryInput = PostJson<
+  (typeof client.acc.period.query)['$post']
+>
+export async function queryTargetAccPeriod(
+  csrfToken: string,
+  input: TargetAccPeriodQueryInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.acc.period.query.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export type TargetAccPeriodLockInput = PostJson<
+  (typeof client.acc.period.lock)['$post']
+>
+export async function lockTargetAccPeriod(
+  csrfToken: string,
+  input: TargetAccPeriodLockInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.acc.period.lock.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export type TargetAccPeriodUnlockInput = PostJson<
+  (typeof client.acc.period.unlock)['$post']
+>
+export async function unlockTargetAccPeriod(
+  csrfToken: string,
+  input: TargetAccPeriodUnlockInput,
+) {
+  return unwrapTarget(
+    await (
+      await client.acc.period.unlock.$post(
+        { json: input },
+        csrfHeaders(csrfToken),
+      )
+    ).json(),
+  )
+}
+export async function queryTargetUserOptions(query: TargetOptionQuery) {
+  return unwrapTarget(
+    await (await client.app.user.options.$get({ query })).json(),
+  )
+}
+export async function queryTargetSubjectParentOptions(
+  query: Parameters<
+    (typeof client.acc.subject)['parent-options']['$get']
+  >[0]['query'],
+) {
+  return unwrapTarget(
+    await (await client.acc.subject['parent-options'].$get({ query })).json(),
+  )
+}

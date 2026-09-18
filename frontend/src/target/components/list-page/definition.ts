@@ -6,29 +6,18 @@ import {
   type ColumnField,
   type FilterField,
 } from '../dynamic-fields/index.ts'
-import type { EnabledListItem } from './vm.ts'
+import type { ListIdentity } from './vm.ts'
 
 type TextColumn<Key extends string> = {
   key: Key
   type: 'text'
   caption: string
 }
-type EnabledColumn = {
-  key: 'enabled'
-  type: 'boolean'
-  caption: string
-  trueCaption?: string
-  falseCaption?: string
-}
 type ActionsColumn = { key: '$actions'; type: 'actions'; caption: string }
-export type ListColumns<Row extends EnabledListItem> = readonly [
+export type ListColumns<Row extends ListIdentity> = readonly [
   TextColumn<'code'>,
   TextColumn<'name'>,
-  EnabledColumn,
-  ...Exclude<
-    ColumnField<Omit<Row, 'code' | 'name' | 'enabled'>>,
-    { key: '$actions' }
-  >[],
+  ...Exclude<ColumnField<Omit<Row, 'code' | 'name'>>, { key: '$actions' }>[],
   ActionsColumn,
 ]
 export type ListFilters<Filters extends { keyword: string }> = readonly [
@@ -36,7 +25,7 @@ export type ListFilters<Filters extends { keyword: string }> = readonly [
   ...FilterField<Omit<Filters, 'keyword'>>[],
 ]
 export type ListPageDefinition<
-  Row extends EnabledListItem,
+  Row extends ListIdentity,
   Filters extends { keyword: string },
 > = {
   title: string
@@ -48,7 +37,7 @@ export type ListPageDefinition<
 }
 
 export function defineListPage<
-  Row extends EnabledListItem,
+  Row extends ListIdentity,
   Filters extends { keyword: string } = { keyword: string },
 >(
   input: Pick<
@@ -64,7 +53,6 @@ export function defineListPage<
   const required = [
     ['code', 'text'],
     ['name', 'text'],
-    ['enabled', 'boolean'],
   ] as const
   for (const [index, [key, type]] of required.entries()) {
     if (columns[index]?.key !== key || columns[index]?.type !== type)
@@ -81,11 +69,10 @@ export function defineListPage<
       for (const row of rows) {
         if (
           !row ||
-          ['id', 'code', 'py', 'name'].some(
-            (key) => typeof row[key as keyof EnabledListItem] !== 'string',
+          ['id', 'code', 'name'].some(
+            (key) => typeof row[key as keyof ListIdentity] !== 'string',
           ) ||
           !row.id.trim() ||
-          typeof row.enabled !== 'boolean' ||
           ids.has(row.id)
         )
           throw new FieldContractError('资料行身份或必需字段无效。')

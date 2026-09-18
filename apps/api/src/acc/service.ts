@@ -1936,7 +1936,7 @@ export class AccService
     access.set(actor.id, { canQuery: true, canOperate: true })
     await this.replaceBookAccess(tx, input.id, access)
     await this.copySubjects(tx, input.id, subjects, actor.id, now)
-    return this.readBookView(tx, input.id)
+    return this.readBookView(tx, input.id, actor)
   }
 
   async grantBookAccess(
@@ -2084,7 +2084,7 @@ export class AccService
     const selected = rows.slice((page - 1) * pageSize, page * pageSize)
     return {
       items: await Promise.all(
-        selected.map((row) => this.bookViewWithAccess(this.db, row)),
+        selected.map((row) => this.bookViewWithAccess(this.db, row, actor)),
       ),
       total: rows.length,
       page,
@@ -2101,7 +2101,7 @@ export class AccService
       .where('id', '=', bookId)
       .executeTakeFirst()
     if (!row) throw new AccApplicationError('acc_book_not_found')
-    return this.bookViewWithAccess(this.db, row)
+    return this.bookViewWithAccess(this.db, row, actor)
   }
 
   async saveBook(
@@ -2161,13 +2161,17 @@ export class AccService
           requestedActor.canOperate || actorAccess?.can_operate === true,
       })
       await this.replaceBookAccess(tx, input.id, access)
-      return this.bookViewWithAccess(tx, {
-        ...row,
-        name: input.name.trim(),
-        description: input.description.trim(),
-        base_currency: input.baseCurrency,
-        revision,
-      })
+      return this.bookViewWithAccess(
+        tx,
+        {
+          ...row,
+          name: input.name.trim(),
+          description: input.description.trim(),
+          base_currency: input.baseCurrency,
+          revision,
+        },
+        actor,
+      )
     })
   }
 
@@ -2229,8 +2233,19 @@ export class AccService
     tx: Transaction<DB>,
     bookId: string,
     parentId: string | null,
+    subjectId: string,
   ) {
     if (!parentId) return
+    const ancestors = await sql<{
+      id: string
+    }>`WITH RECURSIVE ancestors AS (SELECT id, parent_id FROM acc_subjects WHERE id=${parentId} UNION SELECT s.id, s.parent_id FROM acc_subjects s JOIN ancestors a ON s.id=a.parent_id) SELECT id FROM ancestors`.execute(
+      tx,
+    )
+    if (
+      parentId === subjectId ||
+      ancestors.rows.some((row) => row.id === subjectId)
+    )
+      throw new AccApplicationError('acc_subject_parent_invalid')
     const parent = await tx
       .selectFrom('acc_subjects')
       .select('book_id')
@@ -2252,8 +2267,19 @@ export class AccService
     requirePermission(actor, '/acc/subject/create')
     return this.db.transaction().execute(async (tx) => {
       await this.requireBookAccess(tx, input.bookId, actor, true)
+      await tx
+        .selectFrom('acc_books')
+        .select('id')
+        .where('id', '=', input.bookId)
+        .forUpdate()
+        .executeTakeFirstOrThrow()
       validateAccSubjectAttributes(input)
-      await this.validateSubjectParent(tx, input.bookId, input.parentId)
+      await this.validateSubjectParent(
+        tx,
+        input.bookId,
+        input.parentId,
+        input.id,
+      )
       const now = new Date()
       await tx
         .insertInto('acc_subjects')
@@ -2276,7 +2302,7 @@ export class AccService
           updated_by: actor.id,
         })
         .execute()
-      return { ...input, name: input.name.trim(), revision: '1' }
+      return this.readSubjectView(tx, input.id, actor)
     })
   }
 
@@ -2308,9 +2334,11 @@ export class AccService
     const page = input.page ?? 1
     const pageSize = input.pageSize ?? 20
     return {
-      items: rows
-        .slice((page - 1) * pageSize, page * pageSize)
-        .map((row) => this.subjectView(row)),
+      items: await Promise.all(
+        rows
+          .slice((page - 1) * pageSize, page * pageSize)
+          .map((row) => this.subjectMaintenanceView(this.db, row, actor)),
+      ),
       total: rows.length,
       page,
       pageSize,
@@ -2326,7 +2354,7 @@ export class AccService
       .executeTakeFirst()
     if (!row) throw new AccApplicationError('acc_subject_not_found')
     await this.requireBookAccess(this.db, row.book_id, actor, false)
-    return this.subjectView(row)
+    return this.subjectMaintenanceView(this.db, row, actor)
   }
 
   async saveSubject(
@@ -2336,6 +2364,12 @@ export class AccService
     requirePermission(actor, '/acc/subject/save')
     return this.db.transaction().execute(async (tx) => {
       await this.requireBookAccess(tx, input.bookId, actor, true)
+      await tx
+        .selectFrom('acc_books')
+        .select('id')
+        .where('id', '=', input.bookId)
+        .forUpdate()
+        .executeTakeFirstOrThrow()
       validateAccSubjectAttributes(input)
       const row = await tx
         .selectFrom('acc_subjects')
@@ -2366,11 +2400,17 @@ export class AccService
           JSON.stringify(row.required_dimensions) !==
             JSON.stringify(input.requiredDimensions) ||
           row.inventory_quantity !== input.inventoryQuantity ||
-          row.settlement_purpose !== input.settlementPurpose)
+          row.settlement_purpose !== input.settlementPurpose ||
+          (!row.enabled && input.enabled))
       )
         throw new AccApplicationError('acc_subject_frozen')
       if (row.parent_id !== input.parentId)
-        await this.validateSubjectParent(tx, input.bookId, input.parentId)
+        await this.validateSubjectParent(
+          tx,
+          input.bookId,
+          input.parentId,
+          input.id,
+        )
       const revision = BigInt(row.revision) + 1n
       await tx
         .updateTable('acc_subjects')
@@ -2392,7 +2432,7 @@ export class AccService
         .where('id', '=', input.id)
         .where('revision', '=', row.revision)
         .executeTakeFirstOrThrow()
-      return { ...input, name: input.name.trim(), revision: String(revision) }
+      return this.readSubjectView(tx, input.id, actor)
     })
   }
 
@@ -2461,6 +2501,7 @@ export class AccService
         .selectFrom('acc_books')
         .select('start_month')
         .where('id', '=', input.bookId)
+        .forUpdate()
         .executeTakeFirstOrThrow()
       if (input.month < book.start_month)
         throw new AccApplicationError('acc_period_before_book_start')
@@ -2508,6 +2549,9 @@ export class AccService
           month: input.month,
           locked,
           revision: '1',
+          availableActions: this.allowed(actor, '/acc/period/unlock')
+            ? ['unlock' as const]
+            : [],
         }
       }
       if (input.expectedRevision !== String(row.revision))
@@ -2534,6 +2578,12 @@ export class AccService
         month: input.month,
         locked,
         revision: String(revision),
+        availableActions: this.allowed(
+          actor,
+          `/acc/period/${locked ? 'unlock' : 'lock'}`,
+        )
+          ? [locked ? ('unlock' as const) : ('lock' as const)]
+          : [],
       }
     })
   }
@@ -2547,12 +2597,63 @@ export class AccService
       .where('book_id', '=', bookId)
       .orderBy('period_month', 'asc')
       .execute()
-    return rows.map((row) => ({
-      bookId,
-      month: row.period_month,
-      locked: row.locked,
-      revision: String(row.revision),
-    }))
+    const book = await this.db
+      .selectFrom('acc_books')
+      .select('start_month')
+      .where('id', '=', bookId)
+      .executeTakeFirstOrThrow()
+    const currentMonth = new Date().toISOString().slice(0, 7)
+    const months = new Set(rows.map((row) => row.period_month))
+    for (
+      let month = book.start_month;
+      month <= currentMonth;
+      month = nextMonth(month)
+    )
+      months.add(month)
+    const latest = rows.filter((row) => row.locked).at(-1)?.period_month
+    const next = latest ? nextMonth(latest) : book.start_month
+    const canOperate = await this.canOperateBook(this.db, bookId, actor)
+    return [...months].sort().map((month) => {
+      const row = rows.find((item) => item.period_month === month)
+      return {
+        bookId,
+        month,
+        locked: row?.locked ?? false,
+        revision: row ? String(row.revision) : null,
+        availableActions: [
+          ...(canOperate &&
+          month === next &&
+          month < currentMonth &&
+          this.allowed(actor, '/acc/period/lock')
+            ? ['lock' as const]
+            : []),
+          ...(canOperate &&
+          month === latest &&
+          this.allowed(actor, '/acc/period/unlock')
+            ? ['unlock' as const]
+            : []),
+        ],
+      }
+    })
+  }
+
+  private allowed(actor: ApprovalActor, permission: string) {
+    return actor.trusted === true || actor.permissions.includes(permission)
+  }
+
+  private async canOperateBook(
+    executor: Executor,
+    bookId: string,
+    actor: ApprovalActor,
+  ) {
+    if (actor.trusted === true) return true
+    const access = await executor
+      .selectFrom('acc_book_access')
+      .select('can_operate')
+      .where('book_id', '=', bookId)
+      .where('user_id', '=', actor.id)
+      .executeTakeFirst()
+    return access?.can_operate === true
   }
 
   private async validatePeriodLock(
@@ -3598,6 +3699,7 @@ export class AccService
       control_book: boolean
       revision: string | number | bigint
     },
+    actor: ApprovalActor,
   ) {
     const access = await executor
       .selectFrom('acc_book_access')
@@ -3607,6 +3709,19 @@ export class AccService
       .execute()
     return {
       ...this.bookView(row),
+      availableActions: [
+        ...(this.allowed(actor, '/acc/book/save') &&
+        (actor.trusted ||
+          access.some((item) => item.user_id === actor.id && item.can_operate))
+          ? ['edit' as const]
+          : []),
+        ...(!row.control_book &&
+        this.allowed(actor, '/acc/book/delete') &&
+        (actor.trusted ||
+          access.some((item) => item.user_id === actor.id && item.can_operate))
+          ? ['delete' as const]
+          : []),
+      ],
       queryUserIds: access
         .filter((item) => item.can_query)
         .map((item) => item.user_id),
@@ -3616,13 +3731,17 @@ export class AccService
     }
   }
 
-  private async readBookView(executor: Executor, bookId: string) {
+  private async readBookView(
+    executor: Executor,
+    bookId: string,
+    actor: ApprovalActor,
+  ) {
     const row = await executor
       .selectFrom('acc_books')
       .selectAll()
       .where('id', '=', bookId)
       .executeTakeFirstOrThrow()
-    return this.bookViewWithAccess(executor, row)
+    return this.bookViewWithAccess(executor, row, actor)
   }
 
   private bookAccessMap(
@@ -3730,6 +3849,92 @@ export class AccService
     }
   }
 
+  private async readSubjectView(
+    executor: Executor,
+    id: string,
+    actor: ApprovalActor,
+  ) {
+    const row = await executor
+      .selectFrom('acc_subjects')
+      .selectAll()
+      .where('id', '=', id)
+      .executeTakeFirstOrThrow()
+    return this.subjectMaintenanceView(executor, row, actor)
+  }
+
+  private async subjectMaintenanceView(
+    executor: Executor,
+    row: Parameters<AccService['subjectView']>[0],
+    actor: ApprovalActor,
+  ) {
+    const references =
+      await sql`SELECT subject_id FROM acc_mapping_subject_usages WHERE subject_id=${row.id} UNION ALL SELECT subject_id FROM acc_journal_lines WHERE subject_id=${row.id} LIMIT 1`.execute(
+        executor,
+      )
+    const frozen = references.rows.length > 0
+    const parent = row.parent_id
+      ? await executor
+          .selectFrom('acc_subjects')
+          .select('name')
+          .where('id', '=', row.parent_id)
+          .where('book_id', '=', row.book_id)
+          .executeTakeFirst()
+      : undefined
+    const canOperate = await this.canOperateBook(executor, row.book_id, actor)
+    return {
+      ...this.subjectView(row),
+      parentName: parent?.name ?? null,
+      frozen,
+      availableActions: [
+        ...(canOperate &&
+        (!frozen || row.enabled) &&
+        this.allowed(actor, '/acc/subject/save')
+          ? ['edit' as const]
+          : []),
+        ...(canOperate && this.allowed(actor, '/acc/subject/delete')
+          ? ['delete' as const]
+          : []),
+      ],
+    }
+  }
+
+  async subjectParentOptions(
+    input: {
+      bookId: string
+      subjectId?: string
+      keyword?: string
+      ids?: string[]
+      page: number
+      pageSize: 20
+    },
+    actor: ApprovalActor,
+  ) {
+    await this.requireBookAccess(this.db, input.bookId, actor, false)
+    const where = sql`FROM acc_subjects s WHERE s.book_id=${input.bookId}
+      AND s.id NOT IN (WITH RECURSIVE descendants AS (SELECT id FROM acc_subjects WHERE id=${input.subjectId ?? null} UNION SELECT child.id FROM acc_subjects child JOIN descendants d ON child.parent_id=d.id) SELECT id FROM descendants)
+      AND NOT EXISTS (SELECT 1 FROM acc_mapping_subject_usages u WHERE u.subject_id=s.id)
+      AND NOT EXISTS (SELECT 1 FROM acc_journal_lines l WHERE l.subject_id=s.id)
+      ${input.ids ? sql`AND s.id IN (${sql.join(input.ids)})` : sql``}
+      AND (s.code ILIKE ${`%${input.keyword ?? ''}%`} OR s.name ILIKE ${`%${input.keyword ?? ''}%`})`
+    const rows = await sql<{
+      id: string
+      code: string
+      name: string
+      enabled: boolean
+    }>`SELECT s.id, s.code, s.name, s.enabled ${where} ORDER BY s.code, s.id LIMIT 20 OFFSET ${(input.page - 1) * 20}`.execute(
+      this.db,
+    )
+    const count = await sql<{
+      total: string
+    }>`SELECT count(*) AS total ${where}`.execute(this.db)
+    return {
+      items: rows.rows,
+      total: Number(count.rows[0]?.total ?? 0),
+      page: input.page,
+      pageSize: 20 as const,
+    }
+  }
+
   private subjectView(row: {
     id: string
     book_id: string
@@ -3749,11 +3954,14 @@ export class AccService
       code: row.code,
       name: row.name,
       parentId: row.parent_id,
-      balanceDirection: row.balance_direction,
+      balanceDirection:
+        row.balance_direction as AccSubjectInput['balanceDirection'],
       enabled: row.enabled,
-      requiredDimensions: row.required_dimensions as unknown as string[],
+      requiredDimensions:
+        row.required_dimensions as unknown as AccSubjectDimension[],
       inventoryQuantity: row.inventory_quantity,
-      settlementPurpose: row.settlement_purpose,
+      settlementPurpose:
+        row.settlement_purpose as AccSubjectInput['settlementPurpose'],
       revision: String(row.revision),
     }
   }

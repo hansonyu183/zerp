@@ -15,10 +15,15 @@ describe('registered ListPage contract', () => {
       ],
       filters: [{ key: 'keyword', type: 'text', caption: '关键词' }],
     })
-  it('requires complete identity even when py is not displayed', () => {
+  it('requires stable identity and validates displayed fields without inventing pinyin', () => {
     const definition = page()
     const row = { id: 'a', code: 'A', name: '名称', enabled: false }
-    expect(() => definition.validateRows([row as EnabledListItem])).toThrow()
+    expect(() =>
+      definition.validateRows([row as EnabledListItem]),
+    ).not.toThrow()
+    expect(() =>
+      definition.validateRows([{ ...row, id: '', py: '' }]),
+    ).toThrow()
     expect(() => definition.validateRows([{ ...row, py: '' }])).not.toThrow()
     expect(() =>
       definition.validateRows([

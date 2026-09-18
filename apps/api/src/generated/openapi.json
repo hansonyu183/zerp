@@ -14592,6 +14592,219 @@
         }
       }
     },
+    "/app/user/options": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 100
+                }
+              ]
+            },
+            "required": false,
+            "name": "ids",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "default": ""
+            },
+            "required": false,
+            "name": "keyword",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            },
+            "required": true,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "20"
+              ]
+            },
+            "required": true,
+            "name": "pageSize",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "辅助读取",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "enum": [
+                            ""
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "enabled": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "code",
+                                  "name",
+                                  "enabled"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "total": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "page": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "exclusiveMinimum": true
+                            },
+                            "pageSize": {
+                              "type": "number",
+                              "enum": [
+                                20
+                              ]
+                            }
+                          },
+                          "required": [
+                            "items",
+                            "total",
+                            "page",
+                            "pageSize"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "enum": [
+                                1001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                1002
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                2001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                3001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                5000
+                              ]
+                            }
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "nullable": true
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/app/role/options": {
       "get": {
         "parameters": [
@@ -287738,6 +287951,245 @@
         }
       }
     },
+    "/acc/subject/parent-options": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 100
+                }
+              ]
+            },
+            "required": false,
+            "name": "ids",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "default": ""
+            },
+            "required": false,
+            "name": "keyword",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            },
+            "required": true,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "20"
+              ]
+            },
+            "required": true,
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 26,
+              "maxLength": 26
+            },
+            "required": true,
+            "name": "bookId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 26,
+              "maxLength": 26
+            },
+            "required": false,
+            "name": "subjectId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "辅助读取",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "enum": [
+                            ""
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "minLength": 26,
+                                    "maxLength": 26
+                                  },
+                                  "code": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 64
+                                  },
+                                  "name": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "enabled": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "code",
+                                  "name",
+                                  "enabled"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "total": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "page": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "exclusiveMinimum": true
+                            },
+                            "pageSize": {
+                              "type": "number",
+                              "enum": [
+                                20
+                              ]
+                            }
+                          },
+                          "required": [
+                            "items",
+                            "total",
+                            "page",
+                            "pageSize"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "enum": [
+                                1001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                1002
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                2001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                3001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                5000
+                              ]
+                            }
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "nullable": true
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/acc/asset/options": {
       "get": {
         "parameters": [
@@ -288733,6 +289185,16 @@
                                   "controlBook": {
                                     "type": "boolean"
                                   },
+                                  "availableActions": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "enum": [
+                                        "edit",
+                                        "delete"
+                                      ]
+                                    }
+                                  },
                                   "revision": {
                                     "type": "string",
                                     "pattern": "^[1-9]\\d*$"
@@ -288762,6 +289224,7 @@
                                   "startMonth",
                                   "baseCurrency",
                                   "controlBook",
+                                  "availableActions",
                                   "revision",
                                   "queryUserIds",
                                   "operateUserIds"
@@ -288940,6 +289403,16 @@
                             "controlBook": {
                               "type": "boolean"
                             },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "edit",
+                                  "delete"
+                                ]
+                              }
+                            },
                             "revision": {
                               "type": "string",
                               "pattern": "^[1-9]\\d*$"
@@ -288969,6 +289442,7 @@
                             "startMonth",
                             "baseCurrency",
                             "controlBook",
+                            "availableActions",
                             "revision",
                             "queryUserIds",
                             "operateUserIds"
@@ -289173,6 +289647,16 @@
                             "controlBook": {
                               "type": "boolean"
                             },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "edit",
+                                  "delete"
+                                ]
+                              }
+                            },
                             "revision": {
                               "type": "string",
                               "pattern": "^[1-9]\\d*$"
@@ -289202,6 +289686,7 @@
                             "startMonth",
                             "baseCurrency",
                             "controlBook",
+                            "availableActions",
                             "revision",
                             "queryUserIds",
                             "operateUserIds"
@@ -289397,6 +289882,16 @@
                             "controlBook": {
                               "type": "boolean"
                             },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "edit",
+                                  "delete"
+                                ]
+                              }
+                            },
                             "revision": {
                               "type": "string",
                               "pattern": "^[1-9]\\d*$"
@@ -289426,6 +289921,7 @@
                             "startMonth",
                             "baseCurrency",
                             "controlBook",
+                            "availableActions",
                             "revision",
                             "queryUserIds",
                             "operateUserIds"
@@ -289791,6 +290287,23 @@
                                   "revision": {
                                     "type": "string",
                                     "pattern": "^[1-9]\\d*$"
+                                  },
+                                  "frozen": {
+                                    "type": "boolean"
+                                  },
+                                  "parentName": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "availableActions": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "enum": [
+                                        "edit",
+                                        "delete"
+                                      ]
+                                    }
                                   }
                                 },
                                 "required": [
@@ -289804,7 +290317,10 @@
                                   "requiredDimensions",
                                   "inventoryQuantity",
                                   "settlementPurpose",
-                                  "revision"
+                                  "revision",
+                                  "frozen",
+                                  "parentName",
+                                  "availableActions"
                                 ],
                                 "additionalProperties": false
                               }
@@ -290026,6 +290542,23 @@
                             "revision": {
                               "type": "string",
                               "pattern": "^[1-9]\\d*$"
+                            },
+                            "frozen": {
+                              "type": "boolean"
+                            },
+                            "parentName": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "edit",
+                                  "delete"
+                                ]
+                              }
                             }
                           },
                           "required": [
@@ -290039,7 +290572,10 @@
                             "requiredDimensions",
                             "inventoryQuantity",
                             "settlementPurpose",
-                            "revision"
+                            "revision",
+                            "frozen",
+                            "parentName",
+                            "availableActions"
                           ],
                           "additionalProperties": false
                         },
@@ -290310,6 +290846,23 @@
                             "revision": {
                               "type": "string",
                               "pattern": "^[1-9]\\d*$"
+                            },
+                            "frozen": {
+                              "type": "boolean"
+                            },
+                            "parentName": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "edit",
+                                  "delete"
+                                ]
+                              }
                             }
                           },
                           "required": [
@@ -290323,7 +290876,10 @@
                             "requiredDimensions",
                             "inventoryQuantity",
                             "settlementPurpose",
-                            "revision"
+                            "revision",
+                            "frozen",
+                            "parentName",
+                            "availableActions"
                           ],
                           "additionalProperties": false
                         },
@@ -290599,6 +291155,23 @@
                             "revision": {
                               "type": "string",
                               "pattern": "^[1-9]\\d*$"
+                            },
+                            "frozen": {
+                              "type": "boolean"
+                            },
+                            "parentName": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "edit",
+                                  "delete"
+                                ]
+                              }
                             }
                           },
                           "required": [
@@ -290612,7 +291185,10 @@
                             "requiredDimensions",
                             "inventoryQuantity",
                             "settlementPurpose",
-                            "revision"
+                            "revision",
+                            "frozen",
+                            "parentName",
+                            "availableActions"
                           ],
                           "additionalProperties": false
                         },
@@ -290899,14 +291475,26 @@
                               },
                               "revision": {
                                 "type": "string",
+                                "nullable": true,
                                 "pattern": "^[1-9]\\d*$"
+                              },
+                              "availableActions": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": [
+                                    "lock",
+                                    "unlock"
+                                  ]
+                                }
                               }
                             },
                             "required": [
                               "bookId",
                               "month",
                               "locked",
-                              "revision"
+                              "revision",
+                              "availableActions"
                             ],
                             "additionalProperties": false
                           }
@@ -291058,14 +291646,26 @@
                             },
                             "revision": {
                               "type": "string",
+                              "nullable": true,
                               "pattern": "^[1-9]\\d*$"
+                            },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "lock",
+                                  "unlock"
+                                ]
+                              }
                             }
                           },
                           "required": [
                             "bookId",
                             "month",
                             "locked",
-                            "revision"
+                            "revision",
+                            "availableActions"
                           ],
                           "additionalProperties": false
                         },
@@ -291216,14 +291816,26 @@
                             },
                             "revision": {
                               "type": "string",
+                              "nullable": true,
                               "pattern": "^[1-9]\\d*$"
+                            },
+                            "availableActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "lock",
+                                  "unlock"
+                                ]
+                              }
                             }
                           },
                           "required": [
                             "bookId",
                             "month",
                             "locked",
-                            "revision"
+                            "revision",
+                            "availableActions"
                           ],
                           "additionalProperties": false
                         },

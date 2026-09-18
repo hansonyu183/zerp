@@ -8,6 +8,7 @@ import {
   ref,
   shallowRef,
   toRaw,
+  watch,
 } from 'vue'
 import { TargetApiError } from '../../api.ts'
 import { useTargetSession } from '../../session/vm.ts'
@@ -33,6 +34,7 @@ import EditForm from '../dynamic-fields/EditForm.vue'
 import { formatDecimal, compareDecimal } from '../dynamic-fields/decimal.ts'
 import { incomeExpenseDirectionOptions } from './aux-presentation.ts'
 import type { DirectFilters } from './definition.ts'
+import { accErrorMessage } from './acc-presentation.ts'
 import { roleTypeOptions } from './role-presentation.ts'
 const props = defineProps<{ definition: DirectDefinition }>()
 const definition = props.definition
@@ -108,12 +110,38 @@ const mode = computed(() =>
   detail.value ? ('edit' as const) : ('create' as const),
 )
 const fields = computed(() =>
-  definition.fields.filter(
-    (field) =>
-      (!field.createOnly || mode.value === 'create') &&
-      (!field.visibleWhen ||
-        values.value[field.visibleWhen.key] === field.visibleWhen.value),
-  ),
+  definition.fields
+    .filter(
+      (field) =>
+        (!field.createOnly || mode.value === 'create') &&
+        (!field.editOnly || mode.value === 'edit') &&
+        (!field.visibleWhen ||
+          values.value[field.visibleWhen.key] === field.visibleWhen.value),
+    )
+    .map((field) =>
+      field.type === 'reference' && field.source === 'subject-parents'
+        ? {
+            ...field,
+            source: {
+              kind: 'subject-parent' as const,
+              bookId: String(values.value.bookId ?? ''),
+              ...(detail.value ? { subjectId: detail.value.identity.id } : {}),
+            },
+          }
+        : field,
+    ),
+)
+watch(
+  () => values.value.bookId,
+  (book, previous) => {
+    if (
+      definition.resource === 'acc/subject' &&
+      mode.value === 'create' &&
+      previous &&
+      book !== previous
+    )
+      values.value = { ...values.value, parentId: null }
+  },
 )
 const canSave = computed(
   () =>
@@ -142,6 +170,7 @@ function finish(result?: 'changed') {
   completion = null
 }
 function message(cause: unknown) {
+  if (domain === 'acc') return accErrorMessage(cause)
   if (
     cause instanceof TargetApiError &&
     cause.errorKey === 'conflict' &&
@@ -197,7 +226,8 @@ const isConflict = (cause: unknown) =>
     ? cause.errorKey === 'user_changed'
     : definition.resource === 'app/role'
       ? cause.errorKey === 'role_changed'
-      : cause.errorKey === 'conflict')
+      : cause.errorKey === 'conflict' ||
+        cause.errorKey === 'approval_stale_revision')
 const isUnknown = (cause: unknown) =>
   !(cause instanceof TargetApiError) || cause.errorKey === 'invalid_response'
 function begin(row?: DirectRow, readOnly = false): Promise<'changed' | void> {
@@ -210,7 +240,9 @@ function begin(row?: DirectRow, readOnly = false): Promise<'changed' | void> {
   referenceReady.value = {}
   loading.value = false
   if (!row) lastCreatedId.value = ''
-  values.value = adapter.empty()
+  values.value = adapter.empty({
+    bookId: list.appliedQuery.bookId ?? list.filterInput.bookId,
+  })
   detail.value = null
   error.value = null
   blocked.value = false
@@ -349,7 +381,7 @@ async function write(
     if (action === 'delete')
       await adapter.delete!(credential, { id: row.id, revision: row.revision })
     else
-      await adapter.setEnabled(
+      await adapter.setEnabled!(
         credential,
         { id: row.id, revision: row.revision },
         action === 'enable',
@@ -380,13 +412,36 @@ const listDefinition = defineListPage<DirectRow, DirectFilters>({
   columns: [
     { key: 'code', type: 'text', caption: '编码' },
     { key: 'name', type: 'text', caption: '名称' },
-    {
-      key: 'enabled',
-      type: 'boolean',
-      caption: '状态',
-      trueCaption: '启用',
-      falseCaption: '停用',
-    },
+    ...(definition.enablement === 'none'
+      ? []
+      : [
+          {
+            key: 'enabled' as const,
+            type: 'boolean' as const,
+            caption: '状态',
+            trueCaption: '启用',
+            falseCaption: '停用',
+          },
+        ]),
+    ...(definition.resource === 'acc/book'
+      ? [
+          {
+            key: 'startMonth' as const,
+            type: 'text' as const,
+            caption: '开始月份',
+          },
+          {
+            key: 'baseCurrency' as const,
+            type: 'text' as const,
+            caption: '本位币',
+          },
+          {
+            key: 'controlBook' as const,
+            type: 'boolean' as const,
+            caption: '控制账簿',
+          },
+        ]
+      : []),
     ...(unit
       ? [
           {
@@ -407,6 +462,7 @@ const listDefinition = defineListPage<DirectRow, DirectFilters>({
           ]
         : []),
     ...([
+      'acc/subject',
       'aux/department',
       'aux/product-category',
       'aux/income-expense-type',
@@ -440,7 +496,21 @@ const listDefinition = defineListPage<DirectRow, DirectFilters>({
     { key: '$actions', type: 'actions', caption: '操作' },
   ],
   filters: [
-    { key: 'keyword', type: 'text', caption: '编码、拼音或名称' },
+    {
+      key: 'keyword',
+      type: 'text',
+      caption: domain === 'acc' ? '编码或名称' : '编码、拼音或名称',
+    },
+    ...(definition.resource === 'acc/subject'
+      ? [
+          {
+            key: 'bookId' as const,
+            type: 'reference' as const,
+            source: 'acc/book' as const,
+            caption: '账簿',
+          },
+        ]
+      : []),
     ...(definition.resource === 'aux/dictionary-item'
       ? [
           {
@@ -458,11 +528,15 @@ const list = reactive(
     {
       ...(can('query')
         ? {
-            onSearch: (input: {
-              keyword: string
-              page: number
-              pageSize: 20
-            }) => adapter.query(token('query'), input),
+            onSearch: async (
+              input: DirectFilters & { page: number; pageSize: 20 },
+            ) => {
+              try {
+                return await adapter.query(token('query'), input)
+              } catch (cause) {
+                throw new Error(message(cause))
+              }
+            },
           }
         : {}),
       onCreate: () => begin(),
@@ -476,6 +550,10 @@ const list = reactive(
         !open.value &&
         !saving.value &&
         !writePending.value &&
+        ((action !== 'enable' && action !== 'disable') ||
+          (definition.enablement !== 'none' &&
+            definition.enablement !== 'save' &&
+            Boolean(adapter.setEnabled))) &&
         can(action === 'edit' ? 'save' : action) &&
         (action === 'create' ||
           Boolean(
@@ -485,6 +563,7 @@ const list = reactive(
     {
       initialFilters: () => ({
         keyword: '',
+        ...(definition.resource === 'acc/subject' ? { bookId: null } : {}),
         ...(definition.resource === 'aux/dictionary-item'
           ? { dictionaryTypeId: null }
           : {}),

@@ -6,9 +6,9 @@
 
 统计口径：每个带 `meta.title` 的正式 target 路由必须声明 `meta.useCaseKey`；全部正式 Registry 登记计入分母，缺少 `useCaseKey` 直接失败；多个入口允许共享有实际场景覆盖的用例。VOU/RPT 动态家族不展开参数，layout 与重定向不单独计数。
 
-- 页面入口：43
-- 已覆盖入口：43
-- 已登记唯一用例：28
+- 页面入口：46
+- 已覆盖入口：46
+- 已登记唯一用例：29
 - 缺少用例：0
 - 孤儿用例：0
 
@@ -23,6 +23,15 @@
 | 页面不存在 | `/:pathMatch(.*)*` | [目标路由](../../frontend/src/target/router/index.ts)        | [已文档化](app/not-found.md)         |
 | app/user   | `/app/user`        | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](app/access-management.md) |
 | app/role   | `/app/role`        | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](app/access-management.md) |
+
+## ACC
+
+| 页面        | 路由           | 来源                                                         | 状态                                   |
+| ----------- | -------------- | ------------------------------------------------------------ | -------------------------------------- |
+| acc/period  | `/acc/period`  | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](acc/book-subject-period.md) |
+| acc/book    | `/acc/book`    | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](acc/book-subject-period.md) |
+| acc/subject | `/acc/subject` | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](acc/book-subject-period.md) |
+| acc/mapping | `/acc/mapping` | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](acc/mapping-management.md)  |
 
 ## VOU
 
@@ -41,12 +50,6 @@
 | ---------------------- | ------------------------- | ------------------------------------------------------------ | ------------------------------------- |
 | wfl/process-instance   | `/wfl/process-instance`   | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](wfl/process-instance.md)   |
 | wfl/process-definition | `/wfl/process-definition` | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](wfl/process-definition.md) |
-
-## ACC
-
-| 页面        | 路由           | 来源                                                         | 状态                                  |
-| ----------- | -------------- | ------------------------------------------------------------ | ------------------------------------- |
-| acc/mapping | `/acc/mapping` | [资源登记](../../frontend/src/target/navigation/registry.ts) | [已文档化](acc/mapping-management.md) |
 
 ## AUX
 

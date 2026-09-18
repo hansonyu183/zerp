@@ -151,6 +151,16 @@ export function createIndependentHandlers(
               principal,
             )
             break
+          case '/app/user/options':
+            data = await management.userOptions(
+              roleOptionsInput.parse({
+                ...context.req.query(),
+                ...(context.req.queries('ids')
+                  ? { ids: context.req.queries('ids') }
+                  : {}),
+              }),
+            )
+            break
           case '/app/role/options':
             data = await management.roleOptions(
               roleOptionsInput.parse({

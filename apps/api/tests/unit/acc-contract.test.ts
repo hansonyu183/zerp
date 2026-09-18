@@ -89,6 +89,7 @@ test('ACC book query response validates the exact successful data shape', () => 
           startMonth: '2026-09',
           baseCurrency: 'CNY',
           controlBook: true,
+          availableActions: ['edit'],
           revision: '1',
           queryUserIds: ['01J00000000000000000000002'],
           operateUserIds: ['01J00000000000000000000003'],

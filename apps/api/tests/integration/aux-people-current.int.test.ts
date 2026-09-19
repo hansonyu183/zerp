@@ -52,6 +52,76 @@ test('AUX current operating entities and employees freeze adopted references, pr
     }
   })
 
+  const minimalEmployee = {
+    identityKind: 'PERSON' as const,
+    legalName: `待补充${suffix}`,
+    displayName: `待补充${suffix}`,
+    legalIdentifier: '',
+    contactName: '',
+    phone: '',
+    address: '',
+    employeeCategoryId: null,
+    departmentId: null,
+    positionId: null,
+    employmentDate: '',
+    workPhone: '',
+    workEmail: '',
+    operatingEntityId: null,
+    remark: '',
+  }
+  for (let index = 0; index < 2; index++) {
+    const created = await service.create('employee', minimalEmployee, actor)
+    const detail = await service.get('employee', { id: created.id }, actor)
+    assert.equal(detail.legalIdentifier, '')
+    assert.equal(detail.employmentDate, '')
+    assert.equal(detail.employeeCategory, null)
+    assert.equal(detail.department, null)
+    assert.equal(detail.position, null)
+    assert.equal(detail.operatingEntity, null)
+    const disabled = await service.disable(
+      'employee',
+      { id: detail.id, revision: detail.revision },
+      actor,
+      'disable-minimal',
+    )
+    await service.enable(
+      'employee',
+      { id: detail.id, revision: disabled.revision },
+      actor,
+      'enable-minimal',
+    )
+    await assert.rejects(
+      service.save(
+        'employee',
+        {
+          ...minimalEmployee,
+          id: detail.id,
+          revision: '3',
+          employmentDate: '2026-02-30',
+        },
+        actor,
+      ),
+      (error: unknown) =>
+        error instanceof AuxApplicationError &&
+        error.errorKey === 'validation_failed',
+    )
+    await assert.rejects(
+      service.save(
+        'employee',
+        {
+          ...minimalEmployee,
+          id: detail.id,
+          revision: '3',
+          positionId: ulid(),
+        },
+        actor,
+      ),
+      (error: unknown) =>
+        error instanceof AuxApplicationError &&
+        error.errorKey === 'validation_failed',
+    )
+  }
+
   const operatingEntity = await service.create(
     'operating-entity',
     {
@@ -76,6 +146,37 @@ test('AUX current operating entities and employees freeze adopted references, pr
     service.create('department', { name: `部门${suffix}` }, actor),
     service.create('position', { name: `岗位${suffix}` }, actor),
   ])
+  const incomplete = await service.create('employee', minimalEmployee, actor)
+  const supplemented = await service.save(
+    'employee',
+    {
+      ...minimalEmployee,
+      id: incomplete.id,
+      revision: incomplete.revision,
+      legalIdentifier: `SUP${suffix}`,
+      employmentDate: '2026-09-19',
+      employeeCategoryId: employeeCategory.id,
+      departmentId: department.id,
+      positionId: position.id,
+      operatingEntityId: operatingEntity.id,
+    },
+    actor,
+  )
+  assert.equal(
+    (await service.get('employee', { id: incomplete.id }, actor)).position?.id,
+    position.id,
+  )
+  await service.save(
+    'employee',
+    { ...minimalEmployee, id: incomplete.id, revision: supplemented.revision },
+    actor,
+  )
+  const cleared = await service.get('employee', { id: incomplete.id }, actor)
+  assert.equal(cleared.operatingEntity, null)
+  assert.equal(cleared.position, null)
+  assert.equal(cleared.legalIdentifier, '')
+  assert.equal(cleared.employmentDate, '')
+
   const employee = await service.create(
     'employee',
     {
@@ -156,7 +257,7 @@ test('AUX current operating entities and employees freeze adopted references, pr
   )
   assert.equal(
     (await service.get('employee', { id: employee.id }, actor)).operatingEntity
-      .name,
+      ?.name,
     `测试经营主体${suffix}`,
   )
 

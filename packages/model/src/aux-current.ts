@@ -123,13 +123,13 @@ export interface EmployeeCurrentInput {
   contactName: string
   phone: string
   address: string
-  employeeCategoryId: string
-  departmentId: string
-  positionId: string
+  employeeCategoryId: string | null
+  departmentId: string | null
+  positionId: string | null
   employmentDate: string
   workPhone: string
   workEmail: string
-  operatingEntityId: string
+  operatingEntityId: string | null
   remark: string
 }
 
@@ -142,13 +142,13 @@ export interface EmployeeCurrentData {
   contactName: string
   phone: string
   address: string
-  employeeCategory: AuxCurrentSnapshot
-  department: AuxCurrentSnapshot
-  position: AuxCurrentSnapshot
+  employeeCategory: AuxCurrentSnapshot | null
+  department: AuxCurrentSnapshot | null
+  position: AuxCurrentSnapshot | null
   employmentDate: string
   workPhone: string
   workEmail: string
-  operatingEntity: AuxCurrentSnapshot
+  operatingEntity: AuxCurrentSnapshot | null
   remark: string
 }
 

@@ -663,6 +663,26 @@ test('AUX operating entities and employees expose current CRUD with server-deriv
     )
   }
 
+  const {
+    legalIdentifier,
+    employmentDate,
+    employeeCategoryId,
+    departmentId,
+    positionId,
+    operatingEntityId,
+    ...minimalInput
+  } = employeeInput
+  assert.equal((await post(app, '/aux/employee/create', minimalInput)).code, 0)
+  assert.equal(
+    (
+      await post(app, '/aux/employee/create', {
+        ...employeeInput,
+        employmentDate: '2026-02-30',
+      })
+    ).errorKey,
+    'validation_failed',
+  )
+
   assert.deepEqual(
     received.find(
       ([action, entity]) =>

@@ -624,17 +624,21 @@ function normaliseData(entity: AuxEntity, source: unknown): AuxData {
       identityKind: data.identityKind,
       legalName: requiredText(data.legalName, 200),
       displayName: requiredText(data.displayName, 200),
-      legalIdentifier: normalizedLegalIdentifier(data.legalIdentifier),
+      legalIdentifier: optionalString(data.legalIdentifier, 128)
+        ? normalizedLegalIdentifier(data.legalIdentifier)
+        : '',
       contactName: optionalString(data.contactName, 100),
       phone: optionalString(data.phone, 32),
       address: optionalString(data.address, 500),
-      employeeCategoryId: requiredId(data.employeeCategoryId),
-      departmentId: requiredId(data.departmentId),
-      positionId: requiredId(data.positionId),
-      employmentDate: employmentDate(data.employmentDate),
+      employeeCategoryId: optionalId(data.employeeCategoryId),
+      departmentId: optionalId(data.departmentId),
+      positionId: optionalId(data.positionId),
+      employmentDate: optionalString(data.employmentDate, 10)
+        ? employmentDate(data.employmentDate)
+        : '',
       workPhone: optionalString(data.workPhone, 32),
       workEmail: optionalString(data.workEmail, 320),
-      operatingEntityId: requiredId(data.operatingEntityId),
+      operatingEntityId: optionalId(data.operatingEntityId),
       remark: optionalString(data.remark),
     }
   }
@@ -941,13 +945,20 @@ function parseData(
       contactName: data.contactName,
       phone: data.phone,
       address: data.address,
-      employeeCategoryId: snapshot(data.employeeCategory).id,
-      departmentId: snapshot(data.department).id,
-      positionId: snapshot(data.position).id,
+      employeeCategoryId:
+        data.employeeCategory === null
+          ? null
+          : snapshot(data.employeeCategory).id,
+      departmentId:
+        data.department === null ? null : snapshot(data.department).id,
+      positionId: data.position === null ? null : snapshot(data.position).id,
       employmentDate: data.employmentDate,
       workPhone: data.workPhone,
       workEmail: data.workEmail,
-      operatingEntityId: snapshot(data.operatingEntity).id,
+      operatingEntityId:
+        data.operatingEntity === null
+          ? null
+          : snapshot(data.operatingEntity).id,
       remark: data.remark,
     })
     const {
@@ -959,10 +970,12 @@ function parseData(
     } = normalized
     return {
       ...employee,
-      employeeCategory: snapshot(data.employeeCategory),
-      department: snapshot(data.department),
-      position: snapshot(data.position),
-      operatingEntity: snapshot(data.operatingEntity),
+      employeeCategory:
+        data.employeeCategory === null ? null : snapshot(data.employeeCategory),
+      department: data.department === null ? null : snapshot(data.department),
+      position: data.position === null ? null : snapshot(data.position),
+      operatingEntity:
+        data.operatingEntity === null ? null : snapshot(data.operatingEntity),
     } as EmployeeCurrentData
   }
   if (entity === 'warehouse') {
@@ -1884,10 +1897,10 @@ export class AuxService {
                 } = parseData('employee', current.data) as EmployeeCurrentData
                 currentData = {
                   ...fields,
-                  employeeCategoryId: employeeCategory.id,
-                  departmentId: department.id,
-                  positionId: position.id,
-                  operatingEntityId: operatingEntity.id,
+                  employeeCategoryId: employeeCategory?.id ?? null,
+                  departmentId: department?.id ?? null,
+                  positionId: position?.id ?? null,
+                  operatingEntityId: operatingEntity?.id ?? null,
                 }
               } else if (entity === 'warehouse') {
                 const { manager, ...fields } = parseData(
@@ -2092,12 +2105,13 @@ export class AuxService {
       return data
     }
     if (entity === 'employee') {
-      await this.assertUniqueLegalIdentifier(
-        transaction,
-        entity,
-        objectId,
-        String(data.legalIdentifier),
-      )
+      if (data.legalIdentifier)
+        await this.assertUniqueLegalIdentifier(
+          transaction,
+          entity,
+          objectId,
+          String(data.legalIdentifier),
+        )
       return (await this.resolveEmployeeReferences(
         transaction,
         data,
@@ -2311,14 +2325,18 @@ export class AuxService {
     const input = source as unknown as EmployeeCurrentInput
     const [employeeCategory, department, position, operatingEntity] =
       await Promise.all([
-        this.currentSnapshot(
+        this.optionalCurrentSnapshot(
           transaction,
           'employee-category',
           input.employeeCategoryId,
         ),
-        this.currentSnapshot(transaction, 'department', input.departmentId),
-        this.currentSnapshot(transaction, 'position', input.positionId),
-        this.currentSnapshot(
+        this.optionalCurrentSnapshot(
+          transaction,
+          'department',
+          input.departmentId,
+        ),
+        this.optionalCurrentSnapshot(transaction, 'position', input.positionId),
+        this.optionalCurrentSnapshot(
           transaction,
           'operating-entity',
           input.operatingEntityId,
@@ -2360,6 +2378,15 @@ export class AuxService {
     }
   }
 
+  private async optionalCurrentSnapshot(
+    transaction: Transaction<DB>,
+    entity:
+      'employee-category' | 'department' | 'position' | 'operating-entity',
+    id: string | null,
+  ): Promise<AuxCurrentSnapshot | null> {
+    return id === null ? null : this.currentSnapshot(transaction, entity, id)
+  }
+
   private async currentSnapshot(
     transaction: Transaction<DB>,
     entity:
@@ -2396,12 +2423,14 @@ export class AuxService {
     const references: AuxCurrentSnapshot[] = []
     if (entity === 'employee') {
       const employee = data as EmployeeCurrentData
-      references.push(
+      for (const reference of [
         employee.employeeCategory,
         employee.department,
         employee.position,
         employee.operatingEntity,
-      )
+      ]) {
+        if (reference) references.push(reference)
+      }
     } else if (entity === 'warehouse') {
       const manager = (data as WarehouseCurrentData).manager
       if (manager) references.push(manager)

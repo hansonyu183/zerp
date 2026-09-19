@@ -53,9 +53,8 @@ async function select(
 async function approve(page: Page, name: string) {
   await openArchive(page, 'dcl', 'product')
   const dialog = page.getByRole('dialog').last()
-  await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
-  await page.getByRole('button', { name: '查询', exact: true }).click()
-  await page.getByRole('button', { name: '查看', exact: true }).first().click()
+  await findArchive(page, name)
+  await page.getByRole('button', { name: '查看', exact: true }).click()
   await dialog.getByRole('button', { name: '批准', exact: true }).click()
   await expect(
     dialog.getByRole('button', { name: '反批准', exact: true }),
@@ -176,8 +175,7 @@ test('product temporary form, exact quantity trial, approval and independent ena
     await expect(dialog).toHaveCount(0)
     await approve(reviewer, name)
     await page.reload()
-    await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
-    await page.getByRole('button', { name: '查询', exact: true }).click()
+    await findArchive(page, name)
     const row = page
       .locator('tr, .list-card')
       .filter({ has: page.getByRole('button', { name: '查看', exact: true }) })
@@ -199,8 +197,7 @@ test('product temporary form, exact quantity trial, approval and independent ena
     await expect(dialog).toHaveCount(0)
     await approve(reviewer, name)
     await openArchive(page, 'bob', 'product', 390)
-    await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
-    await page.getByRole('button', { name: '查询', exact: true }).click()
+    await findArchive(page, name)
     await expect(
       row.getByRole('button', { name: '启用', exact: true }),
     ).toBeVisible()

@@ -202,6 +202,30 @@ test('operating entities and employees use direct AUX ListPages on desktop and 3
   )
   expect(operatingEntity).toBeTruthy()
 
+  await openFromMenu(page, '/aux/employee', 1440)
+  await page.getByRole('button', { name: '新增', exact: true }).click()
+  const minimalEditor = page.getByRole('dialog')
+  const minimalName = `待补充人员${tag}`
+  await minimalEditor.getByLabel('法定名称', { exact: true }).fill(minimalName)
+  await minimalEditor.getByLabel('显示名称', { exact: true }).fill(minimalName)
+  await minimalEditor.getByRole('button', { name: '保存', exact: true }).click()
+  await expect(minimalEditor).toHaveCount(0)
+  await page.getByLabel('编码、拼音或名称', { exact: true }).fill(minimalName)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  const minimalRow = page
+    .locator('tr, .list-card')
+    .filter({ hasText: minimalName })
+  await minimalRow.getByRole('button', { name: '编辑', exact: true }).click()
+  await expect(
+    minimalEditor.getByLabel('法定标识', { exact: true }),
+  ).toHaveValue('')
+  await expect(
+    minimalEditor.getByLabel('入职日期', { exact: true }),
+  ).toHaveValue('')
+  await minimalEditor.getByRole('button', { name: '保存', exact: true }).click()
+  await expect(minimalEditor).toHaveCount(0)
+  await page.getByLabel('编码、拼音或名称', { exact: true }).fill('')
+
   const employeeName = `E2E员工${tag}`
   await openFromMenu(page, '/aux/employee', 1440)
   await page.getByRole('button', { name: '新增', exact: true }).click()

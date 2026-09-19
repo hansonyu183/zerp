@@ -16,7 +16,9 @@ function record(value: unknown): Record<string, unknown> {
 }
 function display(): string {
   if (props.value === null || props.value === undefined || props.value === '')
-    return '—'
+    return props.field.type === 'group'
+      ? (props.field.emptyCaption ?? '—')
+      : '—'
   if (props.field.type === 'boolean') return props.value ? '是' : '否'
   if (props.field.type === 'enum')
     return (

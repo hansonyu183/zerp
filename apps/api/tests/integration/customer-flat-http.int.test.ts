@@ -302,6 +302,72 @@ test('Customer HTTP directly owns business attributes without legal identity or 
     expectedLatestApprovedRevision: null,
     snapshot: linkedSnapshot,
   }
+  const unassignedInput = {
+    ...input,
+    subjectId: ulid(),
+    submissionId: ulid(),
+    idempotencyKey: ulid(),
+    snapshot: { ...snapshot, primarySalesAttribution: null },
+  }
+  const missingEmployee = await write('submit-new', {
+    ...unassignedInput,
+    subjectId: ulid(),
+    submissionId: ulid(),
+    idempotencyKey: ulid(),
+    snapshot: {
+      ...snapshot,
+      primarySalesAttribution: {
+        type: 'INTERNAL_EMPLOYEE',
+        objectId: ulid(),
+        code: 'MISSING',
+        name: '不存在员工',
+      },
+    },
+  })
+  assert.notEqual(missingEmployee.code, 0)
+  assert.equal(missingEmployee.errorKey, 'archive_reference_unavailable')
+  const unassigned = await write('submit-new', unassignedInput)
+  assert.equal(unassigned.code, 0, unassigned.errorKey)
+  assert.equal(unassigned.data.snapshot.primarySalesAttribution, null)
+  const unassignedApproval = await review('approve', {
+    subjectId: unassignedInput.subjectId,
+    submissionId: unassignedInput.submissionId,
+    expectedRevision: unassigned.data.revision,
+  })
+  assert.equal(unassignedApproval.code, 0, unassignedApproval.errorKey)
+  const unassignedCurrent = await write('get', {
+    objectId: unassignedInput.subjectId,
+  })
+  assert.equal(unassignedCurrent.code, 0, unassignedCurrent.errorKey)
+  assert.equal(unassignedCurrent.data.data.primarySalesAttribution, null)
+
+  let previousUnassigned = unassignedApproval.data
+  for (const attribution of [snapshot.primarySalesAttribution, null]) {
+    const submissionId = ulid()
+    const change = await write('submit-change', {
+      ...unassignedInput,
+      submissionId,
+      idempotencyKey: ulid(),
+      expectedLatestApprovedSubmissionId: previousUnassigned.submissionId,
+      expectedLatestApprovedRevision: previousUnassigned.revision,
+      snapshot: { ...snapshot, primarySalesAttribution: attribution },
+    })
+    assert.equal(change.code, 0, change.errorKey)
+    const approvedChange = await review('approve', {
+      subjectId: unassignedInput.subjectId,
+      submissionId,
+      expectedRevision: change.data.revision,
+    })
+    assert.equal(approvedChange.code, 0, approvedChange.errorKey)
+    previousUnassigned = approvedChange.data
+    const view = await write('get', { objectId: unassignedInput.subjectId })
+    assert.equal(view.code, 0, view.errorKey)
+    assert.equal(
+      view.data.data.primarySalesAttribution?.objectId ?? null,
+      attribution?.objectId ?? null,
+    )
+  }
+
   const submitted = await write('submit-new', input)
   assert.equal(submitted.code, 0, submitted.errorKey)
   assert.equal(submitted.data.snapshot.primarySalesAttribution.name, '渠道商')

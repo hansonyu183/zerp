@@ -867,7 +867,7 @@ export interface CustomerData {
   transportPolicy: CustomerTransportPolicy
   pricingPolicy: CustomerPricingPolicy
   creditLimits: readonly { currency: string; amount: string }[]
-  primarySalesAttribution: CustomerSalesAttribution
+  primarySalesAttribution: CustomerSalesAttribution | null
   internalReminder: string
   defaultSalesOrderRemark: string
   attachments: readonly AttachmentMetadata[]
@@ -1060,15 +1060,17 @@ export function normalizeCustomerData(
     attachments.some((item) => !item)
   )
     return undefined
-  const primarySalesAttribution = normalizeSalesAttribution(
-    data.primarySalesAttribution,
-  )
+  const primarySalesAttribution =
+    data.primarySalesAttribution === null
+      ? null
+      : normalizeSalesAttribution(data.primarySalesAttribution)
   if (
-    !primarySalesAttribution.objectId ||
-    !primarySalesAttribution.code ||
-    !primarySalesAttribution.name ||
-    (primarySalesAttribution.type !== 'INTERNAL_EMPLOYEE' &&
-      !primarySalesAttribution.approvalEntryId)
+    primarySalesAttribution !== null &&
+    (!primarySalesAttribution.objectId ||
+      !primarySalesAttribution.code ||
+      !primarySalesAttribution.name ||
+      (primarySalesAttribution.type !== 'INTERNAL_EMPLOYEE' &&
+        !primarySalesAttribution.approvalEntryId))
   )
     return undefined
   const creditLimits = data.creditLimits.map((limit) => ({
@@ -1164,30 +1166,25 @@ export function prepareCustomerSubmit(
         objectId: data.customerType.id,
         expectedApprovalEntryId: '',
       })
-    const fact = facts.salesAttributions.find(
-      (candidate) =>
-        candidate.objectId === data.primarySalesAttribution.objectId &&
-        candidate.type === data.primarySalesAttribution.type,
-    )
-    const checked =
-      data.primarySalesAttribution.type === 'INTERNAL_EMPLOYEE'
-        ? stableReference(
-            'primarySalesAttribution',
-            data.primarySalesAttribution,
-            fact,
-          )
-        : exactReference(
-            'primarySalesAttribution',
-            data.primarySalesAttribution,
-            fact,
-          )
-    if (!checked.ok)
-      return block(
-        checked.stale
-          ? 'customer_reference_stale'
-          : 'customer_reference_unavailable',
-        checked.blocker,
+    const attribution = data.primarySalesAttribution
+    if (attribution !== null) {
+      const fact = facts.salesAttributions.find(
+        (candidate) =>
+          candidate.objectId === attribution.objectId &&
+          candidate.type === attribution.type,
       )
+      const checked =
+        attribution.type === 'INTERNAL_EMPLOYEE'
+          ? stableReference('primarySalesAttribution', attribution, fact)
+          : exactReference('primarySalesAttribution', attribution, fact)
+      if (!checked.ok)
+        return block(
+          checked.stale
+            ? 'customer_reference_stale'
+            : 'customer_reference_unavailable',
+          checked.blocker,
+        )
+    }
   }
   return { ok: true, plan: { ...common, data } }
 }

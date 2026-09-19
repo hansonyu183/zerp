@@ -1509,48 +1509,52 @@ export class DclArchiveService {
               available: fact.available,
             })),
             salesAttributions: await Promise.all(
-              [data].map(async (value) => {
-                const attribution = record(
-                  record(value).primarySalesAttribution,
-                )
-                const type = String(attribution.type ?? '') as
-                  'INTERNAL_EMPLOYEE' | 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER'
-                if (type === 'INTERNAL_EMPLOYEE')
-                  return {
-                    ...adoptedAuxFact(attribution),
-                    latestApprovedEntryId: '',
-                    type,
-                  }
-                const entity = 'sales-partner'
-                const fact = await this.approvedFact(
-                  tx,
-                  entity,
-                  String(attribution.objectId ?? ''),
-                )
-                if (!fact)
-                  return {
-                    objectId: String(attribution.objectId ?? ''),
-                    latestApprovedEntryId: '',
-                    enabled: false,
-                    type,
-                  }
-                let enabled = fact.enabled
-                if (entity === 'sales-partner') {
-                  const snapshot = await readBusinessIdentitySnapshot(
+              (data.primarySalesAttribution === null ? [] : [data]).map(
+                async (value) => {
+                  const attribution = record(
+                    record(value).primarySalesAttribution,
+                  )
+                  const type = String(attribution.type ?? '') as
+                    | 'INTERNAL_EMPLOYEE'
+                    | 'EXTERNAL_PART_TIME'
+                    | 'CHANNEL_PARTNER'
+                  if (type === 'INTERNAL_EMPLOYEE')
+                    return {
+                      ...adoptedAuxFact(attribution),
+                      latestApprovedEntryId: '',
+                      type,
+                    }
+                  const entity = 'sales-partner'
+                  const fact = await this.approvedFact(
                     tx,
                     entity,
-                    fact.latestApprovedEntryId,
+                    String(attribution.objectId ?? ''),
                   )
-                  enabled =
-                    enabled && array(snapshot.capabilities).includes(type)
-                }
-                return {
-                  objectId: fact.objectId,
-                  latestApprovedEntryId: fact.latestApprovedEntryId,
-                  enabled,
-                  type,
-                }
-              }),
+                  if (!fact)
+                    return {
+                      objectId: String(attribution.objectId ?? ''),
+                      latestApprovedEntryId: '',
+                      enabled: false,
+                      type,
+                    }
+                  let enabled = fact.enabled
+                  if (entity === 'sales-partner') {
+                    const snapshot = await readBusinessIdentitySnapshot(
+                      tx,
+                      entity,
+                      fact.latestApprovedEntryId,
+                    )
+                    enabled =
+                      enabled && array(snapshot.capabilities).includes(type)
+                  }
+                  return {
+                    objectId: fact.objectId,
+                    latestApprovedEntryId: fact.latestApprovedEntryId,
+                    enabled,
+                    type,
+                  }
+                },
+              ),
             ),
           } as never,
         )
@@ -2068,21 +2072,23 @@ export class DclArchiveService {
             snapshot.primarySalesAttribution,
           )
             ? previous.primarySalesAttribution
-            : {
-                ...(record(snapshot.primarySalesAttribution).type ===
-                'INTERNAL_EMPLOYEE'
-                  ? await this.freezeCurrentReference(
-                      tx,
-                      'employee',
-                      snapshot.primarySalesAttribution,
-                    )
-                  : await this.freezeApprovedReference(
-                      tx,
-                      'sales-partner',
-                      snapshot.primarySalesAttribution,
-                    )),
-                type: record(snapshot.primarySalesAttribution).type,
-              },
+            : snapshot.primarySalesAttribution === null
+              ? null
+              : {
+                  ...(record(snapshot.primarySalesAttribution).type ===
+                  'INTERNAL_EMPLOYEE'
+                    ? await this.freezeCurrentReference(
+                        tx,
+                        'employee',
+                        snapshot.primarySalesAttribution,
+                      )
+                    : await this.freezeApprovedReference(
+                        tx,
+                        'sales-partner',
+                        snapshot.primarySalesAttribution,
+                      )),
+                  type: record(snapshot.primarySalesAttribution).type,
+                },
       }
     if (entity === 'product')
       return {
@@ -2273,7 +2279,8 @@ export class DclArchiveService {
         ),
         primary_sales_attribution_code: nullable(attribution.code),
         primary_sales_attribution_name: nullable(attribution.name),
-        sales_attribution_snapshot: json(attribution),
+        sales_attribution_snapshot:
+          d.primarySalesAttribution === null ? null : json(attribution),
         internal_reminder: nullable(d.internalReminder),
         default_order_remark: nullable(d.defaultSalesOrderRemark),
         attachments: json(array(d.attachments)),
@@ -2592,7 +2599,7 @@ export class DclArchiveService {
       transportPolicy: record(r.transport_snapshot),
       pricingPolicy: record(r.pricing_snapshot),
       creditLimits: array(r.credit_limits),
-      primarySalesAttribution: record(r.sales_attribution_snapshot),
+      primarySalesAttribution: r.sales_attribution_snapshot,
       internalReminder: r.internal_reminder ?? '',
       defaultSalesOrderRemark: r.default_order_remark ?? '',
       attachments: array(r.attachments),

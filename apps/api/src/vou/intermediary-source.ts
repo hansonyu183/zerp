@@ -254,7 +254,12 @@ export async function intermediarySource(
       !basis?.primary_sales_attribution_type ||
       !basis.primary_sales_attribution_object_id ||
       !basis.primary_sales_attribution_code ||
-      !basis.primary_sales_attribution_name ||
+      !basis.primary_sales_attribution_name
+    )
+      throw new VouApplicationError('vou_intermediary_source_basis_missing', [
+        { documentId: order.documentId, field: 'primarySalesAttribution' },
+      ])
+    if (
       !basis.settlement_snapshot ||
       !basis.pricing_snapshot ||
       !basis.transport_snapshot ||

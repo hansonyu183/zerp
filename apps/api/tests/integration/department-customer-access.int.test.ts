@@ -716,6 +716,55 @@ test('department roles enforce current customer ownership at real HTTP and repor
     ).code,
     0,
   )
+  const assigned = await dcl.get('customer', firstCustomer, adminActor)
+  const clearId = ulid()
+  const clear = await dcl.submit(
+    'customer',
+    'submit-change',
+    {
+      subjectId: firstCustomer,
+      submissionId: clearId,
+      idempotencyKey: clearId,
+      expectedLatestApprovedSubmissionId: assigned.submissionId,
+      expectedLatestApprovedRevision: assigned.revision,
+      snapshot: { ...assigned.snapshot, primarySalesAttribution: null },
+    },
+    adminActor,
+    'scope-unassigned',
+  )
+  await dcl.review(
+    'customer',
+    'approve',
+    {
+      subjectId: firstCustomer,
+      submissionId: clearId,
+      expectedRevision: clear.revision,
+    },
+    reviewerActor,
+    'scope-unassigned',
+  )
+  for (const restricted of [one, two, unbound]) {
+    assert.equal(
+      (
+        await restricted.request('/bob/customer/get', {
+          objectId: firstCustomer,
+        })
+      ).errorKey,
+      'forbidden',
+    )
+    const visible = await restricted.request('/bob/customer/query', pageInput)
+    assert.equal(visible.code, 0, visible.errorKey)
+    assert.ok(
+      !visible.data.items.some(
+        (item: { objectId: string }) => item.objectId === firstCustomer,
+      ),
+    )
+  }
+  const unrestricted = await mixed.request('/bob/customer/get', {
+    objectId: firstCustomer,
+  })
+  assert.equal(unrestricted.code, 0, unrestricted.errorKey)
+  assert.equal(unrestricted.data.data.primarySalesAttribution, null)
   const serviceRole = await management.getRole(roleId('客服'), admin)
   await management.setRoleStatus(
     { id: serviceRole.id, revision: serviceRole.revision },

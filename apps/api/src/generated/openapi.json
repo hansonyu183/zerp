@@ -4502,6 +4502,9 @@
                                         "type"
                                       ],
                                       "additionalProperties": false
+                                    },
+                                    {
+                                      "nullable": true
                                     }
                                   ]
                                 }
@@ -43771,6 +43774,9 @@
                                               "type"
                                             ],
                                             "additionalProperties": false
+                                          },
+                                          {
+                                            "nullable": true
                                           }
                                         ]
                                       },
@@ -44539,6 +44545,9 @@
                                         "type"
                                       ],
                                       "additionalProperties": false
+                                    },
+                                    {
+                                      "nullable": true
                                     }
                                   ]
                                 },
@@ -47730,6 +47739,9 @@
                                         "type"
                                       ],
                                       "additionalProperties": false
+                                    },
+                                    {
+                                      "nullable": true
                                     }
                                   ]
                                 },
@@ -48701,6 +48713,9 @@
                                               "type"
                                             ],
                                             "additionalProperties": false
+                                          },
+                                          {
+                                            "nullable": true
                                           }
                                         ]
                                       },
@@ -49972,6 +49987,9 @@
                               "type"
                             ],
                             "additionalProperties": false
+                          },
+                          {
+                            "nullable": true
                           }
                         ]
                       },
@@ -50642,6 +50660,9 @@
                                         "type"
                                       ],
                                       "additionalProperties": false
+                                    },
+                                    {
+                                      "nullable": true
                                     }
                                   ]
                                 },
@@ -51523,6 +51544,9 @@
                               "type"
                             ],
                             "additionalProperties": false
+                          },
+                          {
+                            "nullable": true
                           }
                         ]
                       },
@@ -52193,6 +52217,9 @@
                                         "type"
                                       ],
                                       "additionalProperties": false
+                                    },
+                                    {
+                                      "nullable": true
                                     }
                                   ]
                                 },
@@ -53165,6 +53192,9 @@
                                         "type"
                                       ],
                                       "additionalProperties": false
+                                    },
+                                    {
+                                      "nullable": true
                                     }
                                   ]
                                 },
@@ -54143,6 +54173,9 @@
                                         "type"
                                       ],
                                       "additionalProperties": false
+                                    },
+                                    {
+                                      "nullable": true
                                     }
                                   ]
                                 },
@@ -55115,6 +55148,9 @@
                                         "type"
                                       ],
                                       "additionalProperties": false
+                                    },
+                                    {
+                                      "nullable": true
                                     }
                                   ]
                                 },
@@ -56093,6 +56129,9 @@
                                         "type"
                                       ],
                                       "additionalProperties": false
+                                    },
+                                    {
+                                      "nullable": true
                                     }
                                   ]
                                 },

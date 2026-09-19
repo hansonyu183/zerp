@@ -66,17 +66,30 @@ function update(value: Business) {
 function patch(value: Partial<Business>) {
   update({ ...props.modelValue, ...value } as Business)
 }
-function attributionType(type: Business['primarySalesAttribution']['type']) {
+function attributionType(type: string) {
+  if (
+    type !== 'UNASSIGNED' &&
+    type !== 'INTERNAL_EMPLOYEE' &&
+    type !== 'EXTERNAL_PART_TIME' &&
+    type !== 'CHANNEL_PARTNER'
+  )
+    return
   patch({
     primarySalesAttribution:
-      type === 'INTERNAL_EMPLOYEE'
-        ? { type, objectId: '', code: '', name: '' }
-        : { type, objectId: '', approvalEntryId: '', code: '', name: '' },
+      type === 'UNASSIGNED'
+        ? null
+        : type === 'INTERNAL_EMPLOYEE'
+          ? { type, objectId: '', code: '', name: '' }
+          : { type, objectId: '', approvalEntryId: '', code: '', name: '' },
   })
 }
 function attribution(value: object | readonly object[] | null) {
   const sub = props.modelValue
-  if (!sub || !value || Array.isArray(value)) return
+  if (!sub.primarySalesAttribution || Array.isArray(value)) return
+  if (!value) {
+    patch({ primarySalesAttribution: null })
+    return
+  }
   patch({
     primarySalesAttribution: {
       ...value,
@@ -145,18 +158,22 @@ function attribution(value: object | readonly object[] | null) {
         key: 'type',
         type: 'choice',
         caption: '业务归属类型',
-        options: Object.entries(customerAttributionLabels)
+        options: Object.entries({
+          UNASSIGNED: '未分配',
+          ...customerAttributionLabels,
+        })
           .map(([value, title]) => ({
             value,
             title,
           }))
           .map((option) => ({ value: option.value, caption: option.title })),
       }"
-      :model-value="modelValue.primarySalesAttribution.type"
+      :model-value="modelValue.primarySalesAttribution?.type ?? 'UNASSIGNED'"
       :disabled="readonly"
       @update:model-value="attributionType($event)"
     />
     <SnapshotReference
+      v-if="modelValue.primarySalesAttribution"
       :source="
         modelValue.primarySalesAttribution.type === 'INTERNAL_EMPLOYEE'
           ? 'archive-employees'

@@ -82,6 +82,7 @@ async function counterparty(choice: VouCandidate | null) {
   update({
     counterparty: choice,
     selectionOrigin: 'CURRENT',
+    ...(props.modelValue.entity === 'sale-order' ? { employee: null } : {}),
     paymentMethod:
       choice?.entity === 'customer' && choice.paymentMethod
         ? { ...choice.paymentMethod, selectionOrigin: 'CUSTOMER' }

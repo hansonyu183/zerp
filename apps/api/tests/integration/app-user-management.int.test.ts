@@ -271,6 +271,16 @@ async function createHarness(context: TestContext) {
     return { cookie, csrfToken: payload.data.csrfToken }
   }
 
+  async function signInResult(code: string): Promise<Envelope> {
+    const response = await fetch(`${origin}/session/auth/signin`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ code, password }),
+    })
+    assert.equal(response.status, 200)
+    return response.json() as Promise<Envelope>
+  }
+
   async function post(session: HttpSession, path: string, body: unknown) {
     const response = await fetch(`${origin}${path}`, {
       method: 'POST',
@@ -451,6 +461,7 @@ async function createHarness(context: TestContext) {
     password,
     management,
     signIn,
+    signInResult,
     get: async (session: HttpSession, path: string) => {
       const response = await fetch(`${origin}${path}`, {
         headers: { 'x-zerp-model-build': modelBuildId, cookie: session.cookie },
@@ -471,6 +482,71 @@ async function createHarness(context: TestContext) {
     trackPermission: (id: string) => fixturePermissionIds.push(id),
   }
 }
+
+test('real HTTP stages a disabled user without roles, then requires a reviewed role before enabling login', async (context) => {
+  const harness = await createHarness(context)
+  const actor = await harness.signIn(harness.codes.actor)
+  const code = `tdd-staged-${harness.ids.actor.slice(-8).toLowerCase()}`
+
+  const rejectedCreate = await harness.post(actor, '/app/user/create', {
+    code: `${code}-enabled`,
+    name: 'Unassigned enabled user',
+    password: harness.password,
+    roleIds: [],
+  })
+  assert.equal(rejectedCreate.errorKey, 'validation_failed')
+
+  const created = await harness.post(actor, '/app/user/create', {
+    code,
+    name: 'Staged user',
+    password: harness.password,
+    enabled: false,
+    roleIds: [],
+  })
+  assert.equal(created.code, 0, JSON.stringify(created))
+  harness.trackUser(created.data.id)
+  assert.equal(created.data.enabled, false)
+  assert.deepEqual(created.data.roles, [])
+  assert.equal(created.data.availableActions.includes('ENABLE'), false)
+  assert.equal((await harness.signInResult(code)).errorKey, 'account_disabled')
+
+  const rejectedEnable = await harness.post(actor, '/app/user/enable', {
+    id: created.data.id,
+    revision: created.data.revision,
+  })
+  assert.equal(rejectedEnable.errorKey, 'validation_failed')
+  assert.equal((await harness.userFact(created.data.id)).status, 'DISABLED')
+
+  const assigned = await harness.post(actor, '/app/user/save', {
+    id: created.data.id,
+    name: 'Staged user',
+    roleIds: [harness.ids.lowRole],
+    revision: created.data.revision,
+  })
+  assert.equal(assigned.code, 0)
+  assert.equal(assigned.data.enabled, false)
+  assert.equal(assigned.data.availableActions.includes('ENABLE'), true)
+  assert.equal((await harness.signInResult(code)).errorKey, 'account_disabled')
+
+  const enabled = await harness.post(actor, '/app/user/enable', {
+    id: created.data.id,
+    revision: assigned.data.revision,
+  })
+  assert.equal(enabled.code, 0)
+  assert.equal(enabled.data.enabled, true)
+  assert.equal((await harness.signInResult(code)).code, 0)
+
+  const rejectedSave = await harness.post(actor, '/app/user/save', {
+    id: created.data.id,
+    name: 'Staged user',
+    roleIds: [],
+    revision: enabled.data.revision,
+  })
+  assert.equal(rejectedSave.errorKey, 'validation_failed')
+  assert.deepEqual(await harness.roleFacts(created.data.id), [
+    { role_id: harness.ids.lowRole },
+  ])
+})
 
 test('real HTTP rejects user creation and maintenance above the authorization ceiling without persistent residue', async (context) => {
   const harness = await createHarness(context)

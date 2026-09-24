@@ -216,7 +216,8 @@ const userCreate = postRoute(
       code: z.string().min(1).max(64),
       name: z.string().min(1).max(128),
       password: z.string().min(1).max(1024),
-      roleIds: z.array(z.string()).min(1),
+      roleIds: z.array(z.string()),
+      enabled: z.boolean().default(true),
       employeeId: z.string().length(26).nullable().optional(),
     })
     .strict(),
@@ -228,7 +229,7 @@ const userSave = postRoute(
     .object({
       id: z.string(),
       name: z.string().min(1).max(128),
-      roleIds: z.array(z.string()).min(1),
+      roleIds: z.array(z.string()),
       employeeId: z.string().length(26).nullable().optional(),
       revision: userRevisionSchema,
     })
@@ -286,7 +287,10 @@ const roleCreate = postRoute(
   '/app/role/create',
   z
     .object({
-      id: z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/).optional(),
+      id: z
+        .string()
+        .regex(/^[0-9A-HJKMNP-TV-Z]{26}$/)
+        .optional(),
       name: z.string().min(1).max(128),
       description: z.string().max(1000).nullable(),
       permissionIds: z.array(z.string()).min(1),

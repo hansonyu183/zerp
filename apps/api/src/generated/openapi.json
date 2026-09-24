@@ -13285,8 +13285,11 @@
                     "type": "array",
                     "items": {
                       "type": "string"
-                    },
-                    "minItems": 1
+                    }
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true
                   },
                   "employeeId": {
                     "type": "string",
@@ -13530,8 +13533,7 @@
                     "type": "array",
                     "items": {
                       "type": "string"
-                    },
-                    "minItems": 1
+                    }
                   },
                   "employeeId": {
                     "type": "string",

@@ -25,6 +25,19 @@ test('ACC maintenance exposes unpersisted periods and preserves them after rejec
     username: `basic-${suffix}`,
     passwordHash: await hashPassword(`Test!${suffix}`),
   }
+  const disabledUserId = ulid()
+  await db
+    .insertInto('app_users')
+    .values({
+      id: disabledUserId,
+      username: `disabled-${suffix}`,
+      display_name: '停用账号',
+      py: 'tingyongzhanghao',
+      password_hash: principal.passwordHash,
+      status: 'DISABLED',
+      password_changed_at: new Date(),
+    })
+    .execute()
   const apiPaths = ['book', 'subject', 'period'].flatMap((entity) =>
     ['query', 'get', 'create', 'save', 'delete', 'lock', 'unlock'].map(
       (action) => `/acc/${entity}/${action}`,
@@ -39,6 +52,10 @@ test('ACC maintenance exposes unpersisted periods and preserves them after rejec
         await db.deleteFrom('acc_subjects').where('book_id', '=', id).execute()
         await db.deleteFrom('acc_books').where('id', '=', id).execute()
       }
+      await db
+        .deleteFrom('app_users')
+        .where('id', '=', disabledUserId)
+        .execute()
       await bootstrap.deleteE2EPrincipal(principal)
     } finally {
       await db.destroy()
@@ -318,6 +335,22 @@ test('ACC maintenance exposes unpersisted periods and preserves them after rejec
   })
   assert.equal(invalidSave.errorKey, 'validation_failed')
   assert.equal((await acc.getBook(book.id, actor)).startMonth, '2026-01')
+  const beforeScope = await acc.getBook(book.id, actor)
+  const scopeInput = {
+    id: book.id,
+    expectedRevision: beforeScope.revision,
+    name: beforeScope.name,
+    description: beforeScope.description,
+    baseCurrency: beforeScope.baseCurrency,
+    queryUserIds: [disabledUserId],
+    operateUserIds: [disabledUserId],
+  }
+  const stagedScope = await request('/acc/book/save', scopeInput)
+  assert.equal(stagedScope.code, 0, JSON.stringify(stagedScope))
+  assert.ok(stagedScope.data.queryUserIds.includes(disabledUserId))
+  assert.ok(stagedScope.data.operateUserIds.includes(disabledUserId))
+  const staleScope = await request('/acc/book/save', scopeInput)
+  assert.equal(staleScope.errorKey, 'approval_stale_revision')
 })
 
 test('ACC scopes remain independent of action permission and book templates are copied only on creation', async (t) => {
@@ -327,14 +360,18 @@ test('ACC scopes remain independent of action permission and book templates are 
   const bootstrap = new TargetBootstrapService(db)
   const suffix = ulid()
   const passwordHash = await hashPassword(`Test!${suffix}`)
-  const principals = ['owner', 'reader', 'operator', 'outsider', 'disabled'].map(
-    (name) => ({
-      userId: ulid(),
-      roleId: ulid(),
-      username: `${name}-${suffix}`,
-      passwordHash,
-    }),
-  )
+  const principals = [
+    'owner',
+    'reader',
+    'operator',
+    'outsider',
+    'disabled',
+  ].map((name) => ({
+    userId: ulid(),
+    roleId: ulid(),
+    username: `${name}-${suffix}`,
+    passwordHash,
+  }))
   for (const principal of principals)
     await bootstrap.createE2EPrincipal(principal, false)
   const disabledUserId = principals[4]!.userId

@@ -168,6 +168,7 @@ export class ManagementService {
       password: string
       employeeId?: string | null
       roleIds: string[]
+      enabled?: boolean
     },
     principal: Principal,
     requestId: string,
@@ -177,7 +178,8 @@ export class ManagementService {
     const username = this.username(input.code)
     const displayName = this.displayName(input.name)
     this.password(input.password)
-    const roleIds = this.ids(input.roleIds, 'role')
+    const enabled = input.enabled ?? true
+    const roleIds = this.ids(input.roleIds, 'role', !enabled)
     const id = ulid()
     return this.db.transaction().execute(async (tx) => {
       await this.lock(tx)
@@ -205,7 +207,7 @@ export class ManagementService {
           display_name: displayName,
           py: searchPinyin(displayName),
           password_hash: await hashPassword(input.password),
-          status: 'ENABLED',
+          status: enabled ? 'ENABLED' : 'DISABLED',
           password_change_required: true,
           password_changed_at: new Date(),
           created_by: principal.user.id,
@@ -239,7 +241,7 @@ export class ManagementService {
   ) {
     this.id(input.id)
     const displayName = this.displayName(input.name)
-    const roleIds = this.ids(input.roleIds, 'role')
+    const roleIds = this.ids(input.roleIds, 'role', true)
     const revision = this.revision(input.revision)
     return this.db.transaction().execute(async (tx) => {
       await this.lock(tx)
@@ -251,6 +253,11 @@ export class ManagementService {
         .forUpdate()
         .executeTakeFirst()
       if (!target) throw new AppServiceError('not_found', 'user not found')
+      if (target.status === 'ENABLED' && roleIds.length === 0)
+        throw new AppServiceError(
+          'validation_failed',
+          'enabled user needs a role',
+        )
       if (target.id === systemUserId)
         throw new AppServiceError(
           'conflict',
@@ -379,6 +386,14 @@ export class ManagementService {
               throw new AppServiceError(
                 'forbidden',
                 'user cannot be maintained',
+              )
+            if (
+              status === 'ENABLED' &&
+              !(await this.hasEnabledUserRole(tx, current.id))
+            )
+              throw new AppServiceError(
+                'validation_failed',
+                'enabled user needs a role',
               )
           },
           afterWrite: async (current) => {
@@ -1093,9 +1108,9 @@ export class ManagementService {
     if (!/^[0-9A-HJKMNP-TV-Z]{26}$/.test(value))
       throw new AppServiceError('validation_failed', 'invalid id')
   }
-  private ids(values: string[], label: string) {
+  private ids(values: string[], label: string, allowEmpty = false) {
     const unique = [...new Set(values.map((value) => value.trim()))].sort()
-    if (!unique.length)
+    if (!unique.length && !allowEmpty)
       throw new AppServiceError('validation_failed', `missing ${label} ids`)
     unique.forEach((value) => this.id(value))
     return unique
@@ -1202,12 +1217,14 @@ export class ManagementService {
     tx: AnyDb = this.db,
   ): Promise<UserAction[]> {
     const manageable = await this.userManageable(user.id, principal, tx)
+    const enableable =
+      user.status === 'DISABLED' && (await this.hasEnabledUserRole(tx, user.id))
     return [
       principal.apiPaths.includes('/app/user/get') && 'VIEW',
       manageable && principal.apiPaths.includes('/app/user/save') && 'EDIT',
       manageable &&
         user.id !== principal.user.id &&
-        user.status === 'DISABLED' &&
+        enableable &&
         principal.apiPaths.includes('/app/user/enable') &&
         'ENABLE',
       manageable &&
@@ -1216,6 +1233,16 @@ export class ManagementService {
         principal.apiPaths.includes('/app/user/disable') &&
         'DISABLE',
     ].filter((action): action is UserAction => Boolean(action))
+  }
+  private async hasEnabledUserRole(tx: AnyDb, userId: string) {
+    const role = await tx
+      .selectFrom('app_user_roles as ur')
+      .innerJoin('app_roles as r', 'r.id', 'ur.role_id')
+      .select('ur.role_id')
+      .where('ur.user_id', '=', userId)
+      .where('r.status', '=', 'ENABLED')
+      .executeTakeFirst()
+    return Boolean(role)
   }
   private async rolePermissions(
     tx: AnyDb,
@@ -1306,10 +1333,7 @@ export class ManagementService {
       .where('entity', '=', 'employee')
       .executeTakeFirst()
     if (!employee)
-      throw new AppServiceError(
-        'validation_failed',
-        'employee must exist',
-      )
+      throw new AppServiceError('validation_failed', 'employee must exist')
   }
   private async assertCustomerScope(
     tx: AnyDb,
@@ -1347,6 +1371,7 @@ export class ManagementService {
     roleIds: string[],
     principal: Principal,
   ) {
+    if (roleIds.length === 0) return
     const roles = await tx
       .selectFrom('app_roles')
       .selectAll()

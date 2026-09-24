@@ -212,6 +212,7 @@ export function createIndependentHandlers(
                 name: text(input, 'name'),
                 password: text(input, 'password'),
                 roleIds: strings(input, 'roleIds'),
+                enabled: input.enabled as boolean | undefined,
                 employeeId: input.employeeId as string | null | undefined,
               },
               principal,

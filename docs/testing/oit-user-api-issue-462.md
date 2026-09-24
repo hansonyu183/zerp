@@ -40,4 +40,11 @@
 
 `X-ZERP-Model-Build: zerp-model-0.4.0` 是当前 APP/Session 路由要求的客户端模型头，不代表目标数据身份。所有业务写入仍需登录 Cookie 和 `X-CSRF-Token`。AUX 和角色 create 的 ID 为目标 stable ID，须在来源批次私有工件中发送前确定并封存；`requestId` 不作幂等键。
 
-隔离 PostgreSQL 的真实 HTTP 集成测试覆盖角色与部门指定 ID 创建、回读、重复 ID 冲突、停用员工创建与回读、账号保留停用员工关联，以及登录/恢复返回同一目标身份。APP 真实 HTTP 测试覆盖停用零角色创建、登录拒绝、零角色启用拒绝、授权后显式启用和启用账号不可清空角色。ACC 服务和 HTTP 路由测试覆盖停用账号预置两个独立范围和陈旧 revision 拒绝。重新执行 `make target-db` 前后读取安装身份，结果不同。完整门禁与最终运行提交的记录待本票全部能力完成后填写。
+隔离 PostgreSQL 的真实 HTTP 集成测试覆盖角色与部门指定 ID 创建、回读、重复 ID 冲突、停用员工创建与回读、账号保留停用员工关联，以及登录/恢复返回同一目标身份。APP 真实 HTTP 测试覆盖停用零角色创建、登录拒绝、零角色启用拒绝、授权后显式启用和启用账号不可清空角色。ACC 服务和 HTTP 路由测试覆盖停用账号预置两个独立范围和陈旧 revision 拒绝。
+
+## 隔离运行证据
+
+- 运行源码提交：`e545409cfff6cb6291c6ba85833669b28edd6f1a`。本地隔离 Compose API 镜像 ID 为 `sha256:52123dbc3dd098eaa62accbaf4ea70dea831478a64de9867bfed2b6175e8a6bc`，容器健康检查与 `/healthz` 均通过。此 SHA 对应完整代码与生成契约；本节后续文档提交不改变运行代码。
+- `make target-e2e` 通过：生成物无漂移、WFL Node/浏览器同构检查、前后端静态检查、单元与组件检查、全量 PostgreSQL 集成测试 143/143、主浏览器 50/50、WFL 1/1、VOU 目录 8/8、期初 2/2、录入 66/66。真实 HTTP 的 APP、AUX、ACC 断言位于 `apps/api/tests/integration/`。
+- 在同一隔离 Compose 项目中执行 `make target-db` 前后，`app_installation.id` 从 `e48d5e96-40e8-4602-8b32-47d702360ba4` 变为 `eca0ff19-7971-43ff-a974-46a6d496079f`。已用 `make target-down` 清理本会话的目标 DB/API/Web 容器与卷。
+- #21 可将这些正常 API 契约提供给后续 Go 用户试迁 #22；本次没有执行 OIT 来源数据迁移或生产目标切换。迁移批次须封存创建 ID、账号编码、目标安装身份及账簿原/预期完整范围，遇未知结果按上文回读，身份或并发事实不符时阻断。

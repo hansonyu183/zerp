@@ -366,6 +366,7 @@ export const customerDetails = [
   {
     key: 'primarySalesAttribution',
     type: 'group',
+    emptyCaption: '未分配',
     caption: '主要业务归属',
     fields: [
       {

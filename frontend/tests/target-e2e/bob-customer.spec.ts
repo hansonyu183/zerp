@@ -182,6 +182,7 @@ test('customer flat temporary form, business fields, history and independent ena
       .getByLabel('默认加价单价', { exact: true })
       .first()
       .fill('0.30')
+    await select(page, dialog, '业务归属类型', '未分配')
     await dialog.getByRole('button', { name: '提交', exact: true }).click()
     await expect(dialog).toHaveCount(0)
     await approve(reviewer, name)
@@ -205,6 +206,7 @@ test('customer flat temporary form, business fields, history and independent ena
       .getByRole('button', { name: '查看', exact: true })
       .click()
     await expect(page.getByRole('dialog').last()).toContainText('业务联系人')
+    await expect(page.getByRole('dialog').last()).toContainText('未分配')
     await page
       .getByRole('dialog')
       .getByRole('button', { name: '查看版本 2', exact: true })

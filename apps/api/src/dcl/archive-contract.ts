@@ -271,7 +271,7 @@ const customerSnapshot = z
         .object({ currency: z.string().min(1).max(16), amount: z.string() })
         .strict(),
     ),
-    primarySalesAttribution: customerSalesAttribution,
+    primarySalesAttribution: customerSalesAttribution.nullable(),
     internalReminder: z.string().max(1000),
     defaultSalesOrderRemark: z.string().max(1000),
     attachments: z.array(attachmentMetadata),

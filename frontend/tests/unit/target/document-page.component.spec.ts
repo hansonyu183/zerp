@@ -245,6 +245,80 @@ const productCurrent = {
     fixedFormula: null,
   },
 }
+it('clears an adopted salesperson when changing to an unassigned customer', async () => {
+  useTargetSession().apiPaths = [
+    '/vou/sale-order/submit-new',
+    '/bob/customer/get',
+  ]
+  const assignedCustomerId = '01K00000000000000000000005'
+  const unassignedCustomerId = '01K00000000000000000000006'
+  const salespersonId = '01K00000000000000000000007'
+  vi.mocked(api.queryTargetVouOptions).mockImplementation(
+    async (entity) =>
+      ({
+        items:
+          entity === 'customer'
+            ? [
+                {
+                  entity,
+                  objectId: assignedCustomerId,
+                  approvalEntryId: entryId,
+                  code: 'C01',
+                  name: '已分配客户',
+                },
+                {
+                  entity,
+                  objectId: unassignedCustomerId,
+                  approvalEntryId: entryId,
+                  code: 'C02',
+                  name: '未分配客户',
+                },
+              ]
+            : [],
+      }) as Awaited<ReturnType<typeof api.queryTargetVouOptions>>,
+  )
+  vi.mocked(api.resolveTargetCustomer).mockImplementation(
+    async (objectId) =>
+      ({
+        objectId,
+        sourceApprovalEntryId: entryId,
+        enabled: true,
+        data: {
+          defaultSalesOrderRemark: '',
+          internalReminder: '',
+          settlementMethod: null,
+          primarySalesAttribution:
+            objectId === assignedCustomerId
+              ? {
+                  type: 'INTERNAL_EMPLOYEE',
+                  objectId: salespersonId,
+                  code: 'E01',
+                  name: '原业务员',
+                }
+              : null,
+        },
+      }) as Awaited<ReturnType<typeof api.resolveTargetCustomer>>,
+  )
+  const wrapper = mount(ResourceHost, {
+    props: { domain: 'vou', entity: 'sale-order' },
+    global: { stubs },
+  })
+  await click(wrapper, '新增')
+  const customer = wrapper.get(
+    '[data-testid="document-editor"] [aria-label="客户"]',
+  )
+  await customer.setValue(assignedCustomerId)
+  await flushPromises()
+  expect(
+    (wrapper.get('[aria-label="业务员"]').element as HTMLInputElement).value,
+  ).toBe(salespersonId)
+  await customer.setValue(unassignedCustomerId)
+  await flushPromises()
+  expect(
+    (wrapper.get('[aria-label="业务员"]').element as HTMLInputElement).value,
+  ).toBe('')
+  wrapper.unmount()
+})
 it('adopts customer defaults, keeps the internal reminder out of the order, and fixes a raw-material self formula', async () => {
   useTargetSession().apiPaths = [
     '/vou/sale-order/submit-new',

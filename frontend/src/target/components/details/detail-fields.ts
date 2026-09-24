@@ -6,6 +6,7 @@ export type DetailField =
       key: string
       caption: string
       type: 'group' | 'rows'
+      emptyCaption?: string
       fields: readonly DetailField[]
     }
   | {
@@ -52,6 +53,7 @@ export type DetailFields<T extends object> = readonly (
               key: K
               caption: string
               type: 'group'
+              emptyCaption?: string
               fields: DetailFields<NonNullable<Value<T, K>>>
             }
           : never

@@ -2,6 +2,7 @@ import { vouEntityPresentation } from '@zerp/model'
 
 // Shared captions for immutable voucher facts and ACC mapping field selection.
 export const snapshotCaptions: Readonly<Record<string, string>> = {
+  primarySalesAttribution: '客户主要业务归属',
   countResult: '批准时盘点结果',
   bookQuantity: '账面数量',
   actualQuantity: '实盘数量',

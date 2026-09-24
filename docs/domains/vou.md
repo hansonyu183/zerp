@@ -55,7 +55,7 @@ SPR/SOR/SOB/SDL/SSF/SRT/PIQ/POR/PIN/PRT/MTO/MTS/IVC/SRC/SRF/PPY/PRF/ORC/OPY/ELN/
 
 禁用客户后，不得用该客户新建销售单据，已经引用该客户但尚未批准的销售单据也不得再提交或审核生效。已经批准的销售订单及其后续出库、送货、签收、退货、收退款和结算继续使用订单保存的客户对象、版本与业务快照完成，不因客户后来禁用被中断。
 
-新建销售订单保存客户 `primarySalesAttribution` 的类型、Employee 或 Sales Partner stable ID、精确版本、编码和名称快照。新建采购订单以 Supplier 的默认 Employee 作为 `purchaser`。Employee 的任职经营主体不限制跨经营主体选择。
+新建销售订单采用客户版本中的业务归属；客户未分配归属时，不补造 Employee 或 Sales Partner，订单仍单独保存明确选择的个人业务负责人。居间计算来源需要客户版本的完整归属，缺少时按来源订单返回 `primarySalesAttribution` blocker，不能默认为内部员工或忽略该订单。新建采购订单以 Supplier 的默认 Employee 作为 `purchaser`。Employee 的任职经营主体不限制跨经营主体选择。
 
 订单阶段实际履约日未知，`dueDate` 为空。每个销售签收或采购入库批次以自己的实际日期计算到期日：预付和现结为实际日；货到 N 天为实际日加 N 天；当月结为账单归属月月末；月结30/60/90天分别为账单归属月后 1/2/3 个自然月的月末，不按固定天数相加。销售依客户月结日划分账单月，未设置时按自然月；采购始终按自然月。
 

@@ -933,67 +933,77 @@ it('preserves adopted business fields when changing the customer name', async ()
   )
   wrapper.unmount()
 })
-it('clones customer business data without inherited attachments', async () => {
-  useTargetSession().apiPaths = [
-    'submission-query',
-    'submission-get',
-    'submit-new',
-  ].map(
-    (action) =>
-      `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
-  )
-  const data = {
-    ...customerSnapshot(),
-    attachments: [
-      {
-        id: 'old-file',
-        fileName: 'old.pdf',
-        contentType: 'application/pdf',
-        sizeBytes: 10,
-        sha256: 'a'.repeat(64),
-      },
-    ],
-  }
-  const approved = {
-    subjectId: 'customer',
-    submissionId: 'version',
-    versionNo: 1,
-    status: 'APPROVED',
-    revision: '1',
-    availableApprovalActions: [],
-    snapshot: data,
-  }
-  vi.mocked(api.queryTargetCustomerSubmissions).mockResolvedValue({
-    items: [
-      {
-        subjectId: 'customer',
-        code: 'C01',
-        latestApproved: approved,
-        openCandidate: null,
-      },
-    ],
-    total: 1,
-  } as never)
-  vi.mocked(api.getTargetCustomerSubmission).mockResolvedValue(
-    approved as never,
-  )
-  vi.mocked(api.submitNewTargetCustomer).mockResolvedValue({} as never)
-  const wrapper = mount(ResourceHost, {
-    props: { domain: 'dcl', entity: 'customer' },
-    global: { stubs },
-  })
-  await flushPromises()
-  await click(wrapper, '查看')
-  await click(wrapper, '克隆为新档案')
-  await confirmItems(wrapper)
-  await click(wrapper, '提交')
-  const command = vi.mocked(api.submitNewTargetCustomer).mock.calls[0]![1]
-  expect(command.snapshot.attachments).toEqual([])
-  expect(command.snapshot.pricingPolicy).toEqual(data.pricingPolicy)
-  expect(command.snapshot).not.toHaveProperty('subunits')
-  expect(data.attachments).toHaveLength(1)
-  wrapper.unmount()
-})
+it.each([false, true])(
+  'clones customer business data without inherited attachments (unassigned=%s)',
+  async (unassigned) => {
+    useTargetSession().apiPaths = [
+      'submission-query',
+      'submission-get',
+      'submit-new',
+    ].map(
+      (action) =>
+        `/${['query', 'get', 'versions', 'audit-history', 'enable', 'disable', 'attachment-read'].includes(action) ? 'bob' : 'dcl'}/customer/${action}`,
+    )
+    const data = {
+      ...customerSnapshot(),
+      primarySalesAttribution: unassigned
+        ? null
+        : customerSnapshot().primarySalesAttribution,
+      attachments: [
+        {
+          id: 'old-file',
+          fileName: 'old.pdf',
+          contentType: 'application/pdf',
+          sizeBytes: 10,
+          sha256: 'a'.repeat(64),
+        },
+      ],
+    }
+    const approved = {
+      subjectId: 'customer',
+      submissionId: 'version',
+      versionNo: 1,
+      status: 'APPROVED',
+      revision: '1',
+      availableApprovalActions: [],
+      snapshot: data,
+    }
+    vi.mocked(api.queryTargetCustomerSubmissions).mockResolvedValue({
+      items: [
+        {
+          subjectId: 'customer',
+          code: 'C01',
+          latestApproved: approved,
+          openCandidate: null,
+        },
+      ],
+      total: 1,
+    } as never)
+    vi.mocked(api.getTargetCustomerSubmission).mockResolvedValue(
+      approved as never,
+    )
+    vi.mocked(api.submitNewTargetCustomer).mockResolvedValue({} as never)
+    const wrapper = mount(ResourceHost, {
+      props: { domain: 'dcl', entity: 'customer' },
+      global: { stubs },
+    })
+    await flushPromises()
+    await click(wrapper, '查看')
+    if (unassigned) expect(wrapper.text()).toContain('未分配')
+    await click(wrapper, '克隆为新档案')
+    await confirmItems(wrapper)
+    await click(wrapper, '提交')
+    const command = vi.mocked(api.submitNewTargetCustomer).mock.calls[0]![1]
+    expect(command.snapshot.primarySalesAttribution).toEqual(
+      data.primarySalesAttribution,
+    )
+    expect(command.snapshot.attachments).toEqual([])
+    expect(command.snapshot.pricingPolicy).toEqual(data.pricingPolicy)
+    expect(command.snapshot).not.toHaveProperty('subunits')
+    expect(data.attachments).toHaveLength(1)
+    wrapper.unmount()
+  },
+)
 it('keeps files local until submit, retries a failed stage with the same identity, then adopts it', async () => {
   useTargetSession().apiPaths = [
     'submission-query',

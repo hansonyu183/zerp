@@ -47,12 +47,7 @@ export function emptyCustomer(): CustomerSnapshot {
       thirdPartyIntermediaryVariableUnitCost: '0.00',
     },
     creditLimits: [],
-    primarySalesAttribution: {
-      type: 'INTERNAL_EMPLOYEE',
-      objectId: '',
-      code: '',
-      name: '',
-    },
+    primarySalesAttribution: null,
     internalReminder: '',
     defaultSalesOrderRemark: '',
     attachments: [],
@@ -70,6 +65,10 @@ export function validateCustomer(snapshot: CustomerSnapshot): string | null {
   if (invalidPayer >= 0)
     return `汇款识别第 ${invalidPayer + 1} 行：请填写付款户名。`
   if (!snapshot.customerType.id) return '请选择客户类型。'
-  if (!snapshot.primarySalesAttribution.objectId) return '请选择主要业务归属。'
+  if (
+    snapshot.primarySalesAttribution !== null &&
+    !snapshot.primarySalesAttribution.objectId
+  )
+    return '请选择主要业务归属。'
   return '客户资料不完整，请检查业务归属、金额、汇款识别与附件。'
 }

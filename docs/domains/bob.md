@@ -115,7 +115,7 @@ Other Unit 可以通过 `settlementMethodId` 保存服务合同使用的可选�
 
 第三方居间成本与客户优惠、客户默认溢价及销售人员收益分开。`pricingPolicy.thirdPartyIntermediaryFixedUnitCost` 与 `pricingPolicy.thirdPartyIntermediaryVariableUnitCost` 是独立持久化的顶层字段。两项都是非空、非负、两位小数的人民币单位值并默认 `0.00`，不组成复合对象、可以同时存在，也不进入普通 `costItems`；固定项按 kg 计算，浮动项如何从业务差价形成留到后续算法讨论。客户价格资料不要求绑定具名第三方收款对象。
 
-每个客户同一时间只能维护一个 primarySalesAttribution。内部员工采用 AUX current，外部兼职和渠道商采用具备对应能力的启用 Sales Partner 精确版本，保存身份、编码和名称快照，不做自归属检查。
+每个客户同一时间至多维护一个 primarySalesAttribution；null 表示未分配，普通维护、提交、审批和查询允许未分配，不补造负责人。非空引用仍须通过存在性和可用性校验。内部员工采用 AUX current，外部兼职和渠道商采用具备对应能力的启用 Sales Partner 精确版本，保存身份、编码和名称快照，不做自归属检查。
 
 客户版本保存默认运输政策：`defaultTransportMethodCode`、`defaultTransportMethodName` 和 `defaultTransportSurcharge`。运输方式和客户约定运输加价是两个独立事实；加价为非负、最多两位小数的元/kg 定点字符串。客户草稿可以暂缺，提交和审核时必须完整。新销售订单默认带入，允许按单修改，并保存最终运输方式和加价快照。
 
@@ -149,7 +149,7 @@ Customer Version 使用 `pricingPolicy` 保存上述完整封闭值对象。Open
 
 上述字段作为一组由后端原子复制和校验的结算快照，客户端不能分别拼装。没有配置时，客户、Supplier 或 Other Unit 的整组字段为空；显式重新选择时才整体替换。AUX 来源后续变化不追溯改变既有版本。
 
-客户的 `primarySalesAttribution` 必填并采用当前 AUX Employee 快照或 Sales Partner 精确版本。Supplier 的 `defaultPurchaserEmployeeId` 可引用任意当前启用 Employee，不附加任职经营主体或岗位限制，并保存精确快照。
+客户的 `primarySalesAttribution` 可为 null；非空时采用当前 AUX Employee 快照或 Sales Partner 精确版本。未分配不获得按员工归属的客户访问范围；需要业务归属的居间费用来源动作继续阻断。Supplier 的 `defaultPurchaserEmployeeId` 可引用任意当前启用 Employee，不附加任职经营主体或岗位限制，并保存精确快照。
 
 Customer 通过 submit-new/submit-change 原子提交全部业务内容，校验正式版本基线与唯一开放提交件。客户启停不进入版本，不设子单位或额外维护能力。
 

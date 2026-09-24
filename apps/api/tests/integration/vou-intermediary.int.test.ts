@@ -180,8 +180,12 @@ test('a draft must recalculate when approved receipt facts change', async () => 
   })
 })
 
-for (const unitPrice of ['0.00', '1.00'])
-  test(`signed sales at ${unitPrice} use frozen pieces, FIFO collection and proportional posted reversals`, async (context) => {
+for (const { unitPrice, unassigned } of [
+  { unitPrice: '0.00', unassigned: false },
+  { unitPrice: '1.00', unassigned: false },
+  { unitPrice: '0.00', unassigned: true },
+])
+  test(`signed sales at ${unitPrice} (unassigned=${unassigned}) require attribution before intermediary calculation`, async (context) => {
     await withWflDatabase(async (db) => {
       const fixture = await seedVouCatalogFixture(db)
       const { DclArchiveService } = await import('../../src/dcl/archives.ts')
@@ -256,6 +260,9 @@ for (const unitPrice of ['0.00', '1.00'])
           expectedLatestApprovedRevision: currentCustomer.revision,
           snapshot: {
             ...currentCustomer.snapshot,
+            primarySalesAttribution: unassigned
+              ? null
+              : currentCustomer.snapshot.primarySalesAttribution,
             settlementMethod: {
               id: method.id,
               code: method.code,
@@ -473,6 +480,25 @@ for (const unitPrice of ['0.00', '1.00'])
           },
         ],
       })
+      if (unassigned) {
+        await assert.rejects(
+          () => fixture.vou.getIntermediarySource('2026-09-30', fixture.actor),
+          (error: unknown) => {
+            assert.ok(error instanceof Error && 'data' in error)
+            assert.equal(error.message, 'vou_intermediary_source_basis_missing')
+            assert.deepEqual(error.data, {
+              blockers: [
+                {
+                  documentId: order.documentId,
+                  field: 'primarySalesAttribution',
+                },
+              ],
+            })
+            return true
+          },
+        )
+        return
+      }
       if (unitPrice !== '0.00') {
         const unpaid = await fixture.vou.getIntermediarySource(
           '2026-09-30',

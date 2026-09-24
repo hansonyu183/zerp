@@ -178,6 +178,10 @@
                               "type": "integer",
                               "minimum": 0,
                               "exclusiveMinimum": true
+                            },
+                            "targetId": {
+                              "type": "string",
+                              "format": "uuid"
                             }
                           },
                           "required": [
@@ -185,7 +189,8 @@
                             "csrfToken",
                             "apiPaths",
                             "passwordChangeRequired",
-                            "passwordMinLength"
+                            "passwordMinLength",
+                            "targetId"
                           ]
                         },
                         "requestId": {
@@ -432,6 +437,10 @@
                               "type": "integer",
                               "minimum": 0,
                               "exclusiveMinimum": true
+                            },
+                            "targetId": {
+                              "type": "string",
+                              "format": "uuid"
                             }
                           },
                           "required": [
@@ -439,7 +448,8 @@
                             "csrfToken",
                             "apiPaths",
                             "passwordChangeRequired",
-                            "passwordMinLength"
+                            "passwordMinLength",
+                            "targetId"
                           ]
                         },
                         "requestId": {
@@ -15530,6 +15540,10 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  },
                   "name": {
                     "type": "string",
                     "minLength": 1,
@@ -19801,6 +19815,14 @@
                   "remark": {
                     "type": "string",
                     "maxLength": 1000
+                  },
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true
                   }
                 },
                 "required": [
@@ -24667,6 +24689,10 @@
                     "type": "string",
                     "maxLength": 1000,
                     "default": ""
+                  },
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
                   }
                 },
                 "required": [
@@ -25848,6 +25874,10 @@
                     "type": "string",
                     "maxLength": 1000,
                     "default": ""
+                  },
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
                   }
                 },
                 "required": [

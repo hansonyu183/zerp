@@ -317,6 +317,12 @@ export interface AppAuditEvents {
   target_type: string | null
 }
 
+export interface AppInstallation {
+  id: string
+  initialized_at: Timestamp
+  singleton: Generated<boolean>
+}
+
 export interface AppPermissions {
   action: string
   created_at: Generated<Timestamp>
@@ -1788,6 +1794,7 @@ export interface DB {
   acc_register_entries: AccRegisterEntries
   acc_subjects: AccSubjects
   app_audit_events: AppAuditEvents
+  app_installation: AppInstallation
   app_permissions: AppPermissions
   app_role_code_counters: AppRoleCodeCounters
   app_role_permissions: AppRolePermissions

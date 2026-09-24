@@ -171,6 +171,17 @@ export class SessionService {
     this.config = config
   }
 
+  async targetId(): Promise<string> {
+    const identity = await this.db
+      .selectFrom('app_installation')
+      .select('id')
+      .where('singleton', '=', true)
+      .executeTakeFirst()
+    const id = identity?.id
+    if (!id) throw new Error('APP installation identity is missing')
+    return id
+  }
+
   async signin(
     code: string,
     password: string,

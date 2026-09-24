@@ -307,6 +307,7 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
     'csrfToken',
     'passwordChangeRequired',
     'passwordMinLength',
+    'targetId',
     'user',
   ])
   assert.deepEqual(Object.keys(signinPayload.data.user).sort(), [

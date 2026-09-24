@@ -79,6 +79,7 @@ const sessionData = z.object({
   apiPaths: z.array(z.string()),
   passwordChangeRequired: z.boolean(),
   passwordMinLength: z.number().int().positive(),
+  targetId: z.string().uuid(),
 })
 
 const sessionEnvelope = z.union([

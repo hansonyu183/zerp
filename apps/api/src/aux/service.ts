@@ -1412,20 +1412,44 @@ export class AuxService {
 
   async create<Entity extends AuxEntity>(
     entity: Entity,
-    data: AuxWriteData<Entity>,
+    data: AuxWriteData<Entity> & { id?: string; enabled?: boolean },
     actor: AuxActor,
     requestId?: string,
   ): Promise<AuxMutationResult> {
     assertEntity(entity)
     assertPermission(actor, `/aux/${entity}/create`)
     if (entity === 'settlement-method') applicationError('validation_failed')
+    const { id: requestedId, enabled: requestedEnabled, ...fields } =
+      inputRecord(data)
+    if (
+      requestedId !== undefined &&
+      entity !== 'department' &&
+      entity !== 'position' &&
+      entity !== 'employee'
+    )
+      applicationError('validation_failed')
+    const id = requestedId === undefined ? ulid() : inputId(requestedId)
+    if (
+      requestedEnabled !== undefined &&
+      (entity !== 'employee' || typeof requestedEnabled !== 'boolean')
+    )
+      applicationError('validation_failed')
+    const enabled = entity === 'employee' ? (requestedEnabled ?? true) : true
     return this.db.transaction().execute(async (transaction) => {
       await this.lock(transaction)
+      if (
+        await transaction
+          .selectFrom('aux_objects')
+          .select('id')
+          .where('id', '=', id)
+          .executeTakeFirst()
+      )
+        applicationError('conflict')
       const normalised = await this.validateData(
         transaction,
         entity,
         null,
-        writeData(entity, data),
+        writeData(entity, fields),
       )
       const counter = await sql<{
         last_value: number
@@ -1434,8 +1458,7 @@ export class AuxService {
       )
       const number = counter.rows[0]?.last_value
       if (!number) applicationError('conflict')
-      const id = ulid()
-      await sql`INSERT INTO aux_objects(id, entity, code, enabled, revision, data, created_by, updated_by) VALUES (${id}, ${entity}, ${`${codePrefixes[entity]}-${String(number).padStart(4, '0')}`}, true, 1, ${JSON.stringify(normalised)}::jsonb, ${actor.id}, ${actor.id})`.execute(
+      await sql`INSERT INTO aux_objects(id, entity, code, enabled, revision, data, created_by, updated_by) VALUES (${id}, ${entity}, ${`${codePrefixes[entity]}-${String(number).padStart(4, '0')}`}, ${enabled}, 1, ${JSON.stringify(normalised)}::jsonb, ${actor.id}, ${actor.id})`.execute(
         transaction,
       )
       if (currentEntity(entity))
@@ -1459,7 +1482,7 @@ export class AuxService {
           actor,
           requestId,
         )
-      return { id, revision: '1', enabled: true }
+      return { id, revision: '1', enabled }
     })
   }
 

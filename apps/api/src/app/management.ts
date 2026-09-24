@@ -519,6 +519,7 @@ export class ManagementService {
 
   async createRole(
     input: {
+      id?: string
       name: string
       description?: string | null
       customerScope?: CustomerScope
@@ -530,7 +531,8 @@ export class ManagementService {
     this.require(principal, '/app/role/create')
     const name = this.displayName(input.name)
     const permissionIds = this.ids(input.permissionIds, 'permission')
-    const id = ulid()
+    if (input.id !== undefined) this.id(input.id)
+    const id = input.id ?? ulid()
     return this.db.transaction().execute(async (tx) => {
       await this.lock(tx)
       await this.assertCurrentActor(tx, principal)
@@ -540,6 +542,14 @@ export class ManagementService {
         input.customerScope ?? 'NONE',
         principal,
       )
+      if (
+        await tx
+          .selectFrom('app_roles')
+          .select('id')
+          .where('id', '=', id)
+          .executeTakeFirst()
+      )
+        throw new AppServiceError('conflict', 'role id already exists')
       const existing = await tx
         .selectFrom('app_roles')
         .select('id')
@@ -1294,12 +1304,11 @@ export class ManagementService {
       .select('id')
       .where('id', '=', employeeId)
       .where('entity', '=', 'employee')
-      .where('enabled', '=', true)
       .executeTakeFirst()
     if (!employee)
       throw new AppServiceError(
         'validation_failed',
-        'employee must be an enabled employee',
+        'employee must exist',
       )
   }
   private async assertCustomerScope(

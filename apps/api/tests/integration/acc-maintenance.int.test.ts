@@ -327,7 +327,7 @@ test('ACC scopes remain independent of action permission and book templates are 
   const bootstrap = new TargetBootstrapService(db)
   const suffix = ulid()
   const passwordHash = await hashPassword(`Test!${suffix}`)
-  const principals = ['owner', 'reader', 'operator', 'outsider'].map(
+  const principals = ['owner', 'reader', 'operator', 'outsider', 'disabled'].map(
     (name) => ({
       userId: ulid(),
       roleId: ulid(),
@@ -337,6 +337,12 @@ test('ACC scopes remain independent of action permission and book templates are 
   )
   for (const principal of principals)
     await bootstrap.createE2EPrincipal(principal, false)
+  const disabledUserId = principals[4]!.userId
+  await db
+    .updateTable('app_users')
+    .set({ status: 'DISABLED' })
+    .where('id', '=', disabledUserId)
+    .execute()
   const books: string[] = []
   t.after(async () => {
     try {
@@ -429,12 +435,14 @@ test('ACC scopes remain independent of action permission and book templates are 
       name: '更新账簿',
       description: '说明',
       baseCurrency: 'CNY',
-      queryUserIds: [owner!.id, reader!.id],
-      operateUserIds: [owner!.id],
+      queryUserIds: [owner!.id, reader!.id, disabledUserId],
+      operateUserIds: [owner!.id, disabledUserId],
     },
     operator!,
   )
   assert.ok(saved.operateUserIds.includes(operator!.id))
+  assert.ok(saved.queryUserIds.includes(disabledUserId))
+  assert.ok(saved.operateUserIds.includes(disabledUserId))
   assert.ok(!saved.queryUserIds.includes(operator!.id))
   assert.equal(saved.startMonth, '2026-01')
   assert.deepEqual(

@@ -263,6 +263,7 @@ export function createIndependentHandlers(
           case '/app/role/create':
             data = await management.createRole(
               {
+                id: input.id as string | undefined,
                 name: text(input, 'name'),
                 description: input.description as string | null,
                 permissionIds: strings(input, 'permissionIds'),

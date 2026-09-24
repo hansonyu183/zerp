@@ -81,13 +81,14 @@ export const targetRouteMetadata = [
   ...rptRouteMetadata,
 ]
 
-function sessionPayload(principal: Principal) {
+function sessionPayload(principal: Principal, targetId: string) {
   return {
     user: principal.user,
     csrfToken: principal.csrfToken,
     apiPaths: principal.apiPaths,
     passwordChangeRequired: principal.passwordChangeRequired,
     passwordMinLength: principal.passwordMinLength,
+    targetId,
   }
 }
 
@@ -467,6 +468,7 @@ export function registerAppRoutes(
     signin: async (context) => {
       const input = context.req.valid('json')
       try {
+        const targetId = await service.targetId()
         const { token, principal } = await service.signin(
           input.code,
           input.password,
@@ -482,7 +484,7 @@ export function registerAppRoutes(
             code: 0 as const,
             errorKey: '' as const,
             message: 'ok' as const,
-            data: sessionPayload(principal),
+            data: sessionPayload(principal, targetId),
             requestId: currentRequestId(context),
           },
           200,
@@ -503,12 +505,13 @@ export function registerAppRoutes(
           false,
           context.req.path,
         )
+        const targetId = await service.targetId()
         return context.json(
           {
             code: 0 as const,
             errorKey: '' as const,
             message: 'ok' as const,
-            data: sessionPayload(principal),
+            data: sessionPayload(principal, targetId),
             requestId: currentRequestId(context),
           },
           200,

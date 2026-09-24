@@ -585,6 +585,32 @@ export function auxCreateRoute<
   return postRoute(path, z.object(auxWriteShapes[entity]).strict(), mutation)
 }
 
+export function auxIdentifiedCreateRoute<
+  const Path extends string,
+  const Entity extends 'department' | 'position',
+>(path: Path, entity: Entity) {
+  return postRoute(
+    path,
+    z.object({ ...auxWriteShapes[entity], id: identifierShape.id.optional() })
+      .strict(),
+    mutation,
+  )
+}
+
+export function employeeCreateRoute<const Path extends string>(path: Path) {
+  return postRoute(
+    path,
+    z
+      .object({
+        ...auxWriteShapes.employee,
+        id: identifierShape.id.optional(),
+        enabled: z.boolean().default(true),
+      })
+      .strict(),
+    mutation,
+  )
+}
+
 export function auxSaveRoute<
   const Path extends string,
   const Entity extends AuxContractEntity,

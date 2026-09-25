@@ -178,6 +178,10 @@
                               "type": "integer",
                               "minimum": 0,
                               "exclusiveMinimum": true
+                            },
+                            "targetId": {
+                              "type": "string",
+                              "format": "uuid"
                             }
                           },
                           "required": [
@@ -185,7 +189,8 @@
                             "csrfToken",
                             "apiPaths",
                             "passwordChangeRequired",
-                            "passwordMinLength"
+                            "passwordMinLength",
+                            "targetId"
                           ]
                         },
                         "requestId": {
@@ -432,6 +437,10 @@
                               "type": "integer",
                               "minimum": 0,
                               "exclusiveMinimum": true
+                            },
+                            "targetId": {
+                              "type": "string",
+                              "format": "uuid"
                             }
                           },
                           "required": [
@@ -439,7 +448,8 @@
                             "csrfToken",
                             "apiPaths",
                             "passwordChangeRequired",
-                            "passwordMinLength"
+                            "passwordMinLength",
+                            "targetId"
                           ]
                         },
                         "requestId": {
@@ -12622,6 +12632,10 @@
                             "name": {
                               "type": "string"
                             },
+                            "employeeId": {
+                              "type": "string",
+                              "nullable": true
+                            },
                             "avatarUrl": {
                               "type": "string",
                               "nullable": true
@@ -12638,6 +12652,7 @@
                             "id",
                             "code",
                             "name",
+                            "employeeId",
                             "avatarUrl",
                             "passwordChangedAt",
                             "revision"
@@ -12787,6 +12802,10 @@
                             "name": {
                               "type": "string"
                             },
+                            "employeeId": {
+                              "type": "string",
+                              "nullable": true
+                            },
                             "avatarUrl": {
                               "type": "string",
                               "nullable": true
@@ -12803,6 +12822,7 @@
                             "id",
                             "code",
                             "name",
+                            "employeeId",
                             "avatarUrl",
                             "passwordChangedAt",
                             "revision"
@@ -13275,8 +13295,11 @@
                     "type": "array",
                     "items": {
                       "type": "string"
-                    },
-                    "minItems": 1
+                    }
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true
                   },
                   "employeeId": {
                     "type": "string",
@@ -13520,8 +13543,7 @@
                     "type": "array",
                     "items": {
                       "type": "string"
-                    },
-                    "minItems": 1
+                    }
                   },
                   "employeeId": {
                     "type": "string",
@@ -15530,6 +15552,10 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  },
                   "name": {
                     "type": "string",
                     "minLength": 1,
@@ -19801,6 +19827,14 @@
                   "remark": {
                     "type": "string",
                     "maxLength": 1000
+                  },
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true
                   }
                 },
                 "required": [
@@ -24667,6 +24701,10 @@
                     "type": "string",
                     "maxLength": 1000,
                     "default": ""
+                  },
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
                   }
                 },
                 "required": [
@@ -25848,6 +25886,10 @@
                     "type": "string",
                     "maxLength": 1000,
                     "default": ""
+                  },
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
                   }
                 },
                 "required": [

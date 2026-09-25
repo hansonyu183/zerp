@@ -64,3 +64,5 @@
 - [正式初始化准备与隔离验证（#446，2026-09-16）](formal-initialization-issue-446-2026-09-16.md)
 
 - [页面补齐批次 #452](page-completion-452.md)：三类系统生成销售单据、九个维护页面、报表当前名称与集成验证边界。
+
+- [#462 OIT 用户承接公开 API 核查与验证](oit-user-api-issue-462.md)

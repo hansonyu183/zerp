@@ -3834,19 +3834,15 @@ export class AccService
     if (rows.length > 0) {
       const users = await tx
         .selectFrom('app_users')
-        .select(['id', 'status'])
+        .select('id')
         .where(
           'id',
           'in',
           rows.map(([userId]) => userId),
         )
         .execute()
-      const enabled = new Set(
-        users
-          .filter((user) => user.status === 'ENABLED')
-          .map((user) => user.id),
-      )
-      if (rows.some(([userId]) => !enabled.has(userId)))
+      const existing = new Set(users.map((user) => user.id))
+      if (rows.some(([userId]) => !existing.has(userId)))
         throw new AccApplicationError('acc_book_access_user_not_found')
     }
     await tx

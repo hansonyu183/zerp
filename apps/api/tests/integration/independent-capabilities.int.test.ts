@@ -5,6 +5,7 @@ import test from 'node:test'
 
 import { serve } from '@hono/node-server'
 import { modelBuildId } from '@zerp/model'
+import { ulid } from 'ulid'
 import { createTargetApiClient } from '../../../../packages/api-client/src/index.ts'
 
 import { createApp } from '../../src/app.ts'
@@ -170,10 +171,6 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
         .where('aux_object_id', 'in', createdAuxIds)
         .execute()
       await db
-        .deleteFrom('aux_objects')
-        .where('id', 'in', createdAuxIds)
-        .execute()
-      await db
         .deleteFrom('approval_entries')
         .where('id', 'in', [customerEntryId])
         .execute()
@@ -196,6 +193,10 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
       await db
         .deleteFrom('app_users')
         .where('id', 'in', createdUserIds)
+        .execute()
+      await db
+        .deleteFrom('aux_objects')
+        .where('id', 'in', createdAuxIds)
         .execute()
       await db
         .deleteFrom('app_role_permissions')
@@ -276,6 +277,10 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   assert.equal(signinPayload.code, 0)
   cookie = signin.headers.getSetCookie()[0] ?? ''
   csrf = signinPayload.data.csrfToken
+  assert.match(signinPayload.data.targetId, /^[0-9a-f-]{36}$/)
+  const restored = await post('/session/auth/restore', {})
+  assert.equal(restored.code, 0)
+  assert.equal(restored.data.targetId, signinPayload.data.targetId)
 
   const parameterPage = await post('/app/system-parameter/query', {
     page: 1,
@@ -300,13 +305,31 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   )
   assert.ok(departmentQueryPermission)
 
+  const stableRoleId = ulid()
   const role = await post('/app/role/create', {
+    id: stableRoleId,
     name: `Issue 363 role ${suffix}`,
     description: 'target integration role',
     permissionIds: [departmentQueryPermission.id],
   })
   assert.equal(role.code, 0)
+  assert.equal(role.data.id, stableRoleId)
   createdRoleIds.push(role.data.id)
+  const recoveredRole = await post('/app/role/get', { id: stableRoleId })
+  assert.equal(recoveredRole.code, 0)
+  assert.deepEqual(
+    recoveredRole.data.permissions.map(
+      (permission: { id: string }) => permission.id,
+    ),
+    [departmentQueryPermission.id],
+  )
+  const repeatedRole = await post('/app/role/create', {
+    id: stableRoleId,
+    name: `Another role ${suffix}`,
+    description: null,
+    permissionIds: [departmentQueryPermission.id],
+  })
+  assert.equal(repeatedRole.errorKey, 'conflict')
 
   const user = await post('/app/user/create', {
     code: `managed-${suffix.toLowerCase()}`,
@@ -324,13 +347,132 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   })
   assert.equal(staleUser.errorKey, 'user_changed')
 
+  const stableDepartmentId = ulid()
   const created = await post('/aux/department/create', {
+    id: stableDepartmentId,
     name: '研发部',
     parentId: '',
     description: 'Issue 363',
   })
   assert.equal(created.code, 0)
+  assert.equal(created.data.id, stableDepartmentId)
   createdAuxIds.push(created.data.id)
+  const recovered = await post('/aux/department/get', {
+    id: stableDepartmentId,
+  })
+  assert.equal(recovered.code, 0)
+  assert.equal(recovered.data.name, '研发部')
+  const repeated = await post('/aux/department/create', {
+    id: stableDepartmentId,
+    name: '另一部门',
+    parentId: '',
+    description: '',
+  })
+  assert.equal(repeated.errorKey, 'conflict')
+  const stableEmployeeId = ulid()
+  const disabledEmployee = await post('/aux/employee/create', {
+    id: stableEmployeeId,
+    enabled: false,
+    identityKind: 'PERSON',
+    legalName: `待承接员工 ${suffix}`,
+    displayName: `待承接员工 ${suffix}`,
+    legalIdentifier: '',
+    contactName: '',
+    phone: '',
+    address: '',
+    employeeCategoryId: null,
+    departmentId: null,
+    positionId: null,
+    employmentDate: '',
+    workPhone: '',
+    workEmail: '',
+    operatingEntityId: null,
+    remark: '',
+  })
+  assert.equal(disabledEmployee.code, 0)
+  assert.deepEqual(
+    { id: disabledEmployee.data.id, enabled: disabledEmployee.data.enabled },
+    { id: stableEmployeeId, enabled: false },
+  )
+  createdAuxIds.push(stableEmployeeId)
+  const recoveredEmployee = await post('/aux/employee/get', {
+    id: stableEmployeeId,
+  })
+  assert.equal(recoveredEmployee.code, 0)
+  assert.equal(recoveredEmployee.data.enabled, false)
+  assert.equal(recoveredEmployee.data.department, null)
+  const linked = await post('/app/user/save', {
+    id: user.data.id,
+    name: user.data.name,
+    employeeId: stableEmployeeId,
+    roleIds: [role.data.id],
+    revision: user.data.revision,
+  })
+  assert.equal(linked.code, 0, linked.errorKey)
+  assert.equal(linked.data.employeeId, stableEmployeeId)
+  const linkedSignin = await fetch(`${origin}/session/auth/signin`, {
+    method: 'POST',
+    headers: baseHeaders,
+    body: JSON.stringify({
+      code: `managed-${suffix.toLowerCase()}`,
+      password: 'Managed!Password363',
+    }),
+  })
+  const linkedSession = await linkedSignin.json()
+  assert.equal(linkedSession.code, 0)
+  const linkedCookie = linkedSignin.headers.getSetCookie()[0] ?? ''
+  const changedPassword = await fetch(
+    `${origin}/session/user/change-password`,
+    {
+      method: 'POST',
+      headers: {
+        ...baseHeaders,
+        cookie: linkedCookie,
+        'x-csrf-token': linkedSession.data.csrfToken,
+      },
+      body: JSON.stringify({
+        currentPassword: 'Managed!Password363',
+        newPassword: 'Managed!Password364',
+      }),
+    },
+  )
+  assert.equal((await changedPassword.json()).code, 0)
+  const relogin = await fetch(`${origin}/session/auth/signin`, {
+    method: 'POST',
+    headers: baseHeaders,
+    body: JSON.stringify({
+      code: `managed-${suffix.toLowerCase()}`,
+      password: 'Managed!Password364',
+    }),
+  })
+  const relogged = await relogin.json()
+  assert.equal(relogged.code, 0)
+  const ownProfile = await fetch(`${origin}/session/user/get`, {
+    method: 'POST',
+    headers: {
+      ...baseHeaders,
+      cookie: relogin.headers.getSetCookie()[0] ?? '',
+      'x-csrf-token': relogged.data.csrfToken,
+    },
+    body: '{}',
+  })
+  assert.equal((await ownProfile.json()).data.employeeId, stableEmployeeId)
+  const enabledEmployee = await post('/aux/employee/enable', {
+    id: stableEmployeeId,
+    revision: disabledEmployee.data.revision,
+  })
+  assert.equal(enabledEmployee.code, 0)
+  assert.equal(enabledEmployee.data.enabled, true)
+  const disabledAgain = await post('/aux/employee/disable', {
+    id: stableEmployeeId,
+    revision: enabledEmployee.data.revision,
+  })
+  assert.equal(disabledAgain.code, 0)
+  assert.equal(disabledAgain.data.enabled, false)
+  const userAfterEmployeeDisable = await post('/app/user/get', {
+    id: user.data.id,
+  })
+  assert.equal(userAfterEmployeeDisable.data.employeeId, stableEmployeeId)
   const queried = await post('/aux/department/query', {
     keyword: '研发',
     page: 1,

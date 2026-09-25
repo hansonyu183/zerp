@@ -15,6 +15,7 @@ export const employeePage = defineDirectPage<api.TargetEmployeeCreateInput>({
     },
     { key: 'legalName', caption: '法定名称', type: 'text', required: true },
     { key: 'displayName', caption: '显示名称', type: 'text', required: true },
+    { key: 'enabled', caption: '启用', type: 'boolean', createOnly: true },
     {
       key: 'legalIdentifier',
       caption: '法定标识',
@@ -61,6 +62,7 @@ export const employeePage = defineDirectPage<api.TargetEmployeeCreateInput>({
       identityKind: 'PERSON',
       legalName: '',
       displayName: '',
+      enabled: true,
       legalIdentifier: '',
       operatingEntityId: null,
       employeeCategoryId: null,
@@ -83,6 +85,7 @@ export const employeePage = defineDirectPage<api.TargetEmployeeCreateInput>({
           identityKind: row.identityKind,
           legalName: row.legalName,
           displayName: row.displayName,
+          enabled: row.enabled,
           legalIdentifier: row.legalIdentifier,
           operatingEntityId: row.operatingEntity?.id ?? null,
           employeeCategoryId: row.employeeCategory?.id ?? null,
@@ -109,12 +112,14 @@ export const employeePage = defineDirectPage<api.TargetEmployeeCreateInput>({
       }
     },
     create: api.createTargetEmployee,
-    save: (token, input, row) =>
-      api.saveTargetEmployee(token, {
-        ...input,
+    save: (token, input, row) => {
+      const { enabled: _enabled, id: _id, ...fields } = input
+      return api.saveTargetEmployee(token, {
+        ...fields,
         id: row.id,
         revision: row.revision,
-      }),
+      })
+    },
     setEnabled: api.setTargetEmployeeEnabled,
   },
 })

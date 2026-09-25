@@ -171,6 +171,17 @@ export class SessionService {
     this.config = config
   }
 
+  async targetId(): Promise<string> {
+    const identity = await this.db
+      .selectFrom('app_installation')
+      .select('id')
+      .where('singleton', '=', true)
+      .executeTakeFirst()
+    const id = identity?.id
+    if (!id) throw new Error('APP installation identity is missing')
+    return id
+  }
+
   async signin(
     code: string,
     password: string,
@@ -380,6 +391,7 @@ export class SessionService {
         'u.id',
         'u.username',
         'u.display_name',
+        'u.employee_id',
         'u.password_changed_at',
         'u.revision',
         'p.avatar_url',
@@ -392,6 +404,7 @@ export class SessionService {
       id: row.id,
       code: row.username,
       name: row.display_name,
+      employeeId: row.employee_id,
       avatarUrl: row.avatar_url,
       passwordChangedAt: row.password_changed_at.toISOString(),
       revision: String(row.revision),
@@ -411,6 +424,7 @@ export class SessionService {
           'id',
           'username',
           'display_name',
+          'employee_id',
           'password_changed_at',
           'revision',
         ])
@@ -485,6 +499,7 @@ export class SessionService {
         id: current.id,
         code: current.username,
         name: profile.displayName,
+        employeeId: current.employee_id,
         avatarUrl: profile.avatarUrl,
         passwordChangedAt: current.password_changed_at.toISOString(),
         revision: String(changed),

@@ -12,6 +12,7 @@ export const userPage = defineDirectPage<api.TargetUserCreateInput>({
     },
     { key: 'code', type: 'text', caption: '用户编码', required: true },
     { key: 'name', type: 'text', caption: '名称', required: true },
+    { key: 'enabled', type: 'boolean', caption: '启用', createOnly: true },
     {
       key: 'password',
       type: 'password',
@@ -24,7 +25,6 @@ export const userPage = defineDirectPage<api.TargetUserCreateInput>({
       type: 'multi-reference',
       source: 'roles',
       caption: '角色',
-      required: true,
     },
   ],
   adapter: {
@@ -32,6 +32,7 @@ export const userPage = defineDirectPage<api.TargetUserCreateInput>({
       employeeId: null,
       code: '',
       name: '',
+      enabled: true,
       password: '',
       roleIds: [],
     }),
@@ -44,6 +45,7 @@ export const userPage = defineDirectPage<api.TargetUserCreateInput>({
           code: row.code,
           employeeId: row.employeeId,
           name: row.name,
+          enabled: row.enabled,
           password: '',
           roleIds: row.roles.map((role) => role.id),
         },

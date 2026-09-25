@@ -18,6 +18,14 @@ CREATE TABLE app_users (
 );
 CREATE UNIQUE INDEX app_users_username_unique ON app_users(lower(username));
 
+CREATE TABLE app_installation (
+    singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+    id uuid NOT NULL,
+    initialized_at timestamptz NOT NULL
+);
+INSERT INTO app_installation(singleton, id, initialized_at)
+VALUES (true, gen_random_uuid(), now());
+
 CREATE TABLE app_user_profiles (
     user_id varchar(26) PRIMARY KEY REFERENCES app_users(id) ON DELETE CASCADE,
     avatar_url varchar(500) NOT NULL,

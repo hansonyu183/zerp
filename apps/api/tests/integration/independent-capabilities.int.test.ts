@@ -318,8 +318,8 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   const recoveredRole = await post('/app/role/get', { id: stableRoleId })
   assert.equal(recoveredRole.code, 0)
   assert.deepEqual(
-    recoveredRole.data.permissions.map((permission: { id: string }) =>
-      permission.id,
+    recoveredRole.data.permissions.map(
+      (permission: { id: string }) => permission.id,
     ),
     [departmentQueryPermission.id],
   )
@@ -410,6 +410,53 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
   })
   assert.equal(linked.code, 0, linked.errorKey)
   assert.equal(linked.data.employeeId, stableEmployeeId)
+  const linkedSignin = await fetch(`${origin}/session/auth/signin`, {
+    method: 'POST',
+    headers: baseHeaders,
+    body: JSON.stringify({
+      code: `managed-${suffix.toLowerCase()}`,
+      password: 'Managed!Password363',
+    }),
+  })
+  const linkedSession = await linkedSignin.json()
+  assert.equal(linkedSession.code, 0)
+  const linkedCookie = linkedSignin.headers.getSetCookie()[0] ?? ''
+  const changedPassword = await fetch(
+    `${origin}/session/user/change-password`,
+    {
+      method: 'POST',
+      headers: {
+        ...baseHeaders,
+        cookie: linkedCookie,
+        'x-csrf-token': linkedSession.data.csrfToken,
+      },
+      body: JSON.stringify({
+        currentPassword: 'Managed!Password363',
+        newPassword: 'Managed!Password364',
+      }),
+    },
+  )
+  assert.equal((await changedPassword.json()).code, 0)
+  const relogin = await fetch(`${origin}/session/auth/signin`, {
+    method: 'POST',
+    headers: baseHeaders,
+    body: JSON.stringify({
+      code: `managed-${suffix.toLowerCase()}`,
+      password: 'Managed!Password364',
+    }),
+  })
+  const relogged = await relogin.json()
+  assert.equal(relogged.code, 0)
+  const ownProfile = await fetch(`${origin}/session/user/get`, {
+    method: 'POST',
+    headers: {
+      ...baseHeaders,
+      cookie: relogin.headers.getSetCookie()[0] ?? '',
+      'x-csrf-token': relogged.data.csrfToken,
+    },
+    body: '{}',
+  })
+  assert.equal((await ownProfile.json()).data.employeeId, stableEmployeeId)
   const enabledEmployee = await post('/aux/employee/enable', {
     id: stableEmployeeId,
     revision: disabledEmployee.data.revision,

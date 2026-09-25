@@ -12632,6 +12632,10 @@
                             "name": {
                               "type": "string"
                             },
+                            "employeeId": {
+                              "type": "string",
+                              "nullable": true
+                            },
                             "avatarUrl": {
                               "type": "string",
                               "nullable": true
@@ -12648,6 +12652,7 @@
                             "id",
                             "code",
                             "name",
+                            "employeeId",
                             "avatarUrl",
                             "passwordChangedAt",
                             "revision"
@@ -12797,6 +12802,10 @@
                             "name": {
                               "type": "string"
                             },
+                            "employeeId": {
+                              "type": "string",
+                              "nullable": true
+                            },
                             "avatarUrl": {
                               "type": "string",
                               "nullable": true
@@ -12813,6 +12822,7 @@
                             "id",
                             "code",
                             "name",
+                            "employeeId",
                             "avatarUrl",
                             "passwordChangedAt",
                             "revision"

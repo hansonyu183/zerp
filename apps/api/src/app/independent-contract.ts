@@ -113,6 +113,7 @@ const profile = z.object({
   id: z.string(),
   code: z.string(),
   name: z.string(),
+  employeeId: z.string().nullable(),
   avatarUrl: z.string().nullable(),
   passwordChangedAt: z.string().datetime(),
   revision: z.string(),

@@ -48,3 +48,7 @@
 - `make target-e2e` 通过：生成物无漂移、WFL Node/浏览器同构检查、前后端静态检查、单元与组件检查、全量 PostgreSQL 集成测试 143/143、主浏览器 50/50、WFL 1/1、VOU 目录 8/8、期初 2/2、录入 66/66。真实 HTTP 的 APP、AUX、ACC 断言位于 `apps/api/tests/integration/`。
 - 在同一隔离 Compose 项目中执行 `make target-db` 前后，`app_installation.id` 从 `e48d5e96-40e8-4602-8b32-47d702360ba4` 变为 `eca0ff19-7971-43ff-a974-46a6d496079f`。已用 `make target-down` 清理本会话的目标 DB/API/Web 容器与卷。
 - #21 可将这些正常 API 契约提供给后续 Go 用户试迁 #22；本次没有执行 OIT 来源数据迁移或生产目标切换。迁移批次须封存创建 ID、账号编码、目标安装身份及账簿原/预期完整范围，遇未知结果按上文回读，身份或并发事实不符时阻断。
+
+## #22 试迁发现的本人关联查询
+
+真实迁入账号 `kj01` 可登录、首次改密、重新登录并读取本人资料，但其受审会计角色没有 `/aux/employee/get` 权限。本人查询关联员工的 stable ID 应由 `/session/user/get` 返回只读 `employeeId`，`/session/user/save` 回传同一字段；该字段仅取当前账号的现有员工关联，可为 `null`，不开放员工档案或修改权限。隔离 PostgreSQL 的真实 HTTP 集成测试覆盖停用员工关联账号在本人改密后回读同一 `employeeId`。`oit-zerp` 的 Go 验收据此核对本人资料、员工关联及原有越权拒绝。

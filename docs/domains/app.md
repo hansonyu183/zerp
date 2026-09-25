@@ -267,7 +267,7 @@ CSRF Token 按 Cookie 会话固定，并由服务端从随机会话令牌单向�
 
 ### 5.4 当前用户自助接口
 
-`/session/user/get` 和 `/session/user/save` 读取或保存当前会话用户的非敏感资料；请求结构以 Hono 生成契约为准。
+`/session/user/get` 和 `/session/user/save` 读取或保存当前会话用户的非敏感资料；响应包含只读的 `employeeId`（可为 `null`），供本人确认其账号与员工业务身份的关联，不授予员工档案查询或修改权限。请求结构以 Hono 生成契约为准。
 
 `name` 去除首尾空白后必须为 1–128 个 Unicode 字符。`avatarUrl` 省略、为 `null`
 或为空字符串时清除头像；非空时必须是不含用户凭证和 Fragment 的 HTTPS 绝对地址，最长 500 个字符。

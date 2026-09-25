@@ -33,6 +33,7 @@ const profileData = {
   id: 'user-1',
   code: 'tester',
   name: '测试用户',
+  employeeId: null,
   avatarUrl: null,
   passwordChangedAt: '2026-09-06T00:00:00.000Z',
   revision: '1',

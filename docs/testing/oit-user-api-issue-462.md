@@ -52,3 +52,5 @@
 ## #22 试迁发现的本人关联查询
 
 真实迁入账号 `kj01` 可登录、首次改密、重新登录并读取本人资料，但其受审会计角色没有 `/aux/employee/get` 权限。本人查询关联员工的 stable ID 应由 `/session/user/get` 返回只读 `employeeId`，`/session/user/save` 回传同一字段；该字段仅取当前账号的现有员工关联，可为 `null`，不开放员工档案或修改权限。隔离 PostgreSQL 的真实 HTTP 集成测试覆盖停用员工关联账号在本人改密后回读同一 `employeeId`。`oit-zerp` 的 Go 验收据此核对本人资料、员工关联及原有越权拒绝。
+
+新增字段运行提交 `99cfa400b1ec4ae11c113b4c22b46b8261f234db` 已在独占 Compose 目标通过生成物、静态、单元组件及 PostgreSQL 集成 143/143；浏览器主套件 50/50、WFL 1/1、VOU 目录 8/8、期初 2/2、录入 66/66 分段通过，`make check` 通过。浏览器重跑前修正了该隔离目标的 Web API 地址与 CORS 地址，运行代码未改动。`oit-zerp` #22 试迁以此提交的真实 HTTP API 完成 21 个用户逐项对账、首次改密及越权拒绝，正式模式另用无 binlog、仅 SELECT 来源夹具验证。

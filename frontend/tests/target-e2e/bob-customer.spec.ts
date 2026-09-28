@@ -58,6 +58,7 @@ async function approve(page: Page, name: string) {
   expect(detail.data.availableApprovalActions).toContain('approve')
   await expect(dialog).toContainText('汇款识别')
   await expect(dialog).toContainText('-0.10')
+  await expect(dialog).toContainText('按 KG')
   await expect(dialog.getByRole('button', { name: /^查看版本 / })).toHaveCount(
     0,
   )
@@ -146,7 +147,8 @@ test('customer flat temporary form, business fields, history and independent ena
       .locator('.collection-block[aria-label="成本项"] > .collection-heading')
       .getByRole('button', { name: '新增', exact: true })
       .click()
-    await sub.getByLabel('成本名称', { exact: true }).fill('装卸')
+    await sub.getByLabel('成本名称', { exact: true }).fill('重量服务')
+    await select(page, sub, '计算依据', '按 KG')
     await sub.getByLabel('成本单价或每单金额', { exact: true }).fill('0.20')
     await confirmCollection(page)
     await dialog.getByRole('button', { name: '提交', exact: true }).click()
@@ -177,6 +179,7 @@ test('customer flat temporary form, business fields, history and independent ena
     await findArchive(page, name)
     await row.getByRole('button', { name: '提交变更', exact: true }).click()
     dialog = page.getByRole('dialog').last()
+    await expect(dialog).toContainText('按 KG')
     await expect(dialog.getByLabel('联系人', { exact: true })).toHaveValue(
       '业务联系人',
     )

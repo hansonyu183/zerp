@@ -2296,7 +2296,7 @@ const intermediarySourceLineFields: readonly VouInputFieldDescriptor[] =
           key: 'calculationBasis',
           kind: 'enum',
           required: true,
-          enumValues: ['UNIT_PRICE', 'ORDER_AMOUNT'],
+          enumValues: ['UNIT_PRICE', 'WEIGHT_KG', 'ORDER_AMOUNT'],
         },
         { key: 'unitPrice', kind: 'decimal', required: false },
         { key: 'orderAmount', kind: 'decimal', required: false },

@@ -404,7 +404,7 @@ const intermediarySourceLine = z
         z
           .object({
             name: z.string().min(1),
-            calculationBasis: z.literal('UNIT_PRICE'),
+            calculationBasis: z.enum(['UNIT_PRICE', 'WEIGHT_KG']),
             unitPrice: money,
           })
           .strict(),

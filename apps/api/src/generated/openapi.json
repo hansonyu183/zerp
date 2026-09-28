@@ -43659,7 +43659,8 @@
                                                     "calculationBasis": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "UNIT_PRICE"
+                                                        "UNIT_PRICE",
+                                                        "WEIGHT_KG"
                                                       ]
                                                     },
                                                     "unitPrice": {
@@ -44430,7 +44431,8 @@
                                               "calculationBasis": {
                                                 "type": "string",
                                                 "enum": [
-                                                  "UNIT_PRICE"
+                                                  "UNIT_PRICE",
+                                                  "WEIGHT_KG"
                                                 ]
                                               },
                                               "unitPrice": {
@@ -47624,7 +47626,8 @@
                                               "calculationBasis": {
                                                 "type": "string",
                                                 "enum": [
-                                                  "UNIT_PRICE"
+                                                  "UNIT_PRICE",
+                                                  "WEIGHT_KG"
                                                 ]
                                               },
                                               "unitPrice": {
@@ -48598,7 +48601,8 @@
                                                     "calculationBasis": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "UNIT_PRICE"
+                                                        "UNIT_PRICE",
+                                                        "WEIGHT_KG"
                                                       ]
                                                     },
                                                     "unitPrice": {
@@ -49872,7 +49876,8 @@
                                     "calculationBasis": {
                                       "type": "string",
                                       "enum": [
-                                        "UNIT_PRICE"
+                                        "UNIT_PRICE",
+                                        "WEIGHT_KG"
                                       ]
                                     },
                                     "unitPrice": {
@@ -50545,7 +50550,8 @@
                                               "calculationBasis": {
                                                 "type": "string",
                                                 "enum": [
-                                                  "UNIT_PRICE"
+                                                  "UNIT_PRICE",
+                                                  "WEIGHT_KG"
                                                 ]
                                               },
                                               "unitPrice": {
@@ -51429,7 +51435,8 @@
                                     "calculationBasis": {
                                       "type": "string",
                                       "enum": [
-                                        "UNIT_PRICE"
+                                        "UNIT_PRICE",
+                                        "WEIGHT_KG"
                                       ]
                                     },
                                     "unitPrice": {
@@ -52102,7 +52109,8 @@
                                               "calculationBasis": {
                                                 "type": "string",
                                                 "enum": [
-                                                  "UNIT_PRICE"
+                                                  "UNIT_PRICE",
+                                                  "WEIGHT_KG"
                                                 ]
                                               },
                                               "unitPrice": {
@@ -53077,7 +53085,8 @@
                                               "calculationBasis": {
                                                 "type": "string",
                                                 "enum": [
-                                                  "UNIT_PRICE"
+                                                  "UNIT_PRICE",
+                                                  "WEIGHT_KG"
                                                 ]
                                               },
                                               "unitPrice": {
@@ -54058,7 +54067,8 @@
                                               "calculationBasis": {
                                                 "type": "string",
                                                 "enum": [
-                                                  "UNIT_PRICE"
+                                                  "UNIT_PRICE",
+                                                  "WEIGHT_KG"
                                                 ]
                                               },
                                               "unitPrice": {
@@ -55033,7 +55043,8 @@
                                               "calculationBasis": {
                                                 "type": "string",
                                                 "enum": [
-                                                  "UNIT_PRICE"
+                                                  "UNIT_PRICE",
+                                                  "WEIGHT_KG"
                                                 ]
                                               },
                                               "unitPrice": {
@@ -56014,7 +56025,8 @@
                                               "calculationBasis": {
                                                 "type": "string",
                                                 "enum": [
-                                                  "UNIT_PRICE"
+                                                  "UNIT_PRICE",
+                                                  "WEIGHT_KG"
                                                 ]
                                               },
                                               "unitPrice": {
@@ -95357,7 +95369,8 @@
                                                 "calculationBasis": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "UNIT_PRICE"
+                                                    "UNIT_PRICE",
+                                                    "WEIGHT_KG"
                                                   ]
                                                 },
                                                 "unitPrice": {
@@ -116767,7 +116780,8 @@
                                                             "calculationBasis": {
                                                               "type": "string",
                                                               "enum": [
-                                                                "UNIT_PRICE"
+                                                                "UNIT_PRICE",
+                                                                "WEIGHT_KG"
                                                               ]
                                                             },
                                                             "unitPrice": {
@@ -138450,7 +138464,8 @@
                                                   "calculationBasis": {
                                                     "type": "string",
                                                     "enum": [
-                                                      "UNIT_PRICE"
+                                                      "UNIT_PRICE",
+                                                      "WEIGHT_KG"
                                                     ]
                                                   },
                                                   "unitPrice": {
@@ -159885,7 +159900,8 @@
                                                             "calculationBasis": {
                                                               "type": "string",
                                                               "enum": [
-                                                                "UNIT_PRICE"
+                                                                "UNIT_PRICE",
+                                                                "WEIGHT_KG"
                                                               ]
                                                             },
                                                             "unitPrice": {
@@ -181333,7 +181349,8 @@
                                                   "calculationBasis": {
                                                     "type": "string",
                                                     "enum": [
-                                                      "UNIT_PRICE"
+                                                      "UNIT_PRICE",
+                                                      "WEIGHT_KG"
                                                     ]
                                                   },
                                                   "unitPrice": {
@@ -202768,7 +202785,8 @@
                                                             "calculationBasis": {
                                                               "type": "string",
                                                               "enum": [
-                                                                "UNIT_PRICE"
+                                                                "UNIT_PRICE",
+                                                                "WEIGHT_KG"
                                                               ]
                                                             },
                                                             "unitPrice": {
@@ -224360,7 +224378,8 @@
                                                             "calculationBasis": {
                                                               "type": "string",
                                                               "enum": [
-                                                                "UNIT_PRICE"
+                                                                "UNIT_PRICE",
+                                                                "WEIGHT_KG"
                                                               ]
                                                             },
                                                             "unitPrice": {
@@ -245958,7 +245977,8 @@
                                                             "calculationBasis": {
                                                               "type": "string",
                                                               "enum": [
-                                                                "UNIT_PRICE"
+                                                                "UNIT_PRICE",
+                                                                "WEIGHT_KG"
                                                               ]
                                                             },
                                                             "unitPrice": {
@@ -267550,7 +267570,8 @@
                                                             "calculationBasis": {
                                                               "type": "string",
                                                               "enum": [
-                                                                "UNIT_PRICE"
+                                                                "UNIT_PRICE",
+                                                                "WEIGHT_KG"
                                                               ]
                                                             },
                                                             "unitPrice": {
@@ -289148,7 +289169,8 @@
                                                             "calculationBasis": {
                                                               "type": "string",
                                                               "enum": [
-                                                                "UNIT_PRICE"
+                                                                "UNIT_PRICE",
+                                                                "WEIGHT_KG"
                                                               ]
                                                             },
                                                             "unitPrice": {

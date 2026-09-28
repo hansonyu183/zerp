@@ -1,4 +1,5 @@
 import type { CustomerData } from '@zerp/model'
+import { customerCostBasisLabels } from './customer-data.ts'
 
 export type CustomerPricing = CustomerData['pricingPolicy']
 type CustomerPricingCostItem = CustomerPricing['costItems'][number]
@@ -18,9 +19,7 @@ const amounts = {
 const costValue = (cost: CustomerPricingCostItem | undefined) =>
   !cost
     ? '—'
-    : cost.calculationBasis === 'UNIT_PRICE'
-      ? `按单价 ${cost.unitPrice}`
-      : `按订单金额 ${cost.orderAmount}`
+    : `${customerCostBasisLabels[cost.calculationBasis]} ${cost.calculationBasis === 'ORDER_AMOUNT' ? cost.orderAmount : cost.unitPrice}`
 const key = (name: string) => name.trim().toLocaleUpperCase()
 
 export function customerPricingChanges(

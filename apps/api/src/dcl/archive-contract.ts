@@ -198,7 +198,7 @@ const pricingCostItem = z.discriminatedUnion('calculationBasis', [
   z
     .object({
       name: z.string().trim().min(1).max(200),
-      calculationBasis: z.literal('UNIT_PRICE'),
+      calculationBasis: z.enum(['UNIT_PRICE', 'WEIGHT_KG']),
       unitPrice: z
         .string()
         .regex(/^(?:[1-9]\d*\.\d{2}|0\.(?:[1-9]\d|0[1-9]))$/),

@@ -260,6 +260,19 @@ for (const { unitPrice, unassigned } of [
           expectedLatestApprovedRevision: currentCustomer.revision,
           snapshot: {
             ...currentCustomer.snapshot,
+            pricingPolicy: {
+              defaultPremiumUnitPrice: '0.00',
+              defaultDiscountUnitPrice: '0.00',
+              thirdPartyIntermediaryFixedUnitCost: '0.00',
+              thirdPartyIntermediaryVariableUnitCost: '0.00',
+              costItems: [
+                {
+                  name: '重量服务',
+                  calculationBasis: 'WEIGHT_KG',
+                  unitPrice: '0.30',
+                },
+              ],
+            },
             primarySalesAttribution: unassigned
               ? null
               : currentCustomer.snapshot.primarySalesAttribution,
@@ -535,6 +548,9 @@ for (const { unitPrice, unassigned } of [
         originalLine.collectionDate,
         unitPrice === '0.00' ? '2026-09-04' : '2026-09-05',
       )
+      assert.deepEqual(originalLine.costItems, [
+        { name: '重量服务', calculationBasis: 'WEIGHT_KG', unitPrice: '0.30' },
+      ])
       assert.equal(originalLine.standardPieceQuantity, '3.333333')
       assert.equal(originalLine.specialApproval, true)
       assert.equal(

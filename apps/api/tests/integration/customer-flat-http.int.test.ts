@@ -246,7 +246,9 @@ test('Customer HTTP directly owns business attributes without legal identity or 
     pricingPolicy: {
       defaultPremiumUnitPrice: '0.10',
       defaultDiscountUnitPrice: '0.00',
-      costItems: [],
+      costItems: [
+        { name: '重量服务', calculationBasis: 'WEIGHT_KG', unitPrice: '0.30' },
+      ],
       thirdPartyIntermediaryFixedUnitCost: '0.01',
       thirdPartyIntermediaryVariableUnitCost: '0.02',
     },
@@ -423,6 +425,9 @@ test('Customer HTTP directly owns business attributes without legal identity or 
   assert.equal(adopted.paymentMethod.defaultSalesSurcharge, '0.20')
   assert.equal(adopted.transportPolicy.surcharge, '-0.10')
   assert.equal(adopted.pricingPolicy.defaultDiscountUnitPrice, '0.00')
+  assert.deepEqual(adopted.pricingPolicy.costItems, [
+    { name: '重量服务', calculationBasis: 'WEIGHT_KG', unitPrice: '0.30' },
+  ])
   const changedPayment = await aux.save(
     'payment-method',
     {

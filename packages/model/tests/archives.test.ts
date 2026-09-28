@@ -284,31 +284,38 @@ test('keeps the complete typed customer aggregate and rejects malformed pricing 
     ])
   }
 
-  for (const amount of ['0.01', '0.99', '1.00']) {
-    const positive = prepareCustomerSubmit(
-      {
-        ...command(),
-        data: {
-          ...data,
-          pricingPolicy: {
-            ...data.pricingPolicy,
-            costItems: [
-              {
-                name: '成本',
-                calculationBasis: 'UNIT_PRICE',
-                unitPrice: amount,
-              },
-            ],
+  for (const calculationBasis of ['UNIT_PRICE', 'WEIGHT_KG'] as const) {
+    for (const amount of ['0.01', '0.99', '1.00']) {
+      const positive = prepareCustomerSubmit(
+        {
+          ...command(),
+          data: {
+            ...data,
+            pricingPolicy: {
+              ...data.pricingPolicy,
+              costItems: [
+                {
+                  name: '成本',
+                  calculationBasis,
+                  unitPrice: amount,
+                },
+              ],
+            },
           },
         },
-      },
-      facts,
-    )
-    assert.equal(
-      positive.ok,
-      true,
-      `positive two-decimal cost ${amount} is valid`,
-    )
+        facts,
+      )
+      assert.equal(
+        positive.ok,
+        true,
+        `positive two-decimal ${calculationBasis} cost ${amount} is valid`,
+      )
+      if (positive.ok)
+        assert.equal(
+          positive.plan.data.pricingPolicy.costItems[0]?.calculationBasis,
+          calculationBasis,
+        )
+    }
   }
 
   const malformed = prepareCustomerSubmit(

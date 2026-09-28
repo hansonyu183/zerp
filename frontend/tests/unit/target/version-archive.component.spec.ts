@@ -1310,8 +1310,8 @@ it('renders normalized customer pricing changes for an unnumbered candidate agai
       costItems: [
         {
           name: ' handling ',
-          calculationBasis: 'ORDER_AMOUNT',
-          orderAmount: '1.00',
+          calculationBasis: 'WEIGHT_KG',
+          unitPrice: '1.00',
         },
         { name: '新增', calculationBasis: 'UNIT_PRICE', unitPrice: '2.00' },
         { name: '金额项', calculationBasis: 'UNIT_PRICE', unitPrice: '4.00' },
@@ -1377,7 +1377,7 @@ it('renders normalized customer pricing changes for an unnumbered candidate agai
   await click(wrapper, '查看')
   await click(wrapper, '查看版本 待分配')
   const text = wrapper.get('[aria-label="客户定价差异"]').text()
-  expect(text).toContain('口径变化按单价 1.00按订单金额 1.00')
+  expect(text).toContain('口径变化按单价 1.00按 KG 1.00')
   expect(text).toContain('删除项删除')
   expect(text).toContain('新增')
   expect(text).toContain('金额项金额变化')

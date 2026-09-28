@@ -8,6 +8,7 @@ export const customerAttributionLabels = {
 } as const
 export const customerCostBasisLabels = {
   UNIT_PRICE: '按单价',
+  WEIGHT_KG: '按 KG',
   ORDER_AMOUNT: '按订单金额',
 } as const
 export const attributionOptions = Object.entries(customerAttributionLabels).map(

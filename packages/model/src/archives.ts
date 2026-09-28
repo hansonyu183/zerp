@@ -835,7 +835,7 @@ export interface CustomerTransportPolicy {
 export type CustomerPricingCostItem =
   | {
       name: string
-      calculationBasis: 'UNIT_PRICE'
+      calculationBasis: 'UNIT_PRICE' | 'WEIGHT_KG'
       unitPrice: string
     }
   | {
@@ -1008,15 +1008,22 @@ function normalizePricingPolicy(
     const normalizedName = name.toLocaleUpperCase()
     if (!name || names.has(normalizedName)) return undefined
     names.add(normalizedName)
-    if (item.calculationBasis === 'UNIT_PRICE') {
+    if (
+      item.calculationBasis === 'UNIT_PRICE' ||
+      item.calculationBasis === 'WEIGHT_KG'
+    ) {
       const unitPrice = trim(item.unitPrice)
       if (!positiveMoney.test(unitPrice)) return undefined
-      costItems.push({ name, calculationBasis: 'UNIT_PRICE', unitPrice })
-    } else {
+      costItems.push({
+        name,
+        calculationBasis: item.calculationBasis,
+        unitPrice,
+      })
+    } else if (item.calculationBasis === 'ORDER_AMOUNT') {
       const orderAmount = trim(item.orderAmount)
       if (!positiveMoney.test(orderAmount)) return undefined
       costItems.push({ name, calculationBasis: 'ORDER_AMOUNT', orderAmount })
-    }
+    } else return undefined
   }
   costItems.sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'))
   return {

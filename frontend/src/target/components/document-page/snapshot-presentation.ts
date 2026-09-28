@@ -285,7 +285,11 @@ export const snapshotEnums: Readonly<
   parentEntity: Object.fromEntries(
     Object.entries(vouEntityPresentation).map(([key, p]) => [key, p.label]),
   ),
-  calculationBasis: { UNIT_PRICE: '单位价格', ORDER_AMOUNT: '整单金额' },
+  calculationBasis: {
+    UNIT_PRICE: '单位价格',
+    WEIGHT_KG: '按 KG',
+    ORDER_AMOUNT: '整单金额',
+  },
   selectionOrigin: {
     CURRENT: '采用时正式资料',
     HISTORICAL: '历史快照',

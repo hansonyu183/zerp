@@ -8,7 +8,7 @@ import type { EditFields } from '../dynamic-fields/edit-fields.ts'
 type Pricing = CustomerSnapshot['pricingPolicy']
 type CostInput = {
   name: string
-  calculationBasis: 'UNIT_PRICE' | 'ORDER_AMOUNT'
+  calculationBasis: Pricing['costItems'][number]['calculationBasis']
   amount: string
 }
 const props = defineProps<{ modelValue: Pricing; disabled: boolean }>()
@@ -44,7 +44,7 @@ const costs = computed(() =>
     name: item.name,
     calculationBasis: item.calculationBasis,
     amount:
-      item.calculationBasis === 'UNIT_PRICE'
+      item.calculationBasis !== 'ORDER_AMOUNT'
         ? item.unitPrice
         : item.orderAmount,
   })),
@@ -79,7 +79,7 @@ function updateCosts(value: CostInput[]) {
   emit('update:modelValue', {
     ...props.modelValue,
     costItems: value.map((item) =>
-      item.calculationBasis === 'UNIT_PRICE'
+      item.calculationBasis !== 'ORDER_AMOUNT'
         ? {
             name: item.name,
             calculationBasis: item.calculationBasis,

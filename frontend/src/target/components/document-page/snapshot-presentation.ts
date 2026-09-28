@@ -85,6 +85,7 @@ export const snapshotCaptions: Readonly<Record<string, string>> = {
   enteredUnit: '交易单位',
   fixedFactor: '固定换算系数',
   baseQuantity: '基本数量',
+  settlementMethod: '结算方式',
   settlementSurcharge: '结算加价',
   purchaseUnitPrice: '采购单价',
   deliverySpecificationType: '交付规格',

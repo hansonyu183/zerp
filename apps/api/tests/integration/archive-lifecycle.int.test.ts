@@ -862,41 +862,22 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     const malformedSubjectId = ulid()
     const malformedSubmissionId = ulid()
     subjectIds.push(malformedSubjectId)
-    const adopted = await dclArchives.submit(
-      'customer',
-      'submit-new',
-      {
-        subjectId: malformedSubjectId,
-        submissionId: malformedSubmissionId,
-        idempotencyKey: malformedSubmissionId,
-        expectedLatestApprovedSubmissionId: null,
-        expectedLatestApprovedRevision: null,
-        snapshot: {
-          ...customerSnapshot,
-          attachments: [],
+    await assert.rejects(
+      dclArchives.submit(
+        'customer',
+        'submit-new',
+        {
+          subjectId: malformedSubjectId,
+          submissionId: malformedSubmissionId,
+          idempotencyKey: malformedSubmissionId,
+          expectedLatestApprovedSubmissionId: null,
+          expectedLatestApprovedRevision: null,
+          snapshot: { ...customerSnapshot, attachments: [] },
         },
-      },
-      submitter,
-      ulid(),
-    )
-    const adoptedSubunit = adopted.snapshot
-    assert.deepEqual(
-      adoptedSubunit.settlementMethod,
-      customerSnapshot.settlementMethod,
-    )
-    assert.deepEqual(
-      adoptedSubunit.paymentMethod,
-      customerSnapshot.paymentMethod,
-    )
-    await dclArchives.delete(
-      'customer',
-      {
-        subjectId: malformedSubjectId,
-        submissionId: malformedSubmissionId,
-        expectedRevision: adopted.revision,
-      },
-      submitter,
-      ulid(),
+        submitter,
+        ulid(),
+      ),
+      { errorKey: 'archive_reference_unavailable' },
     )
     await db
       .updateTable('aux_objects')
@@ -1273,29 +1254,26 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   const rejectedCustomerSubjectId = ulid()
   const rejectedCustomerSubmissionId = ulid()
   subjectIds.push(rejectedCustomerSubjectId)
-  const retainedCustomer = await dclArchives.submit(
-    'customer',
-    'submit-new',
-    {
-      subjectId: rejectedCustomerSubjectId,
-      submissionId: rejectedCustomerSubmissionId,
-      idempotencyKey: rejectedCustomerSubmissionId,
-      expectedLatestApprovedSubmissionId: null,
-      expectedLatestApprovedRevision: null,
-      snapshot: {
-        ...customerSnapshot,
-        legalName: '保留已经采用的收款快照',
-        displayName: '保留已经采用的收款快照',
-        legalIdentifier: 'CUSTOMER-DISABLED-AUX-001',
-        attachments: [],
+  await assert.rejects(
+    dclArchives.submit(
+      'customer',
+      'submit-new',
+      {
+        subjectId: rejectedCustomerSubjectId,
+        submissionId: rejectedCustomerSubmissionId,
+        idempotencyKey: rejectedCustomerSubmissionId,
+        expectedLatestApprovedSubmissionId: null,
+        expectedLatestApprovedRevision: null,
+        snapshot: {
+          ...customerSnapshot,
+          displayName: '不可克隆停用的收款方式',
+          attachments: [],
+        },
       },
-    },
-    submitter,
-    ulid(),
-  )
-  assert.deepEqual(
-    retainedCustomer.snapshot.paymentMethod,
-    customerData.paymentMethod,
+      submitter,
+      ulid(),
+    ),
+    { errorKey: 'archive_reference_unavailable' },
   )
   const historicalCustomer = await dclArchives.get(
     'customer',

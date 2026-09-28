@@ -1,3 +1,5 @@
+import { documentError } from '@/target/components/document-page/errors.ts'
+import { TargetApiError } from '@/target/api.ts'
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import { vouEntities, vouEntityInputDescriptors } from '@zerp/model'
@@ -6,6 +8,13 @@ import { archiveStubs } from './helpers/archive-stubs.ts'
 import { vouPages } from '@/target/components/document-page/catalog-list.ts'
 
 describe('voucher catalog consumers', () => {
+  it('names missing customer settlement facts in the actionable error', () => {
+    const error = new TargetApiError('vou_reference_unavailable', '', 'test', {
+      blockers: [{ kind: 'REFERENCE', field: 'customer.settlementMethod' }],
+    })
+    expect(documentError(error)).toContain('客户.结算方式')
+    expect(documentError(error)).not.toContain('相关字段')
+  })
   it('initializes only registered filters for every type and preserves nullable summaries', () => {
     for (const entity of vouEntities) {
       const page = vouPages[entity]

@@ -29,3 +29,16 @@ export async function insertArchiveObjects(
     )
     .execute()
 }
+
+// Adopted historical terms for fixtures that insert already approved customers.
+export const monthlySettlementSnapshot = JSON.stringify({
+  id: '01J00000000000000000000104',
+  code: 'FIXTURE-MONTHLY',
+  name: '月结30天',
+  termCode: 'MONTHLY_30',
+  ruleType: 'MONTH_END',
+  monthOffset: 1,
+  dayOfMonth: 0,
+  dayOffset: 0,
+  defaultSalesSurcharge: '0.00',
+})

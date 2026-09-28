@@ -1,4 +1,7 @@
-import { insertArchiveObjects } from '../fixtures/archive-objects.ts'
+import {
+  insertArchiveObjects,
+  monthlySettlementSnapshot,
+} from '../fixtures/archive-objects.ts'
 import { BobService } from '../../src/bob/service.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
@@ -236,6 +239,7 @@ test('sales orders adopt explicit customer or current payment snapshots without 
             code: 'CUSTOMER-TYPE-TEST',
             name: '测试类型',
           }),
+          settlement_snapshot: monthlySettlementSnapshot,
           payment_snapshot: index
             ? null
             : JSON.stringify({

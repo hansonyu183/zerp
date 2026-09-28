@@ -262,7 +262,7 @@ const customerSnapshot = z
       .object({
         methodCode: z.string().min(1).max(64),
         methodName: z.string().min(1).max(200),
-        surcharge: z.string().regex(/^(?:0|[1-9]\d*)\.\d{2}$/),
+        surcharge: z.string().regex(/^-?(?:0|[1-9]\d*)\.\d{2}$/),
       })
       .strict(),
     pricingPolicy,

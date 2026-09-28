@@ -1,4 +1,7 @@
-import { insertArchiveObjects } from '../fixtures/archive-objects.ts'
+import {
+  insertArchiveObjects,
+  monthlySettlementSnapshot,
+} from '../fixtures/archive-objects.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
@@ -451,6 +454,7 @@ test('VOU product adoption serializes with BOB approval without cross-subject ad
         code: 'CUSTOMER-TYPE-TEST',
         name: '测试客户类型',
       }),
+      settlement_snapshot: monthlySettlementSnapshot,
       payment_snapshot: null,
       credit_limits: JSON.stringify([]),
       attachments: JSON.stringify([]),

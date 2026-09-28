@@ -3061,21 +3061,32 @@ export class VouService implements WflVouPort {
       ...(await this.validateProductMeasurementUnits(transaction, payload)),
     )
     if ('paymentMethod' in payload)
-      blockers.push(...(await this.validatePaymentMethod(transaction, payload)))
+      blockers.push(
+        ...(await this.validateSaleOrderCustomer(transaction, payload)),
+      )
     return blockers.length === 0 ? { ok: true } : { ok: false, blockers }
   }
 
-  private async validatePaymentMethod(
+  private async validateSaleOrderCustomer(
     transaction: Transaction<DB>,
     payload: VouPayloadFor<'sale-order'>,
   ): Promise<VouReferenceBlocker[]> {
     const selected = payload.paymentMethod
     const customer = await transaction
       .selectFrom('dcl_customer_versions')
-      .select('payment_snapshot')
+      .select(['payment_snapshot', 'settlement_snapshot'])
       .where('approval_entry_id', '=', payload.customer.approvalEntryId)
       .executeTakeFirst()
     // validateReferences already locks and validates the owning approved customer entry.
+    const blockers: VouReferenceBlocker[] = []
+    if (!customer?.settlement_snapshot)
+      blockers.push({
+        kind: 'REFERENCE',
+        field: 'customer.settlementMethod',
+        entity: 'customer',
+        objectId: payload.customer.objectId,
+        approvalEntryId: payload.customer.approvalEntryId,
+      })
     let expected: VouPaymentMethodSnapshotInput | null = customer
       ? paymentMethodSnapshot(customer.payment_snapshot)
       : null
@@ -3105,17 +3116,15 @@ export class VouService implements WflVouPort {
           selected.name === expected.name &&
           decimalToFixed(selected.defaultSalesSurcharge, 2) ===
             decimalToFixed(expected.defaultSalesSurcharge, 2)
-    return matches
-      ? []
-      : [
-          {
-            kind: 'REFERENCE',
-            field: 'paymentMethod',
-            entity: 'payment-method',
-            objectId: selected?.objectId ?? expected?.objectId ?? '',
-            approvalEntryId: null,
-          },
-        ]
+    if (!matches)
+      blockers.push({
+        kind: 'REFERENCE',
+        field: 'paymentMethod',
+        entity: 'payment-method',
+        objectId: selected?.objectId ?? expected?.objectId ?? '',
+        approvalEntryId: null,
+      })
+    return blockers
   }
 
   private async validateProductMeasurementUnits(

@@ -1,4 +1,7 @@
-import { insertArchiveObjects } from '../fixtures/archive-objects.ts'
+import {
+  insertArchiveObjects,
+  monthlySettlementSnapshot,
+} from '../fixtures/archive-objects.ts'
 import { BobService } from '../../src/bob/service.ts'
 import assert from 'node:assert/strict'
 import { createHash, randomBytes } from 'node:crypto'
@@ -245,6 +248,7 @@ test('VOU freezes and validates product measurement-unit snapshots', async (cont
         code: 'CUSTOMER-TYPE-TEST',
         name: '测试客户类型',
       }),
+      settlement_snapshot: monthlySettlementSnapshot,
       payment_snapshot: null,
       credit_limits: JSON.stringify([]),
       attachments: JSON.stringify([]),
@@ -977,6 +981,7 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
         code: 'CUSTOMER-TYPE-TEST',
         name: '测试客户类型',
       }),
+      settlement_snapshot: monthlySettlementSnapshot,
       payment_snapshot: null,
       credit_limits: JSON.stringify([]),
       attachments: JSON.stringify([]),
@@ -2401,6 +2406,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
             code: 'CUSTOMER-TYPE-TEST',
             name: '测试客户类型',
           }),
+          settlement_snapshot: monthlySettlementSnapshot,
           payment_snapshot: null,
           credit_limits: '[]',
           attachments: '[]',
@@ -3040,6 +3046,7 @@ test('entity-owned candidates use session without CSRF and return current typed 
         code: 'CUSTOMER-TYPE-TEST',
         name: '测试客户类型',
       }),
+      settlement_snapshot: monthlySettlementSnapshot,
       payment_snapshot: null,
       credit_limits: JSON.stringify([]),
       attachments: JSON.stringify([]),

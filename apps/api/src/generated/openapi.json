@@ -43623,7 +43623,7 @@
                                           },
                                           "surcharge": {
                                             "type": "string",
-                                            "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                                            "pattern": "^-?(?:0|[1-9]\\d*)\\.\\d{2}$"
                                           }
                                         },
                                         "required": [
@@ -44394,7 +44394,7 @@
                                     },
                                     "surcharge": {
                                       "type": "string",
-                                      "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                                      "pattern": "^-?(?:0|[1-9]\\d*)\\.\\d{2}$"
                                     }
                                   },
                                   "required": [
@@ -47588,7 +47588,7 @@
                                     },
                                     "surcharge": {
                                       "type": "string",
-                                      "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                                      "pattern": "^-?(?:0|[1-9]\\d*)\\.\\d{2}$"
                                     }
                                   },
                                   "required": [
@@ -48562,7 +48562,7 @@
                                           },
                                           "surcharge": {
                                             "type": "string",
-                                            "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                                            "pattern": "^-?(?:0|[1-9]\\d*)\\.\\d{2}$"
                                           }
                                         },
                                         "required": [
@@ -49836,7 +49836,7 @@
                           },
                           "surcharge": {
                             "type": "string",
-                            "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                            "pattern": "^-?(?:0|[1-9]\\d*)\\.\\d{2}$"
                           }
                         },
                         "required": [
@@ -50509,7 +50509,7 @@
                                     },
                                     "surcharge": {
                                       "type": "string",
-                                      "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                                      "pattern": "^-?(?:0|[1-9]\\d*)\\.\\d{2}$"
                                     }
                                   },
                                   "required": [
@@ -51393,7 +51393,7 @@
                           },
                           "surcharge": {
                             "type": "string",
-                            "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                            "pattern": "^-?(?:0|[1-9]\\d*)\\.\\d{2}$"
                           }
                         },
                         "required": [
@@ -52066,7 +52066,7 @@
                                     },
                                     "surcharge": {
                                       "type": "string",
-                                      "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                                      "pattern": "^-?(?:0|[1-9]\\d*)\\.\\d{2}$"
                                     }
                                   },
                                   "required": [
@@ -53041,7 +53041,7 @@
                                     },
                                     "surcharge": {
                                       "type": "string",
-                                      "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                                      "pattern": "^-?(?:0|[1-9]\\d*)\\.\\d{2}$"
                                     }
                                   },
                                   "required": [
@@ -54022,7 +54022,7 @@
                                     },
                                     "surcharge": {
                                       "type": "string",
-                                      "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                                      "pattern": "^-?(?:0|[1-9]\\d*)\\.\\d{2}$"
                                     }
                                   },
                                   "required": [
@@ -54997,7 +54997,7 @@
                                     },
                                     "surcharge": {
                                       "type": "string",
-                                      "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                                      "pattern": "^-?(?:0|[1-9]\\d*)\\.\\d{2}$"
                                     }
                                   },
                                   "required": [
@@ -55978,7 +55978,7 @@
                                     },
                                     "surcharge": {
                                       "type": "string",
-                                      "pattern": "^(?:0|[1-9]\\d*)\\.\\d{2}$"
+                                      "pattern": "^-?(?:0|[1-9]\\d*)\\.\\d{2}$"
                                     }
                                   },
                                   "required": [

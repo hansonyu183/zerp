@@ -57,6 +57,7 @@ async function approve(page: Page, name: string) {
   const detail = await (await detailResponse).json()
   expect(detail.data.availableApprovalActions).toContain('approve')
   await expect(dialog).toContainText('汇款识别')
+  await expect(dialog).toContainText('-0.10')
   await expect(dialog.getByRole('button', { name: /^查看版本 / })).toHaveCount(
     0,
   )
@@ -118,6 +119,7 @@ test('customer flat temporary form, business fields, history and independent ena
     expect(staged).toBe(0)
     const sub = dialog
     await sub.getByLabel('联系人', { exact: true }).fill('业务联系人')
+    await sub.getByLabel('运输销售加价', { exact: true }).fill('-0.10')
     await sub.getByLabel('业务地址', { exact: true }).fill('业务地址')
     await select(page, sub, '客户类型', process.env.TARGET_E2E_CUSTOMER_TYPE!)
     await select(page, sub, '业务归属类型', '渠道商')

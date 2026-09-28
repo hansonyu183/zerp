@@ -17,6 +17,7 @@ export async function seedSaleOrderReferences(
   const actor = {
     id: actorId,
     permissions: [
+      '/aux/settlement-method/get',
       '/aux/tax-information/create',
       '/aux/tax-information/get',
       '/aux/measurement-unit/create',
@@ -178,6 +179,22 @@ export async function seedSaleOrderReferences(
     code: tax.code,
     revision: tax.revision,
   }
+  const terms = {
+    name: 'HTTP 月结30天',
+    termCode: 'MONTHLY_30' as const,
+    ruleType: 'MONTH_END' as const,
+    monthOffset: 1,
+    dayOfMonth: 0,
+    dayOffset: 0,
+    defaultSalesSurcharge: '0.00',
+    description: '',
+  }
+  const settlement = await aux.ensureE2ESettlementMethod(terms, actor)
+  const settlementView = await aux.get(
+    'settlement-method',
+    { id: settlement.id },
+    actor,
+  )
   const customer = await submit('customer', {
     displayName: 'HTTP 客户',
     phone: '',
@@ -191,7 +208,17 @@ export async function seedSaleOrderReferences(
       code: customerType.code,
       name: customerType.name,
     },
-    settlementMethod: null,
+    settlementMethod: {
+      id: settlement.id,
+      code: settlementView.code,
+      name: settlementView.name,
+      termCode: terms.termCode,
+      ruleType: terms.ruleType,
+      monthOffset: 1,
+      dayOfMonth: 0,
+      dayOffset: 0,
+      defaultSalesSurcharge: '0.00',
+    },
     paymentMethod: null,
     transportPolicy: {
       methodCode: 'SELF_PICKUP',

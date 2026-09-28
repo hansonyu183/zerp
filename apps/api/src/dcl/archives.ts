@@ -1855,14 +1855,23 @@ export class DclArchiveService {
     tx: Executor,
     reference: unknown,
     errorKey: string,
+    field: 'settlementMethod' | 'paymentMethod' = 'settlementMethod',
   ): Promise<Record<string, unknown>> {
     const requested = record(reference)
     const fact = (
-      await this.auxFacts(tx, [
-        ['settlementMethod', String(requested.id ?? '')],
-      ])
+      await this.auxFacts(tx, [[field, String(requested.id ?? '')]])
     )[0]
     if (!fact || !fact.available) throw new DclArchiveApplicationError(errorKey)
+    if (field === 'paymentMethod')
+      return {
+        id: fact.objectId,
+        code: fact.code,
+        name: fact.name,
+        defaultSalesSurcharge: fixedAuxMoney(
+          fact.data.defaultSalesSurcharge,
+          errorKey,
+        ),
+      }
     const termCode =
       typeof fact.data.termCode === 'string' ? fact.data.termCode : ''
     const ruleType =
@@ -2046,6 +2055,32 @@ export class DclArchiveService {
     if (entity === 'customer')
       return {
         ...snapshot,
+        settlementMethod:
+          previous &&
+          isDeepStrictEqual(
+            previous.settlementMethod,
+            snapshot.settlementMethod,
+          )
+            ? previous.settlementMethod
+            : snapshot.settlementMethod === null
+              ? null
+              : await this.freezeAuxiliaryReference(
+                  tx,
+                  snapshot.settlementMethod,
+                  'archive_reference_unavailable',
+                ),
+        paymentMethod:
+          previous &&
+          isDeepStrictEqual(previous.paymentMethod, snapshot.paymentMethod)
+            ? previous.paymentMethod
+            : snapshot.paymentMethod === null
+              ? null
+              : await this.freezeAuxiliaryReference(
+                  tx,
+                  snapshot.paymentMethod,
+                  'archive_reference_unavailable',
+                  'paymentMethod',
+                ),
         defaultOperatingEntity:
           previous &&
           isDeepStrictEqual(

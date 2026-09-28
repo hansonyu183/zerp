@@ -302,6 +302,181 @@ test('Customer HTTP directly owns business attributes without legal identity or 
     expectedLatestApprovedRevision: null,
     snapshot: linkedSnapshot,
   }
+  const missingPayment = await write('submit-new', {
+    ...input,
+    subjectId: ulid(),
+    submissionId: ulid(),
+    idempotencyKey: ulid(),
+    snapshot: {
+      ...snapshot,
+      paymentMethod: {
+        id: ulid(),
+        code: 'MISSING',
+        name: '不存在的方式',
+        defaultSalesSurcharge: '0.00',
+      },
+    },
+  })
+  assert.equal(missingPayment.errorKey, 'archive_reference_unavailable')
+  const missingSettlement = await write('submit-new', {
+    ...input,
+    subjectId: ulid(),
+    submissionId: ulid(),
+    idempotencyKey: ulid(),
+    snapshot: {
+      ...snapshot,
+      settlementMethod: {
+        id: ulid(),
+        code: 'MISSING',
+        name: '不存在的结算方式',
+        termCode: 'CASH_ON_DELIVERY',
+        ruleType: 'RELATIVE_DAYS',
+        monthOffset: 0,
+        dayOfMonth: 0,
+        dayOffset: 0,
+        defaultSalesSurcharge: '0.00',
+      },
+    },
+  })
+  assert.equal(missingSettlement.errorKey, 'archive_reference_unavailable')
+  const tradingActor = {
+    ...trusted,
+    permissions: ['settlement-method', 'payment-method'].flatMap((entity) =>
+      ['create', 'get', 'save', 'disable'].map(
+        (action) => `/aux/${entity}/${action}`,
+      ),
+    ),
+  }
+  const terms = {
+    name: `现结-${suffix}`,
+    termCode: 'CASH_ON_DELIVERY' as const,
+    ruleType: 'RELATIVE_DAYS' as const,
+    monthOffset: 0,
+    dayOfMonth: 0,
+    dayOffset: 0,
+    defaultSalesSurcharge: '0.00',
+    description: '',
+  }
+  const settlement = await aux.ensureE2ESettlementMethod(terms, tradingActor)
+  const settlementView = await aux.get(
+    'settlement-method',
+    { id: settlement.id },
+    tradingActor,
+  )
+  const paymentData = {
+    name: `收款-${suffix}`,
+    defaultSalesSurcharge: '0.20',
+    description: '',
+  }
+  const payment = await aux.create('payment-method', paymentData, tradingActor)
+  const paymentView = await aux.get(
+    'payment-method',
+    { id: payment.id },
+    tradingActor,
+  )
+  const tradingInput = {
+    ...input,
+    subjectId: ulid(),
+    submissionId: ulid(),
+    idempotencyKey: ulid(),
+    snapshot: {
+      ...snapshot,
+      primarySalesAttribution: null,
+      settlementMethod: {
+        id: settlement.id,
+        code: 'FORGED',
+        ...terms,
+        name: '伪造账期',
+        dayOffset: 7,
+        defaultSalesSurcharge: '9.99',
+      },
+      paymentMethod: {
+        id: payment.id,
+        code: 'FORGED',
+        name: '伪造收款',
+        defaultSalesSurcharge: '9.99',
+      },
+      transportPolicy: {
+        methodCode: 'PICKUP',
+        methodName: '自提',
+        surcharge: '-0.10',
+      },
+    },
+  }
+  // Only wire fields belong in the snapshot, not the AUX description.
+  const { description: _description, ...settlementSnapshot } =
+    tradingInput.snapshot.settlementMethod
+  const submittedTrading = await write('submit-new', {
+    ...tradingInput,
+    snapshot: {
+      ...tradingInput.snapshot,
+      settlementMethod: settlementSnapshot,
+    },
+  })
+  assert.equal(submittedTrading.code, 0, submittedTrading.errorKey)
+  const adopted = submittedTrading.data.snapshot
+  assert.equal(adopted.settlementMethod.code, settlementView.code)
+  assert.equal(adopted.settlementMethod.dayOffset, 0)
+  assert.equal(adopted.settlementMethod.defaultSalesSurcharge, '0.00')
+  assert.equal(adopted.paymentMethod.code, paymentView.code)
+  assert.equal(adopted.paymentMethod.name, paymentData.name)
+  assert.equal(adopted.paymentMethod.defaultSalesSurcharge, '0.20')
+  assert.equal(adopted.transportPolicy.surcharge, '-0.10')
+  assert.equal(adopted.pricingPolicy.defaultDiscountUnitPrice, '0.00')
+  const changedPayment = await aux.save(
+    'payment-method',
+    {
+      id: payment.id,
+      revision: payment.revision,
+      ...paymentData,
+      name: '收款新名称',
+      defaultSalesSurcharge: '0.30',
+    },
+    tradingActor,
+  )
+  await aux.disable(
+    'payment-method',
+    { id: payment.id, revision: changedPayment.revision },
+    tradingActor,
+    ulid(),
+  )
+  const approvedTrading = await review('approve', {
+    subjectId: tradingInput.subjectId,
+    submissionId: tradingInput.submissionId,
+    expectedRevision: submittedTrading.data.revision,
+  })
+  assert.equal(approvedTrading.code, 0, approvedTrading.errorKey)
+  assert.deepEqual(
+    (await write('get', { objectId: tradingInput.subjectId })).data.data
+      .paymentMethod,
+    adopted.paymentMethod,
+  )
+  const changedCustomer = await write('submit-change', {
+    subjectId: tradingInput.subjectId,
+    submissionId: ulid(),
+    idempotencyKey: ulid(),
+    expectedLatestApprovedSubmissionId: tradingInput.submissionId,
+    expectedLatestApprovedRevision: approvedTrading.data.revision,
+    snapshot: { ...adopted, phone: '456' },
+  })
+  assert.equal(changedCustomer.code, 0, changedCustomer.errorKey)
+  assert.deepEqual(
+    changedCustomer.data.snapshot.paymentMethod,
+    adopted.paymentMethod,
+  )
+  for (const invalidReference of [
+    adopted.paymentMethod,
+    { ...adopted.paymentMethod, id: settlement.id },
+  ]) {
+    const refused = await write('submit-new', {
+      ...input,
+      subjectId: ulid(),
+      submissionId: ulid(),
+      idempotencyKey: ulid(),
+      snapshot: { ...snapshot, paymentMethod: invalidReference },
+    })
+    assert.equal(refused.errorKey, 'archive_reference_unavailable')
+  }
   const unassignedInput = {
     ...input,
     subjectId: ulid(),

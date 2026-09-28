@@ -975,7 +975,9 @@ function normalizeTransportPolicy(
     methodName: trim(value.methodName),
     surcharge: trim(value.surcharge),
   }
-  return result.methodCode && result.methodName && money.test(result.surcharge)
+  return result.methodCode &&
+    result.methodName &&
+    /^-?(?:0|[1-9]\d*)\.\d{2}$/.test(result.surcharge)
     ? result
     : undefined
 }

@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { createDatabase } from '../src/db/database.ts'
 import { assertTargetDatabaseBoundary } from '../src/platform/config.ts'
 import { upgradeDictionaryPurposes } from '../src/aux/dictionary-purpose-upgrade.ts'
+import { upgradeInstallationIdentity } from '../src/app/installation-upgrade.ts'
 
 // One-shot upgrade for the verified empty customer/calculation baseline.
 // Existing customers or scripts need a reviewed conversion, never guessed defaults.
@@ -43,10 +44,15 @@ try {
       await sql`SELECT id,revision,data FROM aux_objects WHERE entity='dictionary-type' ORDER BY id`.execute(
         tx,
       )
+    const installationLayout =
+      await sql`SELECT table_name,column_name,data_type,is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='app_installation' ORDER BY ordinal_position`.execute(
+        tx,
+      )
     const facts = {
       counts: rows.rows[0],
       layout: layout.rows,
       dictionaries: dictionaries.rows,
+      installationLayout: installationLayout.rows,
     }
     return {
       counts: facts.counts,
@@ -103,6 +109,7 @@ try {
         tx,
       )
       await upgradeDictionaryPurposes(tx)
+      await upgradeInstallationIdentity(tx)
       return {
         upgraded: true,
         sourceReleaseSha: backup.sourceReleaseSha,

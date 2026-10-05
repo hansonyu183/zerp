@@ -7,3 +7,5 @@
 - [ZERP 前端 API 配置](frontend-api-configuration.md)
 
 - [五类档案归属切换](archive-ownership-cutover.md)
+
+- [客户首次建档模型升级](customer-entry-upgrade.md)

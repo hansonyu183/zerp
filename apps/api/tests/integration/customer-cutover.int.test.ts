@@ -433,7 +433,22 @@ test('customer cutover projects all historical versions, shares tax, splits rece
   await sql`INSERT INTO acc_mapping_vou_entities(id,code,name,field_catalog,enabled) VALUES ('sales-receipt','sales-receipt','销售收款单','{"headerFields":["customer.objectId","amount"],"lineFields":["line.subunit.objectId","line.amount"]}',true) ON CONFLICT(id) DO UPDATE SET field_catalog=excluded.field_catalog`.execute(
     db,
   )
-  const original = await inspectCustomerCutover(db)
+  const unresolvedDefaults = await inspectCustomerCutover(db)
+  assert.ok(
+    unresolvedDefaults.review.some(
+      (item) => item.kind === 'CUSTOMER_ENTRY_DEFAULT_REQUIRED',
+    ),
+  )
+  const customerEntryDefaults = Object.fromEntries(
+    (
+      await sql<{
+        subunit_id: string
+      }>`SELECT DISTINCT subunit_id FROM dcl_customer_version_subunits`.execute(
+        db,
+      )
+    ).rows.map((row) => [row.subunit_id, { defaultSpecialApproval: false }]),
+  )
+  const original = await inspectCustomerCutover(db, customerEntryDefaults)
   assert.deepEqual(original.review, [])
   assert.equal(original.customers.length, 7)
   assert.equal(original.versions.length, 10)
@@ -450,6 +465,7 @@ test('customer cutover projects all historical versions, shares tax, splits rece
     false,
   )
   const input = {
+    customerEntryDefaults,
     baseline: original.baseline,
     sourceReleaseSha: 'a'.repeat(40),
     targetReleaseSha: 'b'.repeat(40),
@@ -464,7 +480,7 @@ test('customer cutover projects all historical versions, shares tax, splits rece
         db,
       )
     async function assertAvailabilityChangeBlocked() {
-      const preview = await inspectCustomerCutover(db)
+      const preview = await inspectCustomerCutover(db, customerEntryDefaults)
       assert.equal(preview.ready, false)
       assert.ok(
         preview.review.some(
@@ -479,7 +495,10 @@ test('customer cutover projects all historical versions, shares tax, splits rece
           error instanceof CustomerCutoverError &&
           error.reason === 'customer_cutover_review_required',
       )
-      assert.deepEqual(await inspectCustomerCutover(db), preview)
+      assert.deepEqual(
+        await inspectCustomerCutover(db, customerEntryDefaults),
+        preview,
+      )
     }
     await sql`UPDATE dcl_customer_version_subunits SET enabled=false WHERE customer_approval_entry_id=${multiOpen} AND subunit_id=${removed}`.execute(
       db,
@@ -500,16 +519,22 @@ test('customer cutover projects all historical versions, shares tax, splits rece
   await sql`UPDATE approval_entries SET status='PENDING',rejected_by=NULL,rejected_at=NULL,rejection_reason=NULL WHERE id=${multiOpen}`.execute(
     db,
   )
-  assert.deepEqual(await inspectCustomerCutover(db), original)
+  assert.deepEqual(
+    await inspectCustomerCutover(db, customerEntryDefaults),
+    original,
+  )
   await assert.rejects(
     migrateCustomers(db, { ...input, baseline: '0'.repeat(64) }, catalog),
     /baseline_changed/,
   )
-  assert.deepEqual(await inspectCustomerCutover(db), original)
+  assert.deepEqual(
+    await inspectCustomerCutover(db, customerEntryDefaults),
+    original,
+  )
   await sql`UPDATE dcl_supplier_versions SET legal_name='同税号冲突名称' WHERE approval_entry_id=${supplierV1}`.execute(
     db,
   )
-  const conflict = await inspectCustomerCutover(db)
+  const conflict = await inspectCustomerCutover(db, customerEntryDefaults)
   assert.equal(conflict.ready, false)
   assert.ok(conflict.review.some((row) => row.kind === 'TAX_CONTENT_CONFLICT'))
   await assert.rejects(
@@ -518,16 +543,22 @@ test('customer cutover projects all historical versions, shares tax, splits rece
       error instanceof CustomerCutoverError &&
       error.reason === 'customer_cutover_review_required',
   )
-  assert.deepEqual(await inspectCustomerCutover(db), conflict)
+  assert.deepEqual(
+    await inspectCustomerCutover(db, customerEntryDefaults),
+    conflict,
+  )
   await sql`UPDATE dcl_supplier_versions SET legal_name='共享税务正式名称' WHERE approval_entry_id=${supplierV1}`.execute(
     db,
   )
-  assert.deepEqual(await inspectCustomerCutover(db), original)
+  assert.deepEqual(
+    await inspectCustomerCutover(db, customerEntryDefaults),
+    original,
+  )
   await sql`UPDATE dcl_supplier_versions SET legal_identifier=NULL WHERE approval_entry_id=${supplierV1}`.execute(
     db,
   )
   assert.ok(
-    (await inspectCustomerCutover(db)).review.some(
+    (await inspectCustomerCutover(db, customerEntryDefaults)).review.some(
       (row) => row.kind === 'TAX_REQUIRED_INFORMATION',
     ),
   )
@@ -541,7 +572,7 @@ test('customer cutover projects all historical versions, shares tax, splits rece
     db,
   )
   assert.ok(
-    (await inspectCustomerCutover(db)).review.some(
+    (await inspectCustomerCutover(db, customerEntryDefaults)).review.some(
       (row) => row.kind === 'CUSTOMER_ATTRIBUTE_CONFLICT',
     ),
   )
@@ -556,14 +587,17 @@ test('customer cutover projects all historical versions, shares tax, splits rece
     db,
   )
   assert.ok(
-    (await inspectCustomerCutover(db)).review.some(
+    (await inspectCustomerCutover(db, customerEntryDefaults)).review.some(
       (row) => row.kind === 'RECEIPT_ALLOCATION_UNMAPPABLE',
     ),
   )
   await sql`UPDATE vou_reference_snapshots SET object_id=${first} WHERE approval_entry_id=${receiptEntry} AND field='subunit' AND line_no=1`.execute(
     db,
   )
-  assert.deepEqual(await inspectCustomerCutover(db), original)
+  assert.deepEqual(
+    await inspectCustomerCutover(db, customerEntryDefaults),
+    original,
+  )
   // A late import failure exercises rollback after the target schema was built.
   await assert.rejects(
     migrateCustomers(
@@ -573,7 +607,10 @@ test('customer cutover projects all historical versions, shares tax, splits rece
     ),
     /authority_mismatch/,
   )
-  assert.deepEqual(await inspectCustomerCutover(db), original)
+  assert.deepEqual(
+    await inspectCustomerCutover(db, customerEntryDefaults),
+    original,
+  )
   const report = await migrateCustomers(db, input, catalog)
   assert.equal(report.preserved, true)
   assert.equal(report.taxInformation, 1)

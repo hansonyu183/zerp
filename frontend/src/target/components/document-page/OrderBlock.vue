@@ -112,6 +112,10 @@ async function counterparty(choice: VouCandidate | null) {
         customer.data.settlementMethod?.defaultSalesSurcharge ?? null
       const attribution = customer.data.primarySalesAttribution
       update({
+        specialApproval: customer.data.defaultSpecialApproval,
+        warehouse: customer.data.defaultOutboundWarehouse
+          ? { entity: 'warehouse', ...customer.data.defaultOutboundWarehouse }
+          : null,
         ...(props.modelValue.remark === previousRemark
           ? { remark: customer.data.defaultSalesOrderRemark }
           : {}),

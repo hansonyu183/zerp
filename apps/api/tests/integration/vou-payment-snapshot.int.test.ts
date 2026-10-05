@@ -233,12 +233,11 @@ test('sales orders adopt explicit customer or current payment snapshots without 
         (approval_entry_id, index) => ({
           approval_entry_id,
           display_name: index ? '未设收款客户' : '默认收款客户',
-          customer_type_id: '01J00000000000000000000103',
-          customer_type_snapshot: JSON.stringify({
-            id: '01J00000000000000000000103',
-            code: 'CUSTOMER-TYPE-TEST',
-            name: '测试类型',
-          }),
+
+          logistics_settlement_group: null,
+          default_special_approval: false,
+          default_outbound_warehouse: null,
+          monthly_closing_day: null,
           settlement_snapshot: monthlySettlementSnapshot,
           payment_snapshot: index
             ? null

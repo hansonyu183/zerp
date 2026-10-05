@@ -59,7 +59,6 @@ export type ArchiveSnapshot = Record<string, unknown>
 
 type AuxiliaryField =
   | 'paymentMethod'
-  | 'customerType'
   | 'settlementMethod'
   | 'productType'
   | 'productCategory'
@@ -76,7 +75,6 @@ type AuxiliaryFact = {
 }
 
 const auxiliaryEntities: Record<AuxiliaryField, string> = {
-  customerType: 'dictionary-item',
   paymentMethod: 'payment-method',
   settlementMethod: 'settlement-method',
   productType: 'product-type',
@@ -235,7 +233,7 @@ export type ArchiveBlocker =
     }
   | {
       kind: 'AUX_REFERENCE'
-      entity: 'operating-entity' | 'employee'
+      entity: 'operating-entity' | 'employee' | 'warehouse'
       objectId: string
     }
   | {
@@ -1500,14 +1498,20 @@ export class DclArchiveService {
           {
             subject,
             defaultOperatingEntity: adoptedAuxFact(data.defaultOperatingEntity),
-            customerTypes: (
-              await this.auxFacts(tx, [
-                ['customerType', record(data.customerType).id],
-              ])
-            ).map((fact) => ({
-              objectId: fact.objectId,
-              available: fact.available,
-            })),
+            defaultOutboundWarehouse: adoptedAuxFact(
+              data.defaultOutboundWarehouse,
+            ),
+            logisticsSettlementGroups:
+              data.logisticsSettlementGroup === null
+                ? []
+                : [
+                    {
+                      objectId: String(
+                        record(data.logisticsSettlementGroup).id,
+                      ),
+                      available: true,
+                    },
+                  ],
             salesAttributions: await Promise.all(
               (data.primarySalesAttribution === null ? [] : [data]).map(
                 async (value) => {
@@ -1831,7 +1835,7 @@ export class DclArchiveService {
 
   private async freezeCurrentReference(
     tx: Transaction<DB>,
-    entity: 'operating-entity' | 'employee',
+    entity: 'operating-entity' | 'employee' | 'warehouse',
     reference: unknown,
   ): Promise<Record<string, unknown>> {
     const objectId = String(record(reference).objectId ?? '')
@@ -2015,18 +2019,28 @@ export class DclArchiveService {
     }
   }
 
-  private async freezeCustomerType(
+  private async freezeLogisticsSettlementGroup(
     tx: Executor,
     reference: unknown,
   ): Promise<Record<string, unknown>> {
-    const fact = (
-      await this.auxFacts(tx, [
-        ['customerType', String(record(reference).id ?? '')],
+    const objectId = String(record(reference).id ?? '')
+    const result = await sql<{ id: string; code: string; name: string }>`
+      SELECT item.id, item.code, item.data->>'name' AS name
+      FROM aux_objects item JOIN aux_objects parent ON parent.id = item.data->>'dictionaryTypeId'
+      WHERE item.id=${objectId} AND item.entity='dictionary-item' AND item.enabled
+      AND parent.entity='dictionary-type' AND parent.enabled AND parent.data->>'purpose'='LOGISTICS_SETTLEMENT'
+      FOR SHARE OF item, parent`.execute(tx)
+    const fact = result.rows[0]
+    if (!fact)
+      throw new DclArchiveApplicationError('customer_reference_unavailable', [
+        {
+          kind: 'SUBMISSION_REFERENCE',
+          field: 'logisticsSettlementGroup',
+          objectId,
+          expectedApprovalEntryId: '',
+        },
       ])
-    )[0]
-    if (!fact?.available)
-      throw new DclArchiveApplicationError('customer_invalid_data')
-    return { id: fact.objectId, code: fact.code, name: fact.name }
+    return { id: fact.id, code: fact.code, name: fact.name }
   }
 
   private async freezeAuthoritativeReferences(
@@ -2095,11 +2109,33 @@ export class DclArchiveService {
                   'operating-entity',
                   snapshot.defaultOperatingEntity,
                 ),
-        customerType:
+        logisticsSettlementGroup:
           previous &&
-          isDeepStrictEqual(previous.customerType, snapshot.customerType)
-            ? previous.customerType
-            : await this.freezeCustomerType(tx, snapshot.customerType),
+          isDeepStrictEqual(
+            previous.logisticsSettlementGroup,
+            snapshot.logisticsSettlementGroup,
+          )
+            ? previous.logisticsSettlementGroup
+            : snapshot.logisticsSettlementGroup === null
+              ? null
+              : await this.freezeLogisticsSettlementGroup(
+                  tx,
+                  snapshot.logisticsSettlementGroup,
+                ),
+        defaultOutboundWarehouse:
+          previous &&
+          isDeepStrictEqual(
+            previous.defaultOutboundWarehouse,
+            snapshot.defaultOutboundWarehouse,
+          )
+            ? previous.defaultOutboundWarehouse
+            : snapshot.defaultOutboundWarehouse === null
+              ? null
+              : await this.freezeCurrentReference(
+                  tx,
+                  'warehouse',
+                  snapshot.defaultOutboundWarehouse,
+                ),
         primarySalesAttribution:
           previous &&
           isDeepStrictEqual(
@@ -2259,6 +2295,16 @@ export class DclArchiveService {
         ])
     }
     if (entity === 'customer') {
+      if (snapshot.logisticsSettlementGroup)
+        references.push([
+          'logisticsSettlementGroup',
+          String(record(snapshot.logisticsSettlementGroup).id ?? ''),
+        ])
+      if (snapshot.defaultOutboundWarehouse)
+        references.push([
+          'defaultOutboundWarehouse',
+          String(record(snapshot.defaultOutboundWarehouse).objectId ?? ''),
+        ])
       if (snapshot.defaultOperatingEntity)
         references.push([
           'defaultOperatingEntity',
@@ -2297,8 +2343,17 @@ export class DclArchiveService {
         default_operating_entity_id: nullable(oe.objectId),
         default_operating_entity_code: nullable(oe.code),
         default_operating_entity_name: nullable(oe.name),
-        customer_type_id: String(record(d.customerType).id),
-        customer_type_snapshot: json(record(d.customerType)),
+        logistics_settlement_group:
+          d.logisticsSettlementGroup === null
+            ? null
+            : json(record(d.logisticsSettlementGroup)),
+        default_special_approval: Boolean(d.defaultSpecialApproval),
+        default_outbound_warehouse:
+          d.defaultOutboundWarehouse === null
+            ? null
+            : json(record(d.defaultOutboundWarehouse)),
+        monthly_closing_day:
+          d.monthlyClosingDay === null ? null : Number(d.monthlyClosingDay),
         settlement_method_id: nullable(record(d.settlementMethod).id),
         settlement_snapshot:
           d.settlementMethod === null ? null : json(record(d.settlementMethod)),
@@ -2628,7 +2683,10 @@ export class DclArchiveService {
             name: r.default_operating_entity_name ?? '',
           }
         : null,
-      customerType: record(r.customer_type_snapshot),
+      logisticsSettlementGroup: r.logistics_settlement_group,
+      defaultSpecialApproval: r.default_special_approval,
+      defaultOutboundWarehouse: r.default_outbound_warehouse,
+      monthlyClosingDay: r.monthly_closing_day,
       settlementMethod: r.settlement_snapshot,
       paymentMethod: r.payment_snapshot,
       transportPolicy: record(r.transport_snapshot),

@@ -392,7 +392,6 @@ const intermediarySourceLine = z
     unitPrice: money,
     referenceUnitPrice: money,
     settlementSurcharge: money,
-    customerTypeCode: z.string().min(1),
     paymentSurcharge: money,
     transportSurcharge: money,
     defaultPremiumUnitPrice: money,

@@ -849,7 +849,10 @@ const customerSnapshot = () => ({
   defaultOperatingEntity: null,
   contactName: '',
   address: '',
-  customerType: { id: 'type', code: 'DIRECT', name: '直销' },
+  logisticsSettlementGroup: null,
+  defaultSpecialApproval: false,
+  defaultOutboundWarehouse: null,
+  monthlyClosingDay: null,
   settlementMethod: null,
   paymentMethod: null,
   transportPolicy: {

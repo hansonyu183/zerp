@@ -32,7 +32,10 @@ export function emptyCustomer(): CustomerSnapshot {
     defaultOperatingEntity: null,
     remittanceProfiles: [],
     taxInformation: [],
-    customerType: { id: '', code: '', name: '' },
+    logisticsSettlementGroup: null,
+    defaultSpecialApproval: false,
+    defaultOutboundWarehouse: null,
+    monthlyClosingDay: null,
     settlementMethod: null,
     paymentMethod: null,
     transportPolicy: {
@@ -65,7 +68,13 @@ export function validateCustomer(snapshot: CustomerSnapshot): string | null {
   )
   if (invalidPayer >= 0)
     return `汇款识别第 ${invalidPayer + 1} 行：请填写付款户名。`
-  if (!snapshot.customerType.id) return '请选择客户类型。'
+  if (
+    snapshot.monthlyClosingDay !== null &&
+    (!Number.isInteger(snapshot.monthlyClosingDay) ||
+      snapshot.monthlyClosingDay < 1 ||
+      snapshot.monthlyClosingDay > 31)
+  )
+    return '月结日须为1至31，留空采用自然月。'
   if (
     snapshot.primarySalesAttribution !== null &&
     !snapshot.primarySalesAttribution.objectId

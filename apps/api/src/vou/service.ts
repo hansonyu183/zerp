@@ -4243,7 +4243,7 @@ export class VouService implements WflVouPort {
           sales_contract_applicable_from, sales_contract_applicable_to, sales_contract_terms,
           behavior_profile, signed_quantity_micros, pricing_quantity_micros,
           standard_piece_quantity_micros, unit_price_minor, reference_unit_price_minor,
-          customer_type_code, payment_surcharge_minor, transport_surcharge_minor, default_premium_unit_price_minor, default_discount_unit_price_minor, third_party_fixed_unit_cost_minor, third_party_variable_unit_cost_minor, cost_items,
+          payment_surcharge_minor, transport_surcharge_minor, default_premium_unit_price_minor, default_discount_unit_price_minor, third_party_fixed_unit_cost_minor, third_party_variable_unit_cost_minor, cost_items,
           settlement_surcharge_minor, line_amount_minor, settlement_term_code,
           special_approval, return_document_nos, adjustment_employee_amount_minor,
           adjustment_intermediary_amount_minor
@@ -4259,7 +4259,7 @@ export class VouService implements WflVouPort {
           ${decimalToFixed(line.signedBaseQuantity, 6)!}, ${decimalToFixed(line.pricingQuantity, 6)!},
           ${decimalToFixed(line.standardPieceQuantity, 6)!}, ${decimalToFixed(line.unitPrice, 2)!},
           ${decimalToFixed(line.referenceUnitPrice, 2)!},
-          ${line.customerTypeCode}, ${decimalToFixed(line.paymentSurcharge, 2)!}, ${decimalToFixed(line.transportSurcharge, 2)!}, ${decimalToFixed(line.defaultPremiumUnitPrice, 2)!}, ${decimalToFixed(line.defaultDiscountUnitPrice, 2)!}, ${decimalToFixed(line.thirdPartyIntermediaryFixedUnitCost, 2)!}, ${decimalToFixed(line.thirdPartyIntermediaryVariableUnitCost, 2)!}, ${JSON.stringify(line.costItems)}::jsonb,
+          ${decimalToFixed(line.paymentSurcharge, 2)!}, ${decimalToFixed(line.transportSurcharge, 2)!}, ${decimalToFixed(line.defaultPremiumUnitPrice, 2)!}, ${decimalToFixed(line.defaultDiscountUnitPrice, 2)!}, ${decimalToFixed(line.thirdPartyIntermediaryFixedUnitCost, 2)!}, ${decimalToFixed(line.thirdPartyIntermediaryVariableUnitCost, 2)!}, ${JSON.stringify(line.costItems)}::jsonb,
           ${decimalToFixed(line.settlementSurcharge, 2)!},
           ${decimalToFixed(line.lineAmount, 2)!}, ${line.settlementTermCode}, ${line.specialApproval},
           ${line.returnDocumentNos ?? []}, ${decimalToFixed(line.adjustmentEmployeeAmount, 2)!},
@@ -5635,7 +5635,6 @@ export class VouService implements WflVouPort {
         pricing_quantity_micros: string
         standard_piece_quantity_micros: string
         unit_price_minor: string
-        customer_type_code: string
         payment_surcharge_minor: string
         transport_surcharge_minor: string
         default_premium_unit_price_minor: string
@@ -5750,7 +5749,6 @@ export class VouService implements WflVouPort {
               ),
               unitPrice: fixed(line.unit_price_minor, 2),
               referenceUnitPrice: fixed(line.reference_unit_price_minor, 2),
-              customerTypeCode: line.customer_type_code,
               paymentSurcharge: fixed(line.payment_surcharge_minor, 2),
               transportSurcharge: fixed(line.transport_surcharge_minor, 2),
               defaultPremiumUnitPrice: fixed(

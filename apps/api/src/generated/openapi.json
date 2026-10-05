@@ -4355,6 +4355,36 @@
                             "data": {
                               "type": "object",
                               "properties": {
+                                "defaultSpecialApproval": {
+                                  "type": "boolean"
+                                },
+                                "defaultOutboundWarehouse": {
+                                  "type": "object",
+                                  "nullable": true,
+                                  "properties": {
+                                    "objectId": {
+                                      "type": "string",
+                                      "minLength": 26,
+                                      "maxLength": 26
+                                    },
+                                    "code": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    },
+                                    "name": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    }
+                                  },
+                                  "required": [
+                                    "objectId",
+                                    "code",
+                                    "name"
+                                  ],
+                                  "additionalProperties": false
+                                },
                                 "internalReminder": {
                                   "type": "string",
                                   "maxLength": 1000
@@ -4520,6 +4550,8 @@
                                 }
                               },
                               "required": [
+                                "defaultSpecialApproval",
+                                "defaultOutboundWarehouse",
                                 "internalReminder",
                                 "defaultSalesOrderRemark",
                                 "settlementMethod",
@@ -6211,6 +6243,17 @@
             "required": false,
             "name": "dictionaryTypeCode",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LOGISTICS_SETTLEMENT"
+              ]
+            },
+            "required": false,
+            "name": "dictionaryPurpose",
+            "in": "query"
           }
         ],
         "responses": {
@@ -6561,6 +6604,17 @@
             },
             "required": false,
             "name": "dictionaryTypeCode",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LOGISTICS_SETTLEMENT"
+              ]
+            },
+            "required": false,
+            "name": "dictionaryPurpose",
             "in": "query"
           }
         ],
@@ -6913,6 +6967,17 @@
             "required": false,
             "name": "dictionaryTypeCode",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LOGISTICS_SETTLEMENT"
+              ]
+            },
+            "required": false,
+            "name": "dictionaryPurpose",
+            "in": "query"
           }
         ],
         "responses": {
@@ -7263,6 +7328,17 @@
             },
             "required": false,
             "name": "dictionaryTypeCode",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LOGISTICS_SETTLEMENT"
+              ]
+            },
+            "required": false,
+            "name": "dictionaryPurpose",
             "in": "query"
           }
         ],
@@ -7615,6 +7691,17 @@
             "required": false,
             "name": "dictionaryTypeCode",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LOGISTICS_SETTLEMENT"
+              ]
+            },
+            "required": false,
+            "name": "dictionaryPurpose",
+            "in": "query"
           }
         ],
         "responses": {
@@ -7965,6 +8052,17 @@
             },
             "required": false,
             "name": "dictionaryTypeCode",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LOGISTICS_SETTLEMENT"
+              ]
+            },
+            "required": false,
+            "name": "dictionaryPurpose",
             "in": "query"
           }
         ],
@@ -8317,6 +8415,17 @@
             "required": false,
             "name": "dictionaryTypeCode",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LOGISTICS_SETTLEMENT"
+              ]
+            },
+            "required": false,
+            "name": "dictionaryPurpose",
+            "in": "query"
           }
         ],
         "responses": {
@@ -8667,6 +8776,17 @@
             },
             "required": false,
             "name": "dictionaryTypeCode",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LOGISTICS_SETTLEMENT"
+              ]
+            },
+            "required": false,
+            "name": "dictionaryPurpose",
             "in": "query"
           }
         ],
@@ -9019,6 +9139,17 @@
             "required": false,
             "name": "dictionaryTypeCode",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LOGISTICS_SETTLEMENT"
+              ]
+            },
+            "required": false,
+            "name": "dictionaryPurpose",
+            "in": "query"
           }
         ],
         "responses": {
@@ -9369,6 +9500,17 @@
             },
             "required": false,
             "name": "dictionaryTypeCode",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LOGISTICS_SETTLEMENT"
+              ]
+            },
+            "required": false,
+            "name": "dictionaryPurpose",
             "in": "query"
           }
         ],
@@ -9721,6 +9863,17 @@
             "required": false,
             "name": "dictionaryTypeCode",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LOGISTICS_SETTLEMENT"
+              ]
+            },
+            "required": false,
+            "name": "dictionaryPurpose",
+            "in": "query"
           }
         ],
         "responses": {
@@ -10071,6 +10224,17 @@
             },
             "required": false,
             "name": "dictionaryTypeCode",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LOGISTICS_SETTLEMENT"
+              ]
+            },
+            "required": false,
+            "name": "dictionaryPurpose",
             "in": "query"
           }
         ],
@@ -10423,6 +10587,17 @@
             "required": false,
             "name": "dictionaryTypeCode",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LOGISTICS_SETTLEMENT"
+              ]
+            },
+            "required": false,
+            "name": "dictionaryPurpose",
+            "in": "query"
           }
         ],
         "responses": {
@@ -10773,6 +10948,17 @@
             },
             "required": false,
             "name": "dictionaryTypeCode",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LOGISTICS_SETTLEMENT"
+              ]
+            },
+            "required": false,
+            "name": "dictionaryPurpose",
             "in": "query"
           }
         ],
@@ -11125,6 +11311,17 @@
             "required": false,
             "name": "dictionaryTypeCode",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LOGISTICS_SETTLEMENT"
+              ]
+            },
+            "required": false,
+            "name": "dictionaryPurpose",
+            "in": "query"
           }
         ],
         "responses": {
@@ -11475,6 +11672,17 @@
             },
             "required": false,
             "name": "dictionaryTypeCode",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LOGISTICS_SETTLEMENT"
+              ]
+            },
+            "required": false,
+            "name": "dictionaryPurpose",
             "in": "query"
           }
         ],
@@ -11827,6 +12035,17 @@
             "required": false,
             "name": "dictionaryTypeCode",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LOGISTICS_SETTLEMENT"
+              ]
+            },
+            "required": false,
+            "name": "dictionaryPurpose",
+            "in": "query"
           }
         ],
         "responses": {
@@ -12177,6 +12396,17 @@
             },
             "required": false,
             "name": "dictionaryTypeCode",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LOGISTICS_SETTLEMENT"
+              ]
+            },
+            "required": false,
+            "name": "dictionaryPurpose",
             "in": "query"
           }
         ],
@@ -29114,6 +29344,14 @@
                               "maxLength": 1000,
                               "default": ""
                             },
+                            "purpose": {
+                              "type": "string",
+                              "enum": [
+                                "GENERAL",
+                                "LOGISTICS_SETTLEMENT"
+                              ],
+                              "default": "GENERAL"
+                            },
                             "updatedAt": {
                               "type": "string",
                               "format": "date-time"
@@ -29229,6 +29467,14 @@
                     "type": "string",
                     "maxLength": 1000,
                     "default": ""
+                  },
+                  "purpose": {
+                    "type": "string",
+                    "enum": [
+                      "GENERAL",
+                      "LOGISTICS_SETTLEMENT"
+                    ],
+                    "default": "GENERAL"
                   }
                 },
                 "required": [
@@ -29391,6 +29637,14 @@
                     "type": "string",
                     "maxLength": 1000,
                     "default": ""
+                  },
+                  "purpose": {
+                    "type": "string",
+                    "enum": [
+                      "GENERAL",
+                      "LOGISTICS_SETTLEMENT"
+                    ],
+                    "default": "GENERAL"
                   }
                 },
                 "required": [
@@ -43475,8 +43729,9 @@
                                         "type": "string",
                                         "maxLength": 500
                                       },
-                                      "customerType": {
+                                      "logisticsSettlementGroup": {
                                         "type": "object",
+                                        "nullable": true,
                                         "properties": {
                                           "id": {
                                             "type": "string",
@@ -43500,6 +43755,42 @@
                                           "name"
                                         ],
                                         "additionalProperties": false
+                                      },
+                                      "defaultSpecialApproval": {
+                                        "type": "boolean"
+                                      },
+                                      "defaultOutboundWarehouse": {
+                                        "type": "object",
+                                        "nullable": true,
+                                        "properties": {
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "code": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 64
+                                          },
+                                          "name": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 200
+                                          }
+                                        },
+                                        "required": [
+                                          "objectId",
+                                          "code",
+                                          "name"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      "monthlyClosingDay": {
+                                        "type": "integer",
+                                        "nullable": true,
+                                        "minimum": 1,
+                                        "maximum": 31
                                       },
                                       "settlementMethod": {
                                         "type": "object",
@@ -44003,7 +44294,10 @@
                                       "email",
                                       "contactName",
                                       "address",
-                                      "customerType",
+                                      "logisticsSettlementGroup",
+                                      "defaultSpecialApproval",
+                                      "defaultOutboundWarehouse",
+                                      "monthlyClosingDay",
                                       "settlementMethod",
                                       "paymentMethod",
                                       "transportPolicy",
@@ -44247,8 +44541,9 @@
                                   "type": "string",
                                   "maxLength": 500
                                 },
-                                "customerType": {
+                                "logisticsSettlementGroup": {
                                   "type": "object",
+                                  "nullable": true,
                                   "properties": {
                                     "id": {
                                       "type": "string",
@@ -44272,6 +44567,42 @@
                                     "name"
                                   ],
                                   "additionalProperties": false
+                                },
+                                "defaultSpecialApproval": {
+                                  "type": "boolean"
+                                },
+                                "defaultOutboundWarehouse": {
+                                  "type": "object",
+                                  "nullable": true,
+                                  "properties": {
+                                    "objectId": {
+                                      "type": "string",
+                                      "minLength": 26,
+                                      "maxLength": 26
+                                    },
+                                    "code": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    },
+                                    "name": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    }
+                                  },
+                                  "required": [
+                                    "objectId",
+                                    "code",
+                                    "name"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "monthlyClosingDay": {
+                                  "type": "integer",
+                                  "nullable": true,
+                                  "minimum": 1,
+                                  "maximum": 31
                                 },
                                 "settlementMethod": {
                                   "type": "object",
@@ -44775,7 +45106,10 @@
                                 "email",
                                 "contactName",
                                 "address",
-                                "customerType",
+                                "logisticsSettlementGroup",
+                                "defaultSpecialApproval",
+                                "defaultOutboundWarehouse",
+                                "monthlyClosingDay",
                                 "settlementMethod",
                                 "paymentMethod",
                                 "transportPolicy",
@@ -47442,8 +47776,9 @@
                                   "type": "string",
                                   "maxLength": 500
                                 },
-                                "customerType": {
+                                "logisticsSettlementGroup": {
                                   "type": "object",
+                                  "nullable": true,
                                   "properties": {
                                     "id": {
                                       "type": "string",
@@ -47467,6 +47802,42 @@
                                     "name"
                                   ],
                                   "additionalProperties": false
+                                },
+                                "defaultSpecialApproval": {
+                                  "type": "boolean"
+                                },
+                                "defaultOutboundWarehouse": {
+                                  "type": "object",
+                                  "nullable": true,
+                                  "properties": {
+                                    "objectId": {
+                                      "type": "string",
+                                      "minLength": 26,
+                                      "maxLength": 26
+                                    },
+                                    "code": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    },
+                                    "name": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    }
+                                  },
+                                  "required": [
+                                    "objectId",
+                                    "code",
+                                    "name"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "monthlyClosingDay": {
+                                  "type": "integer",
+                                  "nullable": true,
+                                  "minimum": 1,
+                                  "maximum": 31
                                 },
                                 "settlementMethod": {
                                   "type": "object",
@@ -47970,7 +48341,10 @@
                                 "email",
                                 "contactName",
                                 "address",
-                                "customerType",
+                                "logisticsSettlementGroup",
+                                "defaultSpecialApproval",
+                                "defaultOutboundWarehouse",
+                                "monthlyClosingDay",
                                 "settlementMethod",
                                 "paymentMethod",
                                 "transportPolicy",
@@ -48417,8 +48791,9 @@
                                         "type": "string",
                                         "maxLength": 500
                                       },
-                                      "customerType": {
+                                      "logisticsSettlementGroup": {
                                         "type": "object",
+                                        "nullable": true,
                                         "properties": {
                                           "id": {
                                             "type": "string",
@@ -48442,6 +48817,42 @@
                                           "name"
                                         ],
                                         "additionalProperties": false
+                                      },
+                                      "defaultSpecialApproval": {
+                                        "type": "boolean"
+                                      },
+                                      "defaultOutboundWarehouse": {
+                                        "type": "object",
+                                        "nullable": true,
+                                        "properties": {
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "code": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 64
+                                          },
+                                          "name": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 200
+                                          }
+                                        },
+                                        "required": [
+                                          "objectId",
+                                          "code",
+                                          "name"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      "monthlyClosingDay": {
+                                        "type": "integer",
+                                        "nullable": true,
+                                        "minimum": 1,
+                                        "maximum": 31
                                       },
                                       "settlementMethod": {
                                         "type": "object",
@@ -48945,7 +49356,10 @@
                                       "email",
                                       "contactName",
                                       "address",
-                                      "customerType",
+                                      "logisticsSettlementGroup",
+                                      "defaultSpecialApproval",
+                                      "defaultOutboundWarehouse",
+                                      "monthlyClosingDay",
                                       "settlementMethod",
                                       "paymentMethod",
                                       "transportPolicy",
@@ -49692,8 +50106,9 @@
                         "type": "string",
                         "maxLength": 500
                       },
-                      "customerType": {
+                      "logisticsSettlementGroup": {
                         "type": "object",
+                        "nullable": true,
                         "properties": {
                           "id": {
                             "type": "string",
@@ -49717,6 +50132,42 @@
                           "name"
                         ],
                         "additionalProperties": false
+                      },
+                      "defaultSpecialApproval": {
+                        "type": "boolean"
+                      },
+                      "defaultOutboundWarehouse": {
+                        "type": "object",
+                        "nullable": true,
+                        "properties": {
+                          "objectId": {
+                            "type": "string",
+                            "minLength": 26,
+                            "maxLength": 26
+                          },
+                          "code": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          }
+                        },
+                        "required": [
+                          "objectId",
+                          "code",
+                          "name"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "monthlyClosingDay": {
+                        "type": "integer",
+                        "nullable": true,
+                        "minimum": 1,
+                        "maximum": 31
                       },
                       "settlementMethod": {
                         "type": "object",
@@ -50220,7 +50671,10 @@
                       "email",
                       "contactName",
                       "address",
-                      "customerType",
+                      "logisticsSettlementGroup",
+                      "defaultSpecialApproval",
+                      "defaultOutboundWarehouse",
+                      "monthlyClosingDay",
                       "settlementMethod",
                       "paymentMethod",
                       "transportPolicy",
@@ -50366,8 +50820,9 @@
                                   "type": "string",
                                   "maxLength": 500
                                 },
-                                "customerType": {
+                                "logisticsSettlementGroup": {
                                   "type": "object",
+                                  "nullable": true,
                                   "properties": {
                                     "id": {
                                       "type": "string",
@@ -50391,6 +50846,42 @@
                                     "name"
                                   ],
                                   "additionalProperties": false
+                                },
+                                "defaultSpecialApproval": {
+                                  "type": "boolean"
+                                },
+                                "defaultOutboundWarehouse": {
+                                  "type": "object",
+                                  "nullable": true,
+                                  "properties": {
+                                    "objectId": {
+                                      "type": "string",
+                                      "minLength": 26,
+                                      "maxLength": 26
+                                    },
+                                    "code": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    },
+                                    "name": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    }
+                                  },
+                                  "required": [
+                                    "objectId",
+                                    "code",
+                                    "name"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "monthlyClosingDay": {
+                                  "type": "integer",
+                                  "nullable": true,
+                                  "minimum": 1,
+                                  "maximum": 31
                                 },
                                 "settlementMethod": {
                                   "type": "object",
@@ -50894,7 +51385,10 @@
                                 "email",
                                 "contactName",
                                 "address",
-                                "customerType",
+                                "logisticsSettlementGroup",
+                                "defaultSpecialApproval",
+                                "defaultOutboundWarehouse",
+                                "monthlyClosingDay",
                                 "settlementMethod",
                                 "paymentMethod",
                                 "transportPolicy",
@@ -51251,8 +51745,9 @@
                         "type": "string",
                         "maxLength": 500
                       },
-                      "customerType": {
+                      "logisticsSettlementGroup": {
                         "type": "object",
+                        "nullable": true,
                         "properties": {
                           "id": {
                             "type": "string",
@@ -51276,6 +51771,42 @@
                           "name"
                         ],
                         "additionalProperties": false
+                      },
+                      "defaultSpecialApproval": {
+                        "type": "boolean"
+                      },
+                      "defaultOutboundWarehouse": {
+                        "type": "object",
+                        "nullable": true,
+                        "properties": {
+                          "objectId": {
+                            "type": "string",
+                            "minLength": 26,
+                            "maxLength": 26
+                          },
+                          "code": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          }
+                        },
+                        "required": [
+                          "objectId",
+                          "code",
+                          "name"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "monthlyClosingDay": {
+                        "type": "integer",
+                        "nullable": true,
+                        "minimum": 1,
+                        "maximum": 31
                       },
                       "settlementMethod": {
                         "type": "object",
@@ -51779,7 +52310,10 @@
                       "email",
                       "contactName",
                       "address",
-                      "customerType",
+                      "logisticsSettlementGroup",
+                      "defaultSpecialApproval",
+                      "defaultOutboundWarehouse",
+                      "monthlyClosingDay",
                       "settlementMethod",
                       "paymentMethod",
                       "transportPolicy",
@@ -51925,8 +52459,9 @@
                                   "type": "string",
                                   "maxLength": 500
                                 },
-                                "customerType": {
+                                "logisticsSettlementGroup": {
                                   "type": "object",
+                                  "nullable": true,
                                   "properties": {
                                     "id": {
                                       "type": "string",
@@ -51950,6 +52485,42 @@
                                     "name"
                                   ],
                                   "additionalProperties": false
+                                },
+                                "defaultSpecialApproval": {
+                                  "type": "boolean"
+                                },
+                                "defaultOutboundWarehouse": {
+                                  "type": "object",
+                                  "nullable": true,
+                                  "properties": {
+                                    "objectId": {
+                                      "type": "string",
+                                      "minLength": 26,
+                                      "maxLength": 26
+                                    },
+                                    "code": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    },
+                                    "name": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    }
+                                  },
+                                  "required": [
+                                    "objectId",
+                                    "code",
+                                    "name"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "monthlyClosingDay": {
+                                  "type": "integer",
+                                  "nullable": true,
+                                  "minimum": 1,
+                                  "maximum": 31
                                 },
                                 "settlementMethod": {
                                   "type": "object",
@@ -52453,7 +53024,10 @@
                                 "email",
                                 "contactName",
                                 "address",
-                                "customerType",
+                                "logisticsSettlementGroup",
+                                "defaultSpecialApproval",
+                                "defaultOutboundWarehouse",
+                                "monthlyClosingDay",
                                 "settlementMethod",
                                 "paymentMethod",
                                 "transportPolicy",
@@ -52901,8 +53475,9 @@
                                   "type": "string",
                                   "maxLength": 500
                                 },
-                                "customerType": {
+                                "logisticsSettlementGroup": {
                                   "type": "object",
+                                  "nullable": true,
                                   "properties": {
                                     "id": {
                                       "type": "string",
@@ -52926,6 +53501,42 @@
                                     "name"
                                   ],
                                   "additionalProperties": false
+                                },
+                                "defaultSpecialApproval": {
+                                  "type": "boolean"
+                                },
+                                "defaultOutboundWarehouse": {
+                                  "type": "object",
+                                  "nullable": true,
+                                  "properties": {
+                                    "objectId": {
+                                      "type": "string",
+                                      "minLength": 26,
+                                      "maxLength": 26
+                                    },
+                                    "code": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    },
+                                    "name": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    }
+                                  },
+                                  "required": [
+                                    "objectId",
+                                    "code",
+                                    "name"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "monthlyClosingDay": {
+                                  "type": "integer",
+                                  "nullable": true,
+                                  "minimum": 1,
+                                  "maximum": 31
                                 },
                                 "settlementMethod": {
                                   "type": "object",
@@ -53429,7 +54040,10 @@
                                 "email",
                                 "contactName",
                                 "address",
-                                "customerType",
+                                "logisticsSettlementGroup",
+                                "defaultSpecialApproval",
+                                "defaultOutboundWarehouse",
+                                "monthlyClosingDay",
                                 "settlementMethod",
                                 "paymentMethod",
                                 "transportPolicy",
@@ -53883,8 +54497,9 @@
                                   "type": "string",
                                   "maxLength": 500
                                 },
-                                "customerType": {
+                                "logisticsSettlementGroup": {
                                   "type": "object",
+                                  "nullable": true,
                                   "properties": {
                                     "id": {
                                       "type": "string",
@@ -53908,6 +54523,42 @@
                                     "name"
                                   ],
                                   "additionalProperties": false
+                                },
+                                "defaultSpecialApproval": {
+                                  "type": "boolean"
+                                },
+                                "defaultOutboundWarehouse": {
+                                  "type": "object",
+                                  "nullable": true,
+                                  "properties": {
+                                    "objectId": {
+                                      "type": "string",
+                                      "minLength": 26,
+                                      "maxLength": 26
+                                    },
+                                    "code": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    },
+                                    "name": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    }
+                                  },
+                                  "required": [
+                                    "objectId",
+                                    "code",
+                                    "name"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "monthlyClosingDay": {
+                                  "type": "integer",
+                                  "nullable": true,
+                                  "minimum": 1,
+                                  "maximum": 31
                                 },
                                 "settlementMethod": {
                                   "type": "object",
@@ -54411,7 +55062,10 @@
                                 "email",
                                 "contactName",
                                 "address",
-                                "customerType",
+                                "logisticsSettlementGroup",
+                                "defaultSpecialApproval",
+                                "defaultOutboundWarehouse",
+                                "monthlyClosingDay",
                                 "settlementMethod",
                                 "paymentMethod",
                                 "transportPolicy",
@@ -54859,8 +55513,9 @@
                                   "type": "string",
                                   "maxLength": 500
                                 },
-                                "customerType": {
+                                "logisticsSettlementGroup": {
                                   "type": "object",
+                                  "nullable": true,
                                   "properties": {
                                     "id": {
                                       "type": "string",
@@ -54884,6 +55539,42 @@
                                     "name"
                                   ],
                                   "additionalProperties": false
+                                },
+                                "defaultSpecialApproval": {
+                                  "type": "boolean"
+                                },
+                                "defaultOutboundWarehouse": {
+                                  "type": "object",
+                                  "nullable": true,
+                                  "properties": {
+                                    "objectId": {
+                                      "type": "string",
+                                      "minLength": 26,
+                                      "maxLength": 26
+                                    },
+                                    "code": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    },
+                                    "name": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    }
+                                  },
+                                  "required": [
+                                    "objectId",
+                                    "code",
+                                    "name"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "monthlyClosingDay": {
+                                  "type": "integer",
+                                  "nullable": true,
+                                  "minimum": 1,
+                                  "maximum": 31
                                 },
                                 "settlementMethod": {
                                   "type": "object",
@@ -55387,7 +56078,10 @@
                                 "email",
                                 "contactName",
                                 "address",
-                                "customerType",
+                                "logisticsSettlementGroup",
+                                "defaultSpecialApproval",
+                                "defaultOutboundWarehouse",
+                                "monthlyClosingDay",
                                 "settlementMethod",
                                 "paymentMethod",
                                 "transportPolicy",
@@ -55841,8 +56535,9 @@
                                   "type": "string",
                                   "maxLength": 500
                                 },
-                                "customerType": {
+                                "logisticsSettlementGroup": {
                                   "type": "object",
+                                  "nullable": true,
                                   "properties": {
                                     "id": {
                                       "type": "string",
@@ -55866,6 +56561,42 @@
                                     "name"
                                   ],
                                   "additionalProperties": false
+                                },
+                                "defaultSpecialApproval": {
+                                  "type": "boolean"
+                                },
+                                "defaultOutboundWarehouse": {
+                                  "type": "object",
+                                  "nullable": true,
+                                  "properties": {
+                                    "objectId": {
+                                      "type": "string",
+                                      "minLength": 26,
+                                      "maxLength": 26
+                                    },
+                                    "code": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    },
+                                    "name": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    }
+                                  },
+                                  "required": [
+                                    "objectId",
+                                    "code",
+                                    "name"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "monthlyClosingDay": {
+                                  "type": "integer",
+                                  "nullable": true,
+                                  "minimum": 1,
+                                  "maximum": 31
                                 },
                                 "settlementMethod": {
                                   "type": "object",
@@ -56369,7 +57100,10 @@
                                 "email",
                                 "contactName",
                                 "address",
-                                "customerType",
+                                "logisticsSettlementGroup",
+                                "defaultSpecialApproval",
+                                "defaultOutboundWarehouse",
+                                "monthlyClosingDay",
                                 "settlementMethod",
                                 "paymentMethod",
                                 "transportPolicy",
@@ -95327,10 +96061,6 @@
                                         "type": "string",
                                         "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                       },
-                                      "customerTypeCode": {
-                                        "type": "string",
-                                        "minLength": 1
-                                      },
                                       "paymentSurcharge": {
                                         "type": "string",
                                         "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
@@ -95462,7 +96192,6 @@
                                       "unitPrice",
                                       "referenceUnitPrice",
                                       "settlementSurcharge",
-                                      "customerTypeCode",
                                       "paymentSurcharge",
                                       "transportSurcharge",
                                       "defaultPremiumUnitPrice",
@@ -116738,10 +117467,6 @@
                                                     "type": "string",
                                                     "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                                   },
-                                                  "customerTypeCode": {
-                                                    "type": "string",
-                                                    "minLength": 1
-                                                  },
                                                   "paymentSurcharge": {
                                                     "type": "string",
                                                     "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
@@ -116873,7 +117598,6 @@
                                                   "unitPrice",
                                                   "referenceUnitPrice",
                                                   "settlementSurcharge",
-                                                  "customerTypeCode",
                                                   "paymentSurcharge",
                                                   "transportSurcharge",
                                                   "defaultPremiumUnitPrice",
@@ -138422,10 +139146,6 @@
                                           "type": "string",
                                           "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                         },
-                                        "customerTypeCode": {
-                                          "type": "string",
-                                          "minLength": 1
-                                        },
                                         "paymentSurcharge": {
                                           "type": "string",
                                           "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
@@ -138557,7 +139277,6 @@
                                         "unitPrice",
                                         "referenceUnitPrice",
                                         "settlementSurcharge",
-                                        "customerTypeCode",
                                         "paymentSurcharge",
                                         "transportSurcharge",
                                         "defaultPremiumUnitPrice",
@@ -159858,10 +160577,6 @@
                                                     "type": "string",
                                                     "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                                   },
-                                                  "customerTypeCode": {
-                                                    "type": "string",
-                                                    "minLength": 1
-                                                  },
                                                   "paymentSurcharge": {
                                                     "type": "string",
                                                     "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
@@ -159993,7 +160708,6 @@
                                                   "unitPrice",
                                                   "referenceUnitPrice",
                                                   "settlementSurcharge",
-                                                  "customerTypeCode",
                                                   "paymentSurcharge",
                                                   "transportSurcharge",
                                                   "defaultPremiumUnitPrice",
@@ -181307,10 +182021,6 @@
                                           "type": "string",
                                           "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                         },
-                                        "customerTypeCode": {
-                                          "type": "string",
-                                          "minLength": 1
-                                        },
                                         "paymentSurcharge": {
                                           "type": "string",
                                           "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
@@ -181442,7 +182152,6 @@
                                         "unitPrice",
                                         "referenceUnitPrice",
                                         "settlementSurcharge",
-                                        "customerTypeCode",
                                         "paymentSurcharge",
                                         "transportSurcharge",
                                         "defaultPremiumUnitPrice",
@@ -202743,10 +203452,6 @@
                                                     "type": "string",
                                                     "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                                   },
-                                                  "customerTypeCode": {
-                                                    "type": "string",
-                                                    "minLength": 1
-                                                  },
                                                   "paymentSurcharge": {
                                                     "type": "string",
                                                     "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
@@ -202878,7 +203583,6 @@
                                                   "unitPrice",
                                                   "referenceUnitPrice",
                                                   "settlementSurcharge",
-                                                  "customerTypeCode",
                                                   "paymentSurcharge",
                                                   "transportSurcharge",
                                                   "defaultPremiumUnitPrice",
@@ -224336,10 +225040,6 @@
                                                     "type": "string",
                                                     "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                                   },
-                                                  "customerTypeCode": {
-                                                    "type": "string",
-                                                    "minLength": 1
-                                                  },
                                                   "paymentSurcharge": {
                                                     "type": "string",
                                                     "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
@@ -224471,7 +225171,6 @@
                                                   "unitPrice",
                                                   "referenceUnitPrice",
                                                   "settlementSurcharge",
-                                                  "customerTypeCode",
                                                   "paymentSurcharge",
                                                   "transportSurcharge",
                                                   "defaultPremiumUnitPrice",
@@ -245935,10 +246634,6 @@
                                                     "type": "string",
                                                     "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                                   },
-                                                  "customerTypeCode": {
-                                                    "type": "string",
-                                                    "minLength": 1
-                                                  },
                                                   "paymentSurcharge": {
                                                     "type": "string",
                                                     "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
@@ -246070,7 +246765,6 @@
                                                   "unitPrice",
                                                   "referenceUnitPrice",
                                                   "settlementSurcharge",
-                                                  "customerTypeCode",
                                                   "paymentSurcharge",
                                                   "transportSurcharge",
                                                   "defaultPremiumUnitPrice",
@@ -267528,10 +268222,6 @@
                                                     "type": "string",
                                                     "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                                   },
-                                                  "customerTypeCode": {
-                                                    "type": "string",
-                                                    "minLength": 1
-                                                  },
                                                   "paymentSurcharge": {
                                                     "type": "string",
                                                     "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
@@ -267663,7 +268353,6 @@
                                                   "unitPrice",
                                                   "referenceUnitPrice",
                                                   "settlementSurcharge",
-                                                  "customerTypeCode",
                                                   "paymentSurcharge",
                                                   "transportSurcharge",
                                                   "defaultPremiumUnitPrice",
@@ -289127,10 +289816,6 @@
                                                     "type": "string",
                                                     "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                                   },
-                                                  "customerTypeCode": {
-                                                    "type": "string",
-                                                    "minLength": 1
-                                                  },
                                                   "paymentSurcharge": {
                                                     "type": "string",
                                                     "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
@@ -289262,7 +289947,6 @@
                                                   "unitPrice",
                                                   "referenceUnitPrice",
                                                   "settlementSurcharge",
-                                                  "customerTypeCode",
                                                   "paymentSurcharge",
                                                   "transportSurcharge",
                                                   "defaultPremiumUnitPrice",

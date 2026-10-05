@@ -1,4 +1,5 @@
 import {
+  settlementDueDate,
   intermediaryCanonical as canonical,
   intermediaryUnits as units,
   intermediaryDecimal as decimal,
@@ -45,24 +46,6 @@ const prorate = (amount: bigint, quantity: bigint, total: bigint) =>
   total === 0n ? 0n : (amount * quantity + total / 2n) / total
 const days = (from: string, to: string) =>
   Math.round((Date.parse(to) - Date.parse(from)) / 86400000)
-function dueDate(date: string, term: SettlementMethodSnapshot): string {
-  const value = new Date(`${date}T00:00:00Z`)
-  if (term.ruleType === 'RELATIVE_DAYS')
-    value.setUTCDate(value.getUTCDate() + term.dayOffset)
-  else {
-    const month = value.getUTCMonth() + term.monthOffset
-    const last = new Date(
-      Date.UTC(value.getUTCFullYear(), month + 1, 0),
-    ).getUTCDate()
-    value.setUTCFullYear(
-      value.getUTCFullYear(),
-      month,
-      term.dayOfMonth > 0 ? Math.min(term.dayOfMonth, last) : last,
-    )
-    value.setUTCDate(value.getUTCDate() + term.dayOffset)
-  }
-  return value.toISOString().slice(0, 10)
-}
 export function intermediaryPeriod(businessDate: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(businessDate))
     throw new VouApplicationError('vou_intermediary_month_end_required')
@@ -241,11 +224,11 @@ export async function intermediarySource(
       primary_sales_attribution_code: string | null
       primary_sales_attribution_name: string | null
       settlement_snapshot: SettlementMethodSnapshot | null
-      customer_type_snapshot: { code: string }
+      monthly_closing_day: number | null
       transport_snapshot: { surcharge: string }
       pricing_snapshot: import('@zerp/model').CustomerPricingPolicy
     }>`SELECT primary_sales_attribution_type, primary_sales_attribution_object_id, primary_sales_attribution_approval_entry_id,
-      primary_sales_attribution_code, primary_sales_attribution_name, settlement_snapshot, customer_type_snapshot, transport_snapshot, pricing_snapshot
+      primary_sales_attribution_code, primary_sales_attribution_name, settlement_snapshot, monthly_closing_day, transport_snapshot, pricing_snapshot
       FROM dcl_customer_versions WHERE approval_entry_id = ${orderPayload.customer.approvalEntryId}`.execute(
       tx,
     )
@@ -262,8 +245,7 @@ export async function intermediarySource(
     if (
       !basis.settlement_snapshot ||
       !basis.pricing_snapshot ||
-      !basis.transport_snapshot ||
-      !basis.customer_type_snapshot?.code
+      !basis.transport_snapshot
     )
       throw new VouApplicationError('vou_intermediary_source_basis_missing', [
         { documentId: order.documentId },
@@ -348,7 +330,11 @@ export async function intermediarySource(
       const lineAmount =
         (quantity * units(orderLine.unitPrice) + 500000n) / 1000000n
       amount += lineAmount
-      const due = dueDate(payload.businessDate, basis.settlement_snapshot)
+      const due = settlementDueDate(
+        payload.businessDate,
+        basis.settlement_snapshot,
+        basis.monthly_closing_day,
+      )
       const customerRef = await customerReference(
         order.approvalEntryId,
         'customer',
@@ -420,7 +406,6 @@ export async function intermediarySource(
             BigInt(productBasis.sales_reference_unit_price_minor),
           ),
           settlementSurcharge: orderLine.settlementSurcharge ?? '0.00',
-          customerTypeCode: basis.customer_type_snapshot.code,
           paymentSurcharge:
             orderPayload.paymentMethod?.defaultSalesSurcharge ?? '0.00',
           transportSurcharge: basis.transport_snapshot.surcharge,

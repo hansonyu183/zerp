@@ -145,10 +145,15 @@ _Authority_: [BOB 领域边界](docs/domains/bob.md#2-领域职责与边界)
 _Avoid_: 物流平台、为自有车辆虚构其他单位、每张送货单临时改变车辆归属
 _Authority_: [AUX 仓库、资金账户与车辆](docs/domains/aux.md#310-仓库资金账户与车辆)
 
-**Customer Type（客户类型）**:
-客户的可配置业务分类。
-_Avoid_: 宣称客户类型当前决定售价、把价格和业绩公式塞进字典项、固定写死两个类型
-_Authority_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)、[VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
+**Logistics Settlement Group（物流对账分组）**:
+客户与承运方核算运费所采用的分组，与客户销售运输定价独立。
+_Avoid_: 混合客户类型、以销售运输加价代替物流桶单价
+_Authority_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)
+
+**Customer Special Approval Default（客户默认特批）**:
+新销售订单特批参数的初始值，订单最终采用值是计算事实。
+_Avoid_: 客户审批特权、优惠或信用免批权限
+_Authority_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)
 
 **Settlement Method Snapshot（结算方式快照）**:
 客户或 Supplier 版本直接拥有的结算时间事实副本。

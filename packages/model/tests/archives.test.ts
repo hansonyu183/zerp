@@ -203,11 +203,10 @@ test('keeps the complete typed customer aggregate and rejects malformed pricing 
     enabled: true,
     contactName: ' 联系人 ',
     address: ' 业务地址 ',
-    customerType: {
-      id: 'customer-type-1',
-      code: 'DIRECT',
-      name: '直客',
-    },
+    logisticsSettlementGroup: null,
+    defaultSpecialApproval: true,
+    defaultOutboundWarehouse: null,
+    monthlyClosingDay: 25,
     settlementMethod: {
       id: 'settlement-1',
       code: 'MONTHLY_30',
@@ -258,7 +257,7 @@ test('keeps the complete typed customer aggregate and rejects malformed pricing 
   }
   const facts = {
     ...newFacts,
-    customerTypes: [{ objectId: 'customer-type-1', available: true }],
+    logisticsSettlementGroups: [],
     salesAttributions: [
       {
         objectId: 'employee-1',
@@ -272,7 +271,9 @@ test('keeps the complete typed customer aggregate and rejects malformed pricing 
   assert.equal(result.ok, true)
   if (result.ok) {
     const customer = result.plan.data
-    assert.equal(customer.customerType.code, 'DIRECT')
+    assert.equal(customer.logisticsSettlementGroup, null)
+    assert.equal(customer.defaultSpecialApproval, true)
+    assert.equal(customer.monthlyClosingDay, 25)
     assert.equal(customer.paymentMethod?.defaultSalesSurcharge, '0.00')
     assert.equal(customer.transportPolicy.surcharge, '0.20')
     assert.deepEqual(customer.pricingPolicy.costItems, [
@@ -634,11 +635,10 @@ test('enforces sales partner capabilities, direct customer business attributes, 
         defaultOperatingEntity: null,
         contactName: '',
         address: '',
-        customerType: {
-          id: 'customer-type-1',
-          code: 'DIRECT',
-          name: '直客',
-        },
+        logisticsSettlementGroup: null,
+        defaultSpecialApproval: false,
+        defaultOutboundWarehouse: null,
+        monthlyClosingDay: null,
         settlementMethod: null,
         paymentMethod: null,
         transportPolicy: {
@@ -668,7 +668,7 @@ test('enforces sales partner capabilities, direct customer business attributes, 
     },
     {
       ...newFacts,
-      customerTypes: [{ objectId: 'customer-type-1', available: true }],
+      logisticsSettlementGroups: [],
       salesAttributions: [
         {
           objectId: 'employee-1',

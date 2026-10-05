@@ -35,7 +35,11 @@ export async function setDateRange(
   const menu = page.locator('.v-menu.v-overlay--active')
   await menu.getByLabel('开始日期', { exact: true }).fill(from)
   await menu.getByLabel('结束日期', { exact: true }).fill(to)
+  const element = await menu.elementHandle()
   await menu.getByRole('button', { name: '完成', exact: true }).click()
+  // VOverlay removes its active class before the leave transition finishes.
+  // Waiting on that selector can click again during Vuetify's reopen lock.
+  await element!.waitForElementState('hidden')
   await expect(page.getByLabel(caption, { exact: true })).toHaveValue(
     `${from || '不限'} 至 ${to || '不限'}`,
   )

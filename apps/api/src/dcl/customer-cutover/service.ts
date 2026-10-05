@@ -93,14 +93,17 @@ async function source(db: Executor, schema = 'public'): Promise<Source> {
     baseline: digest({ facts, ...metadata }),
   }
 }
-function planConversion(input: Source) {
+function planConversion(
+  input: Source,
+  entryDefaults: import('./plan.ts').CustomerEntryDefaults = {},
+) {
   if (
     !input.tables.dcl_customer_version_subunits ||
     !input.tables.dcl_customer_subunit_roots ||
     input.tables[evidenceTable]
   )
     throw new CustomerCutoverError('customer_cutover_source_schema_unsupported')
-  const plan = projectArchives(input.tables)
+  const plan = projectArchives(input.tables, entryDefaults)
   splitReceipts(plan)
   convertReferences(plan)
   // No old identifiers may remain in executable rules. Unknown forms require
@@ -132,11 +135,14 @@ function planConversion(input: Source) {
   ]
   return plan
 }
-export async function inspectCustomerCutover(db: Executor) {
+export async function inspectCustomerCutover(
+  db: Executor,
+  entryDefaults: import('./plan.ts').CustomerEntryDefaults = {},
+) {
   const original = await source(db)
-  const plan = planConversion(original)
+  const plan = planConversion(original, entryDefaults)
   return {
-    baseline: original.baseline,
+    baseline: digest({ source: original.baseline, entryDefaults }),
     customers: plan.customers,
     versions: plan.versions,
     receipts: plan.receipts,
@@ -380,6 +386,7 @@ export async function migrateCustomers(
     sourceReleaseSha: string
     targetReleaseSha: string
     actorId: string
+    customerEntryDefaults?: import('./plan.ts').CustomerEntryDefaults
   },
   catalog: readonly TargetPermissionCatalogEntry[],
 ) {
@@ -401,7 +408,12 @@ export async function migrateCustomers(
     )
     await assertSchemaBoundary(tx)
     const original = await source(tx)
-    if (original.baseline !== input.baseline)
+    if (
+      digest({
+        source: original.baseline,
+        entryDefaults: input.customerEntryDefaults ?? {},
+      }) !== input.baseline
+    )
       throw new CustomerCutoverError('customer_cutover_baseline_changed')
     const operator = rows(original.tables, 'app_users').find(
       (row) => row.id === input.actorId && row.status === 'ENABLED',
@@ -418,7 +430,7 @@ export async function migrateCustomers(
       )
     )
       throw new CustomerCutoverError('customer_cutover_operator_required')
-    const plan = planConversion(original)
+    const plan = planConversion(original, input.customerEntryDefaults ?? {})
     if (plan.review.length)
       throw new CustomerCutoverError(
         'customer_cutover_review_required',

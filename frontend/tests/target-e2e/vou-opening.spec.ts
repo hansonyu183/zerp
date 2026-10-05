@@ -1,4 +1,4 @@
-import { confirmCollections } from './collection-helpers.ts'
+import { confirmCollections, setDateRange } from './collection-helpers.ts'
 import { expect, test, type Page } from '@playwright/test'
 const facts = JSON.parse(process.env.TARGET_E2E_OPENING_JSON ?? '{}')
 if (!process.env.TARGET_E2E_OPENING_JSON)
@@ -49,6 +49,13 @@ async function create(page: Page) {
   return editor
 }
 async function open(page: Page) {
+  await setDateRange(
+    page,
+    '期间',
+    `${facts.book.startMonth}-01`,
+    `${facts.book.startMonth}-01`,
+  )
+  await page.getByTestId('list-search').click()
   await page
     .getByTestId(`vou-row-${facts.book.id}`)
     .getByRole('button', { name: '打开', exact: true })

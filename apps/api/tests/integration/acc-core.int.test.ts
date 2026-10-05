@@ -18,7 +18,6 @@ import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { VouService } from '../../src/vou/service.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
-const customerTypeId = '01J00000000000000000000105'
 
 test('ACC opening freezes AUX bill and employee-dimension adoptions until its submission is deleted', async (context) => {
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
@@ -840,12 +839,11 @@ test('ACC Opening persists typed asset, bill, and current customer container fac
       address: null,
       remittance_profiles: JSON.stringify([]),
       contact_name: null,
-      customer_type_id: customerTypeId,
-      customer_type_snapshot: JSON.stringify({
-        id: customerTypeId,
-        code: 'CUSTOMER-TYPE-TEST',
-        name: '测试客户类型',
-      }),
+
+      logistics_settlement_group: null,
+      default_special_approval: false,
+      default_outbound_warehouse: null,
+      monthly_closing_day: null,
       settlement_method_id: null,
       primary_sales_attribution_type: null,
       primary_sales_attribution_object_id: null,
@@ -2815,12 +2813,11 @@ test('ACC records and exactly reverses sale-signoff empty-container deltas witho
       remittance_profiles: '[]',
       tax_information: '[]',
       credit_limits: '[]',
-      customer_type_id: customerTypeId,
-      customer_type_snapshot: JSON.stringify({
-        id: customerTypeId,
-        code: 'CUSTOMER-TYPE-TEST',
-        name: '测试客户类型',
-      }),
+
+      logistics_settlement_group: null,
+      default_special_approval: false,
+      default_outbound_warehouse: null,
+      monthly_closing_day: null,
     })
     .execute()
   await db

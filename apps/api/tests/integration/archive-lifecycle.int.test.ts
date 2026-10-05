@@ -762,11 +762,10 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     defaultOperatingEntity: operatingEntityReference,
     contactName: '客户联系人',
     address: '厦门市',
-    customerType: {
-      id: auxIds[0],
-      code: 'FORGED-CUSTOMER-TYPE',
-      name: '伪造客户类型',
-    },
+    logisticsSettlementGroup: null,
+    defaultSpecialApproval: false,
+    defaultOutboundWarehouse: null,
+    monthlyClosingDay: null,
     settlementMethod: {
       id: auxIds[8],
       code: 'TST-0009',
@@ -984,11 +983,6 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   )
 
   const customerData = customer.snapshot
-  assert.deepEqual(customerData.customerType, {
-    id: auxIds[0],
-    code: 'TST-0001',
-    name: '测试引用 1',
-  })
   assert.deepEqual(customerData.settlementMethod, {
     id: auxIds[8],
     code: 'TST-0009',
@@ -1005,16 +999,6 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     code: 'TST-0010',
     name: '测试引用 10',
     defaultSalesSurcharge: '0.05',
-  })
-  const persistedCustomerType = await db
-    .selectFrom('dcl_customer_versions')
-    .select('customer_type_snapshot')
-    .where('approval_entry_id', '=', customer.submissionId)
-    .executeTakeFirstOrThrow()
-  assert.deepEqual(persistedCustomerType.customer_type_snapshot, {
-    id: auxIds[0],
-    code: 'TST-0001',
-    name: '测试引用 1',
   })
   assert.equal(
     await db

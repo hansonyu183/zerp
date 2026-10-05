@@ -107,18 +107,45 @@ function attribution(value: object | readonly object[] | null) {
       @update:model-value="update($event)"
     />
     <SnapshotReference
-      source="customer-types"
-      caption="客户类型"
-      :model-value="modelValue.customerType"
+      source="logistics-settlement-groups"
+      caption="物流对账分组"
+      :model-value="modelValue.logisticsSettlementGroup"
       :disabled="readonly"
       @update:model-value="
         patch({
-          customerType:
-            Array.isArray($event) || !$event
-              ? { id: '', code: '', name: '' }
-              : $event,
+          logisticsSettlementGroup: Array.isArray($event) ? null : $event,
         })
       "
+    />
+    <SnapshotReference
+      source="customer-default-warehouses"
+      caption="默认出货仓库"
+      :model-value="modelValue.defaultOutboundWarehouse"
+      :disabled="readonly"
+      @update:model-value="
+        patch({
+          defaultOutboundWarehouse: Array.isArray($event) ? null : $event,
+        })
+      "
+    />
+    <FormBlock
+      :fields="[
+        {
+          key: 'defaultSpecialApproval',
+          type: 'boolean',
+          caption: '新订单默认特批',
+        },
+        {
+          key: 'monthlyClosingDay',
+          type: 'integer',
+          caption: '月结日（留空为自然月）',
+          min: 1,
+          max: 31,
+        },
+      ]"
+      :model-value="modelValue"
+      :disabled="readonly"
+      @update:model-value="update($event)"
     />
     <SnapshotReference
       source="sales-settlement-methods"

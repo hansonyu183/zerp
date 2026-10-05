@@ -186,6 +186,10 @@ for (const { unitPrice, unassigned } of [
   { unitPrice: '0.00', unassigned: true },
 ])
   test(`signed sales at ${unitPrice} (unassigned=${unassigned}) require attribution before intermediary calculation`, async (context) => {
+    context.mock.timers.enable({
+      apis: ['Date'],
+      now: new Date('2026-09-05T04:00:00Z'),
+    })
     await withWflDatabase(async (db) => {
       const fixture = await seedVouCatalogFixture(db)
       const { DclArchiveService } = await import('../../src/dcl/archives.ts')
@@ -844,10 +848,7 @@ for (const { unitPrice, unassigned } of [
         ].sort((a, b) => a.subject.localeCompare(b.subject)),
       )
       if (unitPrice !== '0.00') return
-      context.mock.timers.enable({
-        apis: ['Date'],
-        now: new Date('2026-10-09T04:00:00Z'),
-      })
+      context.mock.timers.setTime(new Date('2026-10-09T04:00:00Z').getTime())
       try {
         await create('sale-return', {
           ...base,

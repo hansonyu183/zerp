@@ -137,7 +137,7 @@ function businessIdentityCurrent(
   if (entity === 'customer')
     return sql<StoredBobObject>`SELECT subject.id AS object_id,subject.entity,subject.code,subject.enabled,subject.revision::text AS revision,entry.id AS source_approval_entry_id,entry.version_no AS source_version_no,entry.updated_at,
     jsonb_build_object('displayName',v.display_name,'phone',COALESCE(v.phone,''),'email',COALESCE(v.email,''),'address',COALESCE(v.address,''),'contactName',COALESCE(v.contact_name,''),'remittanceProfiles',v.remittance_profiles,'attachments',v.attachments,'taxInformation',v.tax_information,'defaultOperatingEntity',CASE WHEN v.default_operating_entity_id IS NULL THEN NULL ELSE jsonb_build_object('objectId',v.default_operating_entity_id,'code',v.default_operating_entity_code,'name',v.default_operating_entity_name) END,
-    'internalReminder',COALESCE(v.internal_reminder,''),'defaultSalesOrderRemark',COALESCE(v.default_order_remark,''),'customerType',v.customer_type_snapshot,'settlementMethod',v.settlement_snapshot,'paymentMethod',v.payment_snapshot,'transportPolicy',v.transport_snapshot,'pricingPolicy',v.pricing_snapshot,'creditLimits',v.credit_limits,'primarySalesAttribution',v.sales_attribution_snapshot) AS data
+    'internalReminder',COALESCE(v.internal_reminder,''),'defaultSalesOrderRemark',COALESCE(v.default_order_remark,''),'logisticsSettlementGroup',v.logistics_settlement_group,'defaultSpecialApproval',v.default_special_approval,'defaultOutboundWarehouse',v.default_outbound_warehouse,'monthlyClosingDay',v.monthly_closing_day,'settlementMethod',v.settlement_snapshot,'paymentMethod',v.payment_snapshot,'transportPolicy',v.transport_snapshot,'pricingPolicy',v.pricing_snapshot,'creditLimits',v.credit_limits,'primarySalesAttribution',v.sales_attribution_snapshot) AS data
     FROM bob_archive_objects subject JOIN LATERAL (SELECT id,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status='APPROVED' ${approvalEntryId ? sql`AND id = ${approvalEntryId}` : sql``} ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_customer_versions v ON v.approval_entry_id=entry.id WHERE subject.entity='customer'`
 
   if (entity === 'product')
@@ -557,6 +557,8 @@ export class BobService {
     return {
       ...common,
       data: {
+        defaultSpecialApproval: data.defaultSpecialApproval,
+        defaultOutboundWarehouse: data.defaultOutboundWarehouse,
         internalReminder: data.internalReminder,
         defaultSalesOrderRemark: data.defaultSalesOrderRemark,
         settlementMethod: data.settlementMethod,

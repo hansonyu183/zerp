@@ -23,7 +23,7 @@ const arrayField: FormFields<Customer> = [
   {
     key: 'taxInformation',
     type: 'snapshot-reference',
-    source: 'customer-types',
+    source: 'logistics-settlement-groups',
     caption: '税务信息',
   },
 ]

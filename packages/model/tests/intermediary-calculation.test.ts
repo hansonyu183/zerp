@@ -54,7 +54,6 @@ const source: Source = {
       unitPrice: '20.00',
       referenceUnitPrice: '10.00',
       settlementSurcharge: '0.00',
-      customerTypeCode: 'DIRECT',
       paymentSurcharge: '0.00',
       transportSurcharge: '0.00',
       defaultPremiumUnitPrice: '0.00',

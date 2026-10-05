@@ -122,7 +122,6 @@ test('customer flat temporary form, business fields, history and independent ena
     await sub.getByLabel('联系人', { exact: true }).fill('业务联系人')
     await sub.getByLabel('运输销售加价', { exact: true }).fill('-0.10')
     await sub.getByLabel('业务地址', { exact: true }).fill('业务地址')
-    await select(page, sub, '客户类型', process.env.TARGET_E2E_CUSTOMER_TYPE!)
     await select(page, sub, '业务归属类型', '渠道商')
     await select(
       page,

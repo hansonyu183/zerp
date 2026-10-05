@@ -575,15 +575,17 @@ export interface DclCustomerVersions {
   attachments: Json
   contact_name: string | null
   credit_limits: Json
-  customer_type_id: string
-  customer_type_snapshot: Json
   default_operating_entity_code: string | null
   default_operating_entity_id: string | null
   default_operating_entity_name: string | null
   default_order_remark: string | null
+  default_outbound_warehouse: Json | null
+  default_special_approval: boolean
   display_name: string
   email: string | null
   internal_reminder: string | null
+  logistics_settlement_group: Json | null
+  monthly_closing_day: number | null
   payment_snapshot: Json | null
   phone: string | null
   pricing_snapshot: Json | null
@@ -1222,7 +1224,6 @@ export interface VouIntermediarySourceLineSnapshots {
   collection_date: Timestamp
   collection_delay_days: number
   cost_items: Json
-  customer_type_code: string
   default_discount_unit_price_minor: Int8
   default_premium_unit_price_minor: Int8
   due_date: Timestamp

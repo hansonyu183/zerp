@@ -203,11 +203,10 @@ export async function seedSaleOrderReferences(
     defaultOperatingEntity: null,
     contactName: '',
     address: '',
-    customerType: {
-      id: customerType.id,
-      code: customerType.code,
-      name: customerType.name,
-    },
+    logisticsSettlementGroup: null,
+    defaultSpecialApproval: false,
+    defaultOutboundWarehouse: null,
+    monthlyClosingDay: null,
     settlementMethod: {
       id: settlement.id,
       code: settlementView.code,

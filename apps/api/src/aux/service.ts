@@ -93,7 +93,11 @@ export interface AuxDataByEntity {
     defaultSalesSurcharge: string
     description: string
   }
-  'dictionary-type': { name: string; description: string }
+  'dictionary-type': {
+    name: string
+    description: string
+    purpose: 'GENERAL' | 'LOGISTICS_SETTLEMENT'
+  }
   'dictionary-item': {
     name: string
     dictionaryTypeId: string
@@ -148,7 +152,11 @@ export interface AuxWriteDataByEntity {
     defaultSalesSurcharge?: string
     description?: string
   }
-  'dictionary-type': { name: string; description?: string }
+  'dictionary-type': {
+    name: string
+    description?: string
+    purpose?: 'GENERAL' | 'LOGISTICS_SETTLEMENT'
+  }
   'dictionary-item': Omit<
     AuxDataByEntity['dictionary-item'],
     'dictionaryTypeCode' | 'dictionaryTypeName'
@@ -235,6 +243,7 @@ export interface AuxReferenceQueryInput {
   entity: AuxEntity
   keyword?: string
   dictionaryTypeCode?: string
+  dictionaryPurpose?: 'LOGISTICS_SETTLEMENT'
   page: number
   pageSize: 20
   enabled?: boolean
@@ -794,9 +803,15 @@ function normaliseData(entity: AuxEntity, source: unknown): AuxData {
     }
     case 'employee-category':
     case 'position':
-    case 'dictionary-type':
       only(data, ['name', 'description'])
       return { name, description: optionalString(data.description) }
+    case 'dictionary-type': {
+      only(data, ['name', 'description', 'purpose'])
+      const purpose = data.purpose ?? 'GENERAL'
+      if (purpose !== 'GENERAL' && purpose !== 'LOGISTICS_SETTLEMENT')
+        applicationError('validation_failed')
+      return { name, description: optionalString(data.description), purpose }
+    }
     case 'asset-category':
       only(data, [
         'name',
@@ -1419,8 +1434,11 @@ export class AuxService {
     assertEntity(entity)
     assertPermission(actor, `/aux/${entity}/create`)
     if (entity === 'settlement-method') applicationError('validation_failed')
-    const { id: requestedId, enabled: requestedEnabled, ...fields } =
-      inputRecord(data)
+    const {
+      id: requestedId,
+      enabled: requestedEnabled,
+      ...fields
+    } = inputRecord(data)
     if (
       requestedId !== undefined &&
       entity !== 'department' &&
@@ -1756,6 +1774,10 @@ export class AuxService {
         sql`(code ILIKE ${keyword} OR COALESCE(data->>'name', data->>'displayName', data->>'legalName', '') ILIKE ${keyword})`,
       )
     }
+    if (input.dictionaryPurpose)
+      where.push(
+        sql`EXISTS (SELECT 1 FROM aux_objects parent WHERE parent.id=aux_objects.data->>'dictionaryTypeId' AND parent.entity='dictionary-type' AND parent.enabled AND parent.data->>'purpose'=${input.dictionaryPurpose})`,
+      )
     if (input.dictionaryTypeCode?.trim())
       where.push(
         sql`data->>'dictionaryTypeCode' = ${input.dictionaryTypeCode.trim()}`,
@@ -2253,6 +2275,12 @@ export class AuxService {
           current?.parentId === parentId,
         )
     }
+    if (
+      entity === 'dictionary-type' &&
+      current &&
+      data.purpose !== current.purpose
+    )
+      applicationError('validation_failed')
     if (entity === 'dictionary-item') {
       const dictionary = await sql<{
         code: string

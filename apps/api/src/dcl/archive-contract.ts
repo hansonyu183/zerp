@@ -255,7 +255,10 @@ const customerSnapshot = z
     email: z.string().max(320),
     contactName: z.string().max(100),
     address: z.string().max(500),
-    customerType: auxSnapshot,
+    logisticsSettlementGroup: auxSnapshot.nullable(),
+    defaultSpecialApproval: z.boolean(),
+    defaultOutboundWarehouse: stableReference.nullable(),
+    monthlyClosingDay: z.number().int().min(1).max(31).nullable(),
     settlementMethod: customerSettlementSnapshot.nullable(),
     paymentMethod: paymentMethodSnapshot.nullable(),
     transportPolicy: z

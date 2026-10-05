@@ -56,7 +56,8 @@ const auxSources = {
   'settlement-rules': 'settlement-method',
   'sales-settlement-methods': 'settlement-method',
   'sales-payment-methods': 'payment-method',
-  'customer-types': 'dictionary-item',
+  'logistics-settlement-groups': 'dictionary-item',
+  'customer-default-warehouses': 'warehouse',
   'product-types': 'product-type',
   'product-categories': 'product-category',
   'product-units': 'measurement-unit',
@@ -283,6 +284,9 @@ export async function loadEditReferencePage(
   const page = await api.queryTargetAuxOptions(auxSources[source], {
     ...query,
     ...enabled,
+    ...(source === 'logistics-settlement-groups'
+      ? { dictionaryPurpose: 'LOGISTICS_SETTLEMENT' as const }
+      : {}),
   })
   return {
     ...page,
@@ -295,6 +299,7 @@ export async function loadEditReferencePage(
           break
         case 'archive-operating-entities':
         case 'archive-employees':
+        case 'customer-default-warehouses':
           snapshot = {
             objectId: item.objectId,
             code: item.code,

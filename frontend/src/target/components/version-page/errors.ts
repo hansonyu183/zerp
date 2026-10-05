@@ -54,7 +54,7 @@ const archiveErrorLabels = {
 
   customer_invalid_data: '客户资料不符合规则，请检查业务属性。',
   customer_reference_unavailable:
-    '客户类型、经营主体或业务归属当前不可用，请检查选择。',
+    '物流对账分组、默认仓库、经营主体或业务归属当前不可用，请检查选择。',
   customer_reference_stale: '销售合作方已有新版本，请重新选择。',
   customer_attachment_invalid_content: '附件内容与文件类型不一致。',
   customer_attachment_staging_conflict: '附件暂存请求冲突，请重新添加附件。',

@@ -13,7 +13,6 @@ import { createDatabase } from '../../src/db/database.ts'
 import { VouApplicationError, VouService } from '../../src/vou/service.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
-const customerTypeId = '01J00000000000000000000104'
 
 test('control-book funds, settlement, credit, and concurrent approval use one PostgreSQL service boundary', async (context) => {
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
@@ -265,12 +264,11 @@ test('control-book funds, settlement, credit, and concurrent approval use one Po
       approval_entry_id: customerEntryId,
       display_name: '控制客户',
       remittance_profiles: JSON.stringify([]),
-      customer_type_id: customerTypeId,
-      customer_type_snapshot: JSON.stringify({
-        id: customerTypeId,
-        code: 'CUSTOMER-TYPE-TEST',
-        name: '测试客户类型',
-      }),
+
+      logistics_settlement_group: null,
+      default_special_approval: false,
+      default_outbound_warehouse: null,
+      monthly_closing_day: null,
       settlement_snapshot: JSON.stringify({
         termCode: 'PREPAID',
         ruleType: 'RELATIVE_DAYS',
@@ -973,12 +971,11 @@ test('sale signoff and purchase inbound price the approved source line batch ins
       approval_entry_id: customerEntryId,
       display_name: '批次客户',
       remittance_profiles: JSON.stringify([]),
-      customer_type_id: customerTypeId,
-      customer_type_snapshot: JSON.stringify({
-        id: customerTypeId,
-        code: 'CUSTOMER-TYPE-TEST',
-        name: '测试客户类型',
-      }),
+
+      logistics_settlement_group: null,
+      default_special_approval: false,
+      default_outbound_warehouse: null,
+      monthly_closing_day: null,
       settlement_snapshot: prepaid,
       payment_snapshot: null,
       credit_limits: JSON.stringify([]),

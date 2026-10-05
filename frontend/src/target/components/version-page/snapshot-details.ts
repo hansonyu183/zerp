@@ -300,9 +300,17 @@ export const customerDetails = [
     ],
   },
   {
-    key: 'customerType',
+    key: 'logisticsSettlementGroup',
     type: 'group',
-    caption: '客户类型',
+    caption: '物流对账分组',
+    fields: referenceDetails,
+  },
+  { key: 'defaultSpecialApproval', type: 'boolean', caption: '新订单默认特批' },
+  { key: 'monthlyClosingDay', type: 'integer', caption: '月结日' },
+  {
+    key: 'defaultOutboundWarehouse',
+    type: 'group',
+    caption: '默认出货仓库',
     fields: referenceDetails,
   },
   {

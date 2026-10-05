@@ -184,7 +184,6 @@ export const snapshotCaptions: Readonly<Record<string, string>> = {
   withRecourse: '附追索权',
   maturityType: '到期类型',
   intermediaryCalculation: '居间计算',
-  customerTypeCode: '客户类型编码',
   paymentSurcharge: '收款方式加价',
   transportSurcharge: '运输加价',
   defaultPremiumUnitPrice: '默认溢价',

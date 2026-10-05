@@ -5,6 +5,10 @@ import type { TaxInformationSnapshot } from '@zerp/model'
 // This is a one-shot conversion of the #438 storage format. No runtime reader
 // imports this module; original rows remain recovery/audit evidence only.
 export type Row = Record<string, unknown>
+export type CustomerEntryDefaults = Record<
+  string,
+  { defaultSpecialApproval: boolean }
+>
 export type Tables = Record<string, Row[]>
 export interface ReviewItem {
   kind: string
@@ -192,6 +196,7 @@ function customerVersion(
   entry: Row,
   mapping: CustomerMap,
   projectedEntryId: string,
+  entryDefaults: CustomerEntryDefaults,
 ) {
   const attachments = new Map<string, unknown>()
   for (const item of [
@@ -235,9 +240,20 @@ function customerVersion(
     remittance_profiles: root.remittance_profiles,
     tax_information: taxInformation(plan, 'dcl_customer_versions', root, entry),
   }
+  preserve(plan, 'dcl_customer_version_subunits', child)
+  const defaults = entryDefaults[str(mapping.oldSubunitId)]
+  if (typeof defaults?.defaultSpecialApproval !== 'boolean')
+    plan.review.push({
+      kind: 'CUSTOMER_ENTRY_DEFAULT_REQUIRED',
+      table: 'dcl_customer_version_subunits',
+      identity: str(mapping.oldSubunitId),
+      field: 'defaultSpecialApproval',
+    })
+  result.logistics_settlement_group = null
+  result.default_special_approval = defaults?.defaultSpecialApproval
+  result.default_outbound_warehouse = null
+  result.monthly_closing_day = null
   for (const key of [
-    'customer_type_id',
-    'customer_type_snapshot',
     'settlement_method_id',
     'primary_sales_attribution_type',
     'primary_sales_attribution_object_id',
@@ -256,7 +272,10 @@ function customerVersion(
     result[key] = child[key]
   return result
 }
-export function projectArchives(source: Tables): ConversionPlan {
+export function projectArchives(
+  source: Tables,
+  entryDefaults: CustomerEntryDefaults = {},
+): ConversionPlan {
   const plan: ConversionPlan = {
     tables: structuredClone(source),
     customers: [],
@@ -266,6 +285,22 @@ export function projectArchives(source: Tables): ConversionPlan {
     evidence: {},
   }
   const target = plan.tables
+  for (const row of rows(target, 'aux_objects'))
+    if (row.entity === 'dictionary-type' && !('purpose' in record(row.data))) {
+      preserve(plan, 'aux_objects', row)
+      row.data = { ...record(row.data), purpose: 'GENERAL' }
+    }
+  for (const table of [
+    'vou_intermediary_source_line_snapshots',
+    'vou_intermediary_calculation_details',
+    'vou_intermediary_scripts',
+  ])
+    for (const row of rows(source, table))
+      plan.review.push({
+        kind: 'CUSTOMER_ENTRY_CALCULATION_CONVERSION_REQUIRED',
+        table,
+        identity: str(row.id ?? row.document_id ?? row.approval_entry_id),
+      })
   target.dcl_customer_versions = []
   const entries = rows(source, 'approval_entries'),
     roots = rows(source, 'dcl_customer_subunit_roots'),
@@ -421,7 +456,15 @@ export function projectArchives(source: Tables): ConversionPlan {
           entryId,
         })
         rows(target, 'dcl_customer_versions').push(
-          customerVersion(plan, rootVersion, child, entry, mapping, entryId),
+          customerVersion(
+            plan,
+            rootVersion,
+            child,
+            entry,
+            mapping,
+            entryId,
+            entryDefaults,
+          ),
         )
         if (entryId !== entry.id) {
           rows(target, 'approval_entries').push({

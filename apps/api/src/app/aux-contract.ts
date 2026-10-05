@@ -157,7 +157,11 @@ const auxWriteShapes = {
     defaultSalesSurcharge: money.default('0.00'),
     ...descriptionShape,
   },
-  'dictionary-type': { ...nameShape, ...descriptionShape },
+  'dictionary-type': {
+    ...nameShape,
+    ...descriptionShape,
+    purpose: z.enum(['GENERAL', 'LOGISTICS_SETTLEMENT']).default('GENERAL'),
+  },
   'dictionary-item': {
     ...nameShape,
     dictionaryTypeId: identifierShape.id,
@@ -591,7 +595,8 @@ export function auxIdentifiedCreateRoute<
 >(path: Path, entity: Entity) {
   return postRoute(
     path,
-    z.object({ ...auxWriteShapes[entity], id: identifierShape.id.optional() })
+    z
+      .object({ ...auxWriteShapes[entity], id: identifierShape.id.optional() })
       .strict(),
     mutation,
   )
@@ -650,6 +655,7 @@ export const auxOptionsInput = optionPageInput.extend({
   enabled: optionBoolean.optional(),
   ids: optionIds.optional(),
   dictionaryTypeCode: z.string().max(32).optional(),
+  dictionaryPurpose: z.literal('LOGISTICS_SETTLEMENT').optional(),
 })
 
 export const auxReferenceCandidateSchema = z

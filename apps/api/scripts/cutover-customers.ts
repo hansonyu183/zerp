@@ -16,12 +16,23 @@ async function main(): Promise<void> {
   const { values } = parseArgs({
     options: {
       apply: { type: 'boolean' },
+      'customer-entry-defaults': { type: 'string' },
       baseline: { type: 'string' },
       'actor-id': { type: 'string' },
       backup: { type: 'string' },
       'writers-frozen': { type: 'boolean' },
     },
   })
+  const customerEntryDefaults = values['customer-entry-defaults']
+    ? z
+        .record(
+          z.string().length(26),
+          z.object({ defaultSpecialApproval: z.boolean() }).strict(),
+        )
+        .parse(
+          JSON.parse(await readFile(values['customer-entry-defaults'], 'utf8')),
+        )
+    : {}
   const url = process.env.TARGET_DATABASE_URL
   if (!url) throw new Error('TARGET_DATABASE_URL is required')
   assertTargetDatabaseBoundary(url, process.env.TARGET_DATABASE_SCOPE)
@@ -33,7 +44,7 @@ async function main(): Promise<void> {
           await db
             .transaction()
             .setIsolationLevel('repeatable read')
-            .execute(inspectCustomerCutover),
+            .execute((tx) => inspectCustomerCutover(tx, customerEntryDefaults)),
           null,
           2,
         ),
@@ -82,6 +93,7 @@ async function main(): Promise<void> {
           sourceReleaseSha: manifest.sourceReleaseSha,
           targetReleaseSha: manifest.targetReleaseSha,
           actorId: values['actor-id'],
+          customerEntryDefaults,
         },
         await readTargetPermissionCatalog(),
       )

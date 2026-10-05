@@ -861,7 +861,10 @@ export interface CustomerData {
   email: string
   contactName: string
   address: string
-  customerType: AuxSnapshot
+  logisticsSettlementGroup: AuxSnapshot | null
+  defaultSpecialApproval: boolean
+  defaultOutboundWarehouse: StableArchiveReference | null
+  monthlyClosingDay: number | null
   settlementMethod: CustomerSettlementMethodSnapshot | null
   paymentMethod: PaymentMethodSnapshot | null
   transportPolicy: CustomerTransportPolicy
@@ -882,7 +885,8 @@ export interface CustomerData {
 export interface CustomerSubmitCommand extends ArchiveCommand<CustomerData> {}
 export interface CustomerSubmitFacts extends ArchiveFacts {
   defaultOperatingEntity?: StableArchiveReferenceFact
-  customerTypes: readonly { objectId: string; available: boolean }[]
+  defaultOutboundWarehouse?: StableArchiveReferenceFact
+  logisticsSettlementGroups: readonly { objectId: string; available: boolean }[]
   salesAttributions: readonly (ExactReferenceFact & {
     type: CustomerSalesAttributionType
   })[]
@@ -1055,13 +1059,36 @@ export function normalizeCustomerData(
 ): CustomerData | undefined {
   if (!hasText(data.displayName)) return undefined
   const attachments = data.attachments.map(normalizeAttachment)
-  const customerType = normalizeAuxSnapshot(data.customerType)
+  const logisticsSettlementGroup =
+    data.logisticsSettlementGroup === null
+      ? null
+      : normalizeAuxSnapshot(data.logisticsSettlementGroup)
+  const defaultOutboundWarehouse =
+    data.defaultOutboundWarehouse === null
+      ? null
+      : {
+          objectId: trim(data.defaultOutboundWarehouse.objectId),
+          code: trim(data.defaultOutboundWarehouse.code),
+          name: trim(data.defaultOutboundWarehouse.name),
+        }
+  if (
+    typeof data.defaultSpecialApproval !== 'boolean' ||
+    (data.monthlyClosingDay !== null &&
+      (!Number.isInteger(data.monthlyClosingDay) ||
+        data.monthlyClosingDay < 1 ||
+        data.monthlyClosingDay > 31)) ||
+    (defaultOutboundWarehouse &&
+      (!defaultOutboundWarehouse.objectId ||
+        !defaultOutboundWarehouse.code ||
+        !defaultOutboundWarehouse.name))
+  )
+    return undefined
   const settlementMethod = normalizeCustomerSettlement(data.settlementMethod)
   const paymentMethod = normalizePaymentMethod(data.paymentMethod)
   const transportPolicy = normalizeTransportPolicy(data.transportPolicy)
   const pricingPolicy = normalizePricingPolicy(data.pricingPolicy)
   if (
-    !customerType ||
+    logisticsSettlementGroup === undefined ||
     settlementMethod === undefined ||
     paymentMethod === undefined ||
     !transportPolicy ||
@@ -1126,7 +1153,8 @@ export function normalizeCustomerData(
     contactName: trim(data.contactName),
     internalReminder: trim(data.internalReminder),
     defaultSalesOrderRemark: trim(data.defaultSalesOrderRemark),
-    customerType,
+    logisticsSettlementGroup,
+    defaultOutboundWarehouse,
     settlementMethod,
     paymentMethod,
     transportPolicy,
@@ -1164,15 +1192,31 @@ export function prepareCustomerSubmit(
         checked.blocker,
       )
   }
+  if (data.defaultOutboundWarehouse) {
+    const checked = stableReference(
+      'defaultOutboundWarehouse',
+      data.defaultOutboundWarehouse,
+      facts.defaultOutboundWarehouse,
+    )
+    if (!checked.ok)
+      return block(
+        checked.stale
+          ? 'customer_reference_stale'
+          : 'customer_reference_unavailable',
+        checked.blocker,
+      )
+  }
   {
     if (
-      !facts.customerTypes.some(
-        (fact) => fact.objectId === data.customerType.id && fact.available,
+      data.logisticsSettlementGroup !== null &&
+      !facts.logisticsSettlementGroups.some(
+        (fact) =>
+          fact.objectId === data.logisticsSettlementGroup!.id && fact.available,
       )
     )
       return block('customer_reference_unavailable', {
-        field: 'customerType',
-        objectId: data.customerType.id,
+        field: 'logisticsSettlementGroup',
+        objectId: data.logisticsSettlementGroup!.id,
         expectedApprovalEntryId: '',
       })
     const attribution = data.primarySalesAttribution

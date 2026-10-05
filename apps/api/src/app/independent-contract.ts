@@ -446,6 +446,8 @@ const customerResolveRoute = auxiliaryRoute(
   bobResolveInput,
   resolvedIdentity.extend({
     data: dclArchiveSnapshotSchemas.customer.pick({
+      defaultSpecialApproval: true,
+      defaultOutboundWarehouse: true,
       internalReminder: true,
       defaultSalesOrderRemark: true,
       settlementMethod: true,

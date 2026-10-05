@@ -18,7 +18,6 @@ import { createDatabase } from '../../src/db/database.ts'
 import { loadConfig } from '../../src/platform/config.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
-const customerTypeId = '01J00000000000000000000102'
 
 test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreSQL', async (context) => {
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
@@ -92,12 +91,11 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     .values({
       approval_entry_id: customerEntryId,
       display_name: `Target Customer ${suffix}`,
-      customer_type_id: customerTypeId,
-      customer_type_snapshot: JSON.stringify({
-        id: customerTypeId,
-        code: 'CUSTOMER-TYPE-TEST',
-        name: '测试客户类型',
-      }),
+
+      logistics_settlement_group: null,
+      default_special_approval: false,
+      default_outbound_warehouse: null,
+      monthly_closing_day: null,
       credit_limits: JSON.stringify([]),
       attachments: JSON.stringify([]),
       remittance_profiles: JSON.stringify([]),

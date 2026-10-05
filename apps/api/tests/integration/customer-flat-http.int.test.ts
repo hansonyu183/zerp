@@ -165,21 +165,6 @@ test('Customer HTTP directly owns business attributes without legal identity or 
     )
   ).id
   const oe = await aux.get('operating-entity', { id: oeId }, actor)
-  const dictId = (
-    await aux.create(
-      'dictionary-type',
-      { name: `客户类型-${suffix}`, description: '' },
-      actor,
-    )
-  ).id
-  const typeId = (
-    await aux.create(
-      'dictionary-item',
-      { name: '直销客户', dictionaryTypeId: dictId, sortOrder: 0 },
-      actor,
-    )
-  ).id
-  const customerType = await aux.get('dictionary-item', { id: typeId }, actor)
   const archives = new DclArchiveService(db)
   const partnerId = ulid(),
     partnerEntry = ulid()
@@ -231,11 +216,10 @@ test('Customer HTTP directly owns business attributes without legal identity or 
     email: '',
     address: '厦门',
     contactName: '联系人',
-    customerType: {
-      id: customerType.id,
-      code: customerType.code,
-      name: customerType.name,
-    },
+    logisticsSettlementGroup: null,
+    defaultSpecialApproval: true,
+    defaultOutboundWarehouse: null,
+    monthlyClosingDay: 25,
     settlementMethod: null,
     paymentMethod: null,
     transportPolicy: {
@@ -376,6 +360,51 @@ test('Customer HTTP directly owns business attributes without legal identity or 
     { id: payment.id },
     tradingActor,
   )
+  const defaultsActor = {
+    ...actor,
+    permissions: ['dictionary-type', 'dictionary-item', 'warehouse'].flatMap(
+      (entity) =>
+        ['create', 'get', 'save', 'disable', 'delete'].map(
+          (action) => `/aux/${entity}/${action}`,
+        ),
+    ),
+  }
+  const groupType = await aux.create(
+    'dictionary-type',
+    {
+      name: `物流组-${suffix}`,
+      description: '',
+      purpose: 'LOGISTICS_SETTLEMENT',
+    },
+    defaultsActor,
+  )
+  const group = await aux.create(
+    'dictionary-item',
+    { name: '长途', dictionaryTypeId: groupType.id, sortOrder: 0 },
+    defaultsActor,
+  )
+  const groupView = await aux.get(
+    'dictionary-item',
+    { id: group.id },
+    defaultsActor,
+  )
+  const warehouse = await aux.create(
+    'warehouse',
+    {
+      name: `默认仓-${suffix}`,
+      address: '',
+      contactName: '',
+      contactPhone: '',
+      managerEmployeeId: null,
+      remark: '',
+    },
+    defaultsActor,
+  )
+  const warehouseView = await aux.get(
+    'warehouse',
+    { id: warehouse.id },
+    defaultsActor,
+  )
   const tradingInput = {
     ...input,
     subjectId: ulid(),
@@ -383,6 +412,19 @@ test('Customer HTTP directly owns business attributes without legal identity or 
     idempotencyKey: ulid(),
     snapshot: {
       ...snapshot,
+      logisticsSettlementGroup: {
+        id: group.id,
+        code: 'FORGED',
+        name: '错误组',
+      },
+      defaultOutboundWarehouse: {
+        objectId: warehouse.id,
+        code: 'FORGED',
+        name: '错误仓库',
+      },
+      defaultSpecialApproval: true,
+      monthlyClosingDay: 25,
+      creditLimits: [{ currency: 'CNY', amount: '0.00' }],
       primarySalesAttribution: null,
       settlementMethod: {
         id: settlement.id,
@@ -423,6 +465,40 @@ test('Customer HTTP directly owns business attributes without legal identity or 
   assert.equal(adopted.paymentMethod.code, paymentView.code)
   assert.equal(adopted.paymentMethod.name, paymentData.name)
   assert.equal(adopted.paymentMethod.defaultSalesSurcharge, '0.20')
+  assert.deepEqual(adopted.logisticsSettlementGroup, {
+    id: groupView.id,
+    code: groupView.code,
+    name: groupView.name,
+  })
+  assert.deepEqual(adopted.defaultOutboundWarehouse, {
+    objectId: warehouseView.id,
+    code: warehouseView.code,
+    name: warehouseView.name,
+  })
+  assert.equal(adopted.defaultSpecialApproval, true)
+  assert.equal(adopted.monthlyClosingDay, 25)
+  assert.deepEqual(adopted.creditLimits, [{ currency: 'CNY', amount: '0.00' }])
+  await aux.disable(
+    'dictionary-item',
+    { id: group.id, revision: group.revision },
+    defaultsActor,
+    ulid(),
+  )
+  await aux.disable(
+    'warehouse',
+    { id: warehouse.id, revision: warehouse.revision },
+    defaultsActor,
+    ulid(),
+  )
+  for (const [entity, id] of [
+    ['dictionary-item', group.id],
+    ['warehouse', warehouse.id],
+  ] as const)
+    await assert.rejects(
+      () => aux.delete(entity, { id, revision: '2' }, defaultsActor),
+      (error: unknown) =>
+        error instanceof Error && error.message === 'conflict',
+    )
   assert.equal(adopted.transportPolicy.surcharge, '-0.10')
   assert.equal(adopted.pricingPolicy.defaultDiscountUnitPrice, '0.00')
   assert.deepEqual(adopted.pricingPolicy.costItems, [
@@ -481,6 +557,39 @@ test('Customer HTTP directly owns business attributes without legal identity or 
       snapshot: { ...snapshot, paymentMethod: invalidReference },
     })
     assert.equal(refused.errorKey, 'archive_reference_unavailable')
+  }
+  const ordinaryType = await aux.create(
+    'dictionary-type',
+    { name: `普通-${suffix}`, description: '' },
+    defaultsActor,
+  )
+  const ordinaryItem = await aux.create(
+    'dictionary-item',
+    { name: '普通条目', dictionaryTypeId: ordinaryType.id, sortOrder: 0 },
+    defaultsActor,
+  )
+  for (const id of [ordinaryItem.id, group.id]) {
+    const rejectedGroup = await write('submit-new', {
+      ...input,
+      subjectId: ulid(),
+      submissionId: ulid(),
+      idempotencyKey: ulid(),
+      snapshot: {
+        ...snapshot,
+        logisticsSettlementGroup: { id, code: 'X', name: 'X' },
+      },
+    })
+    assert.equal(rejectedGroup.errorKey, 'customer_reference_unavailable')
+  }
+  for (const day of [0, 32, 2.5]) {
+    const rejectedDay = await write('submit-new', {
+      ...input,
+      subjectId: ulid(),
+      submissionId: ulid(),
+      idempotencyKey: ulid(),
+      snapshot: { ...snapshot, monthlyClosingDay: day },
+    })
+    assert.notEqual(rejectedDay.code, 0)
   }
   const unassignedInput = {
     ...input,

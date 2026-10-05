@@ -21,7 +21,6 @@ import { searchPinyin } from '../../src/platform/pinyin.ts'
 import { VouService } from '../../src/vou/service.ts'
 
 const databaseUrl = process.env.TARGET_TEST_DATABASE_URL
-const customerTypeId = '01J00000000000000000000103'
 
 function databaseUrlFor(name: string): string {
   const url = new URL(databaseUrl!)
@@ -448,12 +447,11 @@ test('VOU product adoption serializes with BOB approval without cross-subject ad
     .values({
       approval_entry_id: directApprovalIds.customer,
       display_name: '并发客户',
-      customer_type_id: customerTypeId,
-      customer_type_snapshot: JSON.stringify({
-        id: customerTypeId,
-        code: 'CUSTOMER-TYPE-TEST',
-        name: '测试客户类型',
-      }),
+
+      logistics_settlement_group: null,
+      default_special_approval: false,
+      default_outbound_warehouse: null,
+      monthly_closing_day: null,
       settlement_snapshot: monthlySettlementSnapshot,
       payment_snapshot: null,
       credit_limits: JSON.stringify([]),

@@ -483,7 +483,6 @@ export interface VouIntermediaryCalculationInput {
       unitPrice: string
       referenceUnitPrice: string
       settlementSurcharge: string
-      customerTypeCode: string
       paymentSurcharge: string
       transportSurcharge: string
       defaultPremiumUnitPrice: string
@@ -2277,7 +2276,6 @@ const intermediarySourceLineFields: readonly VouInputFieldDescriptor[] =
     scalarDescriptor('unitPrice', true),
     scalarDescriptor('referenceUnitPrice', true),
     scalarDescriptor('settlementSurcharge', true),
-    scalarDescriptor('customerTypeCode', true),
     ...[
       'paymentSurcharge',
       'transportSurcharge',
@@ -2797,4 +2795,39 @@ export function productionSuggestedQuantity(
   const result =
     (material * quantity * (100000000n + loss) + denominator / 2n) / denominator
   return `${result / 1000000n}.${String(result % 1000000n).padStart(6, '0')}`
+}
+
+/** Compute from the actual signoff and the adopted customer version's closing day. */
+export function settlementDueDate(
+  date: string,
+  term: Pick<
+    import('./archives.ts').SettlementMethodSnapshot,
+    'ruleType' | 'monthOffset' | 'dayOfMonth' | 'dayOffset'
+  >,
+  monthlyClosingDay: number | null,
+): string {
+  const value = new Date(`${date}T00:00:00Z`)
+  if (term.ruleType === 'RELATIVE_DAYS')
+    value.setUTCDate(value.getUTCDate() + term.dayOffset)
+  else {
+    const lastOfSignoffMonth = new Date(
+      Date.UTC(value.getUTCFullYear(), value.getUTCMonth() + 1, 0),
+    ).getUTCDate()
+    const nextBillingMonth =
+      monthlyClosingDay !== null &&
+      value.getUTCDate() > Math.min(monthlyClosingDay, lastOfSignoffMonth)
+        ? 1
+        : 0
+    const month = value.getUTCMonth() + nextBillingMonth + term.monthOffset
+    const last = new Date(
+      Date.UTC(value.getUTCFullYear(), month + 1, 0),
+    ).getUTCDate()
+    value.setUTCFullYear(
+      value.getUTCFullYear(),
+      month,
+      term.dayOfMonth > 0 ? Math.min(term.dayOfMonth, last) : last,
+    )
+    value.setUTCDate(value.getUTCDate() + term.dayOffset)
+  }
+  return value.toISOString().slice(0, 10)
 }

@@ -4,6 +4,7 @@ import { RptService, PgRptDefinitionValidator } from '../src/rpt/service.ts'
 import { AccService } from '../src/acc/service.ts'
 import { createDatabase } from '../src/db/database.ts'
 import { assertTargetDatabaseBoundary } from '../src/platform/config.ts'
+import { initializeSettlementMethods } from '../src/aux/settlement-initialize.ts'
 
 function required(name: string): string {
   const value = process.env[name]
@@ -39,8 +40,9 @@ async function main(): Promise<void> {
       permissions: ['/rpt/definition/save'],
     })
     const roles = await new DepartmentRoleService(db).initialize()
+    const settlements = await initializeSettlementMethods(db, administrator.id)
     process.stdout.write(
-      `database seed: internal book ${result}; department reports ${reports}; department roles ${roles}\n`,
+      `database seed: internal book ${result}; department reports ${reports}; department roles ${roles}; settlement methods ${settlements}\n`,
     )
   } finally {
     await validationPool.end()

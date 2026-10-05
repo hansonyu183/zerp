@@ -168,6 +168,11 @@ test('creates and clones sales and purchase orders from real menu candidates, in
     await page.setViewportSize({ width: 1280, height: 900 })
     await openMenu(page, `/vou/${entity}`)
     await setDateRange(page, '期间', '2026-09-01', '2026-09-30')
+    const filtered = page.waitForResponse(
+      (response) => new URL(response.url()).pathname === `/vou/${entity}/query`,
+    )
+    await page.getByTestId('list-search').click()
+    await filtered
     await page.getByRole('button', { name: '新增', exact: true }).click()
     const editor = page.getByRole('dialog').last()
     await expect(editor).toBeVisible()

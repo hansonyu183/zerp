@@ -4,7 +4,7 @@
 
 `apps/api/scripts/upgrade-customer-entry.ts` 只适用于已确认客户版本、月度计算稿和居间计算脚本均为空的现有单层客户数据库。它保留账号、员工、其他资料和附件。存在相关数据时拒绝升级，必须先形成逐项转换决定，不能从旧类型猜测特批。OIT 可继续写入；冻结范围只包括升级中的 ZERP 写入者。
 
-已核实的旧线上基线还缺少 `app_installation`。升级由 APP 所属一次性转换建立稳定安装身份，后续重启保持该 UUID；已有身份原样保留。这用于把导入批次绑定到具体目标、防止以后重建后误续跑，不是运行时兼容层。
+已核实的线上基线还缺少 `app_installation`。升级由 APP 所属一次性转换建立稳定安装身份，后续重启保持该 UUID；已有身份原样保留。这用于把导入批次绑定到具体目标、防止以后重建后误续跑，不保留运行时兼容层。
 
 1. 完成同一候选的完整 `make e2e`，准备同一完整 SHA 的 API/Web，记录旧运行镜像与卷。
 2. 停止 ZERP API 和其他 ZERP 写入者，备份整个数据库和附件卷。保存私有清单：`sourceReleaseSha`、`targetReleaseSha`、`database: {path, sha256}`、`attachments: {path, sha256}`；不提交正文或凭证。

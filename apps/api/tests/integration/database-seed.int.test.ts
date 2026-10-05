@@ -102,6 +102,44 @@ test('database seed is atomic, concurrent-safe and preserves subsequent book mai
     ],
   )
   const seededRoles = await db.selectFrom('app_roles').selectAll().execute()
+  const settlementRows = await db
+    .selectFrom('aux_objects')
+    .select(['id', 'data', 'revision'])
+    .where('entity', '=', 'settlement-method')
+    .execute()
+  assert.equal(settlementRows.length, 11)
+  assert.equal(
+    new Set(
+      settlementRows.map((row) => (row.data as { termCode: string }).termCode),
+    ).size,
+    11,
+  )
+  const arrival30 = settlementRows.find(
+    (row) => (row.data as { termCode: string }).termCode === 'ARRIVAL_30',
+  )!
+  assert.equal((arrival30.data as { dayOffset: number }).dayOffset, 30)
+  await db
+    .updateTable('aux_objects')
+    .set({
+      data: JSON.stringify({
+        ...(arrival30.data as object),
+        defaultSalesSurcharge: '0.25',
+      }),
+      revision: '2',
+    })
+    .where('id', '=', arrival30.id)
+    .execute()
+  await seed()
+  const kept = await db
+    .selectFrom('aux_objects')
+    .select(['data', 'revision'])
+    .where('id', '=', arrival30.id)
+    .executeTakeFirstOrThrow()
+  assert.equal(kept.revision, '2')
+  assert.equal(
+    (kept.data as { defaultSalesSurcharge: string }).defaultSalesSurcharge,
+    '0.25',
+  )
   assert.equal(seededRoles.length, 13)
   assert.deepEqual(
     seededRoles
@@ -227,7 +265,6 @@ test('database seed is atomic, concurrent-safe and preserves subsequent book mai
     'approval_entries',
     'acc_mappings',
     'acc_journal_entries',
-    'aux_objects',
   ] as const) {
     const rows = await sql<{
       count: string

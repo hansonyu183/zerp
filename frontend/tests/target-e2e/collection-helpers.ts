@@ -36,6 +36,7 @@ export async function setDateRange(
   await menu.getByLabel('开始日期', { exact: true }).fill(from)
   await menu.getByLabel('结束日期', { exact: true }).fill(to)
   await menu.getByRole('button', { name: '完成', exact: true }).click()
+  await expect(menu).toBeHidden()
   await expect(page.getByLabel(caption, { exact: true })).toHaveValue(
     `${from || '不限'} 至 ${to || '不限'}`,
   )

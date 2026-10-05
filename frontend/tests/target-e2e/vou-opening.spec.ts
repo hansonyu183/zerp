@@ -1,4 +1,4 @@
-import { confirmCollections } from './collection-helpers.ts'
+import { confirmCollections, setDateRange } from './collection-helpers.ts'
 import { expect, test, type Page } from '@playwright/test'
 const facts = JSON.parse(process.env.TARGET_E2E_OPENING_JSON ?? '{}')
 if (!process.env.TARGET_E2E_OPENING_JSON)
@@ -27,6 +27,8 @@ async function signIn(page: Page, reviewer = false) {
     await group.locator('.v-list-group__header').click()
   await drawer.locator('a[href="/vou/opening"]').click()
   await expect(page.getByTestId('vou-list-page')).toBeVisible()
+  await setDateRange(page, '期间', facts.book.startDate, facts.book.startDate)
+  await page.getByTestId('list-search').click()
 }
 async function create(page: Page) {
   await page.getByRole('button', { name: '新增', exact: true }).click()

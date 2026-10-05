@@ -167,6 +167,7 @@ test('creates and clones sales and purchase orders from real menu candidates, in
   for (const entity of ['purchase-order', 'sale-order'] as const) {
     await page.setViewportSize({ width: 1280, height: 900 })
     await openMenu(page, `/vou/${entity}`)
+    await setDateRange(page, '期间', '2026-09-01', '2026-09-30')
     await page.getByRole('button', { name: '新增', exact: true }).click()
     const editor = page.getByRole('dialog').last()
     await expect(editor).toBeVisible()

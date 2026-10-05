@@ -27,7 +27,12 @@ async function signIn(page: Page, reviewer = false) {
     await group.locator('.v-list-group__header').click()
   await drawer.locator('a[href="/vou/opening"]').click()
   await expect(page.getByTestId('vou-list-page')).toBeVisible()
-  await setDateRange(page, '期间', facts.book.startDate, facts.book.startDate)
+  await setDateRange(
+    page,
+    '期间',
+    `${facts.book.startMonth}-01`,
+    `${facts.book.startMonth}-01`,
+  )
   await page.getByTestId('list-search').click()
 }
 async function create(page: Page) {

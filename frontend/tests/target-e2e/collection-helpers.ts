@@ -31,7 +31,14 @@ export async function setDateRange(
   from: string,
   to: string,
 ) {
-  await page.getByLabel(caption, { exact: true }).click()
+  const field = page.getByLabel(caption, { exact: true })
+  await expect(field).toBeEnabled()
+  await field
+    .locator(
+      'xpath=ancestor::div[contains(concat(" ", normalize-space(@class), " "), " v-field ")][1]',
+    )
+    .locator('.v-field__prepend-inner')
+    .click()
   const menu = page.locator('.v-menu.v-overlay--active')
   await menu.getByLabel('开始日期', { exact: true }).fill(from)
   await menu.getByLabel('结束日期', { exact: true }).fill(to)

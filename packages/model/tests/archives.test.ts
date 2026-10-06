@@ -4,6 +4,7 @@ import test from 'node:test'
 import {
   prepareAccMappingSave,
   prepareCustomerSubmit,
+  prepareOtherUnitSubmit,
   prepareProductSubmit,
   prepareSalesPartnerSubmit,
   type ApprovalActor,
@@ -1005,4 +1006,45 @@ test('validates full MappingDefinition facts', () => {
     },
   )
   assert.equal(valid.ok, true)
+})
+
+test('personal sales partners can be archived without an identifier while organizations and other units require one', () => {
+  const data = {
+    identityKind: 'PERSON' as const,
+    legalName: '个人签约人',
+    displayName: '个人合作身份',
+    legalIdentifier: '',
+    contactName: '',
+    phone: '',
+    address: '',
+    remark: '',
+    operatingEntities: [],
+    defaultOperatingEntityId: null,
+    capabilities: ['CHANNEL_PARTNER' as const],
+  }
+  const personal = prepareSalesPartnerSubmit(
+    { ...command(), data },
+    { ...newFacts, operatingEntities: [] },
+  )
+  assert.equal(personal.ok, true)
+  if (personal.ok) assert.equal(personal.plan.data.legalIdentifier, '')
+  assert.deepEqual(
+    prepareSalesPartnerSubmit(
+      { ...command(), data: { ...data, identityKind: 'ORGANIZATION' } },
+      { ...newFacts, operatingEntities: [] },
+    ),
+    { ok: false, error: { errorKey: 'sales_partner_invalid_data' } },
+  )
+  const { capabilities: _capabilities, ...identity } = data
+  assert.deepEqual(
+    prepareOtherUnitSubmit(
+      {
+        ...command(),
+        actor: { ...actor, permissions: ['/dcl/other-unit/submit-new'] },
+        data: { ...identity, settlementMethod: null },
+      },
+      { ...newFacts, operatingEntities: [] },
+    ),
+    { ok: false, error: { errorKey: 'other_unit_invalid_data' } },
+  )
 })

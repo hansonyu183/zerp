@@ -6,7 +6,11 @@ export const salesPartnerPage = defineVersionPage<'bob/sales-partner'>({
   fields: [
     { key: 'legalName', type: 'text', caption: '法定名称', required: true },
     { key: 'displayName', type: 'text', caption: '显示名称', required: true },
-    { key: 'legalIdentifier', type: 'text', caption: '法定识别号' },
+    {
+      key: 'legalIdentifier',
+      type: 'text',
+      caption: '法定识别号（个人可留空）',
+    },
     {
       key: 'identityKind',
       type: 'enum',

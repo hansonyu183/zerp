@@ -93,7 +93,17 @@ for (const [entity, title] of [
         })
         .fill(name)
       await dialog.getByLabel('显示名称', { exact: true }).fill(name)
-      if (entity !== 'supplier')
+      if (entity === 'sales-partner') {
+        await dialog
+          .locator('.v-select')
+          .filter({ hasText: '身份类型' })
+          .locator('.v-field')
+          .click()
+        await page.getByRole('option', { name: '个人', exact: true }).click()
+        await expect(
+          dialog.getByLabel('法定识别号（个人可留空）', { exact: true }),
+        ).toHaveValue('')
+      } else if (entity !== 'supplier')
         await dialog
           .getByLabel('法定识别号', { exact: true })
           .fill(`BROWSER${tag}`)

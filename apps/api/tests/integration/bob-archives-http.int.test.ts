@@ -251,6 +251,51 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
       ),
       true,
     )
+    if (entity === 'sales-partner') {
+      const personalIds: string[] = []
+      for (const index of [1, 2]) {
+        const personalId = ulid(),
+          personalEntry = ulid()
+        const personalSnapshot = {
+          ...snapshot,
+          identityKind: 'PERSON',
+          legalName: '真实签约人',
+          displayName: `个人合作${index}`,
+          legalIdentifier: '',
+        }
+        const submittedPersonal = await write('/dcl/sales-partner/submit-new', {
+          subjectId: personalId,
+          submissionId: personalEntry,
+          idempotencyKey: personalEntry,
+          expectedLatestApprovedSubmissionId: null,
+          expectedLatestApprovedRevision: null,
+          snapshot: personalSnapshot,
+        })
+        assert.equal(submittedPersonal.code, 0, submittedPersonal.errorKey)
+        assert.equal(submittedPersonal.data.snapshot.legalIdentifier, '')
+        const approvedPersonal = await review('/dcl/sales-partner/approve', {
+          subjectId: personalId,
+          submissionId: personalEntry,
+          expectedRevision: submittedPersonal.data.revision,
+        })
+        assert.equal(approvedPersonal.code, 0, approvedPersonal.errorKey)
+        const personalCurrent = await write('/bob/sales-partner/get', {
+          objectId: personalId,
+        })
+        assert.equal(personalCurrent.data.sourceApprovalEntryId, personalEntry)
+        assert.deepEqual(personalCurrent.data.data, personalSnapshot)
+        personalIds.push(personalCurrent.data.objectId)
+      }
+      assert.notEqual(personalIds[0], personalIds[1])
+      const rejected = await write('/dcl/sales-partner/submit-new', {
+        ...input,
+        subjectId: ulid(),
+        submissionId: ulid(),
+        idempotencyKey: ulid(),
+        snapshot: { ...snapshot, legalIdentifier: '' },
+      })
+      assert.equal(rejected.errorKey, 'sales_partner_invalid_data')
+    }
     const secondId = ulid()
     const changed = await write(`/dcl/${entity}/submit-change`, {
       ...input,

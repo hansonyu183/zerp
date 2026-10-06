@@ -42780,7 +42780,8 @@
                                       },
                                       "legalIdentifier": {
                                         "type": "string",
-                                        "maxLength": 128
+                                        "maxLength": 128,
+                                        "description": "个人销售合作方可留空；组织销售合作方须提供法定识别号。"
                                       },
                                       "contactName": {
                                         "type": "string",
@@ -43085,7 +43086,8 @@
                                 },
                                 "legalIdentifier": {
                                   "type": "string",
-                                  "maxLength": 128
+                                  "maxLength": 128,
+                                  "description": "个人销售合作方可留空；组织销售合作方须提供法定识别号。"
                                 },
                                 "contactName": {
                                   "type": "string",
@@ -81437,7 +81439,8 @@
                                 },
                                 "legalIdentifier": {
                                   "type": "string",
-                                  "maxLength": 128
+                                  "maxLength": 128,
+                                  "description": "个人销售合作方可留空；组织销售合作方须提供法定识别号。"
                                 },
                                 "contactName": {
                                   "type": "string",
@@ -81945,7 +81948,8 @@
                                       },
                                       "legalIdentifier": {
                                         "type": "string",
-                                        "maxLength": 128
+                                        "maxLength": 128,
+                                        "description": "个人销售合作方可留空；组织销售合作方须提供法定识别号。"
                                       },
                                       "contactName": {
                                         "type": "string",
@@ -82753,7 +82757,8 @@
                       },
                       "legalIdentifier": {
                         "type": "string",
-                        "maxLength": 128
+                        "maxLength": 128,
+                        "description": "个人销售合作方可留空；组织销售合作方须提供法定识别号。"
                       },
                       "contactName": {
                         "type": "string",
@@ -82960,7 +82965,8 @@
                                 },
                                 "legalIdentifier": {
                                   "type": "string",
-                                  "maxLength": 128
+                                  "maxLength": 128,
+                                  "description": "个人销售合作方可留空；组织销售合作方须提供法定识别号。"
                                 },
                                 "contactName": {
                                   "type": "string",
@@ -83378,7 +83384,8 @@
                       },
                       "legalIdentifier": {
                         "type": "string",
-                        "maxLength": 128
+                        "maxLength": 128,
+                        "description": "个人销售合作方可留空；组织销售合作方须提供法定识别号。"
                       },
                       "contactName": {
                         "type": "string",
@@ -83585,7 +83592,8 @@
                                 },
                                 "legalIdentifier": {
                                   "type": "string",
-                                  "maxLength": 128
+                                  "maxLength": 128,
+                                  "description": "个人销售合作方可留空；组织销售合作方须提供法定识别号。"
                                 },
                                 "contactName": {
                                   "type": "string",
@@ -84094,7 +84102,8 @@
                                 },
                                 "legalIdentifier": {
                                   "type": "string",
-                                  "maxLength": 128
+                                  "maxLength": 128,
+                                  "description": "个人销售合作方可留空；组织销售合作方须提供法定识别号。"
                                 },
                                 "contactName": {
                                   "type": "string",
@@ -84609,7 +84618,8 @@
                                 },
                                 "legalIdentifier": {
                                   "type": "string",
-                                  "maxLength": 128
+                                  "maxLength": 128,
+                                  "description": "个人销售合作方可留空；组织销售合作方须提供法定识别号。"
                                 },
                                 "contactName": {
                                   "type": "string",
@@ -85118,7 +85128,8 @@
                                 },
                                 "legalIdentifier": {
                                   "type": "string",
-                                  "maxLength": 128
+                                  "maxLength": 128,
+                                  "description": "个人销售合作方可留空；组织销售合作方须提供法定识别号。"
                                 },
                                 "contactName": {
                                   "type": "string",
@@ -85633,7 +85644,8 @@
                                 },
                                 "legalIdentifier": {
                                   "type": "string",
-                                  "maxLength": 128
+                                  "maxLength": 128,
+                                  "description": "个人销售合作方可留空；组织销售合作方须提供法定识别号。"
                                 },
                                 "contactName": {
                                   "type": "string",

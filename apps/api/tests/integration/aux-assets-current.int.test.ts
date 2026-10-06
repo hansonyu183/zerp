@@ -219,6 +219,58 @@ test('AUX assets enforce revision, unique identities, adopted references and ato
       error instanceof AuxApplicationError &&
       error.errorKey === 'fund_account_duplicate_account_number',
   )
+  const cashInput = {
+    ...accountInput,
+    name: '备用现金',
+    accountName: '',
+    bank: '',
+    accountNumber: '',
+  }
+  const cashResponse = await app.request('/aux/fund-account/create', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-zerp-model-build': modelBuildId,
+      'x-csrf-token': session.data.csrfToken,
+      cookie: login.headers.getSetCookie()[0]!,
+    },
+    body: JSON.stringify(cashInput),
+  })
+  const cashEnvelope = await cashResponse.json()
+  assert.equal(cashEnvelope.code, 0)
+  const cash = cashEnvelope.data
+  const secondCash = await aux.create(
+    'fund-account',
+    { ...cashInput, name: '收款现金' },
+    actor,
+  )
+  assert.notEqual(cash.id, secondCash.id)
+  const cashReadback = await aux.get('fund-account', { id: cash.id }, actor)
+  for (const field of ['accountName', 'bank', 'accountNumber'] as const)
+    assert.equal(cashReadback[field], '')
+  assert.equal(
+    (cashReadback.operatingEntity as { id: string }).id,
+    op.id,
+  )
+  await assert.rejects(
+    aux.save(
+      'fund-account',
+      {
+        ...cashInput,
+        id: cash.id,
+        revision: cash.revision,
+        accountNumber: ` ac-${suffix.toLowerCase()} `,
+      },
+      actor,
+    ),
+    (error) =>
+      error instanceof AuxApplicationError &&
+      error.errorKey === 'fund_account_duplicate_account_number',
+  )
+  assert.deepEqual(
+    await aux.get('fund-account', { id: cash.id }, actor),
+    cashReadback,
+  )
   await assert.rejects(
     aux.delete('operating-entity', { id: op.id, revision: op.revision }, actor),
     (error) =>

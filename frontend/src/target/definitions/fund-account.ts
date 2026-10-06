@@ -7,10 +7,10 @@ export const fundAccountPage =
     fields: [
       { key: 'name', caption: '名称', type: 'text', required: true },
       { key: 'currency', caption: '币种', type: 'text', required: true },
-      { key: 'accountName', caption: '户名', type: 'text', required: true },
-      { key: 'bank', caption: '开户行', type: 'text', required: true },
+      { key: 'accountName', caption: '户名', type: 'text' },
+      { key: 'bank', caption: '开户行', type: 'text' },
       { key: 'branch', caption: '支行', type: 'text' },
-      { key: 'accountNumber', caption: '账号', type: 'text', required: true },
+      { key: 'accountNumber', caption: '账号', type: 'text' },
       {
         key: 'operatingEntityId',
         caption: '所属经营主体',

@@ -1890,7 +1890,9 @@ export class DclArchiveService {
         'ARRIVAL_3',
         'ARRIVAL_5',
         'ARRIVAL_7',
+        'ARRIVAL_10',
         'ARRIVAL_15',
+        'ARRIVAL_20',
         'ARRIVAL_30',
         'MONTHLY_CURRENT',
         'MONTHLY_30',
@@ -2243,11 +2245,15 @@ export class DclArchiveService {
       ...((entity === 'supplier' || entity === 'other-unit') &&
       snapshot.settlementMethod !== null
         ? {
-            settlementMethod: await this.freezeAuxiliaryReference(
-              tx,
-              snapshot.settlementMethod,
-              `${entity.replace('-', '_')}_invalid_data`,
-            ),
+            settlementMethod: await (async () => {
+              const frozen = await this.freezeAuxiliaryReference(
+                tx,
+                snapshot.settlementMethod,
+                `${entity.replace('-', '_')}_invalid_data`,
+              )
+              delete frozen.defaultSalesSurcharge
+              return frozen
+            })(),
           }
         : {}),
       operatingEntities: await Promise.all(

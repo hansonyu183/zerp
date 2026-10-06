@@ -121,12 +121,12 @@ test('VOU adopts current fund accounts authoritatively and preserves their histo
     actor,
   )
   const accountInput = {
-    name: '采用时账户',
+    name: '采用时现金账户',
     currency: 'CNY',
-    accountName: '原户名',
-    bank: '原银行',
-    branch: '原支行',
-    accountNumber: `AC${suffix}`,
+    accountName: '',
+    bank: '',
+    branch: '',
+    accountNumber: '',
     operatingEntityId: operatingEntity.id,
     remark: '原备注',
   }
@@ -165,9 +165,9 @@ test('VOU adopts current fund accounts authoritatively and preserves their histo
     }
   ).fundAccount
   assert.equal(adopted.code, accountDetail.code)
-  assert.equal(adopted.name, '采用时账户')
-  assert.equal(adopted.snapshot.bank, '原银行')
-  assert.equal(adopted.snapshot.accountNumber, `AC${suffix}`)
+  assert.equal(adopted.name, '采用时现金账户')
+  assert.equal(adopted.snapshot.bank, '')
+  assert.equal(adopted.snapshot.accountNumber, '')
   assert.ok(!('approvalEntryId' in adopted))
   const saved = await aux.save(
     'fund-account',

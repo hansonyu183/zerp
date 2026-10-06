@@ -75,7 +75,9 @@ export interface AuxDataByEntity {
       | 'ARRIVAL_3'
       | 'ARRIVAL_5'
       | 'ARRIVAL_7'
+      | 'ARRIVAL_10'
       | 'ARRIVAL_15'
+      | 'ARRIVAL_20'
       | 'ARRIVAL_30'
       | 'MONTHLY_CURRENT'
       | 'MONTHLY_30'
@@ -266,7 +268,9 @@ export interface AuxReferenceCandidate {
     | 'ARRIVAL_3'
     | 'ARRIVAL_5'
     | 'ARRIVAL_7'
+    | 'ARRIVAL_10'
     | 'ARRIVAL_15'
+    | 'ARRIVAL_20'
     | 'ARRIVAL_30'
     | 'MONTHLY_CURRENT'
     | 'MONTHLY_30'
@@ -532,7 +536,9 @@ const settlementTermCodes = [
   'ARRIVAL_3',
   'ARRIVAL_5',
   'ARRIVAL_7',
+  'ARRIVAL_10',
   'ARRIVAL_15',
+  'ARRIVAL_20',
   'ARRIVAL_30',
   'MONTHLY_CURRENT',
   'MONTHLY_30',
@@ -685,10 +691,12 @@ function normaliseData(entity: AuxEntity, source: unknown): AuxData {
     return {
       name: requiredText(data.name, 200),
       currency,
-      accountName: requiredText(data.accountName, 200),
-      bank: requiredText(data.bank, 200),
+      accountName: optionalString(data.accountName, 200),
+      bank: optionalString(data.bank, 200),
       branch: optionalString(data.branch, 200),
-      accountNumber: upperCompact(data.accountNumber, 128),
+      accountNumber: optionalString(data.accountNumber, 128)
+        ? upperCompact(data.accountNumber, 128)
+        : '',
       operatingEntityId: requiredId(data.operatingEntityId),
       remark: optionalString(data.remark),
     }
@@ -866,7 +874,9 @@ function normaliseData(entity: AuxEntity, source: unknown): AuxData {
           'ARRIVAL_3',
           'ARRIVAL_5',
           'ARRIVAL_7',
+          'ARRIVAL_10',
           'ARRIVAL_15',
+          'ARRIVAL_20',
           'ARRIVAL_30',
           'MONTHLY_CURRENT',
           'MONTHLY_30',
@@ -2181,14 +2191,15 @@ export class AuxService {
     }
     if (entity === 'fund-account') {
       const input = data as unknown as FundAccountCurrentInput
-      await this.assertUniqueCurrentField(
-        transaction,
-        entity,
-        objectId,
-        'accountNumber',
-        input.accountNumber,
-        'fund_account_duplicate_account_number',
-      )
+      if (input.accountNumber)
+        await this.assertUniqueCurrentField(
+          transaction,
+          entity,
+          objectId,
+          'accountNumber',
+          input.accountNumber,
+          'fund_account_duplicate_account_number',
+        )
       return {
         name: input.name,
         currency: input.currency,

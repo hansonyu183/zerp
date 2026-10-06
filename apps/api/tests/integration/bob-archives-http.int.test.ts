@@ -126,6 +126,23 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
     review = await client(reviewer.username)
   const historyOnly = await client(historyReader.username)
   for (const entity of entities) {
+    const days = entity === 'supplier' ? 10 : 20
+    const method =
+      entity === 'sales-partner'
+        ? null
+        : await new AuxService(db).ensureE2ESettlementMethod(
+            {
+              name: `货到${days}天`,
+              termCode: `ARRIVAL_${days}`,
+              ruleType: 'RELATIVE_DAYS',
+              monthOffset: 0,
+              dayOfMonth: 0,
+              dayOffset: days,
+              defaultSalesSurcharge: '0.45',
+              description: '',
+            },
+            { id: submitter.userId, permissions: [], trusted: true },
+          )
     const subjectId = ulid(),
       submissionId = ulid()
     const snapshot = {
@@ -145,7 +162,13 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
       remark: '完整资料',
       ...(entity === 'sales-partner'
         ? { capabilities: ['CHANNEL_PARTNER'] }
-        : { settlementMethod: null }),
+        : {
+            settlementMethod: {
+              id: method!.id,
+              code: 'client-untrusted',
+              name: 'client-untrusted',
+            },
+          }),
       ...(entity === 'supplier' ? { defaultPurchaser: null } : {}),
     }
     const input = {
@@ -159,6 +182,21 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
     const submitted = await write(`/dcl/${entity}/submit-new`, input)
     assert.equal(submitted.code, 0, submitted.errorKey)
     assert.equal(submitted.data.status, 'PENDING')
+    if (entity !== 'sales-partner') {
+      assert.equal(
+        submitted.data.snapshot.settlementMethod.termCode,
+        `ARRIVAL_${days}`,
+      )
+      assert.equal(submitted.data.snapshot.settlementMethod.dayOffset, days)
+      assert.equal(
+        'defaultSalesSurcharge' in submitted.data.snapshot.settlementMethod,
+        false,
+      )
+      assert.notEqual(
+        submitted.data.snapshot.settlementMethod.code,
+        'client-untrusted',
+      )
+    }
     const historic = await historyOnly(`/bob/${entity}/versions`, {
       subjectId,
       submissionId,

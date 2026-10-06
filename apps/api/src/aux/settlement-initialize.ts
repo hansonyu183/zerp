@@ -3,7 +3,7 @@ import { ulid } from 'ulid'
 import type { DB } from '../db/generated.ts'
 
 // Fixed AUX facts, not customer-company defaults. Subsequent enabled/surcharge
-// maintenance is preserved; normal clients cannot create a twelfth term.
+// maintenance is preserved; normal clients cannot create a fourteenth term.
 export async function initializeSettlementMethods(
   db: Kysely<DB>,
   actorId: string,
@@ -11,7 +11,7 @@ export async function initializeSettlementMethods(
   const terms = [
     ['PREPAID', '预付', 'RELATIVE_DAYS', 0, 0, '0.00'],
     ['CASH_ON_DELIVERY', '现结（货到付款）', 'RELATIVE_DAYS', 0, 0, '0.00'],
-    ...[3, 5, 7, 15, 30].map((days) => [
+    ...[3, 5, 7, 10, 15, 20, 30].map((days) => [
       `ARRIVAL_${days}`,
       `货到${days}天`,
       'RELATIVE_DAYS',

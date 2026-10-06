@@ -75,7 +75,9 @@ export interface AuxDataByEntity {
       | 'ARRIVAL_3'
       | 'ARRIVAL_5'
       | 'ARRIVAL_7'
+      | 'ARRIVAL_10'
       | 'ARRIVAL_15'
+      | 'ARRIVAL_20'
       | 'ARRIVAL_30'
       | 'MONTHLY_CURRENT'
       | 'MONTHLY_30'
@@ -266,7 +268,9 @@ export interface AuxReferenceCandidate {
     | 'ARRIVAL_3'
     | 'ARRIVAL_5'
     | 'ARRIVAL_7'
+    | 'ARRIVAL_10'
     | 'ARRIVAL_15'
+    | 'ARRIVAL_20'
     | 'ARRIVAL_30'
     | 'MONTHLY_CURRENT'
     | 'MONTHLY_30'
@@ -532,7 +536,9 @@ const settlementTermCodes = [
   'ARRIVAL_3',
   'ARRIVAL_5',
   'ARRIVAL_7',
+  'ARRIVAL_10',
   'ARRIVAL_15',
+  'ARRIVAL_20',
   'ARRIVAL_30',
   'MONTHLY_CURRENT',
   'MONTHLY_30',
@@ -866,7 +872,9 @@ function normaliseData(entity: AuxEntity, source: unknown): AuxData {
           'ARRIVAL_3',
           'ARRIVAL_5',
           'ARRIVAL_7',
+          'ARRIVAL_10',
           'ARRIVAL_15',
+          'ARRIVAL_20',
           'ARRIVAL_30',
           'MONTHLY_CURRENT',
           'MONTHLY_30',

@@ -9,3 +9,5 @@
 - [五类档案归属切换](archive-ownership-cutover.md)
 
 - [客户首次建档模型升级](customer-entry-upgrade.md)
+
+- [订单金额结构保留数据升级](order-amount-upgrade.md)

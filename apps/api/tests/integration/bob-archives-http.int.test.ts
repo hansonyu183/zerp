@@ -277,7 +277,12 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
     assert.equal(current.data.enabled, false)
     assert.equal(current.data.revision, '2')
     assert.equal(current.data.sourceApprovalEntryId, submissionId)
-    assert.deepEqual(current.data.data, snapshot)
+    assert.deepEqual(current.data.data, {
+      ...snapshot,
+      ...(entity !== 'sales-partner'
+        ? { settlementMethod: submitted.data.snapshot.settlementMethod }
+        : {}),
+    })
     const py = await write(`/bob/${entity}/query`, {
       page: 1,
       pageSize: 20,

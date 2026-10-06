@@ -1282,7 +1282,13 @@ CREATE TABLE vou_product_line_snapshots (
     entered_unit_name varchar(200) NOT NULL,
     entered_unit_fixed_factor text,
     base_quantity_micros bigint NOT NULL,
-    unit_price_minor bigint NOT NULL,
+    unit_price_minor bigint,
+    quoted_unit_price_micros bigint,
+    agreed_amount_minor bigint,
+    CHECK (
+        (agreed_amount_minor IS NULL AND unit_price_minor IS NOT NULL AND quoted_unit_price_micros IS NULL)
+        OR (agreed_amount_minor IS NOT NULL AND unit_price_minor IS NULL AND quoted_unit_price_micros IS NOT NULL)
+    ),
     settlement_surcharge_minor bigint,
     purchase_unit_price_minor bigint,
     sales_product_approval_entry_id varchar(26) REFERENCES approval_entries(id) ON DELETE RESTRICT,
@@ -1504,7 +1510,7 @@ CREATE TABLE vou_intermediary_source_line_snapshots (
     signed_quantity_micros bigint NOT NULL,
     pricing_quantity_micros bigint NOT NULL,
     standard_piece_quantity_micros bigint NOT NULL,
-    unit_price_minor bigint NOT NULL,
+    unit_price_micros bigint NOT NULL,
     reference_unit_price_minor bigint NOT NULL,
     settlement_surcharge_minor bigint NOT NULL,
     payment_surcharge_minor bigint NOT NULL,

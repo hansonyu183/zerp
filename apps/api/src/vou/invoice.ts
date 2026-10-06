@@ -1,3 +1,8 @@
+import {
+  orderLineAmountMinor,
+  intermediaryDecimal,
+  type OrderAmountBasis,
+} from '@zerp/model'
 import { sql, type Kysely, type Transaction } from 'kysely'
 import type {
   TaxInformationSnapshot,
@@ -118,6 +123,7 @@ export interface InvoiceSource {
   amount: string
   availableAmount: string
   unitPrice: string
+  pricing: OrderAmountBasis
 }
 import { readVouPersistence, decimalToFixed } from './service.ts'
 import type { VouPayloadFor } from '@zerp/model'
@@ -131,8 +137,8 @@ const money = (value: bigint) => {
   const digits = (value < 0n ? -value : value).toString().padStart(3, '0')
   return `${sign}${digits.slice(0, -2)}.${digits.slice(-2)}`
 }
-const lineAmount = (quantity: bigint, price: string) =>
-  (quantity * units(price) + 500000n) / 1000000n
+const lineAmount = (quantity: bigint, pricing: OrderAmountBasis) =>
+  orderLineAmountMinor(pricing, intermediaryDecimal(quantity, 6), 'HALF_UP')
 const sourceKey = (documentId: string, lineId: string) =>
   `${documentId}:${lineId}`
 export async function lockInvoiceAmounts(tx: Transaction<DB>) {
@@ -205,7 +211,7 @@ async function readInvoiceAmounts(
         if (!product)
           throw new VouApplicationError('vou_invoice_source_unavailable')
         const amount = money(
-          lineAmount(units(line.signedBaseQuantity, 6), product.unitPrice),
+          lineAmount(units(line.signedBaseQuantity, 6), product),
         )
         facts.push({
           sourceDocumentId: meta.subject_id,
@@ -217,6 +223,7 @@ async function readInvoiceAmounts(
           operatingEntityId: order.operatingEntity.objectId,
           currency: doc.payload.currency,
           unitPrice: product.unitPrice,
+          pricing: product,
           amount,
           availableAmount: amount,
         })
@@ -235,9 +242,7 @@ async function readInvoiceAmounts(
         )
         if (!product || order.supplier.objectId !== payload.supplier.objectId)
           throw new VouApplicationError('vou_invoice_source_unavailable')
-        const amount = money(
-          lineAmount(units(line.baseQuantity, 6), product.unitPrice),
-        )
+        const amount = money(lineAmount(units(line.baseQuantity, 6), product))
         facts.push({
           sourceDocumentId: meta.subject_id,
           sourceApprovalEntryId: meta.id,
@@ -248,6 +253,7 @@ async function readInvoiceAmounts(
           operatingEntityId: null,
           currency: doc.payload.currency,
           unitPrice: product.unitPrice,
+          pricing: product,
           amount,
           availableAmount: amount,
         })
@@ -272,9 +278,7 @@ async function readInvoiceAmounts(
       returnedQuantities.get(
         sourceKey(fact.sourceDocumentId, fact.sourceLineId),
       ) ?? 0n
-    fact.amount = money(
-      units(fact.amount) - lineAmount(returned, fact.unitPrice),
-    )
+    fact.amount = money(units(fact.amount) - lineAmount(returned, fact.pricing))
     fact.availableAmount = fact.amount
   }
   const invoices = await sql<{
@@ -310,10 +314,10 @@ export async function invoiceSources(
   asOfDate: string,
   reserved = false,
   excludeDocumentId = '',
-): Promise<InvoiceSource[]> {
+): Promise<Omit<InvoiceSource, 'pricing'>[]> {
   return (
     await readInvoiceAmounts(db, entity, asOfDate, reserved, excludeDocumentId)
-  ).sources
+  ).sources.map(({ pricing: _pricing, ...view }) => view)
 }
 export async function validateInvoiceSources(
   tx: Transaction<DB>,
@@ -382,8 +386,8 @@ export async function validateReturnInvoiceCapacity(
     requested.set(key, sum)
     const returned = returnedQuantities.get(key) ?? 0n
     const additionalAmount =
-      lineAmount(returned + sum, fact.unitPrice) -
-      lineAmount(returned, fact.unitPrice)
+      lineAmount(returned + sum, fact.pricing) -
+      lineAmount(returned, fact.pricing)
     if (additionalAmount > units(fact.availableAmount))
       throw new VouApplicationError('vou_invoice_source_unavailable', [
         { kind: 'DOWNSTREAM_DOCUMENT', id: line.sourceDocumentId },
@@ -404,7 +408,7 @@ export async function unbilledSales(db: Executor, periodMonth: string) {
       operatingEntityId: string
       currency: string
       amount: bigint
-      sources: InvoiceSource[]
+      sources: Omit<InvoiceSource, 'pricing'>[]
     }
   >()
   for (const line of lines) {

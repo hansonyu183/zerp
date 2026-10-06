@@ -20,6 +20,7 @@ export type OrderLine = {
   unitId: string
   baseQuantity: string
   unitPrice: string
+  agreedAmount?: string
   settlementSurcharge: string | null
   remark: string
   formula: VouProductLineInput['formula']
@@ -101,8 +102,21 @@ export function orderPayload(
       throw new Error(
         `商品行第 ${index + 1} 行：录入数量最多两位小数；请显式重新确认历史高精度数量。`,
       )
-    if (!/^\d+(?:\.\d{1,2})?$/.test(line.unitPrice))
-      throw new Error(`商品行第 ${index + 1} 行：填写基础单价，最多两位小数。`)
+    if (
+      !(
+        line.agreedAmount?.trim()
+          ? /^\d+(?:\.\d{1,6})?$/
+          : /^\d+(?:\.\d{1,2})?$/
+      ).test(line.unitPrice)
+    )
+      throw new Error(
+        `商品行第 ${index + 1} 行：单价计价最多两位，约定总额计价的原报价最多六位。`,
+      )
+    if (
+      line.agreedAmount?.trim() &&
+      !/^\d+(?:\.\d{1,2})?$/.test(line.agreedAmount)
+    )
+      throw new Error(`商品行第 ${index + 1} 行：最终约定金额最多两位小数。`)
     if (
       line.formulaDraft?.components.some(
         (item) =>
@@ -137,6 +151,9 @@ export function orderPayload(
       enteredUnit: unitSnapshot(unit),
       baseQuantity: line.baseQuantity,
       unitPrice: line.unitPrice,
+      ...(line.agreedAmount?.trim()
+        ? { agreedAmount: line.agreedAmount.trim() }
+        : {}),
       remark: line.remark,
       ...(sale
         ? {
@@ -266,6 +283,7 @@ export function cloneOrder(
       unitId: line.enteredUnit.objectId,
       baseQuantity: line.baseQuantity,
       unitPrice: line.unitPrice,
+      agreedAmount: line.agreedAmount,
       settlementSurcharge: line.settlementSurcharge ?? null,
       remark: line.remark ?? '',
       formula: line.formula ?? null,

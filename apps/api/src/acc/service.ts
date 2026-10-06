@@ -1,4 +1,9 @@
 import {
+  sourceSettlementMovements,
+  settlementMovementEntities,
+  settlementMovementFields,
+} from './settlement-source.ts'
+import {
   adoptDepreciationBasis,
   settleDepreciation,
   removeDepreciation,
@@ -652,6 +657,8 @@ export class AccService
         }
       }
       flatten('', vouEntityInputDescriptors[entity])
+      if (settlementMovementEntities.includes(entity))
+        lineFields.push(...settlementMovementFields)
       if (quantityMovementEntities.includes(entity))
         lineFields.push(...quantityMovementFields)
       if (billMovementEntities.includes(entity)) {
@@ -762,6 +769,7 @@ export class AccService
     for (const book of books) {
       let postingPayload: VouPayload & {
         inventoryMovements?: readonly unknown[]
+        settlementMovements?: readonly unknown[]
       } = this.postingPayload(
         plan.entity,
         accountingPayload,
@@ -807,6 +815,24 @@ export class AccService
         postingPayload = {
           ...postingPayload,
           inventoryMovements: await sourceInventoryMovements(
+            tx,
+            plan.entity,
+            accountingPayload,
+          ),
+        }
+      }
+      if (
+        settlementMovementEntities.includes(plan.entity) &&
+        template.lines.some(
+          (line) =>
+            (line.collection === undefined
+              ? template.collection
+              : line.collection) === 'settlementMovements',
+        )
+      ) {
+        postingPayload = {
+          ...postingPayload,
+          settlementMovements: await sourceSettlementMovements(
             tx,
             plan.entity,
             accountingPayload,

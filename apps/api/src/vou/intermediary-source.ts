@@ -1,5 +1,7 @@
 import {
   settlementDueDate,
+  orderLineAmountMinor,
+  orderQuote,
   intermediaryCanonical as canonical,
   intermediaryUnits as units,
   intermediaryDecimal as decimal,
@@ -210,10 +212,7 @@ export async function intermediarySource(
       if (!product)
         throw new VouApplicationError('vou_intermediary_source_invalid')
       return (
-        sum +
-        (units(line.signedBaseQuantity, 6) * units(product.unitPrice) +
-          500000n) /
-          1000000n
+        sum + orderLineAmountMinor(product, line.signedBaseQuantity, 'HALF_UP')
       )
     }, 0n)
     if (signoffAmount !== 0n && !posted.has(meta.documentId)) continue
@@ -327,8 +326,11 @@ export async function intermediarySource(
       const piece =
         (quantity * 1000000n) /
         BigInt(productBasis.standard_piece_base_quantity_micros)
-      const lineAmount =
-        (quantity * units(orderLine.unitPrice) + 500000n) / 1000000n
+      const lineAmount = orderLineAmountMinor(
+        orderLine,
+        signed.signedBaseQuantity,
+        'HALF_UP',
+      )
       amount += lineAmount
       const due = settlementDueDate(
         payload.businessDate,
@@ -401,7 +403,7 @@ export async function intermediarySource(
           signedBaseQuantity: decimal(quantity, 6),
           pricingQuantity: decimal(piece, 6),
           standardPieceQuantity: decimal(piece, 6),
-          unitPrice: orderLine.unitPrice,
+          unitPrice: orderQuote(orderLine.unitPrice),
           referenceUnitPrice: decimal(
             BigInt(productBasis.sales_reference_unit_price_minor),
           ),

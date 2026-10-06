@@ -1,5 +1,5 @@
 import {
-  intermediaryUnits,
+  orderLineAmountMinor,
   intermediaryDecimal,
   type VouEntity,
   type VouPayload,
@@ -80,12 +80,10 @@ export async function sourceInventoryMovements(
       'warehouse' in payload
         ? payload.warehouse.objectId
         : order.warehouse.objectId
-    const quantity = intermediaryUnits(line.baseQuantity, 6)
     const amount =
       entity === 'purchase-inbound'
         ? intermediaryDecimal(
-            (quantity * intermediaryUnits(product.unitPrice, 2) + 500_000n) /
-              1_000_000n,
+            orderLineAmountMinor(product, line.baseQuantity, 'HALF_UP'),
           )
         : '0.00'
     movements.push({

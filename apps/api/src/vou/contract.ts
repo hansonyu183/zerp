@@ -161,11 +161,12 @@ const formula = z
       .max(200),
   })
   .strict()
-const productLine = productQuantitySnapshot
+const productLineFields = productQuantitySnapshot
   .extend({
     lineId: z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/),
     product: objectReference,
-    unitPrice: money,
+    unitPrice: z.string().regex(/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/),
+    agreedAmount: money.optional(),
     settlementSurcharge: money.nullable().optional(),
     purchaseUnitPrice: money.optional(),
     remark: z.string().max(1000).optional(),
@@ -175,6 +176,19 @@ const productLine = productQuantitySnapshot
     formula: formula.nullable().optional(),
   })
   .strict()
+const productLine = productLineFields.refine(
+  (line) =>
+    line.agreedAmount !== undefined ||
+    /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(line.unitPrice),
+  { path: ['unitPrice'], message: 'unit price requires two decimal places' },
+)
+const validProductLine = productLine.refine(
+  (line) => line.agreedAmount === undefined || /[1-9]/.test(line.baseQuantity),
+  {
+    path: ['baseQuantity'],
+    message: 'agreed amount requires positive quantity',
+  },
+)
 const priceLine = z
   .object({
     product: versionedReference,
@@ -389,7 +403,7 @@ const intermediarySourceLine = z
     signedBaseQuantity: quantity,
     pricingQuantity: quantity,
     standardPieceQuantity: quantity,
-    unitPrice: money,
+    unitPrice: z.string().regex(/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/),
     referenceUnitPrice: money,
     settlementSurcharge: money,
     paymentSurcharge: money,
@@ -534,7 +548,7 @@ export const vouPayloadSchemaByEntity = {
     salesperson: employeeReference.optional(),
     warehouse: warehouseReference,
     paymentMethod: paymentMethodSelection.nullable(),
-    productLines: z.array(productLine).min(1).max(200),
+    productLines: z.array(validProductLine).min(1).max(200),
     creditOverrideReason: z.string().trim().min(1).max(1000).optional(),
     specialApproval: z.boolean().optional(),
   }),
@@ -568,7 +582,7 @@ export const vouPayloadSchemaByEntity = {
     supplier: versionedReference,
     purchaser: employeeReference.optional(),
     warehouse: warehouseReference,
-    productLines: z.array(productLine).min(1).max(200),
+    productLines: z.array(validProductLine).min(1).max(200),
   }),
   'purchase-inbound': payload({
     supplier: versionedReference,
@@ -1081,7 +1095,7 @@ const saleOrderLineResult = z
     documentId: z.string(),
     documentNo: z.string(),
     approvalEntryId: z.string(),
-    line: productLine.pick({
+    line: productLineFields.pick({
       lineId: true,
       enteredQuantity: true,
       product: true,

@@ -94,7 +94,11 @@ for (const [entity, title] of [
         .fill(name)
       await dialog.getByLabel('显示名称', { exact: true }).fill(name)
       if (entity === 'sales-partner') {
-        await dialog.getByLabel('身份类型', { exact: true }).click()
+        await dialog
+          .locator('.v-select')
+          .filter({ hasText: '身份类型' })
+          .locator('.v-field')
+          .click()
         await page.getByRole('option', { name: '个人', exact: true }).click()
         await expect(
           dialog.getByLabel('法定识别号（个人可留空）', { exact: true }),

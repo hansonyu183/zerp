@@ -330,6 +330,9 @@ const otherUnitSnapshot = z
 const salesPartnerSnapshot = z
   .object({
     ...archiveIdentityBase,
+    legalIdentifier: archiveIdentityBase.legalIdentifier.describe(
+      '个人销售合作方可留空；组织销售合作方须提供法定识别号。',
+    ),
     capabilities: z.array(z.enum(['EXTERNAL_PART_TIME', 'CHANNEL_PARTNER'])),
   })
   .strict()

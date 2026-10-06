@@ -515,6 +515,7 @@ function normalizedIdentifier(
 }
 function normalizeIdentity(
   data: IdentityArchiveData,
+  allowMissingIdentifier: boolean,
 ): IdentityArchiveData | undefined {
   const legalIdentifier = normalizedIdentifier(
     data.identityKind,
@@ -523,14 +524,14 @@ function normalizeIdentity(
   if (
     !hasText(data.legalName) ||
     !hasText(data.displayName) ||
-    !legalIdentifier
+    (!legalIdentifier && !allowMissingIdentifier)
   )
     return undefined
   return {
     identityKind: data.identityKind,
     legalName: trim(data.legalName),
     displayName: trim(data.displayName),
-    legalIdentifier,
+    legalIdentifier: legalIdentifier ?? '',
     contactName: trim(data.contactName),
     phone: trim(data.phone),
     address: trim(data.address),
@@ -606,7 +607,10 @@ function prepareIdentitySet<
   | ArchiveDecision<T, E> {
   const common = mechanics<T, E>(entity, command, facts)
   if ('ok' in common) return common
-  const identity = normalizeIdentity(command.data),
+  const identity = normalizeIdentity(
+      command.data,
+      entity === 'sales-partner' && command.data.identityKind === 'PERSON',
+    ),
     set = normalizeOperatingEntitySet(command.data)
   return identity && set
     ? { common, data: { ...identity, ...set } }

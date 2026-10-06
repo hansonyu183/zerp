@@ -1256,7 +1256,7 @@ export interface VouIntermediarySourceLineSnapshots {
   third_party_fixed_unit_cost_minor: Int8
   third_party_variable_unit_cost_minor: Int8
   transport_surcharge_minor: Int8
-  unit_price_minor: Int8
+  unit_price_micros: Int8
 }
 
 export interface VouIntermediarySummarySnapshots {
@@ -1381,6 +1381,7 @@ export interface VouProductionMaterialSnapshots {
 }
 
 export interface VouProductLineSnapshots {
+  agreed_amount_minor: Int8 | null
   approval_entry_id: string
   base_quantity_micros: Int8
   container_type: string | null
@@ -1403,6 +1404,7 @@ export interface VouProductLineSnapshots {
   line_no: number
   purchase_unit_price_minor: Int8 | null
   quantity_per_container_micros: Int8 | null
+  quoted_unit_price_micros: Int8 | null
   remark: string | null
   sales_product_approval_entry_id: string | null
   sales_reference_date: Timestamp | null
@@ -1410,7 +1412,7 @@ export interface VouProductLineSnapshots {
   sales_reference_unit_price_minor: Int8 | null
   settlement_surcharge_minor: Int8 | null
   standard_piece_base_quantity_micros: Int8 | null
-  unit_price_minor: Int8
+  unit_price_minor: Int8 | null
 }
 
 export interface VouPurchaseInboundDetails {

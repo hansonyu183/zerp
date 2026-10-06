@@ -258,6 +258,8 @@ export interface VouProductLineInput extends VouProductQuantitySnapshotInput {
   lineId: string
   product: VouObjectReferenceInput
   unitPrice: string
+  /** Final agreed line amount; quote may retain six decimal places. */
+  agreedAmount?: string
   settlementSurcharge?: string | null
   purchaseUnitPrice?: string
   remark?: string
@@ -1186,7 +1188,9 @@ function canonicalPayload<Entity extends VouEntity>(
         /^[0-9A-HJKMNP-TV-Z]{26}$/.test(line.lineId) &&
         decimal(line.enteredQuantity, 6) &&
         decimal(line.baseQuantity, 6) &&
-        decimal(line.unitPrice, 2),
+        decimal(line.unitPrice, line.agreedAmount === undefined ? 2 : 6) &&
+        (line.agreedAmount === undefined ||
+          (decimal(line.agreedAmount, 2) && /[1-9]/.test(line.baseQuantity))),
     )
   )
     return undefined
@@ -1686,6 +1690,7 @@ export const vouLineFieldDescriptors: Readonly<
     },
     { key: 'baseQuantity', required: true },
     { key: 'unitPrice', required: true },
+    { key: 'agreedAmount', required: false },
     { key: 'settlementSurcharge', required: false },
     { key: 'purchaseUnitPrice', required: false },
     { key: 'remark', required: false },
@@ -1981,6 +1986,7 @@ const decimalFields = new Set([
   'enteredQuantity',
   'baseQuantity',
   'unitPrice',
+  'agreedAmount',
   'settlementSurcharge',
   'purchaseUnitPrice',
   'quantityPerContainer',

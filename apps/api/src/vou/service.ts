@@ -1,3 +1,8 @@
+import {
+  orderLineAmountMinor,
+  orderQuote,
+  intermediaryDecimal as amountDecimal,
+} from '@zerp/model'
 import { SessionError } from '../app/session.ts'
 import { vouEntityDetailTables } from './detail-tables.ts'
 import { customerAccess, assertCustomerAccess } from '../app/customer-access.ts'
@@ -1560,7 +1565,7 @@ export class VouService implements WflVouPort {
     // minor currency units before summing; never interpret the unused header as zero.
     const amountMinor =
       entity === 'sale-order' || entity === 'purchase-order'
-        ? sql`(SELECT COALESCE(SUM(TRUNC(line.base_quantity_micros::numeric * line.unit_price_minor / 1000000)), 0)
+        ? sql`(SELECT COALESCE(SUM(COALESCE(line.agreed_amount_minor, TRUNC(line.base_quantity_micros::numeric * line.unit_price_minor / 1000000))), 0)
           FROM vou_product_line_snapshots line WHERE line.approval_entry_id = e.id)`
         : vouEntityInputDescriptors[entity].some(
               (field) => field.key === 'amount',
@@ -3827,7 +3832,7 @@ export class VouService implements WflVouPort {
           INSERT INTO vou_product_line_snapshots (
             approval_entry_id, line_no, line_id, entered_quantity_micros, entered_unit_id,
             entered_unit_code, entered_unit_name, entered_unit_fixed_factor,
-            base_quantity_micros, unit_price_minor, settlement_surcharge_minor,
+            base_quantity_micros, unit_price_minor, quoted_unit_price_micros, agreed_amount_minor, settlement_surcharge_minor,
             purchase_unit_price_minor, remark, delivery_specification_type,
             container_type, quantity_per_container_micros, formula_source_type,
             formula_source_document_id, formula_source_document_no,
@@ -3840,7 +3845,9 @@ export class VouService implements WflVouPort {
             ${line.enteredUnit.objectId}, ${line.enteredUnit.code}, ${line.enteredUnit.name},
             ${line.enteredUnit.fixedFactor},
             ${decimalToFixed(line.baseQuantity, 6)!},
-            ${decimalToFixed(line.unitPrice, 2)!}, ${decimalToFixed(line.settlementSurcharge ?? undefined, 2)},
+            ${line.agreedAmount === undefined ? decimalToFixed(line.unitPrice, 2)! : null},
+            ${line.agreedAmount === undefined ? null : decimalToFixed(line.unitPrice, 6)!},
+            ${decimalToFixed(line.agreedAmount, 2)}, ${decimalToFixed(line.settlementSurcharge ?? undefined, 2)},
             ${decimalToFixed(line.purchaseUnitPrice, 2)}, ${line.remark ?? null},
             ${line.deliverySpecificationType ?? null}, ${line.containerType ?? null},
             ${decimalToFixed(line.quantityPerContainer ?? undefined, 6)}, ${line.formula?.sourceType ?? null},
@@ -4242,7 +4249,7 @@ export class VouService implements WflVouPort {
           sales_contract_status, sales_contract_document_id, sales_contract_revision,
           sales_contract_applicable_from, sales_contract_applicable_to, sales_contract_terms,
           behavior_profile, signed_quantity_micros, pricing_quantity_micros,
-          standard_piece_quantity_micros, unit_price_minor, reference_unit_price_minor,
+          standard_piece_quantity_micros, unit_price_micros, reference_unit_price_minor,
           payment_surcharge_minor, transport_surcharge_minor, default_premium_unit_price_minor, default_discount_unit_price_minor, third_party_fixed_unit_cost_minor, third_party_variable_unit_cost_minor, cost_items,
           settlement_surcharge_minor, line_amount_minor, settlement_term_code,
           special_approval, return_document_nos, adjustment_employee_amount_minor,
@@ -4257,7 +4264,7 @@ export class VouService implements WflVouPort {
           ${line.salesContract?.applicableFrom ?? null}::date, ${line.salesContract?.applicableTo ?? null}::date,
           ${line.salesContract?.terms ?? null}, ${line.behaviorProfile},
           ${decimalToFixed(line.signedBaseQuantity, 6)!}, ${decimalToFixed(line.pricingQuantity, 6)!},
-          ${decimalToFixed(line.standardPieceQuantity, 6)!}, ${decimalToFixed(line.unitPrice, 2)!},
+          ${decimalToFixed(line.standardPieceQuantity, 6)!}, ${decimalToFixed(line.unitPrice, 6)!},
           ${decimalToFixed(line.referenceUnitPrice, 2)!},
           ${decimalToFixed(line.paymentSurcharge, 2)!}, ${decimalToFixed(line.transportSurcharge, 2)!}, ${decimalToFixed(line.defaultPremiumUnitPrice, 2)!}, ${decimalToFixed(line.defaultDiscountUnitPrice, 2)!}, ${decimalToFixed(line.thirdPartyIntermediaryFixedUnitCost, 2)!}, ${decimalToFixed(line.thirdPartyIntermediaryVariableUnitCost, 2)!}, ${JSON.stringify(line.costItems)}::jsonb,
           ${decimalToFixed(line.settlementSurcharge, 2)!},
@@ -4478,11 +4485,7 @@ export class VouService implements WflVouPort {
     if (!('productLines' in payload)) return 0n
     return (
       payload.productLines.reduce(
-        (total, line) =>
-          total +
-          ((decimalToFixed(line.baseQuantity, 6) ?? 0n) *
-            (decimalToFixed(line.unitPrice, 2) ?? 0n)) /
-            1_000_000n,
+        (total, line) => total + orderLineAmountMinor(line),
         0n,
       ) * 1_000_000n
     )
@@ -4678,18 +4681,18 @@ export class VouService implements WflVouPort {
       return this.orderAmount(order.payload)
     const productLines = await sql<{
       line_id: string
-      unit_price_minor: string
+      unit_price_minor: string | null
+      quoted_unit_price_micros: string | null
+      agreed_amount_minor: string | null
+      base_quantity_micros: string
     }>`
-      SELECT line_id, unit_price_minor
+      SELECT line_id, unit_price_minor, quoted_unit_price_micros, agreed_amount_minor, base_quantity_micros
       FROM vou_product_line_snapshots
       WHERE approval_entry_id = ${order.approvalEntryId}
       FOR UPDATE
     `.execute(tx)
     const prices = new Map(
-      productLines.rows.map((line) => [
-        line.line_id,
-        BigInt(line.unit_price_minor),
-      ]),
+      productLines.rows.map((line) => [line.line_id, line]),
     )
     const batch =
       entity === 'sale-signoff'
@@ -4716,7 +4719,26 @@ export class VouService implements WflVouPort {
       const unitPrice = prices.get(line.source_line_id)
       if (unitPrice === undefined)
         throw new VouApplicationError('vou_settlement_source_mismatch')
-      amount += BigInt(line.quantity) * unitPrice
+      amount +=
+        unitPrice.agreed_amount_minor === null
+          ? BigInt(line.quantity) * BigInt(unitPrice.unit_price_minor!)
+          : orderLineAmountMinor(
+              {
+                baseQuantity: amountDecimal(
+                  BigInt(unitPrice.base_quantity_micros),
+                  6,
+                ),
+                unitPrice: amountDecimal(
+                  BigInt(unitPrice.quoted_unit_price_micros!),
+                  6,
+                ),
+                agreedAmount: amountDecimal(
+                  BigInt(unitPrice.agreed_amount_minor),
+                  2,
+                ),
+              },
+              amountDecimal(BigInt(line.quantity), 6),
+            ) * 1_000_000n
     }
     return amount
   }
@@ -4911,7 +4933,9 @@ export class VouService implements WflVouPort {
         entered_unit_name: string
         entered_unit_fixed_factor: string | null
         base_quantity_micros: string
-        unit_price_minor: string
+        unit_price_minor: string | null
+        quoted_unit_price_micros: string | null
+        agreed_amount_minor: string | null
         settlement_surcharge_minor: string | null
         purchase_unit_price_minor: string | null
         remark: string | null
@@ -5004,7 +5028,13 @@ export class VouService implements WflVouPort {
             fixedFactor: line.entered_unit_fixed_factor,
           },
           baseQuantity: fixed(line.base_quantity_micros, 6),
-          unitPrice: fixed(line.unit_price_minor, 2),
+          unitPrice:
+            line.agreed_amount_minor === null
+              ? fixed(line.unit_price_minor!, 2)
+              : fixed(line.quoted_unit_price_micros!, 6),
+          ...(line.agreed_amount_minor === null
+            ? {}
+            : { agreedAmount: fixed(line.agreed_amount_minor, 2) }),
           ...(line.settlement_surcharge_minor === null
             ? {}
             : {
@@ -5634,7 +5664,7 @@ export class VouService implements WflVouPort {
         signed_quantity_micros: string
         pricing_quantity_micros: string
         standard_piece_quantity_micros: string
-        unit_price_minor: string
+        unit_price_micros: string
         payment_surcharge_minor: string
         transport_surcharge_minor: string
         default_premium_unit_price_minor: string
@@ -5747,7 +5777,7 @@ export class VouService implements WflVouPort {
                 line.standard_piece_quantity_micros,
                 6,
               ),
-              unitPrice: fixed(line.unit_price_minor, 2),
+              unitPrice: orderQuote(fixed(line.unit_price_micros, 6)),
               referenceUnitPrice: fixed(line.reference_unit_price_minor, 2),
               paymentSurcharge: fixed(line.payment_surcharge_minor, 2),
               transportSurcharge: fixed(line.transport_surcharge_minor, 2),

@@ -283,9 +283,17 @@ export function useOrderLineEditor(options: {
       {
         key: 'unitPrice',
         type: 'decimal',
-        scale: 2,
-        caption: '基础单价',
+        scale: line.agreedAmount?.trim() ? 6 : 2,
+        caption: line.agreedAmount?.trim()
+          ? '原报价（不重算金额）'
+          : '基础单价',
         required: true,
+      },
+      {
+        key: 'agreedAmount',
+        type: 'decimal',
+        scale: 2,
+        caption: '最终约定金额（可选）',
       },
       ...(options.context().entity === 'sale-order'
         ? [

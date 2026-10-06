@@ -1,3 +1,4 @@
+import { settlementMovementEntities } from './settlement-source.ts'
 import { ulid } from 'ulid'
 import {
   intermediaryCollections,
@@ -444,6 +445,8 @@ function mappingCollections(code: string): string[] {
         )
         .map((field) => field.key)
     : []
+  if (settlementMovementEntities.includes(code))
+    collections.push('settlementMovements')
   return quantityMovementEntities.includes(code)
     ? [...new Set(['inventoryMovements', ...collections])]
     : collections

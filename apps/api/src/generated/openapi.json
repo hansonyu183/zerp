@@ -96168,7 +96168,7 @@
                                       },
                                       "unitPrice": {
                                         "type": "string",
-                                        "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                                        "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                       },
                                       "referenceUnitPrice": {
                                         "type": "string",
@@ -99750,6 +99750,10 @@
                                           },
                                           "unitPrice": {
                                             "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "agreedAmount": {
+                                            "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           },
                                           "settlementSurcharge": {
@@ -101615,6 +101619,10 @@
                                             "additionalProperties": false
                                           },
                                           "unitPrice": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "agreedAmount": {
                                             "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           },
@@ -117523,7 +117531,7 @@
                                                   },
                                                   "unitPrice": {
                                                     "type": "string",
-                                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                                                    "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                                   },
                                                   "referenceUnitPrice": {
                                                     "type": "string",
@@ -121378,6 +121386,10 @@
                                 },
                                 "unitPrice": {
                                   "type": "string",
+                                  "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                },
+                                "agreedAmount": {
+                                  "type": "string",
                                   "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                 },
                                 "settlementSurcharge": {
@@ -123243,6 +123255,10 @@
                                   "additionalProperties": false
                                 },
                                 "unitPrice": {
+                                  "type": "string",
+                                  "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                },
+                                "agreedAmount": {
                                   "type": "string",
                                   "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                 },
@@ -139151,7 +139167,7 @@
                                         },
                                         "unitPrice": {
                                           "type": "string",
-                                          "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                                          "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                         },
                                         "referenceUnitPrice": {
                                           "type": "string",
@@ -142758,6 +142774,10 @@
                                           },
                                           "unitPrice": {
                                             "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "agreedAmount": {
+                                            "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           },
                                           "settlementSurcharge": {
@@ -144623,6 +144643,10 @@
                                             "additionalProperties": false
                                           },
                                           "unitPrice": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "agreedAmount": {
                                             "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           },
@@ -160531,7 +160555,7 @@
                                                   },
                                                   "unitPrice": {
                                                     "type": "string",
-                                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                                                    "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                                   },
                                                   "referenceUnitPrice": {
                                                     "type": "string",
@@ -164151,6 +164175,10 @@
                                 },
                                 "unitPrice": {
                                   "type": "string",
+                                  "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                },
+                                "agreedAmount": {
+                                  "type": "string",
                                   "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                 },
                                 "settlementSurcharge": {
@@ -166016,6 +166044,10 @@
                                   "additionalProperties": false
                                 },
                                 "unitPrice": {
+                                  "type": "string",
+                                  "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                },
+                                "agreedAmount": {
                                   "type": "string",
                                   "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                 },
@@ -181924,7 +181956,7 @@
                                         },
                                         "unitPrice": {
                                           "type": "string",
-                                          "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                                          "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                         },
                                         "referenceUnitPrice": {
                                           "type": "string",
@@ -185531,6 +185563,10 @@
                                           },
                                           "unitPrice": {
                                             "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "agreedAmount": {
+                                            "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           },
                                           "settlementSurcharge": {
@@ -187396,6 +187432,10 @@
                                             "additionalProperties": false
                                           },
                                           "unitPrice": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "agreedAmount": {
                                             "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           },
@@ -203304,7 +203344,7 @@
                                                   },
                                                   "unitPrice": {
                                                     "type": "string",
-                                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                                                    "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                                   },
                                                   "referenceUnitPrice": {
                                                     "type": "string",
@@ -207068,6 +207108,10 @@
                                           },
                                           "unitPrice": {
                                             "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "agreedAmount": {
+                                            "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           },
                                           "settlementSurcharge": {
@@ -208933,6 +208977,10 @@
                                             "additionalProperties": false
                                           },
                                           "unitPrice": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "agreedAmount": {
                                             "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           },
@@ -224841,7 +224889,7 @@
                                                   },
                                                   "unitPrice": {
                                                     "type": "string",
-                                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                                                    "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                                   },
                                                   "referenceUnitPrice": {
                                                     "type": "string",
@@ -228611,6 +228659,10 @@
                                           },
                                           "unitPrice": {
                                             "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "agreedAmount": {
+                                            "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           },
                                           "settlementSurcharge": {
@@ -230476,6 +230528,10 @@
                                             "additionalProperties": false
                                           },
                                           "unitPrice": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "agreedAmount": {
                                             "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           },
@@ -246384,7 +246440,7 @@
                                                   },
                                                   "unitPrice": {
                                                     "type": "string",
-                                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                                                    "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                                   },
                                                   "referenceUnitPrice": {
                                                     "type": "string",
@@ -250148,6 +250204,10 @@
                                           },
                                           "unitPrice": {
                                             "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "agreedAmount": {
+                                            "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           },
                                           "settlementSurcharge": {
@@ -252013,6 +252073,10 @@
                                             "additionalProperties": false
                                           },
                                           "unitPrice": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "agreedAmount": {
                                             "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           },
@@ -267921,7 +267985,7 @@
                                                   },
                                                   "unitPrice": {
                                                     "type": "string",
-                                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                                                    "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                                   },
                                                   "referenceUnitPrice": {
                                                     "type": "string",
@@ -271691,6 +271755,10 @@
                                           },
                                           "unitPrice": {
                                             "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "agreedAmount": {
+                                            "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           },
                                           "settlementSurcharge": {
@@ -273556,6 +273624,10 @@
                                             "additionalProperties": false
                                           },
                                           "unitPrice": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "agreedAmount": {
                                             "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           },
@@ -289464,7 +289536,7 @@
                                                   },
                                                   "unitPrice": {
                                                     "type": "string",
-                                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                                                    "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                                   },
                                                   "referenceUnitPrice": {
                                                     "type": "string",

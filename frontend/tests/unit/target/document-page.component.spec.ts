@@ -2211,3 +2211,50 @@ it('validates manually edited formula precision while retaining an unchanged ado
     orderPayload(draft).productLines[0]!.formula!.output.enteredQuantity,
   ).toBe('1.23')
 })
+
+it('preserves agreed totals and six-place quotes in ordinary order inputs and clone', async () => {
+  const { emptyOrder, orderPayload, cloneOrder } =
+    await import('@/target/components/document-page/order-data.ts')
+  for (const entity of ['sale-order', 'purchase-order'] as const) {
+    const draft = emptyOrder(entity)
+    draft.counterparty = { objectId: referenceId, approvalEntryId: entryId }
+    draft.warehouse = { objectId: referenceId }
+    draft.operatingEntity = { objectId: referenceId }
+    draft.lines = [
+      {
+        lineId: productId,
+        product: { objectId: productId },
+        current: {
+          ...productCurrent,
+          data: {
+            ...productCurrent.data,
+            productType: {
+              ...productCurrent.data.productType,
+              behaviorProfile: 'PACKAGING',
+            },
+          },
+        } as Awaited<ReturnType<typeof api.resolveTargetProduct>>,
+        enteredQuantity: '1360',
+        unitId: unit.id,
+        baseQuantity: '1360',
+        unitPrice: '5.430123',
+        agreedAmount: '7379.88',
+        settlementSurcharge: null,
+        remark: '',
+        formula: null,
+        formulaDraft: null,
+        deliverySpecificationType: 'PACKAGED',
+        quantityPerContainer: '',
+        containerType: '',
+      },
+    ]
+    const payload = orderPayload(draft)
+    expect(payload.productLines[0]!.agreedAmount).toBe('7379.88')
+    expect(payload.productLines[0]!.unitPrice).toBe('5.430123')
+    const clone = cloneOrder(entity, payload, [productId])
+    expect(clone.lines[0]!.agreedAmount).toBe('7379.88')
+    expect(clone.lines[0]!.unitPrice).toBe('5.430123')
+    draft.lines[0]!.agreedAmount = ''
+    expect(() => orderPayload(draft)).toThrow('单价计价最多两位')
+  }
+})

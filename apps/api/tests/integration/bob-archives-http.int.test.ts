@@ -294,6 +294,120 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
       ),
       true,
     )
+    if (entity === 'other-unit') {
+      const missing: {
+        formal: typeof current.data
+        approvedRevision: string
+      }[] = []
+      for (const identityKind of ['PERSON', 'ORGANIZATION', 'ORGANIZATION']) {
+        const subjectId = ulid(),
+          submissionId = ulid()
+        const empty = {
+          ...input,
+          subjectId,
+          submissionId,
+          idempotencyKey: submissionId,
+          snapshot: {
+            ...snapshot,
+            identityKind,
+            legalIdentifier: '',
+            settlementMethod: null,
+          },
+        }
+        const pending = await write('/dcl/other-unit/submit-new', empty)
+        assert.equal(pending.code, 0, pending.errorKey)
+        assert.deepEqual(
+          (await write('/dcl/other-unit/submit-new', empty)).data,
+          pending.data,
+        )
+        const approval = await review('/dcl/other-unit/approve', {
+          subjectId,
+          submissionId,
+          expectedRevision: pending.data.revision,
+        })
+        assert.equal(approval.code, 0, approval.errorKey)
+        const result = await write('/bob/other-unit/get', {
+          objectId: subjectId,
+        })
+        assert.equal(result.code, 0, result.errorKey)
+        assert.equal(result.data.data.legalIdentifier, '')
+        assert.equal(result.data.data.identityKind, identityKind)
+        const persisted = await db
+          .selectFrom('dcl_other_unit_versions')
+          .select('legal_identifier')
+          .where('approval_entry_id', '=', submissionId)
+          .executeTakeFirstOrThrow()
+        assert.equal(persisted.legal_identifier, null)
+        missing.push({
+          formal: result.data,
+          approvedRevision: approval.data.revision,
+        })
+      }
+      assert.equal(new Set(missing.map((item) => item.formal.objectId)).size, 3)
+      const original = missing[0]!.formal
+      const identifier = `OTHERBACKFILL${suffix}`
+      const backfillId = ulid()
+      const backfillInput = {
+        ...input,
+        subjectId: original.objectId,
+        submissionId: backfillId,
+        idempotencyKey: backfillId,
+        expectedLatestApprovedSubmissionId: original.sourceApprovalEntryId,
+        expectedLatestApprovedRevision: missing[0]!.approvedRevision,
+        snapshot: {
+          ...original.data,
+          legalIdentifier: identifier.toLowerCase(),
+        },
+      }
+      const backfill = await write(
+        '/dcl/other-unit/submit-change',
+        backfillInput,
+      )
+      assert.equal(backfill.code, 0, backfill.errorKey)
+      assert.equal(
+        (await write('/bob/other-unit/get', { objectId: original.objectId }))
+          .data.data.legalIdentifier,
+        '',
+      )
+      assert.equal(
+        (
+          await review('/dcl/other-unit/approve', {
+            subjectId: original.objectId,
+            submissionId: backfillId,
+            expectedRevision: backfill.data.revision,
+          })
+        ).code,
+        0,
+      )
+      const updated = await write('/bob/other-unit/get', {
+        objectId: original.objectId,
+      })
+      assert.equal(updated.data.data.legalIdentifier, identifier)
+      const other = missing[1]!.formal
+      const conflictId = ulid()
+      const conflict = await write('/dcl/other-unit/submit-change', {
+        ...backfillInput,
+        subjectId: other.objectId,
+        submissionId: conflictId,
+        idempotencyKey: conflictId,
+        expectedLatestApprovedSubmissionId: other.sourceApprovalEntryId,
+        expectedLatestApprovedRevision: missing[1]!.approvedRevision,
+        snapshot: {
+          ...other.data,
+          legalIdentifier: ` ${identifier.toLowerCase()} `,
+        },
+      })
+      assert.equal(conflict.errorKey, 'other_unit_duplicate_legal_identifier')
+      assert.deepEqual(
+        (await write('/bob/other-unit/get', { objectId: other.objectId })).data,
+        other,
+      )
+      const history = await write('/dcl/other-unit/submission-get', {
+        subjectId: original.objectId,
+        submissionId: original.sourceApprovalEntryId,
+      })
+      assert.equal(history.data.snapshot.legalIdentifier, '')
+    }
     if (entity === 'sales-partner') {
       const personalIds: string[] = []
       for (const index of [1, 2]) {

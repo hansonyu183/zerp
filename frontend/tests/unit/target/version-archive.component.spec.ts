@@ -790,6 +790,11 @@ it.each([
     await click(wrapper, '新增')
     await wrapper.get('[aria-label="法定名称"]').setValue('档案甲')
     await wrapper.get('[aria-label="显示名称"]').setValue('档案甲')
+    if (entity === 'other-unit') {
+      expect(
+        wrapper.get('[aria-label="法定识别号（可后补）"]').element,
+      ).toBeDefined()
+    }
     if (entity === 'sales-partner') {
       await confirmItems(wrapper)
       await click(wrapper, '提交')
@@ -801,7 +806,10 @@ it.each([
     expect(api[method]).toHaveBeenCalledWith(
       'test-csrf',
       expect.objectContaining({
-        snapshot: expect.objectContaining({ operatingEntities: [] }),
+        snapshot: expect.objectContaining({
+          operatingEntities: [],
+          legalIdentifier: '',
+        }),
       }),
     )
     wrapper.unmount()

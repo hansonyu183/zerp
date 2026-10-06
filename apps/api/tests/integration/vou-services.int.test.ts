@@ -4,6 +4,10 @@ import { ulid } from 'ulid'
 import type { VouPayloadFor } from '@zerp/model'
 import { withWflDatabase } from './wfl-fixture.ts'
 import { seedVouCatalogFixture } from '../fixtures/vou-catalog.ts'
+import { createApp } from '../../src/app.ts'
+import { SessionService } from '../../src/app/session.ts'
+import { loadConfig } from '../../src/platform/config.ts'
+import { modelBuildId } from '@zerp/model'
 
 test('service acceptance requires an approved Other Unit contract and preserves its settlement facts', async () => {
   await withWflDatabase(async (db) => {
@@ -72,6 +76,166 @@ test('service acceptance requires an approved Other Unit contract and preserves 
       ),
       /blocked/,
     )
+  })
+})
+
+test('normal service HTTP adopts a missing-identifier Other Unit version and keeps it after backfill', async () => {
+  await withWflDatabase(async (db) => {
+    const f = await seedVouCatalogFixture(db)
+    const subjectId = ulid(),
+      submissionId = ulid()
+    const input = {
+      ...f.otherInput,
+      subjectId,
+      submissionId,
+      idempotencyKey: submissionId,
+      snapshot: { ...f.otherInput.snapshot, legalIdentifier: '' },
+    }
+    const pending = await f.bob.submit(
+      'other-unit',
+      'submit-new',
+      input,
+      f.actor,
+      'service-identity',
+    )
+    const approved = await f.bob.review(
+      'other-unit',
+      'approve',
+      {
+        subjectId,
+        submissionId,
+        expectedRevision: pending.revision,
+      },
+      f.reviewerActor,
+      'service-identity',
+    )
+    const config = loadConfig({
+      DATABASE_URL: process.env.TARGET_TEST_DATABASE_URL!,
+      APP_SESSION_COOKIE_SECURE: 'false',
+    })
+    const app = createApp({
+      config,
+      session: new SessionService(db, config),
+      vou: f.vou,
+    })
+    async function client(user: typeof f.submitter) {
+      const signin = await app.request('/session/auth/signin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-zerp-model-build': modelBuildId,
+        },
+        body: JSON.stringify({ code: user.username, password: user.password }),
+      })
+      const auth = await signin.json()
+      assert.equal(auth.code, 0)
+      return async (entity: string, action: string, input: unknown) => {
+        const response = await app.request(`/vou/${entity}/${action}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-zerp-model-build': modelBuildId,
+            'x-csrf-token': auth.data.csrfToken,
+            cookie: signin.headers.getSetCookie()[0]!,
+          },
+          body: JSON.stringify(input),
+        })
+        const result = await response.json()
+        assert.equal(result.code, 0, result.errorKey)
+        return result.data
+      }
+    }
+    const submit = await client(f.submitter),
+      review = await client(f.reviewer)
+    const contractId = ulid(),
+      contractEntry = ulid()
+    const contract = await submit('service-contract', 'submit-new', {
+      documentId: contractId,
+      submissionId: contractEntry,
+      idempotencyKey: contractEntry,
+      expectedRevision: null,
+      payload: {
+        ...f.documents['service-contract'].payload,
+        counterparty: {
+          objectId: subjectId,
+          approvalEntryId: submissionId,
+          selectionOrigin: 'CURRENT',
+        },
+      },
+    })
+    await review('service-contract', 'approve', {
+      documentId: contractId,
+      submissionId: contractEntry,
+      expectedRevision: contract.revision,
+    })
+    const backfillId = ulid()
+    const backfill = await f.bob.submit(
+      'other-unit',
+      'submit-change',
+      {
+        ...input,
+        submissionId: backfillId,
+        idempotencyKey: backfillId,
+        expectedLatestApprovedSubmissionId: submissionId,
+        expectedLatestApprovedRevision: approved.revision,
+        snapshot: { ...input.snapshot, legalIdentifier: ulid() },
+      },
+      f.actor,
+      'service-backfill',
+    )
+    await f.bob.review(
+      'other-unit',
+      'approve',
+      {
+        subjectId,
+        submissionId: backfillId,
+        expectedRevision: backfill.revision,
+      },
+      f.reviewerActor,
+      'service-backfill',
+    )
+    const acceptanceId = ulid(),
+      acceptanceEntry = ulid()
+    const original = f.documents['service-acceptance']
+      .payload as VouPayloadFor<'service-acceptance'>
+    const acceptance = await submit('service-acceptance', 'submit-new', {
+      documentId: acceptanceId,
+      submissionId: acceptanceEntry,
+      idempotencyKey: acceptanceEntry,
+      expectedRevision: null,
+      payload: {
+        ...original,
+        counterparty: undefined,
+        serviceAcceptance: {
+          ...original.serviceAcceptance,
+          contractDocumentId: contractId,
+        },
+      },
+    })
+    await review('service-acceptance', 'approve', {
+      documentId: acceptanceId,
+      submissionId: acceptanceEntry,
+      expectedRevision: acceptance.revision,
+    })
+    for (const [entity, id] of [
+      ['service-contract', contractId],
+      ['service-acceptance', acceptanceId],
+    ]) {
+      const detail = await submit(entity!, 'get', { documentId: id })
+      assert.equal(detail.payload.counterparty.objectId, subjectId)
+      assert.equal(detail.payload.counterparty.approvalEntryId, submissionId)
+    }
+    assert.equal(
+      (await f.bob.get('other-unit', subjectId, f.actor)).submissionId,
+      backfillId,
+    )
+    const historical = await f.bob.historyGet(
+      'other-unit',
+      subjectId,
+      submissionId,
+      f.actor,
+    )
+    assert.equal(historical.snapshot.legalIdentifier, '')
   })
 })
 

@@ -611,7 +611,7 @@ function prepareIdentitySet<
   if ('ok' in common) return common
   const identity = normalizeIdentity(
       command.data,
-      entity === 'sales-partner' && command.data.identityKind === 'PERSON',
+      entity === 'other-unit' || command.data.identityKind === 'PERSON',
     ),
     set = normalizeOperatingEntitySet(command.data)
   return identity && set

@@ -1008,7 +1008,7 @@ test('validates full MappingDefinition facts', () => {
   assert.equal(valid.ok, true)
 })
 
-test('personal sales partners can be archived without an identifier while organizations and other units require one', () => {
+test('other units and personal sales partners can omit identifiers while organization partners require one', () => {
   const data = {
     identityKind: 'PERSON' as const,
     legalName: '个人签约人',
@@ -1036,15 +1036,32 @@ test('personal sales partners can be archived without an identifier while organi
     { ok: false, error: { errorKey: 'sales_partner_invalid_data' } },
   )
   const { capabilities: _capabilities, ...identity } = data
-  assert.deepEqual(
-    prepareOtherUnitSubmit(
+  for (const identityKind of ['PERSON', 'ORGANIZATION'] as const) {
+    const other = prepareOtherUnitSubmit(
       {
         ...command(),
         actor: { ...actor, permissions: ['/dcl/other-unit/submit-new'] },
-        data: { ...identity, settlementMethod: null },
+        data: { ...identity, identityKind, settlementMethod: null },
       },
       { ...newFacts, operatingEntities: [] },
-    ),
-    { ok: false, error: { errorKey: 'other_unit_invalid_data' } },
-  )
+    )
+    assert.equal(other.ok, true)
+    if (other.ok) assert.equal(other.plan.data.legalIdentifier, '')
+    assert.deepEqual(
+      prepareOtherUnitSubmit(
+        {
+          ...command(),
+          actor: { ...actor, permissions: ['/dcl/other-unit/submit-new'] },
+          data: {
+            ...identity,
+            identityKind,
+            legalName: '',
+            settlementMethod: null,
+          },
+        },
+        { ...newFacts, operatingEntities: [] },
+      ),
+      { ok: false, error: { errorKey: 'other_unit_invalid_data' } },
+    )
+  }
 })

@@ -166,7 +166,7 @@ product PRD
 
 AUX 经营主体、员工、仓库、车辆与资金账户的编码及字段约束见 [AUX](aux.md)。本域剩余档案的字段校验以各自可执行契约为准：Customer、Product、Supplier、Other Unit 与 Sales Partner 维护均使用 DCL，正式采用使用 BOB。
 
-Other Unit 与 Sales Partner 的非空法定识别号分别在各自名录内唯一，客户与供应商不占用法定识别号。个人 Sales Partner 可暂缺法定识别号，以独立稳定身份、真实法定姓名及显示名称建档；空值不占用唯一性，不能用手机号或来源编号代填。组织 Sales Partner 与 Other Unit 仍要求非空法定识别号。
+Other Unit 与 Sales Partner 的非空法定识别号分别在各自名录内唯一，客户与供应商不占用法定识别号。Other Unit 和个人 Sales Partner 可暂缺法定识别号，以独立稳定身份、真实法定姓名或名称及显示名称建档；空值不占用唯一性，不能用手机号或来源编号代填，也不能把简称冒充法定名称。Other Unit 后续补齐编号通过正常资料变更及审批，冲突拒绝且不改原正式版本；既有交易继续采用原版本快照。组织 Sales Partner 仍要求非空法定识别号。
 
 DCL 不实现第二套审核、版本或归档流程；其 Submission、版本、操作者与审计时间由 DCL 领域事务协调中央 Approval 与 Version 组件生成，客户端不得伪造。
 

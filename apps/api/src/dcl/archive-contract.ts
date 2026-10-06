@@ -327,6 +327,9 @@ const supplierSnapshot = z
 const otherUnitSnapshot = z
   .object({
     ...archiveIdentityBase,
+    legalIdentifier: archiveIdentityBase.legalIdentifier.describe(
+      '法定识别号可暂缺，非空值在其他单位名录内唯一；不得用来源编号或手机号代填。',
+    ),
     settlementMethod: settlementSnapshot.nullable(),
   })
   .strict()

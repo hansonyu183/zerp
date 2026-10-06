@@ -41760,7 +41760,8 @@
                                       },
                                       "legalIdentifier": {
                                         "type": "string",
-                                        "maxLength": 128
+                                        "maxLength": 128,
+                                        "description": "法定识别号可暂缺，非空值在其他单位名录内唯一；不得用来源编号或手机号代填。"
                                       },
                                       "contactName": {
                                         "type": "string",
@@ -42122,7 +42123,8 @@
                                 },
                                 "legalIdentifier": {
                                   "type": "string",
-                                  "maxLength": 128
+                                  "maxLength": 128,
+                                  "description": "法定识别号可暂缺，非空值在其他单位名录内唯一；不得用来源编号或手机号代填。"
                                 },
                                 "contactName": {
                                   "type": "string",
@@ -75380,7 +75382,8 @@
                                 },
                                 "legalIdentifier": {
                                   "type": "string",
-                                  "maxLength": 128
+                                  "maxLength": 128,
+                                  "description": "法定识别号可暂缺，非空值在其他单位名录内唯一；不得用来源编号或手机号代填。"
                                 },
                                 "contactName": {
                                   "type": "string",
@@ -75945,7 +75948,8 @@
                                       },
                                       "legalIdentifier": {
                                         "type": "string",
-                                        "maxLength": 128
+                                        "maxLength": 128,
+                                        "description": "法定识别号可暂缺，非空值在其他单位名录内唯一；不得用来源编号或手机号代填。"
                                       },
                                       "contactName": {
                                         "type": "string",
@@ -76810,7 +76814,8 @@
                       },
                       "legalIdentifier": {
                         "type": "string",
-                        "maxLength": 128
+                        "maxLength": 128,
+                        "description": "法定识别号可暂缺，非空值在其他单位名录内唯一；不得用来源编号或手机号代填。"
                       },
                       "contactName": {
                         "type": "string",
@@ -77074,7 +77079,8 @@
                                 },
                                 "legalIdentifier": {
                                   "type": "string",
-                                  "maxLength": 128
+                                  "maxLength": 128,
+                                  "description": "法定识别号可暂缺，非空值在其他单位名录内唯一；不得用来源编号或手机号代填。"
                                 },
                                 "contactName": {
                                   "type": "string",
@@ -77549,7 +77555,8 @@
                       },
                       "legalIdentifier": {
                         "type": "string",
-                        "maxLength": 128
+                        "maxLength": 128,
+                        "description": "法定识别号可暂缺，非空值在其他单位名录内唯一；不得用来源编号或手机号代填。"
                       },
                       "contactName": {
                         "type": "string",
@@ -77813,7 +77820,8 @@
                                 },
                                 "legalIdentifier": {
                                   "type": "string",
-                                  "maxLength": 128
+                                  "maxLength": 128,
+                                  "description": "法定识别号可暂缺，非空值在其他单位名录内唯一；不得用来源编号或手机号代填。"
                                 },
                                 "contactName": {
                                   "type": "string",
@@ -78379,7 +78387,8 @@
                                 },
                                 "legalIdentifier": {
                                   "type": "string",
-                                  "maxLength": 128
+                                  "maxLength": 128,
+                                  "description": "法定识别号可暂缺，非空值在其他单位名录内唯一；不得用来源编号或手机号代填。"
                                 },
                                 "contactName": {
                                   "type": "string",
@@ -78951,7 +78960,8 @@
                                 },
                                 "legalIdentifier": {
                                   "type": "string",
-                                  "maxLength": 128
+                                  "maxLength": 128,
+                                  "description": "法定识别号可暂缺，非空值在其他单位名录内唯一；不得用来源编号或手机号代填。"
                                 },
                                 "contactName": {
                                   "type": "string",
@@ -79517,7 +79527,8 @@
                                 },
                                 "legalIdentifier": {
                                   "type": "string",
-                                  "maxLength": 128
+                                  "maxLength": 128,
+                                  "description": "法定识别号可暂缺，非空值在其他单位名录内唯一；不得用来源编号或手机号代填。"
                                 },
                                 "contactName": {
                                   "type": "string",
@@ -80089,7 +80100,8 @@
                                 },
                                 "legalIdentifier": {
                                   "type": "string",
-                                  "maxLength": 128
+                                  "maxLength": 128,
+                                  "description": "法定识别号可暂缺，非空值在其他单位名录内唯一；不得用来源编号或手机号代填。"
                                 },
                                 "contactName": {
                                   "type": "string",

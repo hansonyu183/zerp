@@ -103,10 +103,10 @@ for (const [entity, title] of [
         await expect(
           dialog.getByLabel('法定识别号（个人可留空）', { exact: true }),
         ).toHaveValue('')
-      } else if (entity !== 'supplier')
-        await dialog
-          .getByLabel('法定识别号', { exact: true })
-          .fill(`BROWSER${tag}`)
+      } else if (entity === 'other-unit')
+        await expect(
+          dialog.getByLabel('法定识别号（可后补）', { exact: true }),
+        ).toHaveValue('')
       await dialog.getByLabel('联系人', { exact: true }).fill('浏览器联系人')
       await dialog.getByLabel('联系电话', { exact: true }).fill('1234567')
       await dialog.getByLabel('地址', { exact: true }).fill('浏览器地址')
@@ -165,10 +165,16 @@ for (const [entity, title] of [
         }),
       ).toHaveValue(name)
       await dialog.getByLabel('备注', { exact: true }).fill('第二个版本')
+      if (entity === 'other-unit')
+        await dialog
+          .getByLabel('法定识别号（可后补）', { exact: true })
+          .fill(`BROWSER${tag}`)
       await dialog.getByRole('button', { name: '提交', exact: true }).click()
       await expect(dialog).toHaveCount(0)
       const revision = await records(reviewer, name)
       await expect(revision).toContainText('第二个版本')
+      if (entity === 'other-unit')
+        await expect(revision).toContainText(`BROWSER${tag}`)
       await revision.getByRole('button', { name: '批准', exact: true }).click()
       await expect(
         revision.getByRole('button', { name: '反批准', exact: true }),

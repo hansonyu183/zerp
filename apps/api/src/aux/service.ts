@@ -691,10 +691,12 @@ function normaliseData(entity: AuxEntity, source: unknown): AuxData {
     return {
       name: requiredText(data.name, 200),
       currency,
-      accountName: requiredText(data.accountName, 200),
-      bank: requiredText(data.bank, 200),
+      accountName: optionalString(data.accountName, 200),
+      bank: optionalString(data.bank, 200),
       branch: optionalString(data.branch, 200),
-      accountNumber: upperCompact(data.accountNumber, 128),
+      accountNumber: optionalString(data.accountNumber, 128)
+        ? upperCompact(data.accountNumber, 128)
+        : '',
       operatingEntityId: requiredId(data.operatingEntityId),
       remark: optionalString(data.remark),
     }
@@ -2189,14 +2191,15 @@ export class AuxService {
     }
     if (entity === 'fund-account') {
       const input = data as unknown as FundAccountCurrentInput
-      await this.assertUniqueCurrentField(
-        transaction,
-        entity,
-        objectId,
-        'accountNumber',
-        input.accountNumber,
-        'fund_account_duplicate_account_number',
-      )
+      if (input.accountNumber)
+        await this.assertUniqueCurrentField(
+          transaction,
+          entity,
+          objectId,
+          'accountNumber',
+          input.accountNumber,
+          'fund_account_duplicate_account_number',
+        )
       return {
         name: input.name,
         currency: input.currency,

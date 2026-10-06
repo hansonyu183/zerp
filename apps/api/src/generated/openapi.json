@@ -37945,12 +37945,10 @@
                             },
                             "accountName": {
                               "type": "string",
-                              "minLength": 1,
                               "maxLength": 200
                             },
                             "bank": {
                               "type": "string",
-                              "minLength": 1,
                               "maxLength": 200
                             },
                             "branch": {
@@ -37959,7 +37957,6 @@
                             },
                             "accountNumber": {
                               "type": "string",
-                              "minLength": 1,
                               "maxLength": 128
                             },
                             "operatingEntity": {
@@ -38115,12 +38112,10 @@
                   },
                   "accountName": {
                     "type": "string",
-                    "minLength": 1,
                     "maxLength": 200
                   },
                   "bank": {
                     "type": "string",
-                    "minLength": 1,
                     "maxLength": 200
                   },
                   "branch": {
@@ -38129,7 +38124,6 @@
                   },
                   "accountNumber": {
                     "type": "string",
-                    "minLength": 1,
                     "maxLength": 128
                   },
                   "operatingEntityId": {
@@ -38310,12 +38304,10 @@
                   },
                   "accountName": {
                     "type": "string",
-                    "minLength": 1,
                     "maxLength": 200
                   },
                   "bank": {
                     "type": "string",
-                    "minLength": 1,
                     "maxLength": 200
                   },
                   "branch": {
@@ -38324,7 +38316,6 @@
                   },
                   "accountNumber": {
                     "type": "string",
-                    "minLength": 1,
                     "maxLength": 128
                   },
                   "operatingEntityId": {
@@ -103951,12 +103942,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -103965,7 +103954,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -104499,12 +104487,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -104513,7 +104499,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -104956,12 +104941,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -104970,7 +104953,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -105605,12 +105587,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -105619,7 +105599,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -106079,12 +106058,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -106093,7 +106070,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -106536,12 +106512,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -106550,7 +106524,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -106993,12 +106966,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -107007,7 +106978,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -107642,12 +107612,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -107656,7 +107624,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -108116,12 +108083,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -108130,7 +108095,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -108751,12 +108715,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -108765,7 +108727,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -110114,12 +110075,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -110128,7 +110087,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -110749,12 +110707,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -110763,7 +110719,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -112818,12 +112773,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -112832,7 +112785,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -113866,12 +113818,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -113880,7 +113830,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -114729,12 +114678,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -114743,7 +114690,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -115615,12 +115561,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -115629,7 +115573,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -116437,12 +116380,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -116451,7 +116392,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -125630,12 +125570,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -125644,7 +125582,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -126178,12 +126115,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -126192,7 +126127,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -126635,12 +126569,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -126649,7 +126581,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -127284,12 +127215,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -127298,7 +127227,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -127758,12 +127686,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -127772,7 +127698,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -128215,12 +128140,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -128229,7 +128152,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -128672,12 +128594,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -128686,7 +128606,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -129321,12 +129240,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -129335,7 +129252,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -129795,12 +129711,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -129809,7 +129723,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -130430,12 +130343,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -130444,7 +130355,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -131793,12 +131703,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -131807,7 +131715,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -132428,12 +132335,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -132442,7 +132347,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -134497,12 +134401,10 @@
                                         },
                                         "accountName": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 200
                                         },
                                         "bank": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 200
                                         },
                                         "branch": {
@@ -134511,7 +134413,6 @@
                                         },
                                         "accountNumber": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 128
                                         },
                                         "operatingEntity": {
@@ -135545,12 +135446,10 @@
                                         },
                                         "accountName": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 200
                                         },
                                         "bank": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 200
                                         },
                                         "branch": {
@@ -135559,7 +135458,6 @@
                                         },
                                         "accountNumber": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 128
                                         },
                                         "operatingEntity": {
@@ -136408,12 +136306,10 @@
                                         },
                                         "accountName": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 200
                                         },
                                         "bank": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 200
                                         },
                                         "branch": {
@@ -136422,7 +136318,6 @@
                                         },
                                         "accountNumber": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 128
                                         },
                                         "operatingEntity": {
@@ -137294,12 +137189,10 @@
                                         },
                                         "accountName": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 200
                                         },
                                         "bank": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 200
                                         },
                                         "branch": {
@@ -137308,7 +137201,6 @@
                                         },
                                         "accountNumber": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 128
                                         },
                                         "operatingEntity": {
@@ -138116,12 +138008,10 @@
                                         },
                                         "accountName": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 200
                                         },
                                         "bank": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 200
                                         },
                                         "branch": {
@@ -138130,7 +138020,6 @@
                                         },
                                         "accountNumber": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 128
                                         },
                                         "operatingEntity": {
@@ -147061,12 +146950,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -147075,7 +146962,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -147609,12 +147495,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -147623,7 +147507,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -148066,12 +147949,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -148080,7 +147961,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -148715,12 +148595,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -148729,7 +148607,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -149189,12 +149066,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -149203,7 +149078,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -149646,12 +149520,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -149660,7 +149532,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -150103,12 +149974,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -150117,7 +149986,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -150752,12 +150620,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -150766,7 +150632,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -151226,12 +151091,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -151240,7 +151103,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -151861,12 +151723,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -151875,7 +151735,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -153224,12 +153083,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -153238,7 +153095,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -153859,12 +153715,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -153873,7 +153727,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -155928,12 +155781,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -155942,7 +155793,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -156976,12 +156826,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -156990,7 +156838,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -157839,12 +157686,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -157853,7 +157698,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -158725,12 +158569,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -158739,7 +158581,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -159547,12 +159388,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -159561,7 +159400,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -168505,12 +168343,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -168519,7 +168355,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -169053,12 +168888,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -169067,7 +168900,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -169510,12 +169342,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -169524,7 +169354,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -170159,12 +169988,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -170173,7 +170000,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -170633,12 +170459,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -170647,7 +170471,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -171090,12 +170913,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -171104,7 +170925,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -171547,12 +171367,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -171561,7 +171379,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -172196,12 +172013,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -172210,7 +172025,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -172670,12 +172484,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -172684,7 +172496,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -173305,12 +173116,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -173319,7 +173128,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -174668,12 +174476,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -174682,7 +174488,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -175303,12 +175108,10 @@
                                   },
                                   "accountName": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "bank": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 200
                                   },
                                   "branch": {
@@ -175317,7 +175120,6 @@
                                   },
                                   "accountNumber": {
                                     "type": "string",
-                                    "minLength": 1,
                                     "maxLength": 128
                                   },
                                   "operatingEntity": {
@@ -177372,12 +177174,10 @@
                                         },
                                         "accountName": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 200
                                         },
                                         "bank": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 200
                                         },
                                         "branch": {
@@ -177386,7 +177186,6 @@
                                         },
                                         "accountNumber": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 128
                                         },
                                         "operatingEntity": {
@@ -178420,12 +178219,10 @@
                                         },
                                         "accountName": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 200
                                         },
                                         "bank": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 200
                                         },
                                         "branch": {
@@ -178434,7 +178231,6 @@
                                         },
                                         "accountNumber": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 128
                                         },
                                         "operatingEntity": {
@@ -179283,12 +179079,10 @@
                                         },
                                         "accountName": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 200
                                         },
                                         "bank": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 200
                                         },
                                         "branch": {
@@ -179297,7 +179091,6 @@
                                         },
                                         "accountNumber": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 128
                                         },
                                         "operatingEntity": {
@@ -180169,12 +179962,10 @@
                                         },
                                         "accountName": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 200
                                         },
                                         "bank": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 200
                                         },
                                         "branch": {
@@ -180183,7 +179974,6 @@
                                         },
                                         "accountNumber": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 128
                                         },
                                         "operatingEntity": {
@@ -180991,12 +180781,10 @@
                                         },
                                         "accountName": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 200
                                         },
                                         "bank": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 200
                                         },
                                         "branch": {
@@ -181005,7 +180793,6 @@
                                         },
                                         "accountNumber": {
                                           "type": "string",
-                                          "minLength": 1,
                                           "maxLength": 128
                                         },
                                         "operatingEntity": {
@@ -189936,12 +189723,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -189950,7 +189735,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -190484,12 +190268,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -190498,7 +190280,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -190941,12 +190722,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -190955,7 +190734,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -191590,12 +191368,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -191604,7 +191380,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -192064,12 +191839,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -192078,7 +191851,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -192521,12 +192293,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -192535,7 +192305,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -192978,12 +192747,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -192992,7 +192759,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -193627,12 +193393,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -193641,7 +193405,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -194101,12 +193864,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -194115,7 +193876,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -194736,12 +194496,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -194750,7 +194508,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -196099,12 +195856,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -196113,7 +195868,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -196734,12 +196488,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -196748,7 +196500,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -198803,12 +198554,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -198817,7 +198566,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -199851,12 +199599,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -199865,7 +199611,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -200714,12 +200459,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -200728,7 +200471,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -201600,12 +201342,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -201614,7 +201354,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -202422,12 +202161,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -202436,7 +202173,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -211524,12 +211260,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -211538,7 +211272,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -212072,12 +211805,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -212086,7 +211817,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -212529,12 +212259,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -212543,7 +212271,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -213178,12 +212905,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -213192,7 +212917,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -213652,12 +213376,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -213666,7 +213388,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -214109,12 +213830,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -214123,7 +213842,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -214566,12 +214284,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -214580,7 +214296,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -215215,12 +214930,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -215229,7 +214942,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -215689,12 +215401,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -215703,7 +215413,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -216324,12 +216033,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -216338,7 +216045,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -217687,12 +217393,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -217701,7 +217405,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -218322,12 +218025,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -218336,7 +218037,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -220391,12 +220091,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -220405,7 +220103,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -221439,12 +221136,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -221453,7 +221148,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -222302,12 +221996,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -222316,7 +222008,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -223188,12 +222879,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -223202,7 +222891,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -224010,12 +223698,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -224024,7 +223710,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -233118,12 +232803,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -233132,7 +232815,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -233666,12 +233348,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -233680,7 +233360,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -234123,12 +233802,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -234137,7 +233814,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -234772,12 +234448,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -234786,7 +234460,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -235246,12 +234919,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -235260,7 +234931,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -235703,12 +235373,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -235717,7 +235385,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -236160,12 +235827,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -236174,7 +235839,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -236809,12 +236473,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -236823,7 +236485,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -237283,12 +236944,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -237297,7 +236956,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -237918,12 +237576,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -237932,7 +237588,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -239281,12 +238936,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -239295,7 +238948,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -239916,12 +239568,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -239930,7 +239580,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -241985,12 +241634,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -241999,7 +241646,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -243033,12 +242679,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -243047,7 +242691,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -243896,12 +243539,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -243910,7 +243551,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -244782,12 +244422,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -244796,7 +244434,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -245604,12 +245241,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -245618,7 +245253,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -254706,12 +254340,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -254720,7 +254352,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -255254,12 +254885,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -255268,7 +254897,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -255711,12 +255339,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -255725,7 +255351,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -256360,12 +255985,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -256374,7 +255997,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -256834,12 +256456,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -256848,7 +256468,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -257291,12 +256910,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -257305,7 +256922,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -257748,12 +257364,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -257762,7 +257376,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -258397,12 +258010,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -258411,7 +258022,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -258871,12 +258481,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -258885,7 +258493,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -259506,12 +259113,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -259520,7 +259125,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -260869,12 +260473,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -260883,7 +260485,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -261504,12 +261105,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -261518,7 +261117,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -263573,12 +263171,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -263587,7 +263183,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -264621,12 +264216,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -264635,7 +264228,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -265484,12 +265076,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -265498,7 +265088,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -266370,12 +265959,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -266384,7 +265971,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -267192,12 +266778,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -267206,7 +266790,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -276300,12 +275883,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -276314,7 +275895,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -276848,12 +276428,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -276862,7 +276440,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -277305,12 +276882,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -277319,7 +276894,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -277954,12 +277528,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -277968,7 +277540,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -278428,12 +277999,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -278442,7 +278011,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -278885,12 +278453,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -278899,7 +278465,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -279342,12 +278907,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -279356,7 +278919,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -279991,12 +279553,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -280005,7 +279565,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -280465,12 +280024,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -280479,7 +280036,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -281100,12 +280656,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -281114,7 +280668,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -282463,12 +282016,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -282477,7 +282028,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -283098,12 +282648,10 @@
                                             },
                                             "accountName": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "bank": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 200
                                             },
                                             "branch": {
@@ -283112,7 +282660,6 @@
                                             },
                                             "accountNumber": {
                                               "type": "string",
-                                              "minLength": 1,
                                               "maxLength": 128
                                             },
                                             "operatingEntity": {
@@ -285167,12 +284714,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -285181,7 +284726,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -286215,12 +285759,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -286229,7 +285771,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -287078,12 +286619,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -287092,7 +286631,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -287964,12 +287502,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -287978,7 +287514,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {
@@ -288786,12 +288321,10 @@
                                                   },
                                                   "accountName": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "bank": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 200
                                                   },
                                                   "branch": {
@@ -288800,7 +288333,6 @@
                                                   },
                                                   "accountNumber": {
                                                     "type": "string",
-                                                    "minLength": 1,
                                                     "maxLength": 128
                                                   },
                                                   "operatingEntity": {

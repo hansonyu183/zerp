@@ -231,10 +231,10 @@ const auxWriteShapes = {
   'fund-account': {
     ...nameShape,
     currency: z.string().regex(/^[A-Z]{3}$/),
-    accountName: z.string().min(1).max(200),
-    bank: z.string().min(1).max(200),
+    accountName: z.string().max(200),
+    bank: z.string().max(200),
     branch: z.string().max(200),
-    accountNumber: z.string().min(1).max(128),
+    accountNumber: z.string().max(128),
     operatingEntityId: identifierShape.id,
     remark: z.string().max(1000),
   },

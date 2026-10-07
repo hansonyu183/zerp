@@ -1522,7 +1522,14 @@ export interface VouReferenceSnapshots {
   selection_origin: string | null
 }
 
+export interface VouReturnAllocationCounters {
+  last_value: Int8
+  source_document_id: string
+  source_line_id: string
+}
+
 export interface VouReturnLineSnapshots {
+  allocation_sequence: Int8 | null
   approval_entry_id: string
   base_quantity_micros: Int8
   line_no: number
@@ -1908,6 +1915,7 @@ export interface DB {
   vou_purchase_refund_details: VouPurchaseRefundDetails
   vou_purchase_return_details: VouPurchaseReturnDetails
   vou_reference_snapshots: VouReferenceSnapshots
+  vou_return_allocation_counters: VouReturnAllocationCounters
   vou_return_line_snapshots: VouReturnLineSnapshots
   vou_sale_delivery_details: VouSaleDeliveryDetails
   vou_sale_invoice_details: VouSaleInvoiceDetails

@@ -5,6 +5,8 @@ import {
   writePriorFact,
   assertPriorFactEditable,
   validatePurchaseReceipt,
+  allocatePurchaseReturnSequence,
+  purchaseReturnAllocationBlockers,
 } from './prior-fact.ts'
 import {
   orderLineAmountMinor,
@@ -1336,6 +1338,8 @@ export class VouService implements WflVouPort {
         persistedPayload.businessDate,
         persistedPayload.intermediaryCalculation,
       )
+    if (action === 'unapprove' && entity === 'purchase-return')
+      blockers.push(...(await purchaseReturnAllocationBlockers(tx, row.id)))
     if (action === 'unapprove' && entity === 'intermediary-calculation') {
       const dependents = await this.intermediaryDependents(
         tx,
@@ -1402,6 +1406,8 @@ export class VouService implements WflVouPort {
       'inventoryCountLines' in persistedPayload
     )
       await this.fixInventoryCount(tx, row.id, persistedPayload)
+    if (action === 'approve' && entity === 'purchase-return')
+      await allocatePurchaseReturnSequence(tx, row.id)
     const plan = decision.plan.approval
     const occurredAt = new Date(occurredAtIso)
     const coordinator = new ApplicationTransactionCoordinator({

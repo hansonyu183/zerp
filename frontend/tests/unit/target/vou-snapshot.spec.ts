@@ -195,10 +195,16 @@ it('shows prior source identity and document types as complete Chinese facts', (
           sourceDocumentType: 'AB',
           sourceDocumentKey: 'batch-60',
           sourceDocumentNo: 'AB-60',
-          priorAmount: '101.01',
           capturedAt: '2026-08-31T23:59:59.000Z',
           snapshotDigest: 'a'.repeat(64),
         },
+        sourceLines: [
+          {
+            sourceLineId: 'line-60',
+            baseQuantity: '60',
+            priorAmount: '101.01',
+          },
+        ],
       },
     },
   })

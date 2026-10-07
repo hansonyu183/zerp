@@ -195,9 +195,14 @@ test('public purchase carryover preserves 100/60/40, exact return batches and on
       )
       .then(
         () => null,
-        (e) => e.errorKey,
+        (e) => e,
       )
-    assert.equal(pendingOpening, 'vou_prior_fact_pending')
+    assert.equal(pendingOpening.errorKey, 'vou_prior_fact_pending')
+    assert.ok(
+      pendingOpening.data.blockers.some(
+        (row: { id: string }) => row.id === receiptId,
+      ),
+    )
     const approvedReceipt = await review('/vou/purchase-inbound/approve', {
       documentId: receiptId,
       submissionId: receiptEntry,
@@ -677,6 +682,23 @@ test('prior refund keeps its actual amount and future refunds consume the exact 
         },
       ],
     })
+    await db
+      .updateTable('approval_entries')
+      .set({ approved_at: new Date('2026-10-07T00:00:00Z') })
+      .where('id', 'in', [firstRefund.submissionId, lastRefund.submissionId])
+      .execute()
+    const nonTail = await review('/vou/purchase-return/unapprove', {
+      documentId: firstRefund.documentId,
+      submissionId: firstRefund.submissionId,
+      expectedRevision: firstRefund.revision,
+      reason: '不能先撤销前一笔尾差分配',
+    })
+    assert.equal(nonTail.errorKey, 'vou_unapprove_blocked')
+    assert.ok(
+      nonTail.data.blockers.some(
+        (row: { id: string }) => row.id === lastRefund.documentId,
+      ),
+    )
     const posted = await sql<{ amount: string }>`
       SELECT line.amount::text FROM acc_journal_lines line JOIN acc_journal_entries entry ON entry.id=line.journal_entry_id
       WHERE line.subject_id=${payable.id} AND entry.vou_approval_entry_id IN (${firstRefund.submissionId},${lastRefund.submissionId}) ORDER BY line.amount
@@ -711,6 +733,50 @@ test('prior refund keeps its actual amount and future refunds consume the exact 
     assert.equal(
       final.items.find((row) => row.sourceDocumentId === receipt.documentId),
       undefined,
+    )
+    const tailReversed = await review('/vou/purchase-return/unapprove', {
+      documentId: lastRefund.documentId,
+      submissionId: lastRefund.submissionId,
+      expectedRevision: lastRefund.revision,
+      reason: '按顺序撤销最后分配',
+    })
+    assert.equal(tailReversed.code, 0, JSON.stringify(tailReversed))
+    const tailCapacity = await fixture.vou.invoiceSourceOptions(
+      'purchase-invoice',
+      {
+        objectId: original.supplier.objectId,
+        operatingEntityId: '',
+        businessDate: '2026-09-30',
+        currency: 'CNY',
+      },
+      fixture.actor,
+    )
+    assert.equal(
+      tailCapacity.items.find(
+        (row) => row.sourceDocumentId === receipt.documentId,
+      )?.availableAmount,
+      '40.51',
+    )
+    const restoredTail = await review('/vou/purchase-return/approve', {
+      documentId: lastRefund.documentId,
+      submissionId: lastRefund.submissionId,
+      expectedRevision: tailReversed.data.revision,
+    })
+    assert.equal(restoredTail.code, 0, JSON.stringify(restoredTail))
+    assert.equal(
+      await fixture.acc.partyBalance(
+        db as unknown as import('kysely').Transaction<
+          import('../../src/db/generated.ts').DB
+        >,
+        {
+          counterpartyDimension: 'SUPPLIER',
+          counterpartyObjectId: original.supplier.objectId,
+          currency: 'CNY',
+          settlementPurpose: 'PAYABLE',
+          asOfDate: '2026-09-30',
+        },
+      ),
+      0n,
     )
   })
 })

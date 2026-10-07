@@ -214,3 +214,55 @@ export async function validatePurchaseReceipt(
       throw new VouApplicationError('vou_source_line_quantity_exceeded')
   }
 }
+
+// This order is a persisted refund allocation fact, independent of timestamp ties.
+export async function allocatePurchaseReturnSequence(
+  tx: Transaction<DB>,
+  entryId: string,
+) {
+  const lines = await tx
+    .selectFrom('vou_return_line_snapshots')
+    .selectAll()
+    .where('approval_entry_id', '=', entryId)
+    .orderBy('source_document_id')
+    .orderBy('source_line_id')
+    .execute()
+  const sequences = new Map<string, string>()
+  for (const line of lines) {
+    const key = `${line.source_document_id}/${line.source_line_id}`
+    if (!sequences.has(key)) {
+      const counter = await sql<{ last_value: string }>`
+        INSERT INTO vou_return_allocation_counters(source_document_id,source_line_id,last_value)
+        VALUES (${line.source_document_id},${line.source_line_id},1)
+        ON CONFLICT(source_document_id,source_line_id) DO UPDATE
+        SET last_value=vou_return_allocation_counters.last_value+1 RETURNING last_value::text
+      `.execute(tx)
+      sequences.set(key, counter.rows[0]!.last_value)
+    }
+    await tx
+      .updateTable('vou_return_line_snapshots')
+      .set({ allocation_sequence: sequences.get(key)! })
+      .where('approval_entry_id', '=', entryId)
+      .where('line_no', '=', line.line_no)
+      .execute()
+  }
+}
+
+export async function purchaseReturnAllocationBlockers(
+  tx: Transaction<DB>,
+  entryId: string,
+) {
+  const later = await sql<{ id: string }>`
+    SELECT DISTINCT next.subject_id AS id FROM vou_return_line_snapshots own
+    JOIN vou_return_line_snapshots used ON used.source_document_id=own.source_document_id AND used.source_line_id=own.source_line_id
+    JOIN approval_entries next ON next.id=used.approval_entry_id AND next.status='APPROVED'
+    WHERE own.approval_entry_id=${entryId} AND used.approval_entry_id<>${entryId}
+      AND (used.allocation_sequence>own.allocation_sequence OR used.allocation_sequence IS NULL OR own.allocation_sequence IS NULL)
+    ORDER BY next.subject_id
+  `.execute(tx)
+  return later.rows.map((row) => ({
+    kind: 'DOWNSTREAM_DOCUMENT' as const,
+    id: row.id,
+    entity: 'purchase-return',
+  }))
+}

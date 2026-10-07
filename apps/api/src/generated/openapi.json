@@ -101302,7 +101302,7 @@
                                         },
                                         "capturedAt": {
                                           "type": "string",
-                                          "format": "date-time"
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                                         },
                                         "snapshotDigest": {
                                           "type": "string",
@@ -102066,7 +102066,7 @@
                                         },
                                         "capturedAt": {
                                           "type": "string",
-                                          "format": "date-time"
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                                         },
                                         "snapshotDigest": {
                                           "type": "string",
@@ -102387,7 +102387,7 @@
                                         },
                                         "capturedAt": {
                                           "type": "string",
-                                          "format": "date-time"
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                                         },
                                         "snapshotDigest": {
                                           "type": "string",
@@ -123114,7 +123114,7 @@
                               },
                               "capturedAt": {
                                 "type": "string",
-                                "format": "date-time"
+                                "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                               },
                               "snapshotDigest": {
                                 "type": "string",
@@ -123878,7 +123878,7 @@
                               },
                               "capturedAt": {
                                 "type": "string",
-                                "format": "date-time"
+                                "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                               },
                               "snapshotDigest": {
                                 "type": "string",
@@ -124199,7 +124199,7 @@
                               },
                               "capturedAt": {
                                 "type": "string",
-                                "format": "date-time"
+                                "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                               },
                               "snapshotDigest": {
                                 "type": "string",
@@ -144678,7 +144678,7 @@
                                         },
                                         "capturedAt": {
                                           "type": "string",
-                                          "format": "date-time"
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                                         },
                                         "snapshotDigest": {
                                           "type": "string",
@@ -145442,7 +145442,7 @@
                                         },
                                         "capturedAt": {
                                           "type": "string",
-                                          "format": "date-time"
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                                         },
                                         "snapshotDigest": {
                                           "type": "string",
@@ -145763,7 +145763,7 @@
                                         },
                                         "capturedAt": {
                                           "type": "string",
-                                          "format": "date-time"
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                                         },
                                         "snapshotDigest": {
                                           "type": "string",
@@ -166255,7 +166255,7 @@
                               },
                               "capturedAt": {
                                 "type": "string",
-                                "format": "date-time"
+                                "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                               },
                               "snapshotDigest": {
                                 "type": "string",
@@ -167019,7 +167019,7 @@
                               },
                               "capturedAt": {
                                 "type": "string",
-                                "format": "date-time"
+                                "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                               },
                               "snapshotDigest": {
                                 "type": "string",
@@ -167340,7 +167340,7 @@
                               },
                               "capturedAt": {
                                 "type": "string",
-                                "format": "date-time"
+                                "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                               },
                               "snapshotDigest": {
                                 "type": "string",
@@ -187819,7 +187819,7 @@
                                         },
                                         "capturedAt": {
                                           "type": "string",
-                                          "format": "date-time"
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                                         },
                                         "snapshotDigest": {
                                           "type": "string",
@@ -188583,7 +188583,7 @@
                                         },
                                         "capturedAt": {
                                           "type": "string",
-                                          "format": "date-time"
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                                         },
                                         "snapshotDigest": {
                                           "type": "string",
@@ -188904,7 +188904,7 @@
                                         },
                                         "capturedAt": {
                                           "type": "string",
-                                          "format": "date-time"
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                                         },
                                         "snapshotDigest": {
                                           "type": "string",
@@ -209540,7 +209540,7 @@
                                         },
                                         "capturedAt": {
                                           "type": "string",
-                                          "format": "date-time"
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                                         },
                                         "snapshotDigest": {
                                           "type": "string",
@@ -210304,7 +210304,7 @@
                                         },
                                         "capturedAt": {
                                           "type": "string",
-                                          "format": "date-time"
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                                         },
                                         "snapshotDigest": {
                                           "type": "string",
@@ -210625,7 +210625,7 @@
                                         },
                                         "capturedAt": {
                                           "type": "string",
-                                          "format": "date-time"
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                                         },
                                         "snapshotDigest": {
                                           "type": "string",
@@ -231267,7 +231267,7 @@
                                         },
                                         "capturedAt": {
                                           "type": "string",
-                                          "format": "date-time"
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                                         },
                                         "snapshotDigest": {
                                           "type": "string",
@@ -232031,7 +232031,7 @@
                                         },
                                         "capturedAt": {
                                           "type": "string",
-                                          "format": "date-time"
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                                         },
                                         "snapshotDigest": {
                                           "type": "string",
@@ -232352,7 +232352,7 @@
                                         },
                                         "capturedAt": {
                                           "type": "string",
-                                          "format": "date-time"
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                                         },
                                         "snapshotDigest": {
                                           "type": "string",
@@ -252988,7 +252988,7 @@
                                         },
                                         "capturedAt": {
                                           "type": "string",
-                                          "format": "date-time"
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                                         },
                                         "snapshotDigest": {
                                           "type": "string",
@@ -253752,7 +253752,7 @@
                                         },
                                         "capturedAt": {
                                           "type": "string",
-                                          "format": "date-time"
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                                         },
                                         "snapshotDigest": {
                                           "type": "string",
@@ -254073,7 +254073,7 @@
                                         },
                                         "capturedAt": {
                                           "type": "string",
-                                          "format": "date-time"
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                                         },
                                         "snapshotDigest": {
                                           "type": "string",
@@ -274715,7 +274715,7 @@
                                         },
                                         "capturedAt": {
                                           "type": "string",
-                                          "format": "date-time"
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                                         },
                                         "snapshotDigest": {
                                           "type": "string",
@@ -275479,7 +275479,7 @@
                                         },
                                         "capturedAt": {
                                           "type": "string",
-                                          "format": "date-time"
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                                         },
                                         "snapshotDigest": {
                                           "type": "string",
@@ -275800,7 +275800,7 @@
                                         },
                                         "capturedAt": {
                                           "type": "string",
-                                          "format": "date-time"
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
                                         },
                                         "snapshotDigest": {
                                           "type": "string",

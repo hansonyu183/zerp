@@ -1030,3 +1030,137 @@ test('closed prior purchase keeps original and historical quantities without reo
     assert.equal(read.data.payload.productLines[0].baseQuantity, '100.000000')
   })
 })
+
+test('public prior submission and readback preserve the real six-place cutoff and reject another microsecond', async () => {
+  await withWflDatabase(async (db) => {
+    const fixture = await seedStockFixture(
+      db,
+      '2026-11',
+      { quantity: '60', amount: '120.00' },
+      false,
+    )
+    const { post, review } = await purchaseClients(db, fixture)
+    const original = fixture.purchase.payload as VouPayloadFor<'purchase-order'>
+    const capture: VouPriorFact = {
+      sourceClosed: false,
+      sourceInstanceId: 'precision-fixture',
+      sourceSchema: 'fixture',
+      sourceDocumentType: 'AA',
+      sourceDocumentKey: 'original',
+      sourceDocumentNo: 'AA-MICRO',
+      capturedAt: '2026-10-07T05:26:54.644297Z',
+      snapshotDigest: 'e'.repeat(64),
+    }
+    const orderId = ulid(),
+      entry = ulid(),
+      lineId = ulid()
+    const input = {
+      documentId: orderId,
+      submissionId: entry,
+      idempotencyKey: entry,
+      expectedRevision: null,
+      payload: {
+        ...original,
+        businessDate: '2026-10-05',
+        priorFact: capture,
+        productLines: [
+          {
+            ...original.productLines[0]!,
+            lineId,
+            enteredQuantity: '100',
+            baseQuantity: '100',
+            unitPrice: '2.00',
+          },
+        ],
+      },
+    }
+    const saved = await post('/vou/purchase-order/submit-new', input)
+    assert.equal(saved.code, 0, JSON.stringify(saved))
+    assert.equal(saved.data.payload.priorFact.capturedAt, capture.capturedAt)
+    assert.deepEqual(
+      (await post('/vou/purchase-order/submit-new', input)).data,
+      saved.data,
+    )
+    const approved = await review('/vou/purchase-order/approve', {
+      documentId: orderId,
+      submissionId: entry,
+      expectedRevision: saved.data.revision,
+    })
+    assert.equal(approved.code, 0, JSON.stringify(approved))
+    const read = await post('/vou/purchase-order/get', { documentId: orderId })
+    assert.equal(read.data.payload.priorFact.capturedAt, capture.capturedAt)
+    const receiptId = ulid(),
+      receiptEntry = ulid()
+    const receipt = {
+      documentId: receiptId,
+      submissionId: receiptEntry,
+      idempotencyKey: receiptEntry,
+      expectedRevision: null,
+      payload: {
+        businessDate: '2026-10-06',
+        currency: 'CNY',
+        attachments: [],
+        supplier: original.supplier,
+        warehouse: original.warehouse,
+        parentEntity: 'purchase-order',
+        parentDocumentId: orderId,
+        priorFact: {
+          ...capture,
+          sourceDocumentType: 'AB',
+          sourceDocumentKey: 'receipt',
+          sourceDocumentNo: 'AB-MICRO',
+        },
+        sourceLines: [
+          { sourceLineId: lineId, baseQuantity: '60', priorAmount: '120.00' },
+        ],
+      },
+    }
+    for (const cutoff of [
+      '2026-10-07T05:26:54.644298Z',
+      '2026-10-07T05:26:54.644Z',
+    ]) {
+      const rejected = await post('/vou/purchase-inbound/submit-new', {
+        ...receipt,
+        payload: {
+          ...receipt.payload,
+          priorFact: { ...receipt.payload.priorFact, capturedAt: cutoff },
+        },
+      })
+      assert.equal(rejected.errorKey, 'vou_prior_fact_invalid')
+      assert.equal(
+        (
+          await db
+            .selectFrom('vou_documents')
+            .select('id')
+            .where('id', '=', receiptId)
+            .execute()
+        ).length,
+        0,
+      )
+    }
+    const extraPrecision = await post('/vou/purchase-inbound/submit-new', {
+      ...receipt,
+      payload: {
+        ...receipt.payload,
+        priorFact: {
+          ...receipt.payload.priorFact,
+          capturedAt: '2026-10-07T05:26:54.6442977Z',
+        },
+      },
+    })
+    assert.notEqual(extraPrecision.code, 0)
+    const accepted = await post('/vou/purchase-inbound/submit-new', receipt)
+    assert.equal(accepted.code, 0, JSON.stringify(accepted))
+    assert.equal(accepted.data.payload.priorFact.capturedAt, capture.capturedAt)
+    const receiptApproved = await review('/vou/purchase-inbound/approve', {
+      documentId: receiptId,
+      submissionId: receiptEntry,
+      expectedRevision: accepted.data.revision,
+    })
+    assert.equal(receiptApproved.code, 0, JSON.stringify(receiptApproved))
+    assert.equal(
+      receiptApproved.data.payload.priorFact.capturedAt,
+      capture.capturedAt,
+    )
+  })
+})

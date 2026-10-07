@@ -9,6 +9,7 @@ import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
 import type { Schema } from 'hono'
 import {
   vouEntities,
+  vouPriorCutoffPattern,
   vouEntityPresentation,
   vouPaymentMethodSelectionOrigins,
   userCreatableVouEntities,
@@ -121,7 +122,7 @@ const priorFact = z
     sourceDocumentType: z.enum(['AA', 'AD', 'AB', 'AF']),
     sourceDocumentKey: z.string().min(1).max(128),
     sourceDocumentNo: z.string().min(1).max(200),
-    capturedAt: z.string().datetime(),
+    capturedAt: z.string().datetime().regex(vouPriorCutoffPattern),
     snapshotDigest: z.string().regex(/^[0-9a-f]{64}$/),
   })
   .strict()

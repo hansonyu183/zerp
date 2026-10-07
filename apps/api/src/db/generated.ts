@@ -1355,6 +1355,17 @@ export interface VouPriceLineSnapshots {
   unit_price_minor: Int8
 }
 
+export interface VouPriorFacts {
+  approval_entry_id: string
+  captured_at: Timestamp
+  snapshot_digest: string
+  source_document_key: string
+  source_document_no: string
+  source_document_type: string
+  source_instance_id: string
+  source_schema: string
+}
+
 export interface VouProductionLineSnapshots {
   approval_entry_id: string
   base_quantity_micros: Int8
@@ -1883,6 +1894,7 @@ export interface DB {
   vou_other_payment_details: VouOtherPaymentDetails
   vou_other_receipt_details: VouOtherReceiptDetails
   vou_price_line_snapshots: VouPriceLineSnapshots
+  vou_prior_facts: VouPriorFacts
   vou_product_line_snapshots: VouProductLineSnapshots
   vou_production_line_snapshots: VouProductionLineSnapshots
   vou_production_material_snapshots: VouProductionMaterialSnapshots

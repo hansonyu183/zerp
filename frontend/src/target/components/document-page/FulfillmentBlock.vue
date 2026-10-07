@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PriorFactBlock from './PriorFactBlock.vue'
 import CollectionBlock from '../dynamic-fields/CollectionBlock.vue'
 import FulfillmentLineEditor from './FulfillmentLineEditor.vue'
 import type { DetailFields } from '../details/detail-fields.ts'
@@ -24,6 +25,13 @@ const fields = [
 ] as const satisfies DetailFields<FulfillmentDraft['lines'][number]>
 </script>
 <template>
+  <PriorFactBlock
+    v-if="modelValue.entity !== 'sale-return'"
+    :entity="modelValue.entity"
+    :model-value="modelValue.priorFact"
+    :disabled="disabled"
+    @update:model-value="update({ priorFact: $event })"
+  />
   <FormBlock
     :fields="fulfillmentFields"
     :model-value="modelValue"

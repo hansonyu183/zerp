@@ -740,6 +740,19 @@ CREATE TABLE vou_documents (
 );
 CREATE INDEX vou_documents_entity_number_idx ON vou_documents(entity, document_no);
 
+CREATE TABLE vou_prior_facts (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    source_instance_id varchar(128) NOT NULL,
+    source_schema varchar(64) NOT NULL,
+    source_document_type varchar(2) NOT NULL CHECK (source_document_type IN ('AA', 'AD', 'AB', 'AF')),
+    source_document_key varchar(128) NOT NULL,
+    source_document_no varchar(200) NOT NULL,
+    captured_at timestamptz NOT NULL,
+    snapshot_digest char(64) NOT NULL,
+    UNIQUE (source_instance_id, source_schema, source_document_type, source_document_key)
+);
+
+
 -- Each VOU entity owns a distinct header.  Rich wire data is decomposed into
 -- typed business-family child relations below; VOU has no JSON payload store.
 CREATE TABLE vou_sale_pricing_details (

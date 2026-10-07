@@ -1,4 +1,12 @@
 import {
+  priorFact,
+  readPriorFact,
+  validatePriorFact,
+  writePriorFact,
+  assertPriorFactEditable,
+  validatePurchaseReceipt,
+} from './prior-fact.ts'
+import {
   orderLineAmountMinor,
   orderQuote,
   intermediaryDecimal as amountDecimal,
@@ -934,6 +942,7 @@ export class VouService implements WflVouPort {
       },
     )
     if (!preflight.ok) throw new VouApplicationError(preflight.errorKey)
+    await validatePriorFact(tx, entity, input.documentId, input.payload)
     // Client display values are never authoritative for a new AUX adoption.
     input = { ...input, payload: structuredClone(input.payload) }
     let intermediaryDependencies: string[] = []
@@ -1073,6 +1082,12 @@ export class VouService implements WflVouPort {
       throw new VouApplicationError('vou_reference_unavailable', [
         ...referenceValidation.blockers,
       ])
+    if (entity === 'purchase-inbound' && 'sourceLines' in input.payload)
+      await validatePurchaseReceipt(
+        tx,
+        input.documentId,
+        input.payload as VouPayloadFor<'purchase-inbound'>,
+      )
     await this.validateReturnSources(
       tx,
       entity,
@@ -1250,6 +1265,12 @@ export class VouService implements WflVouPort {
       .where('id', '=', input.documentId)
       .executeTakeFirstOrThrow()
     const persistedPayload = await this.readPayload(tx, entity, row.id)
+    const historical = priorFact(persistedPayload) !== undefined
+    if (historical) {
+      await assertPriorFactEditable(tx)
+      if (action === 'approve' || action === 'unreject')
+        await validatePriorFact(tx, entity, input.documentId, persistedPayload)
+    }
     if (
       (action === 'approve' || action === 'unreject') &&
       (entity === 'sale-invoice' || entity === 'purchase-invoice') &&
@@ -1270,6 +1291,16 @@ export class VouService implements WflVouPort {
       'returnLines' in persistedPayload
     )
       await validateReturnInvoiceCapacity(tx, entity, persistedPayload)
+    if (
+      (action === 'approve' || action === 'unreject') &&
+      entity === 'purchase-inbound' &&
+      'sourceLines' in persistedPayload
+    )
+      await validatePurchaseReceipt(
+        tx,
+        input.documentId,
+        persistedPayload as VouPayloadFor<'purchase-inbound'>,
+      )
     if (action === 'approve' && 'intermediaryCalculation' in persistedPayload)
       await validateIntermediaryCalculation(
         tx,
@@ -1285,7 +1316,7 @@ export class VouService implements WflVouPort {
       )
       blockers.push(...dependents)
     }
-    if (action === 'approve')
+    if (action === 'approve' && !historical)
       await this.validateApprovalControlGates(
         tx,
         entity,
@@ -1297,8 +1328,9 @@ export class VouService implements WflVouPort {
       await this.adoptService(tx, entity, input.documentId, persistedPayload)
     if (action === 'approve')
       await this.adoptBills(tx, entity, persistedPayload)
-    const effectAction =
-      action === 'approve'
+    const effectAction = historical
+      ? null
+      : action === 'approve'
         ? 'approve'
         : action === 'unapprove'
           ? 'unapprove'
@@ -2252,6 +2284,7 @@ export class VouService implements WflVouPort {
       throw new VouApplicationError('approval_stale_revision')
     if (row.status === 'APPROVED')
       throw new VouApplicationError('vou_delete_blocked')
+    if (await readPriorFact(tx, row.id)) await assertPriorFactEditable(tx)
     if (actor.trusted !== true && row.submitted_by !== actor.id)
       throw new VouApplicationError('approval_invalid_action')
     const blockers = [
@@ -3794,6 +3827,9 @@ export class VouService implements WflVouPort {
         ${payload.parentDocumentId ?? null}, ${payload.remark ?? null}
       )
     `.execute(transaction)
+    const historical = priorFact(payload)
+    if (historical)
+      await writePriorFact(transaction, approvalEntryId, historical)
     await this.writeReferenceSnapshots(
       transaction,
       approvalEntryId,
@@ -4842,7 +4878,9 @@ export class VouService implements WflVouPort {
       entity,
       approvalEntryId,
     )
+    const historical = await readPriorFact(executor, approvalEntryId)
     const base = {
+      ...(historical ? { priorFact: historical } : {}),
       businessDate: header.businessDate,
       currency: header.currency,
       ...(header.remark ? { remark: header.remark } : {}),

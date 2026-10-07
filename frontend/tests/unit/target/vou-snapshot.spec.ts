@@ -184,3 +184,26 @@ it('renders complete opening asset and operating-entity bill snapshots without u
   await flushPromises()
   expect(view.text()).toContain('经营主体')
 })
+
+it('shows prior source identity and document types as complete Chinese facts', () => {
+  const view = mount(SnapshotValue, {
+    props: {
+      value: {
+        priorFact: {
+          sourceInstanceId: 'source',
+          sourceSchema: 'db',
+          sourceDocumentType: 'AB',
+          sourceDocumentKey: 'batch-60',
+          sourceDocumentNo: 'AB-60',
+          capturedAt: '2026-08-31T23:59:59.000Z',
+          snapshotDigest: 'a'.repeat(64),
+        },
+      },
+    },
+  })
+  expect(view.text()).toContain('此前事实')
+  expect(view.text()).toContain('采购入库')
+  expect(view.text()).toContain('batch-60')
+  expect(view.text()).toContain('2026-08-31T23:59:59.000Z')
+  expect(view.text()).not.toContain('未登记字段')
+})

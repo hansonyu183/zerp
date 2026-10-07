@@ -7,6 +7,14 @@ import AttachmentBlock from '../attachments/AttachmentBlock.vue'
 defineProps<{ document: VouDetail }>()
 </script>
 <template>
+  <section
+    v-if="'priorFact' in document.payload && document.payload.priorFact"
+    data-testid="vou-prior-fact-snapshot"
+  >
+    <h3>此前事实承接</h3>
+    <p>已保存原单据事实；批准不会再次产生库存、会计或流程效果。</p>
+    <SnapshotValue :value="document.payload.priorFact" />
+  </section>
   <OpeningSnapshot v-if="document.entity === 'opening'" :document="document" />
   <OrderSnapshot
     v-else-if="

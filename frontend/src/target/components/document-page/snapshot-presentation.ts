@@ -1,7 +1,17 @@
-import { vouEntityPresentation } from '@zerp/model'
+import {
+  vouEntityPresentation,
+  vouPriorSourceDocumentPresentation,
+} from '@zerp/model'
 
 // Shared captions for immutable voucher facts and ACC mapping field selection.
 export const snapshotCaptions: Readonly<Record<string, string>> = {
+  priorFact: '此前事实',
+  sourceInstanceId: '来源实例',
+  sourceSchema: '来源库',
+  sourceDocumentType: '来源单据类型',
+  sourceDocumentKey: '原单据键',
+  capturedAt: '封存截止',
+  snapshotDigest: '来源快照摘要',
   primarySalesAttribution: '客户主要业务归属',
   countResult: '批准时盘点结果',
   bookQuantity: '账面数量',
@@ -280,6 +290,12 @@ const category = {
 export const snapshotEnums: Readonly<
   Record<string, Readonly<Record<string, string>>>
 > = {
+  sourceDocumentType: Object.fromEntries(
+    Object.entries(vouPriorSourceDocumentPresentation).map(([key, item]) => [
+      key,
+      item.label,
+    ]),
+  ),
   identityKind: { PERSON: '自然人', ORGANIZATION: '组织' },
   kind: { INTERNAL: '内部承运', EXTERNAL: '外部承运' },
   parentEntity: Object.fromEntries(

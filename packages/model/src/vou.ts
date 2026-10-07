@@ -393,6 +393,24 @@ export interface VouBillCashLineInput {
   remark?: string
 }
 
+export const vouPriorSourceDocumentPresentation = {
+  AA: { label: '采购订单' },
+  AD: { label: '采购订单（其他）' },
+  AB: { label: '采购入库' },
+  AF: { label: '采购退货' },
+} as const
+
+/** A real pre-cutoff document adopted without replaying its business effects. */
+export interface VouPriorFact {
+  sourceInstanceId: string
+  sourceSchema: string
+  sourceDocumentType: 'AA' | 'AD' | 'AB' | 'AF'
+  sourceDocumentKey: string
+  sourceDocumentNo: string
+  capturedAt: string
+  snapshotDigest: string
+}
+
 export interface VouPayloadBase {
   businessDate: string
   currency: string
@@ -602,15 +620,18 @@ export interface VouPayloadShapes {
   }
   'purchase-inquiry': PricePayload & { supplier: VouVersionedReferenceInput }
   'purchase-order': ProductPayload & {
+    priorFact?: VouPriorFact
     supplier: VouVersionedReferenceInput
     purchaser?: VouAuxCurrentReferenceInput
     warehouse: VouAuxCurrentReferenceInput
   }
   'purchase-inbound': SourcePayload & {
+    priorFact?: VouPriorFact
     supplier: VouVersionedReferenceInput
     warehouse: VouAuxCurrentReferenceInput
   }
   'purchase-return': VouPayloadBase & {
+    priorFact?: VouPriorFact
     supplier: VouVersionedReferenceInput
     warehouse: VouAuxCurrentReferenceInput
     returnReason: string
@@ -1143,6 +1164,42 @@ function canonicalPayload<Entity extends VouEntity>(
     !Array.isArray(value.attachments)
   )
     return undefined
+  if ('priorFact' in value && value.priorFact !== undefined) {
+    const prior = value.priorFact
+    const types =
+      entity === 'purchase-order'
+        ? ['AA', 'AD']
+        : entity === 'purchase-inbound'
+          ? ['AB']
+          : entity === 'purchase-return'
+            ? ['AF']
+            : []
+    if (
+      !prior ||
+      !types.includes(prior.sourceDocumentType) ||
+      ![
+        prior.sourceInstanceId,
+        prior.sourceSchema,
+        prior.sourceDocumentKey,
+        prior.sourceDocumentNo,
+      ].every(text) ||
+      !/^[0-9a-f]{64}$/.test(prior.snapshotDigest) ||
+      !/^\d{4}-\d{2}-\d{2}T.*Z$/.test(prior.capturedAt) ||
+      !Number.isFinite(Date.parse(prior.capturedAt)) ||
+      !Object.keys(prior).every((key) =>
+        [
+          'sourceInstanceId',
+          'sourceSchema',
+          'sourceDocumentType',
+          'sourceDocumentKey',
+          'sourceDocumentNo',
+          'capturedAt',
+          'snapshotDigest',
+        ].includes(key),
+      )
+    )
+      return undefined
+  }
   const required = payloadRequiredFields[entity]
   if (required.some((field) => !(field in value))) return undefined
   const allowed = new Set([
@@ -1264,9 +1321,21 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
   ],
   'sale-return': ['warehouse', 'returnReason', 'returnLines'],
   'purchase-inquiry': ['supplier', 'priceLines'],
-  'purchase-order': ['supplier', 'purchaser', 'warehouse', 'productLines'],
-  'purchase-inbound': ['supplier', 'warehouse', 'sourceLines'],
-  'purchase-return': ['supplier', 'warehouse', 'returnReason', 'returnLines'],
+  'purchase-order': [
+    'priorFact',
+    'supplier',
+    'purchaser',
+    'warehouse',
+    'productLines',
+  ],
+  'purchase-inbound': ['priorFact', 'supplier', 'warehouse', 'sourceLines'],
+  'purchase-return': [
+    'priorFact',
+    'supplier',
+    'warehouse',
+    'returnReason',
+    'returnLines',
+  ],
   'order-production': [
     'materialWarehouse',
     'finishedWarehouse',
@@ -1367,6 +1436,7 @@ const payloadRequiredFields: Readonly<Record<VouEntity, readonly string[]>> =
         (field) =>
           !(
             [
+              'priorFact',
               'salesperson',
               'purchaser',
               'carrier',

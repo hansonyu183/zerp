@@ -27,9 +27,6 @@ async function main() {
   if (!url) throw new Error('purchase_carryover_upgrade_database_required')
   assertTargetDatabaseBoundary(url, process.env.TARGET_DATABASE_SCOPE)
   const db = createDatabase(url)
-  const inspect = values['source-closure']
-    ? inspectPurchaseSourceClosureUpgrade
-    : inspectPurchaseCarryoverUpgrade
   const apply = values['source-closure']
     ? upgradePurchaseSourceClosure
     : upgradePurchaseCarryover
@@ -40,7 +37,11 @@ async function main() {
           await db
             .transaction()
             .setIsolationLevel('repeatable read')
-            .execute(inspect),
+            .execute(async (tx) =>
+              values['source-closure']
+                ? inspectPurchaseSourceClosureUpgrade(tx)
+                : inspectPurchaseCarryoverUpgrade(tx),
+            ),
         ),
       )
     else {

@@ -57,7 +57,7 @@ test('normal HTTP carries a negative opening, allows staged replenishment and re
       f.actor,
     )
     await f.quantityMapping('purchase-inbound')
-    await f.quantityMapping('purchase-return')
+    await f.quantityMapping('purchase-return', f.equity.id)
     const config = loadConfig({
       DATABASE_URL: process.env.TARGET_TEST_DATABASE_URL!,
       APP_SESSION_COOKIE_SECURE: 'false',
@@ -345,6 +345,16 @@ test('normal HTTP carries a negative opening, allows staged replenishment and re
     const backdated = await returnOne(first, '2026-09-02')
     assert.equal(backdated.result.errorKey, 'acc_negative_inventory')
     assert.equal(await balance(), '2.00000000')
+    assert.equal(
+      (
+        await post('/vou/purchase-return/delete', {
+          documentId: backdated.documentId,
+          submissionId: backdated.submissionId,
+          expectedRevision: backdated.pending.revision,
+        })
+      ).code,
+      0,
+    )
     const ordinary = await returnOne(third)
     assert.equal(ordinary.result.code, 0, JSON.stringify(ordinary.result))
     assert.equal(await balance(), '1.00000000')
@@ -356,5 +366,254 @@ test('normal HTTP carries a negative opening, allows staged replenishment and re
       ).data.status,
       'APPROVED',
     )
+    const closed = await review('/acc/period/lock', {
+      bookId: f.book.id,
+      month: '2026-09',
+      expectedRevision: null,
+    })
+    assert.equal(closed.code, 0, JSON.stringify(closed))
+    assert.equal(closed.data.locked, true)
+    assert.deepEqual(
+      (
+        await sql<{
+          cost: string
+          adjustment: string
+        }>`SELECT allocation.cost_amount::text AS cost, allocation.adjustment_amount::text AS adjustment FROM acc_inventory_cost_allocations allocation JOIN acc_inventory_entries inventory ON inventory.id=allocation.inventory_entry_id WHERE inventory.document_id=${ordinary.documentId}`.execute(
+          db,
+        )
+      ).rows,
+      [{ cost: '-2.00000000', adjustment: '-2.00000000' }],
+    )
+    assert.equal(
+      (
+        await sql<{
+          balance: string
+        }>`SELECT closing_balance::text AS balance FROM acc_period_balances WHERE book_id=${f.book.id} AND subject_id=${f.subject.id}`.execute(
+          db,
+        )
+      ).rows[0]!.balance,
+      '2.00000000',
+    )
   })
 })
+
+for (const scenario of [
+  {
+    name: 'positive net opening',
+    quantity: '8',
+    amount: '16.00',
+    equityDirection: 'CREDIT',
+    equityAmount: '4.00',
+    errorKey: null,
+  },
+  {
+    name: 'fully offset opening',
+    quantity: '6',
+    amount: '12.00',
+    equityDirection: 'CREDIT',
+    equityAmount: '0.00',
+    errorKey: null,
+  },
+  {
+    name: 'negative net value',
+    quantity: '8',
+    amount: '4.00',
+    equityDirection: 'DEBIT',
+    equityAmount: '8.00',
+    errorKey: 'acc_period_cost_basis_missing',
+  },
+  {
+    name: 'zero quantity with remaining value',
+    quantity: '6',
+    amount: '14.00',
+    equityDirection: 'CREDIT',
+    equityAmount: '2.00',
+    errorKey: 'acc_period_cost_basis_missing',
+  },
+] as const) {
+  test(`month-end uses atomic mixed opening basis: ${scenario.name}`, async () => {
+    await withWflDatabase(async (db) => {
+      const f = await seedStockFixture(
+        db,
+        '2026-09',
+        { quantity: '6', amount: '12.00' },
+        false,
+      )
+      const actor = {
+        ...f.actor,
+        permissions: [
+          ...f.actor.permissions,
+          '/vou/opening/delete',
+          '/vou/purchase-order/delete',
+        ],
+      }
+      await f.openings.deleteOpening(
+        {
+          bookId: f.book.id,
+          submissionId: f.opening.submissionId,
+          expectedRevision: f.opening.approval.revision,
+        },
+        actor,
+        'mixed-opening',
+      )
+      const submissionId = ulid()
+      const dimensions = {
+        PRODUCT: f.rawId,
+        WAREHOUSE: f.salePayload.warehouse.objectId,
+      }
+      const opening = await f.openings.submitOpening(
+        {
+          bookId: f.book.id,
+          submissionId,
+          idempotencyKey: submissionId,
+          assets: [],
+          bills: [],
+          containers: [],
+          lines: [
+            {
+              subjectId: f.subject.id,
+              currency: 'CNY',
+              direction: 'CREDIT',
+              amount: '12.00',
+              quantity: '6',
+              dimensions,
+            },
+            {
+              subjectId: f.subject.id,
+              currency: 'CNY',
+              direction: 'DEBIT',
+              amount: scenario.amount,
+              quantity: scenario.quantity,
+              dimensions,
+            },
+            {
+              subjectId: f.equity.id,
+              currency: 'CNY',
+              direction: scenario.equityDirection,
+              amount: scenario.equityAmount,
+              dimensions: {},
+            },
+          ],
+        },
+        f.actor,
+        'mixed-opening',
+      )
+      await f.openings.reviewOpening(
+        'approve',
+        {
+          bookId: f.book.id,
+          submissionId,
+          expectedRevision: opening.approval.revision,
+        },
+        f.reviewerActor,
+        'mixed-opening',
+      )
+      await f.vou.delete(
+        'purchase-order',
+        {
+          documentId: f.purchase.documentId,
+          submissionId: f.purchase.submissionId,
+          expectedRevision: f.purchase.revision,
+        },
+        actor,
+        'mixed-opening',
+      )
+      if (scenario.name === 'negative net value') {
+        await f.quantityMapping('inventory-count', f.equity.id)
+        const documentId = ulid(),
+          entryId = ulid()
+        const counted = await f.vou.submit(
+          'inventory-count',
+          'submit-new',
+          {
+            documentId,
+            submissionId: entryId,
+            idempotencyKey: entryId,
+            expectedRevision: null,
+            payload: {
+              businessDate: '2026-09-09',
+              currency: 'CNY',
+              attachments: [],
+              warehouse: f.salePayload.warehouse,
+              inventoryCountLines: [
+                {
+                  product: { objectId: f.rawId },
+                  enteredQuantity: '0',
+                  enteredUnit: f.references.unitSnapshot,
+                  baseQuantity: '0',
+                },
+              ],
+            },
+          },
+          f.actor,
+          'negative-cost-basis',
+        )
+        await f.vou.review(
+          'inventory-count',
+          'approve',
+          {
+            documentId,
+            submissionId: entryId,
+            expectedRevision: counted.revision,
+          },
+          f.reviewerActor,
+          'negative-cost-basis',
+        )
+      }
+      await approveEmptyIntermediaryMonth(
+        db,
+        f.vou,
+        '2026-09-30',
+        f.actor,
+        f.reviewerActor,
+      )
+      if (scenario.errorKey) {
+        await assert.rejects(
+          f.acc.setPeriod(
+            { bookId: f.book.id, month: '2026-09', expectedRevision: null },
+            true,
+            f.actor,
+          ),
+          { errorKey: scenario.errorKey },
+        )
+        assert.deepEqual(
+          await db
+            .selectFrom('acc_inventory_cost_allocations')
+            .selectAll()
+            .where('book_id', '=', f.book.id)
+            .execute(),
+          [],
+        )
+        assert.deepEqual(
+          await db
+            .selectFrom('acc_periods')
+            .selectAll()
+            .where('book_id', '=', f.book.id)
+            .execute(),
+          [],
+        )
+        return
+      }
+      const locked = await f.acc.setPeriod(
+        { bookId: f.book.id, month: '2026-09', expectedRevision: null },
+        true,
+        f.actor,
+      )
+      assert.equal(locked.locked, true)
+      assert.deepEqual(
+        (
+          await sql<{
+            cost: string
+            adjustment: string
+          }>`SELECT cost_amount::text AS cost, adjustment_amount::text AS adjustment FROM acc_inventory_cost_allocations WHERE book_id=${f.book.id} ORDER BY cost_amount`.execute(
+            db,
+          )
+        ).rows,
+        [
+          { cost: '-12.00000000', adjustment: '0.00000000' },
+          { cost: `${scenario.amount}000000`, adjustment: '0.00000000' },
+        ],
+      )
+    })
+  })
+}

@@ -20,6 +20,7 @@ export async function readPriorFact(
     .executeTakeFirst()
   if (!row) return undefined
   return {
+    sourceClosed: row.source_closed,
     sourceInstanceId: row.source_instance_id,
     sourceSchema: row.source_schema,
     sourceDocumentType:
@@ -65,6 +66,7 @@ export async function validatePriorFact(
       ? vouPriorDocumentTypes[entity as keyof typeof vouPriorDocumentTypes]
       : []
   if (
+    typeof fact.sourceClosed !== 'boolean' ||
     !allowed.includes(fact.sourceDocumentType) ||
     !/^[0-9a-f]{64}$/.test(fact.snapshotDigest) ||
     !Number.isFinite(Date.parse(fact.capturedAt)) ||
@@ -126,6 +128,7 @@ export async function writePriorFact(
     .insertInto('vou_prior_facts')
     .values({
       approval_entry_id: approvalEntryId,
+      source_closed: fact.sourceClosed,
       source_instance_id: fact.sourceInstanceId,
       source_schema: fact.sourceSchema,
       source_document_type: fact.sourceDocumentType,
@@ -171,6 +174,16 @@ export async function validatePurchaseReceipt(
   )
     throw new VouApplicationError('vou_parent_invalid')
   const capture = await readPriorFact(tx, root.id)
+  if (!payload.priorFact && capture?.sourceClosed)
+    throw new VouApplicationError('vou_prior_order_closed', [
+      {
+        kind: 'REFERENCE',
+        field: 'parentDocumentId',
+        entity: 'purchase-order',
+        objectId: payload.parentDocumentId,
+        approvalEntryId: root.id,
+      },
+    ])
   if (
     !payload.priorFact &&
     capture &&

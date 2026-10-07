@@ -72,6 +72,7 @@ test('public purchase carryover preserves 100/60/40, exact return batches and on
     await fixture.quantityMapping('purchase-return')
     const { post, review } = await purchaseClients(db, fixture)
     const capture: VouPriorFact = {
+      sourceClosed: false,
       sourceInstanceId: 'fixture-oit',
       sourceSchema: 'fixture',
       sourceDocumentType: 'AA',
@@ -451,6 +452,7 @@ test('prior refund keeps its actual amount and future refunds consume the exact 
     const original = fixture.purchase.payload as VouPayloadFor<'purchase-order'>
     const lineId = ulid()
     const capture: VouPriorFact = {
+      sourceClosed: false,
       sourceInstanceId: 'fixture',
       sourceSchema: 'fixture',
       sourceDocumentType: 'AA',
@@ -778,5 +780,253 @@ test('prior refund keeps its actual amount and future refunds consume the exact 
       ),
       0n,
     )
+  })
+})
+
+test('closed prior purchase keeps original and historical quantities without reopening inbound capacity', async () => {
+  await withWflDatabase(async (db) => {
+    const fixture = await seedStockFixture(
+      db,
+      '2026-09',
+      { quantity: '120', amount: '240.00' },
+      false,
+    )
+    await fixture.quantityMapping('purchase-return')
+    const { post, review } = await purchaseClients(db, fixture)
+    const original = fixture.purchase.payload as VouPayloadFor<'purchase-order'>
+    const lineId = ulid()
+    const capture: VouPriorFact = {
+      sourceClosed: true,
+      sourceInstanceId: 'fixture-closed',
+      sourceSchema: 'fixture',
+      sourceDocumentType: 'AD',
+      sourceDocumentKey: 'closed-order',
+      sourceDocumentNo: 'AD-CLOSED',
+      capturedAt: '2026-08-31T23:59:59.000Z',
+      snapshotDigest: 'd'.repeat(64),
+    }
+    async function save(
+      entity: 'purchase-order' | 'purchase-inbound' | 'purchase-return',
+      payload: unknown,
+    ) {
+      const documentId = ulid(),
+        submissionId = ulid()
+      const input = {
+        documentId,
+        submissionId,
+        idempotencyKey: submissionId,
+        expectedRevision: null,
+        payload,
+      }
+      const saved = await post(`/vou/${entity}/submit-new`, input)
+      assert.equal(saved.code, 0, JSON.stringify(saved))
+      assert.deepEqual(
+        (await post(`/vou/${entity}/submit-new`, input)).data,
+        saved.data,
+      )
+      const approved = await review(`/vou/${entity}/approve`, {
+        documentId,
+        submissionId,
+        expectedRevision: saved.data.revision,
+      })
+      assert.equal(approved.code, 0, JSON.stringify(approved))
+      assert.equal(approved.data.payload.priorFact.sourceClosed, true)
+      return approved.data
+    }
+    const payload = {
+      ...original,
+      businessDate: '2026-08-20',
+      priorFact: capture,
+      productLines: [
+        {
+          ...original.productLines[0]!,
+          lineId,
+          enteredQuantity: '100',
+          baseQuantity: '100',
+          unitPrice: '2.00',
+        },
+      ],
+    }
+    const { sourceClosed: _missing, ...unknownCapture } = capture
+    const unknownId = ulid(),
+      unknownSubmission = ulid()
+    const unknown = await post('/vou/purchase-order/submit-new', {
+      documentId: unknownId,
+      submissionId: unknownSubmission,
+      idempotencyKey: unknownSubmission,
+      expectedRevision: null,
+      payload: { ...payload, priorFact: unknownCapture },
+    })
+    assert.notEqual(unknown.code, 0)
+    const order = await save('purchase-order', payload)
+    assert.equal(order.payload.productLines[0].baseQuantity, '100.000000')
+    const base = {
+      currency: 'CNY',
+      attachments: [],
+      supplier: original.supplier,
+      warehouse: original.warehouse,
+      parentEntity: 'purchase-order',
+      parentDocumentId: order.documentId,
+    }
+    const receipt = await save('purchase-inbound', {
+      ...base,
+      businessDate: '2026-08-25',
+      priorFact: {
+        ...capture,
+        sourceDocumentType: 'AB',
+        sourceDocumentKey: 'receipt-60',
+        sourceDocumentNo: 'AB-60',
+      },
+      sourceLines: [
+        { sourceLineId: lineId, baseQuantity: '60', priorAmount: '120.00' },
+      ],
+    })
+    const candidates = () =>
+      post(
+        `/vou/purchase-inbound/source-lines?sourceDocumentId=${order.documentId}&page=1&pageSize=20`,
+        {},
+        'GET',
+      )
+    assert.equal((await candidates()).data.total, 0)
+    const historyCandidates = await post(
+      `/vou/purchase-inbound/source-lines?sourceDocumentId=${order.documentId}&page=1&pageSize=20&historical=true`,
+      {},
+      'GET',
+    )
+    assert.equal(historyCandidates.code, 0, JSON.stringify(historyCandidates))
+    assert.equal(
+      historyCandidates.data.items[0].sourceDocumentId,
+      order.documentId,
+    )
+    assert.equal(
+      historyCandidates.data.items[0].availableBaseQuantity,
+      '100.000000',
+    )
+    const documentsBefore = await db
+      .selectFrom('vou_documents')
+      .select('id')
+      .execute()
+    const ordinaryId = ulid(),
+      ordinarySubmission = ulid()
+    const ordinary = await post('/vou/purchase-inbound/submit-new', {
+      documentId: ordinaryId,
+      submissionId: ordinarySubmission,
+      idempotencyKey: ordinarySubmission,
+      expectedRevision: null,
+      payload: {
+        ...base,
+        businessDate: '2026-09-01',
+        sourceLines: [{ sourceLineId: lineId, baseQuantity: '40' }],
+      },
+    })
+    assert.equal(ordinary.errorKey, 'vou_prior_order_closed')
+    assert.equal(ordinary.data.blockers[0].objectId, order.documentId)
+    assert.equal(ordinary.data.blockers[0].entity, 'purchase-order')
+    assert.deepEqual(
+      await db.selectFrom('vou_documents').select('id').execute(),
+      documentsBefore,
+    )
+    // A closed order still adopts real over-receipt history instead of clipping it.
+    const excess = await save('purchase-inbound', {
+      ...base,
+      businessDate: '2026-08-26',
+      priorFact: {
+        ...capture,
+        sourceDocumentType: 'AB',
+        sourceDocumentKey: 'receipt-70',
+        sourceDocumentNo: 'AB-70',
+      },
+      sourceLines: [
+        { sourceLineId: lineId, baseQuantity: '70', priorAmount: '140.00' },
+      ],
+    })
+    const returned = await save('purchase-return', {
+      ...base,
+      businessDate: '2026-08-27',
+      returnReason: '真实此前退货',
+      priorFact: {
+        ...capture,
+        sourceDocumentType: 'AF',
+        sourceDocumentKey: 'return-10',
+        sourceDocumentNo: 'AF-10',
+      },
+      returnLines: [
+        {
+          sourceDocumentId: receipt.documentId,
+          sourceLineId: lineId,
+          baseQuantity: '10',
+          priorAmount: '20.00',
+        },
+      ],
+    })
+    assert.equal((await candidates()).data.total, 0)
+    const entries = await db
+      .selectFrom('acc_journal_entries')
+      .select('id')
+      .where('vou_approval_entry_id', 'in', [
+        order.submissionId,
+        receipt.submissionId,
+        excess.submissionId,
+        returned.submissionId,
+      ])
+      .execute()
+    assert.equal(entries.length, 0)
+    await fixture.openings.reviewOpening(
+      'approve',
+      {
+        bookId: fixture.book.id,
+        submissionId: fixture.opening.submissionId,
+        expectedRevision: fixture.opening.approval.revision,
+      },
+      fixture.reviewerActor,
+      'closed-prior-opening',
+    )
+    const refundId = ulid(),
+      refundSubmission = ulid()
+    const refund = await post('/vou/purchase-return/submit-new', {
+      documentId: refundId,
+      submissionId: refundSubmission,
+      idempotencyKey: refundSubmission,
+      expectedRevision: null,
+      payload: {
+        ...base,
+        businessDate: '2026-09-01',
+        returnReason: '截止后退回真实批次',
+        returnLines: [
+          {
+            sourceDocumentId: receipt.documentId,
+            sourceLineId: lineId,
+            baseQuantity: '50',
+          },
+        ],
+      },
+    })
+    assert.equal(refund.code, 0, JSON.stringify(refund))
+    const refundApproved = await review('/vou/purchase-return/approve', {
+      documentId: refundId,
+      submissionId: refundSubmission,
+      expectedRevision: refund.data.revision,
+    })
+    assert.equal(refundApproved.code, 0, JSON.stringify(refundApproved))
+    // Net receipts are now 70 against the original 100, but closure is unchanged.
+    assert.equal((await candidates()).data.total, 0)
+    const afterReturnId = ulid()
+    const afterReturn = await post('/vou/purchase-inbound/submit-new', {
+      documentId: ulid(),
+      submissionId: afterReturnId,
+      idempotencyKey: afterReturnId,
+      expectedRevision: null,
+      payload: {
+        ...base,
+        businessDate: '2026-09-02',
+        sourceLines: [{ sourceLineId: lineId, baseQuantity: '30' }],
+      },
+    })
+    assert.equal(afterReturn.errorKey, 'vou_prior_order_closed')
+    const read = await post('/vou/purchase-order/get', {
+      documentId: order.documentId,
+    })
+    assert.equal(read.data.payload.priorFact.sourceClosed, true)
+    assert.equal(read.data.payload.productLines[0].baseQuantity, '100.000000')
   })
 })

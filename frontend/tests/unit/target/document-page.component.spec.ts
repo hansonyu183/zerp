@@ -2250,6 +2250,7 @@ it('preserves agreed totals and six-place quotes in ordinary order inputs and cl
     ]
     if (entity === 'purchase-order')
       draft.priorFact = {
+        sourceClosed: true,
         sourceInstanceId: 'source',
         sourceSchema: 'source-schema',
         sourceDocumentType: 'AA',

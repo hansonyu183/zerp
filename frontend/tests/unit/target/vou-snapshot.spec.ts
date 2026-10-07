@@ -190,6 +190,7 @@ it('shows prior source identity and document types as complete Chinese facts', (
     props: {
       value: {
         priorFact: {
+          sourceClosed: true,
           sourceInstanceId: 'source',
           sourceSchema: 'db',
           sourceDocumentType: 'AB',
@@ -209,6 +210,7 @@ it('shows prior source identity and document types as complete Chinese facts', (
     },
   })
   expect(view.text()).toContain('此前事实')
+  expect(view.text()).toContain('源单已关闭')
   expect(view.text()).toContain('采购入库')
   expect(view.text()).toContain('batch-60')
   expect(view.text()).toContain('此前实际行金额')

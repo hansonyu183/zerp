@@ -134,7 +134,7 @@ test('public purchase carryover preserves 100/60/40, exact return batches and on
     const receiptId = ulid(),
       receiptEntry = ulid()
     const receiptPayload: VouPayloadFor<'purchase-inbound'> = {
-      businessDate: '2026-08-25',
+      businessDate: '2026-08-19',
       currency: 'CNY',
       attachments: [],
       supplier: original.supplier,
@@ -151,6 +151,19 @@ test('public purchase carryover preserves 100/60/40, exact return batches and on
         { sourceLineId: lineId, baseQuantity: '60', priorAmount: '101.01' },
       ],
     }
+    const earlyOrdinaryEntry = ulid()
+    const earlyOrdinary = await post('/vou/purchase-inbound/submit-new', {
+      documentId: ulid(),
+      submissionId: earlyOrdinaryEntry,
+      idempotencyKey: earlyOrdinaryEntry,
+      expectedRevision: null,
+      payload: {
+        ...receiptPayload,
+        priorFact: undefined,
+        sourceLines: [{ sourceLineId: lineId, baseQuantity: '1' }],
+      },
+    })
+    assert.equal(earlyOrdinary.errorKey, 'vou_parent_invalid')
     const mismatchEntry = ulid()
     const mismatch = await post('/vou/purchase-inbound/submit-new', {
       documentId: ulid(),
@@ -183,6 +196,11 @@ test('public purchase carryover preserves 100/60/40, exact return batches and on
       payload: receiptPayload,
     })
     assert.equal(receipt.code, 0, JSON.stringify(receipt))
+    assert.equal(
+      (await post('/vou/purchase-inbound/get', { documentId: receiptId })).data
+        .payload.businessDate,
+      '2026-08-19',
+    )
     const pendingOpening = await fixture.openings
       .reviewOpening(
         'approve',
@@ -210,6 +228,7 @@ test('public purchase carryover preserves 100/60/40, exact return batches and on
       expectedRevision: receipt.data.revision,
     })
     assert.equal(approvedReceipt.code, 0, JSON.stringify(approvedReceipt))
+    assert.equal(approvedReceipt.data.payload.businessDate, '2026-08-19')
     assert.equal(
       approvedReceipt.data.payload.sourceLines[0].priorAmount,
       '101.01',

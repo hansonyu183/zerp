@@ -174,7 +174,7 @@ export async function validatePurchaseReceipt(
   const root = order.rows[0]
   if (
     !root ||
-    payload.businessDate < root.business_date ||
+    (!payload.priorFact && payload.businessDate < root.business_date) ||
     payload.currency !== root.currency ||
     payload.supplier.objectId !== root.object_id ||
     payload.supplier.approvalEntryId !== root.adopted_approval_entry_id

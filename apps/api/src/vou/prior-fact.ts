@@ -1,4 +1,4 @@
-import { vouPriorDocumentTypes } from '@zerp/model'
+import { vouPriorDocumentTypes, canonicalVouPriorCutoff } from '@zerp/model'
 import { sql, type Kysely, type Transaction } from 'kysely'
 import type { VouEntity, VouPayload, VouPriorFact } from '@zerp/model'
 import type { DB } from '../db/generated.ts'
@@ -16,6 +16,11 @@ export async function readPriorFact(
   const row = await executor
     .selectFrom('vou_prior_facts')
     .selectAll()
+    .select(
+      sql<string>`to_char(captured_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`.as(
+        'captured_at_iso',
+      ),
+    )
     .where('approval_entry_id', '=', approvalEntryId)
     .executeTakeFirst()
   if (!row) return undefined
@@ -27,7 +32,7 @@ export async function readPriorFact(
       row.source_document_type as VouPriorFact['sourceDocumentType'],
     sourceDocumentKey: row.source_document_key,
     sourceDocumentNo: row.source_document_no,
-    capturedAt: new Date(row.captured_at).toISOString(),
+    capturedAt: row.captured_at_iso,
     snapshotDigest: row.snapshot_digest,
   } satisfies VouPriorFact
 }
@@ -45,10 +50,12 @@ export async function assertPriorFactEditable(tx: Transaction<DB>) {
 }
 
 function sameCapture(a: VouPriorFact, b: VouPriorFact) {
+  const cutoff = canonicalVouPriorCutoff(a.capturedAt)
   return (
+    cutoff !== undefined &&
     a.sourceInstanceId === b.sourceInstanceId &&
     a.sourceSchema === b.sourceSchema &&
-    Date.parse(a.capturedAt) === Date.parse(b.capturedAt) &&
+    cutoff === canonicalVouPriorCutoff(b.capturedAt) &&
     a.snapshotDigest === b.snapshotDigest
   )
 }
@@ -69,7 +76,7 @@ export async function validatePriorFact(
     typeof fact.sourceClosed !== 'boolean' ||
     !allowed.includes(fact.sourceDocumentType) ||
     !/^[0-9a-f]{64}$/.test(fact.snapshotDigest) ||
-    !Number.isFinite(Date.parse(fact.capturedAt)) ||
+    canonicalVouPriorCutoff(fact.capturedAt) === undefined ||
     payload.businessDate > fact.capturedAt.slice(0, 10) ||
     [
       fact.sourceInstanceId,
@@ -134,7 +141,7 @@ export async function writePriorFact(
       source_document_type: fact.sourceDocumentType,
       source_document_key: fact.sourceDocumentKey,
       source_document_no: fact.sourceDocumentNo,
-      captured_at: new Date(fact.capturedAt),
+      captured_at: fact.capturedAt,
       snapshot_digest: fact.snapshotDigest,
     })
     .execute()

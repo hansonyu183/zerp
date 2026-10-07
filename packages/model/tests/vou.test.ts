@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  canonicalVouPriorCutoff,
   prepareVouApproval,
   prepareVouSubmission,
   createVouDraftPayload,
@@ -880,5 +881,40 @@ test('sales refunds resolve the exact customer while receipts resolve the custom
   assert.equal(
     vouPayloadReferences('sales-receipt', payload)[0]?.candidateEntity,
     'customer',
+  )
+})
+
+test('prior cutoff keeps microseconds, normalizes equivalent UTC representations and rejects unsupported precision', () => {
+  assert.equal(
+    canonicalVouPriorCutoff({ toString: 'invalid' } as unknown as string),
+    undefined,
+  )
+  const real = '2026-10-07T05:26:54.644297Z'
+  assert.equal(canonicalVouPriorCutoff(real), real)
+  assert.notEqual(
+    canonicalVouPriorCutoff(real),
+    canonicalVouPriorCutoff('2026-10-07T05:26:54.644298Z'),
+  )
+  assert.notEqual(
+    canonicalVouPriorCutoff(real),
+    canonicalVouPriorCutoff('2026-10-07T05:26:54.644Z'),
+  )
+  for (const value of [
+    '2026-10-07T05:26:54Z',
+    '2026-10-07T05:26:54.0Z',
+    '2026-10-07T05:26:54.000000Z',
+  ])
+    assert.equal(canonicalVouPriorCutoff(value), '2026-10-07T05:26:54.000000Z')
+  assert.equal(
+    canonicalVouPriorCutoff('2026-10-07T05:26:54.6442977Z'),
+    undefined,
+  )
+  assert.equal(
+    canonicalVouPriorCutoff('2026-02-30T05:26:54.644297Z'),
+    undefined,
+  )
+  assert.equal(
+    canonicalVouPriorCutoff('2026-10-07T13:26:54.644297+08:00'),
+    undefined,
   )
 })

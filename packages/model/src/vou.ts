@@ -407,6 +407,22 @@ export const vouPriorSourceDocumentPresentation = {
 } as const
 
 /** A real pre-cutoff document adopted without replaying its business effects. */
+export const vouPriorCutoffPattern =
+  /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,6}))?Z$/
+/** Exact UTC instant at PostgreSQL/MySQL microsecond precision. */
+export function canonicalVouPriorCutoff(value: string): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const match = vouPriorCutoffPattern.exec(value)
+  if (!match) return undefined
+  const calendar = new Date(value)
+  if (
+    !Number.isFinite(calendar.getTime()) ||
+    calendar.toISOString().slice(0, 19) !== match[1]
+  )
+    return undefined
+  return `${match[1]}.${(match[2] ?? '').padEnd(6, '0')}Z`
+}
+
 export interface VouPriorFact {
   sourceClosed: boolean
   sourceInstanceId: string
@@ -1190,8 +1206,7 @@ function canonicalPayload<Entity extends VouEntity>(
         prior.sourceDocumentNo,
       ].every(text) ||
       !/^[0-9a-f]{64}$/.test(prior.snapshotDigest) ||
-      !/^\d{4}-\d{2}-\d{2}T.*Z$/.test(prior.capturedAt) ||
-      !Number.isFinite(Date.parse(prior.capturedAt)) ||
+      canonicalVouPriorCutoff(prior.capturedAt) === undefined ||
       !Object.keys(prior).every((key) =>
         [
           'sourceClosed',

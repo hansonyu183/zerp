@@ -109,6 +109,17 @@ const attachment = z
     stagingId: z.string().length(26),
   })
   .strict()
+const priorFact = z
+  .object({
+    sourceInstanceId: z.string().min(1).max(128),
+    sourceSchema: z.string().min(1).max(64),
+    sourceDocumentType: z.enum(['AA', 'AD', 'AB', 'AF']),
+    sourceDocumentKey: z.string().min(1).max(128),
+    sourceDocumentNo: z.string().min(1).max(200),
+    capturedAt: z.string().datetime(),
+    snapshotDigest: z.string().regex(/^[0-9a-f]{64}$/),
+  })
+  .strict()
 const basePayload = {
   businessDate: z.string().date(),
   currency: z.string().regex(/^[A-Z]{3}$/),
@@ -213,6 +224,22 @@ const sourceLine = z
   .strict()
 const returnLine = sourceLine
   .extend({ sourceDocumentId: z.string().length(26) })
+  .strict()
+const priorSourceLine = sourceLine
+  .extend({
+    priorAmount: z
+      .string()
+      .regex(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/)
+      .optional(),
+  })
+  .strict()
+const priorReturnLine = returnLine
+  .extend({
+    priorAmount: z
+      .string()
+      .regex(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/)
+      .optional(),
+  })
   .strict()
 const signoffLine = z
   .object({
@@ -579,21 +606,24 @@ export const vouPayloadSchemaByEntity = {
     priceLines: z.array(priceLine).min(1).max(200),
   }),
   'purchase-order': payload({
+    priorFact: priorFact.optional(),
     supplier: versionedReference,
     purchaser: employeeReference.optional(),
     warehouse: warehouseReference,
     productLines: z.array(validProductLine).min(1).max(200),
   }),
   'purchase-inbound': payload({
+    priorFact: priorFact.optional(),
     supplier: versionedReference,
     warehouse: warehouseReference,
-    sourceLines: z.array(sourceLine).min(1).max(200),
+    sourceLines: z.array(priorSourceLine).min(1).max(200),
   }),
   'purchase-return': payload({
+    priorFact: priorFact.optional(),
     supplier: versionedReference,
     warehouse: warehouseReference,
     returnReason: z.string().min(1).max(1000),
-    returnLines: z.array(returnLine).min(1).max(200),
+    returnLines: z.array(priorReturnLine).min(1).max(200),
   }),
   'order-production': payload({
     currency: z.literal(''),

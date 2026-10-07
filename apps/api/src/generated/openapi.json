@@ -101253,6 +101253,58 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AF"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "supplier": {
                                       "type": "object",
                                       "properties": {
@@ -101961,6 +102013,58 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AF"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "supplier": {
                                       "type": "object",
                                       "properties": {
@@ -102086,6 +102190,10 @@
                                           "remark": {
                                             "type": "string",
                                             "maxLength": 1000
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -102222,6 +102330,58 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AF"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "supplier": {
                                       "type": "object",
                                       "properties": {
@@ -102357,6 +102517,10 @@
                                             "type": "string",
                                             "minLength": 26,
                                             "maxLength": 26
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -122889,6 +123053,58 @@
                             "minLength": 26,
                             "maxLength": 26
                           },
+                          "priorFact": {
+                            "type": "object",
+                            "properties": {
+                              "sourceInstanceId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceSchema": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "sourceDocumentType": {
+                                "type": "string",
+                                "enum": [
+                                  "AA",
+                                  "AD",
+                                  "AB",
+                                  "AF"
+                                ]
+                              },
+                              "sourceDocumentKey": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceDocumentNo": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "capturedAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "snapshotDigest": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              }
+                            },
+                            "required": [
+                              "sourceInstanceId",
+                              "sourceSchema",
+                              "sourceDocumentType",
+                              "sourceDocumentKey",
+                              "sourceDocumentNo",
+                              "capturedAt",
+                              "snapshotDigest"
+                            ],
+                            "additionalProperties": false
+                          },
                           "supplier": {
                             "type": "object",
                             "properties": {
@@ -123597,6 +123813,58 @@
                             "minLength": 26,
                             "maxLength": 26
                           },
+                          "priorFact": {
+                            "type": "object",
+                            "properties": {
+                              "sourceInstanceId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceSchema": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "sourceDocumentType": {
+                                "type": "string",
+                                "enum": [
+                                  "AA",
+                                  "AD",
+                                  "AB",
+                                  "AF"
+                                ]
+                              },
+                              "sourceDocumentKey": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceDocumentNo": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "capturedAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "snapshotDigest": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              }
+                            },
+                            "required": [
+                              "sourceInstanceId",
+                              "sourceSchema",
+                              "sourceDocumentType",
+                              "sourceDocumentKey",
+                              "sourceDocumentNo",
+                              "capturedAt",
+                              "snapshotDigest"
+                            ],
+                            "additionalProperties": false
+                          },
                           "supplier": {
                             "type": "object",
                             "properties": {
@@ -123722,6 +123990,10 @@
                                 "remark": {
                                   "type": "string",
                                   "maxLength": 1000
+                                },
+                                "priorAmount": {
+                                  "type": "string",
+                                  "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                 }
                               },
                               "required": [
@@ -123858,6 +124130,58 @@
                             "minLength": 26,
                             "maxLength": 26
                           },
+                          "priorFact": {
+                            "type": "object",
+                            "properties": {
+                              "sourceInstanceId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceSchema": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "sourceDocumentType": {
+                                "type": "string",
+                                "enum": [
+                                  "AA",
+                                  "AD",
+                                  "AB",
+                                  "AF"
+                                ]
+                              },
+                              "sourceDocumentKey": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceDocumentNo": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "capturedAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "snapshotDigest": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              }
+                            },
+                            "required": [
+                              "sourceInstanceId",
+                              "sourceSchema",
+                              "sourceDocumentType",
+                              "sourceDocumentKey",
+                              "sourceDocumentNo",
+                              "capturedAt",
+                              "snapshotDigest"
+                            ],
+                            "additionalProperties": false
+                          },
                           "supplier": {
                             "type": "object",
                             "properties": {
@@ -123993,6 +124317,10 @@
                                   "type": "string",
                                   "minLength": 26,
                                   "maxLength": 26
+                                },
+                                "priorAmount": {
+                                  "type": "string",
+                                  "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                 }
                               },
                               "required": [
@@ -144277,6 +144605,58 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AF"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "supplier": {
                                       "type": "object",
                                       "properties": {
@@ -144985,6 +145365,58 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AF"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "supplier": {
                                       "type": "object",
                                       "properties": {
@@ -145110,6 +145542,10 @@
                                           "remark": {
                                             "type": "string",
                                             "maxLength": 1000
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -145246,6 +145682,58 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AF"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "supplier": {
                                       "type": "object",
                                       "properties": {
@@ -145381,6 +145869,10 @@
                                             "type": "string",
                                             "minLength": 26,
                                             "maxLength": 26
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -165678,6 +166170,58 @@
                             "minLength": 26,
                             "maxLength": 26
                           },
+                          "priorFact": {
+                            "type": "object",
+                            "properties": {
+                              "sourceInstanceId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceSchema": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "sourceDocumentType": {
+                                "type": "string",
+                                "enum": [
+                                  "AA",
+                                  "AD",
+                                  "AB",
+                                  "AF"
+                                ]
+                              },
+                              "sourceDocumentKey": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceDocumentNo": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "capturedAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "snapshotDigest": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              }
+                            },
+                            "required": [
+                              "sourceInstanceId",
+                              "sourceSchema",
+                              "sourceDocumentType",
+                              "sourceDocumentKey",
+                              "sourceDocumentNo",
+                              "capturedAt",
+                              "snapshotDigest"
+                            ],
+                            "additionalProperties": false
+                          },
                           "supplier": {
                             "type": "object",
                             "properties": {
@@ -166386,6 +166930,58 @@
                             "minLength": 26,
                             "maxLength": 26
                           },
+                          "priorFact": {
+                            "type": "object",
+                            "properties": {
+                              "sourceInstanceId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceSchema": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "sourceDocumentType": {
+                                "type": "string",
+                                "enum": [
+                                  "AA",
+                                  "AD",
+                                  "AB",
+                                  "AF"
+                                ]
+                              },
+                              "sourceDocumentKey": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceDocumentNo": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "capturedAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "snapshotDigest": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              }
+                            },
+                            "required": [
+                              "sourceInstanceId",
+                              "sourceSchema",
+                              "sourceDocumentType",
+                              "sourceDocumentKey",
+                              "sourceDocumentNo",
+                              "capturedAt",
+                              "snapshotDigest"
+                            ],
+                            "additionalProperties": false
+                          },
                           "supplier": {
                             "type": "object",
                             "properties": {
@@ -166511,6 +167107,10 @@
                                 "remark": {
                                   "type": "string",
                                   "maxLength": 1000
+                                },
+                                "priorAmount": {
+                                  "type": "string",
+                                  "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                 }
                               },
                               "required": [
@@ -166647,6 +167247,58 @@
                             "minLength": 26,
                             "maxLength": 26
                           },
+                          "priorFact": {
+                            "type": "object",
+                            "properties": {
+                              "sourceInstanceId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceSchema": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "sourceDocumentType": {
+                                "type": "string",
+                                "enum": [
+                                  "AA",
+                                  "AD",
+                                  "AB",
+                                  "AF"
+                                ]
+                              },
+                              "sourceDocumentKey": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceDocumentNo": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "capturedAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "snapshotDigest": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              }
+                            },
+                            "required": [
+                              "sourceInstanceId",
+                              "sourceSchema",
+                              "sourceDocumentType",
+                              "sourceDocumentKey",
+                              "sourceDocumentNo",
+                              "capturedAt",
+                              "snapshotDigest"
+                            ],
+                            "additionalProperties": false
+                          },
                           "supplier": {
                             "type": "object",
                             "properties": {
@@ -166782,6 +167434,10 @@
                                   "type": "string",
                                   "minLength": 26,
                                   "maxLength": 26
+                                },
+                                "priorAmount": {
+                                  "type": "string",
+                                  "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                 }
                               },
                               "required": [
@@ -187066,6 +187722,58 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AF"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "supplier": {
                                       "type": "object",
                                       "properties": {
@@ -187774,6 +188482,58 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AF"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "supplier": {
                                       "type": "object",
                                       "properties": {
@@ -187899,6 +188659,10 @@
                                           "remark": {
                                             "type": "string",
                                             "maxLength": 1000
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -188035,6 +188799,58 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AF"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "supplier": {
                                       "type": "object",
                                       "properties": {
@@ -188170,6 +188986,10 @@
                                             "type": "string",
                                             "minLength": 26,
                                             "maxLength": 26
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -208611,6 +209431,58 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AF"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "supplier": {
                                       "type": "object",
                                       "properties": {
@@ -209319,6 +210191,58 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AF"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "supplier": {
                                       "type": "object",
                                       "properties": {
@@ -209444,6 +210368,10 @@
                                           "remark": {
                                             "type": "string",
                                             "maxLength": 1000
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -209580,6 +210508,58 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AF"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "supplier": {
                                       "type": "object",
                                       "properties": {
@@ -209715,6 +210695,10 @@
                                             "type": "string",
                                             "minLength": 26,
                                             "maxLength": 26
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -230162,6 +231146,58 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AF"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "supplier": {
                                       "type": "object",
                                       "properties": {
@@ -230870,6 +231906,58 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AF"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "supplier": {
                                       "type": "object",
                                       "properties": {
@@ -230995,6 +232083,10 @@
                                           "remark": {
                                             "type": "string",
                                             "maxLength": 1000
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -231131,6 +232223,58 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AF"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "supplier": {
                                       "type": "object",
                                       "properties": {
@@ -231266,6 +232410,10 @@
                                             "type": "string",
                                             "minLength": 26,
                                             "maxLength": 26
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -251707,6 +252855,58 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AF"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "supplier": {
                                       "type": "object",
                                       "properties": {
@@ -252415,6 +253615,58 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AF"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "supplier": {
                                       "type": "object",
                                       "properties": {
@@ -252540,6 +253792,10 @@
                                           "remark": {
                                             "type": "string",
                                             "maxLength": 1000
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -252676,6 +253932,58 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AF"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "supplier": {
                                       "type": "object",
                                       "properties": {
@@ -252811,6 +254119,10 @@
                                             "type": "string",
                                             "minLength": 26,
                                             "maxLength": 26
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -273258,6 +274570,58 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AF"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "supplier": {
                                       "type": "object",
                                       "properties": {
@@ -273966,6 +275330,58 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AF"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "supplier": {
                                       "type": "object",
                                       "properties": {
@@ -274091,6 +275507,10 @@
                                           "remark": {
                                             "type": "string",
                                             "maxLength": 1000
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -274227,6 +275647,58 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AF"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "supplier": {
                                       "type": "object",
                                       "properties": {
@@ -274362,6 +275834,10 @@
                                             "type": "string",
                                             "minLength": 26,
                                             "maxLength": 26
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [

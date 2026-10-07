@@ -2248,12 +2248,27 @@ it('preserves agreed totals and six-place quotes in ordinary order inputs and cl
         containerType: '',
       },
     ]
+    if (entity === 'purchase-order')
+      draft.priorFact = {
+        sourceInstanceId: 'source',
+        sourceSchema: 'source-schema',
+        sourceDocumentType: 'AA',
+        sourceDocumentKey: 'old-order',
+        sourceDocumentNo: 'AA-OLD',
+        capturedAt: '2026-08-31T23:59:59.000Z',
+        snapshotDigest: 'a'.repeat(64),
+      }
     const payload = orderPayload(draft)
     expect(payload.productLines[0]!.agreedAmount).toBe('7379.88')
     expect(payload.productLines[0]!.unitPrice).toBe('5.430123')
     const clone = cloneOrder(entity, payload, [productId])
     expect(clone.lines[0]!.agreedAmount).toBe('7379.88')
     expect(clone.lines[0]!.unitPrice).toBe('5.430123')
+    expect(clone.priorFact).toBeUndefined()
+    if (entity === 'purchase-order')
+      expect('priorFact' in payload && payload.priorFact).toEqual(
+        draft.priorFact,
+      )
     draft.lines[0]!.agreedAmount = ''
     expect(() => orderPayload(draft)).toThrow('单价计价最多两位')
   }

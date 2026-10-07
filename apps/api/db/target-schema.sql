@@ -740,6 +740,19 @@ CREATE TABLE vou_documents (
 );
 CREATE INDEX vou_documents_entity_number_idx ON vou_documents(entity, document_no);
 
+CREATE TABLE vou_prior_facts (
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    source_instance_id varchar(128) NOT NULL,
+    source_schema varchar(64) NOT NULL,
+    source_document_type varchar(2) NOT NULL CHECK (source_document_type IN ('AA', 'AD', 'AB', 'AF')),
+    source_document_key varchar(128) NOT NULL,
+    source_document_no varchar(200) NOT NULL,
+    captured_at timestamptz NOT NULL,
+    snapshot_digest char(64) NOT NULL,
+    UNIQUE (source_instance_id, source_schema, source_document_type, source_document_key)
+);
+
+
 -- Each VOU entity owns a distinct header.  Rich wire data is decomposed into
 -- typed business-family child relations below; VOU has no JSON payload store.
 CREATE TABLE vou_sale_pricing_details (
@@ -1347,6 +1360,7 @@ CREATE TABLE vou_source_line_snapshots (
     line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
     source_line_id varchar(128) NOT NULL,
     base_quantity_micros bigint NOT NULL,
+    prior_amount_minor bigint CHECK (prior_amount_minor >= 0),
     remark text,
     PRIMARY KEY (approval_entry_id, line_no)
 );
@@ -1367,8 +1381,17 @@ CREATE TABLE vou_return_line_snapshots (
     source_document_id varchar(26) NOT NULL REFERENCES vou_documents(id) ON DELETE RESTRICT,
     source_line_id varchar(128) NOT NULL,
     base_quantity_micros bigint NOT NULL,
+    allocation_sequence bigint CHECK (allocation_sequence > 0),
+    prior_amount_minor bigint CHECK (prior_amount_minor >= 0),
     remark text,
     PRIMARY KEY (approval_entry_id, line_no)
+);
+
+CREATE TABLE vou_return_allocation_counters (
+    source_document_id varchar(26) NOT NULL REFERENCES vou_documents(id) ON DELETE RESTRICT,
+    source_line_id varchar(128) NOT NULL,
+    last_value bigint NOT NULL CHECK (last_value > 0),
+    PRIMARY KEY (source_document_id, source_line_id)
 );
 
 CREATE TABLE vou_expense_line_snapshots (

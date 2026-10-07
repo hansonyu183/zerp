@@ -7,6 +7,7 @@ const props = defineProps<{
   modelValue: Line
   entity: FulfillmentDraft['entity']
   disabled: boolean
+  historical?: boolean
 }>()
 const emit = defineEmits<{ 'update:modelValue': [value: Line] }>()
 function update(value: Partial<Line>) {
@@ -21,6 +22,21 @@ function update(value: Partial<Line>) {
       :model-value="modelValue.source"
       :disabled="disabled"
       @update:model-value="update({ source: $event })"
+    />
+    <FormBlock
+      v-if="historical"
+      :fields="[
+        {
+          key: 'priorAmount',
+          type: 'decimal',
+          scale: 2,
+          caption: '此前实际行金额',
+          required: true,
+        },
+      ]"
+      :model-value="modelValue"
+      :disabled="disabled"
+      @update:model-value="update"
     />
     <FormBlock
       :fields="[

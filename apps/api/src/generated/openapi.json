@@ -102190,6 +102190,10 @@
                                           "remark": {
                                             "type": "string",
                                             "maxLength": 1000
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -102513,6 +102517,10 @@
                                             "type": "string",
                                             "minLength": 26,
                                             "maxLength": 26
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -123982,6 +123990,10 @@
                                 "remark": {
                                   "type": "string",
                                   "maxLength": 1000
+                                },
+                                "priorAmount": {
+                                  "type": "string",
+                                  "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                 }
                               },
                               "required": [
@@ -124305,6 +124317,10 @@
                                   "type": "string",
                                   "minLength": 26,
                                   "maxLength": 26
+                                },
+                                "priorAmount": {
+                                  "type": "string",
+                                  "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                 }
                               },
                               "required": [
@@ -145526,6 +145542,10 @@
                                           "remark": {
                                             "type": "string",
                                             "maxLength": 1000
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -145849,6 +145869,10 @@
                                             "type": "string",
                                             "minLength": 26,
                                             "maxLength": 26
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -167083,6 +167107,10 @@
                                 "remark": {
                                   "type": "string",
                                   "maxLength": 1000
+                                },
+                                "priorAmount": {
+                                  "type": "string",
+                                  "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                 }
                               },
                               "required": [
@@ -167406,6 +167434,10 @@
                                   "type": "string",
                                   "minLength": 26,
                                   "maxLength": 26
+                                },
+                                "priorAmount": {
+                                  "type": "string",
+                                  "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                 }
                               },
                               "required": [
@@ -188627,6 +188659,10 @@
                                           "remark": {
                                             "type": "string",
                                             "maxLength": 1000
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -188950,6 +188986,10 @@
                                             "type": "string",
                                             "minLength": 26,
                                             "maxLength": 26
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -210328,6 +210368,10 @@
                                           "remark": {
                                             "type": "string",
                                             "maxLength": 1000
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -210651,6 +210695,10 @@
                                             "type": "string",
                                             "minLength": 26,
                                             "maxLength": 26
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -232035,6 +232083,10 @@
                                           "remark": {
                                             "type": "string",
                                             "maxLength": 1000
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -232358,6 +232410,10 @@
                                             "type": "string",
                                             "minLength": 26,
                                             "maxLength": 26
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -253736,6 +253792,10 @@
                                           "remark": {
                                             "type": "string",
                                             "maxLength": 1000
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -254059,6 +254119,10 @@
                                             "type": "string",
                                             "minLength": 26,
                                             "maxLength": 26
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -275443,6 +275507,10 @@
                                           "remark": {
                                             "type": "string",
                                             "maxLength": 1000
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [
@@ -275766,6 +275834,10 @@
                                             "type": "string",
                                             "minLength": 26,
                                             "maxLength": 26
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           }
                                         },
                                         "required": [

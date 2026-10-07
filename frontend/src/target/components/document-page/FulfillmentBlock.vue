@@ -82,6 +82,7 @@ const fields = [
       ><FulfillmentLineEditor
         :model-value="value"
         :entity="modelValue.entity"
+        :historical="Boolean(modelValue.priorFact)"
         :disabled="locked"
         @update:model-value="updateLine"
     /></template>
@@ -89,6 +90,7 @@ const fields = [
       ><FulfillmentLineEditor
         :model-value="value"
         :entity="modelValue.entity"
+        :historical="Boolean(modelValue.priorFact)"
         disabled
     /></template>
   </CollectionBlock>

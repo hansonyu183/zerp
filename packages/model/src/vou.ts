@@ -393,6 +393,12 @@ export interface VouBillCashLineInput {
   remark?: string
 }
 
+export const vouPriorDocumentTypes = {
+  'purchase-order': ['AA', 'AD'],
+  'purchase-inbound': ['AB'],
+  'purchase-return': ['AF'],
+} as const
+
 export const vouPriorSourceDocumentPresentation = {
   AA: { label: '采购订单' },
   AD: { label: '采购订单（其他）' },
@@ -434,6 +440,7 @@ type AmountPayload = VouPayloadBase & {
 type SourcePayload = VouPayloadBase & {
   sourceLines: readonly {
     sourceLineId: string
+    priorAmount?: string
     baseQuantity: string
     remark?: string
   }[]
@@ -638,6 +645,7 @@ export interface VouPayloadShapes {
     returnLines: readonly {
       sourceDocumentId: string
       sourceLineId: string
+      priorAmount?: string
       baseQuantity: string
       remark?: string
     }[]
@@ -1166,14 +1174,10 @@ function canonicalPayload<Entity extends VouEntity>(
     return undefined
   if ('priorFact' in value && value.priorFact !== undefined) {
     const prior = value.priorFact
-    const types =
-      entity === 'purchase-order'
-        ? ['AA', 'AD']
-        : entity === 'purchase-inbound'
-          ? ['AB']
-          : entity === 'purchase-return'
-            ? ['AF']
-            : []
+    const types: readonly string[] =
+      entity in vouPriorDocumentTypes
+        ? vouPriorDocumentTypes[entity as keyof typeof vouPriorDocumentTypes]
+        : []
     if (
       !prior ||
       !types.includes(prior.sourceDocumentType) ||
@@ -1196,6 +1200,25 @@ function canonicalPayload<Entity extends VouEntity>(
           'capturedAt',
           'snapshotDigest',
         ].includes(key),
+      )
+    )
+      return undefined
+  }
+  if (
+    'sourceLines' in value ||
+    (entity === 'purchase-return' && 'returnLines' in value)
+  ) {
+    const lines =
+      'sourceLines' in value
+        ? value.sourceLines
+        : (value as VouPayloadShapes['purchase-return']).returnLines
+    const historical = 'priorFact' in value && value.priorFact !== undefined
+    if (
+      lines.some((line) =>
+        historical
+          ? line.priorAmount === undefined ||
+            !/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(line.priorAmount)
+          : line.priorAmount !== undefined,
       )
     )
       return undefined

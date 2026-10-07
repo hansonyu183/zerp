@@ -195,6 +195,7 @@ it('shows prior source identity and document types as complete Chinese facts', (
           sourceDocumentType: 'AB',
           sourceDocumentKey: 'batch-60',
           sourceDocumentNo: 'AB-60',
+          priorAmount: '101.01',
           capturedAt: '2026-08-31T23:59:59.000Z',
           snapshotDigest: 'a'.repeat(64),
         },
@@ -204,6 +205,8 @@ it('shows prior source identity and document types as complete Chinese facts', (
   expect(view.text()).toContain('此前事实')
   expect(view.text()).toContain('采购入库')
   expect(view.text()).toContain('batch-60')
+  expect(view.text()).toContain('此前实际行金额')
+  expect(view.text()).toContain('101.01')
   expect(view.text()).toContain('2026-08-31T23:59:59.000Z')
   expect(view.text()).not.toContain('未登记字段')
 })

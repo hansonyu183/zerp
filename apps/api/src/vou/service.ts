@@ -400,6 +400,24 @@ function fixedDecimal(value: bigint, scale = 8): string {
 }
 
 function payloadAmountMinor(payload: VouPayload): bigint {
+  if (priorFact(payload) && !('productLines' in payload)) {
+    const lines =
+      'sourceLines' in payload
+        ? payload.sourceLines
+        : 'returnLines' in payload
+          ? payload.returnLines
+          : []
+    return lines.reduce(
+      (sum, line) =>
+        sum +
+        (decimalToFixed(
+          ('priorAmount' in line ? line.priorAmount : undefined) ?? '0',
+          2,
+        ) ?? 0n),
+      0n,
+    )
+  }
+
   if ('invoiceLines' in payload)
     return payload.invoiceLines.reduce(
       (sum, line) => sum + (decimalToFixed(line.amount, 2) ?? 0n),
@@ -1300,6 +1318,16 @@ export class VouService implements WflVouPort {
         tx,
         input.documentId,
         persistedPayload as VouPayloadFor<'purchase-inbound'>,
+      )
+    if (
+      (action === 'approve' || action === 'unreject') &&
+      entity === 'purchase-return'
+    )
+      await this.validateReturnSources(
+        tx,
+        entity,
+        input.documentId,
+        persistedPayload,
       )
     if (action === 'approve' && 'intermediaryCalculation' in persistedPayload)
       await validateIntermediaryCalculation(
@@ -3635,6 +3663,14 @@ export class VouService implements WflVouPort {
       )
       if (payload.businessDate < header.businessDate)
         throw new VouApplicationError('vou_source_line_unavailable')
+      const capture = await readPriorFact(transaction, source.id)
+      if (
+        entity === 'purchase-return' &&
+        !priorFact(payload) &&
+        capture &&
+        payload.businessDate < capture.capturedAt.slice(0, 10)
+      )
+        throw new VouApplicationError('vou_prior_fact_invalid')
       const rootDocumentId = await this.vouRootDocument(
         transaction,
         sourceEntity,
@@ -4176,14 +4212,15 @@ export class VouService implements WflVouPort {
     approvalEntryId: string,
     lines: readonly {
       sourceLineId: string
+      priorAmount?: string
       baseQuantity: string
       remark?: string
     }[],
   ) {
     for (const [index, line] of lines.entries())
       await sql`
-        INSERT INTO vou_source_line_snapshots (approval_entry_id, line_no, source_line_id, base_quantity_micros, remark)
-        VALUES (${approvalEntryId}, ${index + 1}, ${line.sourceLineId}, ${decimalToFixed(line.baseQuantity, 6)!}, ${line.remark ?? null})
+        INSERT INTO vou_source_line_snapshots (approval_entry_id, line_no, source_line_id, base_quantity_micros, prior_amount_minor, remark)
+        VALUES (${approvalEntryId}, ${index + 1}, ${line.sourceLineId}, ${decimalToFixed(line.baseQuantity, 6)!}, ${line.priorAmount === undefined ? null : decimalToFixed(line.priorAmount, 2)!}, ${line.remark ?? null})
       `.execute(transaction)
   }
 
@@ -4193,14 +4230,15 @@ export class VouService implements WflVouPort {
     lines: readonly {
       sourceDocumentId: string
       sourceLineId: string
+      priorAmount?: string
       baseQuantity: string
       remark?: string
     }[],
   ) {
     for (const [index, line] of lines.entries())
       await sql`
-        INSERT INTO vou_return_line_snapshots (approval_entry_id, line_no, source_document_id, source_line_id, base_quantity_micros, remark)
-        VALUES (${approvalEntryId}, ${index + 1}, ${line.sourceDocumentId}, ${line.sourceLineId}, ${decimalToFixed(line.baseQuantity, 6)!}, ${line.remark ?? null})
+        INSERT INTO vou_return_line_snapshots (approval_entry_id, line_no, source_document_id, source_line_id, base_quantity_micros, prior_amount_minor, remark)
+        VALUES (${approvalEntryId}, ${index + 1}, ${line.sourceDocumentId}, ${line.sourceLineId}, ${decimalToFixed(line.baseQuantity, 6)!}, ${line.priorAmount === undefined ? null : decimalToFixed(line.priorAmount, 2)!}, ${line.remark ?? null})
       `.execute(transaction)
   }
 
@@ -5156,6 +5194,7 @@ export class VouService implements WflVouPort {
     ) {
       const sourceLines = await rows<{
         source_line_id: string
+        prior_amount_minor: string | null
         base_quantity_micros: string
         remark: string | null
       }>('vou_source_line_snapshots')
@@ -5176,6 +5215,9 @@ export class VouService implements WflVouPort {
         sourceLines: sourceLines.map((line) => ({
           sourceLineId: line.source_line_id,
           baseQuantity: fixed(line.base_quantity_micros, 6),
+          ...(line.prior_amount_minor !== null
+            ? { priorAmount: fixed(line.prior_amount_minor, 2) }
+            : {}),
           ...(line.remark ? { remark: line.remark } : {}),
         })),
       } as VouPayload
@@ -5231,6 +5273,7 @@ export class VouService implements WflVouPort {
       const lines = await rows<{
         source_document_id: string
         source_line_id: string
+        prior_amount_minor: string | null
         base_quantity_micros: string
         remark: string | null
       }>('vou_return_line_snapshots')
@@ -5247,6 +5290,9 @@ export class VouService implements WflVouPort {
           sourceDocumentId: line.source_document_id,
           sourceLineId: line.source_line_id,
           baseQuantity: fixed(line.base_quantity_micros, 6),
+          ...(line.prior_amount_minor !== null
+            ? { priorAmount: fixed(line.prior_amount_minor, 2) }
+            : {}),
           ...(line.remark ? { remark: line.remark } : {}),
         })),
       } as unknown as VouPayload
@@ -6207,6 +6253,13 @@ export class VouService implements WflVouPort {
       executor,
     )
     rows.push(invoices.rows.map((row) => ({ entity: 'invoice', ...row })))
+    const returns = await sql<{ document_id: string; entity: string }>`
+      SELECT DISTINCT entry.subject_id AS document_id, entry.entity
+      FROM vou_return_line_snapshots line JOIN approval_entries entry ON entry.id = line.approval_entry_id
+      WHERE line.source_document_id = ${documentId} AND entry.status IN ('PENDING','APPROVED')
+    `.execute(executor)
+    rows.push(returns.rows)
+
     return rows.flat().map((row) => ({
       kind: 'DOWNSTREAM_DOCUMENT' as const,
       id: row.document_id,

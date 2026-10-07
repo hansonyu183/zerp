@@ -1526,6 +1526,7 @@ export interface VouReturnLineSnapshots {
   approval_entry_id: string
   base_quantity_micros: Int8
   line_no: number
+  prior_amount_minor: Int8 | null
   remark: string | null
   source_document_id: string
   source_line_id: string
@@ -1707,6 +1708,7 @@ export interface VouSourceLineSnapshots {
   approval_entry_id: string
   base_quantity_micros: Int8
   line_no: number
+  prior_amount_minor: Int8 | null
   remark: string | null
   source_line_id: string
 }

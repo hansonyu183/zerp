@@ -19,6 +19,7 @@ export type FulfillmentDraft = {
   lines: {
     id: string
     source: SourceLineChoice | null
+    priorAmount?: string
     baseQuantity: string
     remark: string
   }[]
@@ -57,6 +58,7 @@ export function fulfillmentPayload(
       throw new Error(`第 ${index + 1} 行：填写正数基准数量，最多六位小数。`)
     return {
       source: line.source,
+      ...(draft.priorFact ? { priorAmount: line.priorAmount ?? '' } : {}),
       baseQuantity: line.baseQuantity,
       remark: line.remark,
     }

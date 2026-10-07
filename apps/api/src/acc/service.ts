@@ -836,6 +836,7 @@ export class AccService
             tx,
             plan.entity,
             accountingPayload,
+            plan.documentId,
           ),
         }
       }

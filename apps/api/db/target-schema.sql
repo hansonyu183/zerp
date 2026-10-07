@@ -1360,6 +1360,7 @@ CREATE TABLE vou_source_line_snapshots (
     line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
     source_line_id varchar(128) NOT NULL,
     base_quantity_micros bigint NOT NULL,
+    prior_amount_minor bigint CHECK (prior_amount_minor >= 0),
     remark text,
     PRIMARY KEY (approval_entry_id, line_no)
 );
@@ -1380,6 +1381,7 @@ CREATE TABLE vou_return_line_snapshots (
     source_document_id varchar(26) NOT NULL REFERENCES vou_documents(id) ON DELETE RESTRICT,
     source_line_id varchar(128) NOT NULL,
     base_quantity_micros bigint NOT NULL,
+    prior_amount_minor bigint CHECK (prior_amount_minor >= 0),
     remark text,
     PRIMARY KEY (approval_entry_id, line_no)
 );

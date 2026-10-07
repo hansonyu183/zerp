@@ -225,6 +225,22 @@ const sourceLine = z
 const returnLine = sourceLine
   .extend({ sourceDocumentId: z.string().length(26) })
   .strict()
+const priorSourceLine = sourceLine
+  .extend({
+    priorAmount: z
+      .string()
+      .regex(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/)
+      .optional(),
+  })
+  .strict()
+const priorReturnLine = returnLine
+  .extend({
+    priorAmount: z
+      .string()
+      .regex(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/)
+      .optional(),
+  })
+  .strict()
 const signoffLine = z
   .object({
     sourceLineId: z.string().min(1),
@@ -600,14 +616,14 @@ export const vouPayloadSchemaByEntity = {
     priorFact: priorFact.optional(),
     supplier: versionedReference,
     warehouse: warehouseReference,
-    sourceLines: z.array(sourceLine).min(1).max(200),
+    sourceLines: z.array(priorSourceLine).min(1).max(200),
   }),
   'purchase-return': payload({
     priorFact: priorFact.optional(),
     supplier: versionedReference,
     warehouse: warehouseReference,
     returnReason: z.string().min(1).max(1000),
-    returnLines: z.array(returnLine).min(1).max(200),
+    returnLines: z.array(priorReturnLine).min(1).max(200),
   }),
   'order-production': payload({
     currency: z.literal(''),

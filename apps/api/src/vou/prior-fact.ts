@@ -1,3 +1,4 @@
+import { vouPriorDocumentTypes } from '@zerp/model'
 import { sql, type Kysely, type Transaction } from 'kysely'
 import type { VouEntity, VouPayload, VouPriorFact } from '@zerp/model'
 import type { DB } from '../db/generated.ts'
@@ -59,14 +60,10 @@ export async function validatePriorFact(
 ) {
   const fact = priorFact(payload)
   if (!fact) return
-  const allowed =
-    entity === 'purchase-order'
-      ? ['AA', 'AD']
-      : entity === 'purchase-inbound'
-        ? ['AB']
-        : entity === 'purchase-return'
-          ? ['AF']
-          : []
+  const allowed: readonly string[] =
+    entity in vouPriorDocumentTypes
+      ? vouPriorDocumentTypes[entity as keyof typeof vouPriorDocumentTypes]
+      : []
   if (
     !allowed.includes(fact.sourceDocumentType) ||
     !/^[0-9a-f]{64}$/.test(fact.snapshotDigest) ||

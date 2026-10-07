@@ -615,6 +615,10 @@ export class TargetBootstrapService {
           .where('subject_id', 'in', vouDocumentIds)
           .execute()
         await transaction
+          .deleteFrom('vou_return_allocation_counters')
+          .where('source_document_id', 'in', vouDocumentIds)
+          .execute()
+        await transaction
           .deleteFrom('vou_documents')
           .where('id', 'in', vouDocumentIds)
           .execute()

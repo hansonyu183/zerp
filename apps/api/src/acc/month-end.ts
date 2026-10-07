@@ -94,6 +94,18 @@ export async function settleInventoryCost(
     string,
     { quantity: bigint; value: bigint; rateValue: bigint; rateQuantity: bigint }
   >()
+  const openingPools = new Map<string, { quantity: bigint; value: bigint }>()
+  const appliedOpenings = new Set<string>()
+  const poolFacts = new Map<string, InventoryRow>()
+  for (const fact of facts.rows) {
+    if (fact.source_kind !== 'OPENING') continue
+    const key = `${fact.journal_id}:${fact.subject_id}:${fact.warehouse_id}:${fact.product_id}`
+    const opening = openingPools.get(key) ?? { quantity: 0n, value: 0n }
+    opening.quantity += units(fact.quantity)
+    opening.value +=
+      units(fact.amount) * (fact.direction === 'DEBIT' ? 1n : -1n)
+    openingPools.set(key, opening)
+  }
   const subjects = await tx
     .selectFrom('acc_subjects')
     .selectAll()
@@ -124,7 +136,11 @@ export async function settleInventoryCost(
     if (posted % cent !== 0n || (quantity === 0n && posted !== 0n))
       throw new AccApplicationError('acc_period_cost_basis_missing', [blocker])
     if (quantity === 0n) continue
-    if (pool.quantity + quantity < 0n)
+    const isOpening = fact.source_kind === 'OPENING'
+    if (
+      !isOpening &&
+      pool.quantity + quantity < (pool.quantity < 0n ? pool.quantity : 0n)
+    )
       throw new AccApplicationError('acc_period_negative_inventory', [blocker])
     let cost = posted
     const productionKey =
@@ -160,10 +176,15 @@ export async function settleInventoryCost(
         ])
       cost = materialCost
     } else if (
-      quantity < 0n ||
+      (!isOpening && quantity < 0n) ||
       (posted === 0n && fact.vou_entity === 'inventory-count')
     ) {
-      if (pool.quantity <= 0n)
+      if (
+        pool.quantity <= 0n ||
+        pool.value < 0n ||
+        pool.rateValue < 0n ||
+        pool.rateQuantity <= 0n
+      )
         throw new AccApplicationError('acc_period_cost_basis_missing', [
           blocker,
         ])
@@ -208,13 +229,24 @@ export async function settleInventoryCost(
         productionKey,
         (productionCosts.get(productionKey) ?? 0n) - cost,
       )
-    pool.quantity += quantity
-    pool.value += cost
-    if (quantity > 0n) {
+    if (isOpening) {
+      const openingKey = `${fact.journal_id}:${key}`
+      if (!appliedOpenings.has(openingKey)) {
+        const opening = openingPools.get(openingKey)!
+        pool.quantity += opening.quantity
+        pool.value += opening.value
+        appliedOpenings.add(openingKey)
+      }
+    } else {
+      pool.quantity += quantity
+      pool.value += cost
+    }
+    if (pool.quantity > 0n && (isOpening || quantity > 0n)) {
       pool.rateValue = pool.value
       pool.rateQuantity = pool.quantity
     }
     pools.set(key, pool)
+    poolFacts.set(key, fact)
     if (fact.business_date.slice(0, 7) !== month) continue
     const adjustment = cost - posted
     let journalId: string | null = null
@@ -280,6 +312,21 @@ export async function settleInventoryCost(
         journal_entry_id: journalId,
       })
       .execute()
+  }
+  for (const [key, pool] of pools) {
+    const fact = poolFacts.get(key)!
+    const blocker = {
+      kind: 'INVENTORY',
+      id: fact.id,
+      bookId,
+      subjectId: fact.subject_id,
+      warehouseId: fact.warehouse_id,
+      productId: fact.product_id,
+    }
+    if (pool.quantity < 0n)
+      throw new AccApplicationError('acc_period_negative_inventory', [blocker])
+    if (pool.value < 0n || (pool.quantity === 0n && pool.value !== 0n))
+      throw new AccApplicationError('acc_period_cost_basis_missing', [blocker])
   }
 }
 

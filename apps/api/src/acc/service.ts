@@ -222,6 +222,9 @@ type InventoryFact = {
   productId: string
 }
 
+const inventoryKey = (fact: InventoryFact) =>
+  `${fact.bookId}:${fact.warehouseId}:${fact.productId}`
+
 type FundFact = {
   bookId: string
   fundAccountId: string
@@ -706,13 +709,20 @@ export class AccService
         plan.approvalEntryId,
       )
       const fundFacts = await this.fundFactsForSource(tx, plan.approvalEntryId)
-      await this.lockControlInventory(tx, inventoryFacts)
+      const inventoryBefore = await this.lockControlInventory(
+        tx,
+        inventoryFacts,
+      )
       await this.lockControlFunds(tx, fundFacts)
       await tx
         .deleteFrom('acc_inventory_entries')
         .where('vou_approval_entry_id', '=', plan.approvalEntryId)
         .execute()
-      await this.assertControlInventoryNonNegative(tx, inventoryFacts)
+      await this.assertControlInventoryProgress(
+        tx,
+        inventoryFacts,
+        inventoryBefore,
+      )
       await this.reverseGlobalRegistrations(tx, plan)
       await tx
         .deleteFrom('acc_register_entries')
@@ -1000,7 +1010,9 @@ export class AccService
             ]
           : [],
       )
-      if (book.control_book) await this.lockControlInventory(tx, inventoryFacts)
+      const inventoryBefore = book.control_book
+        ? await this.lockControlInventory(tx, inventoryFacts)
+        : new Map<string, bigint>()
       if (book.control_book) await this.lockControlFunds(tx, fundFacts)
       const journalId = ulid()
       await tx
@@ -1046,7 +1058,11 @@ export class AccService
         }
       }
       if (book.control_book)
-        await this.assertControlInventoryNonNegative(tx, inventoryFacts)
+        await this.assertControlInventoryProgress(
+          tx,
+          inventoryFacts,
+          inventoryBefore,
+        )
       if ('assetAcquisitionLines' in accountingPayload) {
         for (const line of accountingPayload.assetAcquisitionLines) {
           const assetLine = line as typeof line & { assetId: string }
@@ -1812,63 +1828,85 @@ export class AccService
   private async lockControlInventory(
     tx: Transaction<DB>,
     facts: InventoryFact[],
-  ): Promise<void> {
+  ): Promise<Map<string, bigint>> {
     const unique = [
-      ...new Map(
-        facts.map((fact) => [
-          `${fact.bookId}:${fact.warehouseId}:${fact.productId}`,
-          fact,
-        ]),
-      ).values(),
+      ...new Map(facts.map((fact) => [inventoryKey(fact), fact])).values(),
     ].sort((left, right) =>
-      `${left.bookId}:${left.warehouseId}:${left.productId}`.localeCompare(
-        `${right.bookId}:${right.warehouseId}:${right.productId}`,
-      ),
+      inventoryKey(left).localeCompare(inventoryKey(right)),
     )
     for (const fact of unique)
-      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`acc:inventory:${fact.bookId}:${fact.warehouseId}:${fact.productId}`}, 0))`.execute(
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`acc:inventory:${inventoryKey(fact)}`}, 0))`.execute(
         tx,
       )
+    const balances = new Map<string, bigint>()
+    for (const fact of unique) {
+      const result = await sql<{ quantity: string }>`
+        SELECT COALESCE(SUM(quantity),0)::text AS quantity
+        FROM acc_inventory_entries
+        WHERE book_id=${fact.bookId} AND warehouse_id=${fact.warehouseId} AND product_id=${fact.productId}
+      `.execute(tx)
+      balances.set(
+        inventoryKey(fact),
+        signedDecimalUnits(result.rows[0]!.quantity),
+      )
+    }
+    return balances
   }
 
-  private async assertControlInventoryNonNegative(
+  private async assertControlInventoryProgress(
     tx: Transaction<DB>,
     facts: InventoryFact[],
+    before: Map<string, bigint>,
   ): Promise<void> {
     const unique = [
-      ...new Map(
-        facts.map((fact) => [
-          `${fact.bookId}:${fact.warehouseId}:${fact.productId}`,
-          fact,
-        ]),
-      ).values(),
+      ...new Map(facts.map((fact) => [inventoryKey(fact), fact])).values(),
     ]
     for (const fact of unique) {
-      const negative = await sql<{ business_date: string; quantity: string }>`
-        SELECT business_date::text, quantity::text FROM (
-          SELECT business_date, SUM(quantity) OVER (
-            ORDER BY business_date ASC, created_at ASC, id ASC
-            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-          ) AS quantity
+      // Opening is one atomic starting balance; later records retain their
+      // business-date/record ordering, including the backdated checks.
+      const result = await sql<{
+        business_date: string
+        quantity: string
+        opening: boolean
+      }>`
+        SELECT business_date::text,SUM(delta) OVER (
+          ORDER BY business_date ASC,created_at ASC,id ASC
+          ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        )::text AS quantity,opening
+        FROM (
+          SELECT business_date,MIN(created_at) AS created_at,MIN(id) AS id,
+            SUM(quantity) AS delta,opening_approval_entry_id IS NOT NULL AS opening
           FROM acc_inventory_entries
-          WHERE book_id = ${fact.bookId} AND warehouse_id = ${fact.warehouseId} AND product_id = ${fact.productId}
-        ) balances
-        WHERE quantity < 0
-        ORDER BY business_date ASC
-        LIMIT 1
+          WHERE book_id=${fact.bookId} AND warehouse_id=${fact.warehouseId} AND product_id=${fact.productId}
+          GROUP BY business_date,COALESCE(opening_approval_entry_id,id),opening_approval_entry_id IS NOT NULL
+        ) events
+        ORDER BY business_date ASC,created_at ASC,id ASC
       `.execute(tx)
-      if (negative.rows[0]) {
-        const row = negative.rows[0]
+      const reject = (businessDate: string, quantity: string): never => {
         throw new AccApplicationError('acc_negative_inventory', [
           {
             kind: 'INVENTORY',
             bookId: fact.bookId,
             warehouseId: fact.warehouseId,
             productId: fact.productId,
-            businessDate: row.business_date,
-            quantity: row.quantity,
+            businessDate,
+            quantity,
           },
         ])
+      }
+      let previous = 0n
+      for (const row of result.rows) {
+        const quantity = signedDecimalUnits(row.quantity)
+        if (!row.opening && quantity < (previous < 0n ? previous : 0n))
+          reject(row.business_date, row.quantity)
+        previous = quantity
+      }
+      const initial = before.get(inventoryKey(fact))
+      if (initial === undefined)
+        throw new Error('control inventory checkpoint missing')
+      if (previous < (initial < 0n ? initial : 0n)) {
+        const last = result.rows.at(-1)!
+        reject(last.business_date, last.quantity)
       }
     }
   }
@@ -2983,8 +3021,6 @@ export class AccService
         }
       }
     }
-    if (book.control_book)
-      await this.assertControlInventoryNonNegative(tx, inventoryFacts)
     const assetConfiguration =
       input.assets.length === 0
         ? null
@@ -3567,7 +3603,7 @@ export class AccService
       )
         throw new AccApplicationError('acc_opening_dimension_required')
       if (subject.inventory_quantity) {
-        if (line.direction !== 'DEBIT' || decimalUnits(line.amount) <= 0n)
+        if (decimalUnits(line.amount) <= 0n)
           throw new AccApplicationError('acc_inventory_quantity_invalid')
         if (!line.quantity)
           throw new AccApplicationError('acc_inventory_quantity_required')

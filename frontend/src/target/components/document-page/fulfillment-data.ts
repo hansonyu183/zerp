@@ -1,4 +1,4 @@
-import type { VouPriorFact } from '@zerp/model'
+import { priorFactPayload, type PriorFactDraft } from './prior-fact-data.ts'
 import { businessDate } from './business-date.ts'
 import type { VouPayloadFor } from '@zerp/model'
 import type { SourceLineChoice } from './SourceLinePicker.vue'
@@ -7,7 +7,7 @@ import type { FormFields } from '../dynamic-fields/form-fields.ts'
 export type FulfillmentEntity =
   'purchase-inbound' | 'sale-return' | 'purchase-return'
 export type FulfillmentDraft = {
-  priorFact?: VouPriorFact | null
+  priorFact?: PriorFactDraft | null
   entity: FulfillmentEntity
   businessDate: string
   currency: string
@@ -74,7 +74,7 @@ export function fulfillmentPayload(
     throw new Error('来源行必须属于同一根订单，请显式移除不匹配的行。')
   const base = {
     ...(draft.entity !== 'sale-return' && draft.priorFact
-      ? { priorFact: draft.priorFact }
+      ? { priorFact: priorFactPayload(draft.priorFact) }
       : {}),
     businessDate: draft.businessDate,
     currency: draft.currency,

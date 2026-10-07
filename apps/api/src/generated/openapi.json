@@ -97312,6 +97312,18 @@
             "required": false,
             "name": "sourceDocumentId",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "historical",
+            "in": "query"
           }
         ],
         "responses": {
@@ -101256,6 +101268,9 @@
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
                                         "sourceInstanceId": {
                                           "type": "string",
                                           "minLength": 1,
@@ -101295,6 +101310,7 @@
                                         }
                                       },
                                       "required": [
+                                        "sourceClosed",
                                         "sourceInstanceId",
                                         "sourceSchema",
                                         "sourceDocumentType",
@@ -102016,6 +102032,9 @@
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
                                         "sourceInstanceId": {
                                           "type": "string",
                                           "minLength": 1,
@@ -102055,6 +102074,7 @@
                                         }
                                       },
                                       "required": [
+                                        "sourceClosed",
                                         "sourceInstanceId",
                                         "sourceSchema",
                                         "sourceDocumentType",
@@ -102333,6 +102353,9 @@
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
                                         "sourceInstanceId": {
                                           "type": "string",
                                           "minLength": 1,
@@ -102372,6 +102395,7 @@
                                         }
                                       },
                                       "required": [
+                                        "sourceClosed",
                                         "sourceInstanceId",
                                         "sourceSchema",
                                         "sourceDocumentType",
@@ -123056,6 +123080,9 @@
                           "priorFact": {
                             "type": "object",
                             "properties": {
+                              "sourceClosed": {
+                                "type": "boolean"
+                              },
                               "sourceInstanceId": {
                                 "type": "string",
                                 "minLength": 1,
@@ -123095,6 +123122,7 @@
                               }
                             },
                             "required": [
+                              "sourceClosed",
                               "sourceInstanceId",
                               "sourceSchema",
                               "sourceDocumentType",
@@ -123816,6 +123844,9 @@
                           "priorFact": {
                             "type": "object",
                             "properties": {
+                              "sourceClosed": {
+                                "type": "boolean"
+                              },
                               "sourceInstanceId": {
                                 "type": "string",
                                 "minLength": 1,
@@ -123855,6 +123886,7 @@
                               }
                             },
                             "required": [
+                              "sourceClosed",
                               "sourceInstanceId",
                               "sourceSchema",
                               "sourceDocumentType",
@@ -124133,6 +124165,9 @@
                           "priorFact": {
                             "type": "object",
                             "properties": {
+                              "sourceClosed": {
+                                "type": "boolean"
+                              },
                               "sourceInstanceId": {
                                 "type": "string",
                                 "minLength": 1,
@@ -124172,6 +124207,7 @@
                               }
                             },
                             "required": [
+                              "sourceClosed",
                               "sourceInstanceId",
                               "sourceSchema",
                               "sourceDocumentType",
@@ -144608,6 +144644,9 @@
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
                                         "sourceInstanceId": {
                                           "type": "string",
                                           "minLength": 1,
@@ -144647,6 +144686,7 @@
                                         }
                                       },
                                       "required": [
+                                        "sourceClosed",
                                         "sourceInstanceId",
                                         "sourceSchema",
                                         "sourceDocumentType",
@@ -145368,6 +145408,9 @@
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
                                         "sourceInstanceId": {
                                           "type": "string",
                                           "minLength": 1,
@@ -145407,6 +145450,7 @@
                                         }
                                       },
                                       "required": [
+                                        "sourceClosed",
                                         "sourceInstanceId",
                                         "sourceSchema",
                                         "sourceDocumentType",
@@ -145685,6 +145729,9 @@
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
                                         "sourceInstanceId": {
                                           "type": "string",
                                           "minLength": 1,
@@ -145724,6 +145771,7 @@
                                         }
                                       },
                                       "required": [
+                                        "sourceClosed",
                                         "sourceInstanceId",
                                         "sourceSchema",
                                         "sourceDocumentType",
@@ -166173,6 +166221,9 @@
                           "priorFact": {
                             "type": "object",
                             "properties": {
+                              "sourceClosed": {
+                                "type": "boolean"
+                              },
                               "sourceInstanceId": {
                                 "type": "string",
                                 "minLength": 1,
@@ -166212,6 +166263,7 @@
                               }
                             },
                             "required": [
+                              "sourceClosed",
                               "sourceInstanceId",
                               "sourceSchema",
                               "sourceDocumentType",
@@ -166933,6 +166985,9 @@
                           "priorFact": {
                             "type": "object",
                             "properties": {
+                              "sourceClosed": {
+                                "type": "boolean"
+                              },
                               "sourceInstanceId": {
                                 "type": "string",
                                 "minLength": 1,
@@ -166972,6 +167027,7 @@
                               }
                             },
                             "required": [
+                              "sourceClosed",
                               "sourceInstanceId",
                               "sourceSchema",
                               "sourceDocumentType",
@@ -167250,6 +167306,9 @@
                           "priorFact": {
                             "type": "object",
                             "properties": {
+                              "sourceClosed": {
+                                "type": "boolean"
+                              },
                               "sourceInstanceId": {
                                 "type": "string",
                                 "minLength": 1,
@@ -167289,6 +167348,7 @@
                               }
                             },
                             "required": [
+                              "sourceClosed",
                               "sourceInstanceId",
                               "sourceSchema",
                               "sourceDocumentType",
@@ -187725,6 +187785,9 @@
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
                                         "sourceInstanceId": {
                                           "type": "string",
                                           "minLength": 1,
@@ -187764,6 +187827,7 @@
                                         }
                                       },
                                       "required": [
+                                        "sourceClosed",
                                         "sourceInstanceId",
                                         "sourceSchema",
                                         "sourceDocumentType",
@@ -188485,6 +188549,9 @@
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
                                         "sourceInstanceId": {
                                           "type": "string",
                                           "minLength": 1,
@@ -188524,6 +188591,7 @@
                                         }
                                       },
                                       "required": [
+                                        "sourceClosed",
                                         "sourceInstanceId",
                                         "sourceSchema",
                                         "sourceDocumentType",
@@ -188802,6 +188870,9 @@
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
                                         "sourceInstanceId": {
                                           "type": "string",
                                           "minLength": 1,
@@ -188841,6 +188912,7 @@
                                         }
                                       },
                                       "required": [
+                                        "sourceClosed",
                                         "sourceInstanceId",
                                         "sourceSchema",
                                         "sourceDocumentType",
@@ -209434,6 +209506,9 @@
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
                                         "sourceInstanceId": {
                                           "type": "string",
                                           "minLength": 1,
@@ -209473,6 +209548,7 @@
                                         }
                                       },
                                       "required": [
+                                        "sourceClosed",
                                         "sourceInstanceId",
                                         "sourceSchema",
                                         "sourceDocumentType",
@@ -210194,6 +210270,9 @@
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
                                         "sourceInstanceId": {
                                           "type": "string",
                                           "minLength": 1,
@@ -210233,6 +210312,7 @@
                                         }
                                       },
                                       "required": [
+                                        "sourceClosed",
                                         "sourceInstanceId",
                                         "sourceSchema",
                                         "sourceDocumentType",
@@ -210511,6 +210591,9 @@
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
                                         "sourceInstanceId": {
                                           "type": "string",
                                           "minLength": 1,
@@ -210550,6 +210633,7 @@
                                         }
                                       },
                                       "required": [
+                                        "sourceClosed",
                                         "sourceInstanceId",
                                         "sourceSchema",
                                         "sourceDocumentType",
@@ -231149,6 +231233,9 @@
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
                                         "sourceInstanceId": {
                                           "type": "string",
                                           "minLength": 1,
@@ -231188,6 +231275,7 @@
                                         }
                                       },
                                       "required": [
+                                        "sourceClosed",
                                         "sourceInstanceId",
                                         "sourceSchema",
                                         "sourceDocumentType",
@@ -231909,6 +231997,9 @@
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
                                         "sourceInstanceId": {
                                           "type": "string",
                                           "minLength": 1,
@@ -231948,6 +232039,7 @@
                                         }
                                       },
                                       "required": [
+                                        "sourceClosed",
                                         "sourceInstanceId",
                                         "sourceSchema",
                                         "sourceDocumentType",
@@ -232226,6 +232318,9 @@
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
                                         "sourceInstanceId": {
                                           "type": "string",
                                           "minLength": 1,
@@ -232265,6 +232360,7 @@
                                         }
                                       },
                                       "required": [
+                                        "sourceClosed",
                                         "sourceInstanceId",
                                         "sourceSchema",
                                         "sourceDocumentType",
@@ -252858,6 +252954,9 @@
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
                                         "sourceInstanceId": {
                                           "type": "string",
                                           "minLength": 1,
@@ -252897,6 +252996,7 @@
                                         }
                                       },
                                       "required": [
+                                        "sourceClosed",
                                         "sourceInstanceId",
                                         "sourceSchema",
                                         "sourceDocumentType",
@@ -253618,6 +253718,9 @@
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
                                         "sourceInstanceId": {
                                           "type": "string",
                                           "minLength": 1,
@@ -253657,6 +253760,7 @@
                                         }
                                       },
                                       "required": [
+                                        "sourceClosed",
                                         "sourceInstanceId",
                                         "sourceSchema",
                                         "sourceDocumentType",
@@ -253935,6 +254039,9 @@
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
                                         "sourceInstanceId": {
                                           "type": "string",
                                           "minLength": 1,
@@ -253974,6 +254081,7 @@
                                         }
                                       },
                                       "required": [
+                                        "sourceClosed",
                                         "sourceInstanceId",
                                         "sourceSchema",
                                         "sourceDocumentType",
@@ -274573,6 +274681,9 @@
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
                                         "sourceInstanceId": {
                                           "type": "string",
                                           "minLength": 1,
@@ -274612,6 +274723,7 @@
                                         }
                                       },
                                       "required": [
+                                        "sourceClosed",
                                         "sourceInstanceId",
                                         "sourceSchema",
                                         "sourceDocumentType",
@@ -275333,6 +275445,9 @@
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
                                         "sourceInstanceId": {
                                           "type": "string",
                                           "minLength": 1,
@@ -275372,6 +275487,7 @@
                                         }
                                       },
                                       "required": [
+                                        "sourceClosed",
                                         "sourceInstanceId",
                                         "sourceSchema",
                                         "sourceDocumentType",
@@ -275650,6 +275766,9 @@
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
                                         "sourceInstanceId": {
                                           "type": "string",
                                           "minLength": 1,
@@ -275689,6 +275808,7 @@
                                         }
                                       },
                                       "required": [
+                                        "sourceClosed",
                                         "sourceInstanceId",
                                         "sourceSchema",
                                         "sourceDocumentType",

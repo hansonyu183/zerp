@@ -1359,6 +1359,7 @@ export interface VouPriorFacts {
   approval_entry_id: string
   captured_at: Timestamp
   snapshot_digest: string
+  source_closed: boolean
   source_document_key: string
   source_document_no: string
   source_document_type: string

@@ -242,6 +242,7 @@ export type VouSourceLineQueryInput = {
   pageSize: 20
   keyword?: string
   sourceDocumentId?: string
+  historical?: boolean
 }
 
 export interface VouAttachmentStageInput {
@@ -1880,6 +1881,8 @@ export class VouService implements WflVouPort {
     page: number
     pageSize: 20
   }> {
+    if (input.historical && input.targetEntity !== 'purchase-inbound')
+      throw new VouApplicationError('vou_invalid_command')
     const plan = {
       'sale-return': {
         sourceEntity: 'sale-signoff',
@@ -1907,7 +1910,9 @@ export class VouService implements WflVouPort {
         usageQuantity: 'base_quantity_micros',
         usageDocumentId: 'NULL::varchar',
         usageDocumentGroup: '',
-        sourceEligibility: 'TRUE',
+        sourceEligibility: input.historical
+          ? 'EXISTS (SELECT 1 FROM vou_prior_facts prior WHERE prior.approval_entry_id = source_document.approval_entry_id)'
+          : 'NOT EXISTS (SELECT 1 FROM vou_prior_facts prior WHERE prior.approval_entry_id = source_document.approval_entry_id AND prior.source_closed)',
       },
       'purchase-return': {
         sourceEntity: 'purchase-inbound',
@@ -2122,10 +2127,11 @@ export class VouService implements WflVouPort {
       available_rows AS (
         SELECT source.*, root.root_document_id, root.root_entity,
           product.object_id AS product_id, product.code AS product_code, product.name AS product_name,
-          source.source_quantity_micros
+          CASE WHEN ${input.targetEntity === 'purchase-inbound' && input.historical === true}
+            THEN source.source_quantity_micros ELSE source.source_quantity_micros
             - COALESCE(used.quantity_micros, 0)
             + CASE WHEN ${input.targetEntity} = 'purchase-inbound'
-                THEN COALESCE(restored.quantity_micros, 0) ELSE 0 END AS available_quantity_micros
+                THEN COALESCE(restored.quantity_micros, 0) ELSE 0 END END AS available_quantity_micros
         FROM source_rows source
         JOIN root_documents root
           ON root.source_document_id = source.source_document_id

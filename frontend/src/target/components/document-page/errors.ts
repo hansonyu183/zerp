@@ -38,6 +38,7 @@ const errorCaptions: Record<string, string> = {
   approval_reason_not_allowed: '此审批动作不接受原因。',
   approval_not_found: '提交记录不存在。',
   vou_reference_unavailable: '采用的业务引用不可用，请先处理相关资料。',
+  vou_prior_order_closed: '来源采购订单已关闭，不能新增入库。',
   vou_prior_fact_invalid: '此前事实的来源、截止或关联不一致。',
   vou_prior_fact_source_conflict: '该原单据已承接，不能重复创建。',
   vou_prior_fact_frozen: '控制账簿期初已批准，此前事实已冻结。',

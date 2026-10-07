@@ -115,6 +115,7 @@ export async function loadEditReferencePage(
         query: {
           page: String(search.page),
           pageSize: '20',
+          ...(source.historical ? { historical: 'true' as const } : {}),
           ...(search.keyword ? { keyword: search.keyword } : {}),
         },
       })
@@ -122,7 +123,7 @@ export async function loadEditReferencePage(
         ...page,
         items: page.items.map((item) => ({
           id: `${item.sourceDocumentId}:${item.sourceLineId}`,
-          name: `${item.sourceDocumentNo} · ${item.product.code} · ${item.product.name} · 可用 ${item.availableBaseQuantity}`,
+          name: `${item.sourceDocumentNo} · ${item.product.code} · ${item.product.name} · ${source.historical ? '历史来源数量' : '可用'} ${item.availableBaseQuantity}`,
           snapshot: item,
         })),
       }

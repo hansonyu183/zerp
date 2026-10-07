@@ -8,12 +8,15 @@ import { assertTargetDatabaseBoundary } from '../src/platform/config.ts'
 import {
   inspectPurchaseCarryoverUpgrade,
   upgradePurchaseCarryover,
+  inspectPurchaseSourceClosureUpgrade,
+  upgradePurchaseSourceClosure,
 } from '../src/vou/purchase-carryover-upgrade.ts'
 
 async function main() {
   const { values } = parseArgs({
     options: {
       apply: { type: 'boolean' },
+      'source-closure': { type: 'boolean' },
       baseline: { type: 'string' },
       backup: { type: 'string' },
       'actor-id': { type: 'string' },
@@ -24,6 +27,9 @@ async function main() {
   if (!url) throw new Error('purchase_carryover_upgrade_database_required')
   assertTargetDatabaseBoundary(url, process.env.TARGET_DATABASE_SCOPE)
   const db = createDatabase(url)
+  const apply = values['source-closure']
+    ? upgradePurchaseSourceClosure
+    : upgradePurchaseCarryover
   try {
     if (!values.apply)
       console.log(
@@ -31,7 +37,11 @@ async function main() {
           await db
             .transaction()
             .setIsolationLevel('repeatable read')
-            .execute(inspectPurchaseCarryoverUpgrade),
+            .execute(async (tx) =>
+              values['source-closure']
+                ? inspectPurchaseSourceClosureUpgrade(tx)
+                : inspectPurchaseCarryoverUpgrade(tx),
+            ),
         ),
       )
     else {
@@ -72,7 +82,7 @@ async function main() {
         .parse(JSON.parse(await readFile(values.baseline, 'utf8')))
       console.log(
         JSON.stringify(
-          await upgradePurchaseCarryover(db, {
+          await apply(db, {
             baseline: baseline.baseline,
             actorId: values['actor-id'],
             sourceReleaseSha: backup.sourceReleaseSha,

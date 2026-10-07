@@ -741,6 +741,7 @@ CREATE TABLE vou_documents (
 CREATE INDEX vou_documents_entity_number_idx ON vou_documents(entity, document_no);
 
 CREATE TABLE vou_prior_facts (
+    source_closed boolean NOT NULL,
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     source_instance_id varchar(128) NOT NULL,
     source_schema varchar(64) NOT NULL,

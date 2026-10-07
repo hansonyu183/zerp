@@ -9,6 +9,8 @@ import { withWflDatabase } from './wfl-fixture.ts'
 import {
   inspectPurchaseCarryoverUpgrade,
   upgradePurchaseCarryover,
+  inspectPurchaseSourceClosureUpgrade,
+  upgradePurchaseSourceClosure,
 } from '../../src/vou/purchase-carryover-upgrade.ts'
 
 const release = {
@@ -389,5 +391,106 @@ test('purchase structural upgrade refuses existing approved refunds without inve
       /existing_refunds_require_review/,
     )
     assert.deepEqual(await inspectPurchaseCarryoverUpgrade(db), before)
+  })
+})
+
+async function currentUpgradedFixture(db: Kysely<DB>) {
+  const fixture = await oldFixture(db)
+  const before = await inspectPurchaseCarryoverUpgrade(db)
+  await upgradePurchaseCarryover(db, {
+    ...release,
+    baseline: before.baseline,
+    actorId: fixture.maintainer.userId,
+  })
+  return fixture
+}
+test('source closure upgrade preserves the prior-capable installation and refuses a repeat', async () => {
+  await withWflDatabase(async (db) => {
+    const { f, maintainer, original } = await currentUpgradedFixture(db)
+    await sql`ALTER TABLE vou_prior_facts DROP COLUMN source_closed`.execute(db)
+    const before = await inspectPurchaseSourceClosureUpgrade(db)
+    assert.equal(before.layout, 'LEGACY')
+    assert.equal(before.priorFacts, 0)
+    await assert.rejects(
+      upgradePurchaseSourceClosure(db, {
+        ...release,
+        baseline: before.baseline,
+        actorId: f.submitter.userId,
+      }),
+      /operator_required/,
+    )
+    assert.deepEqual(await inspectPurchaseSourceClosureUpgrade(db), before)
+    const result = await upgradePurchaseSourceClosure(db, {
+      ...release,
+      baseline: before.baseline,
+      actorId: maintainer.userId,
+    })
+    assert.equal(result.upgraded, true)
+    assert.equal(result.originalPublicTables, before.publicTables)
+    assert.equal(
+      (await inspectPurchaseSourceClosureUpgrade(db)).layout,
+      'CURRENT',
+    )
+    assert.deepEqual(
+      await f.vou.get('purchase-order', f.purchase.documentId, {
+        id: f.submitter.userId,
+        permissions: [],
+        trusted: true,
+      }),
+      original,
+    )
+    await assert.rejects(
+      upgradePurchaseSourceClosure(db, {
+        ...release,
+        baseline: before.baseline,
+        actorId: maintainer.userId,
+      }),
+      /legacy_layout_required/,
+    )
+  })
+})
+test('source closure upgrade refuses to invent the state of an existing prior record', async () => {
+  await withWflDatabase(async (db) => {
+    const { f, maintainer } = await currentUpgradedFixture(db)
+    const payload = f.purchase
+      .payload as import('@zerp/model').VouPayloadFor<'purchase-order'>
+    const entry = ulid()
+    await f.vou.submit(
+      'purchase-order',
+      'submit-new',
+      {
+        documentId: ulid(),
+        submissionId: entry,
+        idempotencyKey: entry,
+        expectedRevision: null,
+        payload: {
+          ...payload,
+          priorFact: {
+            sourceClosed: true,
+            sourceInstanceId: 'old-fixture',
+            sourceSchema: 'old',
+            sourceDocumentType: 'AA',
+            sourceDocumentKey: 'old-order',
+            sourceDocumentNo: 'AA-OLD',
+            capturedAt: payload.businessDate + 'T23:59:59.000Z',
+            snapshotDigest: 'f'.repeat(64),
+          },
+        },
+      },
+      { id: f.submitter.userId, permissions: [], trusted: true },
+      'legacy-prior-source',
+    )
+    await sql`ALTER TABLE vou_prior_facts DROP COLUMN source_closed`.execute(db)
+    const before = await inspectPurchaseSourceClosureUpgrade(db)
+    assert.equal(before.priorFacts, 1)
+    await assert.rejects(
+      upgradePurchaseSourceClosure(db, {
+        ...release,
+        baseline: before.baseline,
+        actorId: maintainer.userId,
+      }),
+      /existing_prior_state_requires_review/,
+    )
+    assert.deepEqual(await inspectPurchaseSourceClosureUpgrade(db), before)
   })
 })

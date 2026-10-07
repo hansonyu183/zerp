@@ -14,6 +14,7 @@ const props = defineProps<{
   entity: VouSourceLineTargetEntity
   modelValue: SourceLineChoice | null
   disabled: boolean
+  historical?: boolean
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: SourceLineChoice | null]
@@ -35,7 +36,11 @@ function select(value: string | string[] | null) {
 </script>
 <template>
   <ReferencePicker
-    :source="{ kind: 'vou-source-line', entity }"
+    :source="{
+      kind: 'vou-source-line',
+      entity,
+      historical: historical && entity === 'purchase-inbound',
+    }"
     caption="来源行"
     :model-value="
       modelValue

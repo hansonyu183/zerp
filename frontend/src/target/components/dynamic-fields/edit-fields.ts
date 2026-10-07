@@ -103,5 +103,6 @@ export type EditReference =
     }
   | {
       kind: 'vou-source-line'
+      historical?: boolean
       entity: import('@zerp/model').VouSourceLineTargetEntity
     }

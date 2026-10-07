@@ -39,6 +39,10 @@ const sourceLineQuery = z
     pageSize: optionPageInput.shape.pageSize,
     keyword: z.string().trim().min(1).max(200).optional(),
     sourceDocumentId: z.string().length(26).optional(),
+    historical: z
+      .enum(['true', 'false'])
+      .transform((value) => value === 'true')
+      .optional(),
   })
   .strict()
 const objectReference = z.object({ objectId: z.string().length(26) }).strict()
@@ -111,6 +115,7 @@ const attachment = z
   .strict()
 const priorFact = z
   .object({
+    sourceClosed: z.boolean(),
     sourceInstanceId: z.string().min(1).max(128),
     sourceSchema: z.string().min(1).max(64),
     sourceDocumentType: z.enum(['AA', 'AD', 'AB', 'AF']),

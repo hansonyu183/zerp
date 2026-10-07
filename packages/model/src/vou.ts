@@ -408,6 +408,7 @@ export const vouPriorSourceDocumentPresentation = {
 
 /** A real pre-cutoff document adopted without replaying its business effects. */
 export interface VouPriorFact {
+  sourceClosed: boolean
   sourceInstanceId: string
   sourceSchema: string
   sourceDocumentType: 'AA' | 'AD' | 'AB' | 'AF'
@@ -1180,6 +1181,7 @@ function canonicalPayload<Entity extends VouEntity>(
         : []
     if (
       !prior ||
+      typeof prior.sourceClosed !== 'boolean' ||
       !types.includes(prior.sourceDocumentType) ||
       ![
         prior.sourceInstanceId,
@@ -1192,6 +1194,7 @@ function canonicalPayload<Entity extends VouEntity>(
       !Number.isFinite(Date.parse(prior.capturedAt)) ||
       !Object.keys(prior).every((key) =>
         [
+          'sourceClosed',
           'sourceInstanceId',
           'sourceSchema',
           'sourceDocumentType',

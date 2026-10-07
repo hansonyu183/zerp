@@ -19,6 +19,7 @@ function update(value: Partial<Line>) {
   <div class="form-stack">
     <SourceLinePicker
       :entity="entity"
+      :historical="historical"
       :model-value="modelValue.source"
       :disabled="disabled"
       @update:model-value="update({ source: $event })"

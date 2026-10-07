@@ -1,4 +1,4 @@
-import type { VouPriorFact } from '@zerp/model'
+import { priorFactPayload, type PriorFactDraft } from './prior-fact-data.ts'
 import { isInputQuantity, sameFormulaQuantities } from '@zerp/model'
 import { businessDate } from './business-date.ts'
 import type {
@@ -32,7 +32,7 @@ export type OrderLine = {
   containerType: string
 }
 export type OrderDraft = {
-  priorFact?: VouPriorFact | null
+  priorFact?: PriorFactDraft | null
   entity: TargetOrderEntity
   businessDate: string
   currency: string
@@ -184,7 +184,9 @@ export function orderPayload(
   if (draft.entity === 'purchase-order')
     return {
       ...common,
-      ...(draft.priorFact ? { priorFact: draft.priorFact } : {}),
+      ...(draft.priorFact
+        ? { priorFact: priorFactPayload(draft.priorFact) }
+        : {}),
       supplier: reference,
       ...(draft.employee
         ? { purchaser: { objectId: draft.employee.objectId } }

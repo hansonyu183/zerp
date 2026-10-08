@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createHash } from 'node:crypto'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { readVerifiedUpgradeInput } from '../../src/platform/upgrade-input.ts'
 
 test('maintenance inputs bind release, complete recovery bytes and sealed baseline before upgrading', async () => {
+  await mkdir(new URL('../../../../.scratch/', import.meta.url), {
+    recursive: true,
+  })
   const directory = await mkdtemp(
     new URL('../../../../.scratch/upgrade-input-', import.meta.url).pathname,
   )

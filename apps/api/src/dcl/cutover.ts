@@ -211,7 +211,7 @@ export async function migrateArchiveOwnership(
             status: permission.status,
           })
           .execute()
-        await sql`INSERT INTO app_role_permissions(role_id,permission_id,created_at,created_by) SELECT role_id,${target.id},created_at,created_by FROM app_role_permissions WHERE permission_id=${permission.id}`.execute(
+        await sql`INSERT INTO app_role_permissions(role_id,permission_id,purchase_inbound_scope,created_at,created_by) SELECT role_id,${target.id},purchase_inbound_scope,created_at,created_by FROM app_role_permissions WHERE permission_id=${permission.id}`.execute(
           tx,
         )
       }

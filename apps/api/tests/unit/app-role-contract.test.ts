@@ -20,7 +20,9 @@ const principal = {
 
 function appWith(management: ManagementService) {
   return createApp({
-    session: { authenticate: async () => principal } as unknown as SessionService,
+    session: {
+      authenticate: async () => principal,
+    } as unknown as SessionService,
     management,
     config: loadConfig({
       DATABASE_URL: 'postgres://zerp:password@127.0.0.1:5432/zerp_test',
@@ -114,6 +116,7 @@ test('app/role mutations reject legacy fields, numeric revisions, and empty perm
         name: '财务',
         description: null,
         permissionIds: ['01J00000000000000000000004'],
+        purchaseInboundScopes: {},
         code: 'ROL-001',
       },
     ],
@@ -124,6 +127,7 @@ test('app/role mutations reject legacy fields, numeric revisions, and empty perm
         name: '财务',
         description: null,
         permissionIds: ['01J00000000000000000000004'],
+        purchaseInboundScopes: {},
         revision: 9007199254740992,
       },
     ],
@@ -134,6 +138,7 @@ test('app/role mutations reject legacy fields, numeric revisions, and empty perm
         name: '财务',
         description: null,
         permissionIds: ['01J00000000000000000000004'],
+        purchaseInboundScopes: {},
         revision: '9007199254740993',
         status: 'ENABLED',
       },

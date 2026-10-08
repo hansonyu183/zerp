@@ -155,7 +155,11 @@ test('formal initialization creates two administrators and preserves changed cre
     (permission) => permission.path === '/app/user/query',
   )!
   const reader = await management.createRole(
-    { name: '只读角色', permissionIds: [readPermission.id] },
+    {
+      name: '只读角色',
+      permissionIds: [readPermission.id],
+      purchaseInboundScopes: {},
+    },
     successorCurrent.principal,
     'init-reader',
   )

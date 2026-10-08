@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useTargetSession } from '../../session/vm.ts'
 import type { EditorDraft } from './draft.ts'
 import InvoiceBlock from './InvoiceBlock.vue'
 import OpeningBlock from './OpeningBlock.vue'
@@ -16,15 +17,23 @@ import OrderBlock from './OrderBlock.vue'
 const props = defineProps<{
   modelValue: Exclude<EditorDraft, { kind: 'intermediary' }>
   disabled: boolean
+  action?: 'submit-new' | 'submit-change'
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: Exclude<EditorDraft, { kind: 'intermediary' }>]
   pending: [value: boolean]
 }>()
+const session = useTargetSession()
+const canReceipt = (standalone: boolean) =>
+  session.canPurchaseInbound(
+    props.action ?? 'submit-new',
+    standalone ? 'INDEPENDENT_PRIOR' : 'ORDER_REFERENCE',
+  )
 function switchReceipt(standalone: boolean) {
   const draft = props.modelValue
   if (
     props.disabled ||
+    !canReceipt(standalone) ||
     (draft.kind !== 'fulfillment' && draft.kind !== 'independent-receipt') ||
     draft.value.entity !== 'purchase-inbound' ||
     draft.value.lines.length
@@ -133,6 +142,7 @@ function switchReceipt(standalone: boolean) {
   />
   <IndependentReceiptBlock
     v-else-if="modelValue.kind === 'independent-receipt'"
+    :can-switch="canReceipt(false)"
     :model-value="modelValue.value"
     :disabled="disabled"
     @update:model-value="
@@ -143,6 +153,7 @@ function switchReceipt(standalone: boolean) {
   />
   <FulfillmentBlock
     v-else-if="modelValue.kind === 'fulfillment'"
+    :can-switch="canReceipt(true)"
     @standalone="switchReceipt(true)"
     :model-value="modelValue.value"
     :disabled="disabled"

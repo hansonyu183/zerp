@@ -16,6 +16,7 @@ export * from './intermediary-calculation.ts'
 
 export * from './quantity.ts'
 export * from './customer-access.ts'
+export * from './purchase-inbound-scope.ts'
 export * from './workflow-permissions.ts'
 
 export * from './order-amount.ts'

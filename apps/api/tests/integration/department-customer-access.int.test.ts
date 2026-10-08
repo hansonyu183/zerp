@@ -214,7 +214,21 @@ test('department roles enforce current customer ownership at real HTTP and repor
       const result = await response.json()
       return result
     }
-    return { row, signed, actor, request }
+    const refresh = async () => {
+      const response = await app.request('/session/auth/signin', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-zerp-model-build': modelBuildId,
+        },
+        body: JSON.stringify({ code, password: nextPassword }),
+      })
+      const data = await response.json()
+      assert.equal(data.code, 0)
+      headers['x-csrf-token'] = data.data.csrfToken
+      headers.cookie = response.headers.getSetCookie()[0]!
+    }
+    return { row, signed, actor, request, refresh }
   }
   const one = await user('scope-one', first.salePayload.salesperson!.objectId)
   const two = await user('scope-two', second.salePayload.salesperson!.objectId)
@@ -676,6 +690,7 @@ test('department roles enforce current customer ownership at real HTTP and repor
     .values(
       managementPermissions.map((permission) => ({
         role_id: roleId('业务员'),
+        purchase_inbound_scope: 'ALL',
         permission_id: permission.id,
       })),
     )
@@ -700,6 +715,7 @@ test('department roles enforce current customer ownership at real HTTP and repor
         name: '越界范围',
         description: null,
         permissionIds: [managementPermissions[0]!.id],
+        purchaseInboundScopes: {},
         customerScope: 'ALL',
       })
     ).errorKey,
@@ -711,6 +727,7 @@ test('department roles enforce current customer ownership at real HTTP and repor
         name: '本人范围',
         description: null,
         permissionIds: [managementPermissions[0]!.id],
+        purchaseInboundScopes: {},
         customerScope: 'OWN',
       })
     ).code,
@@ -772,6 +789,11 @@ test('department roles enforce current customer ownership at real HTTP and repor
     admin,
     'scope-disable',
   )
+  assert.equal(
+    (await mixed.request('/bob/customer/query', pageInput)).errorKey,
+    'unauthenticated',
+  )
+  await mixed.refresh()
   assert.equal(
     (await mixed.request('/bob/customer/query', pageInput)).data.total,
     0,

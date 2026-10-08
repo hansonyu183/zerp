@@ -1,3 +1,9 @@
+import { purchaseInboundAccess } from './purchase-inbound-access.ts'
+import { purchaseInboundModePredicate } from '../vou/purchase-inbound-access.ts'
+import {
+  purchaseInboundDocumentMode,
+  scopedPurchaseInboundActor,
+} from '../vou/purchase-inbound-access.ts'
 import { customerAccess, customerPredicate } from './customer-access.ts'
 import { documentCustomerPredicate } from '../vou/customer-access.ts'
 import {
@@ -127,14 +133,30 @@ export class WorkbenchService {
       this.queryVou(vouVisibleEntities, actor),
       this.queryOpening(vouVisibleEntities, actor),
     ])
+    const actors = new Map<string, ApprovalActor>()
+    for (const row of rows.flat()) {
+      if (row.domain === 'vou' && row.entity === 'purchase-inbound') {
+        const mode = await purchaseInboundDocumentMode(
+          this.db,
+          row.subject_id,
+          row.id,
+        )
+        if (mode)
+          actors.set(
+            row.id,
+            await scopedPurchaseInboundActor(this.db, actor, mode),
+          )
+      }
+    }
     const keyword = input.filters?.keyword?.trim().toLocaleLowerCase()
     const items = rows
       .flat()
       .flatMap((row): WorkbenchItem[] => {
+        const rowActor = actors.get(row.id) ?? actor
         const lifecycleActions = (
           row.can_operate === false
             ? []
-            : availableApprovalActions(entryFromRow(row), actor)
+            : availableApprovalActions(entryFromRow(row), rowActor)
         ).filter(
           (action): action is 'reject' | 'approve' | 'unreject' =>
             action !== 'unapprove',
@@ -154,7 +176,7 @@ export class WorkbenchService {
         const resourceActions: Array<'view' | 'delete'> = []
         const getAction = row.domain !== 'vou' ? 'submission-get' : 'get'
         if (
-          actor.permissions.includes(
+          rowActor.permissions.includes(
             `/${row.domain}/${row.entity}/${getAction}`,
           )
         ) {
@@ -163,7 +185,7 @@ export class WorkbenchService {
         if (
           row.can_operate !== false &&
           row.submitted_by === actor.id &&
-          actor.permissions.includes(`/${row.domain}/${row.entity}/delete`)
+          rowActor.permissions.includes(`/${row.domain}/${row.entity}/delete`)
         )
           resourceActions.push('delete')
         const availableActions = [...resourceActions, ...lifecycleActions]
@@ -265,6 +287,7 @@ export class WorkbenchService {
       INNER JOIN vou_documents d ON d.id = e.subject_id AND d.entity = e.entity
       WHERE e.domain = 'vou'
         AND ${documentCustomerPredicate(await customerAccess(this.db, actor), sql`d.id`)}
+        AND (e.entity <> 'purchase-inbound' OR ${purchaseInboundModePredicate((await purchaseInboundAccess(this.db, actor))['/vou/purchase-inbound/query'], sql`e.id`)})
         AND e.status IN ('PENDING', 'REJECTED')
         AND e.entity IN (${sql.join(entities)})
     `.execute(this.db)

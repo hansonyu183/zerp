@@ -84,3 +84,5 @@ API 启动前依次同步生成的权限目录、运行 `initialize:admin` 和 `
 ## License
 
 MIT，见 [LICENSE](LICENSE)。
+
+已填充安装的采购入库授权范围升级使用 `apps/api/scripts/upgrade-purchase-inbound-scopes.ts`。先按当前发布版本冻结全部写者并保存数据库、附件备份及独立恢复证明；只读运行确认受支持的升级前布局并取得封存 baseline，再以 `--apply --baseline <file> --backup <manifest> --actor-id <enabled-superadmin-id> --writers-frozen` 执行。环境明确设置 `TARGET_DATABASE_URL`、`TARGET_DATABASE_SCOPE` 和目标 `ZERP_RELEASE_SHA`。manifest 绑定来源与目标 release SHA、数据库和附件恢复文件及其完整 SHA256。当前运行时不接受缺失范围的角色输入或默认收货范围；升级只一次明确填充既有授权为 `ALL`，保持其他全部表行、凭证、角色关联及既有版本不变。布局混合、baseline 漂移、恢复文件不符或操作者无资格全部拒绝。

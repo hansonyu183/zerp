@@ -422,6 +422,7 @@ export class DepartmentRoleService {
           .filter((p) => requested.has(p.path))
           .map((p) => ({
             role_id: id,
+            purchase_inbound_scope: 'ALL',
             permission_id: p.id,
             created_by: admin.id,
           }))

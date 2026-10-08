@@ -1903,6 +1903,7 @@ test('VOU attachment staging validates ownership, promotion, retry and cleanup',
     .values(
       attachmentPermissions.map((p) => ({
         role_id: scopeRoleId,
+        purchase_inbound_scope: 'ALL',
         permission_id: p.id,
       })),
     )
@@ -2878,6 +2879,7 @@ test('entity-owned candidates use session without CSRF and return current typed 
     .values([
       ...readPermissions.map((permission) => ({
         role_id: actorRoleId,
+        purchase_inbound_scope: 'ALL',
         permission_id: permission.id,
       })),
     ])

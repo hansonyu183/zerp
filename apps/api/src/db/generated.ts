@@ -347,6 +347,7 @@ export interface AppRolePermissions {
   created_at: Generated<Timestamp>
   created_by: string | null
   permission_id: string
+  purchase_inbound_scope: string
   role_id: string
 }
 

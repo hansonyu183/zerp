@@ -1,4 +1,6 @@
 import { mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
+import { useTargetSession } from '../../../src/target/session/vm.ts'
 import { describe, expect, it } from 'vitest'
 import DocumentFields from '../../../src/target/components/document-page/DocumentFields.vue'
 import IndependentReceiptBlock from '../../../src/target/components/document-page/IndependentReceiptBlock.vue'
@@ -60,6 +62,11 @@ const payload: Extract<
 }
 describe('independent receipt editor', () => {
   it('switches explicitly from order fulfillment and never drops existing source rows', () => {
+    setActivePinia(createPinia())
+    useTargetSession().apiPaths = ['/vou/purchase-inbound/submit-new']
+    useTargetSession().purchaseInboundScopes = {
+      '/vou/purchase-inbound/submit-new': 'ALL',
+    }
     const draft = createDocumentDraft('purchase-inbound')!
     expect(draft.kind).toBe('fulfillment')
     const wrapper = mount(DocumentFields, {
@@ -87,6 +94,53 @@ describe('independent receipt editor', () => {
     expect(wrapper.emitted('update:modelValue')).toHaveLength(1)
     wrapper.unmount()
   })
+  it('does not use query or approval scope to permit a receipt shape switch', async () => {
+    setActivePinia(createPinia())
+    const session = useTargetSession()
+    session.apiPaths = [
+      '/vou/purchase-inbound/submit-new',
+      '/vou/purchase-inbound/query',
+      '/vou/purchase-inbound/approve',
+    ]
+    session.purchaseInboundScopes = {
+      '/vou/purchase-inbound/submit-new': 'ORDER_REFERENCE',
+      '/vou/purchase-inbound/query': 'ALL',
+      '/vou/purchase-inbound/approve': 'INDEPENDENT_PRIOR',
+    }
+    const wrapper = mount(DocumentFields, {
+      props: {
+        modelValue: createDocumentDraft('purchase-inbound')!,
+        disabled: false,
+      },
+      global: {
+        stubs: {
+          FulfillmentBlock: {
+            name: 'FulfillmentBlock',
+            props: ['canSwitch'],
+            template: '<div />',
+          },
+          IndependentReceiptBlock: true,
+        },
+      },
+    })
+    const block = wrapper.findComponent({ name: 'FulfillmentBlock' })
+    expect(block.props('canSwitch')).toBe(false)
+    block.vm.$emit('standalone')
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    session.purchaseInboundScopes = {
+      ...session.purchaseInboundScopes,
+      '/vou/purchase-inbound/submit-new': 'ALL',
+    }
+    await wrapper.setProps({ disabled: true })
+    block.vm.$emit('standalone')
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    await wrapper.setProps({ disabled: false })
+    block.vm.$emit('standalone')
+    expect(wrapper.emitted('update:modelValue')!.at(-1)![0]).toMatchObject({
+      kind: 'independent-receipt',
+    })
+    wrapper.unmount()
+  })
   it('copies facts into fresh lines but requires an explicit new prior identity and line origins', () => {
     const editor = cloneDocumentDraft({
       entity: 'purchase-inbound',
@@ -111,7 +165,7 @@ describe('independent receipt editor', () => {
       }),
     ).toThrow('必须明确登记此前事实')
     const wrapper = mount(IndependentReceiptBlock, {
-      props: { modelValue: draft, disabled: false },
+      props: { modelValue: draft, disabled: false, canSwitch: true },
       global: {
         stubs: {
           VBtn: {

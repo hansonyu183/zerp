@@ -31,6 +31,14 @@ try {
     '/vou/purchase-inbound/submit-new',
     '/bob/product/get',
   ])
+  const scopePassword = `ScopeAa1!${randomBytes(18).toString('base64url')}`
+  const scopeManager = {
+    userId: ulid(),
+    roleId: ulid(),
+    username: `scope-browser-${ulid()}`,
+    passwordHash: await hashPassword(scopePassword),
+  }
+  await new TargetBootstrapService(db).createE2EPrincipal(scopeManager, false)
   const archives = await db
     .selectFrom('bob_archive_objects')
     .select(['id', 'code'])
@@ -53,8 +61,9 @@ try {
       '--config',
       'playwright.target.config.ts',
       'vou-entry.spec.ts',
+      'purchase-inbound-scopes.spec.ts',
       '--grep',
-      'independent prior receipt',
+      'independent prior receipt|receipt permission scope',
       ...process.argv.slice(2),
     ],
     {
@@ -69,6 +78,11 @@ try {
         TARGET_E2E_REVIEWER_PASSWORD: fixture.reviewer.password,
         TARGET_E2E_CREATE_ONLY_USERNAME: fixture.noQuery.username,
         TARGET_E2E_CREATE_ONLY_PASSWORD: fixture.noQuery.password,
+        TARGET_SCOPE_MANAGER_USERNAME: scopeManager.username,
+        TARGET_SCOPE_MANAGER_PASSWORD: scopePassword,
+        TARGET_E2E_RECEIPT_SCOPE_JSON: JSON.stringify({
+          order: fixture.purchase,
+        }),
         TARGET_E2E_VOU_ENTRY_JSON: JSON.stringify({
           supplier: codes.get(fixture.supplierId),
           product: codes.get(fixture.rawId),

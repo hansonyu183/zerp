@@ -1,3 +1,9 @@
+import { purchaseInboundAccess } from '../app/purchase-inbound-access.ts'
+import { purchaseInboundDocumentMode } from '../vou/purchase-inbound-access.ts'
+import {
+  purchaseInboundScopeCovers,
+  type PurchaseInboundMode,
+} from '@zerp/model'
 import { customerAccess } from '../app/customer-access.ts'
 import {
   documentCustomerPredicate,
@@ -716,6 +722,7 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
     )
       throw new WflApplicationError('forbidden')
     return this.db.transaction().execute(async (tx) => {
+      await sql`SELECT pg_advisory_xact_lock_shared(74155001)`.execute(tx)
       const instance = await tx
         .selectFrom('wfl_instances')
         .select('id')
@@ -743,6 +750,16 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
           actor,
           workflowCreatePermission(target.entity as VouEntity),
         )
+        if (
+          target.entity === 'purchase-inbound' &&
+          !purchaseInboundScopeCovers(
+            (await purchaseInboundAccess(tx, actor))[
+              workflowCreatePermission('purchase-inbound')
+            ],
+            'ORDER_REFERENCE',
+          )
+        )
+          throw new WflApplicationError('forbidden')
       }
       const view = await this.readInstance(tx, input.processId, actor)
       const node = view.nodes.find((item) => item.nodeId === input.nodeId)
@@ -1678,6 +1695,22 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
     const active = new Set(
       activeRows.map((row) => `${row.source_node_id}:${row.script_position}`),
     )
+    const receiptScopes = await purchaseInboundAccess(executor, actor)
+    const receiptModes = new Map<string, PurchaseInboundMode>()
+    for (const row of rawNodes) {
+      if (
+        row.entity === 'purchase-inbound' &&
+        row.document_id &&
+        row.submission_id
+      ) {
+        const mode = await purchaseInboundDocumentMode(
+          executor,
+          row.document_id,
+          row.submission_id,
+        )
+        if (mode) receiptModes.set(row.id, mode)
+      }
+    }
     const targetMap = new Map<string, WflAvailableChildTarget[]>()
     for (const row of rawNodes) {
       if (!row.document_id || !row.entity || row.status !== 'APPROVED') continue
@@ -1705,6 +1738,11 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
         if (
           !edge ||
           !targetNode ||
+          (targetNode.entity === 'purchase-inbound' &&
+            !purchaseInboundScopeCovers(
+              receiptScopes[workflowCreatePermission('purchase-inbound')],
+              'ORDER_REFERENCE',
+            )) ||
           !this.can(
             actor,
             workflowCreatePermission(targetNode.entity as VouEntity),
@@ -1731,27 +1769,52 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
     const nodes: WflInstanceNodeView[] = rawNodes.map((row) => {
       const graphNode = graph.nodes.find((item) => item.key === row.node_key)
       const entity = row.entity as VouEntity | null
+      const receiptAction = (action: string) =>
+        entity !== 'purchase-inbound' ||
+        Boolean(
+          receiptModes.get(row.id) &&
+          purchaseInboundScopeCovers(
+            receiptScopes[`/vou/purchase-inbound/${action}`],
+            receiptModes.get(row.id)!,
+          ),
+        )
       const actions: WflNodeAction[] = []
       if (
         entity &&
         row.document_id &&
         this.can(actor, `/vou/${entity}/get`) &&
+        receiptAction('get') &&
         this.can(actor, '/wfl/process-instance/open-document')
       )
         actions.push('OPEN_DOCUMENT')
       if (targetMap.get(row.id)?.length) actions.push('CREATE_CHILD')
       if (row.parent_node_id && entity && row.status === 'PENDING') {
-        if (this.can(actor, '/wfl/process-instance/approve-child'))
+        if (
+          this.can(actor, '/wfl/process-instance/approve-child') &&
+          receiptAction('approve')
+        )
           actions.push('APPROVE_CHILD')
-        if (this.can(actor, '/wfl/process-instance/reject-child'))
+        if (
+          this.can(actor, '/wfl/process-instance/reject-child') &&
+          receiptAction('reject')
+        )
           actions.push('REJECT_CHILD')
-        if (this.can(actor, '/wfl/process-instance/cancel-child'))
+        if (
+          this.can(actor, '/wfl/process-instance/cancel-child') &&
+          receiptAction('delete')
+        )
           actions.push('CANCEL_CHILD')
       }
       if (row.parent_node_id && entity && row.status === 'REJECTED') {
-        if (this.can(actor, '/wfl/process-instance/retry-child'))
+        if (
+          this.can(actor, '/wfl/process-instance/retry-child') &&
+          receiptAction('unreject')
+        )
           actions.push('RETRY_CHILD')
-        if (this.can(actor, '/wfl/process-instance/cancel-child'))
+        if (
+          this.can(actor, '/wfl/process-instance/cancel-child') &&
+          receiptAction('delete')
+        )
           actions.push('CANCEL_CHILD')
       }
       return {

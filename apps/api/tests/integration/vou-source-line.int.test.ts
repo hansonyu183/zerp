@@ -177,7 +177,11 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
     .execute()
   await db
     .insertInto('app_role_permissions')
-    .values({ role_id: roleId, permission_id: permissionId })
+    .values({
+      role_id: roleId,
+      permission_id: permissionId,
+      purchase_inbound_scope: 'ALL',
+    })
     .execute()
   const reversePermission = await db
     .selectFrom('app_permissions')
@@ -186,7 +190,11 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
     .executeTakeFirstOrThrow()
   await db
     .insertInto('app_role_permissions')
-    .values({ role_id: roleId, permission_id: reversePermission.id })
+    .values({
+      role_id: roleId,
+      permission_id: reversePermission.id,
+      purchase_inbound_scope: 'ALL',
+    })
     .execute()
   await db
     .insertInto('app_user_roles')

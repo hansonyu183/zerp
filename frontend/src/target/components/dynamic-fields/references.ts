@@ -18,6 +18,7 @@ export function permissionOption(
   return {
     id: permission.id,
     name: permissionTitle(permission),
+    snapshot: permission,
     disabled: permission.status !== 'ENABLED',
     unavailable: permission.status !== 'ENABLED',
   }

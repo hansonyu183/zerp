@@ -72,6 +72,7 @@ CREATE TABLE app_roles (
 CREATE TABLE app_role_permissions (
     role_id varchar(26) NOT NULL REFERENCES app_roles(id) ON DELETE CASCADE,
     permission_id varchar(26) NOT NULL REFERENCES app_permissions(id) ON DELETE RESTRICT,
+    purchase_inbound_scope text NOT NULL CHECK (purchase_inbound_scope IN ('ORDER_REFERENCE', 'INDEPENDENT_PRIOR', 'ALL')),
     created_at timestamptz NOT NULL DEFAULT now(),
     created_by varchar(26),
     PRIMARY KEY (role_id, permission_id)

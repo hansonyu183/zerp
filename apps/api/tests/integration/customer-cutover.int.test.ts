@@ -58,6 +58,10 @@ test('customer cutover projects all historical versions, shares tax, splits rece
     .execute(db)
   const catalog = await readTargetPermissionCatalog()
   await upgradeDepartmentAccess(db)
+  // Current APP grants are independent of this historical business-domain fixture.
+  await sql`ALTER TABLE app_role_permissions ADD COLUMN purchase_inbound_scope text NOT NULL CHECK (purchase_inbound_scope IN ('ORDER_REFERENCE','INDEPENDENT_PRIOR','ALL'))`.execute(
+    db,
+  )
   const bootstrap = new TargetBootstrapService(db)
   const oldPermission = {
     id: ulid(),

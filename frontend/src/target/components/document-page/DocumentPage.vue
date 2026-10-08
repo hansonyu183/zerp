@@ -35,6 +35,7 @@ import {
   attachmentScope,
 } from '../attachments/attachments.ts'
 import DocumentFields from './DocumentFields.vue'
+import { emptyIndependentReceipt } from './independent-receipt-data.ts'
 import IntermediaryInput from './IntermediaryInput.vue'
 import IntermediaryScript from './IntermediaryScript.vue'
 import IntermediaryResult from './IntermediaryResult.vue'
@@ -325,6 +326,15 @@ function create() {
   attachments.reset()
   openingSource.value = null
   editor.value = createDocumentDraft(definition.vouType)
+  if (
+    definition.vouType === 'purchase-inbound' &&
+    !session.canPurchaseInbound('submit-new', 'ORDER_REFERENCE') &&
+    session.canPurchaseInbound('submit-new', 'INDEPENDENT_PRIOR')
+  )
+    editor.value = {
+      kind: 'independent-receipt',
+      value: emptyIndependentReceipt(),
+    }
   if (editor.value?.kind === 'intermediary' && vm.can('script-get'))
     void loadIntermediaryScript()
 }
@@ -335,6 +345,17 @@ function closeDraft() {
     attachments.reset()
   }
 }
+function canCloneSelected() {
+  const original = vm.selected
+  if (!original || !vm.can('submit-new')) return false
+  if (original.entity !== 'purchase-inbound') return true
+  return session.canPurchaseInbound(
+    'submit-new',
+    'productLines' in original.payload
+      ? 'INDEPENDENT_PRIOR'
+      : 'ORDER_REFERENCE',
+  )
+}
 function cloneSelected() {
   const original = vm.selected
   if (
@@ -342,7 +363,7 @@ function cloneSelected() {
     saving.value ||
     uncertain.value ||
     intermediaryScriptUnknown.value ||
-    !vm.can('submit-new')
+    !canCloneSelected()
   )
     return
   create()
@@ -371,6 +392,16 @@ async function submit() {
   let command: DocumentCommand
   try {
     if (!editor.value) return
+    if (
+      definition.vouType === 'purchase-inbound' &&
+      !session.canPurchaseInbound(
+        'submit-new',
+        editor.value.kind === 'independent-receipt'
+          ? 'INDEPENDENT_PRIOR'
+          : 'ORDER_REFERENCE',
+      )
+    )
+      throw new Error('无权办理该类型的采购入库。')
     command = documentCommand(editor.value, identity)
     if (editor.value.kind === 'opening')
       identity.documentId = editor.value.value.bookId
@@ -719,7 +750,7 @@ onBeforeUnmount(() => {
       <v-card-actions class="flex-wrap">
         <RowActions :actions="vm.reviewActions" @action="vm.requestReview" />
         <v-btn
-          v-if="editorAvailable && vm.can('submit-new') && vm.selected"
+          v-if="editorAvailable && vm.selected && canCloneSelected()"
           :disabled="
             vm.pending.has(vm.selected.documentId) ||
             vm.unknown.has(vm.selected.documentId)

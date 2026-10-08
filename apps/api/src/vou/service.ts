@@ -1,5 +1,16 @@
+import { purchaseInboundAccess } from '../app/purchase-inbound-access.ts'
+import {
+  purchaseInboundScopeCovers,
+  workflowCreatePermission,
+} from '@zerp/model'
+import {
+  assertPurchaseInboundDocumentAccess,
+  purchaseInboundModePredicate,
+  scopedPurchaseInboundActor,
+} from './purchase-inbound-access.ts'
 import {
   priorFact,
+  isIndependentPriorReceipt,
   readPriorFact,
   validatePriorFact,
   writePriorFact,
@@ -622,6 +633,14 @@ export class VouService implements WflVouPort {
     actor: ApprovalActor,
   ) {
     requirePermission(actor, `/vou/${entity}/attachment-read`)
+    if (entity === 'purchase-inbound')
+      await assertPurchaseInboundDocumentAccess(
+        this.db,
+        actor,
+        `/vou/${entity}/attachment-read`,
+        input.documentId,
+        input.submissionId,
+      )
     await assertDocumentCustomerAccess(this.db, actor, input.documentId)
     const attachment = await this.db
       .selectFrom('vou_attachments as attachment')
@@ -692,6 +711,14 @@ export class VouService implements WflVouPort {
           )))) AS allowed`.execute(tx)
       if (!owner || !grants.rows[0]?.allowed)
         throw new VouApplicationError('vou_attachment_download_not_found')
+      if (entry.entity === 'purchase-inbound')
+        await assertPurchaseInboundDocumentAccess(
+          tx,
+          { id: tokenRow.owner_user_id, permissions: [] },
+          '/vou/purchase-inbound/attachment-read',
+          entry.subject_id,
+          tokenRow.approval_entry_id,
+        )
       await assertDocumentCustomerAccess(
         tx,
         { id: tokenRow.owner_user_id },
@@ -884,6 +911,19 @@ export class VouService implements WflVouPort {
   ): Promise<VouView> {
     if (!trustedSystemActor)
       requirePermission(actor, `/vou/${entity}/${action}`)
+    if (entity === 'purchase-inbound') {
+      await sql`SELECT pg_advisory_xact_lock_shared(74155001)`.execute(tx)
+      const access = await purchaseInboundAccess(tx, actor)
+      const mode = isIndependentPriorReceipt(entity, input.payload)
+        ? 'INDEPENDENT_PRIOR'
+        : 'ORDER_REFERENCE'
+      const scopePath =
+        trustedSystemActor && actor.trusted !== true
+          ? workflowCreatePermission(entity)
+          : `/vou/${entity}/${action}`
+      if (!purchaseInboundScopeCovers(access[scopePath], mode))
+        throw new SessionError('forbidden')
+    }
     await assertPayloadCustomerAccess(tx, actor, entity, input.payload)
     await assertDocumentCustomerAccess(tx, actor, input.documentId)
     const hash = requestHash(action, entity, input)
@@ -899,6 +939,13 @@ export class VouService implements WflVouPort {
     if (prior) {
       if (prior.request_hash !== hash)
         throw new VouApplicationError('vou_idempotency_conflict')
+      if (entity === 'purchase-inbound')
+        await assertPurchaseInboundDocumentAccess(
+          tx,
+          actor,
+          `/vou/${entity}/${action}`,
+          input.documentId,
+        )
       return prior.response as unknown as VouView
     }
     const periodMonth = input.payload.businessDate.slice(0, 7)
@@ -924,6 +971,13 @@ export class VouService implements WflVouPort {
       .executeTakeFirst()
     if (document && document.entity !== entity)
       throw new VouApplicationError('vou_document_entity_mismatch')
+    if (entity === 'purchase-inbound')
+      await assertPurchaseInboundDocumentAccess(
+        tx,
+        actor,
+        `/vou/${entity}/${action}`,
+        input.documentId,
+      )
     const current = await tx
       .selectFrom('approval_entries')
       .select('id')
@@ -1245,6 +1299,16 @@ export class VouService implements WflVouPort {
     requestId: string,
   ): Promise<VouView> {
     requirePermission(actor, `/vou/${entity}/${action}`)
+    if (entity === 'purchase-inbound') {
+      await sql`SELECT pg_advisory_xact_lock_shared(74155001)`.execute(tx)
+      await assertPurchaseInboundDocumentAccess(
+        tx,
+        actor,
+        `/vou/${entity}/${action}`,
+        input.documentId,
+        input.submissionId,
+      )
+    }
     await assertDocumentCustomerAccess(tx, actor, input.documentId)
     await this.lockDocumentPeriod(tx, entity, input.documentId)
     await sql`SELECT id FROM acc_books WHERE control_book FOR UPDATE`.execute(
@@ -1510,7 +1574,18 @@ export class VouService implements WflVouPort {
 
   async get(entity: VouEntity, documentId: string, actor: ApprovalActor) {
     requirePermission(actor, `/vou/${entity}/get`)
-    return this.readView(this.db, entity, documentId, actor)
+    const view = await this.readView(this.db, entity, documentId, actor)
+    if (entity === 'purchase-inbound') {
+      const mode = isIndependentPriorReceipt(entity, view.payload)
+        ? 'INDEPENDENT_PRIOR'
+        : 'ORDER_REFERENCE'
+      const access = await purchaseInboundAccess(this.db, actor)
+      if (
+        !purchaseInboundScopeCovers(access['/vou/purchase-inbound/get'], mode)
+      )
+        throw new SessionError('forbidden')
+    }
+    return view
   }
 
   async query(
@@ -1519,13 +1594,14 @@ export class VouService implements WflVouPort {
     actor: ApprovalActor,
   ): Promise<VouPage> {
     requirePermission(actor, `/vou/${entity}/query`)
-    return this.readQuery(entity, input, actor)
+    return this.readQuery(entity, input, actor, 'query')
   }
 
   private async readQuery(
     entity: VouEntity,
     input: VouQueryInput,
     actor: ApprovalActor,
+    action: 'query' | 'options',
   ): Promise<VouPage> {
     const filters = input.filters
     const capability = vouListCapabilities[entity]
@@ -1566,6 +1642,15 @@ export class VouService implements WflVouPort {
         sql`d.id`,
       ),
     ]
+    if (entity === 'purchase-inbound' && action === 'query') {
+      const access = await purchaseInboundAccess(this.db, actor)
+      conditions.push(
+        purchaseInboundModePredicate(
+          access['/vou/purchase-inbound/query'],
+          sql`e.id`,
+        ),
+      )
+    }
     if (filters?.documentNo)
       conditions.push(
         sql`strpos(lower(d.document_no), lower(${filters.documentNo})) > 0`,
@@ -1809,6 +1894,7 @@ export class VouService implements WflVouPort {
         filters: { documentNo: input.keyword },
       },
       actor,
+      'options',
     )
     return {
       ...result,
@@ -2259,13 +2345,30 @@ export class VouService implements WflVouPort {
     actor: ApprovalActor,
   ) {
     requirePermission(actor, `/vou/${entity}/audit-history`)
+    if (entity === 'purchase-inbound')
+      await assertPurchaseInboundDocumentAccess(
+        this.db,
+        actor,
+        `/vou/${entity}/audit-history`,
+        documentId,
+      )
     await assertDocumentCustomerAccess(this.db, actor, documentId)
+    const scope = (await purchaseInboundAccess(this.db, actor))[
+      '/vou/purchase-inbound/audit-history'
+    ]
     const rows = await this.db
       .selectFrom('approval_events')
       .selectAll()
       .where('domain', '=', 'vou')
       .where('entity', '=', entity)
       .where('subject_id', '=', documentId)
+      .$if(entity === 'purchase-inbound' && scope !== 'ALL', (query) =>
+        query.where(sql<boolean>`EXISTS (
+        SELECT 1 FROM approval_entries e WHERE e.id=approval_events.entry_id
+          AND e.domain='vou' AND e.entity='purchase-inbound' AND e.subject_id=${documentId}
+          AND ${purchaseInboundModePredicate(scope, sql`e.id`)}
+      )`),
+      )
       .orderBy('created_at', 'asc')
       .execute()
     return rows.map((row) => ({
@@ -2310,6 +2413,16 @@ export class VouService implements WflVouPort {
     requestId: string,
   ) {
     requirePermission(actor, `/vou/${entity}/delete`)
+    if (entity === 'purchase-inbound') {
+      await sql`SELECT pg_advisory_xact_lock_shared(74155001)`.execute(tx)
+      await assertPurchaseInboundDocumentAccess(
+        tx,
+        actor,
+        `/vou/${entity}/delete`,
+        input.documentId,
+        input.submissionId,
+      )
+    }
     await assertDocumentCustomerAccess(tx, actor, input.documentId)
     await this.lockDocumentPeriod(tx, entity, input.documentId)
     await sql`SELECT id FROM acc_books WHERE control_book FOR UPDATE`.execute(
@@ -2596,6 +2709,17 @@ export class VouService implements WflVouPort {
       entity: row.entity,
       subject_id: row.document_id,
     })
+    const payload = await this.readPayload(executor, entity, row.id)
+    const presentedActor =
+      entity === 'purchase-inbound'
+        ? await scopedPurchaseInboundActor(
+            executor,
+            actor,
+            isIndependentPriorReceipt(entity, payload)
+              ? 'INDEPENDENT_PRIOR'
+              : 'ORDER_REFERENCE',
+          )
+        : actor
     return {
       entity,
       documentId: row.document_id,
@@ -2611,13 +2735,13 @@ export class VouService implements WflVouPort {
       rejectedBy: row.rejected_by,
       rejectedAt: row.rejected_at?.toISOString() ?? null,
       rejectionReason: row.rejection_reason,
-      payload: await this.readPayload(executor, entity, row.id),
-      availableApprovalActions: availableApprovalActions(entry, actor),
+      payload,
+      availableApprovalActions: availableApprovalActions(entry, presentedActor),
       canDelete:
         (row.status === 'PENDING' || row.status === 'REJECTED') &&
         (actor.trusted === true || actor.id === row.submitted_by) &&
         (actor.trusted === true ||
-          actor.permissions.includes(`/vou/${entity}/delete`)),
+          presentedActor.permissions.includes(`/vou/${entity}/delete`)),
     }
   }
 

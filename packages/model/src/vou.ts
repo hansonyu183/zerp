@@ -395,7 +395,7 @@ export interface VouBillCashLineInput {
 
 export const vouPriorDocumentTypes = {
   'purchase-order': ['AA', 'AD'],
-  'purchase-inbound': ['AB'],
+  'purchase-inbound': ['AB', 'AH'],
   'purchase-return': ['AF'],
 } as const
 
@@ -403,8 +403,22 @@ export const vouPriorSourceDocumentPresentation = {
   AA: { label: '采购订单' },
   AD: { label: '采购订单（其他）' },
   AB: { label: '采购入库' },
+  AH: { label: '独立采购收货' },
   AF: { label: '采购退货' },
 } as const
+
+export const vouPriorLineOriginDocumentPresentation = {
+  ...vouPriorSourceDocumentPresentation,
+  BB: { label: '销售订单' },
+} as const
+
+/** An original external relationship, distinct from a native procurement parent. */
+export interface VouPriorLineOrigin {
+  lineId: string
+  sourceDocumentType: string
+  sourceDocumentKey: string
+  sourceLineKey: string
+}
 
 /** A real pre-cutoff document adopted without replaying its business effects. */
 export const vouPriorCutoffPattern =
@@ -427,7 +441,7 @@ export interface VouPriorFact {
   sourceClosed: boolean
   sourceInstanceId: string
   sourceSchema: string
-  sourceDocumentType: 'AA' | 'AD' | 'AB' | 'AF'
+  sourceDocumentType: 'AA' | 'AD' | 'AB' | 'AF' | 'AH'
   sourceDocumentKey: string
   sourceDocumentNo: string
   capturedAt: string
@@ -649,7 +663,13 @@ export interface VouPayloadShapes {
     purchaser?: VouAuxCurrentReferenceInput
     warehouse: VouAuxCurrentReferenceInput
   }
-  'purchase-inbound': SourcePayload & {
+  'purchase-inbound': (
+    | SourcePayload
+    | (ProductPayload & {
+        priorFact: VouPriorFact
+        priorLineOrigins: readonly VouPriorLineOrigin[]
+      })
+  ) & {
     priorFact?: VouPriorFact
     supplier: VouVersionedReferenceInput
     warehouse: VouAuxCurrentReferenceInput
@@ -1241,6 +1261,63 @@ function canonicalPayload<Entity extends VouEntity>(
     )
       return undefined
   }
+  if (entity === 'purchase-inbound') {
+    const receipt = value as VouPayloadShapes['purchase-inbound']
+    if ('sourceLines' in receipt === 'productLines' in receipt) return undefined
+    if ('productLines' in receipt) {
+      if (
+        !Array.isArray(receipt.productLines) ||
+        !receipt.priorFact ||
+        receipt.parentEntity ||
+        receipt.parentDocumentId ||
+        !Array.isArray(receipt.priorLineOrigins) ||
+        receipt.priorLineOrigins.length !== receipt.productLines.length ||
+        new Set(receipt.productLines.map((line) => line.lineId)).size !==
+          receipt.productLines.length ||
+        new Set(receipt.priorLineOrigins.map((line) => line.lineId)).size !==
+          receipt.productLines.length ||
+        receipt.priorLineOrigins.some(
+          (origin) =>
+            !receipt.productLines.some(
+              (line) => line.lineId === origin.lineId,
+            ) ||
+            ![
+              origin.sourceDocumentType,
+              origin.sourceDocumentKey,
+              origin.sourceLineKey,
+            ].every(text) ||
+            !Object.keys(origin).every((key) =>
+              [
+                'lineId',
+                'sourceDocumentType',
+                'sourceDocumentKey',
+                'sourceLineKey',
+              ].includes(key),
+            ),
+        ) ||
+        receipt.productLines.some(
+          (line) =>
+            !/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(line.baseQuantity) ||
+            !/[1-9]/.test(line.baseQuantity) ||
+            !/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(line.enteredQuantity) ||
+            !/[1-9]/.test(line.enteredQuantity) ||
+            line.agreedAmount === undefined ||
+            !/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(line.agreedAmount) ||
+            line.formula !== undefined ||
+            line.settlementSurcharge !== undefined ||
+            line.purchaseUnitPrice !== undefined ||
+            line.deliverySpecificationType !== undefined ||
+            line.containerType !== undefined ||
+            line.quantityPerContainer !== undefined,
+        )
+      )
+        return undefined
+    } else if (
+      'priorLineOrigins' in receipt ||
+      receipt.priorFact?.sourceDocumentType === 'AH'
+    )
+      return undefined
+  }
   const required = payloadRequiredFields[entity]
   if (required.some((field) => !(field in value))) return undefined
   const allowed = new Set([
@@ -1369,7 +1446,14 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
     'warehouse',
     'productLines',
   ],
-  'purchase-inbound': ['priorFact', 'supplier', 'warehouse', 'sourceLines'],
+  'purchase-inbound': [
+    'priorFact',
+    'supplier',
+    'warehouse',
+    'sourceLines',
+    'productLines',
+    'priorLineOrigins',
+  ],
   'purchase-return': [
     'priorFact',
     'supplier',
@@ -1490,6 +1574,10 @@ const payloadRequiredFields: Readonly<Record<VouEntity, readonly string[]>> =
               'creditOverrideReason',
               'specialApproval',
             ].includes(field) ||
+            (entity === 'purchase-inbound' &&
+              ['sourceLines', 'productLines', 'priorLineOrigins'].includes(
+                field,
+              )) ||
             (field === 'counterparty' && entity === 'service-acceptance') ||
             (field === 'billCashLines' && entity !== 'bill-maturity') ||
             ((field === 'counterparty' || field === 'counterpartyType') &&
@@ -1501,6 +1589,7 @@ const payloadRequiredFields: Readonly<Record<VouEntity, readonly string[]>> =
 
 export type VouLineKind =
   | 'product'
+  | 'prior-origin'
   | 'price'
   | 'source'
   | 'invoice'
@@ -1569,7 +1658,7 @@ export type VouSourceLineCandidate = Readonly<{
   sourceDocumentNo: string
   sourceEntity: VouSourceLineSourceEntity
   rootDocumentId: string
-  rootEntity: 'sale-order' | 'purchase-order'
+  rootEntity: 'sale-order' | 'purchase-order' | 'purchase-inbound'
   businessDate: string
   sourceLineId: string
   product: Readonly<{
@@ -1689,6 +1778,7 @@ function referenceCandidateMetadata(
 }
 const collectionKinds = {
   productLines: 'product',
+  priorLineOrigins: 'prior-origin',
   priceLines: 'price',
   sourceLines: 'source',
   invoiceLines: 'invoice',
@@ -1785,6 +1875,12 @@ export const vouEntityFieldDescriptors: Readonly<
 export const vouLineFieldDescriptors: Readonly<
   Record<VouLineKind, readonly VouLineFieldDescriptor[]>
 > = {
+  'prior-origin': [
+    'lineId',
+    'sourceDocumentType',
+    'sourceDocumentKey',
+    'sourceLineKey',
+  ].map((key) => ({ key, required: true })),
   product: [
     {
       key: 'product',

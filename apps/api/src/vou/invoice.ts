@@ -230,6 +230,28 @@ async function readInvoiceAmounts(
       }
     } else {
       const payload = doc.payload as VouPayloadFor<'purchase-inbound'>
+      if ('productLines' in payload) {
+        for (const product of payload.productLines) {
+          const amount = money(
+            lineAmount(units(product.baseQuantity, 6), product),
+          )
+          facts.push({
+            sourceDocumentId: meta.subject_id,
+            sourceApprovalEntryId: meta.id,
+            sourceLineId: product.lineId,
+            documentNo: meta.document_no,
+            businessDate: doc.businessDate,
+            partyId: payload.supplier.objectId,
+            operatingEntityId: null,
+            currency: payload.currency,
+            unitPrice: product.unitPrice,
+            pricing: product,
+            amount,
+            availableAmount: amount,
+          })
+        }
+        continue
+      }
       for (const line of payload.sourceLines) {
         if (!payload.parentDocumentId)
           throw new VouApplicationError('vou_invoice_source_unavailable')

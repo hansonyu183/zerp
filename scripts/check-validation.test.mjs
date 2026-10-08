@@ -126,6 +126,7 @@ if (args === process.env.FAIL_COMMAND) process.exit(17)
       '--filter @zerp/api e2e:vou-catalog',
       '--filter @zerp/api e2e:vou-opening',
       '--filter @zerp/api e2e:vou-entry',
+      '--filter @zerp/api e2e:vou-prior-purchase',
     ]
     const success = run('e2e')
     assert.equal(
@@ -142,7 +143,7 @@ if (args === process.env.FAIL_COMMAND) process.exit(17)
     assert.equal(
       success.calls.filter((call) => call.includes('up -d --wait target-db'))
         .length,
-      5,
+      6,
     )
     assert.equal(
       success.calls.filter((call) =>
@@ -158,6 +159,7 @@ if (args === process.env.FAIL_COMMAND) process.exit(17)
       '--filter @zerp/api test:integration',
       '--filter @zerp/wfl-starlark test:browser',
       '--filter @zerp/api e2e:vou-entry',
+      '--filter @zerp/api e2e:vou-prior-purchase',
     ]) {
       const failure = run('e2e', command)
       assert.notEqual(failure.result.status, 0, command)

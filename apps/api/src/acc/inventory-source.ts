@@ -1,3 +1,4 @@
+import { isIndependentPriorReceipt } from '../vou/prior-fact.ts'
 import {
   orderLineAmountMinor,
   intermediaryDecimal,
@@ -58,12 +59,22 @@ export async function sourceInventoryMovements(
     let outboundId: string | null = null
     const seen = new Set<string>()
     let order:
-      VouPayloadFor<'sale-order'> | VouPayloadFor<'purchase-order'> | undefined
+      | VouPayloadFor<'sale-order'>
+      | VouPayloadFor<'purchase-order'>
+      | Extract<
+          VouPayloadFor<'purchase-inbound'>,
+          { productLines: readonly unknown[] }
+        >
+      | undefined
     while (sourceDocumentId && !seen.has(sourceDocumentId)) {
       seen.add(sourceDocumentId)
       const source = await read(sourceDocumentId)
       if (source.entity === 'sale-outbound') outboundId = source.documentId
-      if (source.entity === (sale ? 'sale-order' : 'purchase-order')) {
+      if (
+        source.entity === (sale ? 'sale-order' : 'purchase-order') ||
+        (entity === 'purchase-return' &&
+          isIndependentPriorReceipt(source.entity, source.payload))
+      ) {
         order = source.payload as typeof order
         break
       }

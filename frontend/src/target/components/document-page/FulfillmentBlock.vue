@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { actionIcons } from '../../presentation/action-icons.ts'
 import PriorFactBlock from './PriorFactBlock.vue'
 import CollectionBlock from '../dynamic-fields/CollectionBlock.vue'
 import FulfillmentLineEditor from './FulfillmentLineEditor.vue'
@@ -8,7 +9,10 @@ import FormBlock from '../dynamic-fields/FormBlock.vue'
 import VouReference from './VouReference.vue'
 import { fulfillmentFields, type FulfillmentDraft } from './fulfillment-data.ts'
 const props = defineProps<{ modelValue: FulfillmentDraft; disabled: boolean }>()
-const emit = defineEmits<{ 'update:modelValue': [value: FulfillmentDraft] }>()
+const emit = defineEmits<{
+  'update:modelValue': [value: FulfillmentDraft]
+  standalone: []
+}>()
 function update(patch: Partial<FulfillmentDraft>) {
   if (!props.disabled)
     emit('update:modelValue', { ...props.modelValue, ...patch })
@@ -25,6 +29,13 @@ const fields = [
 ] as const satisfies DetailFields<FulfillmentDraft['lines'][number]>
 </script>
 <template>
+  <v-btn
+    :prepend-icon="actionIcons.edit"
+    v-if="modelValue.entity === 'purchase-inbound'"
+    :disabled="disabled || modelValue.lines.length > 0"
+    @click="emit('standalone')"
+    >登记独立此前收货</v-btn
+  >
   <PriorFactBlock
     v-if="modelValue.entity !== 'sale-return'"
     :entity="modelValue.entity"

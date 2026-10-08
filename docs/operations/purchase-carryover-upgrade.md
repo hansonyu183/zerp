@@ -43,3 +43,19 @@
 
 6. 成功后启动同SHA API/Web，回读安装身份、原订单、数量/金额、来源摘要与完整原业务事实，并验证新的正常采购此前事实/实际金额/后续数量采用。其余表数据、关联及账簿余额必须与维护基线一致。保留非敏感摘要与备份；本转换不代表OIT未结义务、期初或全范围迁移已完成。
 7. 失败时保持写入关闭。未提交操作由事务回滚；已提交后需要恢复时，先确认没有新业务写入，再从已演练的数据库和附件工件恢复，运行源SHA API/Web并独立回读原基线。不得在新结构上运行旧服务，不保留运行时兼容列。关闭本次临时恢复数据库、容器及辅助进程。
+
+## 独立此前收货结构升级（#492）
+
+已经保存此前采购事实的安装使用显式 `--standalone-receipts` 检查/执行，不能重放此前事实为空的关闭字段转换。来源必须精确匹配具有关闭字段、仅 AA/AD/AB/AF 类型且没有原行引用表的布局。此转换扩展 AH 持久化形状并从当前 schema 创建 `vou_prior_receipt_line_origins`；不转换或重演任何既有业务事实。此前表允许非空，批准、原金额、微秒截止、分配顺序及全部其他 public 行必须逐字节相等，新表必须为空，最终布局精确匹配。
+
+沿用上述独占目标、停止全部写入方、数据库/附件真实备份及独立恢复、完整 release SHA、维护用户、全表锁和 CAS 基线要求；与 `--source-closure` 互斥。检查与执行为：
+
+```sh
+node apps/api/scripts/upgrade-purchase-carryover.ts --standalone-receipts > .scratch/standalone-receipts-baseline.json
+node apps/api/scripts/upgrade-purchase-carryover.ts --standalone-receipts --apply \
+  --baseline .scratch/standalone-receipts-baseline.json \
+  --backup .scratch/purchase-carryover-backup-manifest.json \
+  --actor-id "$PURCHASE_UPGRADE_ACTOR_ID" --writers-frozen
+```
+
+`CURRENT`、未知布局、并发数据漂移、无权维护、备份字节或 release 不符拒绝；全部 DDL 在同一事务中完成，后验失败回滚。升级后必须在相同 SHA 的 API/Web 上验证既有档案与单据、库存与会计基线、正常独立此前收货/退货的零重复效果及截止后退货的实际出库、记账和开票容量；升级本身不是全范围迁移完成证据。

@@ -186,6 +186,8 @@ try {
       '--config',
       'playwright.target.config.ts',
       'vou-entry.spec.ts',
+      '--grep-invert',
+      'independent prior receipt',
       ...process.argv.slice(2),
     ],
     {

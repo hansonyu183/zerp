@@ -1,12 +1,31 @@
 import { vouPriorDocumentTypes, canonicalVouPriorCutoff } from '@zerp/model'
 import { sql, type Kysely, type Transaction } from 'kysely'
-import type { VouEntity, VouPayload, VouPriorFact } from '@zerp/model'
+import type {
+  VouEntity,
+  VouPayload,
+  VouPriorFact,
+  VouPayloadFor,
+} from '@zerp/model'
 import type { DB } from '../db/generated.ts'
 import { VouApplicationError } from './service.ts'
 
 type Executor = Kysely<DB> | Transaction<DB>
 export function priorFact(payload: VouPayload): VouPriorFact | undefined {
   return 'priorFact' in payload ? payload.priorFact : undefined
+}
+
+export function isIndependentPriorReceipt(
+  entity: VouEntity,
+  payload: VouPayload,
+): payload is Extract<
+  VouPayloadFor<'purchase-inbound'>,
+  { productLines: readonly unknown[] }
+> {
+  return (
+    entity === 'purchase-inbound' &&
+    'productLines' in payload &&
+    Boolean(priorFact(payload))
+  )
 }
 
 export async function readPriorFact(
@@ -104,7 +123,19 @@ export async function validatePriorFact(
       throw new VouApplicationError('vou_prior_fact_invalid')
     return
   }
-  if (payload.parentEntity !== 'purchase-order' || !payload.parentDocumentId)
+  if (entity === 'purchase-inbound' && 'productLines' in payload) {
+    if (payload.parentEntity || payload.parentDocumentId)
+      throw new VouApplicationError('vou_prior_fact_invalid')
+    return
+  }
+  if (
+    !payload.parentDocumentId ||
+    (payload.parentEntity !== 'purchase-order' &&
+      !(
+        entity === 'purchase-return' &&
+        payload.parentEntity === 'purchase-inbound'
+      ))
+  )
     throw new VouApplicationError('vou_prior_fact_invalid')
   const ids = [
     payload.parentDocumentId,
@@ -152,6 +183,11 @@ export async function validatePurchaseReceipt(
   documentId: string,
   payload: import('@zerp/model').VouPayloadFor<'purchase-inbound'>,
 ) {
+  if ('productLines' in payload) {
+    if (!payload.priorFact || payload.parentEntity || payload.parentDocumentId)
+      throw new VouApplicationError('vou_prior_fact_invalid')
+    return
+  }
   if (payload.parentEntity !== 'purchase-order' || !payload.parentDocumentId)
     throw new VouApplicationError('vou_parent_invalid')
   await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`vou:document:${payload.parentDocumentId}`}, 0))`.execute(

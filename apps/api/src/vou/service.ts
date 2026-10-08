@@ -1103,7 +1103,7 @@ export class VouService implements WflVouPort {
       throw new VouApplicationError('vou_reference_unavailable', [
         ...referenceValidation.blockers,
       ])
-    if (entity === 'purchase-inbound' && 'sourceLines' in input.payload)
+    if (entity === 'purchase-inbound')
       await validatePurchaseReceipt(
         tx,
         input.documentId,
@@ -1314,8 +1314,7 @@ export class VouService implements WflVouPort {
       await validateReturnInvoiceCapacity(tx, entity, persistedPayload)
     if (
       (action === 'approve' || action === 'unreject') &&
-      entity === 'purchase-inbound' &&
-      'sourceLines' in persistedPayload
+      entity === 'purchase-inbound'
     )
       await validatePurchaseReceipt(
         tx,
@@ -1951,7 +1950,7 @@ export class VouService implements WflVouPort {
       source_document_no: string
       source_entity: VouSourceLineSourceEntity
       root_document_id: string
-      root_entity: 'sale-order' | 'purchase-order'
+      root_entity: 'sale-order' | 'purchase-order' | 'purchase-inbound'
       business_date: string
       source_line_id: string
       product_id: string
@@ -2040,6 +2039,9 @@ export class VouService implements WflVouPort {
           root_document_id, root_entity
         FROM source_roots
         WHERE root_entity = ${plan.rootEntity}
+          OR (${input.targetEntity === 'purchase-return'} AND root_entity = 'purchase-inbound' AND depth = 0
+            AND EXISTS (SELECT 1 FROM vou_prior_receipt_line_origins origin
+              WHERE origin.approval_entry_id = source_roots.approval_entry_id))
         ORDER BY source_document_id, depth DESC
       ),
       source_rows AS (
@@ -2055,7 +2057,7 @@ export class VouService implements WflVouPort {
         WHERE ${sql.raw(plan.sourceEligibility)}
       ),
       selected_target_entries AS (
-        SELECT approval.id AS approval_entry_id
+        SELECT approval.id AS approval_entry_id, detail.parent_document_id AS root_document_id
         FROM vou_documents document
         JOIN LATERAL (
           SELECT candidate.id
@@ -2073,13 +2075,14 @@ export class VouService implements WflVouPort {
         WHERE document.entity = ${input.targetEntity}
       ),
       used_quantities AS (
-        SELECT ${sql.raw(plan.usageDocumentId)} AS source_document_id,
+        SELECT ${input.targetEntity === 'purchase-inbound' ? sql`target.root_document_id` : sql`NULL::varchar`} AS root_document_id, ${sql.raw(plan.usageDocumentId)} AS source_document_id,
           usage.${sql.ref(plan.usageLineId)} AS source_line_id,
           SUM(usage.${sql.ref(plan.usageQuantity)}) AS quantity_micros
         FROM selected_target_entries target
         JOIN ${sql.raw(plan.usageTable)} usage ON usage.approval_entry_id = target.approval_entry_id
         WHERE usage.${sql.ref(plan.usageLineId)} IS NOT NULL
-        GROUP BY usage.${sql.ref(plan.usageLineId)}${sql.raw(plan.usageDocumentGroup)}
+          AND (${input.targetEntity !== 'purchase-inbound'} OR target.root_document_id IS NOT NULL)
+        GROUP BY usage.${sql.ref(plan.usageLineId)}${sql.raw(plan.usageDocumentGroup)}${input.targetEntity === 'purchase-inbound' ? sql`, target.root_document_id` : sql``}
       ),
       approved_purchase_returns AS (
         SELECT approval.id AS approval_entry_id
@@ -2100,13 +2103,15 @@ export class VouService implements WflVouPort {
           AND approval.status = 'APPROVED'
       ),
       restored_quantities AS (
-        SELECT returned.source_line_id, SUM(returned.base_quantity_micros) AS quantity_micros
+        SELECT detail.parent_document_id AS root_document_id, returned.source_line_id, SUM(returned.base_quantity_micros) AS quantity_micros
         FROM approved_purchase_returns approval
+        JOIN vou_purchase_return_details detail ON detail.approval_entry_id = approval.approval_entry_id
         JOIN vou_return_line_snapshots returned ON returned.approval_entry_id = approval.approval_entry_id
-        GROUP BY returned.source_line_id
+        WHERE detail.parent_entity = 'purchase-order'
+        GROUP BY detail.parent_document_id, returned.source_line_id
       ),
       root_products AS (
-        SELECT DISTINCT ON (line.line_id) line.line_id, reference.object_id,
+        SELECT DISTINCT ON (document.id, line.line_id) document.id AS root_document_id, line.line_id, reference.object_id,
           COALESCE(reference.reference_code, reference.object_id) AS code,
           COALESCE(reference.reference_name, reference.reference_code, reference.object_id) AS name
         FROM vou_documents document
@@ -2122,7 +2127,9 @@ export class VouService implements WflVouPort {
           AND reference.line_no = line.line_no
           AND reference.item_no = 0
         WHERE document.entity IN ('sale-order', 'purchase-order')
-        ORDER BY line.line_id, approval.version_no DESC, approval.id DESC
+          OR (document.entity = 'purchase-inbound' AND EXISTS (
+            SELECT 1 FROM vou_prior_receipt_line_origins origin WHERE origin.approval_entry_id = approval.id))
+        ORDER BY document.id, line.line_id, approval.version_no DESC, approval.id DESC
       ),
       available_rows AS (
         SELECT source.*, root.root_document_id, root.root_entity,
@@ -2135,10 +2142,11 @@ export class VouService implements WflVouPort {
         FROM source_rows source
         JOIN root_documents root
           ON root.source_document_id = source.source_document_id
-        JOIN root_products product ON product.line_id = source.source_line_id
+        JOIN root_products product ON product.line_id = source.source_line_id AND product.root_document_id = root.root_document_id
         LEFT JOIN used_quantities used ON used.source_line_id = source.source_line_id
           AND (used.source_document_id IS NULL OR used.source_document_id = source.source_document_id)
-        LEFT JOIN restored_quantities restored ON restored.source_line_id = source.source_line_id
+          AND (used.root_document_id IS NULL OR used.root_document_id = root.root_document_id)
+        LEFT JOIN restored_quantities restored ON restored.source_line_id = source.source_line_id AND restored.root_document_id = root.root_document_id
       )
       SELECT source_document_id, source_document_no, source_entity,
         root_document_id, root_entity,
@@ -3654,6 +3662,7 @@ export class VouService implements WflVouPort {
     }
 
     const roots = new Set<string>()
+    const directRoots = new Set<string>()
     for (const key of [...requested.keys()].sort()) {
       const separator = key.indexOf(':')
       const sourceDocumentId = key.slice(0, separator)
@@ -3683,13 +3692,40 @@ export class VouService implements WflVouPort {
         payload.businessDate < capture.capturedAt.slice(0, 10)
       )
         throw new VouApplicationError('vou_prior_fact_invalid')
-      const rootDocumentId = await this.vouRootDocument(
-        transaction,
-        sourceEntity,
-        sourceDocumentId,
-        source.id,
-        rootEntity,
+      const sourcePayload =
+        entity === 'purchase-return'
+          ? ((await this.readPayload(
+              transaction,
+              sourceEntity,
+              source.id,
+            )) as VouPayloadFor<'purchase-inbound'>)
+          : undefined
+      const direct = sourcePayload && 'productLines' in sourcePayload && capture
+      if (
+        entity === 'purchase-return' &&
+        sourcePayload &&
+        'supplier' in sourcePayload &&
+        'supplier' in payload &&
+        (sourcePayload.currency !== payload.currency ||
+          sourcePayload.supplier.objectId !== payload.supplier.objectId ||
+          sourcePayload.supplier.approvalEntryId !==
+            payload.supplier.approvalEntryId ||
+          !('warehouse' in sourcePayload) ||
+          !('warehouse' in payload) ||
+          (priorFact(payload) &&
+            sourcePayload.warehouse.objectId !== payload.warehouse.objectId))
       )
+        throw new VouApplicationError('vou_source_line_unavailable')
+      const rootDocumentId = direct
+        ? sourceDocumentId
+        : await this.vouRootDocument(
+            transaction,
+            sourceEntity,
+            sourceDocumentId,
+            source.id,
+            rootEntity,
+          )
+      if (direct) directRoots.add(rootDocumentId)
       roots.add(rootDocumentId)
 
       const sourceQuantity =
@@ -3741,9 +3777,11 @@ export class VouService implements WflVouPort {
 
     if (
       roots.size !== 1 ||
-      payload.parentEntity !== rootEntity ||
+      payload.parentEntity !==
+        (directRoots.size ? 'purchase-inbound' : rootEntity) ||
       !payload.parentDocumentId ||
-      !roots.has(payload.parentDocumentId)
+      !roots.has(payload.parentDocumentId) ||
+      (directRoots.size > 0 && directRoots.size !== roots.size)
     )
       throw new VouApplicationError('vou_parent_invalid')
   }
@@ -3970,6 +4008,29 @@ export class VouService implements WflVouPort {
             )
           `.execute(transaction)
       }
+    if (
+      entity === 'purchase-inbound' &&
+      'productLines' in payload &&
+      'priorLineOrigins' in payload
+    ) {
+      await this.writeSourceLines(
+        transaction,
+        approvalEntryId,
+        payload.productLines.map((line) => ({
+          sourceLineId: line.lineId,
+          baseQuantity: line.baseQuantity,
+          priorAmount: line.agreedAmount!,
+          remark: line.remark,
+        })),
+      )
+      for (const origin of payload.priorLineOrigins)
+        await sql`INSERT INTO vou_prior_receipt_line_origins
+          (approval_entry_id, line_id, source_document_type, source_document_key, source_line_key)
+          VALUES (${approvalEntryId}, ${origin.lineId}, ${origin.sourceDocumentType},
+            ${origin.sourceDocumentKey}, ${origin.sourceLineKey})`.execute(
+          transaction,
+        )
+    }
     if ('sourceLines' in payload)
       await this.writeSourceLines(
         transaction,
@@ -5011,7 +5072,28 @@ export class VouService implements WflVouPort {
         })),
       } as VouPayload
     }
-    if (entity === 'sale-order' || entity === 'purchase-order') {
+    const directReceiptOrigins =
+      entity === 'purchase-inbound'
+        ? (
+            await sql<{
+              line_id: string
+              source_document_type: string
+              source_document_key: string
+              source_line_key: string
+            }>`
+          SELECT origin.line_id, source_document_type, source_document_key, source_line_key
+          FROM vou_prior_receipt_line_origins origin
+          JOIN vou_product_line_snapshots line USING (approval_entry_id, line_id)
+          WHERE approval_entry_id = ${approvalEntryId} ORDER BY line.line_no`.execute(
+              executor,
+            )
+          ).rows
+        : []
+    if (
+      entity === 'sale-order' ||
+      entity === 'purchase-order' ||
+      directReceiptOrigins.length
+    ) {
       const productLines = await rows<{
         line_no: number
         line_id: string
@@ -5105,6 +5187,16 @@ export class VouService implements WflVouPort {
       return {
         ...base,
         ...top,
+        ...(directReceiptOrigins.length
+          ? {
+              priorLineOrigins: directReceiptOrigins.map((origin) => ({
+                lineId: origin.line_id,
+                sourceDocumentType: origin.source_document_type,
+                sourceDocumentKey: origin.source_document_key,
+                sourceLineKey: origin.source_line_key,
+              })),
+            }
+          : {}),
         productLines: productLines.map((line) => ({
           lineId: line.line_id,
           product: reference('product', line.line_no),

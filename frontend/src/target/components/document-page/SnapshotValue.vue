@@ -2,11 +2,18 @@
 import CollectionBlock from '../dynamic-fields/CollectionBlock.vue'
 import type { DetailField } from '../details/detail-fields.ts'
 import { dimensions } from './opening-data.ts'
-import type { AccSubjectDimension } from '@zerp/model'
+import {
+  vouPriorLineOriginDocumentPresentation,
+  type AccSubjectDimension,
+} from '@zerp/model'
 import { computed } from 'vue'
 import { intermediaryCategoryLabels } from './intermediary-data.ts'
 import { snapshotCaptions, snapshotEnums } from './snapshot-presentation.ts'
-const props = defineProps<{ value: unknown; field?: string }>()
+const props = defineProps<{
+  value: unknown
+  field?: string
+  externalOrigin?: boolean
+}>()
 const entries = computed(() => {
   if (
     !props.value ||
@@ -39,7 +46,9 @@ const columns = computed<readonly DetailField[]>(() => {
   return keys.map((key) => {
     const title = caption(key)
     const labels =
-      snapshotEnums[key] ??
+      (props.field === 'priorLineOrigins' && key === 'sourceDocumentType'
+        ? undefined
+        : snapshotEnums[key]) ??
       (key === 'category' ? intermediaryCategoryLabels : undefined)
     if (labels)
       return {
@@ -87,6 +96,14 @@ const scalar = computed(() => {
       ] ?? props.value
     )
   }
+  if (props.externalOrigin && props.field === 'sourceDocumentType')
+    return (
+      vouPriorLineOriginDocumentPresentation[
+        String(
+          props.value,
+        ) as keyof typeof vouPriorLineOriginDocumentPresentation
+      ]?.label ?? String(props.value)
+    )
   const captions = snapshotEnums[props.field ?? '']
   if (captions)
     return captions[String(props.value)] ?? '未知选项（单据数据错误）'
@@ -102,7 +119,10 @@ const scalar = computed(() => {
     mode="read"
   >
     <template #summary="{ value: row, field: column }"
-      ><SnapshotValue :value="row[column.key]" :field="column.key"
+      ><SnapshotValue
+        :value="row[column.key]"
+        :field="column.key"
+        :external-origin="externalOrigin || field === 'priorLineOrigins'"
     /></template>
     <template #viewer="{ value: row }"
       ><SnapshotValue :value="row" :field="field"
@@ -120,7 +140,13 @@ const scalar = computed(() => {
   <dl v-else-if="entries" class="snapshot-values">
     <template v-for="[key, item] in entries" :key="key">
       <dt>{{ caption(key) }}</dt>
-      <dd><SnapshotValue :value="item" :field="key" /></dd>
+      <dd>
+        <SnapshotValue
+          :value="item"
+          :field="key"
+          :external-origin="externalOrigin || field === 'priorLineOrigins'"
+        />
+      </dd>
     </template>
   </dl>
   <span v-else class="snapshot-text">{{ scalar }}</span>

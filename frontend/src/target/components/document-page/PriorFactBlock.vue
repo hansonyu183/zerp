@@ -5,6 +5,7 @@ import { priorFactFields, type PriorFactDraft } from './prior-fact-data.ts'
 const props = defineProps<{
   modelValue?: PriorFactDraft | null
   entity: 'purchase-order' | 'purchase-inbound' | 'purchase-return'
+  defaultSourceType?: 'AH'
   disabled: boolean
 }>()
 const emit = defineEmits<{
@@ -24,11 +25,12 @@ function toggle(enabled: boolean) {
           capturedAt: '',
           snapshotDigest: '',
           sourceDocumentType:
-            props.entity === 'purchase-order'
+            props.defaultSourceType ??
+            (props.entity === 'purchase-order'
               ? 'AA'
               : props.entity === 'purchase-inbound'
                 ? 'AB'
-                : 'AF',
+                : 'AF'),
         }
       : null,
   )

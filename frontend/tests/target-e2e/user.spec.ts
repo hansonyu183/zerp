@@ -474,7 +474,7 @@ test('role management creates, edits and changes enablement at desktop and 390px
   }
 })
 
-test('a role with one non-query permission grants the menu without an overbroad request and is revoked on Session restore', async ({
+test('a role with one non-query permission grants the menu and revokes old Sessions after disablement', async ({
   browser,
   page,
 }) => {
@@ -562,9 +562,11 @@ test('a role with one non-query permission grants the menu without an overbroad 
       errorKey: string
     }
     expect(revokedBody.code).not.toBe(0)
-    expect(revokedBody.errorKey).toBe('forbidden')
+    expect(revokedBody.errorKey).toBe('unauthenticated')
 
     await userPage.reload()
+    await expect(userPage.getByLabel('用户编码', { exact: true })).toBeVisible()
+    await signIn(userPage, userCode, changedPassword)
     await expect(userPage.locator('a[href="/app/user"]')).toHaveCount(0)
     await userPage.goto('/app/user')
     await expect(userPage.getByText('无权访问', { exact: true })).toBeVisible()

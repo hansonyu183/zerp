@@ -576,12 +576,12 @@ for (const width of [1280, 390])
       await editor.getByLabel(label, { exact: true }).fill(value)
       await page.getByRole('option').filter({ hasText: value }).first().click()
     }
-    const select = async (label: string, value: string) => {
-      await editor.getByLabel(label, { exact: true }).click()
+    const select = async (field: string, value: string) => {
+      await editor.getByTestId(`field-${field}`).click()
       await page.getByRole('option', { name: value, exact: true }).click()
     }
     await editor.getByLabel('登记此前事实', { exact: true }).check()
-    await select('源单关闭状态', '未关闭')
+    await select('sourceClosed', '未关闭')
     for (const [label, value] of Object.entries({
       来源实例: 'isolated-browser-fixture',
       来源库: 'fixture',
@@ -609,7 +609,7 @@ for (const width of [1280, 390])
     await editor
       .getByLabel('原报价（不重算金额）', { exact: true })
       .fill('7.500000')
-    await select('原引用类型', '销售订单')
+    await select('sourceDocumentType', '销售订单')
     await editor.getByLabel('原引用单据键', { exact: true }).fill('548909')
     await editor.getByLabel('原引用行键', { exact: true }).fill('5')
     await confirmCollections(page)

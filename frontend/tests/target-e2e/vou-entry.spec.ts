@@ -538,3 +538,126 @@ for (const [width, month, cloneMonth] of [
     expect(cloned.documentId).not.toBe(first.documentId)
     expect(cloned.payload.businessDate).toBe(cloneMonth)
   })
+
+for (const width of [1280, 390])
+  test(`independent prior receipt input, external origin and explicit clone at ${width}px`, async ({
+    page,
+  }) => {
+    test.setTimeout(90000)
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await page.goto('/signin')
+    await page
+      .getByLabel('用户编码', { exact: true })
+      .fill(process.env.TARGET_E2E_USERNAME!)
+    await page
+      .getByLabel('密码', { exact: true })
+      .fill(process.env.TARGET_E2E_PASSWORD!)
+    await page.getByRole('button', { name: '登录', exact: true }).click()
+    await expect(page.getByLabel('用户编码', { exact: true })).toHaveCount(0)
+    const drawer = page.locator('.v-navigation-drawer')
+    const group = drawer
+      .locator('.v-list-group')
+      .filter({ hasText: '业务单据' })
+    if (!(await group.getAttribute('class'))?.includes('v-list-group--open'))
+      await group.locator('.v-list-group__header').click()
+    await drawer.locator('a[href="/vou/purchase-inbound"]').click()
+    await expect(page.getByTestId('vou-list-page')).toBeVisible()
+    await setDateRange(page, '期间', '2026-09-01', '2026-09-30')
+    await page.getByTestId('list-search').click()
+    await page.getByRole('button', { name: '新增', exact: true }).click()
+    const editor = page.getByRole('dialog').last()
+    await editor
+      .getByRole('button', { name: '登记独立此前收货', exact: true })
+      .click()
+    await expect(
+      editor.getByRole('region', { name: '独立此前收货录入' }),
+    ).toBeVisible()
+    const choose = async (label: string, value: string) => {
+      await editor.getByLabel(label, { exact: true }).fill(value)
+      await page.getByRole('option').filter({ hasText: value }).first().click()
+    }
+    const select = async (label: string, value: string) => {
+      await editor.getByLabel(label, { exact: true }).click()
+      await page.getByRole('option', { name: value, exact: true }).click()
+    }
+    await editor.getByLabel('登记此前事实', { exact: true }).check()
+    await select('源单关闭状态', '未关闭')
+    for (const [label, value] of Object.entries({
+      来源实例: 'isolated-browser-fixture',
+      来源库: 'fixture',
+      原单据键: `receipt-${width}`,
+      原单号: `AH-browser-${width}`,
+      封存截止时间: '2026-09-30T23:59:59.123456Z',
+      来源快照摘要: 'a'.repeat(64),
+    }))
+      await editor.getByLabel(label, { exact: true }).fill(value)
+    await editor.getByLabel('业务日期', { exact: true }).fill('2026-09-11')
+    await choose('供应商', facts.supplier)
+    await choose('仓库', facts.warehouse)
+    await editor
+      .locator(
+        '.collection-block[aria-label="独立收货商品行"] > .collection-heading',
+      )
+      .getByRole('button', { name: '新增', exact: true })
+      .click()
+    await choose('产品', facts.product)
+    await editor.getByLabel('录入数量', { exact: true }).fill('1100')
+    await editor.getByLabel('基准数量', { exact: true }).fill('1100')
+    await editor
+      .getByLabel('最终约定金额（可选）', { exact: true })
+      .fill('8250.00')
+    await editor
+      .getByLabel('原报价（不重算金额）', { exact: true })
+      .fill('7.500000')
+    await select('原引用类型', '销售订单')
+    await editor.getByLabel('原引用单据键', { exact: true }).fill('548909')
+    await editor.getByLabel('原引用行键', { exact: true }).fill('5')
+    await confirmCollections(page)
+    await page.setViewportSize({ width, height: 900 })
+    expect(
+      await editor.evaluate(
+        (element) => element.scrollWidth > element.clientWidth,
+      ),
+    ).toBe(false)
+    const pending = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/vou/purchase-inbound/submit-new',
+    )
+    await editor.getByRole('button', { name: '提交', exact: true }).click()
+    const submitted = await (await pending).json()
+    expect(submitted.code, JSON.stringify(submitted)).toBe(0)
+    expect(submitted.data.payload.priorFact.sourceDocumentType).toBe('AH')
+    expect(submitted.data.payload.productLines[0].agreedAmount).toBe('8250.00')
+    expect(submitted.data.payload).not.toHaveProperty('parentDocumentId')
+    await expect(editor).toHaveCount(0)
+    await page
+      .getByTestId(`vou-row-${submitted.data.documentId}`)
+      .getByRole('button', { name: '打开', exact: true })
+      .click()
+    const detail = page.getByTestId('vou-detail')
+    await expect(detail).toContainText('独立采购收货')
+    await expect(detail).toContainText('销售订单')
+    await expect(detail).toContainText('548909')
+    await detail
+      .getByRole('button', { name: '复制到临时表单', exact: true })
+      .click()
+    await expect(editor).toContainText('复制不沿用原单身份')
+    await expect(
+      editor.getByLabel('登记此前事实', { exact: true }),
+    ).not.toBeChecked()
+    await editCollection(page, '独立收货商品行')
+    await expect(
+      editor.getByLabel('原引用单据键', { exact: true }),
+    ).toHaveValue('')
+    await expect(editor.getByLabel('原引用行键', { exact: true })).toHaveValue(
+      '',
+    )
+    await expect(
+      editor.getByLabel('最终约定金额（可选）', { exact: true }),
+    ).toHaveValue('8250.00')
+    await confirmCollections(page)
+    await editor.getByRole('button', { name: '提交', exact: true }).click()
+    await expect(editor).toContainText('必须明确登记此前事实')
+    await editor.getByRole('button', { name: '取消', exact: true }).click()
+    await expect(editor).toHaveCount(0)
+  })

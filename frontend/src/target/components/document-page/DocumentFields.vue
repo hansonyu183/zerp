@@ -9,8 +9,11 @@ import FinancialBlock from './FinancialBlock.vue'
 import ProductionBlock from './ProductionBlock.vue'
 import ProductFactsBlock from './ProductFactsBlock.vue'
 import FulfillmentBlock from './FulfillmentBlock.vue'
+import IndependentReceiptBlock from './IndependentReceiptBlock.vue'
+import { emptyIndependentReceipt } from './independent-receipt-data.ts'
+import { emptyFulfillment } from './fulfillment-data.ts'
 import OrderBlock from './OrderBlock.vue'
-defineProps<{
+const props = defineProps<{
   modelValue: Exclude<EditorDraft, { kind: 'intermediary' }>
   disabled: boolean
 }>()
@@ -18,6 +21,47 @@ const emit = defineEmits<{
   'update:modelValue': [value: Exclude<EditorDraft, { kind: 'intermediary' }>]
   pending: [value: boolean]
 }>()
+function switchReceipt(standalone: boolean) {
+  const draft = props.modelValue
+  if (
+    props.disabled ||
+    (draft.kind !== 'fulfillment' && draft.kind !== 'independent-receipt') ||
+    draft.value.entity !== 'purchase-inbound' ||
+    draft.value.lines.length
+  )
+    return
+  const {
+    businessDate,
+    currency,
+    remark,
+    supplier,
+    selectionOrigin,
+    warehouse,
+    attachments,
+  } = draft.value
+  const common = {
+    businessDate,
+    currency,
+    remark,
+    supplier,
+    selectionOrigin,
+    warehouse,
+    attachments,
+  }
+  emit('pending', false)
+  emit(
+    'update:modelValue',
+    standalone
+      ? {
+          kind: 'independent-receipt',
+          value: { ...emptyIndependentReceipt(), ...common },
+        }
+      : {
+          kind: 'fulfillment',
+          value: { ...emptyFulfillment('purchase-inbound'), ...common },
+        },
+  )
+}
 </script>
 <template>
   <InvoiceBlock
@@ -87,8 +131,19 @@ const emit = defineEmits<{
     "
     @pending="emit('pending', $event)"
   />
+  <IndependentReceiptBlock
+    v-else-if="modelValue.kind === 'independent-receipt'"
+    :model-value="modelValue.value"
+    :disabled="disabled"
+    @update:model-value="
+      emit('update:modelValue', { kind: 'independent-receipt', value: $event })
+    "
+    @pending="emit('pending', $event)"
+    @order="switchReceipt(false)"
+  />
   <FulfillmentBlock
     v-else-if="modelValue.kind === 'fulfillment'"
+    @standalone="switchReceipt(true)"
     :model-value="modelValue.value"
     :disabled="disabled"
     @update:model-value="

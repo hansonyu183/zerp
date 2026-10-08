@@ -1367,6 +1367,14 @@ export interface VouPriorFacts {
   source_schema: string
 }
 
+export interface VouPriorReceiptLineOrigins {
+  approval_entry_id: string
+  line_id: string
+  source_document_key: string
+  source_document_type: string
+  source_line_key: string
+}
+
 export interface VouProductionLineSnapshots {
   approval_entry_id: string
   base_quantity_micros: Int8
@@ -1905,6 +1913,7 @@ export interface DB {
   vou_other_receipt_details: VouOtherReceiptDetails
   vou_price_line_snapshots: VouPriceLineSnapshots
   vou_prior_facts: VouPriorFacts
+  vou_prior_receipt_line_origins: VouPriorReceiptLineOrigins
   vou_product_line_snapshots: VouProductLineSnapshots
   vou_production_line_snapshots: VouProductionLineSnapshots
   vou_production_material_snapshots: VouProductionMaterialSnapshots

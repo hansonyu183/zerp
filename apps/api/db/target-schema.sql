@@ -745,7 +745,7 @@ CREATE TABLE vou_prior_facts (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     source_instance_id varchar(128) NOT NULL,
     source_schema varchar(64) NOT NULL,
-    source_document_type varchar(2) NOT NULL CHECK (source_document_type IN ('AA', 'AD', 'AB', 'AF')),
+    source_document_type varchar(2) NOT NULL CHECK (source_document_type IN ('AA', 'AD', 'AB', 'AF', 'AH')),
     source_document_key varchar(128) NOT NULL,
     source_document_no varchar(200) NOT NULL,
     captured_at timestamptz NOT NULL,
@@ -1989,3 +1989,13 @@ CREATE TABLE aux_measurement_unit_conversion_evidence (
 );
 
 ALTER TABLE app_users ADD CONSTRAINT app_users_employee_fk FOREIGN KEY (employee_id) REFERENCES aux_objects(id);
+
+CREATE TABLE vou_prior_receipt_line_origins (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    line_id varchar(26) NOT NULL,
+    source_document_type varchar(64) NOT NULL,
+    source_document_key varchar(128) NOT NULL,
+    source_line_key varchar(128) NOT NULL,
+    PRIMARY KEY (approval_entry_id, line_id),
+    FOREIGN KEY (approval_entry_id, line_id) REFERENCES vou_product_line_snapshots(approval_entry_id, line_id) ON DELETE CASCADE
+);

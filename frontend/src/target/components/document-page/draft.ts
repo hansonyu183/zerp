@@ -1,4 +1,9 @@
 import {
+  cloneIndependentReceipt,
+  independentReceiptPayload,
+  type IndependentReceiptDraft,
+} from './independent-receipt-data.ts'
+import {
   emptyInvoice,
   invoicePayload,
   type InvoiceDraft,
@@ -82,6 +87,7 @@ export type EditorDraft =
   | { kind: 'financial'; value: FinancialDraft }
   | { kind: 'order'; value: OrderDraft }
   | { kind: 'fulfillment'; value: FulfillmentDraft }
+  | { kind: 'independent-receipt'; value: IndependentReceiptDraft }
   | { kind: 'product-facts'; value: ProductFactsDraft }
   | { kind: 'production'; value: ProductionDraft }
   | { kind: 'opening'; value: OpeningDraft }
@@ -246,6 +252,20 @@ export function cloneDocumentDraft(original: VouDetail): EditorDraft | null {
         original.entity,
         payload,
         lines.map(() => ulid()),
+      ),
+    }
+  } else if (
+    original.entity === 'purchase-inbound' &&
+    'productLines' in original.payload
+  ) {
+    return {
+      kind: 'independent-receipt',
+      value: cloneIndependentReceipt(
+        original.payload as Extract<
+          import('@zerp/model').VouPayloadFor<'purchase-inbound'>,
+          { productLines: readonly unknown[] }
+        >,
+        original.payload.productLines.map(() => ulid()),
       ),
     }
   } else if (
@@ -443,6 +463,16 @@ export function documentCommand(
         },
       }
     }
+    case 'independent-receipt':
+      return {
+        kind: 'fulfillment',
+        entity: 'purchase-inbound',
+        input: {
+          ...identity,
+          expectedRevision: null,
+          payload: independentReceiptPayload(editor.value),
+        },
+      }
     case 'fulfillment': {
       const value = editor.value
       return {

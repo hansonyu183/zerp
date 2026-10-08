@@ -119,7 +119,7 @@ const priorFact = z
     sourceClosed: z.boolean(),
     sourceInstanceId: z.string().min(1).max(128),
     sourceSchema: z.string().min(1).max(64),
-    sourceDocumentType: z.enum(['AA', 'AD', 'AB', 'AF']),
+    sourceDocumentType: z.enum(['AA', 'AD', 'AB', 'AF', 'AH']),
     sourceDocumentKey: z.string().min(1).max(128),
     sourceDocumentNo: z.string().min(1).max(200),
     capturedAt: z.string().datetime().regex(vouPriorCutoffPattern),
@@ -206,6 +206,26 @@ const validProductLine = productLine.refine(
     message: 'agreed amount requires positive quantity',
   },
 )
+const directReceiptLine = productLineFields
+  .pick({
+    lineId: true,
+    product: true,
+    enteredQuantity: true,
+    enteredUnit: true,
+    baseQuantity: true,
+    unitPrice: true,
+    agreedAmount: true,
+    remark: true,
+  })
+  .extend({ agreedAmount: money })
+  .refine(
+    (line) =>
+      /^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(line.baseQuantity) &&
+      /[1-9]/.test(line.baseQuantity) &&
+      /^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(line.enteredQuantity) &&
+      /[1-9]/.test(line.enteredQuantity),
+    { message: 'direct receipt requires positive quantities' },
+  )
 const priceLine = z
   .object({
     product: versionedReference,
@@ -618,12 +638,33 @@ export const vouPayloadSchemaByEntity = {
     warehouse: warehouseReference,
     productLines: z.array(validProductLine).min(1).max(200),
   }),
-  'purchase-inbound': payload({
-    priorFact: priorFact.optional(),
-    supplier: versionedReference,
-    warehouse: warehouseReference,
-    sourceLines: z.array(priorSourceLine).min(1).max(200),
-  }),
+  'purchase-inbound': z.union([
+    payload({
+      priorFact: priorFact.optional(),
+      supplier: versionedReference,
+      warehouse: warehouseReference,
+      sourceLines: z.array(priorSourceLine).min(1).max(200),
+    }),
+    payload({
+      priorFact,
+      supplier: versionedReference,
+      warehouse: warehouseReference,
+      productLines: z.array(directReceiptLine).min(1).max(200),
+      priorLineOrigins: z
+        .array(
+          z
+            .object({
+              lineId: z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/),
+              sourceDocumentType: z.string().trim().min(1).max(64),
+              sourceDocumentKey: z.string().trim().min(1).max(128),
+              sourceLineKey: z.string().trim().min(1).max(128),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(200),
+    }),
+  ]),
   'purchase-return': payload({
     priorFact: priorFact.optional(),
     supplier: versionedReference,
@@ -1073,7 +1114,7 @@ const sourceLineCandidate = z
     sourceDocumentNo: z.string().min(1),
     sourceEntity: z.enum(vouSourceLineSourceEntities),
     rootDocumentId: z.string().length(26),
-    rootEntity: z.enum(['sale-order', 'purchase-order']),
+    rootEntity: z.enum(['sale-order', 'purchase-order', 'purchase-inbound']),
     businessDate: z.string().date(),
     sourceLineId: z.string().min(1),
     product: z

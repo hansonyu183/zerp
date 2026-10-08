@@ -10,6 +10,8 @@ import {
   upgradePurchaseCarryover,
   inspectPurchaseSourceClosureUpgrade,
   upgradePurchaseSourceClosure,
+  inspectStandaloneReceiptUpgrade,
+  upgradeStandaloneReceipts,
 } from '../src/vou/purchase-carryover-upgrade.ts'
 
 async function main() {
@@ -17,6 +19,7 @@ async function main() {
     options: {
       apply: { type: 'boolean' },
       'source-closure': { type: 'boolean' },
+      'standalone-receipts': { type: 'boolean' },
       baseline: { type: 'string' },
       backup: { type: 'string' },
       'actor-id': { type: 'string' },
@@ -27,9 +30,18 @@ async function main() {
   if (!url) throw new Error('purchase_carryover_upgrade_database_required')
   assertTargetDatabaseBoundary(url, process.env.TARGET_DATABASE_SCOPE)
   const db = createDatabase(url)
-  const apply = values['source-closure']
-    ? upgradePurchaseSourceClosure
-    : upgradePurchaseCarryover
+  if (values['source-closure'] && values['standalone-receipts'])
+    throw new Error('purchase_carryover_upgrade_inputs_required')
+  const inspect = values['standalone-receipts']
+    ? inspectStandaloneReceiptUpgrade
+    : values['source-closure']
+      ? inspectPurchaseSourceClosureUpgrade
+      : inspectPurchaseCarryoverUpgrade
+  const apply = values['standalone-receipts']
+    ? upgradeStandaloneReceipts
+    : values['source-closure']
+      ? upgradePurchaseSourceClosure
+      : upgradePurchaseCarryover
   try {
     if (!values.apply)
       console.log(
@@ -37,11 +49,7 @@ async function main() {
           await db
             .transaction()
             .setIsolationLevel('repeatable read')
-            .execute(async (tx) =>
-              values['source-closure']
-                ? inspectPurchaseSourceClosureUpgrade(tx)
-                : inspectPurchaseCarryoverUpgrade(tx),
-            ),
+            .execute(async (tx) => inspect(tx)),
         ),
       )
     else {

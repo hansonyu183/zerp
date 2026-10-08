@@ -1,3 +1,4 @@
+import { purchaseInboundScopeValues } from '@zerp/model'
 import {
   registerOpeningRoutes,
   type OpeningRouteHandler,
@@ -77,6 +78,10 @@ const sessionData = z.object({
   }),
   csrfToken: z.string(),
   apiPaths: z.array(z.string()),
+  purchaseInboundScopes: z.record(
+    z.string(),
+    z.enum(purchaseInboundScopeValues),
+  ),
   passwordChangeRequired: z.boolean(),
   passwordMinLength: z.number().int().positive(),
   targetId: z.string().uuid(),

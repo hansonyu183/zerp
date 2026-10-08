@@ -782,6 +782,7 @@ function prepare(
 ) {
   const row = {
     ...identity(entity),
+    ...(entity === 'role' ? { purchaseInboundScopes: {} } : {}),
     revision,
     availableActions: ['edit', 'enable', 'disable', 'delete'],
     ...input,
@@ -1484,6 +1485,7 @@ it('loads requested permission pages and enforces delegation choices', async () 
       name: '授权角色',
       description: null,
       permissionIds: ['allowed'],
+      purchaseInboundScopes: {},
       customerScope: 'NONE',
     },
     expect.any(Object),
@@ -1553,5 +1555,58 @@ it('ACC book Host renders real rows without enabled or pinyin and opens read-onl
   expect(
     wrapper.findAll('button').some((button) => button.text() === '保存'),
   ).toBe(false)
+  wrapper.unmount()
+})
+
+it('requires an explicit receipt scope in the real role editor before invoking the typed API', async () => {
+  setActivePinia(createPinia())
+  vi.resetAllMocks()
+  configureApi()
+  authorize(['/app/role/create', '/vou/purchase-inbound/query'])
+  useTargetSession().purchaseInboundScopes = {
+    '/vou/purchase-inbound/query': 'ALL',
+  }
+  queryPermissions.mockResolvedValue(
+    page([
+      {
+        id: 'inbound-query',
+        path: '/vou/purchase-inbound/query',
+        domain: 'vou',
+        entity: 'purchase-inbound',
+        action: 'query',
+        description: null,
+        status: 'ENABLED',
+        assignable: true,
+      },
+    ]) as never,
+  )
+  const wrapper = host('role', 'app')
+  await flushPromises()
+  await button(wrapper, '新增').trigger('click')
+  await flushPromises()
+  await wrapper.get('input[aria-label="名称"]').setValue('收货查询角色')
+  await wrapper.get('select[aria-label="权限"]').setValue(['inbound-query'])
+  await flushPromises()
+  await button(wrapper, '保存').trigger('click')
+  expect(targetApi.createTargetRole).not.toHaveBeenCalled()
+  expect(wrapper.text()).toContain('请选择每项采购入库操作的收货范围')
+  const editor = wrapper.getComponent({ name: 'PurchaseInboundScopeEditor' })
+  editor
+    .findComponent({ name: 'FieldInput' })
+    .vm.$emit('update:modelValue', 'INDEPENDENT_PRIOR')
+  await flushPromises()
+  await button(wrapper, '保存').trigger('click')
+  await flushPromises()
+  expect(targetApi.createTargetRole).toHaveBeenCalledExactlyOnceWith(
+    'csrf-token',
+    {
+      name: '收货查询角色',
+      description: null,
+      customerScope: 'NONE',
+      permissionIds: ['inbound-query'],
+      purchaseInboundScopes: { 'inbound-query': 'INDEPENDENT_PRIOR' },
+    },
+    expect.any(Object),
+  )
   wrapper.unmount()
 })

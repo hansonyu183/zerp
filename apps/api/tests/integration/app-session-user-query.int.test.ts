@@ -307,6 +307,7 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
     'csrfToken',
     'passwordChangeRequired',
     'passwordMinLength',
+    'purchaseInboundScopes',
     'targetId',
     'user',
   ])
@@ -577,9 +578,21 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
   await db
     .insertInto('app_role_permissions')
     .values([
-      { role_id: roleId, permission_id: permission.id },
-      { role_id: roleId, permission_id: mappingQueryPermission.id },
-      { role_id: roleId, permission_id: mappingGetPermission.id },
+      {
+        role_id: roleId,
+        permission_id: permission.id,
+        purchase_inbound_scope: 'ALL',
+      },
+      {
+        role_id: roleId,
+        permission_id: mappingQueryPermission.id,
+        purchase_inbound_scope: 'ALL',
+      },
+      {
+        role_id: roleId,
+        permission_id: mappingGetPermission.id,
+        purchase_inbound_scope: 'ALL',
+      },
     ])
     .execute()
   await db
@@ -742,7 +755,11 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
     .executeTakeFirstOrThrow()
   await db
     .insertInto('app_role_permissions')
-    .values({ role_id: roleId, permission_id: savePermission.id })
+    .values({
+      role_id: roleId,
+      permission_id: savePermission.id,
+      purchase_inbound_scope: 'ALL',
+    })
     .execute()
   assert.equal((await (await saveMapping()).json()).data.revision, '2')
   assert.equal(
@@ -785,7 +802,11 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
   assert.ok(!revokedRestorePayload.data.apiPaths.includes('/app/user/query'))
   await db
     .insertInto('app_role_permissions')
-    .values({ role_id: roleId, permission_id: permission.id })
+    .values({
+      role_id: roleId,
+      permission_id: permission.id,
+      purchase_inbound_scope: 'ALL',
+    })
     .execute()
 
   await db
@@ -1036,7 +1057,11 @@ test('user query searches code, pinyin, and name with stable fixed pagination an
     .execute()
   await db
     .insertInto('app_role_permissions')
-    .values({ role_id: roleId, permission_id: queryPermission.id })
+    .values({
+      role_id: roleId,
+      permission_id: queryPermission.id,
+      purchase_inbound_scope: 'ALL',
+    })
     .execute()
   await db
     .insertInto('app_user_roles')

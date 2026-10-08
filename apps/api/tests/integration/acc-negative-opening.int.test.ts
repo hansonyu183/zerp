@@ -36,7 +36,11 @@ test('normal HTTP carries a negative opening, allows staged replenishment and re
       .insertInto('app_role_permissions')
       .values(
         [f.submitter.roleId, f.reviewer.roleId].flatMap((roleId) =>
-          extra.map((p) => ({ role_id: roleId, permission_id: p.id })),
+          extra.map((p) => ({
+            role_id: roleId,
+            permission_id: p.id,
+            purchase_inbound_scope: 'ALL',
+          })),
         ),
       )
       .onConflict((c) => c.doNothing())

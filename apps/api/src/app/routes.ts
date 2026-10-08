@@ -86,6 +86,7 @@ function sessionPayload(principal: Principal, targetId: string) {
     user: principal.user,
     csrfToken: principal.csrfToken,
     apiPaths: principal.apiPaths,
+    purchaseInboundScopes: principal.purchaseInboundScopes,
     passwordChangeRequired: principal.passwordChangeRequired,
     passwordMinLength: principal.passwordMinLength,
     targetId,

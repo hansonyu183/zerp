@@ -447,6 +447,7 @@ export class TargetBootstrapService {
         .values(
           permissions.map((permission) => ({
             role_id: principal.roleId,
+            purchase_inbound_scope: 'ALL',
             permission_id: permission.id,
           })),
         )

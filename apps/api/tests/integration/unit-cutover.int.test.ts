@@ -40,6 +40,10 @@ test('unit cutover blocks conflicting fixed factors, preserves historical decima
     )
     .execute(db)
   await upgradeDepartmentAccess(db)
+  // Current APP grants are independent of this historical business-domain fixture.
+  await sql`ALTER TABLE app_role_permissions ADD COLUMN purchase_inbound_scope text NOT NULL CHECK (purchase_inbound_scope IN ('ORDER_REFERENCE','INDEPENDENT_PRIOR','ALL'))`.execute(
+    db,
+  )
   const bootstrap = new TargetBootstrapService(db)
   await bootstrap.syncPermissionCatalog(await readTargetPermissionCatalog())
   const principal = {

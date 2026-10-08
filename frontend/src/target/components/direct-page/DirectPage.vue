@@ -31,6 +31,8 @@ import {
   type EditDetail,
 } from './definition.ts'
 import EditForm from '../dynamic-fields/EditForm.vue'
+import PurchaseInboundScopeEditor from './PurchaseInboundScopeEditor.vue'
+import type { PurchaseInboundScopes } from '@zerp/model'
 import { formatDecimal, compareDecimal } from '../dynamic-fields/decimal.ts'
 import { incomeExpenseDirectionOptions } from './aux-presentation.ts'
 import type { DirectFilters } from './definition.ts'
@@ -100,6 +102,7 @@ async function verify() {
   }
 }
 const error = ref<string | null>(null)
+const receiptScopesValid = ref(false)
 const values = shallowRef<EditValues>({})
 const detail = shallowRef<EditDetail<EditValues> | null>(null)
 let completion: {
@@ -165,6 +168,7 @@ function finish(result?: 'changed') {
   loading.value = false
   values.value = {}
   detail.value = null
+  receiptScopesValid.value = false
   error.value = null
   completion?.resolve(result)
   completion = null
@@ -323,6 +327,10 @@ async function save() {
     }
   }
   const version = editVersion
+  if (definition.resource === 'app/role' && !receiptScopesValid.value) {
+    error.value = '请选择每项采购入库操作的收货范围。'
+    return
+  }
   saving.value = true
   error.value = null
   try {
@@ -741,6 +749,20 @@ onBeforeUnmount(() => {
           v-model="values"
           :disabled="viewing || saving || loading || blocked"
           @submit="save"
+        />
+        <PurchaseInboundScopeEditor
+          v-if="open && !loading && definition.resource === 'app/role'"
+          :permission-ids="values.permissionIds as string[]"
+          :options="[
+            ...(detail?.options?.permissionIds ?? []),
+            ...(referenceOptions.permissionIds ?? []),
+          ]"
+          :model-value="values.purchaseInboundScopes as PurchaseInboundScopes"
+          :disabled="viewing || saving || loading || blocked"
+          @update:model-value="
+            values = { ...values, purchaseInboundScopes: $event }
+          "
+          @validity="receiptScopesValid = $event"
         />
       </v-card-text>
       <v-card-actions

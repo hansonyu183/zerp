@@ -112,6 +112,7 @@ async function createPrincipal(
     .values(
       permissionIds.map((permissionId) => ({
         role_id: roleId,
+        purchase_inbound_scope: 'ALL',
         permission_id: permissionId,
       })),
     )

@@ -953,6 +953,9 @@ it.each(['RAW_MATERIAL', 'CUSTOM_FINISHED'] as const)(
 )
 
 it('submits purchase receipt with the selected exact source and refreshes once', async () => {
+  useTargetSession().purchaseInboundScopes = {
+    '/vou/purchase-inbound/submit-new': 'ORDER_REFERENCE',
+  }
   useTargetSession().apiPaths = [
     '/vou/purchase-inbound/submit-new',
     '/vou/purchase-inbound/query',

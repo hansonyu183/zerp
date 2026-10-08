@@ -1,3 +1,8 @@
+import {
+  purchaseInboundScopeCovers,
+  type PurchaseInboundMode,
+  type PurchaseInboundScopes,
+} from '@zerp/model'
 import { computed, ref, shallowRef, watch } from 'vue'
 import { defineStore } from 'pinia'
 
@@ -33,6 +38,7 @@ export const useTargetSession = defineStore('target-session', () => {
   const user = ref<SessionData['user'] | null>(null)
   const csrfToken = ref<string | null>(null)
   const apiPaths = ref<string[]>([])
+  const purchaseInboundScopes = ref<PurchaseInboundScopes>({})
   const profile = ref<ProfileData | null>(null)
   const passwordChangeRequired = ref(false)
   const passwordMinLength = ref(12)
@@ -138,6 +144,7 @@ export const useTargetSession = defineStore('target-session', () => {
     user.value = data.user
     csrfToken.value = data.csrfToken
     apiPaths.value = [...data.apiPaths]
+    purchaseInboundScopes.value = { ...data.purchaseInboundScopes }
     passwordChangeRequired.value = data.passwordChangeRequired
     passwordMinLength.value = data.passwordMinLength
     initialized.value = true
@@ -151,6 +158,7 @@ export const useTargetSession = defineStore('target-session', () => {
     user.value = null
     csrfToken.value = null
     apiPaths.value = []
+    purchaseInboundScopes.value = {}
     profile.value = null
     passwordChangeRequired.value = false
     passwordMinLength.value = 12
@@ -297,6 +305,17 @@ export const useTargetSession = defineStore('target-session', () => {
     return apiPaths.value.includes(permission)
   }
 
+  function canPurchaseInbound(
+    action: string,
+    mode: PurchaseInboundMode,
+  ): boolean {
+    const path = `/vou/purchase-inbound/${action}`
+    return (
+      can(path) &&
+      purchaseInboundScopeCovers(purchaseInboundScopes.value[path], mode)
+    )
+  }
+
   function hasResource(domain: string, entity: string): boolean {
     return (
       authenticated.value &&
@@ -315,6 +334,8 @@ export const useTargetSession = defineStore('target-session', () => {
     user,
     csrfToken,
     apiPaths,
+    purchaseInboundScopes,
+    canPurchaseInbound,
     profile,
     passwordChangeRequired,
     passwordMinLength,

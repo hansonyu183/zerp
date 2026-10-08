@@ -3,20 +3,14 @@ import { parseArgs } from 'node:util'
 import { createDatabase } from '../src/db/database.ts'
 import { assertTargetDatabaseBoundary } from '../src/platform/config.ts'
 import {
-  inspectPurchaseCarryoverUpgrade,
-  upgradePurchaseCarryover,
-  inspectPurchaseSourceClosureUpgrade,
-  upgradePurchaseSourceClosure,
-  inspectStandaloneReceiptUpgrade,
-  upgradeStandaloneReceipts,
-} from '../src/vou/purchase-carryover-upgrade.ts'
+  inspectPurchaseInboundScopeUpgrade,
+  upgradePurchaseInboundScopes,
+} from '../src/app/purchase-inbound-scope-upgrade.ts'
 
 async function main() {
   const { values } = parseArgs({
     options: {
       apply: { type: 'boolean' },
-      'source-closure': { type: 'boolean' },
-      'standalone-receipts': { type: 'boolean' },
       baseline: { type: 'string' },
       backup: { type: 'string' },
       'actor-id': { type: 'string' },
@@ -24,21 +18,9 @@ async function main() {
     },
   })
   const url = process.env.TARGET_DATABASE_URL
-  if (!url) throw new Error('purchase_carryover_upgrade_database_required')
+  if (!url) throw new Error('purchase_inbound_scope_upgrade_database_required')
   assertTargetDatabaseBoundary(url, process.env.TARGET_DATABASE_SCOPE)
   const db = createDatabase(url)
-  if (values['source-closure'] && values['standalone-receipts'])
-    throw new Error('purchase_carryover_upgrade_inputs_required')
-  const inspect = values['standalone-receipts']
-    ? inspectStandaloneReceiptUpgrade
-    : values['source-closure']
-      ? inspectPurchaseSourceClosureUpgrade
-      : inspectPurchaseCarryoverUpgrade
-  const apply = values['standalone-receipts']
-    ? upgradeStandaloneReceipts
-    : values['source-closure']
-      ? upgradePurchaseSourceClosure
-      : upgradePurchaseCarryover
   try {
     if (!values.apply)
       console.log(
@@ -46,7 +28,7 @@ async function main() {
           await db
             .transaction()
             .setIsolationLevel('repeatable read')
-            .execute(async (tx) => inspect(tx)),
+            .execute(async (tx) => inspectPurchaseInboundScopeUpgrade(tx)),
         ),
       )
     else {
@@ -56,16 +38,16 @@ async function main() {
         !values['actor-id'] ||
         !values['writers-frozen']
       )
-        throw new Error('purchase_carryover_upgrade_inputs_required')
+        throw new Error('purchase_inbound_scope_upgrade_inputs_required')
       const verified = await readVerifiedUpgradeInput({
         backupPath: values.backup,
         baselinePath: values.baseline,
         targetReleaseSha: process.env.ZERP_RELEASE_SHA,
-        errorPrefix: 'purchase_carryover_upgrade',
+        errorPrefix: 'purchase_inbound_scope_upgrade',
       })
       console.log(
         JSON.stringify(
-          await apply(db, {
+          await upgradePurchaseInboundScopes(db, {
             baseline: verified.baseline,
             actorId: values['actor-id'],
             sourceReleaseSha: verified.sourceReleaseSha,
@@ -81,9 +63,9 @@ async function main() {
 main().catch((error: unknown) => {
   const message =
     error instanceof Error &&
-    /^purchase_carryover_upgrade_[a-z_]+$/.test(error.message)
+    /^purchase_inbound_scope_upgrade_[a-z_]+$/.test(error.message)
       ? error.message
-      : 'purchase_carryover_upgrade_failed'
+      : 'purchase_inbound_scope_upgrade_failed'
   process.stderr.write(message + '\n')
   process.exitCode = 1
 })

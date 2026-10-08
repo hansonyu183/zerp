@@ -31,7 +31,8 @@ export type EditReferenceSource =
   | 'formula-materials'
   | 'external-salespeople'
   | 'channel-partners'
-export type EditValue = string | number | boolean | null | string[]
+export type EditValue =
+  string | number | boolean | null | string[] | Record<string, string>
 export type EditValues = Record<string, EditValue>
 export type EditOption = {
   id: string

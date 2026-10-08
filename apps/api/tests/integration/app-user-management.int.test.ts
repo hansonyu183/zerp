@@ -125,6 +125,7 @@ async function createHarness(context: TestContext) {
         .values(
           paths.map((path) => ({
             role_id: id,
+            purchase_inbound_scope: 'ALL',
             permission_id: permissionId.get(path)!,
           })),
         )
@@ -1100,6 +1101,7 @@ test('real HTTP role create and save require only their exact write permissions'
     .values(
       actionPaths.map((path) => ({
         role_id: actionOnlyRoleId,
+        purchase_inbound_scope: 'ALL',
         permission_id: permissionId.get(path)!,
       })),
     )
@@ -1129,6 +1131,7 @@ test('real HTTP role create and save require only their exact write permissions'
     name: '仅写角色',
     description: null,
     permissionIds: [permissionId.get('/app/role/create')!],
+    purchaseInboundScopes: {},
   })
   assert.equal(created.code, 0)
   harness.trackRole(created.data.id)
@@ -1140,6 +1143,7 @@ test('real HTTP role create and save require only their exact write permissions'
     name: '仅写角色已修改',
     description: '无需详情或权限目录读取权限',
     permissionIds: [permissionId.get('/app/role/create')!],
+    purchaseInboundScopes: {},
     revision: created.data.revision,
   })
   assert.equal(saved.code, 0)
@@ -1167,6 +1171,7 @@ test('real HTTP rejects trimmed case-insensitive role name collisions without ch
     name: collisionName,
     description: 'must not persist',
     permissionIds,
+    purchaseInboundScopes: {},
   })
   assert.equal(rejectedCreate.errorKey, 'role_name_exists')
   const afterQuery = await harness.post(actor, '/app/role/query', {
@@ -1180,6 +1185,7 @@ test('real HTTP rejects trimmed case-insensitive role name collisions without ch
     name: `Collision candidate ${harness.ids.lowRole}`,
     description: 'original description',
     permissionIds,
+    purchaseInboundScopes: {},
   })
   assert.equal(created.code, 0)
   harness.trackRole(created.data.id)
@@ -1189,6 +1195,7 @@ test('real HTTP rejects trimmed case-insensitive role name collisions without ch
     name: collisionName,
     description: 'must not replace the original description',
     permissionIds,
+    purchaseInboundScopes: {},
   })
   assert.equal(rejectedSave.errorKey, 'role_name_exists')
   const preserved = await harness.post(actor, '/app/role/get', {
@@ -1228,6 +1235,7 @@ test('real HTTP rejects disabled role permissions without removing existing deta
     .insertInto('app_role_permissions')
     .values({
       role_id: harness.ids.lowRole,
+      purchase_inbound_scope: 'ALL',
       permission_id: disabledPermissionId,
     })
     .execute()
@@ -1265,6 +1273,7 @@ test('real HTTP rejects disabled role permissions without removing existing deta
     name: 'must not persist',
     description: null,
     permissionIds: [activePermission.id, disabledPermissionId],
+    purchaseInboundScopes: {},
     revision: String(before.revision),
   })
   assert.equal(rejected.errorKey, 'validation_failed')
@@ -1330,6 +1339,7 @@ test('real HTTP rolls back role disable that would remove the final authorizatio
     .values(
       ['/app/user/query', '/app/role/disable'].map((path) => ({
         role_id: harness.ids.actorRole,
+        purchase_inbound_scope: 'ALL',
         permission_id: permissionId.get(path)!,
       })),
     )
@@ -1343,6 +1353,7 @@ test('real HTTP rolls back role disable that would remove the final authorizatio
     .values(
       protectedPaths.slice(1).map((path) => ({
         role_id: harness.ids.protectedRole,
+        purchase_inbound_scope: 'ALL',
         permission_id: permissionId.get(path)!,
       })),
     )
@@ -1429,6 +1440,7 @@ test('real HTTP role query matches Chinese pinyin before fixed pagination and re
     .values(
       matchingRoles.map((role) => ({
         role_id: role.id,
+        purchase_inbound_scope: 'ALL',
         permission_id: activePermission.id,
       })),
     )
@@ -1476,6 +1488,7 @@ test('real HTTP role query matches Chinese pinyin before fixed pagination and re
     name: renamedName,
     description: null,
     permissionIds: [activePermission.id],
+    purchaseInboundScopes: {},
     revision: '1',
   })
   assert.equal(saved.code, 0)
@@ -1497,7 +1510,7 @@ test('real HTTP role query matches Chinese pinyin before fixed pagination and re
   )
 })
 
-test('real HTTP role enablement keeps user role references and sessions while CAS, audit, and authorization stay atomic', async (context) => {
+test('real HTTP role enablement keeps user role references and revokes sessions while CAS, audit, and authorization stay atomic', async (context) => {
   const harness = await createHarness(context)
   const actor = await harness.signIn(harness.codes.actor)
   const targetSession = await harness.signIn(harness.codes.sessionTarget)
@@ -1554,9 +1567,13 @@ test('real HTTP role enablement keeps user role references and sessions while CA
         .executeTakeFirstOrThrow()
         .then((row) => row.count),
     ),
-    sessionsBefore.length,
+    0,
   )
-  assert.equal((await harness.restore(targetSession.cookie)).code, 0)
+  assert.ok(sessionsBefore.length > 0)
+  assert.equal(
+    (await harness.restore(targetSession.cookie)).errorKey,
+    'unauthenticated',
+  )
   assert.equal(
     (
       await harness.post(targetSession, '/app/user/query', {
@@ -1565,7 +1582,7 @@ test('real HTTP role enablement keeps user role references and sessions while CA
         pageSize: 20,
       })
     ).errorKey,
-    'forbidden',
+    'unauthenticated',
   )
   assert.equal(await harness.auditCount(harness.ids.lowRole), auditsBefore + 1)
   const audit = await harness.latestAudit(harness.ids.lowRole)
@@ -1607,8 +1624,13 @@ test('real HTTP role enablement keeps user role references and sessions while CA
   assert.equal(enabled.code, 0)
   assert.equal(enabled.data.enabled, true)
   assert.equal(
+    (await harness.restore(targetSession.cookie)).errorKey,
+    'unauthenticated',
+  )
+  const refreshedSession = await harness.signIn(harness.codes.sessionTarget)
+  assert.equal(
     (
-      await harness.post(targetSession, '/app/user/query', {
+      await harness.post(refreshedSession, '/app/user/query', {
         keyword: '',
         page: 1,
         pageSize: 20,

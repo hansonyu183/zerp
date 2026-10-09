@@ -48,7 +48,12 @@ async function select(
   } else {
     await control.locator('.v-field').click()
   }
-  await page.getByRole('option').filter({ hasText: name }).click()
+  const input = control.getByLabel(label, { exact: true })
+  await expect(input).toHaveAttribute('aria-controls', /\S+/)
+  const menuId = await input.getAttribute('aria-controls')
+  const menu = page.locator(`[id="${menuId}"]`)
+  await menu.getByRole('option').filter({ hasText: name }).click()
+  await expect(menu).toBeHidden()
 }
 async function approve(page: Page, name: string) {
   await openArchive(page, 'dcl', 'product')

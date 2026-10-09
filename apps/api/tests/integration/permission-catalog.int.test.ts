@@ -141,6 +141,7 @@ test('catalog synchronization preserves every effective authority by exact path'
       grants.map((permission) => ({
         role_id: roleId,
         purchase_inbound_scope: 'ALL',
+        service_contexts: [],
         permission_id: permission.id,
       })),
     )

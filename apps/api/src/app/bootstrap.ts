@@ -1,5 +1,6 @@
 import { sql, type Kysely, type Transaction } from 'kysely'
 import { ulid } from 'ulid'
+import { servicePermissionContexts } from '@zerp/model'
 
 import type { TargetPermissionCatalogEntry } from '../../scripts/target-artifacts.ts'
 import type { DB } from '../db/generated.ts'
@@ -409,7 +410,7 @@ export class TargetBootstrapService {
         : undefined
       const permissions = await transaction
         .selectFrom('app_permissions')
-        .select('id')
+        .select(['id', 'path'])
         .$if(paths !== undefined, (query) =>
           query.where('path', 'in', [...paths!]),
         )
@@ -448,6 +449,7 @@ export class TargetBootstrapService {
           permissions.map((permission) => ({
             role_id: principal.roleId,
             purchase_inbound_scope: 'ALL',
+            service_contexts: [...servicePermissionContexts(permission.path)],
             permission_id: permission.id,
           })),
         )

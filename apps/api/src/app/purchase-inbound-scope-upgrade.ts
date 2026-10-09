@@ -7,6 +7,10 @@ const digest = (value: unknown) =>
   createHash('sha256').update(JSON.stringify(value)).digest('hex')
 const legacyLayout =
   '9bdc94d844cb6f2609312d7f05c72b8705874f7f88bccaaff0fc106881db9b4a'
+const serviceLegacyLayout =
+  '492838bd111251c1ec17233423946937d7246c0197b7bf9848fd96219c2897ac'
+const serviceCurrentLayout =
+  '6f5f39958d8c5bb9a3a2e278c3f29634e2856a1bc1f2adf0c823fe8e12b946c6'
 const currentLayout =
   'ad84ceb9b0db0324efd4ba1c1eb37497ecc241d2b8d1381740e35f086df3fe7a'
 
@@ -60,9 +64,9 @@ async function snapshot(db: Executor) {
   const shape = await purchaseInboundGrantLayout(db),
     hash = digest(shape)
   const layout =
-    hash === legacyLayout
+    hash === legacyLayout || hash === serviceLegacyLayout
       ? 'LEGACY'
-      : hash === currentLayout
+      : hash === currentLayout || hash === serviceCurrentLayout
         ? 'CURRENT'
         : 'UNSUPPORTED'
   return {

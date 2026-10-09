@@ -126,6 +126,7 @@ async function createHarness(context: TestContext) {
           paths.map((path) => ({
             role_id: id,
             purchase_inbound_scope: 'ALL',
+            service_contexts: [],
             permission_id: permissionId.get(path)!,
           })),
         )
@@ -1102,6 +1103,7 @@ test('real HTTP role create and save require only their exact write permissions'
       actionPaths.map((path) => ({
         role_id: actionOnlyRoleId,
         purchase_inbound_scope: 'ALL',
+        service_contexts: [],
         permission_id: permissionId.get(path)!,
       })),
     )
@@ -1236,6 +1238,7 @@ test('real HTTP rejects disabled role permissions without removing existing deta
     .values({
       role_id: harness.ids.lowRole,
       purchase_inbound_scope: 'ALL',
+      service_contexts: [],
       permission_id: disabledPermissionId,
     })
     .execute()
@@ -1340,6 +1343,7 @@ test('real HTTP rolls back role disable that would remove the final authorizatio
       ['/app/user/query', '/app/role/disable'].map((path) => ({
         role_id: harness.ids.actorRole,
         purchase_inbound_scope: 'ALL',
+        service_contexts: [],
         permission_id: permissionId.get(path)!,
       })),
     )
@@ -1354,6 +1358,7 @@ test('real HTTP rolls back role disable that would remove the final authorizatio
       protectedPaths.slice(1).map((path) => ({
         role_id: harness.ids.protectedRole,
         purchase_inbound_scope: 'ALL',
+        service_contexts: [],
         permission_id: permissionId.get(path)!,
       })),
     )
@@ -1441,6 +1446,7 @@ test('real HTTP role query matches Chinese pinyin before fixed pagination and re
       matchingRoles.map((role) => ({
         role_id: role.id,
         purchase_inbound_scope: 'ALL',
+        service_contexts: [],
         permission_id: activePermission.id,
       })),
     )

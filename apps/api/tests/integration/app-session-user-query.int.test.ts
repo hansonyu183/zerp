@@ -308,6 +308,7 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
     'passwordChangeRequired',
     'passwordMinLength',
     'purchaseInboundScopes',
+    'serviceContexts',
     'targetId',
     'user',
   ])
@@ -582,16 +583,19 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
         role_id: roleId,
         permission_id: permission.id,
         purchase_inbound_scope: 'ALL',
+        service_contexts: [],
       },
       {
         role_id: roleId,
         permission_id: mappingQueryPermission.id,
         purchase_inbound_scope: 'ALL',
+        service_contexts: [],
       },
       {
         role_id: roleId,
         permission_id: mappingGetPermission.id,
         purchase_inbound_scope: 'ALL',
+        service_contexts: [],
       },
     ])
     .execute()
@@ -759,6 +763,7 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
       role_id: roleId,
       permission_id: savePermission.id,
       purchase_inbound_scope: 'ALL',
+      service_contexts: [],
     })
     .execute()
   assert.equal((await (await saveMapping()).json()).data.revision, '2')
@@ -806,6 +811,7 @@ test('real HTTP preserves session, CSRF, exact permissions, and PostgreSQL facts
       role_id: roleId,
       permission_id: permission.id,
       purchase_inbound_scope: 'ALL',
+      service_contexts: [],
     })
     .execute()
 
@@ -1061,6 +1067,7 @@ test('user query searches code, pinyin, and name with stable fixed pagination an
       role_id: roleId,
       permission_id: queryPermission.id,
       purchase_inbound_scope: 'ALL',
+      service_contexts: [],
     })
     .execute()
   await db

@@ -349,6 +349,7 @@ export interface AppRolePermissions {
   permission_id: string
   purchase_inbound_scope: string
   role_id: string
+  service_contexts: string[]
 }
 
 export interface AppRoles {
@@ -1361,6 +1362,7 @@ export interface VouPriorFacts {
   captured_at: Timestamp
   snapshot_digest: string
   source_closed: boolean
+  source_component: string
   source_document_key: string
   source_document_no: string
   source_document_type: string
@@ -1369,6 +1371,14 @@ export interface VouPriorFacts {
 }
 
 export interface VouPriorReceiptLineOrigins {
+  approval_entry_id: string
+  line_id: string
+  source_document_key: string
+  source_document_type: string
+  source_line_key: string
+}
+
+export interface VouPriorServiceLineOrigins {
   approval_entry_id: string
   line_id: string
   source_document_key: string
@@ -1708,8 +1718,32 @@ export interface VouServiceContractDetails {
   parent_document_id: string | null
   parent_entity: string | null
   remark: string | null
+  requires_prepayment: boolean | null
   terms: string | null
   total_amount_minor: Int8
+}
+
+export interface VouServiceLineSnapshots {
+  agreed_amount_minor: Int8
+  approval_entry_id: string
+  base_quantity_micros: Int8
+  base_unit_code: string
+  base_unit_fixed_factor: string | null
+  base_unit_id: string
+  base_unit_name: string
+  contract_line_id: string | null
+  entered_quantity_micros: Int8
+  entered_unit_code: string
+  entered_unit_fixed_factor: string | null
+  entered_unit_id: string
+  entered_unit_name: string
+  line_id: string
+  line_no: number
+  quoted_unit_price_micros: Int8 | null
+  remark: string | null
+  service_code: string | null
+  service_name: string
+  source_line_key: string | null
 }
 
 export interface VouSignoffLineSnapshots {
@@ -1915,6 +1949,7 @@ export interface DB {
   vou_price_line_snapshots: VouPriceLineSnapshots
   vou_prior_facts: VouPriorFacts
   vou_prior_receipt_line_origins: VouPriorReceiptLineOrigins
+  vou_prior_service_line_origins: VouPriorServiceLineOrigins
   vou_product_line_snapshots: VouProductLineSnapshots
   vou_production_line_snapshots: VouProductionLineSnapshots
   vou_production_material_snapshots: VouProductionMaterialSnapshots
@@ -1940,6 +1975,7 @@ export interface DB {
   vou_self_production_details: VouSelfProductionDetails
   vou_service_acceptance_details: VouServiceAcceptanceDetails
   vou_service_contract_details: VouServiceContractDetails
+  vou_service_line_snapshots: VouServiceLineSnapshots
   vou_signoff_line_snapshots: VouSignoffLineSnapshots
   vou_source_line_snapshots: VouSourceLineSnapshots
   wfl_action_results: WflActionResults

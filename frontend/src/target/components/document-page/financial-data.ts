@@ -52,6 +52,7 @@ export type FinancialDraft = {
   attachCounterparty: boolean
   otherCategory: '' | 'COMMISSION' | 'INTERMEDIARY'
   sourceName: string
+  prepaymentContract: VouCandidate | null
   fundAccount: VouCandidate | null
   handler: VouCandidate | null
   operatingEntity: VouCandidate | null
@@ -96,6 +97,7 @@ export function emptyFinancial(entity: FinancialEntity): FinancialDraft {
     attachCounterparty: false,
     otherCategory: '',
     sourceName: '',
+    prepaymentContract: null,
     fundAccount: null,
     handler: null,
     operatingEntity: null,
@@ -240,6 +242,18 @@ export function financialPayload(
     }
     case 'other-receipt':
     case 'other-payment': {
+      if (
+        draft.prepaymentContract &&
+        (draft.entity !== 'other-payment' ||
+          draft.counterpartyType !== 'other-unit')
+      )
+        throw new Error('预付服务只允许其他单位付款。')
+      const parent = draft.prepaymentContract
+        ? {
+            parentEntity: 'service-contract' as const,
+            parentDocumentId: draft.prepaymentContract.objectId,
+          }
+        : {}
       const category = draft.otherCategory
         ? { otherCategory: draft.otherCategory }
         : {}
@@ -247,12 +261,14 @@ export function financialPayload(
         ? {
             ...amount,
             ...category,
+            ...parent,
             counterpartyType: 'employee',
             counterparty: current(draft.party, 'employee', '员工'),
           }
         : {
             ...amount,
             ...category,
+            ...parent,
             counterpartyType: draft.counterpartyType,
             counterparty: versioned(
               draft.party,

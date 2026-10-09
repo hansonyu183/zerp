@@ -15,13 +15,16 @@ describe('prior source state choice', () => {
         stubs: {
           FieldInput: {
             name: 'FieldInput',
-            props: ['field', 'modelValue'],
+            props: ['field', 'modelValue', 'disabled'],
             template: '<div />',
           },
           FormBlock: true,
         },
       },
     })
+    expect(
+      wrapper.findComponent({ name: 'FieldInput' }).props('disabled'),
+    ).toBe(false)
     wrapper
       .findComponent({ name: 'FieldInput' })
       .vm.$emit('update:modelValue', true)
@@ -45,6 +48,34 @@ describe('prior source state choice', () => {
       .emitted('update:modelValue')!
       .at(-1)![0] as PriorFactDraft
     expect(priorFactPayload(closed).sourceClosed).toBe(true)
+    wrapper.unmount()
+  })
+  it('explicitly locked service registration refuses toggle events while normal purchase remains editable', async () => {
+    const wrapper = mount(PriorFactBlock, {
+      props: {
+        entity: 'service-contract',
+        disabled: false,
+        allowToggle: false,
+      },
+      global: {
+        stubs: {
+          FieldInput: {
+            name: 'FieldInput',
+            props: ['field', 'modelValue', 'disabled'],
+            template: '<div />',
+          },
+          FormBlock: true,
+        },
+      },
+    })
+    const field = wrapper.findComponent({ name: 'FieldInput' })
+    expect(field.props('disabled')).toBe(true)
+    field.vm.$emit('update:modelValue', true)
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    await wrapper.setProps({ entity: 'purchase-order', allowToggle: true })
+    expect(field.props('disabled')).toBe(false)
+    field.vm.$emit('update:modelValue', true)
+    expect(wrapper.emitted('update:modelValue')).toHaveLength(1)
     wrapper.unmount()
   })
 })

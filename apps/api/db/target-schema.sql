@@ -73,6 +73,7 @@ CREATE TABLE app_role_permissions (
     role_id varchar(26) NOT NULL REFERENCES app_roles(id) ON DELETE CASCADE,
     permission_id varchar(26) NOT NULL REFERENCES app_permissions(id) ON DELETE RESTRICT,
     purchase_inbound_scope text NOT NULL CHECK (purchase_inbound_scope IN ('ORDER_REFERENCE', 'INDEPENDENT_PRIOR', 'ALL')),
+    service_contexts text[] NOT NULL CHECK (service_contexts <@ ARRAY['OTHER_UNIT','SALES_PARTNER','PRIOR_AA','PRIOR_AD','CONTRACT','PRIOR_AB','PRIOR_AE','PRIOR_AH']::text[]),
     created_at timestamptz NOT NULL DEFAULT now(),
     created_by varchar(26),
     PRIMARY KEY (role_id, permission_id)
@@ -746,12 +747,13 @@ CREATE TABLE vou_prior_facts (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     source_instance_id varchar(128) NOT NULL,
     source_schema varchar(64) NOT NULL,
-    source_document_type varchar(2) NOT NULL CHECK (source_document_type IN ('AA', 'AD', 'AB', 'AF', 'AH')),
+    source_document_type varchar(2) NOT NULL CHECK (source_document_type IN ('AA', 'AD', 'AB', 'AE', 'AF', 'AH')),
+    source_component varchar(16) NOT NULL CHECK (source_component IN ('PROCUREMENT', 'SERVICE')),
     source_document_key varchar(128) NOT NULL,
     source_document_no varchar(200) NOT NULL,
     captured_at timestamptz NOT NULL,
     snapshot_digest char(64) NOT NULL,
-    UNIQUE (source_instance_id, source_schema, source_document_type, source_document_key)
+    UNIQUE (source_instance_id, source_schema, source_document_type, source_document_key, source_component)
 );
 
 
@@ -1260,7 +1262,7 @@ ALTER TABLE vou_bill_issue_details ADD COLUMN remark text, ADD COLUMN interest_m
 ALTER TABLE vou_bill_discount_details ADD COLUMN remark text, ADD COLUMN interest_mode varchar(32), ADD COLUMN with_recourse boolean;
 ALTER TABLE vou_bill_maturity_details ADD COLUMN remark text, ADD COLUMN maturity_type varchar(16);
 ALTER TABLE vou_intermediary_calculation_details ADD COLUMN remark text, ADD COLUMN period_start date, ADD COLUMN period_end date, ADD COLUMN source_hash varchar(64), ADD COLUMN script_id varchar(128), ADD COLUMN script_revision integer, ADD COLUMN script_name varchar(200), ADD COLUMN script_source text, ADD COLUMN script_hash varchar(64);
-ALTER TABLE vou_service_contract_details ADD COLUMN remark text, ADD COLUMN capabilities varchar(32)[], ADD COLUMN applicable_from date, ADD COLUMN applicable_to date, ADD COLUMN terms text;
+ALTER TABLE vou_service_contract_details ADD COLUMN remark text, ADD COLUMN capabilities varchar(32)[], ADD COLUMN applicable_from date, ADD COLUMN applicable_to date, ADD COLUMN terms text, ADD COLUMN requires_prepayment boolean;
 ALTER TABLE vou_service_acceptance_details ADD COLUMN remark text, ADD COLUMN contract_document_id varchar(26), ADD COLUMN service_date date, ADD COLUMN acceptance_date date, ADD COLUMN settlement_direction varchar(16), ADD COLUMN fulfillment_fact text, ADD COLUMN acceptance_fact text;
 
 CREATE TABLE vou_reference_snapshots (
@@ -1285,6 +1287,44 @@ CREATE TABLE vou_price_line_snapshots (
     unit_price_minor bigint NOT NULL,
     remark text,
     PRIMARY KEY (approval_entry_id, line_no)
+);
+
+CREATE TABLE vou_service_line_snapshots (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    line_id varchar(26) NOT NULL CHECK (line_id ~ '^[0-9A-HJKMNP-TV-Z]{26}$'),
+    service_name varchar(200) NOT NULL,
+    service_code varchar(64),
+    entered_quantity_micros bigint NOT NULL CHECK (entered_quantity_micros >= 0),
+    entered_unit_id varchar(26) NOT NULL,
+    entered_unit_code varchar(64) NOT NULL,
+    entered_unit_name varchar(200) NOT NULL,
+    entered_unit_fixed_factor text,
+    base_quantity_micros bigint NOT NULL CHECK (base_quantity_micros >= 0),
+    base_unit_id varchar(26) NOT NULL,
+    base_unit_code varchar(64) NOT NULL,
+    base_unit_name varchar(200) NOT NULL,
+    base_unit_fixed_factor text,
+    quoted_unit_price_micros bigint,
+    agreed_amount_minor bigint NOT NULL CHECK (agreed_amount_minor >= 0),
+    contract_line_id varchar(26),
+    source_line_key varchar(128),
+    remark text,
+    PRIMARY KEY (approval_entry_id, line_no),
+    UNIQUE (approval_entry_id, line_id),
+    UNIQUE (approval_entry_id, source_line_key)
+);
+
+CREATE TABLE vou_prior_service_line_origins (
+    approval_entry_id varchar(26) NOT NULL,
+    line_id varchar(26) NOT NULL,
+    source_document_type varchar(64) NOT NULL,
+    source_document_key varchar(128) NOT NULL,
+    source_line_key varchar(128) NOT NULL,
+    PRIMARY KEY (approval_entry_id, line_id),
+    FOREIGN KEY (approval_entry_id, line_id)
+        REFERENCES vou_service_line_snapshots(approval_entry_id, line_id)
+        ON DELETE CASCADE
 );
 
 CREATE TABLE vou_product_line_snapshots (

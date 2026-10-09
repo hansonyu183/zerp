@@ -11,7 +11,7 @@ import {
 } from '../../src/vou/service-carryover-upgrade.ts'
 import type { VouPayloadFor } from '@zerp/model'
 
-test('supported service upgrade preserves filled procurement facts and credentials, grants only old ordinary service types and rejects drift and repeat apply', async () => {
+async function verifySupportedUpgrade(maintained: boolean) {
   await withCommittedPurchaseDatabase(async (db) => {
     const f = await seedOrderListFixture(db, 0, [
       'purchase-order',
@@ -70,6 +70,27 @@ test('supported service upgrade preserves filled procurement facts and credentia
       )
     ).rows
     await sql`ALTER TABLE vou_prior_facts DROP CONSTRAINT ${sql.id(unique[0]!.conname)},DROP COLUMN source_component,ADD UNIQUE(source_instance_id,source_schema,source_document_type,source_document_key),DROP CONSTRAINT vou_prior_facts_source_document_type_check,ADD CONSTRAINT vou_prior_facts_source_document_type_check CHECK(source_document_type IN('AA','AD','AB','AF','AH'))`.execute(
+      db,
+    )
+    if (maintained) {
+      await sql`ALTER TABLE vou_intermediary_source_line_snapshots RENAME CONSTRAINT vou_intermediary_source_line_snapsho_unit_price_micros_not_null TO vou_intermediary_source_line_snapshot_unit_price_minor_not_null`.execute(
+        db,
+      )
+      await sql`ALTER TABLE vou_product_line_snapshots RENAME CONSTRAINT vou_product_line_snapshots_check TO vou_product_line_pricing_shape`.execute(
+        db,
+      )
+      await sql`ALTER TABLE vou_product_line_snapshots RENAME CONSTRAINT vou_product_line_snapshots_check1 TO vou_product_line_snapshots_check`.execute(
+        db,
+      )
+    }
+    await sql`ALTER TABLE vou_prior_facts RENAME CONSTRAINT vou_prior_facts_source_closed_not_null TO unexpected_constraint`.execute(
+      db,
+    )
+    assert.equal(
+      (await inspectServiceCarryoverUpgrade(db)).layout,
+      'UNSUPPORTED',
+    )
+    await sql`ALTER TABLE vou_prior_facts RENAME CONSTRAINT unexpected_constraint TO vou_prior_facts_source_closed_not_null`.execute(
       db,
     )
     const baseline = await inspectServiceCarryoverUpgrade(db)
@@ -134,4 +155,10 @@ test('supported service upgrade preserves filled procurement facts and credentia
       /source_layout_required/,
     )
   })
-})
+}
+
+for (const maintained of [false, true]) {
+  test(`supported service upgrade (${maintained ? 'maintained' : 'fresh'} layout) preserves filled procurement facts and credentials, grants only old ordinary service types and rejects drift and repeat apply`, async () => {
+    await verifySupportedUpgrade(maintained)
+  })
+}

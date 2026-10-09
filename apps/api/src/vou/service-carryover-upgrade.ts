@@ -5,10 +5,18 @@ import type { DB } from '../db/generated.ts'
 type Executor = Kysely<DB> | Transaction<DB>
 const digest = (value: unknown) =>
   createHash('sha256').update(JSON.stringify(value)).digest('hex')
-const sourceLayout =
-  '467cfa0863c6161627208616ecbd4f05e6949840c9c3e5a5e5e0897ef252f04b'
-const targetLayout =
-  '1c51b752ff13d2e23031c904f8079f9aed126000ae6cb5dc4d270372e2091ee0'
+// The supported procurement maintenance path preserved three existing
+// constraint names. Both full layouts are sealed; no constraint is ignored.
+const supportedLayouts = new Map([
+  [
+    '467cfa0863c6161627208616ecbd4f05e6949840c9c3e5a5e5e0897ef252f04b',
+    '1c51b752ff13d2e23031c904f8079f9aed126000ae6cb5dc4d270372e2091ee0',
+  ],
+  [
+    '3867e2ae6c17b3795b352076a71779c812a3e4bd4d062545dd65083c3f0ac5cf',
+    '5dddf7dcceaca78608ba2b84c2fe27c923fda8b9d28e0392f9ed650f8cb7b05c',
+  ],
+])
 const added = ['vou_service_line_snapshots', 'vou_prior_service_line_origins']
 async function layout(db: Executor, tables: readonly string[]) {
   const columns =
@@ -71,17 +79,14 @@ async function facts(db: Executor, projectOriginal = false) {
 async function snapshot(db: Executor) {
   const tables = await publicTables(db),
     shape = await layout(db, tables),
-    hash = digest(shape)
+    hash = digest(shape),
+    source = supportedLayouts.has(hash),
+    current = [...supportedLayouts.values()].includes(hash)
   return {
-    layout:
-      hash === sourceLayout
-        ? 'SOURCE'
-        : hash === targetLayout
-          ? 'CURRENT'
-          : 'UNSUPPORTED',
+    shapeDigest: hash,
+    layout: source ? 'SOURCE' : current ? 'CURRENT' : 'UNSUPPORTED',
     shape,
-    facts:
-      hash === sourceLayout || hash === targetLayout ? await facts(db) : null,
+    facts: source || current ? await facts(db) : null,
   }
 }
 export async function inspectServiceCarryoverUpgrade(db: Executor) {
@@ -168,7 +173,10 @@ export async function upgradeServiceCarryover(
       await sql.raw(ddl).execute(tx)
     }
     const after = await snapshot(tx)
-    if (after.layout !== 'CURRENT')
+    if (
+      after.layout !== 'CURRENT' ||
+      after.shapeDigest !== supportedLayouts.get(before.shapeDigest)
+    )
       throw new Error('service_carryover_upgrade_layout_mismatch')
     const original = await facts(tx, true)
     if (digest(original) !== digest(before.facts))

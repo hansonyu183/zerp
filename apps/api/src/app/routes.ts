@@ -87,6 +87,12 @@ function sessionPayload(principal: Principal, targetId: string) {
     csrfToken: principal.csrfToken,
     apiPaths: principal.apiPaths,
     purchaseInboundScopes: principal.purchaseInboundScopes,
+    serviceContexts: Object.fromEntries(
+      Object.entries(principal.serviceContexts).map(([path, contexts]) => [
+        path,
+        [...contexts],
+      ]),
+    ),
     passwordChangeRequired: principal.passwordChangeRequired,
     passwordMinLength: principal.passwordMinLength,
     targetId,
@@ -688,6 +694,16 @@ export function registerAppRoutes(
             vou!.invoiceTaxOptions(
               context.req.valid('param').entity,
               context.req.valid('query').objectId,
+              actor,
+            ),
+          ),
+          200,
+        )
+      if (action === 'contract-lines')
+        return context.json(
+          await executeVou(context, (actor) =>
+            vou!.serviceContractLines(
+              context.req.valid('query').contractDocumentId,
               actor,
             ),
           ),

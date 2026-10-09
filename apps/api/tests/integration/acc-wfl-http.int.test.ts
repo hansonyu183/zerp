@@ -1,3 +1,4 @@
+import { servicePermissionContexts } from '@zerp/model'
 import { approveEmptyIntermediaryMonth } from '../fixtures/vou-intermediary.ts'
 import { VouOpeningService } from '../../src/vou/opening-service.ts'
 import { withWflDatabase } from './wfl-fixture.ts'
@@ -107,12 +108,22 @@ async function createPrincipal(
       status: 'ENABLED',
     })
     .execute()
+  const granted = await db
+    .selectFrom('app_permissions')
+    .select(['id', 'path'])
+    .where('id', 'in', permissionIds)
+    .execute()
   await db
     .insertInto('app_role_permissions')
     .values(
       permissionIds.map((permissionId) => ({
         role_id: roleId,
         purchase_inbound_scope: 'ALL',
+        service_contexts: [
+          ...servicePermissionContexts(
+            granted.find((permission) => permission.id === permissionId)!.path,
+          ),
+        ],
         permission_id: permissionId,
       })),
     )

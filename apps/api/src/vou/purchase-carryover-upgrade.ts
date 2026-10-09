@@ -21,6 +21,14 @@ const standaloneWithoutClosureLayout =
   '8660c161c6d19ec565c067b6759f89b8822808a8ce5b0e47409f970935ff62eb'
 const standaloneCompleteLayout =
   'b606520f9939c63b588c2aca06ffe16a79f702f780307204843774bbb6379699'
+const servicePurchaseLayout =
+  'e3665744586e585e5d15e4b817d39d5a6f81c7758e33c2679d6bc33534ed5113'
+const serviceBeforeClosureLayout =
+  'ab9d11a29139717d677df485a2e7e2caeef06be4627532f2123616eeb28e5039'
+const serviceLegacyReceiptLayout =
+  '461c239b9340cfa78fcb5760b097efb9f840ef0c64091903d55d6f38fb224438'
+const serviceReceiptLayout =
+  '03b42963580d1d0805fc642fefc4c08d768a241d04809addb9316228b1c048ec'
 const originTable = 'vou_prior_receipt_line_origins'
 const digest = (value: unknown) =>
   createHash('sha256').update(JSON.stringify(value)).digest('hex')
@@ -54,7 +62,9 @@ async function layout(db: Executor, tables = changed) {
     layout:
       hash === oldLayout
         ? ('LEGACY' as const)
-        : hash === newLayout || hash === standalonePurchaseLayout
+        : hash === newLayout ||
+            hash === standalonePurchaseLayout ||
+            hash === servicePurchaseLayout
           ? ('CURRENT' as const)
           : ('UNSUPPORTED' as const),
     value,
@@ -209,9 +219,13 @@ async function closureSnapshot(db: Executor) {
   const shape = (await layout(db)).value
   const hash = digest(shape)
   const state =
-    hash === beforeClosureLayout || hash === standaloneWithoutClosureLayout
+    hash === beforeClosureLayout ||
+    hash === standaloneWithoutClosureLayout ||
+    hash === serviceBeforeClosureLayout
       ? 'LEGACY'
-      : hash === newLayout || hash === standalonePurchaseLayout
+      : hash === newLayout ||
+          hash === standalonePurchaseLayout ||
+          hash === servicePurchaseLayout
         ? 'CURRENT'
         : 'UNSUPPORTED'
   return {
@@ -272,9 +286,9 @@ async function receiptSnapshot(db: Executor) {
   const shape = (await layout(db, [...changed, originTable])).value
   const hash = digest(shape)
   const state =
-    hash === newLayout
+    hash === newLayout || hash === serviceLegacyReceiptLayout
       ? 'LEGACY'
-      : hash === standaloneCompleteLayout
+      : hash === standaloneCompleteLayout || hash === serviceReceiptLayout
         ? 'CURRENT'
         : 'UNSUPPORTED'
   return {
@@ -314,7 +328,11 @@ export async function upgradeStandaloneReceipts(
     )?.[0]
     if (!definition)
       throw new Error('purchase_carryover_upgrade_target_schema_missing')
-    await sql`ALTER TABLE vou_prior_facts DROP CONSTRAINT vou_prior_facts_source_document_type_check, ADD CONSTRAINT vou_prior_facts_source_document_type_check CHECK (source_document_type IN ('AA', 'AD', 'AB', 'AF', 'AH'))`.execute(
+    const sourceTypes =
+      digest(before.shape) === serviceLegacyReceiptLayout
+        ? ['AA', 'AD', 'AB', 'AE', 'AF', 'AH']
+        : ['AA', 'AD', 'AB', 'AF', 'AH']
+    await sql`ALTER TABLE vou_prior_facts DROP CONSTRAINT vou_prior_facts_source_document_type_check, ADD CONSTRAINT vou_prior_facts_source_document_type_check CHECK (source_document_type IN (${sql.join(sourceTypes.map((value) => sql.lit(value)))}))`.execute(
       tx,
     )
     await sql.raw(definition).execute(tx)

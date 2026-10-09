@@ -91,6 +91,8 @@ function switchReceipt(standalone: boolean) {
     "
   />
   <ServiceBlock
+    :action="action"
+    @pending="emit('pending', $event)"
     v-else-if="modelValue.kind === 'service'"
     :model-value="modelValue.value"
     :disabled="disabled"

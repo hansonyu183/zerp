@@ -1369,7 +1369,9 @@ export async function queryTargetSubjectOptions(
 }
 export async function queryTargetVouOptions(
   entity: TargetReferenceEntity,
-  query: Parameters<typeof client.acc.asset.options.$get>[0]['query'],
+  query: Parameters<
+    (typeof client.vou)[':entity']['options']['$get']
+  >[0]['query'],
 ) {
   if (entity === 'customer') {
     const page = await queryTargetBobOptions('customer', {
@@ -3398,6 +3400,17 @@ export async function submitTargetVoucher<
         { param: { entity }, json: input },
         csrfHeaders(csrfToken),
       )
+    ).json(),
+  )
+}
+export async function queryTargetServiceContractLines(
+  contractDocumentId: string,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou['service-acceptance']['contract-lines'].$get({
+        query: { contractDocumentId },
+      })
     ).json(),
   )
 }

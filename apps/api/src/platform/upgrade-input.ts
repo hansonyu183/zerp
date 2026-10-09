@@ -23,7 +23,10 @@ export async function readVerifiedUpgradeInput(input: {
   backupPath: string
   baselinePath: string
   targetReleaseSha: string | undefined
-  errorPrefix: 'purchase_carryover_upgrade' | 'purchase_inbound_scope_upgrade'
+  errorPrefix:
+    | 'purchase_carryover_upgrade'
+    | 'purchase_inbound_scope_upgrade'
+    | 'service_carryover_upgrade'
 }) {
   const backup = backupManifest.parse(
     JSON.parse(await readFile(input.backupPath, 'utf8')),

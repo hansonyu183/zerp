@@ -1486,6 +1486,7 @@ it('loads requested permission pages and enforces delegation choices', async () 
       description: null,
       permissionIds: ['allowed'],
       purchaseInboundScopes: {},
+      serviceContexts: {},
       customerScope: 'NONE',
     },
     expect.any(Object),
@@ -1605,6 +1606,7 @@ it('requires an explicit receipt scope in the real role editor before invoking t
       customerScope: 'NONE',
       permissionIds: ['inbound-query'],
       purchaseInboundScopes: { 'inbound-query': 'INDEPENDENT_PRIOR' },
+      serviceContexts: {},
     },
     expect.any(Object),
   )

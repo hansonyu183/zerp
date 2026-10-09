@@ -7,6 +7,7 @@ export type VouCandidate = Awaited<
   ReturnType<typeof queryTargetVouOptions>
 >['items'][number]
 const props = defineProps<{
+  prepayment?: boolean
   entity: TargetReferenceEntity
   caption: string
   modelValue: VouCandidate | null
@@ -41,7 +42,7 @@ function select(id: string | string[] | null) {
 </script>
 <template>
   <ReferencePicker
-    :source="{ kind: 'vou-reference', entity }"
+    :source="{ kind: 'vou-reference', entity, prepayment }"
     :caption="caption"
     :model-value="modelValue?.objectId ?? null"
     :existing="existing"

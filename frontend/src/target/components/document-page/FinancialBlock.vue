@@ -111,7 +111,9 @@ const expenseFields = [
         v-if="mixed"
         :model-value="modelValue.counterpartyType"
         :disabled="disabled"
-        @update:model-value="patch({ counterpartyType: $event })"
+        @update:model-value="
+          patch({ counterpartyType: $event, prepaymentContract: null })
+        "
       />
       <VouReference
         :key="party.entity"
@@ -148,6 +150,18 @@ const expenseFields = [
       :model-value="modelValue.operatingEntity"
       :disabled="disabled"
       @update:model-value="patch({ operatingEntity: $event })"
+    />
+    <VouReference
+      v-if="
+        modelValue.entity === 'other-payment' &&
+        modelValue.counterpartyType === 'other-unit'
+      "
+      entity="service-contract"
+      caption="预付服务合同（可选）"
+      :prepayment="true"
+      :model-value="modelValue.prepaymentContract"
+      :disabled="disabled"
+      @update:model-value="patch({ prepaymentContract: $event })"
     />
     <template v-if="!expenses">
       <VouReference

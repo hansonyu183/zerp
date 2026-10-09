@@ -2,6 +2,8 @@ import {
   purchaseInboundScopeCovers,
   type PurchaseInboundMode,
   type PurchaseInboundScopes,
+  type ServiceContexts,
+  type ServiceContext,
 } from '@zerp/model'
 import { computed, ref, shallowRef, watch } from 'vue'
 import { defineStore } from 'pinia'
@@ -39,6 +41,7 @@ export const useTargetSession = defineStore('target-session', () => {
   const csrfToken = ref<string | null>(null)
   const apiPaths = ref<string[]>([])
   const purchaseInboundScopes = ref<PurchaseInboundScopes>({})
+  const serviceContexts = ref<ServiceContexts>({})
   const profile = ref<ProfileData | null>(null)
   const passwordChangeRequired = ref(false)
   const passwordMinLength = ref(12)
@@ -145,6 +148,7 @@ export const useTargetSession = defineStore('target-session', () => {
     csrfToken.value = data.csrfToken
     apiPaths.value = [...data.apiPaths]
     purchaseInboundScopes.value = { ...data.purchaseInboundScopes }
+    serviceContexts.value = { ...data.serviceContexts }
     passwordChangeRequired.value = data.passwordChangeRequired
     passwordMinLength.value = data.passwordMinLength
     initialized.value = true
@@ -159,6 +163,7 @@ export const useTargetSession = defineStore('target-session', () => {
     csrfToken.value = null
     apiPaths.value = []
     purchaseInboundScopes.value = {}
+    serviceContexts.value = {}
     profile.value = null
     passwordChangeRequired.value = false
     passwordMinLength.value = 12
@@ -316,6 +321,15 @@ export const useTargetSession = defineStore('target-session', () => {
     )
   }
 
+  function canService(
+    entity: 'service-contract' | 'service-acceptance',
+    action: string,
+    context: ServiceContext,
+  ): boolean {
+    const path = `/vou/${entity}/${action}`
+    return can(path) && serviceContexts.value[path]?.includes(context) === true
+  }
+
   function hasResource(domain: string, entity: string): boolean {
     return (
       authenticated.value &&
@@ -335,6 +349,8 @@ export const useTargetSession = defineStore('target-session', () => {
     csrfToken,
     apiPaths,
     purchaseInboundScopes,
+    serviceContexts,
+    canService,
     canPurchaseInbound,
     profile,
     passwordChangeRequired,

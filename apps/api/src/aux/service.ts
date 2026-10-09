@@ -1253,7 +1253,33 @@ export async function resolveAuxCurrentReference<
   }
 }
 
-/** Tax adoption locks the selected current record until its consumer commits. */
+/** Unit adoption locks its current metadata until the consumer commits. */
+export async function resolveMeasurementUnitSnapshot(
+  transaction: Transaction<DB>,
+  id: string,
+) {
+  if (!/^[0-9A-HJKMNP-TV-Z]{26}$/.test(id))
+    applicationError('validation_failed')
+  const result = await sql<StoredAuxObject>`
+    SELECT id, entity, code, enabled, revision, data, updated_at, updated_by
+    FROM aux_objects WHERE id = ${id} AND entity = 'measurement-unit'
+      AND enabled = true FOR SHARE
+  `.execute(transaction)
+  if (!result.rows[0])
+    applicationError('conflict', {
+      blockers: [
+        { field: 'enteredUnit', objectId: id, entity: 'measurement-unit' },
+      ],
+    })
+  const unit = parseRow(result.rows[0]) as ParsedAuxRow<'measurement-unit'>
+  return {
+    objectId: unit.id,
+    code: unit.code,
+    name: unit.data.name,
+    fixedFactor: unit.data.fixedFactor,
+  }
+}
+
 export async function resolveTaxInformation(
   transaction: Transaction<DB>,
   id: string,

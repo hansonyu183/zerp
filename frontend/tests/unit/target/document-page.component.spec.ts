@@ -14,6 +14,7 @@ vi.mock('@/target/api.ts', async (original) => ({
   getTargetIntermediarySource: vi.fn(),
   queryTargetVouchers: vi.fn(),
   queryTargetVouOptions: vi.fn(),
+  queryTargetServiceContractLines: vi.fn(),
   resolveTargetProduct: vi.fn(),
   queryTargetBobOptions: vi.fn(),
   queryTargetCustomerLatestLine: vi.fn(),
@@ -1944,6 +1945,15 @@ it.each(['service-contract', 'service-acceptance'] as const)(
   'submits %s through selected service references and typed facts',
   async (entity) => {
     useTargetSession().apiPaths = [`/vou/${entity}/submit-new`]
+    useTargetSession().serviceContexts = {
+      [`/vou/${entity}/submit-new`]:
+        entity === 'service-contract'
+          ? ['OTHER_UNIT', 'SALES_PARTNER']
+          : ['CONTRACT'],
+    }
+    vi.mocked(api.queryTargetServiceContractLines).mockResolvedValue({
+      items: [],
+    })
     vi.mocked(api.queryTargetVouOptions).mockImplementation(
       async (entity) =>
         ({

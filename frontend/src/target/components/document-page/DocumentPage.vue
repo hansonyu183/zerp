@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { servicePermissionContexts } from '@zerp/model'
+import { serviceDraftContext, setServiceContext } from './service-data.ts'
 import { actionIcons } from '../../presentation/action-icons.ts'
 import ListPagination from '../list-page/ListPagination.vue'
 import FieldInput from '../dynamic-fields/FieldInput.vue'
@@ -335,6 +337,19 @@ function create() {
       kind: 'independent-receipt',
       value: emptyIndependentReceipt(),
     }
+  if (editor.value?.kind === 'service') {
+    const draft = editor.value.value
+    const contexts = servicePermissionContexts(
+      `/vou/${draft.entity}/submit-new`,
+    ).filter((context) =>
+      session.canService(draft.entity, 'submit-new', context),
+    )
+    if (contexts.length && !contexts.includes(serviceDraftContext(draft)))
+      editor.value = {
+        kind: 'service',
+        value: setServiceContext(draft, contexts[0]!),
+      }
+  }
   if (editor.value?.kind === 'intermediary' && vm.can('script-get'))
     void loadIntermediaryScript()
 }
@@ -348,6 +363,19 @@ function closeDraft() {
 function canCloneSelected() {
   const original = vm.selected
   if (!original || !vm.can('submit-new')) return false
+  if (
+    original.entity === 'service-contract' ||
+    original.entity === 'service-acceptance'
+  ) {
+    const context =
+      original.entity === 'service-acceptance'
+        ? 'CONTRACT'
+        : 'counterpartyType' in original.payload &&
+            original.payload.counterpartyType === 'sales-partner'
+          ? 'SALES_PARTNER'
+          : 'OTHER_UNIT'
+    return session.canService(original.entity, 'submit-new', context)
+  }
   if (original.entity !== 'purchase-inbound') return true
   return session.canPurchaseInbound(
     'submit-new',
@@ -402,6 +430,15 @@ async function submit() {
       )
     )
       throw new Error('无权办理该类型的采购入库。')
+    if (
+      editor.value.kind === 'service' &&
+      !session.canService(
+        editor.value.value.entity,
+        'submit-new',
+        serviceDraftContext(editor.value.value),
+      )
+    )
+      throw new Error('无权办理该类型的服务单据。')
     command = documentCommand(editor.value, identity)
     if (editor.value.kind === 'opening')
       identity.documentId = editor.value.value.bookId

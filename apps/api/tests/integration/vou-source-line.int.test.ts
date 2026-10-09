@@ -181,6 +181,7 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
       role_id: roleId,
       permission_id: permissionId,
       purchase_inbound_scope: 'ALL',
+      service_contexts: [],
     })
     .execute()
   const reversePermission = await db
@@ -194,6 +195,7 @@ test('VOU source-line HTTP query returns only server-eligible current quantities
       role_id: roleId,
       permission_id: reversePermission.id,
       purchase_inbound_scope: 'ALL',
+      service_contexts: [],
     })
     .execute()
   await db

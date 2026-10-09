@@ -1,3 +1,10 @@
+import { serviceAccess } from '../app/service-access.ts'
+import { scopedServiceDocumentActor } from '../vou/service-access.ts'
+import {
+  servicePayloadContext,
+  servicePermissionContexts,
+  type VouPayload,
+} from '@zerp/model'
 import { purchaseInboundAccess } from '../app/purchase-inbound-access.ts'
 import { purchaseInboundDocumentMode } from '../vou/purchase-inbound-access.ts'
 import {
@@ -1696,8 +1703,26 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
       activeRows.map((row) => `${row.source_node_id}:${row.script_position}`),
     )
     const receiptScopes = await purchaseInboundAccess(executor, actor)
+    const serviceScopes = await serviceAccess(executor, actor)
+    const serviceActors = new Map<string, ApprovalActor>()
     const receiptModes = new Map<string, PurchaseInboundMode>()
     for (const row of rawNodes) {
+      if (
+        (row.entity === 'service-contract' ||
+          row.entity === 'service-acceptance') &&
+        row.document_id &&
+        row.submission_id
+      )
+        serviceActors.set(
+          row.id,
+          await scopedServiceDocumentActor(
+            executor,
+            actor,
+            row.entity,
+            row.document_id,
+            row.submission_id,
+          ),
+        )
       if (
         row.entity === 'purchase-inbound' &&
         row.document_id &&
@@ -1749,6 +1774,17 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
           )
         )
           return []
+        const servicePath = workflowCreatePermission(
+          targetNode.entity as VouEntity,
+        )
+        if (servicePermissionContexts(servicePath).length) {
+          const context = servicePayloadContext(
+            targetNode.entity as VouEntity,
+            (branch.initial ?? {}) as VouPayload,
+          )
+          if (!context || !serviceScopes[servicePath]?.includes(context))
+            return []
+        }
         const position = `edge:${row.node_key}:${targetNode.key}:${edge.relation}`
         if (active.has(`${row.id}:${position}`)) return []
         return [
@@ -1769,6 +1805,13 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
     const nodes: WflInstanceNodeView[] = rawNodes.map((row) => {
       const graphNode = graph.nodes.find((item) => item.key === row.node_key)
       const entity = row.entity as VouEntity | null
+      const serviceAction = (action: string) =>
+        (entity !== 'service-contract' && entity !== 'service-acceptance') ||
+        Boolean(
+          serviceActors
+            .get(row.id)
+            ?.permissions.includes(`/vou/${entity}/${action}`),
+        )
       const receiptAction = (action: string) =>
         entity !== 'purchase-inbound' ||
         Boolean(
@@ -1784,6 +1827,7 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
         row.document_id &&
         this.can(actor, `/vou/${entity}/get`) &&
         receiptAction('get') &&
+        serviceAction('get') &&
         this.can(actor, '/wfl/process-instance/open-document')
       )
         actions.push('OPEN_DOCUMENT')
@@ -1791,29 +1835,34 @@ export class WflService implements PlanExecutor<WflApplicationPlan> {
       if (row.parent_node_id && entity && row.status === 'PENDING') {
         if (
           this.can(actor, '/wfl/process-instance/approve-child') &&
-          receiptAction('approve')
+          receiptAction('approve') &&
+          serviceAction('approve')
         )
           actions.push('APPROVE_CHILD')
         if (
           this.can(actor, '/wfl/process-instance/reject-child') &&
-          receiptAction('reject')
+          receiptAction('reject') &&
+          serviceAction('reject')
         )
           actions.push('REJECT_CHILD')
         if (
           this.can(actor, '/wfl/process-instance/cancel-child') &&
-          receiptAction('delete')
+          receiptAction('delete') &&
+          serviceAction('delete')
         )
           actions.push('CANCEL_CHILD')
       }
       if (row.parent_node_id && entity && row.status === 'REJECTED') {
         if (
           this.can(actor, '/wfl/process-instance/retry-child') &&
-          receiptAction('unreject')
+          receiptAction('unreject') &&
+          serviceAction('unreject')
         )
           actions.push('RETRY_CHILD')
         if (
           this.can(actor, '/wfl/process-instance/cancel-child') &&
-          receiptAction('delete')
+          receiptAction('delete') &&
+          serviceAction('delete')
         )
           actions.push('CANCEL_CHILD')
       }

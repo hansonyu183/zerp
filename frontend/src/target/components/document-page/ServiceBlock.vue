@@ -1,4 +1,24 @@
 <script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { actionIcons } from '../../presentation/action-icons.ts'
+import { ulid } from 'ulid'
+import {
+  servicePermissionContexts,
+  serviceContextPresentation,
+  type ServiceContext,
+} from '@zerp/model'
+import { useTargetSession } from '../../session/vm.ts'
+import { queryTargetServiceContractLines } from '../../api.ts'
+import FieldInput from '../dynamic-fields/FieldInput.vue'
+import CollectionBlock from '../dynamic-fields/CollectionBlock.vue'
+import PriorFactBlock from './PriorFactBlock.vue'
+import ServiceLineEditor from './ServiceLineEditor.vue'
+import {
+  emptyServiceLine,
+  serviceDraftContext,
+  setServiceContext,
+  type ServiceLineDraft,
+} from './service-data.ts'
 import FormBlock from '../dynamic-fields/FormBlock.vue'
 import VouReference from './VouReference.vue'
 import {
@@ -7,14 +27,117 @@ import {
   serviceCapabilityOptions,
   type ServiceDraft,
 } from './service-data.ts'
-const props = defineProps<{ modelValue: ServiceDraft; disabled: boolean }>()
-const emit = defineEmits<{ 'update:modelValue': [value: ServiceDraft] }>()
+const props = defineProps<{
+  modelValue: ServiceDraft
+  disabled: boolean
+  action?: 'submit-new' | 'submit-change'
+}>()
+const emit = defineEmits<{
+  'update:modelValue': [value: ServiceDraft]
+  pending: [value: boolean]
+}>()
 function update(patch: Partial<ServiceDraft>) {
-  if (!props.disabled)
+  if (!props.disabled && active && session.generation === generation)
     emit('update:modelValue', { ...props.modelValue, ...patch })
 }
+const session = useTargetSession(),
+  generation = session.generation
+const contexts = computed(() =>
+  servicePermissionContexts(
+    `/vou/${props.modelValue.entity}/${props.action ?? 'submit-new'}`,
+  ).filter((context) =>
+    session.canService(
+      props.modelValue.entity,
+      props.action ?? 'submit-new',
+      context,
+    ),
+  ),
+)
+const context = computed(() => serviceDraftContext(props.modelValue))
+function changeContext(value: unknown) {
+  if (
+    props.disabled ||
+    props.modelValue.serviceLines.length ||
+    typeof value !== 'string' ||
+    !contexts.value.includes(value as ServiceContext)
+  )
+    return
+  emit(
+    'update:modelValue',
+    setServiceContext(props.modelValue, value as ServiceContext),
+  )
+}
+const contractLines = ref<ServiceLineDraft[]>([]),
+  error = ref('')
+const contractPending = ref(false),
+  linePending = ref(false)
+watch(
+  [contractPending, linePending],
+  () => emit('pending', contractPending.value || linePending.value),
+  { immediate: true, flush: 'sync' },
+)
+let request = 0,
+  active = true
+async function contract(value: ServiceDraft['contract'], preserve = false) {
+  if (props.disabled || !active) return
+  const version = ++request
+  if (!preserve) update({ contract: value, serviceLines: [] })
+  contractLines.value = []
+  error.value = ''
+  contractPending.value = false
+  if (!value) return
+  contractPending.value = true
+  try {
+    const result = await queryTargetServiceContractLines(value.objectId)
+    if (!active || version !== request || session.generation !== generation)
+      return
+    contractLines.value = result.items.map((line) => ({
+      ...line,
+      contractLineId: line.lineId,
+      lineId: ulid(),
+      sourceLineKey: undefined,
+    }))
+  } catch (cause) {
+    if (active && version === request)
+      error.value = cause instanceof Error ? cause.message : '合同读取失败。'
+  } finally {
+    if (active && version === request) contractPending.value = false
+  }
+}
+onMounted(() => {
+  if (props.modelValue.contract) void contract(props.modelValue.contract, true)
+})
+onBeforeUnmount(() => {
+  active = false
+  request++
+  emit('pending', false)
+})
 </script>
 <template>
+  <v-alert v-if="error" type="error">{{ error }}</v-alert>
+  <FieldInput
+    usage="edit"
+    :field="{
+      key: 'serviceContext',
+      type: 'choice',
+      caption: '办理类型',
+      options: contexts.map((value) => ({
+        value,
+        caption: serviceContextPresentation[value].label,
+      })),
+    }"
+    :model-value="context"
+    :disabled="disabled || modelValue.serviceLines.length > 0"
+    @update:model-value="changeContext"
+  />
+  <PriorFactBlock
+    v-if="modelValue.priorFact"
+    :entity="modelValue.entity"
+    :model-value="modelValue.priorFact"
+    :disabled="disabled"
+    :allow-toggle="false"
+    @update:model-value="update({ priorFact: $event })"
+  />
   <FormBlock
     :fields="[
       {
@@ -39,13 +162,18 @@ function update(patch: Partial<ServiceDraft>) {
   />
   <template v-if="modelValue.entity === 'service-contract'">
     <FormBlock
+      v-if="!modelValue.priorFact"
       :fields="[
         {
           key: 'counterpartyType',
           type: 'enum',
           caption: '相对方类型',
           required: true,
-          options: servicePartyOptions,
+          options: servicePartyOptions.filter((option) =>
+            contexts.includes(
+              option.value === 'other-unit' ? 'OTHER_UNIT' : 'SALES_PARTNER',
+            ),
+          ),
         },
       ]"
       :model-value="modelValue"
@@ -81,6 +209,18 @@ function update(patch: Partial<ServiceDraft>) {
         />{{ option.caption }}</label
       >
     </fieldset>
+    <FieldInput
+      v-if="modelValue.counterpartyType === 'other-unit'"
+      usage="edit"
+      :field="{
+        key: 'requiresPrepayment',
+        type: 'boolean',
+        caption: '先付款后履约',
+      }"
+      :model-value="modelValue.requiresPrepayment"
+      :disabled="disabled || context === 'PRIOR_AD'"
+      @update:model-value="update({ requiresPrepayment: Boolean($event) })"
+    />
     <FormBlock
       :fields="[
         { key: 'applicableFrom', type: 'date', caption: '适用开始日期' },
@@ -98,7 +238,15 @@ function update(patch: Partial<ServiceDraft>) {
       caption="服务合同"
       :model-value="modelValue.contract"
       :disabled="disabled"
-      @update:model-value="update({ contract: $event })"
+      @update:model-value="contract($event)"
+    />
+    <VouReference
+      v-if="modelValue.priorFact && !modelValue.contract"
+      entity="other-unit"
+      caption="此前服务相对方"
+      :model-value="modelValue.counterparty"
+      :disabled="disabled"
+      @update:model-value="update({ counterparty: $event, origin: 'CURRENT' })"
     />
     <FormBlock
       :fields="[
@@ -136,4 +284,44 @@ function update(patch: Partial<ServiceDraft>) {
       @update:model-value="update"
     />
   </template>
+  <CollectionBlock
+    v-if="modelValue.counterpartyType === 'other-unit'"
+    caption="服务明细"
+    :fields="[
+      { key: 'serviceName', type: 'text', caption: '服务名称' },
+      { key: 'enteredQuantity', type: 'text', caption: '录入数量' },
+      { key: 'baseQuantity', type: 'text', caption: '基准数量' },
+      { key: 'agreedAmount', type: 'text', caption: '约定金额' },
+    ]"
+    :model-value="modelValue.serviceLines"
+    mode="edit"
+    :disabled="disabled"
+    :maximum="200"
+    :create="contractLines.length ? undefined : emptyServiceLine"
+    @update:model-value="update({ serviceLines: $event })"
+    @pending="linePending = $event"
+  >
+    <template
+      v-if="contractLines.length"
+      #actions="{ create, disabled: blocked }"
+      ><v-btn
+        v-for="line in contractLines"
+        :key="line.contractLineId"
+        :prepend-icon="actionIcons.add"
+        :disabled="blocked"
+        @click="create({ ...line, lineId: ulid() })"
+        >添加 {{ line.serviceName }}</v-btn
+      ></template
+    >
+    <template
+      #editor="{ value, disabled: blocked, update: updateLine, pending }"
+      ><ServiceLineEditor
+        :model-value="value"
+        :historical="Boolean(modelValue.priorFact)"
+        :contracted="Boolean(value.contractLineId)"
+        :disabled="blocked"
+        @update:model-value="updateLine"
+        @pending="pending"
+    /></template>
+  </CollectionBlock>
 </template>

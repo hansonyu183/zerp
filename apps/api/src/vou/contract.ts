@@ -9,6 +9,7 @@ import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
 import type { Schema } from 'hono'
 import {
   vouEntities,
+  vouServiceCounterpartyTypes,
   vouPriorCutoffPattern,
   vouEntityPresentation,
   vouPaymentMethodSelectionOrigins,
@@ -862,7 +863,7 @@ export const vouPayloadSchemaByEntity = {
     priorFact: priorFact.optional(),
     serviceLines: z.array(serviceLine).min(1).max(200).optional(),
     counterparty: versionedReference,
-    counterpartyType: z.enum(['other-unit', 'sales-partner']),
+    counterpartyType: z.enum(vouServiceCounterpartyTypes),
     employee: employeeReference,
     serviceContract: z
       .object({
@@ -882,6 +883,7 @@ export const vouPayloadSchemaByEntity = {
     priorLineOrigins: z.array(priorLineOrigin).min(1).max(200).optional(),
     amount: money,
     counterparty: versionedReference.optional(),
+    counterpartyType: z.enum(vouServiceCounterpartyTypes).optional(),
     employee: employeeReference,
     serviceAcceptance: z
       .object({

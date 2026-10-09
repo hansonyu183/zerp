@@ -4,6 +4,7 @@ import { actionIcons } from '../../presentation/action-icons.ts'
 import { ulid } from 'ulid'
 import {
   servicePermissionContexts,
+  serviceCounterpartyContexts,
   serviceContextPresentation,
   type ServiceContext,
 } from '@zerp/model'
@@ -38,7 +39,14 @@ const emit = defineEmits<{
 }>()
 function update(patch: Partial<ServiceDraft>) {
   if (!props.disabled && active && session.generation === generation)
-    emit('update:modelValue', { ...props.modelValue, ...patch })
+    emit('update:modelValue', {
+      ...props.modelValue,
+      ...patch,
+      ...(patch.counterpartyType &&
+      patch.counterpartyType !== props.modelValue.counterpartyType
+        ? { counterparty: null, origin: 'CURRENT' as const, capabilities: [] }
+        : {}),
+    })
 }
 const session = useTargetSession(),
   generation = session.generation
@@ -54,6 +62,16 @@ const contexts = computed(() =>
   ),
 )
 const context = computed(() => serviceDraftContext(props.modelValue))
+const partyOptions = computed(() =>
+  servicePartyOptions.filter((option) => {
+    if (props.modelValue.priorFact)
+      return (
+        props.modelValue.entity === 'service-acceptance' ||
+        option.value !== 'sales-partner'
+      )
+    return contexts.value.includes(serviceCounterpartyContexts[option.value])
+  }),
+)
 function changeContext(value: unknown) {
   if (
     props.disabled ||
@@ -162,18 +180,13 @@ onBeforeUnmount(() => {
   />
   <template v-if="modelValue.entity === 'service-contract'">
     <FormBlock
-      v-if="!modelValue.priorFact"
       :fields="[
         {
           key: 'counterpartyType',
           type: 'enum',
           caption: '相对方类型',
           required: true,
-          options: servicePartyOptions.filter((option) =>
-            contexts.includes(
-              option.value === 'other-unit' ? 'OTHER_UNIT' : 'SALES_PARTNER',
-            ),
-          ),
+          options: partyOptions,
         },
       ]"
       :model-value="modelValue"
@@ -210,7 +223,7 @@ onBeforeUnmount(() => {
       >
     </fieldset>
     <FieldInput
-      v-if="modelValue.counterpartyType === 'other-unit'"
+      v-if="modelValue.counterpartyType !== 'sales-partner'"
       usage="edit"
       :field="{
         key: 'requiresPrepayment',
@@ -240,9 +253,25 @@ onBeforeUnmount(() => {
       :disabled="disabled"
       @update:model-value="contract($event)"
     />
+    <FormBlock
+      v-if="modelValue.priorFact && !modelValue.contract"
+      :fields="[
+        {
+          key: 'counterpartyType',
+          type: 'enum',
+          caption: '相对方类型',
+          required: true,
+          options: partyOptions,
+        },
+      ]"
+      :model-value="modelValue"
+      :disabled="disabled"
+      @update:model-value="update"
+    />
     <VouReference
       v-if="modelValue.priorFact && !modelValue.contract"
-      entity="other-unit"
+      :key="modelValue.counterpartyType"
+      :entity="modelValue.counterpartyType"
       caption="此前服务相对方"
       :model-value="modelValue.counterparty"
       :disabled="disabled"
@@ -285,7 +314,10 @@ onBeforeUnmount(() => {
     />
   </template>
   <CollectionBlock
-    v-if="modelValue.counterpartyType === 'other-unit'"
+    v-if="
+      modelValue.counterpartyType !== 'sales-partner' ||
+      (modelValue.entity === 'service-acceptance' && modelValue.priorFact)
+    "
     caption="服务明细"
     :fields="[
       { key: 'serviceName', type: 'text', caption: '服务名称' },

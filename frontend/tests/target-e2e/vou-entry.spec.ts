@@ -9,6 +9,8 @@ import { expect, test } from '@playwright/test'
 
 const facts = JSON.parse(process.env.TARGET_E2E_VOU_ENTRY_JSON ?? '{}') as {
   serviceContract: string
+  supplierServiceContract: string
+  serviceUnit: string
   asset: string
   category: string
   department: string
@@ -57,7 +59,14 @@ const entities = [
   'bill-maturity',
 ] as const
 for (const width of [1280, 390])
-  for (const entity of entities) {
+  for (const scenario of [
+    ...entities.map((entity) => ({ entity, supplierService: false })),
+    ...(['service-contract', 'service-acceptance'] as const).map((entity) => ({
+      entity,
+      supplierService: true,
+    })),
+  ]) {
+    const { entity, supplierService } = scenario
     for (const theme of [
       'asset-acquisition',
       'bill-receipt',
@@ -65,7 +74,7 @@ for (const width of [1280, 390])
     ].includes(entity)
       ? ['light', 'dark']
       : ['light']) {
-      test(`${entity} menu candidates, input, persistence, readback and clone at ${width}px ${theme}`, async ({
+      test(`${supplierService ? 'Supplier ' : ''}${entity} menu candidates, input, persistence, readback and clone at ${width}px ${theme}`, async ({
         page,
       }) => {
         test.setTimeout(90000)
@@ -170,12 +179,26 @@ for (const width of [1280, 390])
         ) {
           await choose('经办员工', facts.employee)
           if (entity === 'service-contract') {
-            await choose('相对方', facts.otherUnit)
+            if (supplierService) {
+              await editor.getByTestId('field-counterpartyType').click()
+              await page
+                .getByRole('option', { name: '供应商', exact: true })
+                .click()
+            }
+            await choose(
+              '相对方',
+              supplierService ? facts.supplier : facts.otherUnit,
+            )
             await editor
               .getByLabel('合同条款', { exact: true })
               .fill('真实录入服务条款')
           } else {
-            await choose('服务合同', facts.serviceContract)
+            await choose(
+              '服务合同',
+              supplierService
+                ? facts.supplierServiceContract
+                : facts.serviceContract,
+            )
             await editor
               .getByLabel('履约日期', { exact: true })
               .fill('2026-09-09')
@@ -409,6 +432,8 @@ for (const width of [1280, 390])
         const envelope = await (await submitted).json()
         expect(envelope.code, JSON.stringify(envelope)).toBe(0)
         await expect(editor).toHaveCount(0)
+        if (supplierService)
+          expect(envelope.data.payload.counterpartyType).toBe('supplier')
         const id = envelope.data.documentId
         const get = page.waitForResponse(
           (response) =>
@@ -661,3 +686,144 @@ for (const width of [1280, 390])
     await editor.getByRole('button', { name: '取消', exact: true }).click()
     await expect(editor).toHaveCount(0)
   })
+
+for (const width of [1280, 390])
+  for (const entity of ['service-contract', 'service-acceptance'] as const)
+    test(`independent prior service Supplier ${entity} precision, readback and clone at ${width}px`, async ({
+      page,
+    }) => {
+      test.setTimeout(90000)
+      await page.setViewportSize({ width: 1280, height: 900 })
+      await page.goto('/signin')
+      await page
+        .getByLabel('用户编码', { exact: true })
+        .fill(process.env.TARGET_SCOPE_MANAGER_USERNAME!)
+      await page
+        .getByLabel('密码', { exact: true })
+        .fill(process.env.TARGET_SCOPE_MANAGER_PASSWORD!)
+      await page.getByRole('button', { name: '登录', exact: true }).click()
+      await expect(page.getByLabel('用户编码', { exact: true })).toHaveCount(0)
+      await page.goto(`/vou/${entity}`)
+      await expect(page.getByTestId('vou-list-page')).toBeVisible()
+      await setDateRange(page, '期间', '2026-09-01', '2026-09-30')
+      await page.getByTestId('list-search').click()
+      await page.getByRole('button', { name: '新增', exact: true }).click()
+      const editor = page.getByRole('dialog').last()
+      const choose = async (label: string, code: string) => {
+        await editor.getByLabel(label, { exact: true }).fill(code)
+        await page.getByRole('option').filter({ hasText: code }).first().click()
+      }
+      const select = async (field: string, caption: string) => {
+        await editor.getByTestId(`field-${field}`).click()
+        await page.getByRole('option', { name: caption, exact: true }).click()
+      }
+      await select(
+        'serviceContext',
+        entity === 'service-contract' ? '此前预付服务约定' : '此前采购服务履约',
+      )
+      await select('counterpartyType', '供应商')
+      await select('sourceClosed', '未关闭')
+      for (const [caption, value] of Object.entries({
+        来源实例: 'isolated-browser-fixture',
+        来源库: 'fixture',
+        原单据键: `service-${entity}-${width}`,
+        原单号: `service-original-${entity}-${width}`,
+        封存截止时间: '2026-09-30T23:59:59.123456Z',
+        来源快照摘要: 'a'.repeat(64),
+      }))
+        await editor.getByLabel(caption, { exact: true }).fill(value)
+      await editor.getByLabel('业务日期', { exact: true }).fill('2026-09-09')
+      await choose('经办员工', facts.employee)
+      await choose(
+        entity === 'service-contract' ? '相对方' : '此前服务相对方',
+        facts.supplier,
+      )
+      if (entity === 'service-acceptance') {
+        await editor.getByLabel('履约日期', { exact: true }).fill('2026-09-09')
+        await editor.getByLabel('验收日期', { exact: true }).fill('2026-09-09')
+        await editor.getByLabel('结算金额', { exact: true }).fill('18966.00')
+      }
+      await editor
+        .locator(
+          '.collection-block[aria-label="服务明细"] > .collection-heading',
+        )
+        .getByRole('button', { name: '新增', exact: true })
+        .click()
+      const line = page.getByRole('dialog').last()
+      await line.getByLabel('服务名称', { exact: true }).fill('原运输服务')
+      for (const label of ['录入单位', '基准单位']) {
+        await line.getByLabel(label, { exact: true }).click()
+        await page
+          .getByRole('option')
+          .filter({ hasText: facts.serviceUnit })
+          .first()
+          .click()
+      }
+      for (const [label, value] of Object.entries({
+        录入数量: '4',
+        基准数量: '4',
+        原报价: '4741.500000',
+        约定金额: '18966.00',
+        原行键: 'source-service-1',
+      }))
+        await line.getByLabel(label, { exact: true }).fill(value)
+      await confirmCollections(page)
+      await page.setViewportSize({ width, height: 900 })
+      expect(
+        await editor.evaluate(
+          (element) => element.scrollWidth > element.clientWidth,
+        ),
+      ).toBe(false)
+      const saved = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === `/vou/${entity}/submit-new`,
+      )
+      await editor.getByRole('button', { name: '提交', exact: true }).click()
+      const result = await (await saved).json()
+      expect(result.code, JSON.stringify(result)).toBe(0)
+      expect(result.data.payload.counterpartyType).toBe('supplier')
+      expect(result.data.payload.serviceLines[0]).toMatchObject({
+        unitPrice: '4741.500000',
+        agreedAmount: '18966.00',
+        sourceLineKey: 'source-service-1',
+      })
+      expect(result.data.payload).not.toHaveProperty('parentDocumentId')
+      await expect(editor).toHaveCount(0)
+      const read = page.waitForResponse(
+        (response) => new URL(response.url()).pathname === `/vou/${entity}/get`,
+      )
+      await page
+        .getByTestId(`vou-row-${result.data.documentId}`)
+        .getByRole('button', { name: '打开', exact: true })
+        .click()
+      expect((await (await read).json()).data.payload).toEqual(
+        result.data.payload,
+      )
+      await expect(page.getByTestId('vou-detail')).toContainText('供应商')
+      await page
+        .getByTestId('vou-detail')
+        .getByRole('button', { name: '复制到临时表单', exact: true })
+        .click()
+      await expect(editor.getByLabel('来源实例', { exact: true })).toHaveCount(
+        0,
+      )
+      if (entity === 'service-acceptance') {
+        await expect(
+          editor.getByLabel('服务合同', { exact: true }),
+        ).toHaveValue('')
+        await editor.getByRole('button', { name: '提交', exact: true }).click()
+        await expect(editor).toContainText('请选择已批准的服务合同')
+      } else {
+        await expect(editor).toContainText('供应商服务合同')
+        await editCollection(page, '服务明细')
+        await expect(
+          page.getByRole('dialog').last().getByLabel('原行键', { exact: true }),
+        ).toHaveCount(0)
+        await expect(
+          page.getByRole('dialog').last().getByLabel('原报价', { exact: true }),
+        ).toHaveValue('4741.500000')
+        await confirmCollections(page)
+      }
+      await editor.getByRole('button', { name: '取消', exact: true }).click()
+      await expect(editor).toHaveCount(0)
+    })

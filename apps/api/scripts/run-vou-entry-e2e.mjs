@@ -151,8 +151,40 @@ try {
       fixture.documents['bill-maturity'].payload.billLines[0].billId,
     )
     .executeTakeFirstOrThrow()
+  const supplierContractId = ulid(),
+    supplierContractEntry = ulid()
+  const supplierContract = await fixture.vou.submit(
+    'service-contract',
+    'submit-new',
+    {
+      documentId: supplierContractId,
+      submissionId: supplierContractEntry,
+      idempotencyKey: supplierContractEntry,
+      expectedRevision: null,
+      payload: {
+        ...fixture.documents['service-contract'].payload,
+        counterpartyType: 'supplier',
+        counterparty: fixture.purchase.payload.supplier,
+        serviceContract: { terms: '供应商服务实际来源' },
+      },
+    },
+    fixture.actor,
+    'entry-supplier-service',
+  )
+  await fixture.vou.review(
+    'service-contract',
+    'approve',
+    {
+      documentId: supplierContractId,
+      submissionId: supplierContractEntry,
+      expectedRevision: supplierContract.revision,
+    },
+    fixture.reviewerActor,
+    'entry-supplier-service',
+  )
   const entryFacts = {
     serviceContract: fixture.documents['service-contract'].documentNo,
+    supplierServiceContract: supplierContract.documentNo,
     asset: asset.asset_no,
     category: category.code,
     department: department.code,
@@ -187,7 +219,7 @@ try {
       'playwright.target.config.ts',
       'vou-entry.spec.ts',
       '--grep-invert',
-      'independent prior receipt',
+      'independent prior receipt|independent prior service',
       ...process.argv.slice(2),
     ],
     {

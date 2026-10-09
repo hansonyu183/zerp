@@ -1987,6 +1987,8 @@ it.each(['service-contract', 'service-acceptance'] as const)(
       expect(api.submitTargetVoucher).not.toHaveBeenCalled()
       expect(wrapper.text()).toContain('请选择合同相对方。')
       await wrapper.get('[aria-label="相对方类型"]').setValue('other-unit')
+      await flushPromises()
+      await wrapper.get('[aria-label="相对方"]').setValue(referenceId)
     } else {
       await wrapper.get('[aria-label="服务合同"]').setValue(referenceId)
       await wrapper.get('[aria-label="结算金额"]').setValue('12.34')
@@ -2287,3 +2289,79 @@ it('preserves agreed totals and six-place quotes in ordinary order inputs and cl
     expect(() => orderPayload(draft)).toThrow('单价计价最多两位')
   }
 })
+
+it.each(['SUPPLIER', 'OTHER_UNIT'] as const)(
+  'Supplier contract cloning obeys its exact %s submit context',
+  async (context) => {
+    const session = useTargetSession()
+    session.apiPaths = ['query', 'get', 'submit-new'].map(
+      (action) => `/vou/service-contract/${action}`,
+    )
+    session.serviceContexts = {
+      '/vou/service-contract/query': ['SUPPLIER'],
+      '/vou/service-contract/get': ['SUPPLIER'],
+      '/vou/service-contract/submit-new': [context],
+    }
+    const payload = {
+      businessDate: '2026-09-01',
+      currency: 'CNY',
+      attachments: [],
+      employee: { objectId: referenceId },
+      counterpartyType: 'supplier' as const,
+      counterparty: {
+        objectId: referenceId,
+        approvalEntryId: entryId,
+        selectionOrigin: 'CURRENT' as const,
+      },
+      serviceContract: { terms: '供应商服务' },
+    }
+    vi.mocked(api.queryTargetVouchers).mockResolvedValue({
+      items: [
+        {
+          vouType: 'service-contract',
+          documentId: referenceId,
+          documentNo: 'SC01',
+          revision: '1',
+          businessDate: '2026-09-01',
+          submittedDate: '2026-09-01',
+          handlerName: null,
+          counterpartyName: '供应商',
+          status: 'PENDING',
+          amount: '0',
+          currency: 'CNY',
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    })
+    vi.mocked(api.getTargetVoucher).mockResolvedValue({
+      entity: 'service-contract',
+      documentId: referenceId,
+      documentNo: 'SC01',
+      revision: '1',
+      submissionId: entryId,
+      status: 'PENDING',
+      availableApprovalActions: [],
+      payload,
+    } as Awaited<ReturnType<typeof api.getTargetVoucher>>)
+    vi.mocked(api.queryTargetVouOptions).mockResolvedValue({ items: [] })
+    const wrapper = mount(ResourceHost, {
+      props: { domain: 'vou', entity: 'service-contract' },
+      global: { stubs },
+    })
+    await flushPromises()
+    await click(wrapper, '打开')
+    const clone = wrapper
+      .findAll('button')
+      .find((item) => item.text() === '复制到临时表单')
+    expect(Boolean(clone)).toBe(context === 'SUPPLIER')
+    if (clone) {
+      await click(wrapper, '复制到临时表单')
+      expect(wrapper.get('[data-testid="document-editor"]').text()).toContain(
+        '供应商',
+      )
+    }
+    wrapper.unmount()
+  },
+)

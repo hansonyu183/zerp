@@ -73,7 +73,7 @@ CREATE TABLE app_role_permissions (
     role_id varchar(26) NOT NULL REFERENCES app_roles(id) ON DELETE CASCADE,
     permission_id varchar(26) NOT NULL REFERENCES app_permissions(id) ON DELETE RESTRICT,
     purchase_inbound_scope text NOT NULL CHECK (purchase_inbound_scope IN ('ORDER_REFERENCE', 'INDEPENDENT_PRIOR', 'ALL')),
-    service_contexts text[] NOT NULL CHECK (service_contexts <@ ARRAY['OTHER_UNIT','SALES_PARTNER','PRIOR_AA','PRIOR_AD','CONTRACT','PRIOR_AB','PRIOR_AE','PRIOR_AH']::text[]),
+    service_contexts text[] NOT NULL CHECK (service_contexts <@ ARRAY['OTHER_UNIT','SUPPLIER','SALES_PARTNER','PRIOR_AA','PRIOR_AD','CONTRACT','PRIOR_AB','PRIOR_AE','PRIOR_AH']::text[]),
     created_at timestamptz NOT NULL DEFAULT now(),
     created_by varchar(26),
     PRIMARY KEY (role_id, permission_id)

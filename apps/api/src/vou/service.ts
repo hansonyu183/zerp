@@ -90,6 +90,7 @@ import {
   type VouSourceLineSourceEntity,
   type VouSourceLineTargetEntity,
   vouDocumentPrefixes,
+  vouServiceCounterpartyTypes,
   vouEntityInputDescriptors,
   vouListCapabilities,
   vouPayloadReferences,
@@ -2029,7 +2030,7 @@ export class VouService implements WflVouPort {
   async serviceContractLines(contractDocumentId: string, actor: ApprovalActor) {
     const eligible = await sql<{ id: string }>`
       SELECT entry.id FROM approval_entries entry
-      JOIN vou_reference_snapshots party ON party.approval_entry_id = entry.id AND party.field = 'counterparty' AND party.line_no = 0 AND party.item_no = 0 AND party.reference_entity = 'other-unit'
+      JOIN vou_reference_snapshots party ON party.approval_entry_id = entry.id AND party.field = 'counterparty' AND party.line_no = 0 AND party.item_no = 0 AND party.reference_entity IN ('supplier','other-unit')
       WHERE entry.domain = 'vou' AND entry.entity = 'service-contract' AND entry.subject_id = ${contractDocumentId} AND entry.status = 'APPROVED'
         AND NOT EXISTS (SELECT 1 FROM vou_prior_facts prior WHERE prior.approval_entry_id = entry.id AND prior.source_closed)
         AND ${documentCustomerPredicate(await customerAccess(this.db, actor), sql`entry.subject_id`)}
@@ -2478,7 +2479,7 @@ export class VouService implements WflVouPort {
       case 'bill':
         return `SELECT r.id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, r.bill_no AS code, r.bill_no AS name FROM acc_bill_registers r WHERE r.status = 'AVAILABLE' AND EXISTS (SELECT 1 FROM acc_bill_book_values v JOIN acc_books b ON b.id = v.book_id JOIN approval_entries a ON a.subject_id = b.id AND a.domain = 'vou' AND a.entity = 'opening' AND a.status = 'APPROVED' WHERE v.bill_id = r.id AND b.control_book)`
       case 'service-contract':
-        return `SELECT document.id AS object_id, approval.id AS approval_entry_id, NULL::varchar AS customer_id, document.document_no AS code, document.document_no AS name FROM vou_documents document JOIN approval_entries approval ON approval.subject_id = document.id AND approval.domain = 'vou' AND approval.entity = 'service-contract' AND approval.status = 'APPROVED' JOIN vou_reference_snapshots party ON party.approval_entry_id = approval.id AND party.field = 'counterparty' AND party.reference_entity = 'other-unit'`
+        return `SELECT document.id AS object_id, approval.id AS approval_entry_id, NULL::varchar AS customer_id, document.document_no AS code, document.document_no AS name FROM vou_documents document JOIN approval_entries approval ON approval.subject_id = document.id AND approval.domain = 'vou' AND approval.entity = 'service-contract' AND approval.status = 'APPROVED' JOIN vou_reference_snapshots party ON party.approval_entry_id = approval.id AND party.field = 'counterparty' AND party.reference_entity IN ('supplier','other-unit')`
     }
   }
 
@@ -3053,8 +3054,8 @@ export class VouService implements WflVouPort {
       if (
         !contract.serviceContract.requiresPrepayment ||
         contract.priorFact?.sourceClosed ||
-        contract.counterpartyType !== 'other-unit' ||
-        payment.counterpartyType !== 'other-unit' ||
+        !['supplier', 'other-unit'].includes(contract.counterpartyType) ||
+        payment.counterpartyType !== contract.counterpartyType ||
         payment.counterparty.objectId !== contract.counterparty.objectId ||
         payload.currency !== contract.currency
       )
@@ -3062,6 +3063,14 @@ export class VouService implements WflVouPort {
       return
     }
     if (entity !== 'service-contract' && entity !== 'service-acceptance') return
+    if (
+      'counterpartyType' in payload &&
+      payload.counterpartyType !== undefined &&
+      !vouServiceCounterpartyTypes.some(
+        (kind) => kind === payload.counterpartyType,
+      )
+    )
+      throw new VouApplicationError('vou_invalid_payload')
     if ('serviceLines' in payload && payload.serviceLines) {
       if (
         entity === 'service-acceptance' &&
@@ -3099,6 +3108,7 @@ export class VouService implements WflVouPort {
       if (
         !priorFact(payload) ||
         !payload.counterparty ||
+        payload.counterpartyType === undefined ||
         !payload.serviceLines?.length ||
         payload.parentEntity ||
         payload.parentDocumentId ||
@@ -3131,7 +3141,17 @@ export class VouService implements WflVouPort {
       'service-contract',
       entry.id,
     )) as VouPayloadFor<'service-contract'>
-    if (contract.counterpartyType !== 'other-unit')
+    if (!['supplier', 'other-unit'].includes(contract.counterpartyType))
+      throw new VouApplicationError('vou_reference_unavailable')
+    if (
+      (payload.counterpartyType !== undefined &&
+        payload.counterpartyType !== contract.counterpartyType) ||
+      (payload.counterparty &&
+        (payload.counterparty.objectId !== contract.counterparty.objectId ||
+          (payload.counterparty.approvalEntryId !== undefined &&
+            payload.counterparty.approvalEntryId !==
+              contract.counterparty.approvalEntryId)))
+    )
       throw new VouApplicationError('vou_reference_unavailable')
     if (!priorFact(payload) && contract.priorFact?.sourceClosed)
       throw new VouApplicationError('vou_prior_fact_source_closed')
@@ -3247,6 +3267,7 @@ export class VouService implements WflVouPort {
     }
     payload.parentEntity = 'service-contract'
     payload.parentDocumentId = acceptance.contractDocumentId
+    payload.counterpartyType = contract.counterpartyType
     payload.counterparty = {
       ...contract.counterparty,
       selectionOrigin: 'HISTORICAL',
@@ -4976,7 +4997,9 @@ export class VouService implements WflVouPort {
         0,
         0,
         field === 'counterparty' &&
-          (entity === 'asset-sale' || entity === 'service-contract')
+          (entity === 'asset-sale' ||
+            entity === 'service-contract' ||
+            entity === 'service-acceptance')
           ? { ...reference, entity: candidateEntity }
           : reference,
       )
@@ -6269,10 +6292,13 @@ export class VouService implements WflVouPort {
           executor,
         )
       ).rows[0]!
+      const { entity: counterpartyType, ...counterparty } =
+        reference('counterparty')
       return {
         ...base,
         amount: amount(),
-        counterparty: reference('counterparty'),
+        counterparty,
+        counterpartyType,
         employee: reference('employee'),
         ...(await this.readServiceLineFields(executor, approvalEntryId)),
         serviceAcceptance: {

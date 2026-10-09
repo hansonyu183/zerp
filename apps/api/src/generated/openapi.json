@@ -190,6 +190,7 @@
                                   "type": "string",
                                   "enum": [
                                     "OTHER_UNIT",
+                                    "SUPPLIER",
                                     "SALES_PARTNER",
                                     "PRIOR_AA",
                                     "PRIOR_AD",
@@ -481,6 +482,7 @@
                                   "type": "string",
                                   "enum": [
                                     "OTHER_UNIT",
+                                    "SUPPLIER",
                                     "SALES_PARTNER",
                                     "PRIOR_AA",
                                     "PRIOR_AD",
@@ -15748,6 +15750,7 @@
                                   "type": "string",
                                   "enum": [
                                     "OTHER_UNIT",
+                                    "SUPPLIER",
                                     "SALES_PARTNER",
                                     "PRIOR_AA",
                                     "PRIOR_AD",
@@ -15958,6 +15961,7 @@
                         "type": "string",
                         "enum": [
                           "OTHER_UNIT",
+                          "SUPPLIER",
                           "SALES_PARTNER",
                           "PRIOR_AA",
                           "PRIOR_AD",
@@ -16098,6 +16102,7 @@
                                   "type": "string",
                                   "enum": [
                                     "OTHER_UNIT",
+                                    "SUPPLIER",
                                     "SALES_PARTNER",
                                     "PRIOR_AA",
                                     "PRIOR_AD",
@@ -16307,6 +16312,7 @@
                         "type": "string",
                         "enum": [
                           "OTHER_UNIT",
+                          "SUPPLIER",
                           "SALES_PARTNER",
                           "PRIOR_AA",
                           "PRIOR_AD",
@@ -16453,6 +16459,7 @@
                                   "type": "string",
                                   "enum": [
                                     "OTHER_UNIT",
+                                    "SUPPLIER",
                                     "SALES_PARTNER",
                                     "PRIOR_AA",
                                     "PRIOR_AD",
@@ -16748,6 +16755,7 @@
                                   "type": "string",
                                   "enum": [
                                     "OTHER_UNIT",
+                                    "SUPPLIER",
                                     "SALES_PARTNER",
                                     "PRIOR_AA",
                                     "PRIOR_AD",
@@ -17043,6 +17051,7 @@
                                   "type": "string",
                                   "enum": [
                                     "OTHER_UNIT",
+                                    "SUPPLIER",
                                     "SALES_PARTNER",
                                     "PRIOR_AA",
                                     "PRIOR_AD",
@@ -120186,6 +120195,7 @@
                                     "counterpartyType": {
                                       "type": "string",
                                       "enum": [
+                                        "supplier",
                                         "other-unit",
                                         "sales-partner"
                                       ]
@@ -120803,6 +120813,14 @@
                                         "selectionOrigin"
                                       ],
                                       "additionalProperties": false
+                                    },
+                                    "counterpartyType": {
+                                      "type": "string",
+                                      "enum": [
+                                        "supplier",
+                                        "other-unit",
+                                        "sales-partner"
+                                      ]
                                     },
                                     "employee": {
                                       "type": "object",
@@ -142828,6 +142846,7 @@
                           "counterpartyType": {
                             "type": "string",
                             "enum": [
+                              "supplier",
                               "other-unit",
                               "sales-partner"
                             ]
@@ -143445,6 +143464,14 @@
                               "selectionOrigin"
                             ],
                             "additionalProperties": false
+                          },
+                          "counterpartyType": {
+                            "type": "string",
+                            "enum": [
+                              "supplier",
+                              "other-unit",
+                              "sales-partner"
+                            ]
                           },
                           "employee": {
                             "type": "object",
@@ -165222,6 +165249,7 @@
                                     "counterpartyType": {
                                       "type": "string",
                                       "enum": [
+                                        "supplier",
                                         "other-unit",
                                         "sales-partner"
                                       ]
@@ -165839,6 +165867,14 @@
                                         "selectionOrigin"
                                       ],
                                       "additionalProperties": false
+                                    },
+                                    "counterpartyType": {
+                                      "type": "string",
+                                      "enum": [
+                                        "supplier",
+                                        "other-unit",
+                                        "sales-partner"
+                                      ]
                                     },
                                     "employee": {
                                       "type": "object",
@@ -187629,6 +187665,7 @@
                           "counterpartyType": {
                             "type": "string",
                             "enum": [
+                              "supplier",
                               "other-unit",
                               "sales-partner"
                             ]
@@ -188246,6 +188283,14 @@
                               "selectionOrigin"
                             ],
                             "additionalProperties": false
+                          },
+                          "counterpartyType": {
+                            "type": "string",
+                            "enum": [
+                              "supplier",
+                              "other-unit",
+                              "sales-partner"
+                            ]
                           },
                           "employee": {
                             "type": "object",
@@ -210023,6 +210068,7 @@
                                     "counterpartyType": {
                                       "type": "string",
                                       "enum": [
+                                        "supplier",
                                         "other-unit",
                                         "sales-partner"
                                       ]
@@ -210640,6 +210686,14 @@
                                         "selectionOrigin"
                                       ],
                                       "additionalProperties": false
+                                    },
+                                    "counterpartyType": {
+                                      "type": "string",
+                                      "enum": [
+                                        "supplier",
+                                        "other-unit",
+                                        "sales-partner"
+                                      ]
                                     },
                                     "employee": {
                                       "type": "object",
@@ -232574,6 +232628,7 @@
                                     "counterpartyType": {
                                       "type": "string",
                                       "enum": [
+                                        "supplier",
                                         "other-unit",
                                         "sales-partner"
                                       ]
@@ -233191,6 +233246,14 @@
                                         "selectionOrigin"
                                       ],
                                       "additionalProperties": false
+                                    },
+                                    "counterpartyType": {
+                                      "type": "string",
+                                      "enum": [
+                                        "supplier",
+                                        "other-unit",
+                                        "sales-partner"
+                                      ]
                                     },
                                     "employee": {
                                       "type": "object",
@@ -255131,6 +255194,7 @@
                                     "counterpartyType": {
                                       "type": "string",
                                       "enum": [
+                                        "supplier",
                                         "other-unit",
                                         "sales-partner"
                                       ]
@@ -255748,6 +255812,14 @@
                                         "selectionOrigin"
                                       ],
                                       "additionalProperties": false
+                                    },
+                                    "counterpartyType": {
+                                      "type": "string",
+                                      "enum": [
+                                        "supplier",
+                                        "other-unit",
+                                        "sales-partner"
+                                      ]
                                     },
                                     "employee": {
                                       "type": "object",
@@ -277682,6 +277754,7 @@
                                     "counterpartyType": {
                                       "type": "string",
                                       "enum": [
+                                        "supplier",
                                         "other-unit",
                                         "sales-partner"
                                       ]
@@ -278299,6 +278372,14 @@
                                         "selectionOrigin"
                                       ],
                                       "additionalProperties": false
+                                    },
+                                    "counterpartyType": {
+                                      "type": "string",
+                                      "enum": [
+                                        "supplier",
+                                        "other-unit",
+                                        "sales-partner"
+                                      ]
                                     },
                                     "employee": {
                                       "type": "object",
@@ -300239,6 +300320,7 @@
                                     "counterpartyType": {
                                       "type": "string",
                                       "enum": [
+                                        "supplier",
                                         "other-unit",
                                         "sales-partner"
                                       ]
@@ -300856,6 +300938,14 @@
                                         "selectionOrigin"
                                       ],
                                       "additionalProperties": false
+                                    },
+                                    "counterpartyType": {
+                                      "type": "string",
+                                      "enum": [
+                                        "supplier",
+                                        "other-unit",
+                                        "sales-partner"
+                                      ]
                                     },
                                     "employee": {
                                       "type": "object",

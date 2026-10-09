@@ -101,7 +101,7 @@ test('L2 validates the frontend without provisioning full runtime dependencies',
   )
 })
 
-test('reusable target workflow owns the complete target E2E and cleanup only', async () => {
+test('reusable target workflow keeps full acceptance as the default and cleans failures', async () => {
   const workflow = await readFile(targetPath, 'utf8')
   const target = jobBlock(workflow, 'target')
 
@@ -115,7 +115,11 @@ test('reusable target workflow owns the complete target E2E and cleanup only', a
   assert.ok(
     target.includes('TARGET_POSTGRES_PASSWORD=zerp-target-ci make target-e2e'),
   )
-  assert.match(target, /^        if: always\(\)$/m)
+  assert.match(target, /^        if: \$\{\{ always\(\) && inputs\.full \}\}$/m)
+  assert.match(
+    workflow,
+    /full:\n        description: [^\n]+\n        type: boolean\n        default: true/,
+  )
   assert.ok(target.includes('make target-down'))
 })
 
@@ -129,5 +133,61 @@ test('CI behavior tests cover both workflows', async () => {
   assert.equal(
     packageJson.scripts['check:ci-workflow'],
     'node --test scripts/check-ci-workflow.test.mjs scripts/ci/*.test.mjs',
+  )
+})
+
+test('draft changes run fast while ready and explicitly requested runs retain full acceptance', async () => {
+  const [workflow, targetWorkflow] = await Promise.all([
+    readFile(ciPath, 'utf8'),
+    readFile(targetPath, 'utf8'),
+  ])
+  for (const event of [
+    'opened',
+    'synchronize',
+    'reopened',
+    'ready_for_review',
+    'converted_to_draft',
+    'labeled',
+    'unlabeled',
+  ]) {
+    assert.match(workflow, new RegExp(`^      - ${event}$`, 'm'))
+  }
+  const target = jobBlock(workflow, 'target')
+  assert.ok(
+    target.includes(
+      "full: ${{ !github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'ci:full') }}",
+    ),
+  )
+  const changes = jobBlock(workflow, 'changes')
+  assert.ok(
+    changes.includes(
+      "FORCE_FULL: ${{ contains(github.event.pull_request.labels.*.name, 'ci:full') }}",
+    ),
+  )
+  assert.match(
+    changes,
+    /if \[\[ "\$FORCE_FULL" == "true" \]\]; then\n            echo "level=L3" >> "\$GITHUB_OUTPUT"\n            exit 0/,
+  )
+  const fast = targetWorkflow.match(
+    /- name: Draft static, unit and component checks([\s\S]*?)(?=      - name:)/,
+  )?.[1]
+  assert.ok(fast)
+  assert.ok(fast.includes('if: ${{ !inputs.full }}'))
+  assert.ok(fast.includes('run: make target-static test'))
+  assert.doesNotMatch(
+    fast,
+    /target-e2e|target-test|target-db|playwright|docker|wasm/,
+  )
+  assert.match(
+    targetWorkflow,
+    /uses: actions\/setup-go@v6\n        if: \$\{\{ inputs.full \}\}/,
+  )
+  assert.match(
+    targetWorkflow,
+    /name: Install browser for full acceptance\n        if: \$\{\{ inputs.full \}\}/,
+  )
+  assert.match(
+    targetWorkflow,
+    /name: Full runtime acceptance\n        if: \$\{\{ inputs.full \}\}\n        run: TARGET_POSTGRES_PASSWORD=zerp-target-ci make target-e2e/,
   )
 })

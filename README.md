@@ -44,7 +44,7 @@ make target-down
 
 例如，确认没有其他任务占用 `zerp-target` 后，执行 `make target-db` 与 `pnpm --filter @zerp/wfl-starlark wasm:build` 准备本地隔离库与 WASM，再通过受控环境变量提供该库地址运行 `make test-integration`。不得指向共享库或生产库；集成测试写入真实数据，测试仅操作独占隔离库。完成后执行 `make target-down`。
 
-`make target-e2e` 是 CI L3 的运行时验收入口；CI 的 common/tooling 作业分别负责公共检查和 CI 行为测试，本地完整验收统一用 `make e2e`。完整验收只在 Compose Web 镜像内构建 SPA，独立构建仍可运行 `pnpm --filter @zerp/frontend build:target`。通用浏览器套件与 WFL、VOU catalog、VOU opening、VOU entry 四个专项各使用一次独占数据库准备，始终串行；WFL browser parity 只在专属阶段执行。
+`make target-e2e` 是 CI L3 完整模式的运行时验收入口；CI 的 common/tooling 作业分别负责公共检查和 CI 行为测试，本地完整验收统一用 `make e2e`。完整验收只在 Compose Web 镜像内构建 SPA，独立构建仍可运行 `pnpm --filter @zerp/frontend build:target`。通用浏览器套件与 WFL、VOU catalog、VOU opening、VOU entry 四个专项各使用一次独占数据库准备，始终串行；WFL browser parity 只在专属阶段执行。
 
 ## Pull Request 检查
 
@@ -52,8 +52,12 @@ make target-down
 
 - L0：`docs/**/*.md`，以及明确列出的 `README.md`、`AGENTS.md`、`CONTEXT.md`、`frontend/README.md`、`frontend/AGENTS.md`。只运行公共检查，不安装 Go 或 Chromium，也不启动 Target 服务。
 - L1：文档检查器、Prettier 配置、CI 分类与汇总脚本、测试及 `.github/workflows/ci.yml`。运行公共检查和工具/CI 行为测试。
-- L2：`frontend/src/target/` 下的 Vue/CSS、`plugins/themes.ts`、`plugins/vuetify.ts`、`presentation/**/*.ts` 和 `frontend/tests/{unit/target,static}/` 下的 TS/Vue 测试，以及 `frontend/tests/target-e2e/` 下的 TS 测试和辅助文件。运行公共检查、CI 行为测试，以及前端类型检查、架构检查、lint/format、全部单元/组件测试和生产构建；不启动 PostgreSQL、Docker、Go/WASM 或完整浏览器验收。Vue 文件内的脚本也走前端验证，按文件边界分类，不解析差异猜测是否“纯样式”。E2E 文件在此级别执行类型、lint 和格式检查，不执行浏览器场景；定位更新随页面展示变更走 L2，混入 L3 文件仍执行完整验收。
-- L3：其余所有文件，包括 `.github/workflows/target.yml`、API 适配、业务定义及其他 TS 逻辑、后端/共享代码、SQL、依赖、运行配置和 Target 执行定义。运行公共检查、工具/CI 行为测试和完整 `make target-e2e`。
+- L2：`frontend/src/target/` 下的 Vue/CSS、`plugins/themes.ts`、`plugins/vuetify.ts`、`presentation/**/*.ts` 和 `frontend/tests/{unit/target,static}/` 下的 TS/Vue 测试，以及 `frontend/tests/target-e2e/` 下的 TS 测试和辅助文件。运行公共检查、CI 行为测试，以及前端类型检查、架构检查、lint/format、全部单元/组件测试和生产构建；不启动 PostgreSQL、Docker、Go/WASM 或完整浏览器验收。Vue 文件内的脚本也走前端验证，按文件边界分类，不解析差异猜测是否“纯样式”。E2E 文件在此级别执行类型、lint 和格式检查，不执行浏览器场景；定位更新随页面展示变更走 L2，混入 L3 文件按下述草稿/完整模式执行。
+- L3：其余所有文件，包括 `.github/workflows/target.yml`、API 适配、业务定义及其他 TS 逻辑、后端/共享代码、SQL、依赖、运行配置和 Target 执行定义。运行公共检查和工具/CI 行为测试；草稿 PR 默认执行 `make target-static test`（静态、单元、组件），不启动 PostgreSQL、Compose、Go/WASM 或浏览器。非草稿 PR 执行完整 `make target-e2e`。
+
+需要在草稿阶段交付试迁版本时，添加 `ci:full` 标签：任何路径级别都会升级为 L3 并执行完整验收。标签保留期间后续推送仍跑完整验收；进入下一轮开发时移除标签恢复草稿快速检查。转为 Ready for review 会重新触发检查，L3 必须通过完整验收。转回草稿、添加或移除标签同样重新检查；普通推送仍自动取消同一 PR 的过期运行。
+
+草稿快速检查通过只证明开发检查通过，不构成运行时验收或发布证明。升级试迁、部署或交付版本前，必须确认该最终提交对应的完整 `target-e2e` 阶段成功；不得沿用旧提交或草稿快速检查的绿色状态。本地开发先跑相关专项，集中推送完整修改；CI 期间可继续不依赖其结果的工作。
 
 重命名同时按变更前路径删除和变更后路径新增分类；修改分类规则时，基线规则与新规则分别计算并取较高等级。唯一必需检查为 `ci-required`，它会严格汇总各级必须运行的任务。开发者本地用 `make check`、`make test` 运行独立检查，用 `make e2e` 运行完整验证。
 

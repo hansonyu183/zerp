@@ -1,3 +1,8 @@
+import {
+  attachmentMimeTypes,
+  attachmentMaxSizeBytes,
+  attachmentMaxCount,
+} from '@zerp/model'
 import { taxInformationSnapshot } from '../dcl/archive-contract.ts'
 import {
   auxiliaryRoute,
@@ -9,6 +14,7 @@ import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
 import type { Schema } from 'hono'
 import {
   vouEntities,
+  vouServiceCounterpartyTypes,
   vouPriorCutoffPattern,
   vouEntityPresentation,
   vouPaymentMethodSelectionOrigins,
@@ -108,8 +114,8 @@ const attachment = z
   .object({
     id: z.string().length(26),
     fileName: z.string().min(1).max(255),
-    contentType: z.enum(['application/pdf', 'image/jpeg', 'image/png']),
-    sizeBytes: z.number().int().positive().max(10_485_760),
+    contentType: z.enum(attachmentMimeTypes),
+    sizeBytes: z.number().int().nonnegative().max(attachmentMaxSizeBytes),
     sha256: z.string().regex(/^[0-9a-f]{64}$/),
     stagingId: z.string().length(26),
   })
@@ -130,7 +136,7 @@ const basePayload = {
   businessDate: z.string().date(),
   currency: z.string().regex(/^[A-Z]{3}$/),
   remark: z.string().max(1000).optional(),
-  attachments: z.array(attachment).max(10),
+  attachments: z.array(attachment).max(attachmentMaxCount),
   parentEntity: z.enum(vouEntities).optional(),
   parentDocumentId: z.string().length(26).optional(),
 }
@@ -862,7 +868,7 @@ export const vouPayloadSchemaByEntity = {
     priorFact: priorFact.optional(),
     serviceLines: z.array(serviceLine).min(1).max(200).optional(),
     counterparty: versionedReference,
-    counterpartyType: z.enum(['other-unit', 'sales-partner']),
+    counterpartyType: z.enum(vouServiceCounterpartyTypes),
     employee: employeeReference,
     serviceContract: z
       .object({
@@ -882,6 +888,7 @@ export const vouPayloadSchemaByEntity = {
     priorLineOrigins: z.array(priorLineOrigin).min(1).max(200).optional(),
     amount: money,
     counterparty: versionedReference.optional(),
+    counterpartyType: z.enum(vouServiceCounterpartyTypes).optional(),
     employee: employeeReference,
     serviceAcceptance: z
       .object({
@@ -936,10 +943,10 @@ const stage = z
     stagingId: z.string().length(26),
     fileId: z.string().length(26),
     fileName: z.string().min(1).max(255),
-    mimeType: z.enum(['application/pdf', 'image/jpeg', 'image/png']),
-    size: z.number().int().positive().max(10_485_760),
+    mimeType: z.enum(attachmentMimeTypes),
+    size: z.number().int().nonnegative().max(attachmentMaxSizeBytes),
     digest: z.string().regex(/^[0-9a-f]{64}$/),
-    contentBase64: z.string().min(1),
+    contentBase64: z.string(),
   })
   .strict()
 const approvalStatus = z.enum(['PENDING', 'APPROVED', 'REJECTED'])
@@ -1070,8 +1077,8 @@ const stageResult = z
     stagingId: z.string().length(26),
     fileId: z.string().length(26),
     fileName: z.string().min(1).max(255),
-    mimeType: z.enum(['application/pdf', 'image/jpeg', 'image/png']),
-    size: z.number().int().positive().max(10_485_760),
+    mimeType: z.enum(attachmentMimeTypes),
+    size: z.number().int().nonnegative().max(attachmentMaxSizeBytes),
     digest: z.string().regex(/^[0-9a-f]{64}$/),
     expiresAt: z.string().datetime(),
   })
@@ -1098,6 +1105,9 @@ export const vouAttachmentDownloadRoute = createRoute({
           schema: z.string().openapi({ format: 'binary' }),
         },
         'image/png': {
+          schema: z.string().openapi({ format: 'binary' }),
+        },
+        'application/octet-stream': {
           schema: z.string().openapi({ format: 'binary' }),
         },
       },

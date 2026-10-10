@@ -69,6 +69,24 @@ describe('service carryover form orchestration', () => {
       }),
     ).toThrow('请选择源单关闭状态')
   })
+  it('Supplier context and cloning preserve the approved Supplier identity', () => {
+    const initial = setServiceContext(
+      emptyService('service-contract'),
+      'SUPPLIER',
+    )
+    expect(initial.counterpartyType).toBe('supplier')
+    expect(serviceDraftContext(initial)).toBe('SUPPLIER')
+    const draft = cloneService('service-contract', {
+      ...payload,
+      counterpartyType: 'supplier',
+    })
+    expect(serviceDraftContext(draft)).toBe('SUPPLIER')
+    expect(servicePayload(draft)).toMatchObject({
+      counterpartyType: 'supplier',
+      counterparty: { ...payload.counterparty, selectionOrigin: 'HISTORICAL' },
+    })
+    expect(servicePayload(draft)).not.toHaveProperty('priorFact')
+  })
   it('cloning clears prior identity, original line keys and attachments while preserving precise quotation and both units', () => {
     const draft = cloneService('service-contract', {
       ...payload,
@@ -93,26 +111,31 @@ describe('service carryover form orchestration', () => {
     expect(serviceDraftContext(draft)).toBe('OTHER_UNIT')
     expect(servicePayload(draft)).not.toHaveProperty('priorFact')
   })
-  it('a standalone prior acceptance becomes a new incomplete contract-based form when copied', () => {
-    const acceptance: VouPayloadFor<'service-acceptance'> = {
-      businessDate: payload.businessDate,
-      currency: 'CNY',
-      employee: payload.employee,
-      attachments: [],
-      counterparty: payload.counterparty,
-      priorFact: { ...fact, sourceDocumentType: 'AE' },
-      serviceLines: payload.serviceLines,
-      amount: '18966.00',
-      serviceAcceptance: {
-        serviceDate: payload.businessDate,
-        acceptanceDate: payload.businessDate,
-        settlementDirection: 'PAYABLE',
-      },
-    }
-    const draft = cloneService('service-acceptance', acceptance)
-    expect(draft.contract).toBeNull()
-    expect(serviceDraftContext(draft)).toBe('CONTRACT')
-    expect(draft.priorFact).toBeUndefined()
-    expect(() => servicePayload(draft)).toThrow('请选择已批准的服务合同')
-  })
+  it.each(['supplier', 'other-unit', 'sales-partner'] as const)(
+    'a standalone %s prior acceptance becomes a new incomplete contract-based form when copied',
+    (counterpartyType) => {
+      const acceptance: VouPayloadFor<'service-acceptance'> = {
+        businessDate: payload.businessDate,
+        currency: 'CNY',
+        employee: payload.employee,
+        attachments: [],
+        counterparty: payload.counterparty,
+        counterpartyType,
+        priorFact: { ...fact, sourceDocumentType: 'AE' },
+        serviceLines: payload.serviceLines,
+        amount: '18966.00',
+        serviceAcceptance: {
+          serviceDate: payload.businessDate,
+          acceptanceDate: payload.businessDate,
+          settlementDirection: 'PAYABLE',
+        },
+      }
+      const draft = cloneService('service-acceptance', acceptance)
+      expect(draft.contract).toBeNull()
+      expect(draft.counterparty).toBeNull()
+      expect(serviceDraftContext(draft)).toBe('CONTRACT')
+      expect(draft.priorFact).toBeUndefined()
+      expect(() => servicePayload(draft)).toThrow('请选择已批准的服务合同')
+    },
+  )
 })

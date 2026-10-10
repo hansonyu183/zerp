@@ -219,7 +219,7 @@ export interface VouPaymentMethodSelectionInput extends VouPaymentMethodSnapshot
 export interface VouAttachmentMetadata {
   id: string
   fileName: string
-  contentType: 'application/pdf' | 'image/jpeg' | 'image/png'
+  contentType: import('./attachments.ts').AttachmentMimeType
   sizeBytes: number
   sha256: string
   stagingId: string
@@ -631,6 +631,14 @@ export interface VouInvoiceFacts extends VouPayloadBase {
   taxInformation: TaxInformationSnapshot
   invoiceLines: readonly VouInvoiceLine[]
 }
+export const vouServiceCounterpartyTypes = [
+  'supplier',
+  'other-unit',
+  'sales-partner',
+] as const
+export type VouServiceCounterpartyType =
+  (typeof vouServiceCounterpartyTypes)[number]
+
 export interface VouPayloadShapes {
   'sale-invoice': VouInvoiceFacts & { customer: VouVersionedReferenceInput }
   'purchase-invoice': VouInvoiceFacts & { supplier: VouVersionedReferenceInput }
@@ -821,7 +829,7 @@ export interface VouPayloadShapes {
     priorFact?: VouPriorFact
     serviceLines?: readonly VouServiceLineInput[]
     counterparty: VouVersionedReferenceInput
-    counterpartyType: 'other-unit' | 'sales-partner'
+    counterpartyType: VouServiceCounterpartyType
     employee: VouAuxCurrentReferenceInput
     serviceContract: {
       capabilities?: readonly ('EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER')[]
@@ -837,6 +845,7 @@ export interface VouPayloadShapes {
     priorLineOrigins?: readonly VouPriorLineOrigin[]
     amount: string
     counterparty?: VouVersionedReferenceInput
+    counterpartyType?: VouServiceCounterpartyType
     employee: VouAuxCurrentReferenceInput
     serviceAcceptance: {
       contractDocumentId?: string
@@ -1085,8 +1094,6 @@ function versionedReferenceCandidateEntity(
   path: string,
   payload: VouPayload,
 ): VouReferenceCandidateEntity {
-  if (field === 'counterparty' && entity === 'service-acceptance')
-    return 'other-unit'
   if (field === 'counterparty') {
     const counterpartyType = (payload as unknown as Record<string, unknown>)[
       'counterpartyType'
@@ -1367,6 +1374,11 @@ function canonicalPayload<Entity extends VouEntity>(
     const service = value as VouPayloadShapes[
       'service-contract' | 'service-acceptance']
     if (
+      service.counterpartyType !== undefined &&
+      !vouServiceCounterpartyTypes.includes(service.counterpartyType)
+    )
+      return undefined
+    if (
       entity === 'service-contract'
         ? !service ||
           !('serviceContract' in service) ||
@@ -1448,7 +1460,7 @@ function canonicalPayload<Entity extends VouEntity>(
       return undefined
     if ('serviceContract' in service) {
       if (
-        (historical && service.counterpartyType !== 'other-unit') ||
+        (historical && service.counterpartyType === 'sales-partner') ||
         (service.counterpartyType === 'sales-partner' &&
           (lines ||
             service.serviceContract.requiresPrepayment !== undefined)) ||
@@ -1463,12 +1475,21 @@ function canonicalPayload<Entity extends VouEntity>(
       if (
         !historical ||
         !service.counterparty ||
+        service.counterpartyType === undefined ||
         service.parentEntity ||
         service.parentDocumentId ||
         lines?.some((line) => line.contractLineId !== undefined)
       )
         return undefined
+    } else if (service.counterpartyType === 'sales-partner') {
+      return undefined
     }
+    if (
+      'serviceAcceptance' in service &&
+      service.counterparty &&
+      service.counterpartyType === undefined
+    )
+      return undefined
     if (
       'priorLineOrigins' in service &&
       service.priorLineOrigins !== undefined
@@ -1738,6 +1759,7 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
     'priorLineOrigins',
     'amount',
     'counterparty',
+    'counterpartyType',
     'employee',
     'serviceAcceptance',
   ],
@@ -1769,7 +1791,8 @@ const payloadRequiredFields: Readonly<Record<VouEntity, readonly string[]>> =
               ['sourceLines', 'productLines', 'priorLineOrigins'].includes(
                 field,
               )) ||
-            (field === 'counterparty' && entity === 'service-acceptance') ||
+            ((field === 'counterparty' || field === 'counterpartyType') &&
+              entity === 'service-acceptance') ||
             (field === 'billCashLines' && entity !== 'bill-maturity') ||
             ((field === 'counterparty' || field === 'counterpartyType') &&
               entity === 'other-income')
@@ -1930,9 +1953,9 @@ function headerReferenceCandidatesForEntity(
   if (key === 'counterparty' && entity === 'asset-sale')
     return ['customer', 'other-unit']
   if (key === 'counterparty' && entity === 'service-acceptance')
-    return ['other-unit']
+    return vouServiceCounterpartyTypes
   if (key === 'counterparty' && entity === 'service-contract')
-    return ['other-unit', 'sales-partner']
+    return vouServiceCounterpartyTypes
   return headerReferenceCandidates[key] ?? []
 }
 const lineReferenceCandidates: Readonly<
@@ -2996,13 +3019,13 @@ export const vouEntityInputDescriptors: Readonly<
         fields.push(fixedEnumDescriptor('counterpartyType', 'other-unit'))
       else if (
         scalar.key === 'counterpartyType' &&
-        entity === 'service-contract'
+        (entity === 'service-contract' || entity === 'service-acceptance')
       )
         fields.push({
           key: 'counterpartyType',
           kind: 'enum',
-          required: true,
-          enumValues: ['other-unit', 'sales-partner'],
+          required: entity === 'service-contract',
+          enumValues: vouServiceCounterpartyTypes,
         })
       else fields.push(scalarDescriptor(scalar.key, scalar.required))
     }

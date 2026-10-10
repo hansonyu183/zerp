@@ -44,7 +44,7 @@ test('unit cutover blocks conflicting fixed factors, preserves historical decima
   await sql`ALTER TABLE app_role_permissions ADD COLUMN purchase_inbound_scope text NOT NULL CHECK (purchase_inbound_scope IN ('ORDER_REFERENCE','INDEPENDENT_PRIOR','ALL'))`.execute(
     db,
   )
-  await sql`ALTER TABLE app_role_permissions ADD COLUMN service_contexts text[] NOT NULL CHECK (service_contexts <@ ARRAY['OTHER_UNIT','SALES_PARTNER','PRIOR_AA','PRIOR_AD','CONTRACT','PRIOR_AB','PRIOR_AE','PRIOR_AH']::text[])`.execute(
+  await sql`ALTER TABLE app_role_permissions ADD COLUMN service_contexts text[] NOT NULL CHECK (service_contexts <@ ARRAY['OTHER_UNIT','SUPPLIER','SALES_PARTNER','PRIOR_AA','PRIOR_AD','CONTRACT','PRIOR_AB','PRIOR_AE','PRIOR_AH']::text[])`.execute(
     db,
   )
   const bootstrap = new TargetBootstrapService(db)

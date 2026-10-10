@@ -1,3 +1,9 @@
+import {
+  attachmentContentMatches,
+  attachmentMaxSizeBytes,
+  attachmentMaxCount,
+  type AttachmentMimeType,
+} from '@zerp/model'
 import { purchaseInboundAccess } from '../app/purchase-inbound-access.ts'
 import { serviceAccess } from '../app/service-access.ts'
 import {
@@ -90,6 +96,7 @@ import {
   type VouSourceLineSourceEntity,
   type VouSourceLineTargetEntity,
   vouDocumentPrefixes,
+  vouServiceCounterpartyTypes,
   vouEntityInputDescriptors,
   vouListCapabilities,
   vouPayloadReferences,
@@ -269,7 +276,7 @@ export interface VouAttachmentStageInput {
   stagingId: string
   fileId: string
   fileName: string
-  mimeType: 'application/pdf' | 'image/jpeg' | 'image/png'
+  mimeType: AttachmentMimeType
   size: number
   digest: string
   contentBase64: string
@@ -459,24 +466,6 @@ function payloadAmountMinor(payload: VouPayload): bigint {
   return 'amount' in payload ? (decimalToFixed(payload.amount, 2) ?? 0n) : 0n
 }
 
-function contentMatches(
-  mimeType: VouAttachmentStageInput['mimeType'],
-  content: Buffer,
-): boolean {
-  if (mimeType === 'application/pdf')
-    return content.subarray(0, 5).toString() === '%PDF-'
-  if (mimeType === 'image/png')
-    return content
-      .subarray(0, 8)
-      .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-  return (
-    content[0] === 0xff &&
-    content[1] === 0xd8 &&
-    content[content.length - 2] === 0xff &&
-    content[content.length - 1] === 0xd9
-  )
-}
-
 function entryFromRow(row: {
   id: string
   entity: string
@@ -562,11 +551,12 @@ export class VouService implements WflVouPort {
     const content = Buffer.from(input.contentBase64, 'base64')
     if (
       content.length !== input.size ||
-      input.size < 1 ||
-      input.size > 10_485_760
+      !Number.isInteger(input.size) ||
+      input.size < 0 ||
+      input.size > attachmentMaxSizeBytes
     )
       throw new VouApplicationError('vou_attachment_size_invalid')
-    if (!contentMatches(input.mimeType, content))
+    if (!attachmentContentMatches(input.mimeType, content))
       throw new VouApplicationError('vou_attachment_type_invalid')
     const digest = createHash('sha256').update(content).digest('hex')
     if (digest !== input.digest)
@@ -587,6 +577,7 @@ export class VouService implements WflVouPort {
           if (
             existing.owner_user_id !== actor.id ||
             existing.file_id !== input.fileId ||
+            existing.file_name !== input.fileName ||
             existing.digest !== digest ||
             existing.mime_type !== input.mimeType ||
             existing.size_bytes !== input.size
@@ -756,7 +747,7 @@ export class VouService implements WflVouPort {
       )
       const found = await sql<{
         file_name: string
-        mime_type: 'application/pdf' | 'image/jpeg' | 'image/png'
+        mime_type: AttachmentMimeType
         size_bytes: number
         digest: string
         storage_key: string
@@ -2029,7 +2020,7 @@ export class VouService implements WflVouPort {
   async serviceContractLines(contractDocumentId: string, actor: ApprovalActor) {
     const eligible = await sql<{ id: string }>`
       SELECT entry.id FROM approval_entries entry
-      JOIN vou_reference_snapshots party ON party.approval_entry_id = entry.id AND party.field = 'counterparty' AND party.line_no = 0 AND party.item_no = 0 AND party.reference_entity = 'other-unit'
+      JOIN vou_reference_snapshots party ON party.approval_entry_id = entry.id AND party.field = 'counterparty' AND party.line_no = 0 AND party.item_no = 0 AND party.reference_entity IN ('supplier','other-unit')
       WHERE entry.domain = 'vou' AND entry.entity = 'service-contract' AND entry.subject_id = ${contractDocumentId} AND entry.status = 'APPROVED'
         AND NOT EXISTS (SELECT 1 FROM vou_prior_facts prior WHERE prior.approval_entry_id = entry.id AND prior.source_closed)
         AND ${documentCustomerPredicate(await customerAccess(this.db, actor), sql`entry.subject_id`)}
@@ -2478,7 +2469,7 @@ export class VouService implements WflVouPort {
       case 'bill':
         return `SELECT r.id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, r.bill_no AS code, r.bill_no AS name FROM acc_bill_registers r WHERE r.status = 'AVAILABLE' AND EXISTS (SELECT 1 FROM acc_bill_book_values v JOIN acc_books b ON b.id = v.book_id JOIN approval_entries a ON a.subject_id = b.id AND a.domain = 'vou' AND a.entity = 'opening' AND a.status = 'APPROVED' WHERE v.bill_id = r.id AND b.control_book)`
       case 'service-contract':
-        return `SELECT document.id AS object_id, approval.id AS approval_entry_id, NULL::varchar AS customer_id, document.document_no AS code, document.document_no AS name FROM vou_documents document JOIN approval_entries approval ON approval.subject_id = document.id AND approval.domain = 'vou' AND approval.entity = 'service-contract' AND approval.status = 'APPROVED' JOIN vou_reference_snapshots party ON party.approval_entry_id = approval.id AND party.field = 'counterparty' AND party.reference_entity = 'other-unit'`
+        return `SELECT document.id AS object_id, approval.id AS approval_entry_id, NULL::varchar AS customer_id, document.document_no AS code, document.document_no AS name FROM vou_documents document JOIN approval_entries approval ON approval.subject_id = document.id AND approval.domain = 'vou' AND approval.entity = 'service-contract' AND approval.status = 'APPROVED' JOIN vou_reference_snapshots party ON party.approval_entry_id = approval.id AND party.field = 'counterparty' AND party.reference_entity IN ('supplier','other-unit')`
     }
   }
 
@@ -2924,7 +2915,7 @@ export class VouService implements WflVouPort {
     payload: VouPayload,
     ownerId: string,
   ) {
-    if (payload.attachments.length > 10)
+    if (payload.attachments.length > attachmentMaxCount)
       throw new VouApplicationError('vou_attachment_limit_exceeded')
     for (const attachment of payload.attachments) {
       const row = await executor
@@ -3053,8 +3044,8 @@ export class VouService implements WflVouPort {
       if (
         !contract.serviceContract.requiresPrepayment ||
         contract.priorFact?.sourceClosed ||
-        contract.counterpartyType !== 'other-unit' ||
-        payment.counterpartyType !== 'other-unit' ||
+        !['supplier', 'other-unit'].includes(contract.counterpartyType) ||
+        payment.counterpartyType !== contract.counterpartyType ||
         payment.counterparty.objectId !== contract.counterparty.objectId ||
         payload.currency !== contract.currency
       )
@@ -3062,6 +3053,14 @@ export class VouService implements WflVouPort {
       return
     }
     if (entity !== 'service-contract' && entity !== 'service-acceptance') return
+    if (
+      'counterpartyType' in payload &&
+      payload.counterpartyType !== undefined &&
+      !vouServiceCounterpartyTypes.some(
+        (kind) => kind === payload.counterpartyType,
+      )
+    )
+      throw new VouApplicationError('vou_invalid_payload')
     if ('serviceLines' in payload && payload.serviceLines) {
       if (
         entity === 'service-acceptance' &&
@@ -3099,6 +3098,7 @@ export class VouService implements WflVouPort {
       if (
         !priorFact(payload) ||
         !payload.counterparty ||
+        payload.counterpartyType === undefined ||
         !payload.serviceLines?.length ||
         payload.parentEntity ||
         payload.parentDocumentId ||
@@ -3131,7 +3131,17 @@ export class VouService implements WflVouPort {
       'service-contract',
       entry.id,
     )) as VouPayloadFor<'service-contract'>
-    if (contract.counterpartyType !== 'other-unit')
+    if (!['supplier', 'other-unit'].includes(contract.counterpartyType))
+      throw new VouApplicationError('vou_reference_unavailable')
+    if (
+      (payload.counterpartyType !== undefined &&
+        payload.counterpartyType !== contract.counterpartyType) ||
+      (payload.counterparty &&
+        (payload.counterparty.objectId !== contract.counterparty.objectId ||
+          (payload.counterparty.approvalEntryId !== undefined &&
+            payload.counterparty.approvalEntryId !==
+              contract.counterparty.approvalEntryId)))
+    )
       throw new VouApplicationError('vou_reference_unavailable')
     if (!priorFact(payload) && contract.priorFact?.sourceClosed)
       throw new VouApplicationError('vou_prior_fact_source_closed')
@@ -3247,6 +3257,7 @@ export class VouService implements WflVouPort {
     }
     payload.parentEntity = 'service-contract'
     payload.parentDocumentId = acceptance.contractDocumentId
+    payload.counterpartyType = contract.counterpartyType
     payload.counterparty = {
       ...contract.counterparty,
       selectionOrigin: 'HISTORICAL',
@@ -4976,7 +4987,9 @@ export class VouService implements WflVouPort {
         0,
         0,
         field === 'counterparty' &&
-          (entity === 'asset-sale' || entity === 'service-contract')
+          (entity === 'asset-sale' ||
+            entity === 'service-contract' ||
+            entity === 'service-acceptance')
           ? { ...reference, entity: candidateEntity }
           : reference,
       )
@@ -6269,10 +6282,13 @@ export class VouService implements WflVouPort {
           executor,
         )
       ).rows[0]!
+      const { entity: counterpartyType, ...counterparty } =
+        reference('counterparty')
       return {
         ...base,
         amount: amount(),
-        counterparty: reference('counterparty'),
+        counterparty,
+        counterpartyType,
         employee: reference('employee'),
         ...(await this.readServiceLineFields(executor, approvalEntryId)),
         serviceAcceptance: {
@@ -6946,7 +6962,7 @@ export class VouService implements WflVouPort {
       file_id: string
       staging_id: string
       file_name: string
-      mime_type: 'application/pdf' | 'image/jpeg' | 'image/png'
+      mime_type: AttachmentMimeType
       size_bytes: number
       digest: string
     }>`
@@ -6982,7 +6998,7 @@ export class VouService implements WflVouPort {
       const content = await this.attachmentStore.read(row.storage_key)
       if (
         content.length !== row.size_bytes ||
-        !contentMatches(
+        !attachmentContentMatches(
           row.mime_type as VouAttachmentStageInput['mimeType'],
           content,
         ) ||

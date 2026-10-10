@@ -1,6 +1,7 @@
 import { openArchive, findArchive } from './archive-navigation.ts'
 import { confirmCollection } from './collection-helpers.ts'
 import { randomBytes } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
 import { expect, test, type Page, type Locator } from '@playwright/test'
 
 async function signin(page: Page, reviewer = false) {
@@ -117,6 +118,24 @@ test('customer flat temporary form, business fields, history and independent ena
         buffer: Buffer.from('%PDF-1.4\n%%EOF'),
       })
     await expect(dialog).toContainText('税务.pdf')
+    await dialog.getByLabel('按原始文件保存', { exact: true }).check()
+    for (const file of [
+      {
+        name: '原照片.jpg',
+        mimeType: 'image/jpeg',
+        buffer: Buffer.from([255, 216, 0, 1]),
+      },
+      {
+        name: '原空文件.et',
+        mimeType: 'application/octet-stream',
+        buffer: Buffer.alloc(0),
+      },
+    ]) {
+      await dialog.locator('input[type=file]').first().setInputFiles(file)
+      await expect(
+        dialog.locator('.attachment-row').filter({ hasText: file.name }),
+      ).toBeVisible()
+    }
     expect(staged).toBe(0)
     const sub = dialog
     await sub.getByLabel('联系人', { exact: true }).fill('业务联系人')
@@ -160,7 +179,7 @@ test('customer flat temporary form, business fields, history and independent ena
       )
       .toEqual([])
     await expect(dialog).toHaveCount(0)
-    expect(staged).toBe(1)
+    expect(staged).toBe(3)
     await approve(reviewer, name)
     await page.reload()
     await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
@@ -217,14 +236,23 @@ test('customer flat temporary form, business fields, history and independent ena
       .click()
     await expect(page.getByRole('dialog')).toContainText('客户定价差异')
     await expect(page.getByRole('dialog')).toContainText('金额变化')
-    const downloading = page.waitForEvent('download')
-    await page
-      .getByRole('dialog')
-      .getByRole('button', { name: '下载附件', exact: true })
-      .click()
-    const download = await downloading
-    expect(download.suggestedFilename()).toBe('税务.pdf')
-    expect(await download.failure()).toBeNull()
+    for (const file of [
+      { name: '税务.pdf', buffer: Buffer.from('%PDF-1.4\n%%EOF') },
+      { name: '原照片.jpg', buffer: Buffer.from([255, 216, 0, 1]) },
+      { name: '原空文件.et', buffer: Buffer.alloc(0) },
+    ]) {
+      const downloading = page.waitForEvent('download')
+      await page
+        .getByRole('dialog')
+        .locator('.attachment-row')
+        .filter({ hasText: file.name })
+        .getByRole('button', { name: '下载附件', exact: true })
+        .click()
+      const download = await downloading
+      expect(download.suggestedFilename()).toBe(file.name)
+      expect(await download.failure()).toBeNull()
+      expect(await readFile((await download.path())!)).toEqual(file.buffer)
+    }
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,

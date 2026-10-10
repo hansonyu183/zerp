@@ -39,7 +39,7 @@ export function serviceContextPredicate(
     )`
     return sql<boolean>`${ordinary} AND EXISTS (SELECT 1 FROM vou_reference_snapshots party
       WHERE party.approval_entry_id = ${entryId} AND party.field = 'counterparty' AND party.line_no = 0 AND party.item_no = 0
-        AND party.reference_entity = ${context === 'OTHER_UNIT' ? 'other-unit' : 'sales-partner'})`
+        AND party.reference_entity = ${context === 'OTHER_UNIT' ? 'other-unit' : context === 'SUPPLIER' ? 'supplier' : 'sales-partner'})`
   })
   return sql<boolean>`(${sql.join(conditions, sql` OR `)})`
 }
@@ -105,6 +105,7 @@ export async function scopedServiceDocumentActor(
       WHEN prior.source_document_type IS NOT NULL THEN 'PRIOR_' || prior.source_document_type
       WHEN entry.entity = 'service-acceptance' AND EXISTS (SELECT 1 FROM vou_service_acceptance_details detail WHERE detail.approval_entry_id = entry.id AND detail.contract_document_id IS NOT NULL) THEN 'CONTRACT'
       WHEN party.reference_entity = 'other-unit' THEN 'OTHER_UNIT'
+      WHEN party.reference_entity = 'supplier' THEN 'SUPPLIER'
       WHEN party.reference_entity = 'sales-partner' THEN 'SALES_PARTNER'
       ELSE NULL END AS context
     FROM approval_entries entry LEFT JOIN vou_prior_facts prior ON prior.approval_entry_id = entry.id

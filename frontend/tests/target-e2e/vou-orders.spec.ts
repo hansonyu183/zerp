@@ -6,6 +6,7 @@ import {
 } from './collection-helpers.ts'
 import { expect, test, type Page } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
 const facts = JSON.parse(process.env.TARGET_E2E_ORDER_FACTS_JSON ?? '{}') as {
@@ -248,6 +249,24 @@ test('creates and clones sales and purchase orders from real menu candidates, in
       buffer: Buffer.from('%PDF-1.4\norder fixture\n%%EOF'),
     })
     await expect(editor).toContainText('待提交时上传')
+    await editor.getByLabel('按原始文件保存', { exact: true }).check()
+    for (const file of [
+      {
+        name: 'original.jpg',
+        mimeType: 'image/jpeg',
+        buffer: Buffer.from([255, 216, 0, 1]),
+      },
+      {
+        name: 'empty.et',
+        mimeType: 'application/octet-stream',
+        buffer: Buffer.alloc(0),
+      },
+    ]) {
+      await editor.getByLabel('添加附件', { exact: true }).setInputFiles(file)
+      await expect(
+        editor.locator('.attachment-row').filter({ hasText: file.name }),
+      ).toBeVisible()
+    }
     await page.setViewportSize({ width: 390, height: 844 })
     expect(
       await page.evaluate(
@@ -266,6 +285,11 @@ test('creates and clones sales and purchase orders from real menu candidates, in
       })
     ).json()
     expect(envelope.code, JSON.stringify(envelope)).toBe(0)
+    expect(
+      envelope.data.payload.attachments
+        .map((file: { fileName: string }) => file.fileName)
+        .sort(),
+    ).toEqual(['empty.et', 'order.pdf', 'original.jpg'])
     await expect(editor).toHaveCount(0)
     const id = envelope.data.documentId as string
     await page
@@ -275,6 +299,21 @@ test('creates and clones sales and purchase orders from real menu candidates, in
     const detail = page.getByTestId('vou-detail')
     await expect(detail).toContainText(`动态录入${entity}`)
     await expect(detail).toContainText('order.pdf')
+    await expect(detail).toContainText('原始文件')
+    for (const file of [
+      { name: 'original.jpg', buffer: Buffer.from([255, 216, 0, 1]) },
+      { name: 'empty.et', buffer: Buffer.alloc(0) },
+    ]) {
+      const downloading = page.waitForEvent('download')
+      await detail
+        .locator('.attachment-row')
+        .filter({ hasText: file.name })
+        .getByRole('button', { name: '下载附件', exact: true })
+        .click()
+      const download = await downloading
+      expect(download.suggestedFilename()).toBe(file.name)
+      expect(await readFile((await download.path())!)).toEqual(file.buffer)
+    }
     await expect(detail).toContainText('12.50')
     await expect(detail).toContainText('已提交内容只读')
     await detail

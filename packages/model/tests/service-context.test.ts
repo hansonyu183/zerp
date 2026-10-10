@@ -68,9 +68,70 @@ function prepare(payload: unknown, entity = 'service-contract') {
     },
   )
 }
+test('supplier service agreements retain their type and historical identity without using another unit', () => {
+  const supplier = { ...contract, counterpartyType: 'supplier' as const }
+  assert.equal(prepare(supplier).ok, true)
+  assert.equal(servicePayloadContext('service-contract', supplier), 'PRIOR_AD')
+  const { priorFact: _fact, ...ordinary } = supplier
+  const { sourceLineKey: _source, ...ordinaryLine } = line
+  const current = { ...ordinary, serviceLines: [ordinaryLine] }
+  assert.equal(prepare(current).ok, true)
+  assert.equal(servicePayloadContext('service-contract', current), 'SUPPLIER')
+  for (const counterpartyType of ['customer', 'employee', 'product']) {
+    assert.equal(prepare({ ...supplier, counterpartyType }).ok, false)
+    assert.equal(prepare({ ...current, counterpartyType }).ok, false)
+  }
+  assert.equal(
+    prepare({ ...supplier, counterpartyType: 'sales-partner' }).ok,
+    false,
+  )
+})
+
+test('standalone prior fulfillment requires an explicit original party type and cannot turn a partner into an ordinary service contract', () => {
+  const { serviceContract: _contract, ...original } = contract
+  const acceptance = {
+    ...original,
+    priorFact: { ...prior, sourceDocumentType: 'AB' },
+    amount: '18966.00',
+    serviceAcceptance: {
+      serviceDate: '2025-09-08',
+      acceptanceDate: '2025-09-08',
+      settlementDirection: 'PAYABLE',
+    },
+  }
+  for (const counterpartyType of ['supplier', 'other-unit', 'sales-partner'])
+    assert.equal(
+      prepare({ ...acceptance, counterpartyType }, 'service-acceptance').ok,
+      true,
+    )
+  const { counterpartyType: _kind, ...missingType } = acceptance
+  assert.equal(prepare(missingType, 'service-acceptance').ok, false)
+  assert.equal(
+    prepare(
+      { ...acceptance, counterpartyType: 'customer' },
+      'service-acceptance',
+    ).ok,
+    false,
+  )
+  assert.equal(
+    prepare(
+      {
+        ...acceptance,
+        counterpartyType: 'sales-partner',
+        serviceAcceptance: {
+          ...acceptance.serviceAcceptance,
+          contractDocumentId: id,
+        },
+      },
+      'service-acceptance',
+    ).ok,
+    false,
+  )
+})
 test('service contexts are action and entity specific, with no wildcard or historical-to-partner inference', () => {
   assert.deepEqual(servicePermissionContexts('/vou/service-contract/approve'), [
     'OTHER_UNIT',
+    'SUPPLIER',
     'SALES_PARTNER',
     'PRIOR_AA',
     'PRIOR_AD',
@@ -155,7 +216,6 @@ test('malformed service structures fail without exceptions and ordinary input ca
     },
   }
   delete (acceptance as Record<string, unknown>).serviceContract
-  delete (acceptance as Record<string, unknown>).counterpartyType
   assert.equal(prepare(acceptance, 'service-acceptance').ok, true)
   assert.equal(
     prepare({ ...acceptance, priorLineOrigins: [null] }, 'service-acceptance')

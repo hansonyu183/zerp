@@ -1,4 +1,9 @@
 import {
+  attachmentContentMatches,
+  attachmentMaxSizeBytes,
+  type AttachmentMimeType,
+} from '@zerp/model'
+import {
   assertCustomerAccess,
   customerAccess,
   customerPredicate,
@@ -268,7 +273,7 @@ export interface CustomerAttachmentStageInput {
   stagingId: string
   fileId: string
   fileName: string
-  mimeType: 'application/pdf' | 'image/jpeg' | 'image/png'
+  mimeType: AttachmentMimeType
   size: number
   digest: string
   contentBase64: string
@@ -501,26 +506,6 @@ function record(value: unknown): Record<string, unknown> {
 
 function array(value: unknown): unknown[] {
   return Array.isArray(value) ? value : []
-}
-
-function customerAttachmentContentMatches(
-  mimeType: string,
-  content: Buffer,
-): boolean {
-  if (mimeType === 'application/pdf')
-    return content.subarray(0, 5).toString() === '%PDF-'
-  if (mimeType === 'image/png')
-    return content
-      .subarray(0, 8)
-      .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-  if (mimeType === 'image/jpeg')
-    return (
-      content[0] === 0xff &&
-      content[1] === 0xd8 &&
-      content[content.length - 2] === 0xff &&
-      content[content.length - 1] === 0xd9
-    )
-  return false
 }
 
 function nullable(value: unknown): string | null {
@@ -1210,9 +1195,10 @@ export class DclArchiveService {
       content.length !== input.size ||
       digest !== input.digest ||
       !/^[0-9a-f]{64}$/.test(input.digest) ||
-      input.size < 1 ||
-      input.size > 10_485_760 ||
-      !customerAttachmentContentMatches(input.mimeType, content)
+      !Number.isInteger(input.size) ||
+      input.size < 0 ||
+      input.size > attachmentMaxSizeBytes ||
+      !attachmentContentMatches(input.mimeType, content)
     )
       throw new DclArchiveApplicationError(
         'customer_attachment_invalid_content',
@@ -2463,7 +2449,7 @@ export class DclArchiveService {
       const content = await this.attachmentStore.read(staged.storage_key)
       if (
         content.length !== staged.size_bytes ||
-        !customerAttachmentContentMatches(staged.mime_type, content) ||
+        !attachmentContentMatches(staged.mime_type, content) ||
         createHash('sha256').update(content).digest('hex') !== staged.digest
       )
         throw new DclArchiveApplicationError(

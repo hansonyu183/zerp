@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { servicePermissionContexts } from '@zerp/model'
+import {
+  servicePermissionContexts,
+  serviceCounterpartyContext,
+} from '@zerp/model'
 import { serviceDraftContext, setServiceContext } from './service-data.ts'
 import { actionIcons } from '../../presentation/action-icons.ts'
 import ListPagination from '../list-page/ListPagination.vue'
@@ -370,11 +373,13 @@ function canCloneSelected() {
     const context =
       original.entity === 'service-acceptance'
         ? 'CONTRACT'
-        : 'counterpartyType' in original.payload &&
-            original.payload.counterpartyType === 'sales-partner'
-          ? 'SALES_PARTNER'
-          : 'OTHER_UNIT'
-    return session.canService(original.entity, 'submit-new', context)
+        : 'counterpartyType' in original.payload
+          ? serviceCounterpartyContext(original.payload.counterpartyType)
+          : undefined
+    return (
+      context !== undefined &&
+      session.canService(original.entity, 'submit-new', context)
+    )
   }
   if (original.entity !== 'purchase-inbound') return true
   return session.canPurchaseInbound(

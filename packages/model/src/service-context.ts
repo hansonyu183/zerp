@@ -1,7 +1,12 @@
-import type { VouEntity, VouPayload } from './vou.ts'
+import type {
+  VouEntity,
+  VouPayload,
+  VouServiceCounterpartyType,
+} from './vou.ts'
 
 export const serviceContextValues = [
   'OTHER_UNIT',
+  'SUPPLIER',
   'SALES_PARTNER',
   'PRIOR_AA',
   'PRIOR_AD',
@@ -18,6 +23,7 @@ export const serviceContextPresentation: Readonly<
   Record<ServiceContext, { label: string }>
 > = {
   OTHER_UNIT: { label: '其他单位服务合同' },
+  SUPPLIER: { label: '供应商服务合同' },
   SALES_PARTNER: { label: '销售合作合同' },
   PRIOR_AA: { label: '此前采购服务约定' },
   PRIOR_AD: { label: '此前预付服务约定' },
@@ -26,6 +32,18 @@ export const serviceContextPresentation: Readonly<
   PRIOR_AE: { label: '此前其他采购服务履约' },
   PRIOR_AH: { label: '此前独立采购服务履约' },
 }
+export const serviceCounterpartyContexts = {
+  'other-unit': 'OTHER_UNIT',
+  supplier: 'SUPPLIER',
+  'sales-partner': 'SALES_PARTNER',
+} as const satisfies Record<VouServiceCounterpartyType, ServiceContext>
+export function serviceCounterpartyContext(
+  type: string | undefined,
+): ServiceContext | undefined {
+  return type !== undefined && Object.hasOwn(serviceCounterpartyContexts, type)
+    ? serviceCounterpartyContexts[type as VouServiceCounterpartyType]
+    : undefined
+}
 export function servicePermissionContexts(
   path: string,
 ): readonly ServiceContext[] {
@@ -33,7 +51,7 @@ export function servicePermissionContexts(
     path.startsWith('/vou/service-contract/') ||
     path === '/wfl/process-instance/create-service-contract'
   )
-    return ['OTHER_UNIT', 'SALES_PARTNER', 'PRIOR_AA', 'PRIOR_AD']
+    return ['OTHER_UNIT', 'SUPPLIER', 'SALES_PARTNER', 'PRIOR_AA', 'PRIOR_AD']
   if (
     path.startsWith('/vou/service-acceptance/') ||
     path === '/wfl/process-instance/create-service-acceptance'
@@ -55,11 +73,7 @@ export function servicePayloadContext(
       : undefined
   }
   if (entity === 'service-contract' && 'counterpartyType' in payload)
-    return payload.counterpartyType === 'other-unit'
-      ? 'OTHER_UNIT'
-      : payload.counterpartyType === 'sales-partner'
-        ? 'SALES_PARTNER'
-        : undefined
+    return serviceCounterpartyContext(payload.counterpartyType)
   return 'CONTRACT'
 }
 export function mergeServiceContexts(

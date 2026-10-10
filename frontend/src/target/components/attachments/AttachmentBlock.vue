@@ -2,7 +2,11 @@
 import { actionIcons } from '../../presentation/action-icons.ts'
 import { computed, inject, onBeforeUnmount, ref } from 'vue'
 import { attachmentScope } from './attachments.ts'
-import type { AttachmentMetadata } from '@zerp/model'
+import {
+  attachmentMaxCount,
+  attachmentMimePresentation,
+  type AttachmentMetadata,
+} from '@zerp/model'
 import {
   readTargetCustomerAttachment,
   readTargetVoucherAttachment,
@@ -35,6 +39,10 @@ let active = true
 const reading = ref(false),
   error = ref(''),
   downloading = ref('')
+const original = ref(false)
+const attachmentLimit = computed(() =>
+  scope?.resource.startsWith('vou/') ? attachmentMaxCount : null,
+)
 const owns = () => active && session.generation === generation
 const canStage = computed(() =>
   Boolean(scope && session.can(`/${scope.resource}/attachment-stage`)),
@@ -70,7 +78,12 @@ async function add(value: File | readonly File[] | null) {
   error.value = ''
   emit('pending', true)
   try {
-    const attachment = await scope.add(file)
+    if (
+      attachmentLimit.value !== null &&
+      props.modelValue.length >= attachmentLimit.value
+    )
+      throw new Error(`每单最多 ${attachmentLimit.value} 个附件。`)
+    const attachment = await scope.add(file, original.value)
     if (owns()) emit('update:modelValue', [...props.modelValue, attachment])
   } catch (cause) {
     if (owns())
@@ -177,8 +190,13 @@ onBeforeUnmount(() => {
     <v-alert v-if="error" type="error">{{ error }}</v-alert
     ><v-progress-linear v-if="reading" indeterminate />
     <div v-for="file in modelValue" :key="file.id" class="attachment-row">
-      <span>{{ file.fileName }}（{{ file.sizeBytes }} 字节）</span
-      ><template v-if="mode === 'edit'"
+      <span>{{ file.fileName }}（{{ file.sizeBytes }} 字节）</span>
+      <span>{{
+        attachmentMimePresentation[
+          file.contentType as keyof typeof attachmentMimePresentation
+        ]
+      }}</span>
+      <template v-if="mode === 'edit'"
         ><span>{{ scope?.status(file.id) }}</span
         ><v-progress-linear
           v-if="scope?.status(file.id) === '正在上传'"
@@ -198,15 +216,23 @@ onBeforeUnmount(() => {
         >下载附件</v-btn
       >
     </div>
+    <v-checkbox
+      v-if="mode === 'edit' && canStage"
+      v-model="original"
+      label="按原始文件保存"
+      :disabled="disabled || reading"
+    />
     <v-file-input
       :prepend-icon="actionIcons.upload"
       v-if="mode === 'edit' && canStage"
       :label="`添加${caption}`"
-      accept=".pdf,.jpg,.jpeg,.png"
       :disabled="disabled || reading"
       :loading="reading"
       @update:model-value="add"
     />
+    <p v-if="mode === 'edit' && canStage">
+      单个附件最多 20 MiB；原始文件保留原内容。
+    </p>
     <p v-if="!modelValue.length">无附件</p>
     <p v-if="mode === 'read' && modelValue.length && !canRead">
       当前账号没有附件正文读取权限。

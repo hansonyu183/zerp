@@ -428,7 +428,8 @@ export class DepartmentRoleService {
             role_id: id,
             purchase_inbound_scope: 'ALL',
             service_contexts: servicePermissionContexts(p.path).filter(
-              (context) => !context.startsWith('PRIOR_'),
+              (context) =>
+                !context.startsWith('PRIOR_') && context !== 'SUPPLIER',
             ),
             permission_id: p.id,
             created_by: admin.id,

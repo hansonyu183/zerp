@@ -361,7 +361,7 @@ test('VOU attachment downloads declare every supported binary MIME type', () => 
   )
   assert.deepEqual(
     Object.keys(vouAttachmentDownloadRoute.responses[200].content).sort(),
-    ['application/pdf', 'image/jpeg', 'image/png'],
+    ['application/octet-stream', 'application/pdf', 'image/jpeg', 'image/png'],
   )
 })
 

@@ -6,7 +6,12 @@ import {
   stageTargetVoucherAttachment,
   type TargetCustomerAttachmentStageInput,
 } from '../../api.ts'
-import type { AttachmentMetadata } from '@zerp/model'
+import {
+  attachmentMaxSizeBytes,
+  attachmentMimeTypes,
+  type AttachmentMimeType,
+  type AttachmentMetadata,
+} from '@zerp/model'
 type Attachment = AttachmentMetadata
 type LocalFile = {
   file: File
@@ -17,7 +22,7 @@ type LocalFile = {
 }
 export type AttachmentScope = {
   resource: 'dcl/customer' | `vou/${VouEntity}`
-  add: (file: File) => Promise<Attachment>
+  add: (file: File, original?: boolean) => Promise<Attachment>
   status: (id: string) => string
 }
 export const attachmentScope: InjectionKey<AttachmentScope> = Symbol(
@@ -35,14 +40,10 @@ export function createAttachments(
     if (file)
       files.value = new Map(files.value).set(id, { ...file, status: value })
   }
-  async function add(file: File): Promise<Attachment> {
+  async function add(file: File, original = false): Promise<Attachment> {
     const version = generation
-    if (
-      !['application/pdf', 'image/jpeg', 'image/png'].includes(file.type) ||
-      file.size < 1 ||
-      file.size > 10_485_760
-    )
-      throw new Error('附件仅支持 10 MB 以内的 PDF、JPEG 或 PNG。')
+    if (file.size > attachmentMaxSizeBytes)
+      throw new Error('单个附件最多 20 MiB。')
     const bytes = await file.arrayBuffer()
     const digest = Array.from(
       new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)),
@@ -52,7 +53,11 @@ export function createAttachments(
     const metadata = {
       id: ulid(),
       fileName: file.name,
-      contentType: file.type,
+      contentType:
+        original ||
+        !attachmentMimeTypes.includes(file.type as AttachmentMimeType)
+          ? 'application/octet-stream'
+          : file.type,
       sizeBytes: file.size,
       sha256: digest,
     }

@@ -219,7 +219,7 @@ export interface VouPaymentMethodSelectionInput extends VouPaymentMethodSnapshot
 export interface VouAttachmentMetadata {
   id: string
   fileName: string
-  contentType: 'application/pdf' | 'image/jpeg' | 'image/png'
+  contentType: import('./attachments.ts').AttachmentMimeType
   sizeBytes: number
   sha256: string
   stagingId: string

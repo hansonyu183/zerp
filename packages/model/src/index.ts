@@ -21,3 +21,4 @@ export * from './purchase-inbound-scope.ts'
 export * from './workflow-permissions.ts'
 
 export * from './order-amount.ts'
+export * from './attachments.ts'

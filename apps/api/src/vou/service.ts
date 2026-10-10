@@ -1,3 +1,9 @@
+import {
+  attachmentContentMatches,
+  attachmentMaxSizeBytes,
+  attachmentMaxCount,
+  type AttachmentMimeType,
+} from '@zerp/model'
 import { purchaseInboundAccess } from '../app/purchase-inbound-access.ts'
 import { serviceAccess } from '../app/service-access.ts'
 import {
@@ -270,7 +276,7 @@ export interface VouAttachmentStageInput {
   stagingId: string
   fileId: string
   fileName: string
-  mimeType: 'application/pdf' | 'image/jpeg' | 'image/png'
+  mimeType: AttachmentMimeType
   size: number
   digest: string
   contentBase64: string
@@ -460,24 +466,6 @@ function payloadAmountMinor(payload: VouPayload): bigint {
   return 'amount' in payload ? (decimalToFixed(payload.amount, 2) ?? 0n) : 0n
 }
 
-function contentMatches(
-  mimeType: VouAttachmentStageInput['mimeType'],
-  content: Buffer,
-): boolean {
-  if (mimeType === 'application/pdf')
-    return content.subarray(0, 5).toString() === '%PDF-'
-  if (mimeType === 'image/png')
-    return content
-      .subarray(0, 8)
-      .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-  return (
-    content[0] === 0xff &&
-    content[1] === 0xd8 &&
-    content[content.length - 2] === 0xff &&
-    content[content.length - 1] === 0xd9
-  )
-}
-
 function entryFromRow(row: {
   id: string
   entity: string
@@ -563,11 +551,12 @@ export class VouService implements WflVouPort {
     const content = Buffer.from(input.contentBase64, 'base64')
     if (
       content.length !== input.size ||
-      input.size < 1 ||
-      input.size > 10_485_760
+      !Number.isInteger(input.size) ||
+      input.size < 0 ||
+      input.size > attachmentMaxSizeBytes
     )
       throw new VouApplicationError('vou_attachment_size_invalid')
-    if (!contentMatches(input.mimeType, content))
+    if (!attachmentContentMatches(input.mimeType, content))
       throw new VouApplicationError('vou_attachment_type_invalid')
     const digest = createHash('sha256').update(content).digest('hex')
     if (digest !== input.digest)
@@ -588,6 +577,7 @@ export class VouService implements WflVouPort {
           if (
             existing.owner_user_id !== actor.id ||
             existing.file_id !== input.fileId ||
+            existing.file_name !== input.fileName ||
             existing.digest !== digest ||
             existing.mime_type !== input.mimeType ||
             existing.size_bytes !== input.size
@@ -757,7 +747,7 @@ export class VouService implements WflVouPort {
       )
       const found = await sql<{
         file_name: string
-        mime_type: 'application/pdf' | 'image/jpeg' | 'image/png'
+        mime_type: AttachmentMimeType
         size_bytes: number
         digest: string
         storage_key: string
@@ -2925,7 +2915,7 @@ export class VouService implements WflVouPort {
     payload: VouPayload,
     ownerId: string,
   ) {
-    if (payload.attachments.length > 10)
+    if (payload.attachments.length > attachmentMaxCount)
       throw new VouApplicationError('vou_attachment_limit_exceeded')
     for (const attachment of payload.attachments) {
       const row = await executor
@@ -6972,7 +6962,7 @@ export class VouService implements WflVouPort {
       file_id: string
       staging_id: string
       file_name: string
-      mime_type: 'application/pdf' | 'image/jpeg' | 'image/png'
+      mime_type: AttachmentMimeType
       size_bytes: number
       digest: string
     }>`
@@ -7008,7 +6998,7 @@ export class VouService implements WflVouPort {
       const content = await this.attachmentStore.read(row.storage_key)
       if (
         content.length !== row.size_bytes ||
-        !contentMatches(
+        !attachmentContentMatches(
           row.mime_type as VouAttachmentStageInput['mimeType'],
           content,
         ) ||

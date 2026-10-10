@@ -1,3 +1,4 @@
+import { attachmentMimeTypes, attachmentMaxSizeBytes } from '@zerp/model'
 import {
   createRoute,
   type OpenAPIHono,
@@ -192,7 +193,7 @@ const attachmentMetadata = z
     id: z.string().length(26),
     fileName: z.string().min(1).max(255),
     contentType: z.string().min(1).max(128),
-    sizeBytes: z.number().int().positive().max(10_485_760),
+    sizeBytes: z.number().int().nonnegative().max(attachmentMaxSizeBytes),
     sha256: z.string().regex(/^[0-9a-f]{64}$/),
     stagingId: z.string().length(26).optional(),
   })
@@ -671,10 +672,10 @@ const attachmentStageRequest = z
     stagingId: z.string().length(26),
     fileId: z.string().length(26),
     fileName: z.string().min(1).max(255),
-    mimeType: z.enum(['application/pdf', 'image/jpeg', 'image/png']),
-    size: z.number().int().positive().max(10_485_760),
+    mimeType: z.enum(attachmentMimeTypes),
+    size: z.number().int().nonnegative().max(attachmentMaxSizeBytes),
     digest: z.string().regex(/^[0-9a-f]{64}$/),
-    contentBase64: z.string().min(1),
+    contentBase64: z.string(),
   })
   .strict()
 const attachmentStageData = z.object({
@@ -682,7 +683,7 @@ const attachmentStageData = z.object({
   fileId: z.string(),
   fileName: z.string(),
   mimeType: z.string(),
-  size: z.number().int().positive(),
+  size: z.number().int().nonnegative(),
   digest: z.string(),
   expiresAt: z.string().datetime(),
 })
@@ -752,12 +753,8 @@ export const customerAttachmentReadRoute = createRoute({
               data: z
                 .object({
                   fileName: z.string(),
-                  mimeType: z.enum([
-                    'application/pdf',
-                    'image/jpeg',
-                    'image/png',
-                  ]),
-                  size: z.number().int().positive(),
+                  mimeType: z.enum(attachmentMimeTypes),
+                  size: z.number().int().nonnegative(),
                   digest: z.string(),
                   contentBase64: z.string(),
                 })

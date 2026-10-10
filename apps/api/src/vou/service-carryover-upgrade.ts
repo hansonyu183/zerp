@@ -1,3 +1,8 @@
+import {
+  publicSchemaLayout as layout,
+  publicTableNames as publicTables,
+} from '../platform/maintenance-layout.ts'
+import { expandAttachmentArchiveConstraints } from '../platform/attachment-archive-upgrade.ts'
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { sql, type Kysely, type Transaction } from 'kysely'
@@ -10,58 +15,22 @@ const digest = (value: unknown) =>
 const supportedLayouts = new Map([
   [
     '467cfa0863c6161627208616ecbd4f05e6949840c9c3e5a5e5e0897ef252f04b',
-    '2e0bd08165dc64fd3541857c7af2ce2dacd5379ca3e2d437e57071bdc02c7ba7',
+    '6cbfc88982400254d25760245de2057c9914cf687f283744d54ec032e9c04675',
   ],
   [
     '3867e2ae6c17b3795b352076a71779c812a3e4bd4d062545dd65083c3f0ac5cf',
-    '15785682339f2a58b8704a48c3565caf3c1fa58be9a744a0f5d7f849793c6e9e',
+    'eb39bed0e79cda23529d6952bcc8eef89743c4e5c5f482ada824bf878d316c0f',
   ],
   [
     '1c51b752ff13d2e23031c904f8079f9aed126000ae6cb5dc4d270372e2091ee0',
-    '2e0bd08165dc64fd3541857c7af2ce2dacd5379ca3e2d437e57071bdc02c7ba7',
+    '6cbfc88982400254d25760245de2057c9914cf687f283744d54ec032e9c04675',
   ],
   [
     '5dddf7dcceaca78608ba2b84c2fe27c923fda8b9d28e0392f9ed650f8cb7b05c',
-    '15785682339f2a58b8704a48c3565caf3c1fa58be9a744a0f5d7f849793c6e9e',
+    'eb39bed0e79cda23529d6952bcc8eef89743c4e5c5f482ada824bf878d316c0f',
   ],
 ])
 const added = ['vou_service_line_snapshots', 'vou_prior_service_line_origins']
-async function layout(db: Executor, tables: readonly string[]) {
-  const columns =
-    await sql`SELECT cls.relname AS table_name,a.attname AS column_name,format_type(a.atttypid,a.atttypmod) AS data_type,
-    CASE WHEN a.attnotnull THEN 'NO' ELSE 'YES' END AS is_nullable,pg_get_expr(d.adbin,d.adrelid) AS column_default,
-    a.attidentity::text AS identity_generation,a.attgenerated::text AS generated
-    FROM pg_attribute a JOIN pg_class cls ON cls.oid=a.attrelid JOIN pg_namespace ns ON ns.oid=cls.relnamespace
-    LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum
-    WHERE ns.nspname='public' AND cls.relname IN (${sql.join(tables)}) AND a.attnum>0 AND NOT a.attisdropped
-    ORDER BY table_name,column_name`.execute(db)
-  const constraints =
-    await sql`SELECT cls.relname AS table_name,c.conname,c.contype,c.convalidated,pg_get_constraintdef(c.oid) AS definition
-    FROM pg_constraint c JOIN pg_class cls ON cls.oid=c.conrelid JOIN pg_namespace ns ON ns.oid=cls.relnamespace
-    WHERE ns.nspname='public' AND cls.relname IN (${sql.join(tables)}) ORDER BY cls.relname,c.conname`.execute(
-      db,
-    )
-  const indexes =
-    await sql`SELECT tablename,indexname,indexdef FROM pg_indexes WHERE schemaname='public' AND tablename IN (${sql.join(tables)}) ORDER BY tablename,indexname`.execute(
-      db,
-    )
-  const value = {
-    columns: columns.rows,
-    constraints: constraints.rows,
-    indexes: indexes.rows,
-  }
-  return value
-}
-
-async function publicTables(db: Executor) {
-  return (
-    await sql<{
-      tablename: string
-    }>`SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename`.execute(
-      db,
-    )
-  ).rows.map((row) => row.tablename)
-}
 async function facts(db: Executor, projectOriginal = false) {
   const result: Record<string, string[]> = {}
   for (const table of await publicTables(db)) {
@@ -187,6 +156,7 @@ export async function upgradeServiceCarryover(
         tx,
       )
     }
+    await expandAttachmentArchiveConstraints(tx)
     const after = await snapshot(tx)
     if (
       after.layout !== 'CURRENT' ||

@@ -132,7 +132,9 @@ test('customer flat temporary form, business fields, history and independent ena
       },
     ]) {
       await dialog.locator('input[type=file]').first().setInputFiles(file)
-      await expect(dialog).toContainText(file.name)
+      await expect(
+        dialog.locator('.attachment-row').filter({ hasText: file.name }),
+      ).toBeVisible()
     }
     expect(staged).toBe(0)
     const sub = dialog

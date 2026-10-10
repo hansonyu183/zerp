@@ -263,7 +263,9 @@ test('creates and clones sales and purchase orders from real menu candidates, in
       },
     ]) {
       await editor.getByLabel('添加附件', { exact: true }).setInputFiles(file)
-      await expect(editor).toContainText(file.name)
+      await expect(
+        editor.locator('.attachment-row').filter({ hasText: file.name }),
+      ).toBeVisible()
     }
     await page.setViewportSize({ width: 390, height: 844 })
     expect(
@@ -283,6 +285,11 @@ test('creates and clones sales and purchase orders from real menu candidates, in
       })
     ).json()
     expect(envelope.code, JSON.stringify(envelope)).toBe(0)
+    expect(
+      envelope.data.payload.attachments
+        .map((file: { fileName: string }) => file.fileName)
+        .sort(),
+    ).toEqual(['empty.et', 'order.pdf', 'original.jpg'])
     await expect(editor).toHaveCount(0)
     const id = envelope.data.documentId as string
     await page

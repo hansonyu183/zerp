@@ -573,7 +573,7 @@ export class DclArchiveService {
     actor: ApprovalActor,
   ): Promise<{ items: ArchiveQueryView[]; total: number }> {
     requirePermission(actor, archiveActionPath(entity, 'query'))
-    const subjectTable = 'bob_archive_objects'
+    const subjectTable = 'dcl_subjects'
     const selected = await sql<{
       id: string
       subject_id: string
@@ -582,9 +582,10 @@ export class DclArchiveService {
       code: string | null
       subject_enabled: boolean | null
     }>`SELECT e.id, e.subject_id, e.version_no, e.status, s.code
-              , ${sql.ref('s.enabled')} AS subject_enabled
+              , ${sql.ref('b.enabled')} AS subject_enabled
        FROM approval_entries e
        JOIN ${sql.table(subjectTable)} s ON s.id = e.subject_id
+       LEFT JOIN bob_objects b ON b.id = s.id
        WHERE e.domain = ${archiveDomain(entity)} AND e.entity = ${entity}
          AND ${entity === 'customer' ? customerPredicate(await customerAccess(this.db, actor), sql`e.subject_id`) : sql`true`}
        ORDER BY s.code ASC, s.id ASC, e.version_no DESC`.execute(this.db)
@@ -601,7 +602,7 @@ export class DclArchiveService {
     for (const row of rows) {
       const subject = subjectEntries.get(row.subject_id) ?? {
         code: row.code,
-        enabled: row.subject_enabled === true,
+        enabled: row.subject_enabled === null ? undefined : row.subject_enabled,
         latestApprovedId: null,
         openCandidateId: null,
       }

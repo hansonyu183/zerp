@@ -189,6 +189,18 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       submitter,
       ulid(),
     )
+    const listed = await dclArchives.query(
+      entity,
+      { page: 1, pageSize: 20, filters: {} },
+      submitter,
+    )
+    const candidate = listed.items.find((item) => item.subjectId === subjectId)
+    assert.ok(
+      candidate,
+      'unpublished subject must appear in normal DCL submissions',
+    )
+    assert.equal(candidate.latestApproved, null)
+    assert.equal(candidate.openCandidate?.submissionId, submissionId)
     const review = {
       subjectId,
       submissionId,

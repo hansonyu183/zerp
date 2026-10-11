@@ -15761,7 +15761,7 @@
                                   ]
                                 },
                                 "minItems": 1,
-                                "maxItems": 4
+                                "maxItems": 9
                               }
                             },
                             "createdAt": {
@@ -15972,7 +15972,7 @@
                         ]
                       },
                       "minItems": 1,
-                      "maxItems": 4
+                      "maxItems": 9
                     }
                   },
                   "customerScope": {
@@ -16113,7 +16113,7 @@
                                   ]
                                 },
                                 "minItems": 1,
-                                "maxItems": 4
+                                "maxItems": 9
                               }
                             },
                             "createdAt": {
@@ -16323,7 +16323,7 @@
                         ]
                       },
                       "minItems": 1,
-                      "maxItems": 4
+                      "maxItems": 9
                     }
                   },
                   "customerScope": {
@@ -16470,7 +16470,7 @@
                                   ]
                                 },
                                 "minItems": 1,
-                                "maxItems": 4
+                                "maxItems": 9
                               }
                             },
                             "createdAt": {
@@ -16766,7 +16766,7 @@
                                   ]
                                 },
                                 "minItems": 1,
-                                "maxItems": 4
+                                "maxItems": 9
                               }
                             },
                             "createdAt": {
@@ -17062,7 +17062,7 @@
                                   ]
                                 },
                                 "minItems": 1,
-                                "maxItems": 4
+                                "maxItems": 9
                               }
                             },
                             "createdAt": {

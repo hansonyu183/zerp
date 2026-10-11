@@ -118,9 +118,16 @@ const identityEditor = computed(() => {
   />
   <AttachmentBlock
     v-if="
-      ['bob/product', 'dcl/product', 'bob/supplier', 'dcl/supplier'].includes(
-        resource,
-      )
+      [
+        'bob/product',
+        'dcl/product',
+        'bob/supplier',
+        'dcl/supplier',
+        'bob/other-unit',
+        'dcl/other-unit',
+        'bob/sales-partner',
+        'dcl/sales-partner',
+      ].includes(resource)
     "
     caption="原件"
     mode="edit"

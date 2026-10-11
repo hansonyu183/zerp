@@ -27,7 +27,7 @@ export async function selectArchiveOriginals(dialog: Locator) {
 export async function downloadArchiveOriginals(
   page: Page,
   dialog: Locator,
-  entity: 'supplier' | 'product',
+  entity: 'supplier' | 'product' | 'other-unit' | 'sales-partner',
   source: 'current' | 'submission',
 ) {
   for (const file of archiveOriginals) {

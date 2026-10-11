@@ -330,6 +330,7 @@ CREATE TABLE dcl_other_unit_versions (
     contact_name varchar(100),
     contact_phone varchar(32),
     address varchar(500),
+    attachments jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(attachments) = 'array'),
     remark varchar(1000),
     default_operating_entity_reference jsonb,
     settlement_method_snapshot jsonb
@@ -374,6 +375,7 @@ CREATE TABLE dcl_sales_partner_versions (
     contact_name varchar(100),
     contact_phone varchar(32),
     address varchar(500),
+    attachments jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(attachments) = 'array'),
     remark varchar(1000),
     default_operating_entity_reference jsonb
 );
@@ -604,7 +606,7 @@ CREATE TABLE archive_idempotency (
 
 CREATE TABLE dcl_archive_attachment_staging (
     id varchar(26) PRIMARY KEY,
-    entity varchar(16) NOT NULL CHECK (entity IN ('customer','product','supplier')),
+    entity varchar(16) NOT NULL CHECK (entity IN ('customer','product','supplier','other-unit','sales-partner')),
     subject_id varchar(26) NOT NULL,
     file_id varchar(26) NOT NULL,
     owner_user_id varchar(26) NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,

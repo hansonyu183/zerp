@@ -671,6 +671,7 @@ export interface DclOtherUnitVersionOperatingEntities {
 export interface DclOtherUnitVersions {
   address: string | null
   approval_entry_id: string
+  attachments: Generated<Json>
   contact_name: string | null
   contact_phone: string | null
   default_operating_entity_id: string | null
@@ -714,6 +715,7 @@ export interface DclSalesPartnerVersionOperatingEntities {
 export interface DclSalesPartnerVersions {
   address: string | null
   approval_entry_id: string
+  attachments: Generated<Json>
   capabilities: Generated<Json>
   contact_name: string | null
   contact_phone: string | null

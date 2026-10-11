@@ -116,6 +116,7 @@ export const otherUnitDetails = [
     caption: '结算方式',
     fields: settlementDetails,
   },
+  { key: 'attachments', type: 'attachments', caption: '原件' },
 ] as const satisfies DetailFields<OtherUnitData>
 export const salesPartnerDetails = [
   ...associations,
@@ -125,6 +126,7 @@ export const salesPartnerDetails = [
     caption: '合作能力',
     options: salesPartnerCapabilityOptions,
   },
+  { key: 'attachments', type: 'attachments', caption: '原件' },
 ] as const satisfies DetailFields<SalesPartnerData>
 const quantityDetails = [
   { key: 'enteredQuantity', type: 'decimal', scale: 18, caption: '录入数量' },

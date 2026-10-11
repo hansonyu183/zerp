@@ -9,6 +9,16 @@ import { archiveStubs as stubs } from './helpers/archive-stubs.ts'
 
 vi.mock('@/target/api.ts', async (original) => ({
   ...(await original<typeof import('@/target/api.ts')>()),
+  queryTargetOtherUnits: vi.fn(),
+  queryTargetOtherUnitSubmissions: vi.fn(),
+  queryTargetOtherUnitVersions: vi.fn(),
+  getTargetOtherUnit: vi.fn(),
+  submitChangeTargetOtherUnit: vi.fn(),
+  queryTargetSalesPartners: vi.fn(),
+  queryTargetSalesPartnerSubmissions: vi.fn(),
+  queryTargetSalesPartnerVersions: vi.fn(),
+  getTargetSalesPartner: vi.fn(),
+  submitChangeTargetSalesPartner: vi.fn(),
   queryTargetSuppliers: vi.fn(),
   submitNewTargetSupplier: vi.fn(),
   queryTargetSupplierSubmissions: vi.fn(),
@@ -1814,7 +1824,26 @@ function optionPage(items: readonly object[]) {
   }
 }
 
-function fileArchiveSnapshot(entity: 'supplier' | 'product') {
+function fileArchiveSnapshot(
+  entity: 'supplier' | 'product' | 'other-unit' | 'sales-partner',
+) {
+  if (entity === 'other-unit' || entity === 'sales-partner')
+    return {
+      identityKind: 'PERSON',
+      legalName: '签约人',
+      displayName: '原件档案',
+      legalIdentifier: '',
+      contactName: '',
+      phone: '',
+      address: '',
+      remark: '',
+      operatingEntities: [],
+      defaultOperatingEntityId: null,
+      attachments: [],
+      ...(entity === 'other-unit'
+        ? { settlementMethod: null }
+        : { capabilities: ['CHANNEL_PARTNER'] }),
+    }
   if (entity === 'supplier') return supplierSnapshot('原件供应商')
   const { data } = productFacts()
   return {
@@ -1825,7 +1854,7 @@ function fileArchiveSnapshot(entity: 'supplier' | 'product') {
   }
 }
 
-it.each(['supplier', 'product'] as const)(
+it.each(['supplier', 'product', 'other-unit', 'sales-partner'] as const)(
   'stages %s originals at submit and retries fixed entity, subject and file identities',
   async (entity) => {
     useTargetSession().apiPaths = [
@@ -1835,18 +1864,24 @@ it.each(['supplier', 'product'] as const)(
       `/bob/${entity}/versions`,
     ]
     const snapshot = fileArchiveSnapshot(entity)
-    const query =
-      entity === 'supplier'
-        ? api.queryTargetSupplierSubmissions
-        : api.queryTargetProductSubmissions
-    const versions =
-      entity === 'supplier'
-        ? api.queryTargetSupplierVersions
-        : api.queryTargetProductVersions
-    const submit =
-      entity === 'supplier'
-        ? api.submitChangeTargetSupplier
-        : api.submitChangeTargetProduct
+    const query = {
+      supplier: api.queryTargetSupplierSubmissions,
+      product: api.queryTargetProductSubmissions,
+      'other-unit': api.queryTargetOtherUnitSubmissions,
+      'sales-partner': api.queryTargetSalesPartnerSubmissions,
+    }[entity]
+    const versions = {
+      supplier: api.queryTargetSupplierVersions,
+      product: api.queryTargetProductVersions,
+      'other-unit': api.queryTargetOtherUnitVersions,
+      'sales-partner': api.queryTargetSalesPartnerVersions,
+    }[entity]
+    const submit = {
+      supplier: api.submitChangeTargetSupplier,
+      product: api.submitChangeTargetProduct,
+      'other-unit': api.submitChangeTargetOtherUnit,
+      'sales-partner': api.submitChangeTargetSalesPartner,
+    }[entity]
     vi.mocked(query).mockResolvedValue({
       items: [
         {
@@ -1921,7 +1956,7 @@ it.each(['supplier', 'product'] as const)(
   },
 )
 
-it.each(['supplier', 'product'] as const)(
+it.each(['supplier', 'product', 'other-unit', 'sales-partner'] as const)(
   'downloads the exact current %s original using its own typed route',
   async (entity) => {
     useTargetSession().apiPaths = ['query', 'get', 'attachment-read'].map(
@@ -1945,10 +1980,18 @@ it.each(['supplier', 'product'] as const)(
         ],
       },
     }
-    const query =
-      entity === 'supplier' ? api.queryTargetSuppliers : api.queryTargetProducts
-    const get =
-      entity === 'supplier' ? api.getTargetSupplier : api.getTargetProduct
+    const query = {
+      supplier: api.queryTargetSuppliers,
+      product: api.queryTargetProducts,
+      'other-unit': api.queryTargetOtherUnits,
+      'sales-partner': api.queryTargetSalesPartners,
+    }[entity]
+    const get = {
+      supplier: api.getTargetSupplier,
+      product: api.getTargetProduct,
+      'other-unit': api.getTargetOtherUnit,
+      'sales-partner': api.getTargetSalesPartner,
+    }[entity]
     vi.mocked(query).mockResolvedValue({ items: [row], total: 1 } as never)
     vi.mocked(get).mockResolvedValue(row as never)
     vi.mocked(api.readTargetArchiveAttachment).mockResolvedValue({

@@ -1,9 +1,36 @@
 import { sql, type Kysely } from 'kysely'
 import type { DB } from '../../src/db/generated.ts'
 
+/** Exact three-entity attachment release; refuses to discard newer originals. */
+export async function precedingThreeEntityArchiveLayout(db: Kysely<DB>) {
+  for (const table of [
+    'dcl_other_unit_versions',
+    'dcl_sales_partner_versions',
+  ]) {
+    const files = await sql<{
+      count: string
+    }>`SELECT count(*)::text AS count FROM ${sql.table(table)} WHERE attachments <> '[]'::jsonb`.execute(
+      db,
+    )
+    if (files.rows[0]!.count !== '0')
+      throw new Error('fixture cannot discard identity archive files')
+    await sql`ALTER TABLE ${sql.table(table)} DROP COLUMN attachments`.execute(
+      db,
+    )
+  }
+  await sql`ALTER TABLE dcl_archive_attachment_staging DROP CONSTRAINT dcl_archive_attachment_staging_entity_check, ADD CONSTRAINT dcl_archive_attachment_staging_entity_check CHECK (entity IN ('customer','product','supplier'))`.execute(
+    db,
+  )
+}
+
 /** Reconstructs the exact prior schema in an exclusive synthetic fixture only. */
 export async function precedingCustomerArchiveLayout(db: Kysely<DB>) {
-  for (const table of ['dcl_product_versions', 'dcl_supplier_versions']) {
+  for (const table of [
+    'dcl_product_versions',
+    'dcl_supplier_versions',
+    'dcl_other_unit_versions',
+    'dcl_sales_partner_versions',
+  ]) {
     const files = await sql<{
       count: string
     }>`SELECT count(*)::text AS count FROM ${sql.table(table)} WHERE attachments <> '[]'::jsonb`.execute(

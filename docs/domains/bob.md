@@ -141,7 +141,7 @@ Customer Version 使用 `pricingPolicy` 保存上述完整封闭值对象。Open
 
 应付款日期只按客户结算快照和实际业务日期计算。销售订单的打印数期从同一客户上一张合格订单取得默认值，保存后成为订单事实。
 
-客户、产品与供应商附件在各自本地 Draft 中编辑，并随 submit 创建的同一 Submission 冻结和审批。已持久化 Submission 与历史版本只读。附件类别保存 AUX stable ID、编码和名称快照，来源后续变化不改写历史。
+客户、产品、供应商、其他单位与销售合作方附件在各自本地 Draft 中编辑，并随 submit 创建的同一 Submission 冻结和审批。已持久化 Submission 与历史版本只读。附件类别保存 AUX stable ID、编码和名称快照，来源后续变化不改写历史。
 
 服务相关附件分两层保存：Other Unit 的身份、税务及合作资格资料归其 DCL typed Submission snapshot；正式合同、补充协议、履约证据和验收材料归对应 VOU 单据。两层不得复制形成第二份事实。
 

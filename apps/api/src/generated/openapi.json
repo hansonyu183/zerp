@@ -42215,6 +42215,52 @@
                                         "type": "string",
                                         "maxLength": 1000
                                       },
+                                      "attachments": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "id": {
+                                              "type": "string",
+                                              "minLength": 26,
+                                              "maxLength": 26
+                                            },
+                                            "fileName": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 255
+                                            },
+                                            "contentType": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 128
+                                            },
+                                            "sizeBytes": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 20971520
+                                            },
+                                            "sha256": {
+                                              "type": "string",
+                                              "pattern": "^[0-9a-f]{64}$"
+                                            },
+                                            "stagingId": {
+                                              "type": "string",
+                                              "minLength": 26,
+                                              "maxLength": 26
+                                            }
+                                          },
+                                          "required": [
+                                            "id",
+                                            "fileName",
+                                            "contentType",
+                                            "sizeBytes",
+                                            "sha256"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        "default": []
+                                      },
                                       "settlementMethod": {
                                         "type": "object",
                                         "nullable": true,
@@ -42577,6 +42623,52 @@
                                 "remark": {
                                   "type": "string",
                                   "maxLength": 1000
+                                },
+                                "attachments": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      },
+                                      "fileName": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 255
+                                      },
+                                      "contentType": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 128
+                                      },
+                                      "sizeBytes": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 20971520
+                                      },
+                                      "sha256": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                      },
+                                      "stagingId": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "fileName",
+                                      "contentType",
+                                      "sizeBytes",
+                                      "sha256"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "default": []
                                 },
                                 "settlementMethod": {
                                   "type": "object",
@@ -43278,6 +43370,52 @@
                                         "type": "string",
                                         "maxLength": 1000
                                       },
+                                      "attachments": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "id": {
+                                              "type": "string",
+                                              "minLength": 26,
+                                              "maxLength": 26
+                                            },
+                                            "fileName": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 255
+                                            },
+                                            "contentType": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 128
+                                            },
+                                            "sizeBytes": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 20971520
+                                            },
+                                            "sha256": {
+                                              "type": "string",
+                                              "pattern": "^[0-9a-f]{64}$"
+                                            },
+                                            "stagingId": {
+                                              "type": "string",
+                                              "minLength": 26,
+                                              "maxLength": 26
+                                            }
+                                          },
+                                          "required": [
+                                            "id",
+                                            "fileName",
+                                            "contentType",
+                                            "sizeBytes",
+                                            "sha256"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        "default": []
+                                      },
                                       "capabilities": {
                                         "type": "array",
                                         "items": {
@@ -43583,6 +43721,52 @@
                                 "remark": {
                                   "type": "string",
                                   "maxLength": 1000
+                                },
+                                "attachments": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      },
+                                      "fileName": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 255
+                                      },
+                                      "contentType": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 128
+                                      },
+                                      "sizeBytes": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 20971520
+                                      },
+                                      "sha256": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                      },
+                                      "stagingId": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "fileName",
+                                      "contentType",
+                                      "sizeBytes",
+                                      "sha256"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "default": []
                                 },
                                 "capabilities": {
                                   "type": "array",
@@ -62601,6 +62785,2888 @@
         }
       }
     },
+    "/bob/other-unit/attachment-read": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "current"
+                        ]
+                      },
+                      "objectId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      },
+                      "fileId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "objectId",
+                      "fileId"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "submission"
+                        ]
+                      },
+                      "subjectId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      },
+                      "submissionId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      },
+                      "fileId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "subjectId",
+                      "submissionId",
+                      "fileId"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Read an attachment adopted by the authorized archive version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "enum": [
+                            ""
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "fileName": {
+                              "type": "string"
+                            },
+                            "mimeType": {
+                              "type": "string",
+                              "enum": [
+                                "application/pdf",
+                                "image/jpeg",
+                                "image/png",
+                                "application/octet-stream"
+                              ]
+                            },
+                            "size": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "digest": {
+                              "type": "string"
+                            },
+                            "contentBase64": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fileName",
+                            "mimeType",
+                            "size",
+                            "digest",
+                            "contentBase64"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "requestId",
+                        "data"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "enum": [
+                                1001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                1002
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                2001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                3001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                5000
+                              ]
+                            }
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "anyOf": [
+                            {
+                              "nullable": true
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "blockers": {
+                                  "type": "array",
+                                  "items": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "AUX_CURRENT_REFERENCE"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string",
+                                            "enum": [
+                                              "vehicle"
+                                            ]
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "field": {
+                                            "type": "string",
+                                            "enum": [
+                                              "carrier"
+                                            ]
+                                          },
+                                          "approvalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "entity",
+                                          "objectId",
+                                          "field",
+                                          "approvalEntryId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "AUX_REFERENCE"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string",
+                                            "enum": [
+                                              "operating-entity",
+                                              "employee"
+                                            ]
+                                          },
+                                          "objectId": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "entity",
+                                          "objectId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "SUBMISSION_REFERENCE"
+                                            ]
+                                          },
+                                          "field": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "expectedApprovalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "currentApprovalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "field",
+                                          "objectId",
+                                          "expectedApprovalEntryId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "PRODUCT_REFERENCE",
+                                              "CUSTOMER_REFERENCE"
+                                            ]
+                                          },
+                                          "domain": {
+                                            "type": "string",
+                                            "enum": [
+                                              "dcl",
+                                              "vou",
+                                              "acc"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string"
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "approvalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "field": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "domain",
+                                          "entity",
+                                          "objectId",
+                                          "approvalEntryId",
+                                          "field"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "blockers"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dcl/other-unit/attachment-read": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "current"
+                        ]
+                      },
+                      "objectId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      },
+                      "fileId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "objectId",
+                      "fileId"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "submission"
+                        ]
+                      },
+                      "subjectId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      },
+                      "submissionId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      },
+                      "fileId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "subjectId",
+                      "submissionId",
+                      "fileId"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Read an attachment adopted by the authorized archive version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "enum": [
+                            ""
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "fileName": {
+                              "type": "string"
+                            },
+                            "mimeType": {
+                              "type": "string",
+                              "enum": [
+                                "application/pdf",
+                                "image/jpeg",
+                                "image/png",
+                                "application/octet-stream"
+                              ]
+                            },
+                            "size": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "digest": {
+                              "type": "string"
+                            },
+                            "contentBase64": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fileName",
+                            "mimeType",
+                            "size",
+                            "digest",
+                            "contentBase64"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "requestId",
+                        "data"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "enum": [
+                                1001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                1002
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                2001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                3001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                5000
+                              ]
+                            }
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "anyOf": [
+                            {
+                              "nullable": true
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "blockers": {
+                                  "type": "array",
+                                  "items": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "AUX_CURRENT_REFERENCE"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string",
+                                            "enum": [
+                                              "vehicle"
+                                            ]
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "field": {
+                                            "type": "string",
+                                            "enum": [
+                                              "carrier"
+                                            ]
+                                          },
+                                          "approvalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "entity",
+                                          "objectId",
+                                          "field",
+                                          "approvalEntryId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "AUX_REFERENCE"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string",
+                                            "enum": [
+                                              "operating-entity",
+                                              "employee"
+                                            ]
+                                          },
+                                          "objectId": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "entity",
+                                          "objectId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "SUBMISSION_REFERENCE"
+                                            ]
+                                          },
+                                          "field": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "expectedApprovalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "currentApprovalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "field",
+                                          "objectId",
+                                          "expectedApprovalEntryId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "PRODUCT_REFERENCE",
+                                              "CUSTOMER_REFERENCE"
+                                            ]
+                                          },
+                                          "domain": {
+                                            "type": "string",
+                                            "enum": [
+                                              "dcl",
+                                              "vou",
+                                              "acc"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string"
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "approvalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "field": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "domain",
+                                          "entity",
+                                          "objectId",
+                                          "approvalEntryId",
+                                          "field"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "blockers"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dcl/other-unit/attachment-stage": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subjectId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "stagingId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "fileId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "fileName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "mimeType": {
+                    "type": "string",
+                    "enum": [
+                      "application/pdf",
+                      "image/jpeg",
+                      "image/png",
+                      "application/octet-stream"
+                    ]
+                  },
+                  "size": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 20971520
+                  },
+                  "digest": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "contentBase64": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "subjectId",
+                  "stagingId",
+                  "fileId",
+                  "fileName",
+                  "mimeType",
+                  "size",
+                  "digest",
+                  "contentBase64"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stage one archive temporary attachment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "enum": [
+                            ""
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "stagingId": {
+                              "type": "string"
+                            },
+                            "fileId": {
+                              "type": "string"
+                            },
+                            "fileName": {
+                              "type": "string"
+                            },
+                            "mimeType": {
+                              "type": "string"
+                            },
+                            "size": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "digest": {
+                              "type": "string"
+                            },
+                            "expiresAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          },
+                          "required": [
+                            "stagingId",
+                            "fileId",
+                            "fileName",
+                            "mimeType",
+                            "size",
+                            "digest",
+                            "expiresAt"
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "enum": [
+                                1001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                1002
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                2001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                3001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                5000
+                              ]
+                            }
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "anyOf": [
+                            {
+                              "nullable": true
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "blockers": {
+                                  "type": "array",
+                                  "items": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "AUX_CURRENT_REFERENCE"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string",
+                                            "enum": [
+                                              "vehicle"
+                                            ]
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "field": {
+                                            "type": "string",
+                                            "enum": [
+                                              "carrier"
+                                            ]
+                                          },
+                                          "approvalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "entity",
+                                          "objectId",
+                                          "field",
+                                          "approvalEntryId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "AUX_REFERENCE"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string",
+                                            "enum": [
+                                              "operating-entity",
+                                              "employee"
+                                            ]
+                                          },
+                                          "objectId": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "entity",
+                                          "objectId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "SUBMISSION_REFERENCE"
+                                            ]
+                                          },
+                                          "field": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "expectedApprovalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "currentApprovalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "field",
+                                          "objectId",
+                                          "expectedApprovalEntryId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "PRODUCT_REFERENCE",
+                                              "CUSTOMER_REFERENCE"
+                                            ]
+                                          },
+                                          "domain": {
+                                            "type": "string",
+                                            "enum": [
+                                              "dcl",
+                                              "vou",
+                                              "acc"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string"
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "approvalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "field": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "domain",
+                                          "entity",
+                                          "objectId",
+                                          "approvalEntryId",
+                                          "field"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "blockers"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dcl/other-unit/attachment-cleanup": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Clean expired archive attachment staging",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "enum": [
+                            ""
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "deleted": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          },
+                          "required": [
+                            "deleted"
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "enum": [
+                                1001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                1002
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                2001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                3001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                5000
+                              ]
+                            }
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "anyOf": [
+                            {
+                              "nullable": true
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "blockers": {
+                                  "type": "array",
+                                  "items": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "AUX_CURRENT_REFERENCE"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string",
+                                            "enum": [
+                                              "vehicle"
+                                            ]
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "field": {
+                                            "type": "string",
+                                            "enum": [
+                                              "carrier"
+                                            ]
+                                          },
+                                          "approvalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "entity",
+                                          "objectId",
+                                          "field",
+                                          "approvalEntryId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "AUX_REFERENCE"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string",
+                                            "enum": [
+                                              "operating-entity",
+                                              "employee"
+                                            ]
+                                          },
+                                          "objectId": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "entity",
+                                          "objectId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "SUBMISSION_REFERENCE"
+                                            ]
+                                          },
+                                          "field": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "expectedApprovalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "currentApprovalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "field",
+                                          "objectId",
+                                          "expectedApprovalEntryId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "PRODUCT_REFERENCE",
+                                              "CUSTOMER_REFERENCE"
+                                            ]
+                                          },
+                                          "domain": {
+                                            "type": "string",
+                                            "enum": [
+                                              "dcl",
+                                              "vou",
+                                              "acc"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string"
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "approvalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "field": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "domain",
+                                          "entity",
+                                          "objectId",
+                                          "approvalEntryId",
+                                          "field"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "blockers"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bob/sales-partner/attachment-read": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "current"
+                        ]
+                      },
+                      "objectId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      },
+                      "fileId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "objectId",
+                      "fileId"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "submission"
+                        ]
+                      },
+                      "subjectId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      },
+                      "submissionId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      },
+                      "fileId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "subjectId",
+                      "submissionId",
+                      "fileId"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Read an attachment adopted by the authorized archive version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "enum": [
+                            ""
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "fileName": {
+                              "type": "string"
+                            },
+                            "mimeType": {
+                              "type": "string",
+                              "enum": [
+                                "application/pdf",
+                                "image/jpeg",
+                                "image/png",
+                                "application/octet-stream"
+                              ]
+                            },
+                            "size": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "digest": {
+                              "type": "string"
+                            },
+                            "contentBase64": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fileName",
+                            "mimeType",
+                            "size",
+                            "digest",
+                            "contentBase64"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "requestId",
+                        "data"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "enum": [
+                                1001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                1002
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                2001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                3001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                5000
+                              ]
+                            }
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "anyOf": [
+                            {
+                              "nullable": true
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "blockers": {
+                                  "type": "array",
+                                  "items": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "AUX_CURRENT_REFERENCE"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string",
+                                            "enum": [
+                                              "vehicle"
+                                            ]
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "field": {
+                                            "type": "string",
+                                            "enum": [
+                                              "carrier"
+                                            ]
+                                          },
+                                          "approvalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "entity",
+                                          "objectId",
+                                          "field",
+                                          "approvalEntryId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "AUX_REFERENCE"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string",
+                                            "enum": [
+                                              "operating-entity",
+                                              "employee"
+                                            ]
+                                          },
+                                          "objectId": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "entity",
+                                          "objectId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "SUBMISSION_REFERENCE"
+                                            ]
+                                          },
+                                          "field": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "expectedApprovalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "currentApprovalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "field",
+                                          "objectId",
+                                          "expectedApprovalEntryId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "PRODUCT_REFERENCE",
+                                              "CUSTOMER_REFERENCE"
+                                            ]
+                                          },
+                                          "domain": {
+                                            "type": "string",
+                                            "enum": [
+                                              "dcl",
+                                              "vou",
+                                              "acc"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string"
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "approvalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "field": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "domain",
+                                          "entity",
+                                          "objectId",
+                                          "approvalEntryId",
+                                          "field"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "blockers"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dcl/sales-partner/attachment-read": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "current"
+                        ]
+                      },
+                      "objectId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      },
+                      "fileId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "objectId",
+                      "fileId"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "submission"
+                        ]
+                      },
+                      "subjectId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      },
+                      "submissionId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      },
+                      "fileId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "subjectId",
+                      "submissionId",
+                      "fileId"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Read an attachment adopted by the authorized archive version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "enum": [
+                            ""
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "fileName": {
+                              "type": "string"
+                            },
+                            "mimeType": {
+                              "type": "string",
+                              "enum": [
+                                "application/pdf",
+                                "image/jpeg",
+                                "image/png",
+                                "application/octet-stream"
+                              ]
+                            },
+                            "size": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "digest": {
+                              "type": "string"
+                            },
+                            "contentBase64": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fileName",
+                            "mimeType",
+                            "size",
+                            "digest",
+                            "contentBase64"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "requestId",
+                        "data"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "enum": [
+                                1001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                1002
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                2001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                3001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                5000
+                              ]
+                            }
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "anyOf": [
+                            {
+                              "nullable": true
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "blockers": {
+                                  "type": "array",
+                                  "items": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "AUX_CURRENT_REFERENCE"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string",
+                                            "enum": [
+                                              "vehicle"
+                                            ]
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "field": {
+                                            "type": "string",
+                                            "enum": [
+                                              "carrier"
+                                            ]
+                                          },
+                                          "approvalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "entity",
+                                          "objectId",
+                                          "field",
+                                          "approvalEntryId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "AUX_REFERENCE"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string",
+                                            "enum": [
+                                              "operating-entity",
+                                              "employee"
+                                            ]
+                                          },
+                                          "objectId": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "entity",
+                                          "objectId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "SUBMISSION_REFERENCE"
+                                            ]
+                                          },
+                                          "field": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "expectedApprovalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "currentApprovalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "field",
+                                          "objectId",
+                                          "expectedApprovalEntryId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "PRODUCT_REFERENCE",
+                                              "CUSTOMER_REFERENCE"
+                                            ]
+                                          },
+                                          "domain": {
+                                            "type": "string",
+                                            "enum": [
+                                              "dcl",
+                                              "vou",
+                                              "acc"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string"
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "approvalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "field": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "domain",
+                                          "entity",
+                                          "objectId",
+                                          "approvalEntryId",
+                                          "field"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "blockers"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dcl/sales-partner/attachment-stage": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subjectId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "stagingId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "fileId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  },
+                  "fileName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "mimeType": {
+                    "type": "string",
+                    "enum": [
+                      "application/pdf",
+                      "image/jpeg",
+                      "image/png",
+                      "application/octet-stream"
+                    ]
+                  },
+                  "size": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 20971520
+                  },
+                  "digest": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "contentBase64": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "subjectId",
+                  "stagingId",
+                  "fileId",
+                  "fileName",
+                  "mimeType",
+                  "size",
+                  "digest",
+                  "contentBase64"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stage one archive temporary attachment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "enum": [
+                            ""
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "stagingId": {
+                              "type": "string"
+                            },
+                            "fileId": {
+                              "type": "string"
+                            },
+                            "fileName": {
+                              "type": "string"
+                            },
+                            "mimeType": {
+                              "type": "string"
+                            },
+                            "size": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "digest": {
+                              "type": "string"
+                            },
+                            "expiresAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          },
+                          "required": [
+                            "stagingId",
+                            "fileId",
+                            "fileName",
+                            "mimeType",
+                            "size",
+                            "digest",
+                            "expiresAt"
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "enum": [
+                                1001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                1002
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                2001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                3001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                5000
+                              ]
+                            }
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "anyOf": [
+                            {
+                              "nullable": true
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "blockers": {
+                                  "type": "array",
+                                  "items": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "AUX_CURRENT_REFERENCE"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string",
+                                            "enum": [
+                                              "vehicle"
+                                            ]
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "field": {
+                                            "type": "string",
+                                            "enum": [
+                                              "carrier"
+                                            ]
+                                          },
+                                          "approvalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "entity",
+                                          "objectId",
+                                          "field",
+                                          "approvalEntryId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "AUX_REFERENCE"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string",
+                                            "enum": [
+                                              "operating-entity",
+                                              "employee"
+                                            ]
+                                          },
+                                          "objectId": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "entity",
+                                          "objectId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "SUBMISSION_REFERENCE"
+                                            ]
+                                          },
+                                          "field": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "expectedApprovalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "currentApprovalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "field",
+                                          "objectId",
+                                          "expectedApprovalEntryId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "PRODUCT_REFERENCE",
+                                              "CUSTOMER_REFERENCE"
+                                            ]
+                                          },
+                                          "domain": {
+                                            "type": "string",
+                                            "enum": [
+                                              "dcl",
+                                              "vou",
+                                              "acc"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string"
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "approvalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "field": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "domain",
+                                          "entity",
+                                          "objectId",
+                                          "approvalEntryId",
+                                          "field"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "blockers"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dcl/sales-partner/attachment-cleanup": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Clean expired archive attachment staging",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "enum": [
+                            ""
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "deleted": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          },
+                          "required": [
+                            "deleted"
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "enum": [
+                                1001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                1002
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                2001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                3001
+                              ]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [
+                                5000
+                              ]
+                            }
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "anyOf": [
+                            {
+                              "nullable": true
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "blockers": {
+                                  "type": "array",
+                                  "items": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "AUX_CURRENT_REFERENCE"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string",
+                                            "enum": [
+                                              "vehicle"
+                                            ]
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "field": {
+                                            "type": "string",
+                                            "enum": [
+                                              "carrier"
+                                            ]
+                                          },
+                                          "approvalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "entity",
+                                          "objectId",
+                                          "field",
+                                          "approvalEntryId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "AUX_REFERENCE"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string",
+                                            "enum": [
+                                              "operating-entity",
+                                              "employee"
+                                            ]
+                                          },
+                                          "objectId": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "entity",
+                                          "objectId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "SUBMISSION_REFERENCE"
+                                            ]
+                                          },
+                                          "field": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "expectedApprovalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "currentApprovalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "field",
+                                          "objectId",
+                                          "expectedApprovalEntryId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "PRODUCT_REFERENCE",
+                                              "CUSTOMER_REFERENCE"
+                                            ]
+                                          },
+                                          "domain": {
+                                            "type": "string",
+                                            "enum": [
+                                              "dcl",
+                                              "vou",
+                                              "acc"
+                                            ]
+                                          },
+                                          "entity": {
+                                            "type": "string"
+                                          },
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "approvalEntryId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          },
+                                          "field": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "domain",
+                                          "entity",
+                                          "objectId",
+                                          "approvalEntryId",
+                                          "field"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "blockers"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/dcl/product/submission-query": {
       "post": {
         "requestBody": {
@@ -79723,6 +82789,52 @@
                                   "type": "string",
                                   "maxLength": 1000
                                 },
+                                "attachments": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      },
+                                      "fileName": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 255
+                                      },
+                                      "contentType": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 128
+                                      },
+                                      "sizeBytes": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 20971520
+                                      },
+                                      "sha256": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                      },
+                                      "stagingId": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "fileName",
+                                      "contentType",
+                                      "sizeBytes",
+                                      "sha256"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "default": []
+                                },
                                 "settlementMethod": {
                                   "type": "object",
                                   "nullable": true,
@@ -80288,6 +83400,52 @@
                                       "remark": {
                                         "type": "string",
                                         "maxLength": 1000
+                                      },
+                                      "attachments": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "id": {
+                                              "type": "string",
+                                              "minLength": 26,
+                                              "maxLength": 26
+                                            },
+                                            "fileName": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 255
+                                            },
+                                            "contentType": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 128
+                                            },
+                                            "sizeBytes": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 20971520
+                                            },
+                                            "sha256": {
+                                              "type": "string",
+                                              "pattern": "^[0-9a-f]{64}$"
+                                            },
+                                            "stagingId": {
+                                              "type": "string",
+                                              "minLength": 26,
+                                              "maxLength": 26
+                                            }
+                                          },
+                                          "required": [
+                                            "id",
+                                            "fileName",
+                                            "contentType",
+                                            "sizeBytes",
+                                            "sha256"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        "default": []
                                       },
                                       "settlementMethod": {
                                         "type": "object",
@@ -81155,6 +84313,52 @@
                         "type": "string",
                         "maxLength": 1000
                       },
+                      "attachments": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 26,
+                              "maxLength": 26
+                            },
+                            "fileName": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 255
+                            },
+                            "contentType": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128
+                            },
+                            "sizeBytes": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 20971520
+                            },
+                            "sha256": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{64}$"
+                            },
+                            "stagingId": {
+                              "type": "string",
+                              "minLength": 26,
+                              "maxLength": 26
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "fileName",
+                            "contentType",
+                            "sizeBytes",
+                            "sha256"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "default": []
+                      },
                       "settlementMethod": {
                         "type": "object",
                         "nullable": true,
@@ -81419,6 +84623,52 @@
                                 "remark": {
                                   "type": "string",
                                   "maxLength": 1000
+                                },
+                                "attachments": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      },
+                                      "fileName": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 255
+                                      },
+                                      "contentType": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 128
+                                      },
+                                      "sizeBytes": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 20971520
+                                      },
+                                      "sha256": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                      },
+                                      "stagingId": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "fileName",
+                                      "contentType",
+                                      "sizeBytes",
+                                      "sha256"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "default": []
                                 },
                                 "settlementMethod": {
                                   "type": "object",
@@ -81896,6 +85146,52 @@
                         "type": "string",
                         "maxLength": 1000
                       },
+                      "attachments": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 26,
+                              "maxLength": 26
+                            },
+                            "fileName": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 255
+                            },
+                            "contentType": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128
+                            },
+                            "sizeBytes": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 20971520
+                            },
+                            "sha256": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{64}$"
+                            },
+                            "stagingId": {
+                              "type": "string",
+                              "minLength": 26,
+                              "maxLength": 26
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "fileName",
+                            "contentType",
+                            "sizeBytes",
+                            "sha256"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "default": []
+                      },
                       "settlementMethod": {
                         "type": "object",
                         "nullable": true,
@@ -82160,6 +85456,52 @@
                                 "remark": {
                                   "type": "string",
                                   "maxLength": 1000
+                                },
+                                "attachments": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      },
+                                      "fileName": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 255
+                                      },
+                                      "contentType": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 128
+                                      },
+                                      "sizeBytes": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 20971520
+                                      },
+                                      "sha256": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                      },
+                                      "stagingId": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "fileName",
+                                      "contentType",
+                                      "sizeBytes",
+                                      "sha256"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "default": []
                                 },
                                 "settlementMethod": {
                                   "type": "object",
@@ -82727,6 +86069,52 @@
                                 "remark": {
                                   "type": "string",
                                   "maxLength": 1000
+                                },
+                                "attachments": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      },
+                                      "fileName": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 255
+                                      },
+                                      "contentType": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 128
+                                      },
+                                      "sizeBytes": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 20971520
+                                      },
+                                      "sha256": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                      },
+                                      "stagingId": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "fileName",
+                                      "contentType",
+                                      "sizeBytes",
+                                      "sha256"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "default": []
                                 },
                                 "settlementMethod": {
                                   "type": "object",
@@ -83301,6 +86689,52 @@
                                   "type": "string",
                                   "maxLength": 1000
                                 },
+                                "attachments": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      },
+                                      "fileName": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 255
+                                      },
+                                      "contentType": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 128
+                                      },
+                                      "sizeBytes": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 20971520
+                                      },
+                                      "sha256": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                      },
+                                      "stagingId": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "fileName",
+                                      "contentType",
+                                      "sizeBytes",
+                                      "sha256"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "default": []
+                                },
                                 "settlementMethod": {
                                   "type": "object",
                                   "nullable": true,
@@ -83867,6 +87301,52 @@
                                 "remark": {
                                   "type": "string",
                                   "maxLength": 1000
+                                },
+                                "attachments": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      },
+                                      "fileName": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 255
+                                      },
+                                      "contentType": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 128
+                                      },
+                                      "sizeBytes": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 20971520
+                                      },
+                                      "sha256": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                      },
+                                      "stagingId": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "fileName",
+                                      "contentType",
+                                      "sizeBytes",
+                                      "sha256"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "default": []
                                 },
                                 "settlementMethod": {
                                   "type": "object",
@@ -84440,6 +87920,52 @@
                                 "remark": {
                                   "type": "string",
                                   "maxLength": 1000
+                                },
+                                "attachments": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      },
+                                      "fileName": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 255
+                                      },
+                                      "contentType": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 128
+                                      },
+                                      "sizeBytes": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 20971520
+                                      },
+                                      "sha256": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                      },
+                                      "stagingId": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "fileName",
+                                      "contentType",
+                                      "sizeBytes",
+                                      "sha256"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "default": []
                                 },
                                 "settlementMethod": {
                                   "type": "object",
@@ -85897,6 +89423,52 @@
                                   "type": "string",
                                   "maxLength": 1000
                                 },
+                                "attachments": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      },
+                                      "fileName": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 255
+                                      },
+                                      "contentType": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 128
+                                      },
+                                      "sizeBytes": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 20971520
+                                      },
+                                      "sha256": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                      },
+                                      "stagingId": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "fileName",
+                                      "contentType",
+                                      "sizeBytes",
+                                      "sha256"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "default": []
+                                },
                                 "capabilities": {
                                   "type": "array",
                                   "items": {
@@ -86405,6 +89977,52 @@
                                       "remark": {
                                         "type": "string",
                                         "maxLength": 1000
+                                      },
+                                      "attachments": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "id": {
+                                              "type": "string",
+                                              "minLength": 26,
+                                              "maxLength": 26
+                                            },
+                                            "fileName": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 255
+                                            },
+                                            "contentType": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 128
+                                            },
+                                            "sizeBytes": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 20971520
+                                            },
+                                            "sha256": {
+                                              "type": "string",
+                                              "pattern": "^[0-9a-f]{64}$"
+                                            },
+                                            "stagingId": {
+                                              "type": "string",
+                                              "minLength": 26,
+                                              "maxLength": 26
+                                            }
+                                          },
+                                          "required": [
+                                            "id",
+                                            "fileName",
+                                            "contentType",
+                                            "sizeBytes",
+                                            "sha256"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        "default": []
                                       },
                                       "capabilities": {
                                         "type": "array",
@@ -87215,6 +90833,52 @@
                         "type": "string",
                         "maxLength": 1000
                       },
+                      "attachments": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 26,
+                              "maxLength": 26
+                            },
+                            "fileName": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 255
+                            },
+                            "contentType": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128
+                            },
+                            "sizeBytes": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 20971520
+                            },
+                            "sha256": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{64}$"
+                            },
+                            "stagingId": {
+                              "type": "string",
+                              "minLength": 26,
+                              "maxLength": 26
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "fileName",
+                            "contentType",
+                            "sizeBytes",
+                            "sha256"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "default": []
+                      },
                       "capabilities": {
                         "type": "array",
                         "items": {
@@ -87422,6 +91086,52 @@
                                 "remark": {
                                   "type": "string",
                                   "maxLength": 1000
+                                },
+                                "attachments": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      },
+                                      "fileName": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 255
+                                      },
+                                      "contentType": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 128
+                                      },
+                                      "sizeBytes": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 20971520
+                                      },
+                                      "sha256": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                      },
+                                      "stagingId": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "fileName",
+                                      "contentType",
+                                      "sizeBytes",
+                                      "sha256"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "default": []
                                 },
                                 "capabilities": {
                                   "type": "array",
@@ -87842,6 +91552,52 @@
                         "type": "string",
                         "maxLength": 1000
                       },
+                      "attachments": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 26,
+                              "maxLength": 26
+                            },
+                            "fileName": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 255
+                            },
+                            "contentType": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128
+                            },
+                            "sizeBytes": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 20971520
+                            },
+                            "sha256": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{64}$"
+                            },
+                            "stagingId": {
+                              "type": "string",
+                              "minLength": 26,
+                              "maxLength": 26
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "fileName",
+                            "contentType",
+                            "sizeBytes",
+                            "sha256"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "default": []
+                      },
                       "capabilities": {
                         "type": "array",
                         "items": {
@@ -88049,6 +91805,52 @@
                                 "remark": {
                                   "type": "string",
                                   "maxLength": 1000
+                                },
+                                "attachments": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      },
+                                      "fileName": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 255
+                                      },
+                                      "contentType": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 128
+                                      },
+                                      "sizeBytes": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 20971520
+                                      },
+                                      "sha256": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                      },
+                                      "stagingId": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "fileName",
+                                      "contentType",
+                                      "sizeBytes",
+                                      "sha256"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "default": []
                                 },
                                 "capabilities": {
                                   "type": "array",
@@ -88559,6 +92361,52 @@
                                 "remark": {
                                   "type": "string",
                                   "maxLength": 1000
+                                },
+                                "attachments": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      },
+                                      "fileName": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 255
+                                      },
+                                      "contentType": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 128
+                                      },
+                                      "sizeBytes": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 20971520
+                                      },
+                                      "sha256": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                      },
+                                      "stagingId": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "fileName",
+                                      "contentType",
+                                      "sizeBytes",
+                                      "sha256"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "default": []
                                 },
                                 "capabilities": {
                                   "type": "array",
@@ -89076,6 +92924,52 @@
                                   "type": "string",
                                   "maxLength": 1000
                                 },
+                                "attachments": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      },
+                                      "fileName": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 255
+                                      },
+                                      "contentType": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 128
+                                      },
+                                      "sizeBytes": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 20971520
+                                      },
+                                      "sha256": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                      },
+                                      "stagingId": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "fileName",
+                                      "contentType",
+                                      "sizeBytes",
+                                      "sha256"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "default": []
+                                },
                                 "capabilities": {
                                   "type": "array",
                                   "items": {
@@ -89585,6 +93479,52 @@
                                 "remark": {
                                   "type": "string",
                                   "maxLength": 1000
+                                },
+                                "attachments": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      },
+                                      "fileName": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 255
+                                      },
+                                      "contentType": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 128
+                                      },
+                                      "sizeBytes": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 20971520
+                                      },
+                                      "sha256": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                      },
+                                      "stagingId": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "fileName",
+                                      "contentType",
+                                      "sizeBytes",
+                                      "sha256"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "default": []
                                 },
                                 "capabilities": {
                                   "type": "array",
@@ -90101,6 +94041,52 @@
                                 "remark": {
                                   "type": "string",
                                   "maxLength": 1000
+                                },
+                                "attachments": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      },
+                                      "fileName": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 255
+                                      },
+                                      "contentType": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 128
+                                      },
+                                      "sizeBytes": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 20971520
+                                      },
+                                      "sha256": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                      },
+                                      "stagingId": {
+                                        "type": "string",
+                                        "minLength": 26,
+                                        "maxLength": 26
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "fileName",
+                                      "contentType",
+                                      "sizeBytes",
+                                      "sha256"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "default": []
                                 },
                                 "capabilities": {
                                   "type": "array",

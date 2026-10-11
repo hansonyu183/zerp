@@ -36,21 +36,23 @@ test('ordinary archive HTTP preserves empty, large and opaque originals with fix
           'attachment-stage',
           'attachment-read',
         ].map((action) => `/vou/service-contract/${action}`),
-        ...['supplier', 'product'].flatMap((entity) => [
-          ...[
-            'attachment-stage',
-            'attachment-read',
-            'attachment-cleanup',
-            'submission-get',
-            'submit-new',
-            'submit-change',
-            'approve',
-            'delete',
-          ].map((action) => `/dcl/${entity}/${action}`),
-          ...['get', 'versions', 'attachment-read'].map(
-            (action) => `/bob/${entity}/${action}`,
-          ),
-        ]),
+        ...['supplier', 'product', 'other-unit', 'sales-partner'].flatMap(
+          (entity) => [
+            ...[
+              'attachment-stage',
+              'attachment-read',
+              'attachment-cleanup',
+              'submission-get',
+              'submit-new',
+              'submit-change',
+              'approve',
+              'delete',
+            ].map((action) => `/dcl/${entity}/${action}`),
+            ...['get', 'versions', 'attachment-read'].map(
+              (action) => `/bob/${entity}/${action}`,
+            ),
+          ],
+        ),
         '/dcl/customer/attachment-stage',
         ...[
           'submission-get',
@@ -271,11 +273,54 @@ test('ordinary archive HTTP preserves empty, large and opaque originals with fix
         assert.equal(file.data.digest, empty.digest)
         assert.equal(file.data.contentBase64, '')
       }
-      for (const entity of ['supplier', 'product'] as const) {
+      const identitySubjects: Record<string, string> = {}
+      for (const entity of ['other-unit', 'sales-partner'] as const) {
+        const subjectId = ulid(),
+          submissionId = ulid()
+        const identity = await owner.post(`/dcl/${entity}/submit-new`, {
+          subjectId,
+          submissionId,
+          idempotencyKey: submissionId,
+          expectedLatestApprovedSubmissionId: null,
+          expectedLatestApprovedRevision: null,
+          snapshot: {
+            identityKind: 'PERSON',
+            legalName: '原件签约人 ' + ulid(),
+            displayName: '原件合作身份 ' + ulid(),
+            legalIdentifier: '',
+            contactName: '',
+            phone: '',
+            address: '',
+            remark: '',
+            operatingEntities: [],
+            defaultOperatingEntityId: null,
+            attachments: [],
+            ...(entity === 'sales-partner'
+              ? { capabilities: ['CHANNEL_PARTNER'] }
+              : { settlementMethod: null }),
+          },
+        })
+        assert.equal(identity.code, 0, identity.errorKey)
+        const approved = await peer.post(`/dcl/${entity}/approve`, {
+          subjectId,
+          submissionId,
+          expectedRevision: identity.data.revision,
+        })
+        assert.equal(approved.code, 0, approved.errorKey)
+        identitySubjects[entity] = subjectId
+      }
+      for (const entity of [
+        'supplier',
+        'product',
+        'other-unit',
+        'sales-partner',
+      ] as const) {
         const originalSubjectId =
           entity === 'supplier'
             ? f.supplierId
-            : f.salePayload.productLines[0]!.product.objectId
+            : entity === 'product'
+              ? f.salePayload.productLines[0]!.product.objectId
+              : identitySubjects[entity]!
         const subjectId = ulid()
         const current = await owner.post(`/bob/${entity}/get`, {
           objectId: originalSubjectId,
@@ -365,7 +410,12 @@ test('ordinary archive HTTP preserves empty, large and opaque originals with fix
             ...baseline.data.snapshot,
             ...(entity === 'product'
               ? { name: '原件产品 ' + ulid(), barcode: '' }
-              : { displayName: '原件供应商 ' + ulid() }),
+              : entity === 'supplier'
+                ? { displayName: '原件供应商 ' + ulid() }
+                : {
+                    displayName: '原件合作身份 ' + ulid(),
+                    legalName: '原件签约人 ' + ulid(),
+                  }),
             attachments: [metadata, emptyMeta],
           },
         }

@@ -11,6 +11,8 @@ export const archiveAttachmentEntities = [
   'customer',
   'product',
   'supplier',
+  'other-unit',
+  'sales-partner',
 ] as const
 export type ArchiveAttachmentEntity = (typeof archiveAttachmentEntities)[number]
 
@@ -725,6 +727,7 @@ export function projectSupplierViewState(
 export interface OtherUnitData
   extends IdentityArchiveData, OperatingEntitySetData {
   settlementMethod: (AuxSnapshot | SettlementMethodSnapshot) | null
+  attachments?: readonly AttachmentMetadata[]
 }
 export interface OtherUnitSubmitCommand extends ArchiveCommand<OtherUnitData> {}
 export interface OtherUnitSubmitFacts extends ArchiveFacts {
@@ -750,6 +753,11 @@ export function prepareOtherUnitSubmit(
     'other_unit_invalid_data',
   )
   if ('ok' in prepared) return prepared
+  const attachments = normalizeArchiveAttachments(
+    command.data.attachments ?? [],
+  )
+  if (!attachments)
+    return { ok: false, error: { errorKey: 'other_unit_invalid_data' } }
   for (const reference of prepared.data.operatingEntities) {
     const checked = stableReference(
       'operatingEntities',
@@ -773,6 +781,7 @@ export function prepareOtherUnitSubmit(
       data: {
         ...prepared.data,
         settlementMethod: command.data.settlementMethod,
+        attachments,
       },
     },
   }
@@ -788,6 +797,7 @@ export type SalesPartnerCapability = 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER'
 export interface SalesPartnerData
   extends IdentityArchiveData, OperatingEntitySetData {
   capabilities: readonly SalesPartnerCapability[]
+  attachments?: readonly AttachmentMetadata[]
 }
 export interface SalesPartnerSubmitCommand extends ArchiveCommand<SalesPartnerData> {}
 export interface SalesPartnerSubmitFacts extends ArchiveFacts {
@@ -814,7 +824,11 @@ export function prepareSalesPartnerSubmit(
   )
   if ('ok' in prepared) return prepared
   const capabilities = [...new Set(command.data.capabilities)]
+  const attachments = normalizeArchiveAttachments(
+    command.data.attachments ?? [],
+  )
   if (
+    !attachments ||
     capabilities.length === 0 ||
     capabilities.some(
       (capability) =>
@@ -840,7 +854,10 @@ export function prepareSalesPartnerSubmit(
   }
   return {
     ok: true,
-    plan: { ...prepared.common, data: { ...prepared.data, capabilities } },
+    plan: {
+      ...prepared.common,
+      data: { ...prepared.data, capabilities, attachments },
+    },
   }
 }
 export function projectSalesPartnerViewState(

@@ -336,6 +336,7 @@ const supplierSnapshot = z
 const otherUnitSnapshot = z
   .object({
     ...archiveIdentityBase,
+    attachments: z.array(attachmentMetadata).default([]),
     legalIdentifier: archiveIdentityBase.legalIdentifier.describe(
       '法定识别号可暂缺，非空值在其他单位名录内唯一；不得用来源编号或手机号代填。',
     ),
@@ -346,6 +347,7 @@ const otherUnitSnapshot = z
 const salesPartnerSnapshot = z
   .object({
     ...archiveIdentityBase,
+    attachments: z.array(attachmentMetadata).default([]),
     legalIdentifier: archiveIdentityBase.legalIdentifier.describe(
       '个人销售合作方可留空；组织销售合作方须提供法定识别号。',
     ),
@@ -825,6 +827,8 @@ export const archiveAttachmentRouteSets = {
   customer: defineAttachmentRoutes('customer'),
   product: defineAttachmentRoutes('product'),
   supplier: defineAttachmentRoutes('supplier'),
+  'other-unit': defineAttachmentRoutes('other-unit'),
+  'sales-partner': defineAttachmentRoutes('sales-partner'),
 } as const
 for (const entity of archiveAttachmentEntities) {
   const set = archiveAttachmentRouteSets[entity]
@@ -989,6 +993,38 @@ export function registerDclArchiveRoutes(
     {
       route: archiveAttachmentRouteSets.supplier.cleanup,
       handler: attachments.cleanup.bind(null, 'supplier'),
+    },
+    {
+      route: archiveAttachmentRouteSets['other-unit'].read,
+      handler: attachments.read.bind(null, 'other-unit'),
+    },
+    {
+      route: archiveAttachmentRouteSets['other-unit'].submissionRead,
+      handler: attachments.submissionRead.bind(null, 'other-unit'),
+    },
+    {
+      route: archiveAttachmentRouteSets['other-unit'].stage,
+      handler: attachments.stage.bind(null, 'other-unit'),
+    },
+    {
+      route: archiveAttachmentRouteSets['other-unit'].cleanup,
+      handler: attachments.cleanup.bind(null, 'other-unit'),
+    },
+    {
+      route: archiveAttachmentRouteSets['sales-partner'].read,
+      handler: attachments.read.bind(null, 'sales-partner'),
+    },
+    {
+      route: archiveAttachmentRouteSets['sales-partner'].submissionRead,
+      handler: attachments.submissionRead.bind(null, 'sales-partner'),
+    },
+    {
+      route: archiveAttachmentRouteSets['sales-partner'].stage,
+      handler: attachments.stage.bind(null, 'sales-partner'),
+    },
+    {
+      route: archiveAttachmentRouteSets['sales-partner'].cleanup,
+      handler: attachments.cleanup.bind(null, 'sales-partner'),
     },
     {
       route: archiveRouteSets['product']['query'],

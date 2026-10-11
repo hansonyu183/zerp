@@ -33,7 +33,7 @@ const expandedLayouts = new Set([
   '21dad8f0614ad17645fdc7f72aaf61a72ec66d6a68a48ebf68bd97d8ff138045',
 ])
 
-const currentLayouts = new Set([
+const precedingThreeEntityLayouts = new Set([
   '20cbb5abae595e39cd0ad0ec39f7bdf969e78f53bed00962592c50f0be38c248',
   // Proven complete layout after pg_dump/pg_restore of the prior release.
   '1c5f1670cccde8b7b15623c4e6fe6465d97359783d7d7822ae4d26e4934948f7',
@@ -41,12 +41,23 @@ const currentLayouts = new Set([
   '858896f5e09713a94b60a7c74814800e55040eda89b83528e40c1d6de1f9d2c1',
 ])
 
+const currentLayouts = new Set([
+  // Complete fresh baseline, verified in an exclusive native fixture.
+  'cddbdbe80a2c327ea4b15e3b4412a3881975ca3dc4f71c5bfee5631e9834a290',
+  // Complete pg_dump/pg_restore of the five-entity baseline.
+  '6bdedfe2ab7cac5fe850955b8c4ac80f8a17331370939db84d960f377f0b14c9',
+  // Reviewed restored three-entity and Customer layouts after this upgrade.
+  '56048a396f5e542adb4eb907de8ababe7b906bdb9384edd3395f89814e99ff38',
+])
+
 async function snapshot(db: Executor) {
   const tables = await publicTableNames(db)
   const shape = await publicSchemaLayout(db, tables)
   const shapeDigest = digest(shape)
   const layout =
-    supportedLayouts.has(shapeDigest) || expandedLayouts.has(shapeDigest)
+    supportedLayouts.has(shapeDigest) ||
+    expandedLayouts.has(shapeDigest) ||
+    precedingThreeEntityLayouts.has(shapeDigest)
       ? 'SOURCE'
       : currentLayouts.has(shapeDigest)
         ? 'CURRENT'
@@ -123,10 +134,15 @@ export async function generalizeArchiveAttachments(tx: Transaction<DB>) {
       )
     }
   }
-  await sql`ALTER TABLE dcl_archive_attachment_staging ADD COLUMN entity varchar(16) NOT NULL CHECK (entity IN ('customer','product','supplier')), ADD COLUMN subject_id varchar(26) NOT NULL`.execute(
+  await sql`ALTER TABLE dcl_archive_attachment_staging ADD COLUMN entity varchar(16) NOT NULL CHECK (entity IN ('customer','product','supplier','other-unit','sales-partner')), ADD COLUMN subject_id varchar(26) NOT NULL`.execute(
     tx,
   )
-  for (const table of ['dcl_product_versions', 'dcl_supplier_versions'])
+  for (const table of [
+    'dcl_product_versions',
+    'dcl_supplier_versions',
+    'dcl_other_unit_versions',
+    'dcl_sales_partner_versions',
+  ])
     await sql`ALTER TABLE ${sql.table(table)} ADD COLUMN attachments jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(attachments) = 'array')`.execute(
       tx,
     )
@@ -150,6 +166,17 @@ export async function generalizeArchiveAttachments(tx: Transaction<DB>) {
   }
 }
 
+/** One-time upgrade of the already generalized, exactly reviewed prior layout. */
+async function completeIdentityArchiveAttachments(tx: Transaction<DB>) {
+  await sql`ALTER TABLE dcl_archive_attachment_staging DROP CONSTRAINT dcl_archive_attachment_staging_entity_check, ADD CONSTRAINT dcl_archive_attachment_staging_entity_check CHECK (entity IN ('customer','product','supplier','other-unit','sales-partner'))`.execute(
+    tx,
+  )
+  for (const table of ['dcl_other_unit_versions', 'dcl_sales_partner_versions'])
+    await sql`ALTER TABLE ${sql.table(table)} ADD COLUMN attachments jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(attachments) = 'array')`.execute(
+      tx,
+    )
+}
+
 async function expectedArchiveFacts(
   tx: Transaction<DB>,
   before: Awaited<ReturnType<typeof snapshot>>,
@@ -163,7 +190,10 @@ async function expectedArchiveFacts(
           ? 'dcl_archive_attachments'
           : table
     expected[targetName] =
-      table === 'dcl_product_versions' || table === 'dcl_supplier_versions'
+      table === 'dcl_other_unit_versions' ||
+      table === 'dcl_sales_partner_versions' ||
+      (!precedingThreeEntityLayouts.has(before.shapeDigest) &&
+        (table === 'dcl_product_versions' || table === 'dcl_supplier_versions'))
         ? (
             await sql<{
               fact: string
@@ -214,7 +244,9 @@ export async function upgradeAttachmentArchive(
     const expectedFacts = await expectedArchiveFacts(tx, before)
     if (supportedLayouts.has(before.shapeDigest))
       await expandAttachmentArchiveConstraints(tx)
-    await generalizeArchiveAttachments(tx)
+    if (precedingThreeEntityLayouts.has(before.shapeDigest))
+      await completeIdentityArchiveAttachments(tx)
+    else await generalizeArchiveAttachments(tx)
     const after = await snapshot(tx)
     if (after.layout !== 'CURRENT')
       throw new Error('attachment_archive_upgrade_layout_mismatch')

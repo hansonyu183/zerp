@@ -165,8 +165,8 @@ function businessIdentityCurrent(
       ? sql`jsonb_build_object('taxInformation',v.tax_information,'attachments',v.attachments,'settlementMethod',v.settlement_method_snapshot,'defaultPurchaser',
         CASE WHEN v.default_purchaser_employee_id IS NULL THEN NULL ELSE jsonb_build_object('objectId',v.default_purchaser_employee_id,'code',COALESCE(v.default_purchaser_code,''),'name',COALESCE(v.default_purchaser_name,'')) END)`
       : entity === 'other-unit'
-        ? sql`jsonb_build_object('settlementMethod',v.settlement_method_snapshot)`
-        : sql`jsonb_build_object('capabilities',v.capabilities)`
+        ? sql`jsonb_build_object('attachments',v.attachments,'settlementMethod',v.settlement_method_snapshot)`
+        : sql`jsonb_build_object('attachments',v.attachments,'capabilities',v.capabilities)`
   return sql<StoredBobObject>`SELECT subject.id AS object_id,subject.entity,subject.code,subject.enabled,
     subject.revision::text AS revision,entry.id AS source_approval_entry_id,entry.version_no AS source_version_no,entry.updated_at,
     jsonb_build_object(

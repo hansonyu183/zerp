@@ -128,13 +128,13 @@ for (const [entity, title] of [
         await page.getByRole('option').filter({ hasText: '渠道商' }).click()
         await page.keyboard.press('Escape')
       }
-      if (entity === 'supplier' && staged === 0) {
+      if (staged === 0) {
         await selectArchiveOriginals(dialog)
         expect(staged).toBe(0)
       }
       await dialog.getByRole('button', { name: '提交', exact: true }).click()
       await expect(dialog).toHaveCount(0)
-      if (entity === 'supplier') await expect.poll(() => staged).toBe(2)
+      await expect.poll(() => staged).toBe(2)
       await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
       await page.getByRole('button', { name: '查询', exact: true }).click()
       await expect(
@@ -211,8 +211,7 @@ for (const [entity, title] of [
           exact: true,
         }),
       ).toHaveValue(name)
-      if (entity === 'supplier')
-        await expect(dialog.locator('.attachment-row')).toHaveCount(0)
+      await expect(dialog.locator('.attachment-row')).toHaveCount(0)
       await dialog.getByRole('button', { name: '取消', exact: true }).click()
       await openArchive(page, 'bob', entity)
       await findArchive(page, name)
@@ -227,14 +226,12 @@ for (const [entity, title] of [
       await expect(
         history.getByRole('button', { name: /^查看版本 / }),
       ).toHaveCount(2)
-      if (entity === 'supplier')
-        await downloadArchiveOriginals(page, history, entity, 'current')
+      await downloadArchiveOriginals(page, history, entity, 'current')
       await history
         .getByRole('button', { name: '查看版本 1', exact: true })
         .click()
       await expect(history).toContainText('首个版本')
-      if (entity === 'supplier')
-        await downloadArchiveOriginals(page, history, entity, 'submission')
+      await downloadArchiveOriginals(page, history, entity, 'submission')
       await history.getByRole('button', { name: '关闭', exact: true }).click()
       expect(
         await page.evaluate(

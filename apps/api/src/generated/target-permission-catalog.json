@@ -1328,6 +1328,14 @@
     "title": "versions customer"
   },
   {
+    "id": "01J81E365224856EB151BEAB21",
+    "path": "/bob/other-unit/attachment-read",
+    "domain": "bob",
+    "entity": "other-unit",
+    "action": "attachment-read",
+    "title": "其他单位读取附件"
+  },
+  {
     "id": "01J08399FF631FC895665F672A",
     "path": "/bob/other-unit/audit-history",
     "domain": "bob",
@@ -1430,6 +1438,14 @@
     "entity": "product",
     "action": "versions",
     "title": "versions product"
+  },
+  {
+    "id": "01J3F3489E7E91BE7743CD32AD",
+    "path": "/bob/sales-partner/attachment-read",
+    "domain": "bob",
+    "entity": "sales-partner",
+    "action": "attachment-read",
+    "title": "销售合作方读取附件"
   },
   {
     "id": "01J89CA2EE3154685D62AA8337",
@@ -1640,6 +1656,30 @@
     "title": "approve other-unit"
   },
   {
+    "id": "01JE89835B56397E3E51213B03",
+    "path": "/dcl/other-unit/attachment-cleanup",
+    "domain": "dcl",
+    "entity": "other-unit",
+    "action": "attachment-cleanup",
+    "title": "其他单位清理附件暂存"
+  },
+  {
+    "id": "01J93763848E666C02980A1810",
+    "path": "/dcl/other-unit/attachment-read",
+    "domain": "dcl",
+    "entity": "other-unit",
+    "action": "attachment-read",
+    "title": "其他单位读取提交件附件"
+  },
+  {
+    "id": "01J176B80013F126AD4C4E285F",
+    "path": "/dcl/other-unit/attachment-stage",
+    "domain": "dcl",
+    "entity": "other-unit",
+    "action": "attachment-stage",
+    "title": "其他单位暂存附件"
+  },
+  {
     "id": "01JD255C37CCA6307FB2553127",
     "path": "/dcl/other-unit/delete",
     "domain": "dcl",
@@ -1806,6 +1846,30 @@
     "entity": "sales-partner",
     "action": "approve",
     "title": "approve sales-partner"
+  },
+  {
+    "id": "01J581DF4411E93A8EAD449A7C",
+    "path": "/dcl/sales-partner/attachment-cleanup",
+    "domain": "dcl",
+    "entity": "sales-partner",
+    "action": "attachment-cleanup",
+    "title": "销售合作方清理附件暂存"
+  },
+  {
+    "id": "01JED070CD4897600F655B9746",
+    "path": "/dcl/sales-partner/attachment-read",
+    "domain": "dcl",
+    "entity": "sales-partner",
+    "action": "attachment-read",
+    "title": "销售合作方读取提交件附件"
+  },
+  {
+    "id": "01JDB7FAE8D306627F284FDA83",
+    "path": "/dcl/sales-partner/attachment-stage",
+    "domain": "dcl",
+    "entity": "sales-partner",
+    "action": "attachment-stage",
+    "title": "销售合作方暂存附件"
   },
   {
     "id": "01J7C6BCAEF9188BE2985D078A",

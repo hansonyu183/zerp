@@ -47,7 +47,13 @@ type ArchiveEntity = DclArchiveEntity
 function hasArchiveAttachments(
   entity: ArchiveEntity,
 ): entity is ArchiveAttachmentEntity {
-  return entity === 'customer' || entity === 'product' || entity === 'supplier'
+  return (
+    entity === 'customer' ||
+    entity === 'product' ||
+    entity === 'supplier' ||
+    entity === 'other-unit' ||
+    entity === 'sales-partner'
+  )
 }
 import {
   AuxApplicationError,
@@ -321,10 +327,10 @@ export async function readBusinessIdentitySnapshot(
           tx,
         )
       : entity === 'other-unit'
-        ? await sql<IdentitySetRow>`SELECT kind, legal_name, display_name, legal_identifier, contact_name, contact_phone, address, default_operating_entity_id, NULL::varchar AS default_purchaser_employee_id, NULL::varchar AS default_purchaser_approval_entry_id, NULL::varchar AS default_purchaser_code, NULL::varchar AS default_purchaser_name, remark, settlement_method_snapshot, NULL::jsonb AS default_purchaser_snapshot, NULL::jsonb AS capabilities FROM dcl_other_unit_versions WHERE approval_entry_id = ${submissionId}`.execute(
+        ? await sql<IdentitySetRow>`SELECT attachments, kind, legal_name, display_name, legal_identifier, contact_name, contact_phone, address, default_operating_entity_id, NULL::varchar AS default_purchaser_employee_id, NULL::varchar AS default_purchaser_approval_entry_id, NULL::varchar AS default_purchaser_code, NULL::varchar AS default_purchaser_name, remark, settlement_method_snapshot, NULL::jsonb AS default_purchaser_snapshot, NULL::jsonb AS capabilities FROM dcl_other_unit_versions WHERE approval_entry_id = ${submissionId}`.execute(
             tx,
           )
-        : await sql<IdentitySetRow>`SELECT kind, legal_name, display_name, legal_identifier, contact_name, contact_phone, address, default_operating_entity_id, NULL::varchar AS default_purchaser_employee_id, NULL::varchar AS default_purchaser_approval_entry_id, NULL::varchar AS default_purchaser_code, NULL::varchar AS default_purchaser_name, remark, NULL::jsonb AS settlement_method_snapshot, NULL::jsonb AS default_purchaser_snapshot, capabilities FROM dcl_sales_partner_versions WHERE approval_entry_id = ${submissionId}`.execute(
+        : await sql<IdentitySetRow>`SELECT attachments, kind, legal_name, display_name, legal_identifier, contact_name, contact_phone, address, default_operating_entity_id, NULL::varchar AS default_purchaser_employee_id, NULL::varchar AS default_purchaser_approval_entry_id, NULL::varchar AS default_purchaser_code, NULL::varchar AS default_purchaser_name, remark, NULL::jsonb AS settlement_method_snapshot, NULL::jsonb AS default_purchaser_snapshot, capabilities FROM dcl_sales_partner_versions WHERE approval_entry_id = ${submissionId}`.execute(
             tx,
           )
   const item = row.rows[0]
@@ -363,6 +369,7 @@ export async function readBusinessIdentitySnapshot(
     })),
     defaultOperatingEntityId: item.default_operating_entity_id,
     remark: item.remark ?? '',
+    attachments: array(item.attachments),
   }
   if (entity === 'supplier')
     return {
@@ -2661,6 +2668,7 @@ export class DclArchiveService {
         .insertInto('dcl_other_unit_versions')
         .values({
           ...common,
+          attachments: json(array(d.attachments)),
           settlement_method_snapshot:
             d.settlementMethod === null
               ? null
@@ -2670,7 +2678,11 @@ export class DclArchiveService {
     if (entity === 'sales-partner')
       await tx
         .insertInto('dcl_sales_partner_versions')
-        .values({ ...common, capabilities: json(array(d.capabilities)) })
+        .values({
+          ...common,
+          capabilities: json(array(d.capabilities)),
+          attachments: json(array(d.attachments)),
+        })
         .execute()
     for (const item of array(d.operatingEntities)) {
       const ref = record(item)

@@ -139,7 +139,7 @@ test('ordinary archive HTTP preserves empty, large and opaque originals with fix
       const lossOrigin = `http://127.0.0.1:${lossAddress.port}`
       context.after(async () => {
         loss.closeAllConnections()
-        server.closeAllConnections()
+        if ('closeAllConnections' in server) server.closeAllConnections()
         await Promise.all([
           new Promise<void>((resolve, reject) =>
             loss.close((error) => (error ? reject(error) : resolve())),

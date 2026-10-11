@@ -542,7 +542,7 @@ export class TargetBootstrapService {
         .where('created_by', '=', createdByUserId)
         .execute()
       await transaction
-        .deleteFrom('dcl_customer_attachment_staging')
+        .deleteFrom('dcl_archive_attachment_staging')
         .where('owner_user_id', '=', createdByUserId)
         .execute()
       await transaction

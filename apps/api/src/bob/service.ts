@@ -142,7 +142,7 @@ function businessIdentityCurrent(
 
   if (entity === 'product')
     return sql<StoredBobObject>`SELECT subject.id AS object_id,subject.entity,subject.code,subject.enabled,subject.revision::text AS revision,entry.id AS source_approval_entry_id,entry.version_no AS source_version_no,entry.updated_at,
-    jsonb_build_object('name',v.name,'barcode',COALESCE(v.barcode,''),'specification',COALESCE(v.specification,''),'model',COALESCE(v.model,''),'productType',v.source_snapshots->'productType','productCategory',v.source_snapshots->'productCategory','pricingUnit',v.source_snapshots->'pricingUnit','defaultInputUnit',v.source_snapshots->'defaultInputUnit','unitConversions',v.unit_conversions,'defaultPackagingSpec',v.default_packaging_snapshot->>'defaultPackagingSpec','recyclable',v.recyclable,'fixedFormula',v.fixed_formula,'remark',COALESCE(v.remark,'')) AS data
+    jsonb_build_object('name',v.name,'barcode',COALESCE(v.barcode,''),'specification',COALESCE(v.specification,''),'model',COALESCE(v.model,''),'productType',v.source_snapshots->'productType','productCategory',v.source_snapshots->'productCategory','pricingUnit',v.source_snapshots->'pricingUnit','defaultInputUnit',v.source_snapshots->'defaultInputUnit','unitConversions',v.unit_conversions,'defaultPackagingSpec',v.default_packaging_snapshot->>'defaultPackagingSpec','recyclable',v.recyclable,'fixedFormula',v.fixed_formula,'attachments',v.attachments,'remark',COALESCE(v.remark,'')) AS data
     FROM bob_archive_objects subject JOIN LATERAL (SELECT id,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=subject.id AND status='APPROVED' ${approvalEntryId ? sql`AND id = ${approvalEntryId}` : sql``} ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_product_versions v ON v.approval_entry_id=entry.id WHERE subject.entity='product'`
 
   const tables = {
@@ -162,7 +162,7 @@ function businessIdentityCurrent(
   const [versions, operatingEntities] = tables[entity]
   const specific =
     entity === 'supplier'
-      ? sql`jsonb_build_object('taxInformation',v.tax_information,'settlementMethod',v.settlement_method_snapshot,'defaultPurchaser',
+      ? sql`jsonb_build_object('taxInformation',v.tax_information,'attachments',v.attachments,'settlementMethod',v.settlement_method_snapshot,'defaultPurchaser',
         CASE WHEN v.default_purchaser_employee_id IS NULL THEN NULL ELSE jsonb_build_object('objectId',v.default_purchaser_employee_id,'code',COALESCE(v.default_purchaser_code,''),'name',COALESCE(v.default_purchaser_name,'')) END)`
       : entity === 'other-unit'
         ? sql`jsonb_build_object('settlementMethod',v.settlement_method_snapshot)`

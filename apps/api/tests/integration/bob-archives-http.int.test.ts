@@ -147,7 +147,7 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
       submissionId = ulid()
     const snapshot = {
       ...(entity === 'supplier'
-        ? { taxInformation: [] }
+        ? { taxInformation: [], attachments: [] }
         : {
             identityKind: 'ORGANIZATION',
             legalName: `法定-${entity}`,

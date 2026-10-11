@@ -11,14 +11,16 @@ import {
 } from '../../src/vou/service-carryover-upgrade.ts'
 import type { VouPayloadFor } from '@zerp/model'
 import { DclArchiveService } from '../../src/dcl/archives.ts'
-import { precedingAttachmentArchiveChecks } from '../fixtures/attachment-archive-before.ts'
+import {
+  precedingAttachmentArchiveChecks,
+  precedingCustomerArchiveLayout,
+} from '../fixtures/attachment-archive-before.ts'
 
 async function verifySupportedUpgrade(
   maintained: boolean,
   serviceSource = false,
 ) {
   await withCommittedPurchaseDatabase(async (db) => {
-    await precedingAttachmentArchiveChecks(db)
     const f = await seedOrderListFixture(db, 0, [
       'purchase-order',
       'service-contract',
@@ -205,6 +207,8 @@ async function verifySupportedUpgrade(
         db,
       )
     }
+    await precedingCustomerArchiveLayout(db)
+    await precedingAttachmentArchiveChecks(db)
     if (maintained) {
       await sql`ALTER TABLE vou_intermediary_source_line_snapshots RENAME CONSTRAINT vou_intermediary_source_line_snapsho_unit_price_micros_not_null TO vou_intermediary_source_line_snapshot_unit_price_minor_not_null`.execute(
         db,

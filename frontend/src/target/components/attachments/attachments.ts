@@ -1,10 +1,10 @@
-import type { VouEntity } from '@zerp/model'
+import type { VouEntity, ArchiveAttachmentEntity } from '@zerp/model'
 import { shallowRef, type InjectionKey } from 'vue'
 import { ulid } from 'ulid'
 import {
-  stageTargetCustomerAttachment,
+  stageTargetArchiveAttachment,
   stageTargetVoucherAttachment,
-  type TargetCustomerAttachmentStageInput,
+  type TargetArchiveAttachmentStageInput,
 } from '../../api.ts'
 import {
   attachmentMaxSizeBytes,
@@ -21,15 +21,15 @@ type LocalFile = {
   staged: boolean
 }
 export type AttachmentScope = {
-  resource: 'dcl/customer' | `vou/${VouEntity}`
+  resource: `dcl/${ArchiveAttachmentEntity}` | `vou/${VouEntity}`
   add: (file: File, original?: boolean) => Promise<Attachment>
   status: (id: string) => string
 }
 export const attachmentScope: InjectionKey<AttachmentScope> = Symbol(
-  'customer-attachments',
+  'archive-attachments',
 )
 export function createAttachments(
-  resource: 'dcl/customer' | `vou/${VouEntity}`,
+  resource: `dcl/${ArchiveAttachmentEntity}` | `vou/${VouEntity}`,
   token: () => string,
   owns: () => boolean,
 ) {
@@ -70,7 +70,10 @@ export function createAttachments(
     })
     return metadata
   }
-  async function prepare(attachments: readonly Attachment[]) {
+  async function prepare(
+    attachments: readonly Attachment[],
+    subjectId?: string,
+  ) {
     const version = generation
     for (const attachment of attachments) {
       const local = files.value.get(attachment.id)
@@ -90,14 +93,19 @@ export function createAttachments(
             fileId: attachment.id,
             fileName: attachment.fileName,
             mimeType:
-              attachment.contentType as TargetCustomerAttachmentStageInput['mimeType'],
+              attachment.contentType as TargetArchiveAttachmentStageInput['mimeType'],
             size: attachment.sizeBytes,
             digest: attachment.sha256,
             contentBase64: btoa(binary),
           }
-          if (resource === 'dcl/customer')
-            await stageTargetCustomerAttachment(token(), input)
-          else
+          if (resource.startsWith('dcl/')) {
+            if (!subjectId) throw new Error('缺少附件所属档案身份。')
+            await stageTargetArchiveAttachment(
+              token(),
+              resource.slice(4) as ArchiveAttachmentEntity,
+              { ...input, subjectId },
+            )
+          } else
             await stageTargetVoucherAttachment(
               token(),
               resource.slice(4) as VouEntity,

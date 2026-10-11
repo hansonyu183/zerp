@@ -106,6 +106,7 @@ export const supplierDetails = [
     caption: '默认采购员',
     fields: referenceDetails,
   },
+  { key: 'attachments', type: 'attachments', caption: '原件' },
 ] as const satisfies DetailFields<SupplierData>
 export const otherUnitDetails = [
   ...associations,
@@ -231,6 +232,7 @@ export const productDetails = [
       },
     ],
   },
+  { key: 'attachments', type: 'attachments', caption: '原件' },
 ] as const satisfies DetailFields<ProductSnapshot>
 const pricingDetails = [
   {

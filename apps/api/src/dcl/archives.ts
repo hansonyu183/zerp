@@ -31,7 +31,8 @@ import { ulid } from 'ulid'
 
 import type {
   DclArchiveEntity,
-  CustomerAttachmentReadInput,
+  ArchiveAttachmentEntity,
+  ArchiveAttachmentReadInput,
 } from './archive-contract.ts'
 import type { DB, JsonValue } from '../db/generated.ts'
 
@@ -43,6 +44,11 @@ import {
   lockAttachmentStorageKey,
 } from '../platform/attachment-deletion.ts'
 type ArchiveEntity = DclArchiveEntity
+function hasArchiveAttachments(
+  entity: ArchiveEntity,
+): entity is ArchiveAttachmentEntity {
+  return entity === 'customer' || entity === 'product' || entity === 'supplier'
+}
 import {
   AuxApplicationError,
   resolveAuxCurrentReference,
@@ -124,6 +130,7 @@ type IdentitySetRow = {
   legal_name?: string
   display_name: string
   legal_identifier?: string | null
+  attachments?: JsonValue
   tax_information?: JsonValue
   contact_name: string | null
   contact_phone: string | null
@@ -269,7 +276,8 @@ export interface ArchiveAuditView {
   createdAt: string
 }
 
-export interface CustomerAttachmentStageInput {
+export interface ArchiveAttachmentStageInput {
+  subjectId: string
   stagingId: string
   fileId: string
   fileName: string
@@ -279,7 +287,7 @@ export interface CustomerAttachmentStageInput {
   contentBase64: string
 }
 
-export interface CustomerAttachmentStageView {
+export interface ArchiveAttachmentStageView {
   stagingId: string
   fileId: string
   fileName: string
@@ -309,7 +317,7 @@ export async function readBusinessIdentitySnapshot(
 ): Promise<ArchiveSnapshot> {
   const row =
     entity === 'supplier'
-      ? await sql<IdentitySetRow>`SELECT tax_information, display_name, contact_name, contact_phone, address, default_operating_entity_id, default_purchaser_employee_id, default_purchaser_approval_entry_id, default_purchaser_code, default_purchaser_name, remark, settlement_method_snapshot, default_purchaser_snapshot, NULL::jsonb AS capabilities FROM dcl_supplier_versions WHERE approval_entry_id = ${submissionId}`.execute(
+      ? await sql<IdentitySetRow>`SELECT attachments, tax_information, display_name, contact_name, contact_phone, address, default_operating_entity_id, default_purchaser_employee_id, default_purchaser_approval_entry_id, default_purchaser_code, default_purchaser_name, remark, settlement_method_snapshot, default_purchaser_snapshot, NULL::jsonb AS capabilities FROM dcl_supplier_versions WHERE approval_entry_id = ${submissionId}`.execute(
           tx,
         )
       : entity === 'other-unit'
@@ -335,7 +343,10 @@ export async function readBusinessIdentitySnapshot(
           )
   const base: ArchiveSnapshot = {
     ...(entity === 'supplier'
-      ? { taxInformation: array(item.tax_information) }
+      ? {
+          taxInformation: array(item.tax_information),
+          attachments: array(item.attachments),
+        }
       : {
           identityKind: item.kind,
           legalName: item.legal_name,
@@ -929,9 +940,10 @@ export class DclArchiveService {
           input.submissionId.trim(),
           plan.data,
         )
-        if (entity === 'customer')
-          await this.promoteCustomerAttachments(
+        if (hasArchiveAttachments(entity))
+          await this.promoteArchiveAttachments(
             tx,
+            entity,
             input.submissionId.trim(),
             input.snapshot,
             actor.id,
@@ -958,8 +970,8 @@ export class DclArchiveService {
         return view
       })
     } catch (error) {
-      if (entity === 'customer')
-        await this.discardPreparedCustomerAttachments(preparedPermanentKeys)
+      if (hasArchiveAttachments(entity))
+        await this.discardPreparedArchiveAttachments(preparedPermanentKeys)
       if (error instanceof DclArchiveApplicationError) throw error
       if (error instanceof VersionedArchiveError)
         throw new DclArchiveApplicationError(error.errorKey)
@@ -967,8 +979,8 @@ export class DclArchiveService {
         throw new DclArchiveApplicationError('archive_conflict')
       throw error
     }
-    if (entity === 'customer')
-      await this.finalizeCustomerAttachments(input.snapshot, actor.id)
+    if (hasArchiveAttachments(entity))
+      await this.finalizeArchiveAttachments(input.snapshot, actor.id)
     return view
   }
 
@@ -1065,17 +1077,14 @@ export class DclArchiveService {
           input.subjectId,
           true,
         )
-        const candidateStorageKeys =
-          entity === 'customer'
-            ? await tx
-                .selectFrom('dcl_customer_attachments')
-                .select('storage_key')
-                .where('approval_entry_id', '=', entry.id)
-                .execute()
-                .then((rows) => [
-                  ...new Set(rows.map((row) => row.storage_key)),
-                ])
-            : []
+        const candidateStorageKeys = hasArchiveAttachments(entity)
+          ? await tx
+              .selectFrom('dcl_archive_attachments')
+              .select('storage_key')
+              .where('approval_entry_id', '=', entry.id)
+              .execute()
+              .then((rows) => [...new Set(rows.map((row) => row.storage_key))])
+          : []
         await sql`DELETE FROM aux_reference_facts WHERE source LIKE ${`${domain}:${entity}:${input.submissionId}:%`}`.execute(
           tx,
         )
@@ -1089,7 +1098,7 @@ export class DclArchiveService {
         let unreferencedStorageKeys = candidateStorageKeys
         if (candidateStorageKeys.length > 0) {
           const referenced = await tx
-            .selectFrom('dcl_customer_attachments')
+            .selectFrom('dcl_archive_attachments')
             .select('storage_key')
             .where('storage_key', 'in', candidateStorageKeys)
             .execute()
@@ -1119,31 +1128,33 @@ export class DclArchiveService {
     return outcome.result
   }
 
-  async readCustomerAttachment(
-    input: CustomerAttachmentReadInput,
+  async readArchiveAttachment(
+    entity: ArchiveAttachmentEntity,
+    input: ArchiveAttachmentReadInput,
     actor: ApprovalActor,
     domain: 'bob' | 'dcl',
   ) {
     if (domain === 'dcl' && input.source !== 'submission')
-      throw new DclArchiveApplicationError('customer_attachment_not_found')
-    requirePermission(actor, `/${domain}/customer/attachment-read`)
-    await assertCustomerAccess(
-      this.db,
-      actor,
-      input.source === 'current' ? input.objectId : input.subjectId,
-    )
+      throw new DclArchiveApplicationError('archive_attachment_not_found')
+    requirePermission(actor, `/${domain}/${entity}/attachment-read`)
+    if (entity === 'customer')
+      await assertCustomerAccess(
+        this.db,
+        actor,
+        input.source === 'current' ? input.objectId : input.subjectId,
+      )
     requirePermission(
       actor,
       input.source === 'current'
-        ? '/bob/customer/get'
+        ? `/bob/${entity}/get`
         : domain === 'bob'
-          ? '/bob/customer/versions'
-          : '/dcl/customer/submission-get',
+          ? `/bob/${entity}/versions`
+          : `/dcl/${entity}/submission-get`,
     )
     try {
       return await this.db.transaction().execute(async (tx) => {
         const scope = archiveScope(
-          'customer',
+          entity,
           input.source === 'current' ? input.objectId : input.subjectId,
         )
         const entry =
@@ -1151,15 +1162,15 @@ export class DclArchiveService {
             ? await this.versioning.latestApproved(tx, scope)
             : await this.versioning.exact(tx, scope, input.submissionId)
         if (!entry)
-          throw new DclArchiveApplicationError('customer_attachment_not_found')
+          throw new DclArchiveApplicationError('archive_attachment_not_found')
         const file = await tx
-          .selectFrom('dcl_customer_attachments')
+          .selectFrom('dcl_archive_attachments')
           .selectAll()
           .where('approval_entry_id', '=', entry.id)
           .where('file_id', '=', input.fileId)
           .executeTakeFirst()
         if (!file)
-          throw new DclArchiveApplicationError('customer_attachment_not_found')
+          throw new DclArchiveApplicationError('archive_attachment_not_found')
         await lockAttachmentStorageKey(tx, file.storage_key)
         const content = await this.attachmentStore.read(file.storage_key)
         if (
@@ -1167,7 +1178,7 @@ export class DclArchiveService {
           createHash('sha256').update(content).digest('hex') !== file.digest
         )
           throw new DclArchiveApplicationError(
-            'customer_attachment_invalid_content',
+            'archive_attachment_invalid_content',
           )
         return {
           fileName: file.file_name,
@@ -1184,11 +1195,21 @@ export class DclArchiveService {
     }
   }
 
-  async stageCustomerAttachment(
-    input: CustomerAttachmentStageInput,
+  async stageArchiveAttachment(
+    entity: ArchiveAttachmentEntity,
+    input: ArchiveAttachmentStageInput,
     actor: ApprovalActor,
-  ): Promise<CustomerAttachmentStageView> {
-    requirePermission(actor, '/dcl/customer/attachment-stage')
+  ): Promise<ArchiveAttachmentStageView> {
+    requirePermission(actor, `/dcl/${entity}/attachment-stage`)
+    const subject = await this.db
+      .selectFrom('dcl_subjects')
+      .select(['id', 'entity'])
+      .where('id', '=', input.subjectId)
+      .executeTakeFirst()
+    if (subject && subject.entity !== entity)
+      throw new DclArchiveApplicationError('archive_attachment_staging_invalid')
+    if (subject && entity === 'customer')
+      await assertCustomerAccess(this.db, actor, input.subjectId)
     const content = Buffer.from(input.contentBase64, 'base64')
     const digest = createHash('sha256').update(content).digest('hex')
     if (
@@ -1200,25 +1221,25 @@ export class DclArchiveService {
       input.size > attachmentMaxSizeBytes ||
       !attachmentContentMatches(input.mimeType, content)
     )
-      throw new DclArchiveApplicationError(
-        'customer_attachment_invalid_content',
-      )
+      throw new DclArchiveApplicationError('archive_attachment_invalid_content')
     const now = new Date(),
       expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000)
     const storageKey = `staging/${actor.id}/${input.stagingId}`
     try {
       return await this.db.transaction().execute(async (tx) => {
-        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:customer:attachment:${input.stagingId}`}, 0))`.execute(
+        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:archive:attachment:${input.stagingId}`}, 0))`.execute(
           tx,
         )
         await lockAttachmentStorageKey(tx, storageKey)
         const existing = await tx
-          .selectFrom('dcl_customer_attachment_staging')
+          .selectFrom('dcl_archive_attachment_staging')
           .selectAll()
           .where('id', '=', input.stagingId)
           .executeTakeFirst()
         if (existing) {
           if (
+            existing.entity !== entity ||
+            existing.subject_id !== input.subjectId ||
             existing.owner_user_id !== actor.id ||
             existing.file_id !== input.fileId ||
             existing.file_name !== input.fileName ||
@@ -1227,7 +1248,7 @@ export class DclArchiveService {
             existing.size_bytes !== input.size
           )
             throw new DclArchiveApplicationError(
-              'customer_attachment_staging_conflict',
+              'archive_attachment_staging_conflict',
             )
           await this.attachmentStore.stage({
             ownerId: actor.id,
@@ -1236,7 +1257,7 @@ export class DclArchiveService {
           })
           if (existing.expires_at <= now)
             await tx
-              .updateTable('dcl_customer_attachment_staging')
+              .updateTable('dcl_archive_attachment_staging')
               .set({
                 storage_key: storageKey,
                 created_at: now,
@@ -1264,9 +1285,11 @@ export class DclArchiveService {
           content,
         })
         await tx
-          .insertInto('dcl_customer_attachment_staging')
+          .insertInto('dcl_archive_attachment_staging')
           .values({
             id: input.stagingId,
+            entity,
+            subject_id: input.subjectId,
             file_id: input.fileId,
             owner_user_id: actor.id,
             file_name: input.fileName,
@@ -1298,36 +1321,39 @@ export class DclArchiveService {
     }
   }
 
-  async cleanupCustomerAttachments(
+  async cleanupArchiveAttachments(
+    entity: ArchiveAttachmentEntity,
     actor: ApprovalActor,
   ): Promise<{ deleted: number }> {
-    requirePermission(actor, '/dcl/customer/attachment-cleanup')
+    requirePermission(actor, `/dcl/${entity}/attachment-cleanup`)
     await drainAttachmentDeletions(this.db, this.attachmentStore)
     const expired = await this.db
-      .selectFrom('dcl_customer_attachment_staging')
+      .selectFrom('dcl_archive_attachment_staging')
       .select('id')
+      .where('entity', '=', entity)
       .where('expires_at', '<=', new Date())
       .execute()
     let deleted = 0
     for (const attachment of expired) {
       const storageKey = await this.db.transaction().execute(async (tx) => {
-        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:customer:attachment:${attachment.id}`}, 0))`.execute(
+        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`dcl:archive:attachment:${attachment.id}`}, 0))`.execute(
           tx,
         )
         const staged = await tx
-          .selectFrom('dcl_customer_attachment_staging')
+          .selectFrom('dcl_archive_attachment_staging')
           .select(['id', 'storage_key', 'expires_at'])
           .where('id', '=', attachment.id)
+          .where('entity', '=', entity)
           .forUpdate()
           .executeTakeFirst()
         if (!staged || staged.expires_at > new Date()) return null
         const result = await tx
-          .deleteFrom('dcl_customer_attachment_staging')
+          .deleteFrom('dcl_archive_attachment_staging')
           .where('id', '=', staged.id)
           .executeTakeFirst()
         if (Number(result.numDeletedRows) !== 1)
           throw new DclArchiveApplicationError(
-            'customer_attachment_staging_invalid',
+            'archive_attachment_staging_invalid',
           )
         await enqueueAttachmentDeletions(tx, [staged.storage_key])
         return staged.storage_key
@@ -2372,8 +2398,9 @@ export class DclArchiveService {
       .execute()
   }
 
-  private async promoteCustomerAttachments(
+  private async promoteArchiveAttachments(
     tx: Executor,
+    entity: ArchiveAttachmentEntity,
     approvalEntryId: string,
     snapshot: ArchiveSnapshot,
     actorId: string,
@@ -2390,7 +2417,7 @@ export class DclArchiveService {
         typeof attachment.stagingId === 'string' ? attachment.stagingId : null
       if (!stagingId) {
         const prior = await tx
-          .selectFrom('dcl_customer_attachments as a')
+          .selectFrom('dcl_archive_attachments as a')
           .innerJoin('approval_entries as e', 'e.id', 'a.approval_entry_id')
           .select([
             'a.file_id',
@@ -2400,6 +2427,8 @@ export class DclArchiveService {
             'a.digest',
             'a.storage_key',
           ])
+          .where('e.domain', '=', 'dcl')
+          .where('e.entity', '=', entity)
           .where('e.subject_id', '=', owner.subject_id)
           .where('a.file_id', '=', String(attachment.id ?? ''))
           .where('a.file_name', '=', String(attachment.fileName ?? ''))
@@ -2410,10 +2439,10 @@ export class DclArchiveService {
           .executeTakeFirst()
         if (!prior)
           throw new DclArchiveApplicationError(
-            'customer_attachment_staging_invalid',
+            'archive_attachment_staging_invalid',
           )
         await tx
-          .insertInto('dcl_customer_attachments')
+          .insertInto('dcl_archive_attachments')
           .values({
             file_id: prior.file_id,
             approval_entry_id: approvalEntryId,
@@ -2428,7 +2457,7 @@ export class DclArchiveService {
         continue
       }
       const staged = await tx
-        .selectFrom('dcl_customer_attachment_staging')
+        .selectFrom('dcl_archive_attachment_staging')
         .selectAll()
         .where('id', '=', stagingId)
         .where('owner_user_id', '=', actorId)
@@ -2436,6 +2465,8 @@ export class DclArchiveService {
         .executeTakeFirst()
       if (
         !staged ||
+        staged.entity !== entity ||
+        staged.subject_id !== owner.subject_id ||
         staged.expires_at <= new Date() ||
         staged.file_id !== attachment.id ||
         staged.file_name !== attachment.fileName ||
@@ -2444,7 +2475,7 @@ export class DclArchiveService {
         staged.digest !== attachment.sha256
       )
         throw new DclArchiveApplicationError(
-          'customer_attachment_staging_invalid',
+          'archive_attachment_staging_invalid',
         )
       const content = await this.attachmentStore.read(staged.storage_key)
       if (
@@ -2453,15 +2484,15 @@ export class DclArchiveService {
         createHash('sha256').update(content).digest('hex') !== staged.digest
       )
         throw new DclArchiveApplicationError(
-          'customer_attachment_staging_invalid',
+          'archive_attachment_staging_invalid',
         )
       const prepared = await this.attachmentStore.promote({
         stagingKey: staged.storage_key,
-        permanentKey: `permanent/dcl/customer/${approvalEntryId}/${staged.file_id}`,
+        permanentKey: `permanent/dcl/${entity}/${approvalEntryId}/${staged.file_id}`,
       })
       if (prepared.created) preparedPermanentKeys.add(prepared.key)
       await tx
-        .insertInto('dcl_customer_attachments')
+        .insertInto('dcl_archive_attachments')
         .values({
           file_id: staged.file_id,
           approval_entry_id: approvalEntryId,
@@ -2474,13 +2505,13 @@ export class DclArchiveService {
         })
         .execute()
       await tx
-        .deleteFrom('dcl_customer_attachment_staging')
+        .deleteFrom('dcl_archive_attachment_staging')
         .where('id', '=', staged.id)
         .execute()
     }
   }
 
-  private customerStagingAttachments(snapshot: ArchiveSnapshot) {
+  private archiveStagingAttachments(snapshot: ArchiveSnapshot) {
     return array(snapshot.attachments)
       .map(record)
       .filter(
@@ -2495,12 +2526,12 @@ export class DclArchiveService {
       )
   }
 
-  private async finalizeCustomerAttachments(
+  private async finalizeArchiveAttachments(
     snapshot: ArchiveSnapshot,
     ownerId: string,
   ): Promise<void> {
     await Promise.all(
-      this.customerStagingAttachments(snapshot).map(async (attachment) => {
+      this.archiveStagingAttachments(snapshot).map(async (attachment) => {
         try {
           await this.attachmentStore.finalize(
             `staging/${ownerId}/${attachment.stagingId}`,
@@ -2512,7 +2543,7 @@ export class DclArchiveService {
     )
   }
 
-  private async discardPreparedCustomerAttachments(
+  private async discardPreparedArchiveAttachments(
     keys: ReadonlySet<string>,
   ): Promise<void> {
     await Promise.all(
@@ -2559,6 +2590,7 @@ export class DclArchiveService {
             defaultPackagingSpec: d.defaultPackagingSpec,
           }),
           recyclable: d.recyclable === true,
+          attachments: json(array(d.attachments)),
           fixed_formula:
             d.fixedFormula === null ? null : json(record(d.fixedFormula)),
           remark: nullable(d.remark),
@@ -2603,6 +2635,7 @@ export class DclArchiveService {
         .insertInto('dcl_supplier_versions')
         .values({
           ...supplierCommon,
+          attachments: json(array(d.attachments)),
           tax_information: json(array(d.taxInformation)),
           settlement_method_snapshot:
             d.settlementMethod === null
@@ -2720,6 +2753,7 @@ export class DclArchiveService {
           record(r.default_packaging_snapshot).defaultPackagingSpec ?? '',
         recyclable: r.recyclable,
         fixedFormula: r.fixed_formula === null ? null : record(r.fixed_formula),
+        attachments: array(r.attachments),
         remark: r.remark ?? '',
       }
     }

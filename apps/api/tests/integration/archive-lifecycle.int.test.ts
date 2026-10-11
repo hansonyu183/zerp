@@ -170,8 +170,8 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   async function submitAndApprove(
     entity: Parameters<DclArchiveService['submit']>[0],
     snapshot: Record<string, unknown>,
+    subjectId = ulid(),
   ) {
-    const subjectId = ulid()
     const submissionId = ulid()
     subjectIds.push(subjectId)
     const input = {
@@ -585,12 +585,15 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     false,
   )
 
+  const attachmentSubjectId = ulid()
   const attachment = Buffer.from('%PDF-1.7 customer identity attachment')
   const attachmentId = ulid()
   const stagingId = ulid()
   const digest = createHash('sha256').update(attachment).digest('hex')
-  await dclArchives.stageCustomerAttachment(
+  await dclArchives.stageArchiveAttachment(
+    'customer',
     {
+      subjectId: attachmentSubjectId,
       stagingId,
       fileId: attachmentId,
       fileName: 'identity.pdf',
@@ -602,16 +605,20 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     submitter,
   )
   const stagedAttachment = await sql<{ storage_key: string }>`
-    SELECT storage_key FROM dcl_customer_attachment_staging WHERE id = ${stagingId}
+    SELECT storage_key FROM dcl_archive_attachment_staging WHERE id = ${stagingId}
   `.execute(db)
   assert.deepEqual(
     await attachmentStore.read(stagedAttachment.rows[0]!.storage_key),
     attachment,
   )
+  const failedSubjectId = ulid(),
+    failedSubmissionId = ulid()
   const failedStagingId = ulid()
   const failedAttachmentId = ulid()
-  await dclArchives.stageCustomerAttachment(
+  await dclArchives.stageArchiveAttachment(
+    'customer',
     {
+      subjectId: failedSubjectId,
       stagingId: failedStagingId,
       fileId: failedAttachmentId,
       fileName: 'retry.pdf',
@@ -623,12 +630,10 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     submitter,
   )
   const failedStaging = await db
-    .selectFrom('dcl_customer_attachment_staging')
+    .selectFrom('dcl_archive_attachment_staging')
     .select('storage_key')
     .where('id', '=', failedStagingId)
     .executeTakeFirstOrThrow()
-  const failedSubjectId = ulid(),
-    failedSubmissionId = ulid()
   subjectIds.push(failedSubjectId)
   await assert.rejects(
     dclArchives.submit(
@@ -676,24 +681,27 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   )
   assert.ok(
     await db
-      .selectFrom('dcl_customer_attachment_staging')
+      .selectFrom('dcl_archive_attachment_staging')
       .select('id')
       .where('id', '=', failedStagingId)
       .executeTakeFirst(),
     'failed submit keeps its staged attachment for retry',
   )
   await db
-    .updateTable('dcl_customer_attachment_staging')
+    .updateTable('dcl_archive_attachment_staging')
     .set({ created_at: new Date(-1_000), expires_at: new Date(0) })
     .where('id', '=', failedStagingId)
     .execute()
-  assert.deepEqual(await dclArchives.cleanupCustomerAttachments(submitter), {
-    deleted: 1,
-  })
+  assert.deepEqual(
+    await dclArchives.cleanupArchiveAttachments('customer', submitter),
+    {
+      deleted: 1,
+    },
+  )
   await assert.rejects(attachmentStore.read(failedStaging.storage_key))
   assert.equal(
     await db
-      .selectFrom('dcl_customer_attachment_staging')
+      .selectFrom('dcl_archive_attachment_staging')
       .select('id')
       .where('id', '=', failedStagingId)
       .executeTakeFirst(),
@@ -703,8 +711,10 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     .insertInto('attachment_deletion_jobs')
     .values({ storage_key: failedStaging.storage_key, created_at: new Date() })
     .execute()
-  const restaged = await dclArchives.stageCustomerAttachment(
+  const restaged = await dclArchives.stageArchiveAttachment(
+    'customer',
     {
+      subjectId: failedSubjectId,
       stagingId: failedStagingId,
       fileId: failedAttachmentId,
       fileName: 'retry.pdf',
@@ -728,9 +738,12 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     .insertInto('attachment_deletion_jobs')
     .values({ storage_key: failedStaging.storage_key, created_at: new Date() })
     .execute()
-  assert.deepEqual(await dclArchives.cleanupCustomerAttachments(submitter), {
-    deleted: 0,
-  })
+  assert.deepEqual(
+    await dclArchives.cleanupArchiveAttachments('customer', submitter),
+    {
+      deleted: 0,
+    },
+  )
   assert.deepEqual(
     await attachmentStore.read(failedStaging.storage_key),
     attachment,
@@ -744,16 +757,22 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     undefined,
   )
   await db
-    .updateTable('dcl_customer_attachment_staging')
+    .updateTable('dcl_archive_attachment_staging')
     .set({ created_at: new Date(-1_000), expires_at: new Date(0) })
     .where('id', '=', failedStagingId)
     .execute()
-  assert.deepEqual(await dclArchives.cleanupCustomerAttachments(submitter), {
-    deleted: 1,
-  })
-  assert.deepEqual(await dclArchives.cleanupCustomerAttachments(submitter), {
-    deleted: 0,
-  })
+  assert.deepEqual(
+    await dclArchives.cleanupArchiveAttachments('customer', submitter),
+    {
+      deleted: 1,
+    },
+  )
+  assert.deepEqual(
+    await dclArchives.cleanupArchiveAttachments('customer', submitter),
+    {
+      deleted: 0,
+    },
+  )
   const customerSnapshot = {
     displayName: '全聚合客户',
     phone: '13600000000',
@@ -884,7 +903,11 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
       .where('id', '=', malformed.id)
       .execute()
   }
-  const customer = await submitAndApprove('customer', customerSnapshot)
+  const customer = await submitAndApprove(
+    'customer',
+    customerSnapshot,
+    attachmentSubjectId,
+  )
   await db
     .insertInto('app_roles')
     .values({
@@ -914,7 +937,8 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     fileId: attachmentId,
   }
   assert.deepEqual(
-    await dclArchives.readCustomerAttachment(
+    await dclArchives.readArchiveAttachment(
+      'customer',
       exactRead,
       attachmentReader,
       'bob',
@@ -928,12 +952,14 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     },
   )
   assert.deepEqual(
-    await dclArchives.readCustomerAttachment(
+    await dclArchives.readArchiveAttachment(
+      'customer',
       { source: 'current', objectId: customer.subjectId, fileId: attachmentId },
       attachmentReader,
       'bob',
     ),
-    await dclArchives.readCustomerAttachment(
+    await dclArchives.readArchiveAttachment(
+      'customer',
       exactRead,
       attachmentReader,
       'bob',
@@ -941,7 +967,8 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   )
   await assert.rejects(
     () =>
-      dclArchives.readCustomerAttachment(
+      dclArchives.readArchiveAttachment(
+        'customer',
         exactRead,
         {
           id: reviewerId,
@@ -953,7 +980,8 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   )
   await assert.rejects(
     () =>
-      dclArchives.readCustomerAttachment(
+      dclArchives.readArchiveAttachment(
+        'customer',
         exactRead,
         {
           id: reviewerId,
@@ -965,21 +993,23 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   )
   await assert.rejects(
     () =>
-      dclArchives.readCustomerAttachment(
+      dclArchives.readArchiveAttachment(
+        'customer',
         { ...exactRead, fileId: ulid() },
         attachmentReader,
         'bob',
       ),
-    { errorKey: 'customer_attachment_not_found' },
+    { errorKey: 'archive_attachment_not_found' },
   )
   await assert.rejects(
     () =>
-      dclArchives.readCustomerAttachment(
+      dclArchives.readArchiveAttachment(
+        'customer',
         { ...exactRead, subjectId: ulid() },
         attachmentReader,
         'bob',
       ),
-    { errorKey: 'customer_attachment_not_found' },
+    { errorKey: 'archive_attachment_not_found' },
   )
 
   const customerData = customer.snapshot
@@ -1002,7 +1032,7 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   })
   assert.equal(
     await db
-      .selectFrom('dcl_customer_attachments')
+      .selectFrom('dcl_archive_attachments')
       .select(({ fn }) => fn.countAll<string>().as('count'))
       .where('approval_entry_id', '=', customer.submissionId)
       .executeTakeFirstOrThrow()
@@ -1011,14 +1041,14 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
   )
   assert.equal(
     await db
-      .selectFrom('dcl_customer_attachment_staging')
+      .selectFrom('dcl_archive_attachment_staging')
       .select('id')
       .where('id', '=', stagingId)
       .executeTakeFirst(),
     undefined,
   )
   const permanentAttachment = await sql<{ storage_key: string }>`
-    SELECT storage_key FROM dcl_customer_attachments
+    SELECT storage_key FROM dcl_archive_attachments
     WHERE approval_entry_id = ${customer.submissionId} AND file_id = ${attachmentId}
   `.execute(db)
   assert.deepEqual(
@@ -1026,10 +1056,13 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     attachment,
   )
 
+  const deletedCustomerSubjectId = ulid()
   const deletedStagingId = ulid()
   const deletedAttachmentId = ulid()
-  await dclArchives.stageCustomerAttachment(
+  await dclArchives.stageArchiveAttachment(
+    'customer',
     {
+      subjectId: deletedCustomerSubjectId,
       stagingId: deletedStagingId,
       fileId: deletedAttachmentId,
       fileName: 'delete-me.pdf',
@@ -1040,7 +1073,6 @@ test('all issue 364 aggregates own typed PostgreSQL snapshots and customer attac
     },
     submitter,
   )
-  const deletedCustomerSubjectId = ulid()
   const deletedCustomerSubmissionId = ulid()
   subjectIds.push(deletedCustomerSubjectId)
   const deletedCustomer = await dclArchives.submit(

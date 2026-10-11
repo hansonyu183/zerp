@@ -2,15 +2,25 @@ import { File as NativeFile } from 'node:buffer'
 import { webcrypto, createHash } from 'node:crypto'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { createAttachments } from '../../../src/target/components/attachments/attachments.ts'
-import { stageTargetVoucherAttachment } from '../../../src/target/api.ts'
+import {
+  stageTargetVoucherAttachment,
+  stageTargetArchiveAttachment,
+} from '../../../src/target/api.ts'
 
 vi.mock('../../../src/target/api.ts', () => ({
   stageTargetVoucherAttachment: vi.fn(),
-  stageTargetCustomerAttachment: vi.fn(),
+  stageTargetArchiveAttachment: vi.fn(),
 }))
 beforeEach(() => {
   vi.stubGlobal('File', NativeFile)
   vi.stubGlobal('crypto', webcrypto)
+  vi.mocked(stageTargetArchiveAttachment).mockReset()
+  vi.mocked(stageTargetArchiveAttachment).mockImplementation(
+    async (_token, _entity, input) => ({
+      ...input,
+      expiresAt: '2099-01-01T00:00:00Z',
+    }),
+  )
   vi.mocked(stageTargetVoucherAttachment).mockReset()
   vi.mocked(stageTargetVoucherAttachment).mockImplementation(
     async (_token, _entity, input) => ({
@@ -78,3 +88,33 @@ it('refuses a file beyond the normal capacity before staging', async () => {
   ).rejects.toThrow('20 MiB')
   expect(stageTargetVoucherAttachment).not.toHaveBeenCalled()
 })
+
+it.each(['customer', 'product', 'supplier'] as const)(
+  'binds %s originals to their entity and subject with fixed-ID response recovery',
+  async (entity) => {
+    const files = createAttachments(
+      `dcl/${entity}`,
+      () => 'fixture-csrf',
+      () => true,
+    )
+    const metadata = await files.scope.add(
+      new File([Buffer.from([0, 255, 1])], ' 原件.et ', { type: '' }),
+    )
+    const subjectId = '01M2R3C0000000000000000009'
+    vi.mocked(stageTargetArchiveAttachment).mockRejectedValueOnce(
+      new Error('unknown response'),
+    )
+    await expect(files.prepare([metadata], subjectId)).rejects.toThrow(
+      'unknown response',
+    )
+    await files.prepare([metadata], subjectId)
+    const calls = vi.mocked(stageTargetArchiveAttachment).mock.calls
+    expect(calls[0]).toEqual(calls[1])
+    expect(calls[0]![1]).toBe(entity)
+    expect(calls[0]![2].subjectId).toBe(subjectId)
+    expect(calls[0]![2].fileName).toBe(' 原件.et ')
+    expect(Buffer.from(calls[0]![2].contentBase64, 'base64')).toEqual(
+      Buffer.from([0, 255, 1]),
+    )
+  },
+)

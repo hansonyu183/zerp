@@ -5,6 +5,7 @@ import { HTTPException } from 'hono/http-exception'
 import {
   modelBuildId,
   vouEntities,
+  archiveAttachmentEntities,
   attachmentStageBodyLimitBytes,
 } from '@zerp/model'
 
@@ -131,7 +132,9 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use('*', (context, next) => {
     const attachmentStage =
       context.req.method === 'POST' &&
-      (context.req.path === '/dcl/customer/attachment-stage' ||
+      (archiveAttachmentEntities.some(
+        (entity) => context.req.path === `/dcl/${entity}/attachment-stage`,
+      ) ||
         vouEntities.some(
           (entity) => context.req.path === `/vou/${entity}/attachment-stage`,
         ))

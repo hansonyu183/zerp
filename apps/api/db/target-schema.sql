@@ -304,6 +304,7 @@ CREATE TABLE dcl_supplier_versions (
     contact_name varchar(100),
     contact_phone varchar(32),
     address varchar(500),
+    attachments jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(attachments) = 'array'),
     remark varchar(1000),
     default_operating_entity_reference jsonb,
     settlement_method_snapshot jsonb,
@@ -401,6 +402,7 @@ CREATE TABLE dcl_product_versions (
     default_packaging_snapshot jsonb,
     recyclable boolean NOT NULL DEFAULT false,
     fixed_formula jsonb,
+    attachments jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(attachments) = 'array'),
     remark varchar(1000)
 );
 
@@ -600,8 +602,10 @@ CREATE TABLE archive_idempotency (
     PRIMARY KEY (entity, idempotency_key)
 );
 
-CREATE TABLE dcl_customer_attachment_staging (
+CREATE TABLE dcl_archive_attachment_staging (
     id varchar(26) PRIMARY KEY,
+    entity varchar(16) NOT NULL CHECK (entity IN ('customer','product','supplier')),
+    subject_id varchar(26) NOT NULL,
     file_id varchar(26) NOT NULL,
     owner_user_id varchar(26) NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
     file_name varchar(255) NOT NULL,
@@ -614,7 +618,7 @@ CREATE TABLE dcl_customer_attachment_staging (
     CHECK (expires_at > created_at)
 );
 
-CREATE TABLE dcl_customer_attachments (
+CREATE TABLE dcl_archive_attachments (
     approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
     file_id varchar(26) NOT NULL,
     file_name varchar(255) NOT NULL,

@@ -4,11 +4,12 @@ import { computed, inject, onBeforeUnmount, ref } from 'vue'
 import { attachmentScope } from './attachments.ts'
 import {
   attachmentMaxCount,
+  archiveAttachmentErrorPresentation,
   attachmentMimePresentation,
   type AttachmentMetadata,
 } from '@zerp/model'
 import {
-  readTargetCustomerAttachment,
+  readTargetArchiveAttachment,
   readTargetVoucherAttachment,
   TargetApiError,
 } from '../../api.ts'
@@ -54,14 +55,14 @@ const canRead = computed(
       ? session.can(`/vou/${props.source.entity}/attachment-read`) &&
         session.can(`/vou/${props.source.entity}/get`)
       : session.can(
-          `/${props.source.source === 'current' ? 'bob' : props.source.domain}/customer/attachment-read`,
+          `/${props.source.source === 'current' ? 'bob' : props.source.domain}/${props.source.entity}/attachment-read`,
         ) &&
         session.can(
           props.source.source === 'current'
-            ? '/bob/customer/get'
+            ? `/bob/${props.source.entity}/get`
             : props.source.domain === 'bob'
-              ? '/bob/customer/versions'
-              : '/dcl/customer/submission-get',
+              ? `/bob/${props.source.entity}/versions`
+              : `/dcl/${props.source.entity}/submission-get`,
         )),
 )
 async function add(value: File | readonly File[] | null) {
@@ -136,8 +137,9 @@ async function download(file: Attachment) {
             submissionId: props.source.submissionId,
             fileId: file.id,
           }
-    const result = await readTargetCustomerAttachment(
+    const result = await readTargetArchiveAttachment(
       session.csrfToken,
+      props.source.entity,
       input,
       props.source.source === 'current' ? 'bob' : props.source.domain,
     )
@@ -161,8 +163,7 @@ async function download(file: Attachment) {
       error.value =
         cause instanceof TargetApiError
           ? ({
-              customer_attachment_not_found: '附件不存在或不属于此版本。',
-              customer_attachment_invalid_content: '附件内容校验失败。',
+              ...archiveAttachmentErrorPresentation,
               forbidden: '当前账号没有附件读取权限。',
             }[cause.errorKey] ?? '附件读取失败。')
           : cause instanceof Error

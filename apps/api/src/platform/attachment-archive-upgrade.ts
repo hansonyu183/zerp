@@ -27,21 +27,30 @@ const supportedLayouts = new Map([
     '31d4b78de026505f0f82ee084111eb6e2efae90da766fba78464da1df5886a9c',
   ],
 ])
-const currentLayouts = new Set([
+const expandedLayouts = new Set([
   ...supportedLayouts.values(),
   '51e064dde203f60c83c9591f87438abac34ccd04cd2061c2c6e60533ab41d8a3',
   '21dad8f0614ad17645fdc7f72aaf61a72ec66d6a68a48ebf68bd97d8ff138045',
+])
+
+const currentLayouts = new Set([
+  '20cbb5abae595e39cd0ad0ec39f7bdf969e78f53bed00962592c50f0be38c248',
+  // Proven complete layout after pg_dump/pg_restore of the prior release.
+  '1c5f1670cccde8b7b15623c4e6fe6465d97359783d7d7822ae4d26e4934948f7',
+  // Proven paired recovery of that upgraded layout, including the entity check.
+  '858896f5e09713a94b60a7c74814800e55040eda89b83528e40c1d6de1f9d2c1',
 ])
 
 async function snapshot(db: Executor) {
   const tables = await publicTableNames(db)
   const shape = await publicSchemaLayout(db, tables)
   const shapeDigest = digest(shape)
-  const layout = supportedLayouts.has(shapeDigest)
-    ? 'SOURCE'
-    : currentLayouts.has(shapeDigest)
-      ? 'CURRENT'
-      : 'UNSUPPORTED'
+  const layout =
+    supportedLayouts.has(shapeDigest) || expandedLayouts.has(shapeDigest)
+      ? 'SOURCE'
+      : currentLayouts.has(shapeDigest)
+        ? 'CURRENT'
+        : 'UNSUPPORTED'
   const facts: Record<string, string[]> = {}
   if (layout !== 'UNSUPPORTED') {
     for (const table of tables) {
@@ -85,6 +94,90 @@ export async function expandAttachmentArchiveConstraints(tx: Transaction<DB>) {
   )
 }
 
+/** Preserves permanent Customer storage identities; no unknown staging binding is invented. */
+export async function generalizeArchiveAttachments(tx: Transaction<DB>) {
+  const pending = await sql<{
+    count: string
+  }>`SELECT count(*)::text AS count FROM dcl_customer_attachment_staging`.execute(
+    tx,
+  )
+  if (pending.rows[0]!.count !== '0')
+    throw new Error('attachment_archive_upgrade_unbound_staging')
+  for (const [oldName, newName] of [
+    ['dcl_customer_attachment_staging', 'dcl_archive_attachment_staging'],
+    ['dcl_customer_attachments', 'dcl_archive_attachments'],
+  ] as const) {
+    const names = await sql<{
+      name: string
+    }>`SELECT conname AS name FROM pg_constraint WHERE conrelid=${oldName}::regclass ORDER BY conname`.execute(
+      tx,
+    )
+    await sql`ALTER TABLE ${sql.table(oldName)} RENAME TO ${sql.id(newName)}`.execute(
+      tx,
+    )
+    for (const { name } of names.rows) {
+      if (!name.startsWith(oldName + '_'))
+        throw new Error('attachment_archive_upgrade_constraint_name_invalid')
+      await sql`ALTER TABLE ${sql.table(newName)} RENAME CONSTRAINT ${sql.id(name)} TO ${sql.id(newName + name.slice(oldName.length))}`.execute(
+        tx,
+      )
+    }
+  }
+  await sql`ALTER TABLE dcl_archive_attachment_staging ADD COLUMN entity varchar(16) NOT NULL CHECK (entity IN ('customer','product','supplier')), ADD COLUMN subject_id varchar(26) NOT NULL`.execute(
+    tx,
+  )
+  for (const table of ['dcl_product_versions', 'dcl_supplier_versions'])
+    await sql`ALTER TABLE ${sql.table(table)} ADD COLUMN attachments jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(attachments) = 'array')`.execute(
+      tx,
+    )
+  // The maintained release used these three reviewed names. Canonicalize the
+  // structure only; immutable quantities, prices and references are unchanged.
+  const renamed = await sql<{
+    present: boolean
+  }>`SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='vou_product_line_snapshots'::regclass AND conname='vou_product_line_pricing_shape') AS present`.execute(
+    tx,
+  )
+  if (renamed.rows[0]!.present) {
+    await sql`ALTER TABLE vou_product_line_snapshots RENAME CONSTRAINT vou_product_line_snapshots_check TO vou_product_line_snapshots_check1`.execute(
+      tx,
+    )
+    await sql`ALTER TABLE vou_product_line_snapshots RENAME CONSTRAINT vou_product_line_pricing_shape TO vou_product_line_snapshots_check`.execute(
+      tx,
+    )
+    await sql`ALTER TABLE vou_intermediary_source_line_snapshots RENAME CONSTRAINT vou_intermediary_source_line_snapshot_unit_price_minor_not_null TO vou_intermediary_source_line_snapsho_unit_price_micros_not_null`.execute(
+      tx,
+    )
+  }
+}
+
+async function expectedArchiveFacts(
+  tx: Transaction<DB>,
+  before: Awaited<ReturnType<typeof snapshot>>,
+) {
+  const expected: Record<string, string[]> = {}
+  for (const table of Object.keys(before.facts)) {
+    const targetName =
+      table === 'dcl_customer_attachment_staging'
+        ? 'dcl_archive_attachment_staging'
+        : table === 'dcl_customer_attachments'
+          ? 'dcl_archive_attachments'
+          : table
+    expected[targetName] =
+      table === 'dcl_product_versions' || table === 'dcl_supplier_versions'
+        ? (
+            await sql<{
+              fact: string
+            }>`SELECT (to_jsonb(fact) || '{"attachments":[]}'::jsonb)::text AS fact FROM ${sql.table(table)} fact ORDER BY (to_jsonb(fact) || '{"attachments":[]}'::jsonb)::text`.execute(
+              tx,
+            )
+          ).rows.map((row) => row.fact)
+        : before.facts[table]!
+  }
+  return Object.fromEntries(
+    Object.entries(expected).sort(([a], [b]) => a.localeCompare(b)),
+  )
+}
+
 export async function upgradeAttachmentArchive(
   db: Kysely<DB>,
   input: {
@@ -118,20 +211,22 @@ export async function upgradeAttachmentArchive(
       )
     if (!operator.rows.length)
       throw new Error('attachment_archive_upgrade_operator_required')
-    await expandAttachmentArchiveConstraints(tx)
+    const expectedFacts = await expectedArchiveFacts(tx, before)
+    if (supportedLayouts.has(before.shapeDigest))
+      await expandAttachmentArchiveConstraints(tx)
+    await generalizeArchiveAttachments(tx)
     const after = await snapshot(tx)
-    if (
-      after.layout !== 'CURRENT' ||
-      after.shapeDigest !== supportedLayouts.get(before.shapeDigest)
-    )
+    if (after.layout !== 'CURRENT')
       throw new Error('attachment_archive_upgrade_layout_mismatch')
-    if (digest(after.facts) !== digest(before.facts))
+    if (digest(after.facts) !== digest(expectedFacts))
       throw new Error('attachment_archive_upgrade_fact_mismatch')
     return {
       upgraded: true,
       baseline: input.baseline,
       afterBaseline: digest(after),
       originalFactsDigest: digest(before.facts),
+      expectedFactsDigest: digest(expectedFacts),
+      afterFactsDigest: digest(after.facts),
       originalPublicTables: Object.keys(before.facts).length,
       sourceReleaseSha: input.sourceReleaseSha,
       targetReleaseSha: input.targetReleaseSha,

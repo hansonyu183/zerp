@@ -4893,10 +4893,10 @@ export class VouService implements WflVouPort {
       for (const [index, line] of payload.signoffLines.entries())
         await sql`
           INSERT INTO vou_signoff_line_snapshots (
-            approval_entry_id, line_no, source_line_id, signed_quantity_micros, rejected_quantity_micros, prior_lost_quantity_micros, remark
+            approval_entry_id, line_no, source_line_id, signed_quantity_micros, rejected_quantity_micros, prior_lost_quantity_micros, prior_amount_minor, remark
           ) VALUES (
             ${approvalEntryId}, ${index + 1}, ${line.sourceLineId},
-            ${decimalToFixed(line.signedBaseQuantity, 6)!}, ${decimalToFixed(line.rejectedBaseQuantity, 6)!}, ${line.lostBaseQuantity === undefined ? null : decimalToFixed(line.lostBaseQuantity, 6)!}, ${line.remark ?? null}
+            ${decimalToFixed(line.signedBaseQuantity, 6)!}, ${decimalToFixed(line.rejectedBaseQuantity, 6)!}, ${line.lostBaseQuantity === undefined ? null : decimalToFixed(line.lostBaseQuantity, 6)!}, ${line.priorAmount === undefined ? null : decimalToFixed(line.priorAmount, 2)!}, ${line.remark ?? null}
           )
         `.execute(transaction)
     if ('returnLines' in payload)
@@ -6273,6 +6273,7 @@ export class VouService implements WflVouPort {
         signed_quantity_micros: string
         rejected_quantity_micros: string
         prior_lost_quantity_micros: string | null
+        prior_amount_minor: string | null
         remark: string | null
       }>('vou_signoff_line_snapshots')
       return {
@@ -6292,6 +6293,9 @@ export class VouService implements WflVouPort {
           ...(line.prior_lost_quantity_micros === null
             ? {}
             : { lostBaseQuantity: fixed(line.prior_lost_quantity_micros, 6) }),
+          ...(line.prior_amount_minor === null
+            ? {}
+            : { priorAmount: fixed(line.prior_amount_minor, 2) }),
           ...(line.remark ? { remark: line.remark } : {}),
         })),
       } as unknown as VouPayload

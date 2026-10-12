@@ -210,9 +210,19 @@ async function readInvoiceAmounts(
         )
         if (!product)
           throw new VouApplicationError('vou_invoice_source_unavailable')
-        const amount = money(
-          lineAmount(units(line.signedBaseQuantity, 6), product),
-        )
+        // Historical actual amounts are facts, never reconstructed from today's
+        // or the original order quote. Missing old facts are not invoice candidates.
+        if (payload.priorFact && line.priorAmount === undefined) continue
+        const pricing: OrderAmountBasis = payload.priorFact
+          ? {
+              ...product,
+              agreedAmount: line.priorAmount!,
+              baseQuantity: line.signedBaseQuantity,
+            }
+          : product
+        const amount = payload.priorFact
+          ? line.priorAmount!
+          : money(lineAmount(units(line.signedBaseQuantity, 6), product))
         facts.push({
           sourceDocumentId: meta.subject_id,
           sourceApprovalEntryId: meta.id,
@@ -223,7 +233,7 @@ async function readInvoiceAmounts(
           operatingEntityId: order.operatingEntity.objectId,
           currency: doc.payload.currency,
           unitPrice: product.unitPrice,
-          pricing: product,
+          pricing,
           amount,
           availableAmount: amount,
         })

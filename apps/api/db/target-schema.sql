@@ -1420,6 +1420,7 @@ CREATE TABLE vou_signoff_line_snapshots (
     signed_quantity_micros bigint NOT NULL,
     rejected_quantity_micros bigint NOT NULL,
     prior_lost_quantity_micros bigint CHECK (prior_lost_quantity_micros >= 0),
+    prior_amount_minor bigint,
     remark text,
     PRIMARY KEY (approval_entry_id, line_no)
 );

@@ -103044,6 +103044,10 @@
                                                     "type": "string",
                                                     "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                                   },
+                                                  "priorAmount": {
+                                                    "type": "string",
+                                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                                                  },
                                                   "remark": {
                                                     "type": "string",
                                                     "maxLength": 1000
@@ -110422,6 +110426,10 @@
                                           "lostBaseQuantity": {
                                             "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           },
                                           "remark": {
                                             "type": "string",
@@ -133318,6 +133326,10 @@
                                   "type": "string",
                                   "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                 },
+                                "priorAmount": {
+                                  "type": "string",
+                                  "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                                },
                                 "remark": {
                                   "type": "string",
                                   "maxLength": 1000
@@ -155916,6 +155928,10 @@
                                           "lostBaseQuantity": {
                                             "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           },
                                           "remark": {
                                             "type": "string",
@@ -178577,6 +178593,10 @@
                                   "type": "string",
                                   "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                 },
+                                "priorAmount": {
+                                  "type": "string",
+                                  "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                                },
                                 "remark": {
                                   "type": "string",
                                   "maxLength": 1000
@@ -201175,6 +201195,10 @@
                                           "lostBaseQuantity": {
                                             "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           },
                                           "remark": {
                                             "type": "string",
@@ -223979,6 +224003,10 @@
                                           "lostBaseQuantity": {
                                             "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           },
                                           "remark": {
                                             "type": "string",
@@ -246790,6 +246818,10 @@
                                             "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                           },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
+                                          },
                                           "remark": {
                                             "type": "string",
                                             "maxLength": 1000
@@ -269593,6 +269625,10 @@
                                           "lostBaseQuantity": {
                                             "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           },
                                           "remark": {
                                             "type": "string",
@@ -292403,6 +292439,10 @@
                                           "lostBaseQuantity": {
                                             "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "priorAmount": {
+                                            "type": "string",
+                                            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$"
                                           },
                                           "remark": {
                                             "type": "string",

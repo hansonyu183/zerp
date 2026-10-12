@@ -687,6 +687,7 @@ export interface VouPayloadShapes {
       signedBaseQuantity: string
       rejectedBaseQuantity: string
       lostBaseQuantity?: string
+      priorAmount?: string
       remark?: string
     }[]
   }
@@ -1364,9 +1365,13 @@ function canonicalPayload<Entity extends VouEntity>(
     if (
       signoff.signoffLines.some(
         (line) =>
-          line.lostBaseQuantity !== undefined &&
-          (!signoff.priorFact ||
-            !/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(line.lostBaseQuantity)),
+          (signoff.priorFact
+            ? line.priorAmount === undefined ||
+              !/^-?(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(line.priorAmount)
+            : line.priorAmount !== undefined) ||
+          (line.lostBaseQuantity !== undefined &&
+            (!signoff.priorFact ||
+              !/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(line.lostBaseQuantity))),
       )
     )
       return undefined
@@ -2229,6 +2234,7 @@ export const vouLineFieldDescriptors: Readonly<
     { key: 'amount', required: true },
   ],
   signoff: [
+    { key: 'priorAmount', required: false },
     { key: 'sourceLineId', required: true },
     { key: 'signedBaseQuantity', required: true },
     { key: 'rejectedBaseQuantity', required: true },
@@ -2495,6 +2501,7 @@ const decimalFields = new Set([
   'baseQuantity',
   'unitPrice',
   'agreedAmount',
+  'priorAmount',
   'settlementSurcharge',
   'purchaseUnitPrice',
   'quantityPerContainer',

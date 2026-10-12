@@ -382,20 +382,29 @@ test('ordinary users preserve a prior outbound as a distinct component of the sa
   })
 })
 
-for (const { knownLoss, negative, baOutbound = false } of [
+for (const { knownLoss, negative, baOutbound = false, actualAmount } of [
   { knownLoss: true, negative: false },
   { knownLoss: false, negative: false },
   { knownLoss: true, negative: true },
   { knownLoss: true, negative: false, baOutbound: true },
+  {
+    knownLoss: true,
+    negative: false,
+    baOutbound: true,
+    actualAmount: '12882.00',
+  },
+  { knownLoss: true, negative: false, baOutbound: true, actualAmount: '0.00' },
 ])
   test(
-    baOutbound
-      ? 'prior BA outbound and signoff preserve distinct components of one actual physical source'
-      : negative
-        ? 'closed prior negative sales chain preserves original signs without new stock or accounting effects'
-        : knownLoss
-          ? 'prior partial signoff preserves forty unresolved units without inventing a delivery or loss'
-          : 'unknown prior loss remains null and does not become proven transit',
+    actualAmount !== undefined
+      ? `prior signed actual amount ${actualAmount} remains the invoice basis without replaying effects`
+      : baOutbound
+        ? 'prior BA outbound and signoff preserve distinct components of one actual physical source'
+        : negative
+          ? 'closed prior negative sales chain preserves original signs without new stock or accounting effects'
+          : knownLoss
+            ? 'prior partial signoff preserves forty unresolved units without inventing a delivery or loss'
+            : 'unknown prior loss remains null and does not become proven transit',
     async () => {
       await withCommittedPurchaseDatabase(async (db) => {
         const f = await seedStockFixture(
@@ -614,6 +623,7 @@ for (const { knownLoss, negative, baOutbound = false } of [
                 {
                   sourceLineId: input.payload.productLines[0]!.lineId,
                   signedBaseQuantity: negative ? '-10' : '60',
+                  priorAmount: actualAmount ?? (negative ? '-10.00' : '60.00'),
                   rejectedBaseQuantity: '0',
                   ...(knownLoss ? { lostBaseQuantity: '0' } : {}),
                 },
@@ -654,6 +664,46 @@ for (const { knownLoss, negative, baOutbound = false } of [
           })
           assert.equal(signoffRead.code, 0, JSON.stringify(signoffRead))
           assert.deepEqual(signoffRead.data.payload.priorFact, signoffFact)
+          assert.equal(
+            signoffRead.data.payload.signoffLines[0].priorAmount,
+            actualAmount ?? (negative ? '-10.00' : '60.00'),
+          )
+          if (actualAmount !== undefined) {
+            const sources = await post(
+              `/vou/sale-invoice/invoice-sources?objectId=${f.salePayload.customer.objectId}&operatingEntityId=${f.salePayload.operatingEntity.objectId}&businessDate=2026-09-06&currency=CNY`,
+              {},
+              'GET',
+            )
+            assert.equal(sources.code, 0, JSON.stringify(sources))
+            const source = sources.data.items.find(
+              (item: { sourceDocumentId: string }) =>
+                item.sourceDocumentId === signoffId,
+            )
+            if (actualAmount === '0.00') assert.equal(source, undefined)
+            else {
+              assert.equal(source?.amount, actualAmount)
+              assert.equal(source?.availableAmount, actualAmount)
+            }
+            const facts = await (
+              await import('../../src/vou/invoice.ts')
+            ).invoiceSources(db, 'sale-invoice', '2026-09-06')
+            const actual = facts.find(
+              (item) => item.sourceDocumentId === signoffId,
+            )
+            assert.equal(actual?.amount, actualAmount)
+            assert.equal(actual?.availableAmount, actualAmount)
+            for (const table of [
+              'acc_journal_entries',
+              'acc_inventory_entries',
+            ] as const) {
+              const count = await db
+                .selectFrom(table)
+                .select((eb) => eb.fn.countAll<string>().as('count'))
+                .executeTakeFirstOrThrow()
+              assert.equal(count.count, '0')
+            }
+          }
+
           assert.equal(signoffRead.data.payload.parentEntity, 'sale-outbound')
           assert.equal(
             signoffRead.data.payload.signoffLines[0].signedBaseQuantity,
@@ -1047,6 +1097,7 @@ test('after opening ordinary delivery and signoff continue only forty without re
               {
                 sourceLineId: input.payload.productLines[0]!.lineId,
                 signedBaseQuantity: '60',
+                priorAmount: '60.00',
                 rejectedBaseQuantity: '0',
                 ...(knownLoss ? { lostBaseQuantity: '0' } : {}),
               },

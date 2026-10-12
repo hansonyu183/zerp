@@ -1755,6 +1755,7 @@ export interface VouServiceLineSnapshots {
 export interface VouSignoffLineSnapshots {
   approval_entry_id: string
   line_no: number
+  prior_amount_minor: Int8 | null
   prior_lost_quantity_micros: Int8 | null
   rejected_quantity_micros: Int8
   remark: string | null

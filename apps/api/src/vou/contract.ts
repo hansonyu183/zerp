@@ -316,6 +316,7 @@ const signoffLine = z
     signedBaseQuantity: quantity,
     rejectedBaseQuantity: quantity,
     lostBaseQuantity: quantity.optional(),
+    priorAmount: money.optional(),
     remark: z.string().max(1000).optional(),
   })
   .strict()

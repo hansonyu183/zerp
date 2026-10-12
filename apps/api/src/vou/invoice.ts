@@ -138,7 +138,9 @@ const money = (value: bigint) => {
   return `${sign}${digits.slice(0, -2)}.${digits.slice(-2)}`
 }
 const lineAmount = (quantity: bigint, pricing: OrderAmountBasis) =>
-  orderLineAmountMinor(pricing, intermediaryDecimal(quantity, 6), 'HALF_UP')
+  quantity === 0n
+    ? 0n
+    : orderLineAmountMinor(pricing, intermediaryDecimal(quantity, 6), 'HALF_UP')
 const sourceKey = (documentId: string, lineId: string) =>
   `${documentId}:${lineId}`
 export async function lockInvoiceAmounts(tx: Transaction<DB>) {

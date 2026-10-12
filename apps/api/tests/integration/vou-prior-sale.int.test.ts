@@ -554,7 +554,7 @@ test('ordinary users preserve a prior outbound as a distinct component of the sa
 for (const { knownLoss, negative, baOutbound = false, actualAmount } of [
   { knownLoss: true, negative: false },
   { knownLoss: false, negative: false },
-  { knownLoss: true, negative: true },
+  { knownLoss: true, negative: true, actualAmount: '-10.00' },
   { knownLoss: true, negative: false, baOutbound: true },
   {
     knownLoss: true,
@@ -565,12 +565,12 @@ for (const { knownLoss, negative, baOutbound = false, actualAmount } of [
   { knownLoss: true, negative: false, baOutbound: true, actualAmount: '0.00' },
 ])
   test(
-    actualAmount !== undefined
-      ? `prior signed actual amount ${actualAmount} remains the invoice basis without replaying effects`
-      : baOutbound
-        ? 'prior BA outbound and signoff preserve distinct components of one actual physical source'
-        : negative
-          ? 'closed prior negative sales chain preserves original signs without new stock or accounting effects'
+    negative
+      ? 'closed prior negative sales chain preserves original signs without new stock or accounting effects'
+      : actualAmount !== undefined
+        ? `prior signed actual amount ${actualAmount} remains the invoice basis without replaying effects`
+        : baOutbound
+          ? 'prior BA outbound and signoff preserve distinct components of one actual physical source'
           : knownLoss
             ? 'prior partial signoff preserves forty unresolved units without inventing a delivery or loss'
             : 'unknown prior loss remains null and does not become proven transit',
@@ -848,7 +848,8 @@ for (const { knownLoss, negative, baOutbound = false, actualAmount } of [
               (item: { sourceDocumentId: string }) =>
                 item.sourceDocumentId === signoffId,
             )
-            if (actualAmount === '0.00') assert.equal(source, undefined)
+            if (BigInt(actualAmount.replace('.', '')) <= 0n)
+              assert.equal(source, undefined)
             else {
               assert.equal(source?.amount, actualAmount)
               assert.equal(source?.availableAmount, actualAmount)

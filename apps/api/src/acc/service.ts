@@ -1955,7 +1955,10 @@ export class AccService
   /** Formal database seed; all book facts commit together and are never reset on restart. */
   async initializeInternalBook(
     administratorUsernames: readonly string[],
+    startMonth = '2026-01',
   ): Promise<'created' | 'unchanged'> {
+    if (!/^\d{4}-(?:0[1-9]|1[0-2])$/.test(startMonth))
+      throw new Error('internal book seed start month invalid')
     return this.db.transaction().execute(async (tx) => {
       await sql`SELECT pg_advisory_xact_lock(hashtextextended('acc:book-code', 0))`.execute(
         tx,
@@ -1964,8 +1967,15 @@ export class AccService
         .selectFrom('acc_books')
         .select('id')
         .where('id', '=', internalBookId)
+        .select('start_month')
         .executeTakeFirst()
-      if (existing) return 'unchanged'
+      if (existing) {
+        if (existing.start_month !== startMonth)
+          throw new Error(
+            'internal book seed start month differs from retained book',
+          )
+        return 'unchanged'
+      }
       if (await tx.selectFrom('acc_books').select('id').executeTakeFirst())
         throw new Error('internal book seed requires an empty book baseline')
       const usernames = administratorUsernames.map((value) =>
@@ -2002,7 +2012,7 @@ export class AccService
           id: internalBookId,
           name: '内账',
           description: '参考财务资料导入模板初始化的内部会计账簿',
-          startMonth: '2026-01',
+          startMonth,
           baseCurrency: 'CNY',
           subjectTemplate: 'EMPTY',
           queryUserIds: ids,

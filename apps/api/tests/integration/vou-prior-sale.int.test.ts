@@ -236,11 +236,17 @@ test('ordinary users preserve a prior outbound as a distinct component of the sa
   })
 })
 
-for (const knownLoss of [true, false])
+for (const { knownLoss, negative } of [
+  { knownLoss: true, negative: false },
+  { knownLoss: false, negative: false },
+  { knownLoss: true, negative: true },
+])
   test(
-    knownLoss
-      ? 'prior partial signoff preserves forty unresolved units without inventing a delivery or loss'
-      : 'unknown prior loss remains null and does not become proven transit',
+    negative
+      ? 'closed prior negative sales chain preserves original signs without new stock or accounting effects'
+      : knownLoss
+        ? 'prior partial signoff preserves forty unresolved units without inventing a delivery or loss'
+        : 'unknown prior loss remains null and does not become proven transit',
     async () => {
       await withCommittedPurchaseDatabase(async (db) => {
         const f = await seedStockFixture(
@@ -295,7 +301,7 @@ for (const knownLoss of [true, false])
           const documentId = ulid(),
             submissionId = ulid()
           const fact = {
-            sourceClosed: false,
+            sourceClosed: negative,
             sourceInstanceId: 'synthetic-prior-sales',
             sourceSchema: 'synthetic',
             sourceDocumentType: 'BB',
@@ -316,8 +322,8 @@ for (const knownLoss of [true, false])
                 {
                   ...f.salePayload.productLines[0]!,
                   lineId: ulid(),
-                  enteredQuantity: '100',
-                  baseQuantity: '100',
+                  enteredQuantity: negative ? '-10' : '100',
+                  baseQuantity: negative ? '-10' : '100',
                 },
               ],
             },
@@ -337,7 +343,7 @@ for (const knownLoss of [true, false])
           assert.deepEqual(read.data.payload.priorFact, fact)
           assert.equal(
             read.data.payload.productLines[0].baseQuantity,
-            '100.000000',
+            negative ? '-10.000000' : '100.000000',
           )
           const outboundId = ulid(),
             outboundSubmission = ulid()
@@ -356,10 +362,36 @@ for (const knownLoss of [true, false])
               sourceLines: [
                 {
                   sourceLineId: input.payload.productLines[0]!.lineId,
-                  baseQuantity: '100',
+                  baseQuantity: negative ? '-10' : '100',
                 },
               ],
             },
+          }
+          if (negative) {
+            for (const quantity of ['10', '-9']) {
+              const invalidId = ulid(),
+                invalidSubmissionId = ulid()
+              const invalid = await post('/vou/sale-outbound/submit-new', {
+                ...outboundInput,
+                documentId: invalidId,
+                submissionId: invalidSubmissionId,
+                idempotencyKey: invalidSubmissionId,
+                payload: {
+                  ...outboundInput.payload,
+                  sourceLines: [
+                    {
+                      ...outboundInput.payload.sourceLines[0]!,
+                      baseQuantity: quantity,
+                    },
+                  ],
+                },
+              })
+              assert.notEqual(
+                invalid.code,
+                0,
+                'a closed negative original cannot acquire an opposite or partial outbound',
+              )
+            }
           }
           const dispatched = await post(
             '/vou/sale-outbound/submit-new',
@@ -383,13 +415,14 @@ for (const knownLoss of [true, false])
           assert.deepEqual(outboundRead.data.payload.priorFact, fact)
           assert.equal(
             outboundRead.data.payload.sourceLines[0].baseQuantity,
-            '100.000000',
+            negative ? '-10.000000' : '100.000000',
           )
           assert.equal(outboundRead.data.payload.parentDocumentId, documentId)
           const signoffId = ulid(),
             signoffSubmission = ulid()
           const signoffFact = {
             ...fact,
+            sourceClosed: false,
             sourceDocumentType: 'BA',
             sourceDocumentKey: 'signed-60',
             sourceDocumentNo: 'SYNTHETIC-BA-60',
@@ -414,7 +447,7 @@ for (const knownLoss of [true, false])
               signoffLines: [
                 {
                   sourceLineId: input.payload.productLines[0]!.lineId,
-                  signedBaseQuantity: '60',
+                  signedBaseQuantity: negative ? '-10' : '60',
                   rejectedBaseQuantity: '0',
                   ...(knownLoss ? { lostBaseQuantity: '0' } : {}),
                 },
@@ -436,7 +469,7 @@ for (const knownLoss of [true, false])
           assert.equal(signoffRead.data.payload.parentEntity, 'sale-outbound')
           assert.equal(
             signoffRead.data.payload.signoffLines[0].signedBaseQuantity,
-            '60.000000',
+            negative ? '-10.000000' : '60.000000',
           )
           assert.equal(
             signoffRead.data.payload.signoffLines[0].lostBaseQuantity,
@@ -445,18 +478,41 @@ for (const knownLoss of [true, false])
           assert.deepEqual(signoffRead.data.priorSaleDisposition, [
             {
               sourceLineId: input.payload.productLines[0]!.lineId,
-              dispatchedBaseQuantity: '100.000000',
-              signedBaseQuantity: '60.000000',
+              dispatchedBaseQuantity: negative ? '-10.000000' : '100.000000',
+              signedBaseQuantity: negative ? '-10.000000' : '60.000000',
               rejectedBaseQuantity: '0.000000',
               lostBaseQuantity: knownLoss ? '0.000000' : null,
-              unresolvedBaseQuantity: '40.000000',
-              inTransitBaseQuantity: knownLoss ? '40.000000' : null,
+              unresolvedBaseQuantity: negative ? '0.000000' : '40.000000',
+              inTransitBaseQuantity: knownLoss
+                ? negative
+                  ? '0.000000'
+                  : '40.000000'
+                : null,
             },
           ])
           const orderRead = await post('/vou/sale-order/get', { documentId })
           assert.deepEqual(orderRead.data, approved.data)
           const opening = await f.openings.getOpening(f.book.id, f.actor)
           assert.equal(opening.approval.status, 'PENDING')
+          if (negative) {
+            const rootSource = await post(
+              `/vou/sale-order/prior-sale-continuation?documentId=${documentId}&businessDate=2026-09-06`,
+              {},
+              'GET',
+            )
+            assert.equal(rootSource.code, 0, JSON.stringify(rootSource))
+            assert.equal(rootSource.data, null)
+            for (const table of [
+              'acc_journal_entries',
+              'acc_inventory_entries',
+            ] as const) {
+              const count = await db
+                .selectFrom(table)
+                .select((eb) => eb.fn.countAll<string>().as('count'))
+                .executeTakeFirstOrThrow()
+              assert.equal(count.count, '0')
+            }
+          }
         } finally {
           await post('/session/auth/signout', {})
           await review('/session/auth/signout', {})

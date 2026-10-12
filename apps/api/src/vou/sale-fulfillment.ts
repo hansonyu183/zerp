@@ -242,21 +242,43 @@ export async function validateSaleFulfillment(
               ? [line.lostBaseQuantity]
               : []),
           ]
-    if (values.some((value) => !/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(value)))
+    if (values.some((value) => !/^-?(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(value)))
       throw new VouApplicationError('vou_invalid_payload')
+    if (seen.has(line.sourceLineId))
+      throw new VouApplicationError('vou_invalid_payload')
+    seen.add(line.sourceLineId)
     const requested = values.reduce(
       (sum, value) => sum + decimalToFixed(value, 6)!,
       0n,
     )
-    if (
-      (entity !== 'sale-signoff' && requested <= 0n) ||
-      seen.has(line.sourceLineId)
-    )
-      throw new VouApplicationError('vou_invalid_payload')
-    seen.add(line.sourceLineId)
     const available = quantities.get(line.sourceLineId)
     if (available === undefined)
       throw new VouApplicationError('vou_source_line_unavailable')
+    if (available < 0n) {
+      // A closed, exactly paired negative original is a historical fact, not a
+      // new return, positive shipment or partial negative fulfillment.
+      const root = priorFact(payload)
+        ? await readApprovedSaleOrderSource(tx, entity, payload)
+        : undefined
+      if (
+        !root?.fact?.sourceClosed ||
+        requested !== available ||
+        (used.get(line.sourceLineId) ?? 0n) !== 0n ||
+        (entity !== 'sale-outbound' && entity !== 'sale-signoff') ||
+        ('signedBaseQuantity' in line &&
+          (decimalToFixed(line.signedBaseQuantity, 6) !== available ||
+            decimalToFixed(line.rejectedBaseQuantity, 6) !== 0n ||
+            (line.lostBaseQuantity !== undefined &&
+              decimalToFixed(line.lostBaseQuantity, 6) !== 0n)))
+      )
+        throw new VouApplicationError('vou_invalid_payload')
+      continue
+    }
+    if (
+      values.some((value) => decimalToFixed(value, 6)! < 0n) ||
+      (entity !== 'sale-signoff' && requested <= 0n)
+    )
+      throw new VouApplicationError('vou_invalid_payload')
     if (requested + (used.get(line.sourceLineId) ?? 0n) > available)
       throw new VouApplicationError('vou_source_line_quantity_exceeded')
     if (entity === 'sale-delivery' && requested !== available)
@@ -455,8 +477,8 @@ export async function readPriorSaleDisposition(
     parent.rows.map((row) => [row.source_line_id, BigInt(row.quantity)]),
   )
   const quantity = (value: bigint) => {
-    const digits = value.toString().padStart(7, '0')
-    return `${digits.slice(0, -6)}.${digits.slice(-6)}`
+    const digits = (value < 0n ? -value : value).toString().padStart(7, '0')
+    return `${value < 0n ? '-' : ''}${digits.slice(0, -6)}.${digits.slice(-6)}`
   }
   return payload.signoffLines.map((line) => {
     const dispatched = quantities.get(line.sourceLineId)
@@ -469,7 +491,7 @@ export async function readPriorSaleDisposition(
           ? null
           : decimalToFixed(line.lostBaseQuantity, 6)!
     const unresolved = dispatched - signed - rejected - (lost ?? 0n)
-    if (unresolved < 0n)
+    if (dispatched < 0n ? unresolved !== 0n : unresolved < 0n)
       throw new VouApplicationError('vou_source_line_quantity_exceeded')
     return {
       sourceLineId: line.sourceLineId,

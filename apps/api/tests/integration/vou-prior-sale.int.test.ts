@@ -236,17 +236,20 @@ test('ordinary users preserve a prior outbound as a distinct component of the sa
   })
 })
 
-for (const { knownLoss, negative } of [
+for (const { knownLoss, negative, baOutbound = false } of [
   { knownLoss: true, negative: false },
   { knownLoss: false, negative: false },
   { knownLoss: true, negative: true },
+  { knownLoss: true, negative: false, baOutbound: true },
 ])
   test(
-    negative
-      ? 'closed prior negative sales chain preserves original signs without new stock or accounting effects'
-      : knownLoss
-        ? 'prior partial signoff preserves forty unresolved units without inventing a delivery or loss'
-        : 'unknown prior loss remains null and does not become proven transit',
+    baOutbound
+      ? 'prior BA outbound and signoff preserve distinct components of one actual physical source'
+      : negative
+        ? 'closed prior negative sales chain preserves original signs without new stock or accounting effects'
+        : knownLoss
+          ? 'prior partial signoff preserves forty unresolved units without inventing a delivery or loss'
+          : 'unknown prior loss remains null and does not become proven transit',
     async () => {
       await withCommittedPurchaseDatabase(async (db) => {
         const f = await seedStockFixture(
@@ -356,7 +359,14 @@ for (const { knownLoss, negative } of [
               businessDate: '2026-09-04',
               currency: 'CNY',
               attachments: [],
-              priorFact: fact,
+              priorFact: baOutbound
+                ? {
+                    ...fact,
+                    sourceDocumentType: 'BA',
+                    sourceDocumentKey: 'signed-60',
+                    sourceDocumentNo: 'SYNTHETIC-BA-60',
+                  }
+                : fact,
               parentEntity: 'sale-order',
               parentDocumentId: documentId,
               sourceLines: [
@@ -412,7 +422,17 @@ for (const { knownLoss, negative } of [
             documentId: outboundId,
           })
           assert.equal(outboundRead.code, 0, JSON.stringify(outboundRead))
-          assert.deepEqual(outboundRead.data.payload.priorFact, fact)
+          assert.deepEqual(
+            outboundRead.data.payload.priorFact,
+            baOutbound
+              ? {
+                  ...fact,
+                  sourceDocumentType: 'BA',
+                  sourceDocumentKey: 'signed-60',
+                  sourceDocumentNo: 'SYNTHETIC-BA-60',
+                }
+              : fact,
+          )
           assert.equal(
             outboundRead.data.payload.sourceLines[0].baseQuantity,
             negative ? '-10.000000' : '100.000000',
@@ -427,7 +447,7 @@ for (const { knownLoss, negative } of [
             sourceDocumentKey: 'signed-60',
             sourceDocumentNo: 'SYNTHETIC-BA-60',
           }
-          const signed = await post('/vou/sale-signoff/submit-new', {
+          const signoffInput = {
             documentId: signoffId,
             submissionId: signoffSubmission,
             idempotencyKey: signoffSubmission,
@@ -453,7 +473,29 @@ for (const { knownLoss, negative } of [
                 },
               ],
             },
-          })
+          }
+          if (baOutbound) {
+            const invalidSubmission = ulid()
+            const unrelated = await post('/vou/sale-signoff/submit-new', {
+              ...signoffInput,
+              documentId: ulid(),
+              submissionId: invalidSubmission,
+              idempotencyKey: invalidSubmission,
+              payload: {
+                ...signoffInput.payload,
+                priorFact: { ...signoffFact, sourceDocumentKey: 'another-BA' },
+              },
+            })
+            assert.equal(
+              unrelated.errorKey,
+              'vou_prior_fact_invalid',
+              JSON.stringify(unrelated),
+            )
+          }
+          const signed = await post(
+            '/vou/sale-signoff/submit-new',
+            signoffInput,
+          )
           assert.equal(signed.code, 0, JSON.stringify(signed))
           const signoffApproved = await review('/vou/sale-signoff/approve', {
             documentId: signoffId,

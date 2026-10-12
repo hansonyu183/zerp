@@ -204,7 +204,14 @@ export async function validatePriorFact(
       .where('status', '=', 'APPROVED')
       .executeTakeFirst()
     const parentFact = parent ? await readPriorFact(tx, parent.id) : undefined
-    if (!parentFact || !sameCapture(fact, parentFact))
+    if (
+      !parentFact ||
+      !sameCapture(fact, parentFact) ||
+      (parentFact.sourceDocumentType === 'BA' &&
+        (parentFact.sourceDocumentKey !== fact.sourceDocumentKey ||
+          parentFact.sourceDocumentNo !== fact.sourceDocumentNo ||
+          parentFact.sourceClosed !== fact.sourceClosed))
+    )
       throw new VouApplicationError('vou_prior_fact_invalid')
     return
   }
@@ -223,10 +230,11 @@ export async function validatePriorFact(
     if (
       !parentFact ||
       !sameCapture(fact, parentFact) ||
-      parentFact.sourceDocumentType !== fact.sourceDocumentType ||
-      parentFact.sourceDocumentKey !== fact.sourceDocumentKey ||
-      parentFact.sourceDocumentNo !== fact.sourceDocumentNo ||
-      parentFact.sourceClosed !== fact.sourceClosed
+      parentFact.sourceDocumentType !== 'BB' ||
+      (fact.sourceDocumentType === 'BB' &&
+        (parentFact.sourceDocumentKey !== fact.sourceDocumentKey ||
+          parentFact.sourceDocumentNo !== fact.sourceDocumentNo ||
+          parentFact.sourceClosed !== fact.sourceClosed))
     )
       throw new VouApplicationError('vou_prior_fact_invalid')
     return

@@ -409,7 +409,7 @@ export interface VouBillCashLineInput {
 
 export const vouPriorDocumentTypes = {
   'sale-order': ['BB'],
-  'sale-outbound': ['BB'],
+  'sale-outbound': ['BB', 'BA'],
   'sale-signoff': ['BA'],
   'purchase-order': ['AA', 'AD'],
   'purchase-inbound': ['AB', 'AH'],

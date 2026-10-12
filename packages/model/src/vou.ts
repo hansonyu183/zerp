@@ -505,6 +505,11 @@ type SourcePayload = VouPayloadBase & {
   sourceLines: readonly {
     sourceLineId: string
     priorAmount?: string
+    priorStockLines?: readonly {
+      sourceLineKey: string
+      product: VouObjectReferenceInput
+      quantity: VouProductQuantitySnapshotInput
+    }[]
     baseQuantity: string
     remark?: string
   }[]
@@ -1356,6 +1361,24 @@ function canonicalPayload<Entity extends VouEntity>(
           ? line.priorAmount === undefined ||
             !/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(line.priorAmount)
           : line.priorAmount !== undefined,
+      )
+    )
+      return undefined
+  }
+  if (
+    'sourceLines' in value &&
+    value.sourceLines.some((line) => line.priorStockLines !== undefined)
+  ) {
+    if (
+      entity !== 'sale-outbound' ||
+      !('priorFact' in value) ||
+      !value.priorFact ||
+      value.sourceLines.some(
+        (line) =>
+          line.priorStockLines !== undefined &&
+          (!line.priorStockLines.length ||
+            new Set(line.priorStockLines.map((row) => row.sourceLineKey))
+              .size !== line.priorStockLines.length),
       )
     )
       return undefined

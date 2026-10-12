@@ -1409,6 +1409,7 @@ CREATE TABLE vou_source_line_snapshots (
     source_line_id varchar(128) NOT NULL,
     base_quantity_micros bigint NOT NULL,
     prior_amount_minor bigint CHECK (prior_amount_minor >= 0),
+    prior_stock_lines jsonb,
     remark text,
     PRIMARY KEY (approval_entry_id, line_no)
 );

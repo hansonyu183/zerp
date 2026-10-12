@@ -1768,6 +1768,7 @@ export interface VouSourceLineSnapshots {
   base_quantity_micros: Int8
   line_no: number
   prior_amount_minor: Int8 | null
+  prior_stock_lines: Json | null
   remark: string | null
   source_line_id: string
 }

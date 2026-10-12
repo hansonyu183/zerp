@@ -1446,8 +1446,15 @@ export class VouService implements WflVouPort {
       )
     if (historical) {
       await assertPriorFactEditable(tx)
-      if (action === 'approve' || action === 'unreject')
+      if (action === 'approve' || action === 'unreject') {
         await validatePriorFact(tx, entity, input.documentId, persistedPayload)
+        const blockers = await this.validatePriorSaleStockLines(
+          tx,
+          persistedPayload,
+        )
+        if (blockers.length)
+          throw new VouApplicationError('vou_reference_unavailable', blockers)
+      }
     }
     if (
       (action === 'approve' || action === 'unreject') &&
@@ -3918,6 +3925,7 @@ export class VouService implements WflVouPort {
           })
       }
     blockers.push(
+      ...(await this.validatePriorSaleStockLines(transaction, payload)),
       ...(await this.validateProductMeasurementUnits(transaction, payload)),
     )
     if ('paymentMethod' in payload)
@@ -3984,6 +3992,93 @@ export class VouService implements WflVouPort {
         objectId: selected?.objectId ?? expected?.objectId ?? '',
         approvalEntryId: null,
       })
+    return blockers
+  }
+
+  private async validatePriorSaleStockLines(
+    tx: Transaction<DB>,
+    payload: VouPayload,
+  ): Promise<VouReferenceBlocker[]> {
+    if (
+      !('sourceLines' in payload) ||
+      !payload.sourceLines.some((line) => line.priorStockLines !== undefined)
+    )
+      return []
+    if (
+      !priorFact(payload) ||
+      payload.parentEntity !== 'sale-order' ||
+      !payload.parentDocumentId
+    )
+      throw new VouApplicationError('vou_invalid_payload')
+    const parent = await tx
+      .selectFrom('approval_entries')
+      .select('id')
+      .where('subject_id', '=', payload.parentDocumentId)
+      .where('entity', '=', 'sale-order')
+      .where('status', '=', 'APPROVED')
+      .executeTakeFirst()
+    if (!parent) throw new VouApplicationError('vou_source_line_unavailable')
+    const order = (await this.readPayload(
+      tx,
+      'sale-order',
+      parent.id,
+    )) as VouPayloadFor<'sale-order'>
+    const blockers: VouReferenceBlocker[] = []
+    const sourceKeys = new Set<string>()
+    for (const [index, line] of payload.sourceLines.entries()) {
+      const original = order.productLines.find(
+        (row) => row.lineId === line.sourceLineId,
+      )
+      if (!original)
+        throw new VouApplicationError('vou_source_line_unavailable')
+      const materials = new Set(
+        original.formula?.components.map((row) => row.material.objectId) ?? [
+          original.product.objectId,
+        ],
+      )
+      for (const [stockIndex, stock] of (
+        line.priorStockLines ?? []
+      ).entries()) {
+        if (
+          sourceKeys.has(stock.sourceLineKey) ||
+          !materials.has(stock.product.objectId)
+        )
+          throw new VouApplicationError('vou_source_line_unavailable')
+        sourceKeys.add(stock.sourceLineKey)
+        const product = await this.quantityProduct(tx, stock.product.objectId)
+        const conversion = product.unit_conversions.find((row) =>
+          matchesProductUnitSnapshot(row.unit, stock.quantity.enteredUnit),
+        )
+        if (
+          !['RAW_MATERIAL', 'PACKAGING'].includes(product.behavior_profile) ||
+          !conversion
+        ) {
+          blockers.push({
+            kind: 'REFERENCE',
+            field: `sourceLines[${index}].priorStockLines[${stockIndex}]`,
+            entity: 'product',
+            objectId: stock.product.objectId,
+            approvalEntryId: null,
+          })
+          continue
+        }
+        const entered = decimalToFixed(stock.quantity.enteredQuantity, 6),
+          base = decimalToFixed(stock.quantity.baseQuantity, 6),
+          factor = decimalToFixed(conversion.factor ?? undefined, 18),
+          dispatched = decimalToFixed(line.baseQuantity, 6)
+        if (
+          entered === null ||
+          base === null ||
+          factor === null ||
+          factor <= 0n ||
+          !dispatched ||
+          !base ||
+          base > 0n !== dispatched > 0n ||
+          entered * factor !== base * 10n ** 18n
+        )
+          throw new VouApplicationError('vou_invalid_payload')
+      }
+    }
     return blockers
   }
 
@@ -5138,14 +5233,15 @@ export class VouService implements WflVouPort {
     lines: readonly {
       sourceLineId: string
       priorAmount?: string
+      priorStockLines?: VouPayloadFor<'sale-outbound'>['sourceLines'][number]['priorStockLines']
       baseQuantity: string
       remark?: string
     }[],
   ) {
     for (const [index, line] of lines.entries())
       await sql`
-        INSERT INTO vou_source_line_snapshots (approval_entry_id, line_no, source_line_id, base_quantity_micros, prior_amount_minor, remark)
-        VALUES (${approvalEntryId}, ${index + 1}, ${line.sourceLineId}, ${decimalToFixed(line.baseQuantity, 6)!}, ${line.priorAmount === undefined ? null : decimalToFixed(line.priorAmount, 2)!}, ${line.remark ?? null})
+        INSERT INTO vou_source_line_snapshots (approval_entry_id, line_no, source_line_id, base_quantity_micros, prior_amount_minor, prior_stock_lines, remark)
+        VALUES (${approvalEntryId}, ${index + 1}, ${line.sourceLineId}, ${decimalToFixed(line.baseQuantity, 6)!}, ${line.priorAmount === undefined ? null : decimalToFixed(line.priorAmount, 2)!}, ${line.priorStockLines === undefined ? null : JSON.stringify(line.priorStockLines)}::jsonb, ${line.remark ?? null})
       `.execute(transaction)
   }
 
@@ -6225,6 +6321,9 @@ export class VouService implements WflVouPort {
       const sourceLines = await rows<{
         source_line_id: string
         prior_amount_minor: string | null
+        prior_stock_lines:
+          | VouPayloadFor<'sale-outbound'>['sourceLines'][number]['priorStockLines']
+          | null
         base_quantity_micros: string
         remark: string | null
       }>('vou_source_line_snapshots')
@@ -6245,6 +6344,9 @@ export class VouService implements WflVouPort {
         sourceLines: sourceLines.map((line) => ({
           sourceLineId: line.source_line_id,
           baseQuantity: fixed(line.base_quantity_micros, 6),
+          ...(line.prior_stock_lines !== null
+            ? { priorStockLines: line.prior_stock_lines }
+            : {}),
           ...(line.prior_amount_minor !== null
             ? { priorAmount: fixed(line.prior_amount_minor, 2) }
             : {}),

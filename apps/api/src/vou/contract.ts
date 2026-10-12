@@ -653,7 +653,28 @@ export const vouPayloadSchemaByEntity = {
   }),
   'sale-outbound': payload({
     priorFact: priorFact.optional(),
-    sourceLines: z.array(sourceLine).min(1).max(200),
+    sourceLines: z
+      .array(
+        sourceLine
+          .extend({
+            priorStockLines: z
+              .array(
+                z
+                  .object({
+                    sourceLineKey: z.string().min(1).max(128),
+                    product: objectReference,
+                    quantity: productQuantitySnapshot,
+                  })
+                  .strict(),
+              )
+              .min(1)
+              .max(200)
+              .optional(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(200),
   }),
   'sale-delivery': payload({
     sourceLines: z.array(sourceLine).min(1).max(200),

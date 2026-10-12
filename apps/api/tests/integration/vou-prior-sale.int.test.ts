@@ -89,150 +89,319 @@ test('ordinary users adopt a prior sales order with original quantities and stab
   })
 })
 
-test('prior original formula quantities preserve four decimals through normal unit snapshots and storage', async () => {
-  await withCommittedPurchaseDatabase(async (db) => {
-    const f = await seedStockFixture(
-      db,
-      '2026-09',
-      { quantity: '100', amount: '100.00' },
-      false,
-    )
-    let vou!: VouService
-    const port: WflVouPort = {
-      createChild: (...args) => vou.createChild(...args),
-      approveChild: (...args) => vou.approveChild(...args),
-      rejectChild: (...args) => vou.rejectChild(...args),
-      retryChild: (...args) => vou.retryChild(...args),
-      cancelChild: (...args) => vou.cancelChild(...args),
-    }
-    const wfl = new WflService(db, await createNodeWflStarlark(), port)
-    vou = new VouService(db, { acc: f.acc, wfl })
-    const { post, review } = await purchaseClients(db, f, undefined, {
-      vou,
-      wfl,
-      acc: f.acc,
-    })
-    try {
-      const documentId = ulid(),
-        submissionId = ulid()
-      const fact = {
-        sourceClosed: false,
-        sourceInstanceId: 'synthetic-prior-sales',
-        sourceSchema: 'synthetic',
-        sourceDocumentType: 'BB',
-        sourceDocumentKey: 'sale-order-100',
-        sourceDocumentNo: 'SYNTHETIC-BB-100',
-        capturedAt: '2026-09-05T12:00:00.123456Z',
-        snapshotDigest: 'a'.repeat(64),
-      }
-      const input = {
-        documentId,
-        submissionId,
-        idempotencyKey: submissionId,
-        expectedRevision: null,
-        payload: {
-          ...f.salePayload,
-          priorFact: fact,
-          productLines: [
-            {
-              ...f.salePayload.productLines[0]!,
-              lineId: ulid(),
-              enteredQuantity: '105',
-              baseQuantity: '105',
-              formula: {
-                sourceType: 'MANUAL',
-                output: {
+for (const actualStock of [false, true])
+  test(
+    actualStock
+      ? 'prior BA actual stock quantities preserve precision separately from the adopted order'
+      : 'prior original formula quantities preserve four decimals through normal unit snapshots and storage',
+    async () => {
+      await withCommittedPurchaseDatabase(async (db) => {
+        const f = await seedStockFixture(
+          db,
+          '2026-09',
+          { quantity: '100', amount: '100.00' },
+          false,
+        )
+        let vou!: VouService
+        const port: WflVouPort = {
+          createChild: (...args) => vou.createChild(...args),
+          approveChild: (...args) => vou.approveChild(...args),
+          rejectChild: (...args) => vou.rejectChild(...args),
+          retryChild: (...args) => vou.retryChild(...args),
+          cancelChild: (...args) => vou.cancelChild(...args),
+        }
+        const wfl = new WflService(db, await createNodeWflStarlark(), port)
+        vou = new VouService(db, { acc: f.acc, wfl })
+        let users = { submitter: f.submitter, reviewer: f.reviewer }
+        if (actualStock) {
+          const bootstrap = new (
+            await import('../../src/app/bootstrap.ts')
+          ).TargetBootstrapService(db)
+          const paths = ['sale-order', 'sale-outbound'].flatMap((entity) =>
+            ['submit-new', 'approve', 'get'].map(
+              (action) => `/vou/${entity}/${action}`,
+            ),
+          )
+          const password = `Stock!Aa1${ulid()}`,
+            passwordHash = await (
+              await import('../../src/app/session.ts')
+            ).hashPassword(password)
+          const make = async () => {
+            const user = {
+              userId: ulid(),
+              roleId: ulid(),
+              username: `prior-stock-${ulid()}`,
+              password,
+              passwordHash,
+            }
+            await bootstrap.createE2EPrincipal(user, false, paths)
+            return user
+          }
+          users = { submitter: await make(), reviewer: await make() }
+        }
+        const { post, review } = await purchaseClients(
+          db,
+          { ...f, ...users },
+          undefined,
+          {
+            vou,
+            wfl,
+            acc: f.acc,
+          },
+        )
+        try {
+          const documentId = ulid(),
+            submissionId = ulid()
+          const fact = {
+            sourceClosed: false,
+            sourceInstanceId: 'synthetic-prior-sales',
+            sourceSchema: 'synthetic',
+            sourceDocumentType: 'BB',
+            sourceDocumentKey: 'sale-order-100',
+            sourceDocumentNo: 'SYNTHETIC-BB-100',
+            capturedAt: '2026-09-05T12:00:00.123456Z',
+            snapshotDigest: 'a'.repeat(64),
+          }
+          const input = {
+            documentId,
+            submissionId,
+            idempotencyKey: submissionId,
+            expectedRevision: null,
+            payload: {
+              ...f.salePayload,
+              priorFact: fact,
+              productLines: [
+                {
+                  ...f.salePayload.productLines[0]!,
+                  lineId: ulid(),
                   enteredQuantity: '105',
-                  enteredUnit: f.references.unitSnapshot,
                   baseQuantity: '105',
-                },
-                components: [
-                  {
-                    material: { objectId: f.rawId },
-                    quantity: {
-                      enteredQuantity: '100.0001',
+                  formula: {
+                    sourceType: 'MANUAL',
+                    output: {
+                      enteredQuantity: '105',
                       enteredUnit: f.references.unitSnapshot,
-                      baseQuantity: '100.0001',
+                      baseQuantity: '105',
                     },
+                    components: [
+                      {
+                        material: { objectId: f.rawId },
+                        quantity: {
+                          enteredQuantity: actualStock ? '100' : '100.0001',
+                          enteredUnit: f.references.unitSnapshot,
+                          baseQuantity: actualStock ? '100' : '100.0001',
+                        },
+                      },
+                      {
+                        material: { objectId: f.rawId },
+                        quantity: {
+                          enteredQuantity: actualStock ? '5' : '4.9999',
+                          enteredUnit: f.references.unitSnapshot,
+                          baseQuantity: actualStock ? '5' : '4.9999',
+                        },
+                      },
+                    ],
                   },
+                },
+              ],
+            },
+          }
+          if (!actualStock) {
+            const ordinaryId = ulid(),
+              ordinarySubmission = ulid()
+            const { priorFact: _fact, ...ordinaryPayload } = input.payload
+            const ordinary = await post('/vou/sale-order/submit-new', {
+              ...input,
+              documentId: ordinaryId,
+              submissionId: ordinarySubmission,
+              idempotencyKey: ordinarySubmission,
+              payload: ordinaryPayload,
+            })
+            if (!actualStock)
+              assert.equal(
+                ordinary.errorKey,
+                'vou_invalid_payload',
+                JSON.stringify(ordinary),
+              )
+          }
+          const submitted = await post('/vou/sale-order/submit-new', input)
+          assert.equal(submitted.code, 0, JSON.stringify(submitted))
+          const repeat = await post('/vou/sale-order/submit-new', input)
+          assert.deepEqual(repeat.data, submitted.data)
+          const approved = await review('/vou/sale-order/approve', {
+            documentId,
+            submissionId,
+            expectedRevision: submitted.data.revision,
+          })
+          assert.equal(approved.code, 0, JSON.stringify(approved))
+          const read = await post('/vou/sale-order/get', { documentId })
+          assert.equal(read.code, 0, JSON.stringify(read))
+          assert.deepEqual(read.data.payload.priorFact, fact)
+          assert.equal(
+            read.data.payload.productLines[0].baseQuantity,
+            '105.000000',
+          )
+          const formula = read.data.payload.productLines[0].formula
+          assert.equal(
+            formula.components[0].quantity.enteredQuantity,
+            actualStock ? '100.000000' : '100.000100',
+          )
+          assert.equal(
+            formula.components[0].quantity.baseQuantity,
+            actualStock ? '100.000000' : '100.000100',
+          )
+          assert.equal(
+            formula.components[1].quantity.enteredQuantity,
+            actualStock ? '5.000000' : '4.999900',
+          )
+          assert.equal(
+            formula.components[1].quantity.baseQuantity,
+            actualStock ? '5.000000' : '4.999900',
+          )
+          assert.deepEqual(
+            formula.components.map((row: any) => row.quantity.enteredUnit),
+            [f.references.unitSnapshot, f.references.unitSnapshot],
+          )
+          assert.equal(
+            productionSuggestedQuantity(
+              formula.components[0].quantity.baseQuantity,
+              formula.output.baseQuantity,
+              '21',
+              '0',
+            ),
+            actualStock ? '20.000000' : '20.000020',
+          )
+          assert.equal(
+            productionSuggestedQuantity(
+              formula.components[1].quantity.baseQuantity,
+              formula.output.baseQuantity,
+              '21',
+              '0',
+            ),
+            actualStock ? '1.000000' : '0.999980',
+          )
+          if (actualStock) {
+            const stockLines = ['100.0001', '4.9999'].map(
+              (quantity, index) => ({
+                sourceLineKey: String(index + 2),
+                product: { objectId: f.rawId },
+                quantity: {
+                  enteredQuantity: quantity,
+                  baseQuantity: quantity,
+                  enteredUnit: f.references.unitSnapshot,
+                },
+              }),
+            )
+            const outboundId = ulid(),
+              outboundSubmission = ulid()
+            const outbound = {
+              documentId: outboundId,
+              submissionId: outboundSubmission,
+              idempotencyKey: outboundSubmission,
+              expectedRevision: null,
+              payload: {
+                businessDate: '2026-09-04',
+                currency: 'CNY',
+                attachments: [],
+                priorFact: {
+                  ...fact,
+                  sourceDocumentType: 'BA',
+                  sourceDocumentKey: 'ba-actual',
+                  sourceDocumentNo: 'SYNTHETIC-BA',
+                },
+                parentEntity: 'sale-order',
+                parentDocumentId: documentId,
+                sourceLines: [
                   {
-                    material: { objectId: f.rawId },
-                    quantity: {
-                      enteredQuantity: '4.9999',
-                      enteredUnit: f.references.unitSnapshot,
-                      baseQuantity: '4.9999',
-                    },
+                    sourceLineId: input.payload.productLines[0]!.lineId,
+                    baseQuantity: '105',
+                    priorStockLines: stockLines,
                   },
                 ],
               },
-            },
-          ],
-        },
-      }
-      const ordinaryId = ulid(),
-        ordinarySubmission = ulid()
-      const { priorFact: _fact, ...ordinaryPayload } = input.payload
-      const ordinary = await post('/vou/sale-order/submit-new', {
-        ...input,
-        documentId: ordinaryId,
-        submissionId: ordinarySubmission,
-        idempotencyKey: ordinarySubmission,
-        payload: ordinaryPayload,
+            }
+            const { priorFact: _prior, ...ordinaryOutbound } = outbound.payload
+            const wrongId = ulid()
+            const ordinaryResult = await post('/vou/sale-outbound/submit-new', {
+              ...outbound,
+              documentId: ulid(),
+              submissionId: wrongId,
+              idempotencyKey: wrongId,
+              payload: ordinaryOutbound,
+            })
+            assert.equal(ordinaryResult.errorKey, 'vou_invalid_payload')
+            const wrongFactorId = ulid()
+            const invalid = await post('/vou/sale-outbound/submit-new', {
+              ...outbound,
+              documentId: ulid(),
+              submissionId: wrongFactorId,
+              idempotencyKey: wrongFactorId,
+              payload: {
+                ...outbound.payload,
+                sourceLines: [
+                  {
+                    ...outbound.payload.sourceLines[0],
+                    priorStockLines: [
+                      {
+                        ...stockLines[0]!,
+                        quantity: {
+                          ...stockLines[0]!.quantity,
+                          baseQuantity: '100',
+                        },
+                      },
+                    ],
+                  },
+                ],
+              },
+            })
+            assert.equal(invalid.errorKey, 'vou_invalid_payload')
+            const sent = await post('/vou/sale-outbound/submit-new', outbound)
+            assert.equal(sent.code, 0, JSON.stringify(sent))
+            const approvedOutbound = await review(
+              '/vou/sale-outbound/approve',
+              {
+                documentId: outboundId,
+                submissionId: outboundSubmission,
+                expectedRevision: sent.data.revision,
+              },
+            )
+            assert.equal(
+              approvedOutbound.code,
+              0,
+              JSON.stringify(approvedOutbound),
+            )
+            const actual = await post('/vou/sale-outbound/get', {
+              documentId: outboundId,
+            })
+            assert.equal(actual.code, 0, JSON.stringify(actual))
+            assert.deepEqual(
+              actual.data.payload.sourceLines[0].priorStockLines,
+              stockLines,
+            )
+            const retainedOrder = await post('/vou/sale-order/get', {
+              documentId,
+            })
+            assert.deepEqual(retainedOrder.data, read.data)
+            for (const table of [
+              'acc_journal_entries',
+              'acc_inventory_entries',
+            ] as const) {
+              const count = await db
+                .selectFrom(table)
+                .select((eb) => eb.fn.countAll<string>().as('count'))
+                .executeTakeFirstOrThrow()
+              assert.equal(count.count, '0')
+            }
+          }
+          const opening = await f.openings.getOpening(f.book.id, f.actor)
+          assert.equal(opening.approval.status, 'PENDING')
+        } finally {
+          await post('/session/auth/signout', {})
+          await review('/session/auth/signout', {})
+        }
       })
-      assert.equal(
-        ordinary.errorKey,
-        'vou_invalid_payload',
-        JSON.stringify(ordinary),
-      )
-      const submitted = await post('/vou/sale-order/submit-new', input)
-      assert.equal(submitted.code, 0, JSON.stringify(submitted))
-      const repeat = await post('/vou/sale-order/submit-new', input)
-      assert.deepEqual(repeat.data, submitted.data)
-      const approved = await review('/vou/sale-order/approve', {
-        documentId,
-        submissionId,
-        expectedRevision: submitted.data.revision,
-      })
-      assert.equal(approved.code, 0, JSON.stringify(approved))
-      const read = await post('/vou/sale-order/get', { documentId })
-      assert.equal(read.code, 0, JSON.stringify(read))
-      assert.deepEqual(read.data.payload.priorFact, fact)
-      assert.equal(read.data.payload.productLines[0].baseQuantity, '105.000000')
-      const formula = read.data.payload.productLines[0].formula
-      assert.equal(formula.components[0].quantity.enteredQuantity, '100.000100')
-      assert.equal(formula.components[0].quantity.baseQuantity, '100.000100')
-      assert.equal(formula.components[1].quantity.enteredQuantity, '4.999900')
-      assert.equal(formula.components[1].quantity.baseQuantity, '4.999900')
-      assert.deepEqual(
-        formula.components.map((row: any) => row.quantity.enteredUnit),
-        [f.references.unitSnapshot, f.references.unitSnapshot],
-      )
-      assert.equal(
-        productionSuggestedQuantity(
-          formula.components[0].quantity.baseQuantity,
-          formula.output.baseQuantity,
-          '21',
-          '0',
-        ),
-        '20.000020',
-      )
-      assert.equal(
-        productionSuggestedQuantity(
-          formula.components[1].quantity.baseQuantity,
-          formula.output.baseQuantity,
-          '21',
-          '0',
-        ),
-        '0.999980',
-      )
-      const opening = await f.openings.getOpening(f.book.id, f.actor)
-      assert.equal(opening.approval.status, 'PENDING')
-    } finally {
-      await post('/session/auth/signout', {})
-      await review('/session/auth/signout', {})
-    }
-  })
-})
+    },
+  )
 
 test('ordinary users preserve a prior outbound as a distinct component of the same original order', async () => {
   await withCommittedPurchaseDatabase(async (db) => {

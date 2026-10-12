@@ -102404,6 +102404,91 @@
                                                   "remark": {
                                                     "type": "string",
                                                     "maxLength": 1000
+                                                  },
+                                                  "priorStockLines": {
+                                                    "type": "array",
+                                                    "items": {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "sourceLineKey": {
+                                                          "type": "string",
+                                                          "minLength": 1,
+                                                          "maxLength": 128
+                                                        },
+                                                        "product": {
+                                                          "type": "object",
+                                                          "properties": {
+                                                            "objectId": {
+                                                              "type": "string",
+                                                              "minLength": 26,
+                                                              "maxLength": 26
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "objectId"
+                                                          ],
+                                                          "additionalProperties": false
+                                                        },
+                                                        "quantity": {
+                                                          "type": "object",
+                                                          "properties": {
+                                                            "enteredQuantity": {
+                                                              "type": "string",
+                                                              "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                                            },
+                                                            "enteredUnit": {
+                                                              "type": "object",
+                                                              "properties": {
+                                                                "objectId": {
+                                                                  "type": "string",
+                                                                  "minLength": 26,
+                                                                  "maxLength": 26
+                                                                },
+                                                                "code": {
+                                                                  "type": "string",
+                                                                  "minLength": 1,
+                                                                  "maxLength": 64
+                                                                },
+                                                                "name": {
+                                                                  "type": "string",
+                                                                  "minLength": 1,
+                                                                  "maxLength": 200
+                                                                },
+                                                                "fixedFactor": {
+                                                                  "type": "string",
+                                                                  "nullable": true
+                                                                }
+                                                              },
+                                                              "required": [
+                                                                "objectId",
+                                                                "code",
+                                                                "name",
+                                                                "fixedFactor"
+                                                              ],
+                                                              "additionalProperties": false
+                                                            },
+                                                            "baseQuantity": {
+                                                              "type": "string",
+                                                              "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "enteredQuantity",
+                                                            "enteredUnit",
+                                                            "baseQuantity"
+                                                          ],
+                                                          "additionalProperties": false
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "sourceLineKey",
+                                                        "product",
+                                                        "quantity"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    },
+                                                    "minItems": 1,
+                                                    "maxItems": 200
                                                   }
                                                 },
                                                 "required": [
@@ -109817,6 +109902,91 @@
                                           "remark": {
                                             "type": "string",
                                             "maxLength": 1000
+                                          },
+                                          "priorStockLines": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "object",
+                                              "properties": {
+                                                "sourceLineKey": {
+                                                  "type": "string",
+                                                  "minLength": 1,
+                                                  "maxLength": 128
+                                                },
+                                                "product": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "objectId": {
+                                                      "type": "string",
+                                                      "minLength": 26,
+                                                      "maxLength": 26
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "objectId"
+                                                  ],
+                                                  "additionalProperties": false
+                                                },
+                                                "quantity": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "enteredQuantity": {
+                                                      "type": "string",
+                                                      "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                                    },
+                                                    "enteredUnit": {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "objectId": {
+                                                          "type": "string",
+                                                          "minLength": 26,
+                                                          "maxLength": 26
+                                                        },
+                                                        "code": {
+                                                          "type": "string",
+                                                          "minLength": 1,
+                                                          "maxLength": 64
+                                                        },
+                                                        "name": {
+                                                          "type": "string",
+                                                          "minLength": 1,
+                                                          "maxLength": 200
+                                                        },
+                                                        "fixedFactor": {
+                                                          "type": "string",
+                                                          "nullable": true
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "objectId",
+                                                        "code",
+                                                        "name",
+                                                        "fixedFactor"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    },
+                                                    "baseQuantity": {
+                                                      "type": "string",
+                                                      "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "enteredQuantity",
+                                                    "enteredUnit",
+                                                    "baseQuantity"
+                                                  ],
+                                                  "additionalProperties": false
+                                                }
+                                              },
+                                              "required": [
+                                                "sourceLineKey",
+                                                "product",
+                                                "quantity"
+                                              ],
+                                              "additionalProperties": false
+                                            },
+                                            "minItems": 1,
+                                            "maxItems": 200
                                           }
                                         },
                                         "required": [
@@ -132716,6 +132886,91 @@
                                 "remark": {
                                   "type": "string",
                                   "maxLength": 1000
+                                },
+                                "priorStockLines": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "sourceLineKey": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 128
+                                      },
+                                      "product": {
+                                        "type": "object",
+                                        "properties": {
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          }
+                                        },
+                                        "required": [
+                                          "objectId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      "quantity": {
+                                        "type": "object",
+                                        "properties": {
+                                          "enteredQuantity": {
+                                            "type": "string",
+                                            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "enteredUnit": {
+                                            "type": "object",
+                                            "properties": {
+                                              "objectId": {
+                                                "type": "string",
+                                                "minLength": 26,
+                                                "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "fixedFactor": {
+                                                "type": "string",
+                                                "nullable": true
+                                              }
+                                            },
+                                            "required": [
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "fixedFactor"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          "baseQuantity": {
+                                            "type": "string",
+                                            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          }
+                                        },
+                                        "required": [
+                                          "enteredQuantity",
+                                          "enteredUnit",
+                                          "baseQuantity"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    },
+                                    "required": [
+                                      "sourceLineKey",
+                                      "product",
+                                      "quantity"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "minItems": 1,
+                                  "maxItems": 200
                                 }
                               },
                               "required": [
@@ -155319,6 +155574,91 @@
                                           "remark": {
                                             "type": "string",
                                             "maxLength": 1000
+                                          },
+                                          "priorStockLines": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "object",
+                                              "properties": {
+                                                "sourceLineKey": {
+                                                  "type": "string",
+                                                  "minLength": 1,
+                                                  "maxLength": 128
+                                                },
+                                                "product": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "objectId": {
+                                                      "type": "string",
+                                                      "minLength": 26,
+                                                      "maxLength": 26
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "objectId"
+                                                  ],
+                                                  "additionalProperties": false
+                                                },
+                                                "quantity": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "enteredQuantity": {
+                                                      "type": "string",
+                                                      "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                                    },
+                                                    "enteredUnit": {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "objectId": {
+                                                          "type": "string",
+                                                          "minLength": 26,
+                                                          "maxLength": 26
+                                                        },
+                                                        "code": {
+                                                          "type": "string",
+                                                          "minLength": 1,
+                                                          "maxLength": 64
+                                                        },
+                                                        "name": {
+                                                          "type": "string",
+                                                          "minLength": 1,
+                                                          "maxLength": 200
+                                                        },
+                                                        "fixedFactor": {
+                                                          "type": "string",
+                                                          "nullable": true
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "objectId",
+                                                        "code",
+                                                        "name",
+                                                        "fixedFactor"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    },
+                                                    "baseQuantity": {
+                                                      "type": "string",
+                                                      "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "enteredQuantity",
+                                                    "enteredUnit",
+                                                    "baseQuantity"
+                                                  ],
+                                                  "additionalProperties": false
+                                                }
+                                              },
+                                              "required": [
+                                                "sourceLineKey",
+                                                "product",
+                                                "quantity"
+                                              ],
+                                              "additionalProperties": false
+                                            },
+                                            "minItems": 1,
+                                            "maxItems": 200
                                           }
                                         },
                                         "required": [
@@ -177983,6 +178323,91 @@
                                 "remark": {
                                   "type": "string",
                                   "maxLength": 1000
+                                },
+                                "priorStockLines": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "sourceLineKey": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 128
+                                      },
+                                      "product": {
+                                        "type": "object",
+                                        "properties": {
+                                          "objectId": {
+                                            "type": "string",
+                                            "minLength": 26,
+                                            "maxLength": 26
+                                          }
+                                        },
+                                        "required": [
+                                          "objectId"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      "quantity": {
+                                        "type": "object",
+                                        "properties": {
+                                          "enteredQuantity": {
+                                            "type": "string",
+                                            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "enteredUnit": {
+                                            "type": "object",
+                                            "properties": {
+                                              "objectId": {
+                                                "type": "string",
+                                                "minLength": 26,
+                                                "maxLength": 26
+                                              },
+                                              "code": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 64
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200
+                                              },
+                                              "fixedFactor": {
+                                                "type": "string",
+                                                "nullable": true
+                                              }
+                                            },
+                                            "required": [
+                                              "objectId",
+                                              "code",
+                                              "name",
+                                              "fixedFactor"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          "baseQuantity": {
+                                            "type": "string",
+                                            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          }
+                                        },
+                                        "required": [
+                                          "enteredQuantity",
+                                          "enteredUnit",
+                                          "baseQuantity"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    },
+                                    "required": [
+                                      "sourceLineKey",
+                                      "product",
+                                      "quantity"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "minItems": 1,
+                                  "maxItems": 200
                                 }
                               },
                               "required": [
@@ -200586,6 +201011,91 @@
                                           "remark": {
                                             "type": "string",
                                             "maxLength": 1000
+                                          },
+                                          "priorStockLines": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "object",
+                                              "properties": {
+                                                "sourceLineKey": {
+                                                  "type": "string",
+                                                  "minLength": 1,
+                                                  "maxLength": 128
+                                                },
+                                                "product": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "objectId": {
+                                                      "type": "string",
+                                                      "minLength": 26,
+                                                      "maxLength": 26
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "objectId"
+                                                  ],
+                                                  "additionalProperties": false
+                                                },
+                                                "quantity": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "enteredQuantity": {
+                                                      "type": "string",
+                                                      "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                                    },
+                                                    "enteredUnit": {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "objectId": {
+                                                          "type": "string",
+                                                          "minLength": 26,
+                                                          "maxLength": 26
+                                                        },
+                                                        "code": {
+                                                          "type": "string",
+                                                          "minLength": 1,
+                                                          "maxLength": 64
+                                                        },
+                                                        "name": {
+                                                          "type": "string",
+                                                          "minLength": 1,
+                                                          "maxLength": 200
+                                                        },
+                                                        "fixedFactor": {
+                                                          "type": "string",
+                                                          "nullable": true
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "objectId",
+                                                        "code",
+                                                        "name",
+                                                        "fixedFactor"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    },
+                                                    "baseQuantity": {
+                                                      "type": "string",
+                                                      "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "enteredQuantity",
+                                                    "enteredUnit",
+                                                    "baseQuantity"
+                                                  ],
+                                                  "additionalProperties": false
+                                                }
+                                              },
+                                              "required": [
+                                                "sourceLineKey",
+                                                "product",
+                                                "quantity"
+                                              ],
+                                              "additionalProperties": false
+                                            },
+                                            "minItems": 1,
+                                            "maxItems": 200
                                           }
                                         },
                                         "required": [
@@ -223394,6 +223904,91 @@
                                           "remark": {
                                             "type": "string",
                                             "maxLength": 1000
+                                          },
+                                          "priorStockLines": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "object",
+                                              "properties": {
+                                                "sourceLineKey": {
+                                                  "type": "string",
+                                                  "minLength": 1,
+                                                  "maxLength": 128
+                                                },
+                                                "product": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "objectId": {
+                                                      "type": "string",
+                                                      "minLength": 26,
+                                                      "maxLength": 26
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "objectId"
+                                                  ],
+                                                  "additionalProperties": false
+                                                },
+                                                "quantity": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "enteredQuantity": {
+                                                      "type": "string",
+                                                      "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                                    },
+                                                    "enteredUnit": {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "objectId": {
+                                                          "type": "string",
+                                                          "minLength": 26,
+                                                          "maxLength": 26
+                                                        },
+                                                        "code": {
+                                                          "type": "string",
+                                                          "minLength": 1,
+                                                          "maxLength": 64
+                                                        },
+                                                        "name": {
+                                                          "type": "string",
+                                                          "minLength": 1,
+                                                          "maxLength": 200
+                                                        },
+                                                        "fixedFactor": {
+                                                          "type": "string",
+                                                          "nullable": true
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "objectId",
+                                                        "code",
+                                                        "name",
+                                                        "fixedFactor"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    },
+                                                    "baseQuantity": {
+                                                      "type": "string",
+                                                      "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "enteredQuantity",
+                                                    "enteredUnit",
+                                                    "baseQuantity"
+                                                  ],
+                                                  "additionalProperties": false
+                                                }
+                                              },
+                                              "required": [
+                                                "sourceLineKey",
+                                                "product",
+                                                "quantity"
+                                              ],
+                                              "additionalProperties": false
+                                            },
+                                            "minItems": 1,
+                                            "maxItems": 200
                                           }
                                         },
                                         "required": [
@@ -246208,6 +246803,91 @@
                                           "remark": {
                                             "type": "string",
                                             "maxLength": 1000
+                                          },
+                                          "priorStockLines": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "object",
+                                              "properties": {
+                                                "sourceLineKey": {
+                                                  "type": "string",
+                                                  "minLength": 1,
+                                                  "maxLength": 128
+                                                },
+                                                "product": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "objectId": {
+                                                      "type": "string",
+                                                      "minLength": 26,
+                                                      "maxLength": 26
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "objectId"
+                                                  ],
+                                                  "additionalProperties": false
+                                                },
+                                                "quantity": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "enteredQuantity": {
+                                                      "type": "string",
+                                                      "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                                    },
+                                                    "enteredUnit": {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "objectId": {
+                                                          "type": "string",
+                                                          "minLength": 26,
+                                                          "maxLength": 26
+                                                        },
+                                                        "code": {
+                                                          "type": "string",
+                                                          "minLength": 1,
+                                                          "maxLength": 64
+                                                        },
+                                                        "name": {
+                                                          "type": "string",
+                                                          "minLength": 1,
+                                                          "maxLength": 200
+                                                        },
+                                                        "fixedFactor": {
+                                                          "type": "string",
+                                                          "nullable": true
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "objectId",
+                                                        "code",
+                                                        "name",
+                                                        "fixedFactor"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    },
+                                                    "baseQuantity": {
+                                                      "type": "string",
+                                                      "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "enteredQuantity",
+                                                    "enteredUnit",
+                                                    "baseQuantity"
+                                                  ],
+                                                  "additionalProperties": false
+                                                }
+                                              },
+                                              "required": [
+                                                "sourceLineKey",
+                                                "product",
+                                                "quantity"
+                                              ],
+                                              "additionalProperties": false
+                                            },
+                                            "minItems": 1,
+                                            "maxItems": 200
                                           }
                                         },
                                         "required": [
@@ -269016,6 +269696,91 @@
                                           "remark": {
                                             "type": "string",
                                             "maxLength": 1000
+                                          },
+                                          "priorStockLines": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "object",
+                                              "properties": {
+                                                "sourceLineKey": {
+                                                  "type": "string",
+                                                  "minLength": 1,
+                                                  "maxLength": 128
+                                                },
+                                                "product": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "objectId": {
+                                                      "type": "string",
+                                                      "minLength": 26,
+                                                      "maxLength": 26
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "objectId"
+                                                  ],
+                                                  "additionalProperties": false
+                                                },
+                                                "quantity": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "enteredQuantity": {
+                                                      "type": "string",
+                                                      "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                                    },
+                                                    "enteredUnit": {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "objectId": {
+                                                          "type": "string",
+                                                          "minLength": 26,
+                                                          "maxLength": 26
+                                                        },
+                                                        "code": {
+                                                          "type": "string",
+                                                          "minLength": 1,
+                                                          "maxLength": 64
+                                                        },
+                                                        "name": {
+                                                          "type": "string",
+                                                          "minLength": 1,
+                                                          "maxLength": 200
+                                                        },
+                                                        "fixedFactor": {
+                                                          "type": "string",
+                                                          "nullable": true
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "objectId",
+                                                        "code",
+                                                        "name",
+                                                        "fixedFactor"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    },
+                                                    "baseQuantity": {
+                                                      "type": "string",
+                                                      "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "enteredQuantity",
+                                                    "enteredUnit",
+                                                    "baseQuantity"
+                                                  ],
+                                                  "additionalProperties": false
+                                                }
+                                              },
+                                              "required": [
+                                                "sourceLineKey",
+                                                "product",
+                                                "quantity"
+                                              ],
+                                              "additionalProperties": false
+                                            },
+                                            "minItems": 1,
+                                            "maxItems": 200
                                           }
                                         },
                                         "required": [
@@ -291830,6 +292595,91 @@
                                           "remark": {
                                             "type": "string",
                                             "maxLength": 1000
+                                          },
+                                          "priorStockLines": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "object",
+                                              "properties": {
+                                                "sourceLineKey": {
+                                                  "type": "string",
+                                                  "minLength": 1,
+                                                  "maxLength": 128
+                                                },
+                                                "product": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "objectId": {
+                                                      "type": "string",
+                                                      "minLength": 26,
+                                                      "maxLength": 26
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "objectId"
+                                                  ],
+                                                  "additionalProperties": false
+                                                },
+                                                "quantity": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "enteredQuantity": {
+                                                      "type": "string",
+                                                      "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                                    },
+                                                    "enteredUnit": {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "objectId": {
+                                                          "type": "string",
+                                                          "minLength": 26,
+                                                          "maxLength": 26
+                                                        },
+                                                        "code": {
+                                                          "type": "string",
+                                                          "minLength": 1,
+                                                          "maxLength": 64
+                                                        },
+                                                        "name": {
+                                                          "type": "string",
+                                                          "minLength": 1,
+                                                          "maxLength": 200
+                                                        },
+                                                        "fixedFactor": {
+                                                          "type": "string",
+                                                          "nullable": true
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "objectId",
+                                                        "code",
+                                                        "name",
+                                                        "fixedFactor"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    },
+                                                    "baseQuantity": {
+                                                      "type": "string",
+                                                      "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "enteredQuantity",
+                                                    "enteredUnit",
+                                                    "baseQuantity"
+                                                  ],
+                                                  "additionalProperties": false
+                                                }
+                                              },
+                                              "required": [
+                                                "sourceLineKey",
+                                                "product",
+                                                "quantity"
+                                              ],
+                                              "additionalProperties": false
+                                            },
+                                            "minItems": 1,
+                                            "maxItems": 200
                                           }
                                         },
                                         "required": [

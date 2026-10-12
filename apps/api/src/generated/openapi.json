@@ -102135,6 +102135,1070 @@
         }
       }
     },
+    "/vou/{entity}/prior-sale-continuation": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "sale-order",
+                "sale-outbound",
+                "sale-delivery"
+              ]
+            },
+            "required": true,
+            "name": "entity",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 26,
+              "maxLength": 26
+            },
+            "required": true,
+            "name": "documentId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": true,
+            "name": "businessDate",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "VOU approved prior-sale continuation source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "enum": [
+                            ""
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "data": {
+                          "anyOf": [
+                            {
+                              "allOf": [
+                                {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "entity": {
+                                          "type": "string",
+                                          "enum": [
+                                            "sale-outbound"
+                                          ]
+                                        },
+                                        "payload": {
+                                          "type": "object",
+                                          "properties": {
+                                            "businessDate": {
+                                              "type": "string",
+                                              "format": "date"
+                                            },
+                                            "currency": {
+                                              "type": "string",
+                                              "pattern": "^[A-Z]{3}$"
+                                            },
+                                            "remark": {
+                                              "type": "string",
+                                              "maxLength": 1000
+                                            },
+                                            "attachments": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                  "id": {
+                                                    "type": "string",
+                                                    "minLength": 26,
+                                                    "maxLength": 26
+                                                  },
+                                                  "fileName": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "maxLength": 255
+                                                  },
+                                                  "contentType": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                      "application/pdf",
+                                                      "image/jpeg",
+                                                      "image/png",
+                                                      "application/octet-stream"
+                                                    ]
+                                                  },
+                                                  "sizeBytes": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 20971520
+                                                  },
+                                                  "sha256": {
+                                                    "type": "string",
+                                                    "pattern": "^[0-9a-f]{64}$"
+                                                  },
+                                                  "stagingId": {
+                                                    "type": "string",
+                                                    "minLength": 26,
+                                                    "maxLength": 26
+                                                  }
+                                                },
+                                                "required": [
+                                                  "id",
+                                                  "fileName",
+                                                  "contentType",
+                                                  "sizeBytes",
+                                                  "sha256",
+                                                  "stagingId"
+                                                ],
+                                                "additionalProperties": false
+                                              },
+                                              "maxItems": 20
+                                            },
+                                            "parentEntity": {
+                                              "type": "string",
+                                              "enum": [
+                                                "sale-invoice",
+                                                "purchase-invoice",
+                                                "sale-pricing",
+                                                "sale-order",
+                                                "sale-outbound",
+                                                "sale-delivery",
+                                                "sale-signoff",
+                                                "sale-return",
+                                                "purchase-order",
+                                                "purchase-inbound",
+                                                "purchase-return",
+                                                "purchase-inquiry",
+                                                "order-production",
+                                                "self-production",
+                                                "inventory-count",
+                                                "sales-receipt",
+                                                "purchase-refund",
+                                                "other-receipt",
+                                                "sales-refund",
+                                                "purchase-payment",
+                                                "other-payment",
+                                                "employee-loan",
+                                                "employee-repayment",
+                                                "employee-loan-writeoff",
+                                                "expense-reimbursement",
+                                                "expense-payment",
+                                                "other-income",
+                                                "asset-acquisition",
+                                                "asset-sale",
+                                                "asset-liquidation",
+                                                "bill-receipt",
+                                                "bill-payment",
+                                                "bill-issue",
+                                                "bill-discount",
+                                                "bill-maturity",
+                                                "intermediary-calculation",
+                                                "service-contract",
+                                                "service-acceptance"
+                                              ]
+                                            },
+                                            "parentDocumentId": {
+                                              "type": "string",
+                                              "minLength": 26,
+                                              "maxLength": 26
+                                            },
+                                            "priorFact": {
+                                              "type": "object",
+                                              "properties": {
+                                                "sourceClosed": {
+                                                  "type": "boolean"
+                                                },
+                                                "sourceInstanceId": {
+                                                  "type": "string",
+                                                  "minLength": 1,
+                                                  "maxLength": 128
+                                                },
+                                                "sourceSchema": {
+                                                  "type": "string",
+                                                  "minLength": 1,
+                                                  "maxLength": 64
+                                                },
+                                                "sourceDocumentType": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "AA",
+                                                    "AD",
+                                                    "AB",
+                                                    "AE",
+                                                    "AF",
+                                                    "AH",
+                                                    "BB",
+                                                    "BA"
+                                                  ]
+                                                },
+                                                "sourceDocumentKey": {
+                                                  "type": "string",
+                                                  "minLength": 1,
+                                                  "maxLength": 128
+                                                },
+                                                "sourceDocumentNo": {
+                                                  "type": "string",
+                                                  "minLength": 1,
+                                                  "maxLength": 200
+                                                },
+                                                "capturedAt": {
+                                                  "type": "string",
+                                                  "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                                                },
+                                                "snapshotDigest": {
+                                                  "type": "string",
+                                                  "pattern": "^[0-9a-f]{64}$"
+                                                }
+                                              },
+                                              "required": [
+                                                "sourceClosed",
+                                                "sourceInstanceId",
+                                                "sourceSchema",
+                                                "sourceDocumentType",
+                                                "sourceDocumentKey",
+                                                "sourceDocumentNo",
+                                                "capturedAt",
+                                                "snapshotDigest"
+                                              ],
+                                              "additionalProperties": false
+                                            },
+                                            "sourceLines": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                  "sourceLineId": {
+                                                    "type": "string",
+                                                    "minLength": 1
+                                                  },
+                                                  "baseQuantity": {
+                                                    "type": "string",
+                                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                                  },
+                                                  "remark": {
+                                                    "type": "string",
+                                                    "maxLength": 1000
+                                                  }
+                                                },
+                                                "required": [
+                                                  "sourceLineId",
+                                                  "baseQuantity"
+                                                ],
+                                                "additionalProperties": false
+                                              },
+                                              "minItems": 1,
+                                              "maxItems": 200
+                                            }
+                                          },
+                                          "required": [
+                                            "businessDate",
+                                            "currency",
+                                            "attachments",
+                                            "sourceLines"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "entity",
+                                        "payload"
+                                      ]
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "entity": {
+                                          "type": "string",
+                                          "enum": [
+                                            "sale-delivery"
+                                          ]
+                                        },
+                                        "payload": {
+                                          "type": "object",
+                                          "properties": {
+                                            "businessDate": {
+                                              "type": "string",
+                                              "format": "date"
+                                            },
+                                            "currency": {
+                                              "type": "string",
+                                              "pattern": "^[A-Z]{3}$"
+                                            },
+                                            "remark": {
+                                              "type": "string",
+                                              "maxLength": 1000
+                                            },
+                                            "attachments": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                  "id": {
+                                                    "type": "string",
+                                                    "minLength": 26,
+                                                    "maxLength": 26
+                                                  },
+                                                  "fileName": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "maxLength": 255
+                                                  },
+                                                  "contentType": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                      "application/pdf",
+                                                      "image/jpeg",
+                                                      "image/png",
+                                                      "application/octet-stream"
+                                                    ]
+                                                  },
+                                                  "sizeBytes": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 20971520
+                                                  },
+                                                  "sha256": {
+                                                    "type": "string",
+                                                    "pattern": "^[0-9a-f]{64}$"
+                                                  },
+                                                  "stagingId": {
+                                                    "type": "string",
+                                                    "minLength": 26,
+                                                    "maxLength": 26
+                                                  }
+                                                },
+                                                "required": [
+                                                  "id",
+                                                  "fileName",
+                                                  "contentType",
+                                                  "sizeBytes",
+                                                  "sha256",
+                                                  "stagingId"
+                                                ],
+                                                "additionalProperties": false
+                                              },
+                                              "maxItems": 20
+                                            },
+                                            "parentEntity": {
+                                              "type": "string",
+                                              "enum": [
+                                                "sale-invoice",
+                                                "purchase-invoice",
+                                                "sale-pricing",
+                                                "sale-order",
+                                                "sale-outbound",
+                                                "sale-delivery",
+                                                "sale-signoff",
+                                                "sale-return",
+                                                "purchase-order",
+                                                "purchase-inbound",
+                                                "purchase-return",
+                                                "purchase-inquiry",
+                                                "order-production",
+                                                "self-production",
+                                                "inventory-count",
+                                                "sales-receipt",
+                                                "purchase-refund",
+                                                "other-receipt",
+                                                "sales-refund",
+                                                "purchase-payment",
+                                                "other-payment",
+                                                "employee-loan",
+                                                "employee-repayment",
+                                                "employee-loan-writeoff",
+                                                "expense-reimbursement",
+                                                "expense-payment",
+                                                "other-income",
+                                                "asset-acquisition",
+                                                "asset-sale",
+                                                "asset-liquidation",
+                                                "bill-receipt",
+                                                "bill-payment",
+                                                "bill-issue",
+                                                "bill-discount",
+                                                "bill-maturity",
+                                                "intermediary-calculation",
+                                                "service-contract",
+                                                "service-acceptance"
+                                              ]
+                                            },
+                                            "parentDocumentId": {
+                                              "type": "string",
+                                              "minLength": 26,
+                                              "maxLength": 26
+                                            },
+                                            "sourceLines": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                  "sourceLineId": {
+                                                    "type": "string",
+                                                    "minLength": 1
+                                                  },
+                                                  "baseQuantity": {
+                                                    "type": "string",
+                                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                                  },
+                                                  "remark": {
+                                                    "type": "string",
+                                                    "maxLength": 1000
+                                                  }
+                                                },
+                                                "required": [
+                                                  "sourceLineId",
+                                                  "baseQuantity"
+                                                ],
+                                                "additionalProperties": false
+                                              },
+                                              "minItems": 1,
+                                              "maxItems": 200
+                                            },
+                                            "carrier": {
+                                              "type": "object",
+                                              "properties": {
+                                                "objectId": {
+                                                  "type": "string",
+                                                  "minLength": 26,
+                                                  "maxLength": 26
+                                                },
+                                                "approvalEntryId": {
+                                                  "type": "string",
+                                                  "minLength": 26,
+                                                  "maxLength": 26
+                                                },
+                                                "selectionOrigin": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "CURRENT",
+                                                    "HISTORICAL"
+                                                  ]
+                                                }
+                                              },
+                                              "required": [
+                                                "objectId",
+                                                "approvalEntryId",
+                                                "selectionOrigin"
+                                              ],
+                                              "additionalProperties": false
+                                            },
+                                            "vehicle": {
+                                              "type": "object",
+                                              "properties": {
+                                                "objectId": {
+                                                  "type": "string",
+                                                  "minLength": 26,
+                                                  "maxLength": 26
+                                                },
+                                                "code": {
+                                                  "type": "string"
+                                                },
+                                                "name": {
+                                                  "type": "string"
+                                                },
+                                                "snapshot": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "name": {
+                                                      "type": "string",
+                                                      "minLength": 1,
+                                                      "maxLength": 200
+                                                    },
+                                                    "plateNumber": {
+                                                      "type": "string",
+                                                      "minLength": 1,
+                                                      "maxLength": 64
+                                                    },
+                                                    "vehicleType": {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "id": {
+                                                          "type": "string",
+                                                          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                                                        },
+                                                        "code": {
+                                                          "type": "string",
+                                                          "minLength": 1,
+                                                          "maxLength": 64
+                                                        },
+                                                        "name": {
+                                                          "type": "string",
+                                                          "minLength": 1,
+                                                          "maxLength": 200
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "id",
+                                                        "code",
+                                                        "name"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    },
+                                                    "carrier": {
+                                                      "oneOf": [
+                                                        {
+                                                          "type": "object",
+                                                          "properties": {
+                                                            "kind": {
+                                                              "type": "string",
+                                                              "enum": [
+                                                                "INTERNAL"
+                                                              ]
+                                                            },
+                                                            "operatingEntityId": {
+                                                              "type": "string",
+                                                              "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                                                            },
+                                                            "code": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "name": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 200
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "kind",
+                                                            "operatingEntityId",
+                                                            "code",
+                                                            "name"
+                                                          ],
+                                                          "additionalProperties": false
+                                                        },
+                                                        {
+                                                          "type": "object",
+                                                          "properties": {
+                                                            "kind": {
+                                                              "type": "string",
+                                                              "enum": [
+                                                                "EXTERNAL"
+                                                              ]
+                                                            },
+                                                            "otherUnitId": {
+                                                              "type": "string",
+                                                              "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                                                            },
+                                                            "approvalEntryId": {
+                                                              "type": "string",
+                                                              "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                                                            },
+                                                            "code": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 64
+                                                            },
+                                                            "name": {
+                                                              "type": "string",
+                                                              "minLength": 1,
+                                                              "maxLength": 200
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "kind",
+                                                            "otherUnitId",
+                                                            "approvalEntryId",
+                                                            "code",
+                                                            "name"
+                                                          ],
+                                                          "additionalProperties": false
+                                                        }
+                                                      ]
+                                                    },
+                                                    "vin": {
+                                                      "type": "string",
+                                                      "maxLength": 64
+                                                    },
+                                                    "engineNumber": {
+                                                      "type": "string",
+                                                      "maxLength": 64
+                                                    },
+                                                    "ratedLoadKg": {
+                                                      "type": "number",
+                                                      "minimum": 0
+                                                    },
+                                                    "bulkWaterCarrier": {
+                                                      "type": "boolean"
+                                                    },
+                                                    "remark": {
+                                                      "type": "string",
+                                                      "maxLength": 1000
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "name",
+                                                    "plateNumber",
+                                                    "vehicleType",
+                                                    "carrier",
+                                                    "vin",
+                                                    "engineNumber",
+                                                    "ratedLoadKg",
+                                                    "bulkWaterCarrier",
+                                                    "remark"
+                                                  ],
+                                                  "additionalProperties": false
+                                                }
+                                              },
+                                              "required": [
+                                                "objectId"
+                                              ],
+                                              "additionalProperties": false
+                                            }
+                                          },
+                                          "required": [
+                                            "businessDate",
+                                            "currency",
+                                            "attachments",
+                                            "sourceLines"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "entity",
+                                        "payload"
+                                      ]
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "entity": {
+                                          "type": "string",
+                                          "enum": [
+                                            "sale-signoff"
+                                          ]
+                                        },
+                                        "payload": {
+                                          "type": "object",
+                                          "properties": {
+                                            "businessDate": {
+                                              "type": "string",
+                                              "format": "date"
+                                            },
+                                            "currency": {
+                                              "type": "string",
+                                              "pattern": "^[A-Z]{3}$"
+                                            },
+                                            "remark": {
+                                              "type": "string",
+                                              "maxLength": 1000
+                                            },
+                                            "attachments": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                  "id": {
+                                                    "type": "string",
+                                                    "minLength": 26,
+                                                    "maxLength": 26
+                                                  },
+                                                  "fileName": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "maxLength": 255
+                                                  },
+                                                  "contentType": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                      "application/pdf",
+                                                      "image/jpeg",
+                                                      "image/png",
+                                                      "application/octet-stream"
+                                                    ]
+                                                  },
+                                                  "sizeBytes": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 20971520
+                                                  },
+                                                  "sha256": {
+                                                    "type": "string",
+                                                    "pattern": "^[0-9a-f]{64}$"
+                                                  },
+                                                  "stagingId": {
+                                                    "type": "string",
+                                                    "minLength": 26,
+                                                    "maxLength": 26
+                                                  }
+                                                },
+                                                "required": [
+                                                  "id",
+                                                  "fileName",
+                                                  "contentType",
+                                                  "sizeBytes",
+                                                  "sha256",
+                                                  "stagingId"
+                                                ],
+                                                "additionalProperties": false
+                                              },
+                                              "maxItems": 20
+                                            },
+                                            "parentEntity": {
+                                              "type": "string",
+                                              "enum": [
+                                                "sale-invoice",
+                                                "purchase-invoice",
+                                                "sale-pricing",
+                                                "sale-order",
+                                                "sale-outbound",
+                                                "sale-delivery",
+                                                "sale-signoff",
+                                                "sale-return",
+                                                "purchase-order",
+                                                "purchase-inbound",
+                                                "purchase-return",
+                                                "purchase-inquiry",
+                                                "order-production",
+                                                "self-production",
+                                                "inventory-count",
+                                                "sales-receipt",
+                                                "purchase-refund",
+                                                "other-receipt",
+                                                "sales-refund",
+                                                "purchase-payment",
+                                                "other-payment",
+                                                "employee-loan",
+                                                "employee-repayment",
+                                                "employee-loan-writeoff",
+                                                "expense-reimbursement",
+                                                "expense-payment",
+                                                "other-income",
+                                                "asset-acquisition",
+                                                "asset-sale",
+                                                "asset-liquidation",
+                                                "bill-receipt",
+                                                "bill-payment",
+                                                "bill-issue",
+                                                "bill-discount",
+                                                "bill-maturity",
+                                                "intermediary-calculation",
+                                                "service-contract",
+                                                "service-acceptance"
+                                              ]
+                                            },
+                                            "parentDocumentId": {
+                                              "type": "string",
+                                              "minLength": 26,
+                                              "maxLength": 26
+                                            },
+                                            "priorFact": {
+                                              "type": "object",
+                                              "properties": {
+                                                "sourceClosed": {
+                                                  "type": "boolean"
+                                                },
+                                                "sourceInstanceId": {
+                                                  "type": "string",
+                                                  "minLength": 1,
+                                                  "maxLength": 128
+                                                },
+                                                "sourceSchema": {
+                                                  "type": "string",
+                                                  "minLength": 1,
+                                                  "maxLength": 64
+                                                },
+                                                "sourceDocumentType": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "AA",
+                                                    "AD",
+                                                    "AB",
+                                                    "AE",
+                                                    "AF",
+                                                    "AH",
+                                                    "BB",
+                                                    "BA"
+                                                  ]
+                                                },
+                                                "sourceDocumentKey": {
+                                                  "type": "string",
+                                                  "minLength": 1,
+                                                  "maxLength": 128
+                                                },
+                                                "sourceDocumentNo": {
+                                                  "type": "string",
+                                                  "minLength": 1,
+                                                  "maxLength": 200
+                                                },
+                                                "capturedAt": {
+                                                  "type": "string",
+                                                  "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                                                },
+                                                "snapshotDigest": {
+                                                  "type": "string",
+                                                  "pattern": "^[0-9a-f]{64}$"
+                                                }
+                                              },
+                                              "required": [
+                                                "sourceClosed",
+                                                "sourceInstanceId",
+                                                "sourceSchema",
+                                                "sourceDocumentType",
+                                                "sourceDocumentKey",
+                                                "sourceDocumentNo",
+                                                "capturedAt",
+                                                "snapshotDigest"
+                                              ],
+                                              "additionalProperties": false
+                                            },
+                                            "customer": {
+                                              "type": "object",
+                                              "properties": {
+                                                "objectId": {
+                                                  "type": "string",
+                                                  "minLength": 26,
+                                                  "maxLength": 26
+                                                },
+                                                "approvalEntryId": {
+                                                  "type": "string",
+                                                  "minLength": 26,
+                                                  "maxLength": 26
+                                                },
+                                                "selectionOrigin": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "CURRENT",
+                                                    "HISTORICAL"
+                                                  ]
+                                                }
+                                              },
+                                              "required": [
+                                                "objectId",
+                                                "approvalEntryId",
+                                                "selectionOrigin"
+                                              ],
+                                              "additionalProperties": false
+                                            },
+                                            "expectedSolventContainers": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 2147483647
+                                            },
+                                            "expectedResinContainers": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 2147483647
+                                            },
+                                            "returnedSolventContainers": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 2147483647
+                                            },
+                                            "returnedResinContainers": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 2147483647
+                                            },
+                                            "containerDifferenceReason": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 1000
+                                            },
+                                            "signoffLines": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                  "sourceLineId": {
+                                                    "type": "string",
+                                                    "minLength": 1
+                                                  },
+                                                  "signedBaseQuantity": {
+                                                    "type": "string",
+                                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                                  },
+                                                  "rejectedBaseQuantity": {
+                                                    "type": "string",
+                                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                                  },
+                                                  "lostBaseQuantity": {
+                                                    "type": "string",
+                                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                                  },
+                                                  "remark": {
+                                                    "type": "string",
+                                                    "maxLength": 1000
+                                                  }
+                                                },
+                                                "required": [
+                                                  "sourceLineId",
+                                                  "signedBaseQuantity",
+                                                  "rejectedBaseQuantity"
+                                                ],
+                                                "additionalProperties": false
+                                              },
+                                              "minItems": 1,
+                                              "maxItems": 200
+                                            }
+                                          },
+                                          "required": [
+                                            "businessDate",
+                                            "currency",
+                                            "attachments",
+                                            "customer",
+                                            "expectedSolventContainers",
+                                            "expectedResinContainers",
+                                            "returnedSolventContainers",
+                                            "returnedResinContainers",
+                                            "signoffLines"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "entity",
+                                        "payload"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "sourceEntity": {
+                                      "type": "string",
+                                      "enum": [
+                                        "sale-order",
+                                        "sale-outbound",
+                                        "sale-delivery"
+                                      ]
+                                    },
+                                    "sourceDocumentId": {
+                                      "type": "string",
+                                      "minLength": 26,
+                                      "maxLength": 26
+                                    },
+                                    "sourceDocumentNo": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    },
+                                    "customerName": {
+                                      "type": "string"
+                                    },
+                                    "lines": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "sourceLineId": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "productCode": {
+                                            "type": "string"
+                                          },
+                                          "productName": {
+                                            "type": "string"
+                                          },
+                                          "availableBaseQuantity": {
+                                            "type": "string",
+                                            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          }
+                                        },
+                                        "required": [
+                                          "sourceLineId",
+                                          "productCode",
+                                          "productName",
+                                          "availableBaseQuantity"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "sourceEntity",
+                                    "sourceDocumentId",
+                                    "sourceDocumentNo",
+                                    "customerName",
+                                    "lines"
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "nullable": true
+                            }
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "nullable": true
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "requestId"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/vou/service-acceptance/contract-lines": {
       "get": {
         "parameters": [

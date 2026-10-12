@@ -896,6 +896,33 @@ test('after opening ordinary delivery and signoff continue only forty without re
           )
         }
         await stock()
+        const deliverySource = await post(
+          `/vou/sale-outbound/prior-sale-continuation?documentId=${outboundId}&businessDate=2026-09-06`,
+          {},
+          'GET',
+        )
+        assert.equal(deliverySource.code, 0, JSON.stringify(deliverySource))
+        assert.equal(deliverySource.data.entity, 'sale-delivery')
+        assert.equal(
+          deliverySource.data.sourceDocumentNo,
+          outboundRead.data.documentNo,
+        )
+        assert.ok(deliverySource.data.customerName.length > 0)
+        assert.ok(deliverySource.data.lines[0].productName.length > 0)
+        assert.equal(deliverySource.data.payload.parentDocumentId, outboundId)
+        assert.deepEqual(deliverySource.data.payload.sourceLines, [
+          {
+            sourceLineId: input.payload.productLines[0]!.lineId,
+            baseQuantity: '40.000000',
+          },
+        ])
+        assert.equal('priorFact' in deliverySource.data.payload, false)
+        const afterPreview = await post(`/rpt/${report.code}/query`, {
+          parameters: { bookId: f.book.id },
+          page: 1,
+          pageSize: 20,
+        })
+        assert.equal(afterPreview.data.rows.length, 2)
         const deliveryId = ulid(),
           deliverySubmission = ulid()
         const delivery = await post('/vou/sale-delivery/submit-new', {
@@ -903,19 +930,7 @@ test('after opening ordinary delivery and signoff continue only forty without re
           submissionId: deliverySubmission,
           idempotencyKey: deliverySubmission,
           expectedRevision: null,
-          payload: {
-            businessDate: '2026-09-06',
-            currency: 'CNY',
-            attachments: [],
-            parentEntity: 'sale-outbound',
-            parentDocumentId: outboundId,
-            sourceLines: [
-              {
-                sourceLineId: input.payload.productLines[0]!.lineId,
-                baseQuantity: '40',
-              },
-            ],
-          },
+          payload: deliverySource.data.payload,
         })
         assert.equal(delivery.code, 0, JSON.stringify(delivery))
         const delivered = await review('/vou/sale-delivery/approve', {
@@ -959,6 +974,21 @@ test('after opening ordinary delivery and signoff continue only forty without re
           'acc_period_cost_source_missing',
           JSON.stringify(rejectedWithoutOriginalCost),
         )
+        const signoffSource = await post(
+          `/vou/sale-delivery/prior-sale-continuation?documentId=${deliveryId}&businessDate=2026-09-06`,
+          {},
+          'GET',
+        )
+        assert.equal(signoffSource.code, 0, JSON.stringify(signoffSource))
+        assert.equal(signoffSource.data.entity, 'sale-signoff')
+        assert.equal(
+          signoffSource.data.payload.signoffLines[0].signedBaseQuantity,
+          '40.000000',
+        )
+        assert.equal(
+          signoffSource.data.payload.customer.objectId,
+          f.salePayload.customer.objectId,
+        )
         const finalId = ulid(),
           finalSubmission = ulid()
         const final = await post('/vou/sale-signoff/submit-new', {
@@ -966,25 +996,7 @@ test('after opening ordinary delivery and signoff continue only forty without re
           submissionId: finalSubmission,
           idempotencyKey: finalSubmission,
           expectedRevision: null,
-          payload: {
-            businessDate: '2026-09-06',
-            currency: 'CNY',
-            attachments: [],
-            parentEntity: 'sale-delivery',
-            parentDocumentId: deliveryId,
-            customer: f.salePayload.customer,
-            expectedSolventContainers: 0,
-            expectedResinContainers: 0,
-            returnedSolventContainers: 0,
-            returnedResinContainers: 0,
-            signoffLines: [
-              {
-                sourceLineId: input.payload.productLines[0]!.lineId,
-                signedBaseQuantity: '40',
-                rejectedBaseQuantity: '0',
-              },
-            ],
-          },
+          payload: signoffSource.data.payload,
         })
         assert.equal(final.code, 0, JSON.stringify(final))
         const finalApproved = await review('/vou/sale-signoff/approve', {

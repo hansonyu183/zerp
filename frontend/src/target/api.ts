@@ -3135,6 +3135,20 @@ export async function queryTargetVouchers(
     ).json(),
   )
 }
+export async function queryTargetPriorSaleContinuation(
+  entity: 'sale-order' | 'sale-outbound' | 'sale-delivery',
+  documentId: string,
+  businessDate: string,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou[':entity']['prior-sale-continuation'].$get({
+        param: { entity },
+        query: { documentId, businessDate },
+      })
+    ).json(),
+  )
+}
 export async function getTargetVoucher(
   csrfToken: string,
   entity: import('@zerp/model').VouType,

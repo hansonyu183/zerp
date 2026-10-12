@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { routerKey, routeLocationKey } from 'vue-router'
 import {
   servicePermissionContexts,
   serviceCounterpartyContext,
@@ -14,12 +15,15 @@ import {
   ref,
   provide,
   computed,
+  inject,
+  watch,
 } from 'vue'
 import {
   checkIntermediaryResult,
   approvalActionPresentation,
   approvalStatusPresentation,
   userCreatableVouEntities,
+  vouPriorSaleContinuationTargets,
 } from '@zerp/model'
 import ManagementPageFrame from '../ManagementPageFrame.vue'
 import {
@@ -68,6 +72,8 @@ const editorAvailable =
 const session = useTargetSession(),
   generation = session.generation
 let active = true
+const router = inject(routerKey, undefined),
+  route = inject(routeLocationKey, undefined)
 const unbilledPeriodMonth = ref(businessDate().slice(0, 7)),
   unbilledBusy = ref(false),
   unbilledError = ref('')
@@ -137,7 +143,11 @@ const openingDraft = computed(() =>
   editor.value?.kind === 'opening' ? editor.value.value : null,
 )
 const attachmentDraft = computed(() =>
-  editor.value?.kind !== 'opening' ? editor.value?.value : null,
+  editor.value?.kind === 'sale-continuation'
+    ? editor.value.value.payload
+    : editor.value?.kind !== 'opening'
+      ? editor.value?.value
+      : null,
 )
 const openingSource = ref<Awaited<
   ReturnType<typeof api.getTargetOpening>
@@ -308,6 +318,108 @@ async function saveIntermediaryScript() {
         pendingIntermediaryScript.value = null
       editError.value = documentError(cause)
     }
+  } finally {
+    if (active && session.generation === generation) saving.value = false
+  }
+}
+function isSaleContinuationSource(
+  value: unknown,
+): value is keyof typeof vouPriorSaleContinuationTargets {
+  return (
+    typeof value === 'string' &&
+    Object.hasOwn(vouPriorSaleContinuationTargets, value)
+  )
+}
+const canPreviewContinuation = computed(() => {
+  const source = vm.selected
+  return Boolean(
+    router &&
+    source &&
+    source.status === 'APPROVED' &&
+    isSaleContinuationSource(source.entity) &&
+    session.can(
+      `/vou/${vouPriorSaleContinuationTargets[source.entity]}/submit-new`,
+    ),
+  )
+})
+async function previewContinuation() {
+  const source = vm.selected
+  if (
+    !router ||
+    !source ||
+    !canPreviewContinuation.value ||
+    !isSaleContinuationSource(source.entity) ||
+    saving.value ||
+    uncertain.value ||
+    vm.pending.has(source.documentId) ||
+    vm.unknown.has(source.documentId)
+  )
+    return
+  await router.push({
+    name: 'resource-host',
+    params: {
+      domain: 'vou',
+      entity: vouPriorSaleContinuationTargets[source.entity],
+    },
+    query: {
+      priorSaleSource: source.entity,
+      priorSaleDocument: source.documentId,
+    },
+  })
+}
+async function loadSaleContinuation() {
+  const sourceEntity = route?.query.priorSaleSource,
+    sourceDocumentId = route?.query.priorSaleDocument
+  if (
+    !isSaleContinuationSource(sourceEntity) ||
+    typeof sourceDocumentId !== 'string' ||
+    vouPriorSaleContinuationTargets[sourceEntity] !== definition.vouType ||
+    !vm.can('submit-new') ||
+    editor.value ||
+    saving.value ||
+    uncertain.value
+  )
+    return
+  saving.value = true
+  try {
+    const prepared = await api.queryTargetPriorSaleContinuation(
+      sourceEntity,
+      sourceDocumentId,
+      businessDate(),
+    )
+    if (!active || session.generation !== generation) return
+    if (router && route) {
+      const {
+        priorSaleSource: _source,
+        priorSaleDocument: _document,
+        ...rest
+      } = route.query
+      await router.replace({ query: rest })
+    }
+    if (!active || session.generation !== generation) return
+    if (!prepared) {
+      vm.feedback = '当前没有可接续的此前销售数量。'
+      return
+    }
+    if (
+      prepared.entity !== definition.vouType ||
+      prepared.sourceEntity !== sourceEntity ||
+      prepared.sourceDocumentId !== sourceDocumentId
+    )
+      throw new Error('来源结果已变化，请重新读取。')
+    const submissionId = ulid()
+    identity = {
+      documentId: ulid(),
+      submissionId,
+      idempotencyKey: submissionId,
+    }
+    attachments.reset()
+    openingSource.value = null
+    editError.value = ''
+    editor.value = { kind: 'sale-continuation', value: prepared }
+  } catch (cause) {
+    if (active && session.generation === generation)
+      vm.feedback = documentError(cause)
   } finally {
     if (active && session.generation === generation) saving.value = false
   }
@@ -617,7 +729,15 @@ const deleting = ref(false)
 const vm = reactive(useVouListViewModel(definition))
 onMounted(() => {
   void vm.initialize()
+  void loadSaleContinuation()
 })
+
+watch(
+  () => [route?.query.priorSaleSource, route?.query.priorSaleDocument],
+  () => {
+    void loadSaleContinuation()
+  },
+)
 
 onBeforeUnmount(() => {
   active = false
@@ -680,7 +800,7 @@ onBeforeUnmount(() => {
         "
         type="info"
         class="mb-4"
-        >此类型由系统生成，不支持人工新增。</v-alert
+        >此类型从来源业务办理，不支持空白人工新增。</v-alert
       >
       <v-alert v-if="!vm.searchable" type="info" class="mb-4"
         >当前账号没有查询权限，仅显示已授权操作。</v-alert
@@ -791,6 +911,17 @@ onBeforeUnmount(() => {
       </v-card-text>
       <v-card-actions class="flex-wrap">
         <RowActions :actions="vm.reviewActions" @action="vm.requestReview" />
+        <v-btn
+          v-if="canPreviewContinuation && vm.selected"
+          :disabled="
+            saving ||
+            uncertain ||
+            vm.pending.has(vm.selected.documentId) ||
+            vm.unknown.has(vm.selected.documentId)
+          "
+          @click="previewContinuation"
+          >查看后续办理</v-btn
+        >
         <v-btn
           v-if="editorAvailable && vm.selected && canCloneSelected()"
           :disabled="

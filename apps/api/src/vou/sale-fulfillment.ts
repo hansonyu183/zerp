@@ -3,23 +3,27 @@ import type {
   VouEntity,
   VouPayload,
   VouPriorSaleDisposition,
+  VouPayloadBase,
+  VouPriorFact,
 } from '@zerp/model'
 import type { DB } from '../db/generated.ts'
 import { priorFact, readPriorFact } from './prior-fact.ts'
 import { decimalToFixed, VouApplicationError } from './service.ts'
 
 /** Only an approved, exact historical sales chain permits ordinary continuation without a fabricated WFL instance. */
-async function approvedSaleOrderSource(
+export async function readApprovedSaleOrderSource(
   executor: Kysely<DB> | Transaction<DB>,
   entity: VouEntity,
-  payload: VouPayload,
+  payload: Pick<VouPayloadBase, 'parentEntity' | 'parentDocumentId'> & {
+    priorFact?: VouPriorFact
+  },
 ) {
   if (!['sale-outbound', 'sale-delivery', 'sale-signoff'].includes(entity))
     return undefined
   let sourceEntity: string =
     entity === 'sale-outbound'
       ? 'sale-order'
-      : entity === 'sale-delivery' || priorFact(payload)
+      : entity === 'sale-delivery' || payload.priorFact
         ? 'sale-outbound'
         : 'sale-delivery'
   if (payload.parentEntity !== sourceEntity) return undefined
@@ -67,7 +71,7 @@ export async function priorSaleContinuation(
   payload: VouPayload,
 ) {
   if (priorFact(payload)) return undefined
-  const source = await approvedSaleOrderSource(executor, entity, payload)
+  const source = await readApprovedSaleOrderSource(executor, entity, payload)
   return source?.fact ? { ...source, fact: source.fact } : undefined
 }
 
@@ -137,7 +141,7 @@ export async function validateSaleFulfillment(
       throw new VouApplicationError('acc_period_opening_not_approved')
   }
   if (entity === 'sale-signoff' && 'customer' in payload) {
-    const order = await approvedSaleOrderSource(tx, entity, payload)
+    const order = await readApprovedSaleOrderSource(tx, entity, payload)
     const customer = order
       ? await tx
           .selectFrom('vou_reference_snapshots')
@@ -202,38 +206,13 @@ export async function validateSaleFulfillment(
   const quantities = new Map(
     rows.rows.map((row) => [row.line_id, BigInt(row.base_quantity_micros)]),
   )
-  if (entity === 'sale-delivery' && (await readPriorFact(tx, parent.id))) {
-    const dispositions = await sql<{
-      source_line_id: string
-      signed: string
-      rejected: string
-      lost: string | null
-    }>`
-      SELECT line.source_line_id, line.signed_quantity_micros::text AS signed,
-        line.rejected_quantity_micros::text AS rejected, line.prior_lost_quantity_micros::text AS lost
-      FROM vou_sale_signoff_details detail JOIN approval_entries entry ON entry.id = detail.approval_entry_id AND entry.status = 'APPROVED'
-      JOIN vou_prior_facts prior ON prior.approval_entry_id = entry.id
-      JOIN vou_signoff_line_snapshots line ON line.approval_entry_id = entry.id
-      WHERE detail.parent_document_id = ${payload.parentDocumentId}
-    `.execute(tx)
-    if (
-      dispositions.rows.length !== quantities.size ||
-      dispositions.rows.some((line) => line.lost === null)
+  if (entity === 'sale-delivery')
+    await subtractPriorSaleDisposition(
+      tx,
+      parent.id,
+      payload.parentDocumentId!,
+      quantities,
     )
-      throw new VouApplicationError('vou_source_line_unavailable')
-    for (const line of dispositions.rows) {
-      const dispatched = quantities.get(line.source_line_id)
-      if (dispatched === undefined)
-        throw new VouApplicationError('vou_source_line_unavailable')
-      quantities.set(
-        line.source_line_id,
-        dispatched -
-          BigInt(line.signed) -
-          BigInt(line.rejected) -
-          BigInt(line.lost!),
-      )
-    }
-  }
   const dispatched =
     entity === 'sale-outbound'
       ? await saleOrderOccupancy(tx, payload.parentDocumentId!, documentId)
@@ -285,6 +264,92 @@ export async function validateSaleFulfillment(
   }
   if (entity !== 'sale-outbound' && seen.size !== quantities.size)
     throw new VouApplicationError('vou_source_line_unavailable')
+}
+
+async function subtractPriorSaleDisposition(
+  executor: Kysely<DB> | Transaction<DB>,
+  sourceApprovalEntryId: string,
+  sourceDocumentId: string,
+  quantities: Map<string, bigint>,
+) {
+  if (!(await readPriorFact(executor, sourceApprovalEntryId))) return
+  const dispositions = await sql<{
+    source_line_id: string
+    signed: string
+    rejected: string
+    lost: string | null
+  }>`
+      SELECT line.source_line_id, line.signed_quantity_micros::text AS signed,
+        line.rejected_quantity_micros::text AS rejected, line.prior_lost_quantity_micros::text AS lost
+      FROM vou_sale_signoff_details detail JOIN approval_entries entry ON entry.id = detail.approval_entry_id AND entry.status = 'APPROVED'
+      JOIN vou_prior_facts prior ON prior.approval_entry_id = entry.id
+      JOIN vou_signoff_line_snapshots line ON line.approval_entry_id = entry.id
+      WHERE detail.parent_document_id = ${sourceDocumentId}
+    `.execute(executor)
+  if (
+    dispositions.rows.length !== quantities.size ||
+    dispositions.rows.some((line) => line.lost === null)
+  )
+    throw new VouApplicationError('vou_source_line_unavailable')
+  for (const line of dispositions.rows) {
+    const dispatched = quantities.get(line.source_line_id)
+    if (dispatched === undefined)
+      throw new VouApplicationError('vou_source_line_unavailable')
+    const remaining =
+      dispatched -
+      BigInt(line.signed) -
+      BigInt(line.rejected) -
+      BigInt(line.lost!)
+    if (remaining < 0n)
+      throw new VouApplicationError('vou_source_line_quantity_exceeded')
+    if (remaining === 0n) quantities.delete(line.source_line_id)
+    else quantities.set(line.source_line_id, remaining)
+  }
+}
+
+/** Exact approved source quantities for a new ordinary continuation; does not persist a draft. */
+export async function saleContinuationSourceLines(
+  tx: Transaction<DB>,
+  entity: 'sale-outbound' | 'sale-delivery' | 'sale-signoff',
+  sourceApprovalEntryId: string,
+  sourceDocumentId: string,
+) {
+  const rows = await sql<{ source_line_id: string; quantity: string }>`
+    SELECT ${sql.ref(entity === 'sale-outbound' ? 'line_id' : 'source_line_id')} AS source_line_id,
+      base_quantity_micros::text AS quantity FROM ${sql.table(entity === 'sale-outbound' ? 'vou_product_line_snapshots' : 'vou_source_line_snapshots')}
+    WHERE approval_entry_id = ${sourceApprovalEntryId} ORDER BY line_no
+  `.execute(tx)
+  const quantities = new Map(
+    rows.rows.map((row) => [row.source_line_id, BigInt(row.quantity)]),
+  )
+  if (entity === 'sale-delivery')
+    await subtractPriorSaleDisposition(
+      tx,
+      sourceApprovalEntryId,
+      sourceDocumentId,
+      quantities,
+    )
+  if (entity === 'sale-outbound') {
+    const occupied = await saleOrderOccupancy(tx, sourceDocumentId)
+    for (const row of occupied.rows) {
+      const ordered = quantities.get(row.source_line_id)
+      if (ordered === undefined)
+        throw new VouApplicationError('vou_source_line_unavailable')
+      quantities.set(
+        row.source_line_id,
+        ordered - BigInt(row.occupied_quantity),
+      )
+    }
+  }
+  return [...quantities]
+    .filter(([, quantity]) => quantity > 0n)
+    .map(([sourceLineId, quantity]) => {
+      const digits = quantity.toString().padStart(7, '0')
+      return {
+        sourceLineId,
+        baseQuantity: `${digits.slice(0, -6)}.${digits.slice(-6)}`,
+      }
+    })
 }
 
 /** Historical signed demand and the still-outstanding part together consume the original order. */

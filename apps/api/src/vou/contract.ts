@@ -1412,6 +1412,63 @@ const serviceContractLinesRoute = createRoute({
     },
   },
 })
+const priorSaleContinuationResponse = z
+  .union([
+    z.object({
+      entity: z.literal('sale-outbound'),
+      payload: vouPayloadSchemaByEntity['sale-outbound'],
+    }),
+    z.object({
+      entity: z.literal('sale-delivery'),
+      payload: vouPayloadSchemaByEntity['sale-delivery'],
+    }),
+    z.object({
+      entity: z.literal('sale-signoff'),
+      payload: vouPayloadSchemaByEntity['sale-signoff'],
+    }),
+  ])
+  .and(
+    z.object({
+      sourceEntity: z.enum(['sale-order', 'sale-outbound', 'sale-delivery']),
+      sourceDocumentId: z.string().length(26),
+      sourceDocumentNo: z.string().min(1),
+      customerName: z.string(),
+      lines: z.array(
+        z
+          .object({
+            sourceLineId: z.string().min(1),
+            productCode: z.string(),
+            productName: z.string(),
+            availableBaseQuantity: quantity,
+          })
+          .strict(),
+      ),
+    }),
+  )
+  .nullable()
+const priorSaleContinuationRoute = createRoute({
+  method: 'get',
+  path: '/vou/{entity}/prior-sale-continuation',
+  request: {
+    params: z.object({
+      entity: z.enum(['sale-order', 'sale-outbound', 'sale-delivery']),
+    }),
+    query: z
+      .object({
+        documentId: z.string().length(26),
+        businessDate: z.string().date(),
+      })
+      .strict(),
+  },
+  responses: {
+    200: {
+      description: 'VOU approved prior-sale continuation source',
+      content: {
+        'application/json': { schema: envelope(priorSaleContinuationResponse) },
+      },
+    },
+  },
+})
 const sourceLinesRoute = createRoute({
   method: 'get',
   path: '/vou/{entity}/source-lines',
@@ -1545,6 +1602,7 @@ export const vouRouteSet = {
 export const vouRouteMetadata = [
   ...[
     saleOrderLineResolve,
+    priorSaleContinuationRoute,
     customerLatestLine,
     sourceLinesRoute,
     serviceContractLinesRoute,
@@ -1644,6 +1702,7 @@ export type VouRouteAction =
   | 'options'
   | 'contract-lines'
   | 'source-lines'
+  | 'prior-sale-continuation'
   | 'line-resolve'
   | 'customer-latest-line'
 export type VouRouteHandler = (
@@ -1659,6 +1718,10 @@ export function registerVouRoutes<
   handler: VouRouteHandler,
 ) {
   const resolved = app
+    .openapi(
+      priorSaleContinuationRoute,
+      (c) => handler('prior-sale-continuation', c) as never,
+    )
     .openapi(
       serviceContractLinesRoute,
       (c) => handler('contract-lines', c) as never,

@@ -5,6 +5,8 @@ import {
   type AttachmentMimeType,
   type VouBlocker,
   type VouPriorSaleDisposition,
+  type VouPriorSaleContinuation,
+  vouPriorSaleContinuationTargets,
 } from '@zerp/model'
 import { purchaseInboundAccess } from '../app/purchase-inbound-access.ts'
 import { serviceAccess } from '../app/service-access.ts'
@@ -62,6 +64,8 @@ import {
   validateSaleFulfillment,
   readPriorSaleDisposition,
   priorSaleContinuation,
+  readApprovedSaleOrderSource,
+  saleContinuationSourceLines,
   saleSignoffUnapproveBlockers,
 } from './sale-fulfillment.ts'
 import { validateIntermediaryCalculation } from './intermediary-validation.ts'
@@ -1677,6 +1681,128 @@ export class VouService implements WflVouPort {
         tx,
       )
     return this.readView(tx, entity, input.documentId, actor)
+  }
+
+  async queryPriorSaleContinuation(
+    entity: 'sale-order' | 'sale-outbound' | 'sale-delivery',
+    input: { documentId: string; businessDate: string },
+    actor: ApprovalActor,
+  ): Promise<VouPriorSaleContinuation | null> {
+    requirePermission(actor, `/vou/${entity}/get`)
+    const target = vouPriorSaleContinuationTargets[entity]
+    if (
+      actor.trusted !== true &&
+      !actor.permissions.includes(`/vou/${target}/submit-new`)
+    )
+      return null
+    return this.db.transaction().execute(async (tx) => {
+      const source = await this.readView(tx, entity, input.documentId, actor)
+      if (source.status !== 'APPROVED') return null
+      const base = {
+        businessDate: input.businessDate,
+        currency: source.payload.currency,
+        attachments: [],
+        parentEntity: entity,
+        parentDocumentId: input.documentId,
+      }
+      const root = await readApprovedSaleOrderSource(tx, target, base)
+      if (!root?.fact) return null
+      const lines = await saleContinuationSourceLines(
+        tx,
+        target,
+        source.submissionId,
+        input.documentId,
+      )
+      if (!lines.length) return null
+      const order = (await this.readPayload(
+        tx,
+        'sale-order',
+        root.orderApprovalEntryId,
+      )) as VouPayloadFor<'sale-order'>
+      const adoptedLabels = await tx
+        .selectFrom('vou_product_line_snapshots as line')
+        .innerJoin('vou_reference_snapshots as product', (join) =>
+          join
+            .onRef('product.approval_entry_id', '=', 'line.approval_entry_id')
+            .onRef('product.line_no', '=', 'line.line_no')
+            .on('product.field', '=', 'product')
+            .on('product.item_no', '=', 0),
+        )
+        .innerJoin(
+          'dcl_subjects as identity',
+          'identity.id',
+          'product.object_id',
+        )
+        .select([
+          'line.line_id',
+          'identity.code as reference_code',
+          'product.reference_name',
+        ])
+        .where('line.approval_entry_id', '=', root.orderApprovalEntryId)
+        .execute()
+      const displayLines = lines.map((line) => {
+        const product = order.productLines.find(
+          (item) => item.lineId === line.sourceLineId,
+        )?.product
+        if (!product)
+          throw new VouApplicationError('vou_source_line_unavailable')
+        const label = adoptedLabels.find(
+          (item) => item.line_id === line.sourceLineId,
+        )
+        return {
+          sourceLineId: line.sourceLineId,
+          productCode: label?.reference_code ?? '',
+          productName: label?.reference_name ?? '',
+          availableBaseQuantity: line.baseQuantity,
+        }
+      })
+      const customer = await tx
+        .selectFrom('vou_reference_snapshots as reference')
+        .innerJoin(
+          'dcl_customer_versions as version',
+          'version.approval_entry_id',
+          'reference.approval_reference_id',
+        )
+        .select('version.display_name as reference_name')
+        .where('reference.approval_entry_id', '=', root.orderApprovalEntryId)
+        .where('reference.field', '=', 'customer')
+        .where('reference.line_no', '=', 0)
+        .where('reference.item_no', '=', 0)
+        .executeTakeFirst()
+      const sourceIdentity = {
+        sourceEntity: entity,
+        sourceDocumentId: input.documentId,
+        sourceDocumentNo: source.documentNo,
+        customerName: customer?.reference_name ?? '',
+        lines: displayLines,
+      }
+      const next: VouPriorSaleContinuation =
+        target === 'sale-signoff'
+          ? {
+              ...sourceIdentity,
+              entity: target,
+              payload: {
+                ...base,
+                customer: order.customer,
+                expectedSolventContainers: 0,
+                expectedResinContainers: 0,
+                returnedSolventContainers: 0,
+                returnedResinContainers: 0,
+                signoffLines: lines.map((line) => ({
+                  sourceLineId: line.sourceLineId,
+                  signedBaseQuantity: line.baseQuantity,
+                  rejectedBaseQuantity: '0',
+                })),
+              },
+            }
+          : {
+              ...sourceIdentity,
+              entity: target,
+              payload: { ...base, sourceLines: lines },
+            }
+      await validateSaleFulfillment(tx, target, '', next.payload)
+      return next
+    })
   }
 
   async get(entity: VouEntity, documentId: string, actor: ApprovalActor) {
@@ -4670,13 +4796,48 @@ export class VouService implements WflVouPort {
             ${decimalToFixed(line.formula?.output.baseQuantity, 6)}
           )
         `.execute(transaction)
+        // Product input carries only stable identity. Freeze the display version
+        // here, in the same transaction that validates the adopted product.
+        const saleProduct =
+          entity === 'sale-order'
+            ? await transaction
+                .selectFrom('approval_entries as adopted')
+                .innerJoin(
+                  'dcl_product_versions as version',
+                  'version.approval_entry_id',
+                  'adopted.id',
+                )
+                .innerJoin(
+                  'dcl_subjects as identity',
+                  'identity.id',
+                  'adopted.subject_id',
+                )
+                .select(['adopted.id', 'identity.code', 'version.name'])
+                .where('adopted.domain', '=', 'dcl')
+                .where('adopted.entity', '=', 'product')
+                .where('adopted.subject_id', '=', line.product.objectId)
+                .where('adopted.status', '=', 'APPROVED')
+                .orderBy('adopted.version_no', 'desc')
+                .executeTakeFirst()
+            : undefined
+        if (entity === 'sale-order' && !saleProduct)
+          throw new VouApplicationError('vou_reference_unavailable')
         await this.writeReferenceSnapshot(
           transaction,
           approvalEntryId,
           'product',
           lineNo,
           0,
-          line.product,
+          saleProduct
+            ? {
+                objectId: line.product.objectId,
+                approvalEntryId: saleProduct.id,
+                selectionOrigin: 'CURRENT',
+                entity: 'product',
+                code: saleProduct.code!,
+                name: saleProduct.name,
+              }
+            : line.product,
         )
         for (const [componentIndex, component] of (
           line.formula?.components ?? []
@@ -5958,7 +6119,10 @@ export class VouService implements WflVouPort {
           : {}),
         productLines: productLines.map((line) => ({
           lineId: line.line_id,
-          product: reference('product', line.line_no),
+          product:
+            entity === 'sale-order'
+              ? { objectId: reference('product', line.line_no).objectId }
+              : reference('product', line.line_no),
           enteredQuantity: fixed(line.entered_quantity_micros, 6),
           enteredUnit: {
             objectId: line.entered_unit_id,

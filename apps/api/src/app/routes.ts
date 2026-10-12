@@ -746,6 +746,17 @@ export function registerAppRoutes(
         )
         return context.json(response as never, 200)
       }
+      if (action === 'prior-sale-continuation')
+        return context.json(
+          await executeVou(context, (actor) =>
+            vou!.queryPriorSaleContinuation(
+              context.req.valid('param').entity,
+              context.req.valid('query'),
+              actor,
+            ),
+          ),
+          200,
+        )
       if (action === 'source-lines') {
         const body = context.req.valid('query')
         const response = await executeVou<unknown>(context, (actor) =>

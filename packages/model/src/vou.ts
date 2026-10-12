@@ -883,6 +883,29 @@ export type VouPayloadByEntity = {
 
 export type VouPayloadFor<Entity extends VouEntity> = VouPayloadShapes[Entity]
 export type VouPayload = VouPayloadByEntity['payload']
+export const vouPriorSaleContinuationTargets = {
+  'sale-order': 'sale-outbound',
+  'sale-outbound': 'sale-delivery',
+  'sale-delivery': 'sale-signoff',
+} as const
+export type VouPriorSaleContinuationEntity =
+  'sale-outbound' | 'sale-delivery' | 'sale-signoff'
+export type VouPriorSaleContinuation = {
+  [Entity in VouPriorSaleContinuationEntity]: {
+    entity: Entity
+    sourceEntity: 'sale-order' | 'sale-outbound' | 'sale-delivery'
+    sourceDocumentId: string
+    sourceDocumentNo: string
+    customerName: string
+    lines: readonly {
+      sourceLineId: string
+      productCode: string
+      productName: string
+      availableBaseQuantity: string
+    }[]
+    payload: VouPayloadFor<Entity>
+  }
+}[VouPriorSaleContinuationEntity]
 
 interface VouSubmissionCommandBase {
   action: SubmitAction

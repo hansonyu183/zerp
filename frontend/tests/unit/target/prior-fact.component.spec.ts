@@ -113,7 +113,8 @@ describe('original external receipt relationships', () => {
     const prior = mount(SnapshotValue, {
       props: { field: 'sourceDocumentType', value: 'BB' },
     })
-    expect(prior.text()).toContain('未知选项')
+    expect(prior.text()).toContain('销售配货')
+    expect(prior.text()).not.toContain('未知选项')
     prior.unmount()
   })
 })

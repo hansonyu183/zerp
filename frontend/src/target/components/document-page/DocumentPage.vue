@@ -330,6 +330,9 @@ function isSaleContinuationSource(
     Object.hasOwn(vouPriorSaleContinuationTargets, value)
   )
 }
+const sourceBasedSales = Object.values(vouPriorSaleContinuationTargets).some(
+  (entity) => entity === definition.vouType,
+)
 const canPreviewContinuation = computed(() => {
   const source = vm.selected
   return Boolean(
@@ -800,7 +803,11 @@ onBeforeUnmount(() => {
         "
         type="info"
         class="mb-4"
-        >此类型从来源业务办理，不支持空白人工新增。</v-alert
+        >{{
+          sourceBasedSales
+            ? '此类型从来源业务办理，不支持空白人工新增。'
+            : '此类型由系统生成，不支持人工新增。'
+        }}</v-alert
       >
       <v-alert v-if="!vm.searchable" type="info" class="mb-4"
         >当前账号没有查询权限，仅显示已授权操作。</v-alert

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, toRaw } from 'vue'
+import FieldInput from '../dynamic-fields/FieldInput.vue'
 import VouReference, { type VouCandidate } from './VouReference.vue'
 import type { SaleContinuationDraft } from './sale-continuation-data.ts'
 const props = defineProps<{
@@ -51,13 +52,19 @@ function containers(
     | 'expectedResinContainers'
     | 'returnedSolventContainers'
     | 'returnedResinContainers',
-  value: string,
+  value: unknown,
 ) {
   const draft = props.modelValue
   if (props.disabled || draft.entity !== 'sale-signoff') return
+  const quantity =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && /^\d+$/.test(value)
+        ? Number(value)
+        : NaN
   emit('update:modelValue', {
     ...draft,
-    payload: { ...draft.payload, [field]: value === '' ? NaN : Number(value) },
+    payload: { ...draft.payload, [field]: quantity },
   })
 }
 const selectedCarrier = ref<VouCandidate | null>(null)
@@ -114,15 +121,21 @@ const containerFields = [
     <p>
       核对本次实际办理数量后提交，由其他操作人审批。此前履行不会随本次办理重新发生。
     </p>
-    <v-text-field
-      label="业务日期"
-      type="date"
+    <FieldInput
+      usage="edit"
+      :field="{ key: 'businessDate', type: 'date', caption: '业务日期' }"
       :model-value="modelValue.payload.businessDate"
       :disabled="disabled"
       @update:model-value="base('businessDate', $event)"
     />
-    <v-textarea
-      label="备注"
+    <FieldInput
+      usage="edit"
+      :field="{
+        key: 'remark',
+        type: 'textarea',
+        caption: '备注',
+        maxLength: 1000,
+      }"
       :model-value="modelValue.payload.remark ?? ''"
       :disabled="disabled"
       @update:model-value="base('remark', $event)"
@@ -132,28 +145,49 @@ const containerFields = [
         {{ line.productCode }} {{ line.productName || `来源行${index + 1}` }}
       </h3>
       <p>可办理基准数量：{{ line.availableBaseQuantity }}</p>
-      <v-text-field
+      <FieldInput
+        usage="edit"
         v-if="modelValue.entity !== 'sale-signoff'"
-        label="本次基准数量"
-        :model-value="modelValue.payload.sourceLines[index]?.baseQuantity"
+        :field="{
+          key: 'baseQuantity',
+          type: 'decimal',
+          scale: 6,
+          min: '0',
+          caption: '本次基准数量',
+        }"
+        :model-value="modelValue.payload.sourceLines[index]?.baseQuantity ?? ''"
         :disabled="disabled || modelValue.entity === 'sale-delivery'"
         @update:model-value="sourceQuantity(index, $event)"
       />
       <template v-else>
-        <v-text-field
-          label="本次签收基准数量"
+        <FieldInput
+          usage="edit"
+          :field="{
+            key: 'signedBaseQuantity',
+            type: 'decimal',
+            scale: 6,
+            min: '0',
+            caption: '本次签收基准数量',
+          }"
           :model-value="
-            modelValue.payload.signoffLines[index]?.signedBaseQuantity
+            modelValue.payload.signoffLines[index]?.signedBaseQuantity ?? ''
           "
           :disabled="disabled"
           @update:model-value="
             signedQuantity(index, 'signedBaseQuantity', $event)
           "
         />
-        <v-text-field
-          label="本次拒收基准数量"
+        <FieldInput
+          usage="edit"
+          :field="{
+            key: 'rejectedBaseQuantity',
+            type: 'decimal',
+            scale: 6,
+            min: '0',
+            caption: '本次拒收基准数量',
+          }"
           :model-value="
-            modelValue.payload.signoffLines[index]?.rejectedBaseQuantity
+            modelValue.payload.signoffLines[index]?.rejectedBaseQuantity ?? ''
           "
           :disabled="disabled"
           @update:model-value="
@@ -179,19 +213,29 @@ const containerFields = [
       />
     </template>
     <template v-if="modelValue.entity === 'sale-signoff'">
-      <v-text-field
+      <FieldInput
+        usage="edit"
         v-for="[key, label] in containerFields"
         :key="key"
-        :label="label"
-        type="number"
-        min="0"
-        step="1"
+        :field="{
+          key,
+          type: 'integer',
+          min: 0,
+          max: 2147483647,
+          caption: label,
+        }"
         :model-value="modelValue.payload[key]"
         :disabled="disabled"
         @update:model-value="containers(key, $event)"
       />
-      <v-textarea
-        label="桶差异说明"
+      <FieldInput
+        usage="edit"
+        :field="{
+          key: 'containerDifferenceReason',
+          type: 'textarea',
+          caption: '桶差异说明',
+          maxLength: 1000,
+        }"
         :model-value="modelValue.payload.containerDifferenceReason ?? ''"
         :disabled="disabled"
         @update:model-value="

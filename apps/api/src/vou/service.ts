@@ -4152,9 +4152,12 @@ export class VouService implements WflVouPort {
         })
         continue
       }
+      const validInputPrecision = priorFact(payload)
+        ? /^-?(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(fact.quantity.enteredQuantity)
+        : isInputQuantity(fact.quantity.enteredQuantity)
       if (
         !preservedFormulaQuantities.has(fact.quantity) &&
-        !isInputQuantity(fact.quantity.enteredQuantity)
+        !validInputPrecision
       )
         throw new VouApplicationError('vou_invalid_payload')
     }

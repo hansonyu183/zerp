@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { ulid } from 'ulid'
+import { productionSuggestedQuantity } from '@zerp/model'
 import { createNodeWflStarlark } from '@zerp/wfl-starlark/node'
 import { VouService } from '../../src/vou/service.ts'
 import { WflService, type WflVouPort } from '../../src/wfl/service.ts'
@@ -79,6 +80,151 @@ test('ordinary users adopt a prior sales order with original quantities and stab
       assert.equal(read.code, 0, JSON.stringify(read))
       assert.deepEqual(read.data.payload.priorFact, fact)
       assert.equal(read.data.payload.productLines[0].baseQuantity, '100.000000')
+      const opening = await f.openings.getOpening(f.book.id, f.actor)
+      assert.equal(opening.approval.status, 'PENDING')
+    } finally {
+      await post('/session/auth/signout', {})
+      await review('/session/auth/signout', {})
+    }
+  })
+})
+
+test('prior original formula quantities preserve four decimals through normal unit snapshots and storage', async () => {
+  await withCommittedPurchaseDatabase(async (db) => {
+    const f = await seedStockFixture(
+      db,
+      '2026-09',
+      { quantity: '100', amount: '100.00' },
+      false,
+    )
+    let vou!: VouService
+    const port: WflVouPort = {
+      createChild: (...args) => vou.createChild(...args),
+      approveChild: (...args) => vou.approveChild(...args),
+      rejectChild: (...args) => vou.rejectChild(...args),
+      retryChild: (...args) => vou.retryChild(...args),
+      cancelChild: (...args) => vou.cancelChild(...args),
+    }
+    const wfl = new WflService(db, await createNodeWflStarlark(), port)
+    vou = new VouService(db, { acc: f.acc, wfl })
+    const { post, review } = await purchaseClients(db, f, undefined, {
+      vou,
+      wfl,
+      acc: f.acc,
+    })
+    try {
+      const documentId = ulid(),
+        submissionId = ulid()
+      const fact = {
+        sourceClosed: false,
+        sourceInstanceId: 'synthetic-prior-sales',
+        sourceSchema: 'synthetic',
+        sourceDocumentType: 'BB',
+        sourceDocumentKey: 'sale-order-100',
+        sourceDocumentNo: 'SYNTHETIC-BB-100',
+        capturedAt: '2026-09-05T12:00:00.123456Z',
+        snapshotDigest: 'a'.repeat(64),
+      }
+      const input = {
+        documentId,
+        submissionId,
+        idempotencyKey: submissionId,
+        expectedRevision: null,
+        payload: {
+          ...f.salePayload,
+          priorFact: fact,
+          productLines: [
+            {
+              ...f.salePayload.productLines[0]!,
+              lineId: ulid(),
+              enteredQuantity: '105',
+              baseQuantity: '105',
+              formula: {
+                sourceType: 'MANUAL',
+                output: {
+                  enteredQuantity: '105',
+                  enteredUnit: f.references.unitSnapshot,
+                  baseQuantity: '105',
+                },
+                components: [
+                  {
+                    material: { objectId: f.rawId },
+                    quantity: {
+                      enteredQuantity: '100.0001',
+                      enteredUnit: f.references.unitSnapshot,
+                      baseQuantity: '100.0001',
+                    },
+                  },
+                  {
+                    material: { objectId: f.rawId },
+                    quantity: {
+                      enteredQuantity: '4.9999',
+                      enteredUnit: f.references.unitSnapshot,
+                      baseQuantity: '4.9999',
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }
+      const ordinaryId = ulid(),
+        ordinarySubmission = ulid()
+      const { priorFact: _fact, ...ordinaryPayload } = input.payload
+      const ordinary = await post('/vou/sale-order/submit-new', {
+        ...input,
+        documentId: ordinaryId,
+        submissionId: ordinarySubmission,
+        idempotencyKey: ordinarySubmission,
+        payload: ordinaryPayload,
+      })
+      assert.equal(
+        ordinary.errorKey,
+        'vou_invalid_payload',
+        JSON.stringify(ordinary),
+      )
+      const submitted = await post('/vou/sale-order/submit-new', input)
+      assert.equal(submitted.code, 0, JSON.stringify(submitted))
+      const repeat = await post('/vou/sale-order/submit-new', input)
+      assert.deepEqual(repeat.data, submitted.data)
+      const approved = await review('/vou/sale-order/approve', {
+        documentId,
+        submissionId,
+        expectedRevision: submitted.data.revision,
+      })
+      assert.equal(approved.code, 0, JSON.stringify(approved))
+      const read = await post('/vou/sale-order/get', { documentId })
+      assert.equal(read.code, 0, JSON.stringify(read))
+      assert.deepEqual(read.data.payload.priorFact, fact)
+      assert.equal(read.data.payload.productLines[0].baseQuantity, '105.000000')
+      const formula = read.data.payload.productLines[0].formula
+      assert.equal(formula.components[0].quantity.enteredQuantity, '100.000100')
+      assert.equal(formula.components[0].quantity.baseQuantity, '100.000100')
+      assert.equal(formula.components[1].quantity.enteredQuantity, '4.999900')
+      assert.equal(formula.components[1].quantity.baseQuantity, '4.999900')
+      assert.deepEqual(
+        formula.components.map((row: any) => row.quantity.enteredUnit),
+        [f.references.unitSnapshot, f.references.unitSnapshot],
+      )
+      assert.equal(
+        productionSuggestedQuantity(
+          formula.components[0].quantity.baseQuantity,
+          formula.output.baseQuantity,
+          '21',
+          '0',
+        ),
+        '20.000020',
+      )
+      assert.equal(
+        productionSuggestedQuantity(
+          formula.components[1].quantity.baseQuantity,
+          formula.output.baseQuantity,
+          '21',
+          '0',
+        ),
+        '0.999980',
+      )
       const opening = await f.openings.getOpening(f.book.id, f.actor)
       assert.equal(opening.approval.status, 'PENDING')
     } finally {

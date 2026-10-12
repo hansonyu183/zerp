@@ -3,6 +3,8 @@ import {
   attachmentMaxSizeBytes,
   attachmentMaxCount,
   type AttachmentMimeType,
+  type VouBlocker,
+  type VouPriorSaleDisposition,
 } from '@zerp/model'
 import { purchaseInboundAccess } from '../app/purchase-inbound-access.ts'
 import { serviceAccess } from '../app/service-access.ts'
@@ -56,6 +58,12 @@ import {
   type InvoiceEntity,
 } from './invoice.ts'
 import { intermediarySource } from './intermediary-source.ts'
+import {
+  validateSaleFulfillment,
+  readPriorSaleDisposition,
+  priorSaleContinuation,
+  saleSignoffUnapproveBlockers,
+} from './sale-fulfillment.ts'
 import { validateIntermediaryCalculation } from './intermediary-validation.ts'
 import {
   IntermediaryScriptService,
@@ -218,6 +226,7 @@ export interface VouView {
   rejectedAt: string | null
   rejectionReason: string | null
   payload: VouPayload
+  priorSaleDisposition?: VouPriorSaleDisposition[]
   availableApprovalActions: ApprovalAction[]
   canDelete: boolean
 }
@@ -1063,6 +1072,9 @@ export class VouService implements WflVouPort {
       currentRevision: document ? String(document.stable_revision) : null,
       periodOpen: locked === undefined,
       trustedSystemActor,
+      priorSaleContinuation:
+        !trustedSystemActor &&
+        Boolean(await priorSaleContinuation(tx, entity, input.payload)),
     }
     const preflight = prepareVouSubmission(
       {
@@ -1077,6 +1089,7 @@ export class VouService implements WflVouPort {
     )
     if (!preflight.ok) throw new VouApplicationError(preflight.errorKey)
     await validatePriorFact(tx, entity, input.documentId, input.payload)
+    await validateSaleFulfillment(tx, entity, input.documentId, input.payload)
     // Client display values are never authoritative for a new AUX adoption.
     input = { ...input, payload: structuredClone(input.payload) }
     let intermediaryDependencies: string[] = []
@@ -1399,7 +1412,7 @@ export class VouService implements WflVouPort {
       ].includes(entity)
     )
       await lockInvoiceAmounts(tx)
-    const blockers =
+    const blockers: VouBlocker[] =
       action === 'unapprove'
         ? await this.downstreamBlockers(tx, input.documentId)
         : []
@@ -1420,6 +1433,13 @@ export class VouService implements WflVouPort {
       )
     }
     const historical = priorFact(persistedPayload) !== undefined
+    if (action === 'approve' || action === 'unreject')
+      await validateSaleFulfillment(
+        tx,
+        entity,
+        input.documentId,
+        persistedPayload,
+      )
     if (historical) {
       await assertPriorFactEditable(tx)
       if (action === 'approve' || action === 'unreject')
@@ -1470,6 +1490,10 @@ export class VouService implements WflVouPort {
         input.documentId,
         persistedPayload.businessDate,
         persistedPayload.intermediaryCalculation,
+      )
+    if (action === 'unapprove' && entity === 'sale-signoff')
+      blockers.push(
+        ...(await saleSignoffUnapproveBlockers(tx, input.documentId)),
       )
     if (action === 'unapprove' && entity === 'purchase-return')
       blockers.push(...(await purchaseReturnAllocationBlockers(tx, row.id)))
@@ -2901,6 +2925,15 @@ export class VouService implements WflVouPort {
       rejectedAt: row.rejected_at?.toISOString() ?? null,
       rejectionReason: row.rejection_reason,
       payload,
+      ...(priorFact(payload) && entity === 'sale-signoff'
+        ? {
+            priorSaleDisposition: await readPriorSaleDisposition(
+              executor,
+              entity,
+              payload,
+            ),
+          }
+        : {}),
       availableApprovalActions: availableApprovalActions(entry, presentedActor),
       canDelete:
         (row.status === 'PENDING' || row.status === 'REJECTED') &&
@@ -4696,10 +4729,10 @@ export class VouService implements WflVouPort {
       for (const [index, line] of payload.signoffLines.entries())
         await sql`
           INSERT INTO vou_signoff_line_snapshots (
-            approval_entry_id, line_no, source_line_id, signed_quantity_micros, rejected_quantity_micros, remark
+            approval_entry_id, line_no, source_line_id, signed_quantity_micros, rejected_quantity_micros, prior_lost_quantity_micros, remark
           ) VALUES (
             ${approvalEntryId}, ${index + 1}, ${line.sourceLineId},
-            ${decimalToFixed(line.signedBaseQuantity, 6)!}, ${decimalToFixed(line.rejectedBaseQuantity, 6)!}, ${line.remark ?? null}
+            ${decimalToFixed(line.signedBaseQuantity, 6)!}, ${decimalToFixed(line.rejectedBaseQuantity, 6)!}, ${line.lostBaseQuantity === undefined ? null : decimalToFixed(line.lostBaseQuantity, 6)!}, ${line.remark ?? null}
           )
         `.execute(transaction)
     if ('returnLines' in payload)
@@ -6072,6 +6105,7 @@ export class VouService implements WflVouPort {
         source_line_id: string
         signed_quantity_micros: string
         rejected_quantity_micros: string
+        prior_lost_quantity_micros: string | null
         remark: string | null
       }>('vou_signoff_line_snapshots')
       return {
@@ -6088,6 +6122,9 @@ export class VouService implements WflVouPort {
           sourceLineId: line.source_line_id,
           signedBaseQuantity: fixed(line.signed_quantity_micros, 6),
           rejectedBaseQuantity: fixed(line.rejected_quantity_micros, 6),
+          ...(line.prior_lost_quantity_micros === null
+            ? {}
+            : { lostBaseQuantity: fixed(line.prior_lost_quantity_micros, 6) }),
           ...(line.remark ? { remark: line.remark } : {}),
         })),
       } as unknown as VouPayload

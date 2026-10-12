@@ -107765,6 +107765,66 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AE",
+                                            "AF",
+                                            "AH",
+                                            "BB",
+                                            "BA"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceClosed",
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "customer": {
                                       "type": "object",
                                       "properties": {
@@ -108613,6 +108673,66 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AE",
+                                            "AF",
+                                            "AH",
+                                            "BB",
+                                            "BA"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceClosed",
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "sourceLines": {
                                       "type": "array",
                                       "items": {
@@ -109105,6 +109225,66 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AE",
+                                            "AF",
+                                            "AH",
+                                            "BB",
+                                            "BA"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceClosed",
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "customer": {
                                       "type": "object",
                                       "properties": {
@@ -109172,6 +109352,10 @@
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                           },
                                           "rejectedBaseQuantity": {
+                                            "type": "string",
+                                            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "lostBaseQuantity": {
                                             "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                           },
@@ -109789,7 +109973,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -110555,7 +110741,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -110878,7 +111066,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -111297,7 +111487,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -127969,7 +128161,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -128551,7 +128745,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -129043,6 +129239,54 @@
                                   "additionalProperties": false
                                 }
                               ]
+                            },
+                            "priorSaleDisposition": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "sourceLineId": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "dispatchedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "signedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "rejectedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "lostBaseQuantity": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "unresolvedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "inTransitBaseQuantity": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  }
+                                },
+                                "required": [
+                                  "sourceLineId",
+                                  "dispatchedBaseQuantity",
+                                  "signedBaseQuantity",
+                                  "rejectedBaseQuantity",
+                                  "lostBaseQuantity",
+                                  "unresolvedBaseQuantity",
+                                  "inTransitBaseQuantity"
+                                ],
+                                "additionalProperties": false
+                              }
                             },
                             "availableApprovalActions": {
                               "type": "array",
@@ -130416,6 +130660,66 @@
                             "minLength": 26,
                             "maxLength": 26
                           },
+                          "priorFact": {
+                            "type": "object",
+                            "properties": {
+                              "sourceClosed": {
+                                "type": "boolean"
+                              },
+                              "sourceInstanceId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceSchema": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "sourceDocumentType": {
+                                "type": "string",
+                                "enum": [
+                                  "AA",
+                                  "AD",
+                                  "AB",
+                                  "AE",
+                                  "AF",
+                                  "AH",
+                                  "BB",
+                                  "BA"
+                                ]
+                              },
+                              "sourceDocumentKey": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceDocumentNo": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "capturedAt": {
+                                "type": "string",
+                                "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                              },
+                              "snapshotDigest": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              }
+                            },
+                            "required": [
+                              "sourceClosed",
+                              "sourceInstanceId",
+                              "sourceSchema",
+                              "sourceDocumentType",
+                              "sourceDocumentKey",
+                              "sourceDocumentNo",
+                              "capturedAt",
+                              "snapshotDigest"
+                            ],
+                            "additionalProperties": false
+                          },
                           "customer": {
                             "type": "object",
                             "properties": {
@@ -131264,6 +131568,66 @@
                             "minLength": 26,
                             "maxLength": 26
                           },
+                          "priorFact": {
+                            "type": "object",
+                            "properties": {
+                              "sourceClosed": {
+                                "type": "boolean"
+                              },
+                              "sourceInstanceId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceSchema": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "sourceDocumentType": {
+                                "type": "string",
+                                "enum": [
+                                  "AA",
+                                  "AD",
+                                  "AB",
+                                  "AE",
+                                  "AF",
+                                  "AH",
+                                  "BB",
+                                  "BA"
+                                ]
+                              },
+                              "sourceDocumentKey": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceDocumentNo": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "capturedAt": {
+                                "type": "string",
+                                "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                              },
+                              "snapshotDigest": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              }
+                            },
+                            "required": [
+                              "sourceClosed",
+                              "sourceInstanceId",
+                              "sourceSchema",
+                              "sourceDocumentType",
+                              "sourceDocumentKey",
+                              "sourceDocumentNo",
+                              "capturedAt",
+                              "snapshotDigest"
+                            ],
+                            "additionalProperties": false
+                          },
                           "sourceLines": {
                             "type": "array",
                             "items": {
@@ -131756,6 +132120,66 @@
                             "minLength": 26,
                             "maxLength": 26
                           },
+                          "priorFact": {
+                            "type": "object",
+                            "properties": {
+                              "sourceClosed": {
+                                "type": "boolean"
+                              },
+                              "sourceInstanceId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceSchema": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "sourceDocumentType": {
+                                "type": "string",
+                                "enum": [
+                                  "AA",
+                                  "AD",
+                                  "AB",
+                                  "AE",
+                                  "AF",
+                                  "AH",
+                                  "BB",
+                                  "BA"
+                                ]
+                              },
+                              "sourceDocumentKey": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceDocumentNo": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "capturedAt": {
+                                "type": "string",
+                                "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                              },
+                              "snapshotDigest": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              }
+                            },
+                            "required": [
+                              "sourceClosed",
+                              "sourceInstanceId",
+                              "sourceSchema",
+                              "sourceDocumentType",
+                              "sourceDocumentKey",
+                              "sourceDocumentNo",
+                              "capturedAt",
+                              "snapshotDigest"
+                            ],
+                            "additionalProperties": false
+                          },
                           "customer": {
                             "type": "object",
                             "properties": {
@@ -131823,6 +132247,10 @@
                                   "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                 },
                                 "rejectedBaseQuantity": {
+                                  "type": "string",
+                                  "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                },
+                                "lostBaseQuantity": {
                                   "type": "string",
                                   "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                 },
@@ -132440,7 +132868,9 @@
                                   "AB",
                                   "AE",
                                   "AF",
-                                  "AH"
+                                  "AH",
+                                  "BB",
+                                  "BA"
                                 ]
                               },
                               "sourceDocumentKey": {
@@ -133206,7 +133636,9 @@
                                   "AB",
                                   "AE",
                                   "AF",
-                                  "AH"
+                                  "AH",
+                                  "BB",
+                                  "BA"
                                 ]
                               },
                               "sourceDocumentKey": {
@@ -133529,7 +133961,9 @@
                                   "AB",
                                   "AE",
                                   "AF",
-                                  "AH"
+                                  "AH",
+                                  "BB",
+                                  "BA"
                                 ]
                               },
                               "sourceDocumentKey": {
@@ -133948,7 +134382,9 @@
                                   "AB",
                                   "AE",
                                   "AF",
-                                  "AH"
+                                  "AH",
+                                  "BB",
+                                  "BA"
                                 ]
                               },
                               "sourceDocumentKey": {
@@ -150620,7 +151056,9 @@
                                   "AB",
                                   "AE",
                                   "AF",
-                                  "AH"
+                                  "AH",
+                                  "BB",
+                                  "BA"
                                 ]
                               },
                               "sourceDocumentKey": {
@@ -151202,7 +151640,9 @@
                                   "AB",
                                   "AE",
                                   "AF",
-                                  "AH"
+                                  "AH",
+                                  "BB",
+                                  "BA"
                                 ]
                               },
                               "sourceDocumentKey": {
@@ -152819,6 +153259,66 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AE",
+                                            "AF",
+                                            "AH",
+                                            "BB",
+                                            "BA"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceClosed",
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "customer": {
                                       "type": "object",
                                       "properties": {
@@ -153667,6 +154167,66 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AE",
+                                            "AF",
+                                            "AH",
+                                            "BB",
+                                            "BA"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceClosed",
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "sourceLines": {
                                       "type": "array",
                                       "items": {
@@ -154159,6 +154719,66 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AE",
+                                            "AF",
+                                            "AH",
+                                            "BB",
+                                            "BA"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceClosed",
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "customer": {
                                       "type": "object",
                                       "properties": {
@@ -154226,6 +154846,10 @@
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                           },
                                           "rejectedBaseQuantity": {
+                                            "type": "string",
+                                            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "lostBaseQuantity": {
                                             "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                           },
@@ -154843,7 +155467,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -155609,7 +156235,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -155932,7 +156560,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -156351,7 +156981,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -173023,7 +173655,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -173605,7 +174239,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -174097,6 +174733,54 @@
                                   "additionalProperties": false
                                 }
                               ]
+                            },
+                            "priorSaleDisposition": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "sourceLineId": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "dispatchedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "signedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "rejectedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "lostBaseQuantity": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "unresolvedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "inTransitBaseQuantity": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  }
+                                },
+                                "required": [
+                                  "sourceLineId",
+                                  "dispatchedBaseQuantity",
+                                  "signedBaseQuantity",
+                                  "rejectedBaseQuantity",
+                                  "lostBaseQuantity",
+                                  "unresolvedBaseQuantity",
+                                  "inTransitBaseQuantity"
+                                ],
+                                "additionalProperties": false
+                              }
                             },
                             "availableApprovalActions": {
                               "type": "array",
@@ -175235,6 +175919,66 @@
                             "minLength": 26,
                             "maxLength": 26
                           },
+                          "priorFact": {
+                            "type": "object",
+                            "properties": {
+                              "sourceClosed": {
+                                "type": "boolean"
+                              },
+                              "sourceInstanceId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceSchema": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "sourceDocumentType": {
+                                "type": "string",
+                                "enum": [
+                                  "AA",
+                                  "AD",
+                                  "AB",
+                                  "AE",
+                                  "AF",
+                                  "AH",
+                                  "BB",
+                                  "BA"
+                                ]
+                              },
+                              "sourceDocumentKey": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceDocumentNo": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "capturedAt": {
+                                "type": "string",
+                                "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                              },
+                              "snapshotDigest": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              }
+                            },
+                            "required": [
+                              "sourceClosed",
+                              "sourceInstanceId",
+                              "sourceSchema",
+                              "sourceDocumentType",
+                              "sourceDocumentKey",
+                              "sourceDocumentNo",
+                              "capturedAt",
+                              "snapshotDigest"
+                            ],
+                            "additionalProperties": false
+                          },
                           "customer": {
                             "type": "object",
                             "properties": {
@@ -176083,6 +176827,66 @@
                             "minLength": 26,
                             "maxLength": 26
                           },
+                          "priorFact": {
+                            "type": "object",
+                            "properties": {
+                              "sourceClosed": {
+                                "type": "boolean"
+                              },
+                              "sourceInstanceId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceSchema": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "sourceDocumentType": {
+                                "type": "string",
+                                "enum": [
+                                  "AA",
+                                  "AD",
+                                  "AB",
+                                  "AE",
+                                  "AF",
+                                  "AH",
+                                  "BB",
+                                  "BA"
+                                ]
+                              },
+                              "sourceDocumentKey": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceDocumentNo": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "capturedAt": {
+                                "type": "string",
+                                "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                              },
+                              "snapshotDigest": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              }
+                            },
+                            "required": [
+                              "sourceClosed",
+                              "sourceInstanceId",
+                              "sourceSchema",
+                              "sourceDocumentType",
+                              "sourceDocumentKey",
+                              "sourceDocumentNo",
+                              "capturedAt",
+                              "snapshotDigest"
+                            ],
+                            "additionalProperties": false
+                          },
                           "sourceLines": {
                             "type": "array",
                             "items": {
@@ -176575,6 +177379,66 @@
                             "minLength": 26,
                             "maxLength": 26
                           },
+                          "priorFact": {
+                            "type": "object",
+                            "properties": {
+                              "sourceClosed": {
+                                "type": "boolean"
+                              },
+                              "sourceInstanceId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceSchema": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "sourceDocumentType": {
+                                "type": "string",
+                                "enum": [
+                                  "AA",
+                                  "AD",
+                                  "AB",
+                                  "AE",
+                                  "AF",
+                                  "AH",
+                                  "BB",
+                                  "BA"
+                                ]
+                              },
+                              "sourceDocumentKey": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "sourceDocumentNo": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "capturedAt": {
+                                "type": "string",
+                                "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                              },
+                              "snapshotDigest": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              }
+                            },
+                            "required": [
+                              "sourceClosed",
+                              "sourceInstanceId",
+                              "sourceSchema",
+                              "sourceDocumentType",
+                              "sourceDocumentKey",
+                              "sourceDocumentNo",
+                              "capturedAt",
+                              "snapshotDigest"
+                            ],
+                            "additionalProperties": false
+                          },
                           "customer": {
                             "type": "object",
                             "properties": {
@@ -176642,6 +177506,10 @@
                                   "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                 },
                                 "rejectedBaseQuantity": {
+                                  "type": "string",
+                                  "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                },
+                                "lostBaseQuantity": {
                                   "type": "string",
                                   "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                 },
@@ -177259,7 +178127,9 @@
                                   "AB",
                                   "AE",
                                   "AF",
-                                  "AH"
+                                  "AH",
+                                  "BB",
+                                  "BA"
                                 ]
                               },
                               "sourceDocumentKey": {
@@ -178025,7 +178895,9 @@
                                   "AB",
                                   "AE",
                                   "AF",
-                                  "AH"
+                                  "AH",
+                                  "BB",
+                                  "BA"
                                 ]
                               },
                               "sourceDocumentKey": {
@@ -178348,7 +179220,9 @@
                                   "AB",
                                   "AE",
                                   "AF",
-                                  "AH"
+                                  "AH",
+                                  "BB",
+                                  "BA"
                                 ]
                               },
                               "sourceDocumentKey": {
@@ -178767,7 +179641,9 @@
                                   "AB",
                                   "AE",
                                   "AF",
-                                  "AH"
+                                  "AH",
+                                  "BB",
+                                  "BA"
                                 ]
                               },
                               "sourceDocumentKey": {
@@ -195439,7 +196315,9 @@
                                   "AB",
                                   "AE",
                                   "AF",
-                                  "AH"
+                                  "AH",
+                                  "BB",
+                                  "BA"
                                 ]
                               },
                               "sourceDocumentKey": {
@@ -196021,7 +196899,9 @@
                                   "AB",
                                   "AE",
                                   "AF",
-                                  "AH"
+                                  "AH",
+                                  "BB",
+                                  "BA"
                                 ]
                               },
                               "sourceDocumentKey": {
@@ -197638,6 +198518,66 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AE",
+                                            "AF",
+                                            "AH",
+                                            "BB",
+                                            "BA"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceClosed",
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "customer": {
                                       "type": "object",
                                       "properties": {
@@ -198486,6 +199426,66 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AE",
+                                            "AF",
+                                            "AH",
+                                            "BB",
+                                            "BA"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceClosed",
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "sourceLines": {
                                       "type": "array",
                                       "items": {
@@ -198978,6 +199978,66 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AE",
+                                            "AF",
+                                            "AH",
+                                            "BB",
+                                            "BA"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceClosed",
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "customer": {
                                       "type": "object",
                                       "properties": {
@@ -199045,6 +200105,10 @@
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                           },
                                           "rejectedBaseQuantity": {
+                                            "type": "string",
+                                            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "lostBaseQuantity": {
                                             "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                           },
@@ -199662,7 +200726,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -200428,7 +201494,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -200751,7 +201819,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -201170,7 +202240,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -217842,7 +218914,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -218424,7 +219498,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -218916,6 +219992,54 @@
                                   "additionalProperties": false
                                 }
                               ]
+                            },
+                            "priorSaleDisposition": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "sourceLineId": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "dispatchedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "signedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "rejectedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "lostBaseQuantity": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "unresolvedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "inTransitBaseQuantity": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  }
+                                },
+                                "required": [
+                                  "sourceLineId",
+                                  "dispatchedBaseQuantity",
+                                  "signedBaseQuantity",
+                                  "rejectedBaseQuantity",
+                                  "lostBaseQuantity",
+                                  "unresolvedBaseQuantity",
+                                  "inTransitBaseQuantity"
+                                ],
+                                "additionalProperties": false
+                              }
                             },
                             "availableApprovalActions": {
                               "type": "array",
@@ -220198,6 +221322,66 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AE",
+                                            "AF",
+                                            "AH",
+                                            "BB",
+                                            "BA"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceClosed",
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "customer": {
                                       "type": "object",
                                       "properties": {
@@ -221046,6 +222230,66 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AE",
+                                            "AF",
+                                            "AH",
+                                            "BB",
+                                            "BA"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceClosed",
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "sourceLines": {
                                       "type": "array",
                                       "items": {
@@ -221538,6 +222782,66 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AE",
+                                            "AF",
+                                            "AH",
+                                            "BB",
+                                            "BA"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceClosed",
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "customer": {
                                       "type": "object",
                                       "properties": {
@@ -221605,6 +222909,10 @@
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                           },
                                           "rejectedBaseQuantity": {
+                                            "type": "string",
+                                            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "lostBaseQuantity": {
                                             "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                           },
@@ -222222,7 +223530,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -222988,7 +224298,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -223311,7 +224623,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -223730,7 +225044,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -240402,7 +241718,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -240984,7 +242302,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -241476,6 +242796,54 @@
                                   "additionalProperties": false
                                 }
                               ]
+                            },
+                            "priorSaleDisposition": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "sourceLineId": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "dispatchedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "signedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "rejectedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "lostBaseQuantity": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "unresolvedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "inTransitBaseQuantity": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  }
+                                },
+                                "required": [
+                                  "sourceLineId",
+                                  "dispatchedBaseQuantity",
+                                  "signedBaseQuantity",
+                                  "rejectedBaseQuantity",
+                                  "lostBaseQuantity",
+                                  "unresolvedBaseQuantity",
+                                  "inTransitBaseQuantity"
+                                ],
+                                "additionalProperties": false
+                              }
                             },
                             "availableApprovalActions": {
                               "type": "array",
@@ -242764,6 +244132,66 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AE",
+                                            "AF",
+                                            "AH",
+                                            "BB",
+                                            "BA"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceClosed",
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "customer": {
                                       "type": "object",
                                       "properties": {
@@ -243612,6 +245040,66 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AE",
+                                            "AF",
+                                            "AH",
+                                            "BB",
+                                            "BA"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceClosed",
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "sourceLines": {
                                       "type": "array",
                                       "items": {
@@ -244104,6 +245592,66 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AE",
+                                            "AF",
+                                            "AH",
+                                            "BB",
+                                            "BA"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceClosed",
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "customer": {
                                       "type": "object",
                                       "properties": {
@@ -244171,6 +245719,10 @@
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                           },
                                           "rejectedBaseQuantity": {
+                                            "type": "string",
+                                            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "lostBaseQuantity": {
                                             "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                           },
@@ -244788,7 +246340,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -245554,7 +247108,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -245877,7 +247433,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -246296,7 +247854,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -262968,7 +264528,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -263550,7 +265112,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -264042,6 +265606,54 @@
                                   "additionalProperties": false
                                 }
                               ]
+                            },
+                            "priorSaleDisposition": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "sourceLineId": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "dispatchedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "signedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "rejectedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "lostBaseQuantity": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "unresolvedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "inTransitBaseQuantity": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  }
+                                },
+                                "required": [
+                                  "sourceLineId",
+                                  "dispatchedBaseQuantity",
+                                  "signedBaseQuantity",
+                                  "rejectedBaseQuantity",
+                                  "lostBaseQuantity",
+                                  "unresolvedBaseQuantity",
+                                  "inTransitBaseQuantity"
+                                ],
+                                "additionalProperties": false
+                              }
                             },
                             "availableApprovalActions": {
                               "type": "array",
@@ -265324,6 +266936,66 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AE",
+                                            "AF",
+                                            "AH",
+                                            "BB",
+                                            "BA"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceClosed",
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "customer": {
                                       "type": "object",
                                       "properties": {
@@ -266172,6 +267844,66 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AE",
+                                            "AF",
+                                            "AH",
+                                            "BB",
+                                            "BA"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceClosed",
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "sourceLines": {
                                       "type": "array",
                                       "items": {
@@ -266664,6 +268396,66 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AE",
+                                            "AF",
+                                            "AH",
+                                            "BB",
+                                            "BA"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceClosed",
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "customer": {
                                       "type": "object",
                                       "properties": {
@@ -266731,6 +268523,10 @@
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                           },
                                           "rejectedBaseQuantity": {
+                                            "type": "string",
+                                            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "lostBaseQuantity": {
                                             "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                           },
@@ -267348,7 +269144,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -268114,7 +269912,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -268437,7 +270237,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -268856,7 +270658,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -285528,7 +287332,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -286110,7 +287916,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -286602,6 +288410,54 @@
                                   "additionalProperties": false
                                 }
                               ]
+                            },
+                            "priorSaleDisposition": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "sourceLineId": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "dispatchedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "signedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "rejectedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "lostBaseQuantity": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "unresolvedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "inTransitBaseQuantity": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  }
+                                },
+                                "required": [
+                                  "sourceLineId",
+                                  "dispatchedBaseQuantity",
+                                  "signedBaseQuantity",
+                                  "rejectedBaseQuantity",
+                                  "lostBaseQuantity",
+                                  "unresolvedBaseQuantity",
+                                  "inTransitBaseQuantity"
+                                ],
+                                "additionalProperties": false
+                              }
                             },
                             "availableApprovalActions": {
                               "type": "array",
@@ -287890,6 +289746,66 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AE",
+                                            "AF",
+                                            "AH",
+                                            "BB",
+                                            "BA"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceClosed",
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "customer": {
                                       "type": "object",
                                       "properties": {
@@ -288738,6 +290654,66 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AE",
+                                            "AF",
+                                            "AH",
+                                            "BB",
+                                            "BA"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceClosed",
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "sourceLines": {
                                       "type": "array",
                                       "items": {
@@ -289230,6 +291206,66 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "priorFact": {
+                                      "type": "object",
+                                      "properties": {
+                                        "sourceClosed": {
+                                          "type": "boolean"
+                                        },
+                                        "sourceInstanceId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceSchema": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        "sourceDocumentType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "AA",
+                                            "AD",
+                                            "AB",
+                                            "AE",
+                                            "AF",
+                                            "AH",
+                                            "BB",
+                                            "BA"
+                                          ]
+                                        },
+                                        "sourceDocumentKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 128
+                                        },
+                                        "sourceDocumentNo": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200
+                                        },
+                                        "capturedAt": {
+                                          "type": "string",
+                                          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,6}))?Z$"
+                                        },
+                                        "snapshotDigest": {
+                                          "type": "string",
+                                          "pattern": "^[0-9a-f]{64}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "sourceClosed",
+                                        "sourceInstanceId",
+                                        "sourceSchema",
+                                        "sourceDocumentType",
+                                        "sourceDocumentKey",
+                                        "sourceDocumentNo",
+                                        "capturedAt",
+                                        "snapshotDigest"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "customer": {
                                       "type": "object",
                                       "properties": {
@@ -289297,6 +291333,10 @@
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                           },
                                           "rejectedBaseQuantity": {
+                                            "type": "string",
+                                            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                          },
+                                          "lostBaseQuantity": {
                                             "type": "string",
                                             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
                                           },
@@ -289914,7 +291954,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -290680,7 +292722,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -291003,7 +293047,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -291422,7 +293468,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -308094,7 +310142,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -308676,7 +310726,9 @@
                                             "AB",
                                             "AE",
                                             "AF",
-                                            "AH"
+                                            "AH",
+                                            "BB",
+                                            "BA"
                                           ]
                                         },
                                         "sourceDocumentKey": {
@@ -309168,6 +311220,54 @@
                                   "additionalProperties": false
                                 }
                               ]
+                            },
+                            "priorSaleDisposition": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "sourceLineId": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "dispatchedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "signedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "rejectedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "lostBaseQuantity": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "unresolvedBaseQuantity": {
+                                    "type": "string",
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  },
+                                  "inTransitBaseQuantity": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d{1,6})?$"
+                                  }
+                                },
+                                "required": [
+                                  "sourceLineId",
+                                  "dispatchedBaseQuantity",
+                                  "signedBaseQuantity",
+                                  "rejectedBaseQuantity",
+                                  "lostBaseQuantity",
+                                  "unresolvedBaseQuantity",
+                                  "inTransitBaseQuantity"
+                                ],
+                                "additionalProperties": false
+                              }
                             },
                             "availableApprovalActions": {
                               "type": "array",

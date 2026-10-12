@@ -11,6 +11,9 @@ import { VouApplicationError } from './service.ts'
 
 type Executor = Kysely<DB> | Transaction<DB>
 function sourceComponent(entity: VouEntity) {
+  if (entity === 'sale-order') return 'SALE_ORDER' as const
+  if (entity === 'sale-outbound') return 'SALE_OUTBOUND' as const
+  if (entity === 'sale-signoff') return 'SALE_SIGNOFF' as const
   if (entity === 'service-contract' || entity === 'service-acceptance')
     return 'SERVICE' as const
   if (
@@ -184,8 +187,47 @@ export async function validatePriorFact(
       throw new VouApplicationError('vou_prior_fact_invalid')
     return
   }
-  if (entity === 'purchase-order') {
+  if (entity === 'purchase-order' || entity === 'sale-order') {
     if (payload.parentDocumentId)
+      throw new VouApplicationError('vou_prior_fact_invalid')
+    return
+  }
+  if (entity === 'sale-signoff') {
+    if (payload.parentEntity !== 'sale-outbound' || !payload.parentDocumentId)
+      throw new VouApplicationError('vou_prior_fact_invalid')
+    const parent = await tx
+      .selectFrom('approval_entries')
+      .select('id')
+      .where('domain', '=', 'vou')
+      .where('entity', '=', 'sale-outbound')
+      .where('subject_id', '=', payload.parentDocumentId)
+      .where('status', '=', 'APPROVED')
+      .executeTakeFirst()
+    const parentFact = parent ? await readPriorFact(tx, parent.id) : undefined
+    if (!parentFact || !sameCapture(fact, parentFact))
+      throw new VouApplicationError('vou_prior_fact_invalid')
+    return
+  }
+  if (entity === 'sale-outbound') {
+    if (payload.parentEntity !== 'sale-order' || !payload.parentDocumentId)
+      throw new VouApplicationError('vou_prior_fact_invalid')
+    const parent = await tx
+      .selectFrom('approval_entries')
+      .select('id')
+      .where('domain', '=', 'vou')
+      .where('entity', '=', 'sale-order')
+      .where('subject_id', '=', payload.parentDocumentId)
+      .where('status', '=', 'APPROVED')
+      .executeTakeFirst()
+    const parentFact = parent ? await readPriorFact(tx, parent.id) : undefined
+    if (
+      !parentFact ||
+      !sameCapture(fact, parentFact) ||
+      parentFact.sourceDocumentType !== fact.sourceDocumentType ||
+      parentFact.sourceDocumentKey !== fact.sourceDocumentKey ||
+      parentFact.sourceDocumentNo !== fact.sourceDocumentNo ||
+      parentFact.sourceClosed !== fact.sourceClosed
+    )
       throw new VouApplicationError('vou_prior_fact_invalid')
     return
   }

@@ -4920,6 +4920,22 @@
     "title": "sale-delivery reject"
   },
   {
+    "id": "01J6A0F7175F26B7AA7EEFA391",
+    "path": "/vou/sale-delivery/submit-change",
+    "domain": "vou",
+    "entity": "sale-delivery",
+    "action": "submit-change",
+    "title": "sale-delivery submit-change"
+  },
+  {
+    "id": "01J4E0975E3CB3329A8B290600",
+    "path": "/vou/sale-delivery/submit-new",
+    "domain": "vou",
+    "entity": "sale-delivery",
+    "action": "submit-new",
+    "title": "sale-delivery submit-new"
+  },
+  {
     "id": "01J17EED8ABA33AC6513004112",
     "path": "/vou/sale-delivery/unapprove",
     "domain": "vou",
@@ -5232,6 +5248,22 @@
     "title": "sale-outbound reject"
   },
   {
+    "id": "01JF33C361622D51309D9895AF",
+    "path": "/vou/sale-outbound/submit-change",
+    "domain": "vou",
+    "entity": "sale-outbound",
+    "action": "submit-change",
+    "title": "sale-outbound submit-change"
+  },
+  {
+    "id": "01J9024394544F3502CC9B900B",
+    "path": "/vou/sale-outbound/submit-new",
+    "domain": "vou",
+    "entity": "sale-outbound",
+    "action": "submit-new",
+    "title": "sale-outbound submit-new"
+  },
+  {
     "id": "01J286263F4B7818CBF984FCB4",
     "path": "/vou/sale-outbound/unapprove",
     "domain": "vou",
@@ -5526,6 +5558,22 @@
     "entity": "sale-signoff",
     "action": "reject",
     "title": "sale-signoff reject"
+  },
+  {
+    "id": "01J6CAB4C5FDE0BD35E9DE4CE5",
+    "path": "/vou/sale-signoff/submit-change",
+    "domain": "vou",
+    "entity": "sale-signoff",
+    "action": "submit-change",
+    "title": "sale-signoff submit-change"
+  },
+  {
+    "id": "01JAE00D36562D56E54D5B92FD",
+    "path": "/vou/sale-signoff/submit-new",
+    "domain": "vou",
+    "entity": "sale-signoff",
+    "action": "submit-new",
+    "title": "sale-signoff submit-new"
   },
   {
     "id": "01J750A1DA31859CCF7358DF88",

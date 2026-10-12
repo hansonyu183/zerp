@@ -303,6 +303,7 @@ export function registerAppRoutes(
     } catch (error) {
       if (error instanceof SessionError) return sessionFailure(error, requestId)
       if (
+        error instanceof VouApplicationError ||
         error instanceof AccApplicationError ||
         error instanceof WflApplicationError ||
         error instanceof ApprovalPersistenceError ||

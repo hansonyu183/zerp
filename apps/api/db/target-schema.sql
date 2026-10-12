@@ -753,8 +753,8 @@ CREATE TABLE vou_prior_facts (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     source_instance_id varchar(128) NOT NULL,
     source_schema varchar(64) NOT NULL,
-    source_document_type varchar(2) NOT NULL CHECK (source_document_type IN ('AA', 'AD', 'AB', 'AE', 'AF', 'AH')),
-    source_component varchar(16) NOT NULL CHECK (source_component IN ('PROCUREMENT', 'SERVICE')),
+    source_document_type varchar(2) NOT NULL CHECK (source_document_type IN ('AA', 'AD', 'AB', 'AE', 'AF', 'AH', 'BB', 'BA')),
+    source_component varchar(16) NOT NULL CHECK (source_component IN ('PROCUREMENT', 'SERVICE', 'SALE_ORDER', 'SALE_OUTBOUND', 'SALE_SIGNOFF')),
     source_document_key varchar(128) NOT NULL,
     source_document_no varchar(200) NOT NULL,
     captured_at timestamptz NOT NULL,
@@ -1419,6 +1419,7 @@ CREATE TABLE vou_signoff_line_snapshots (
     source_line_id varchar(128) NOT NULL,
     signed_quantity_micros bigint NOT NULL,
     rejected_quantity_micros bigint NOT NULL,
+    prior_lost_quantity_micros bigint CHECK (prior_lost_quantity_micros >= 0),
     remark text,
     PRIMARY KEY (approval_entry_id, line_no)
 );

@@ -408,6 +408,9 @@ export interface VouBillCashLineInput {
 }
 
 export const vouPriorDocumentTypes = {
+  'sale-order': ['BB'],
+  'sale-outbound': ['BB'],
+  'sale-signoff': ['BA'],
   'purchase-order': ['AA', 'AD'],
   'purchase-inbound': ['AB', 'AH'],
   'purchase-return': ['AF'],
@@ -416,6 +419,8 @@ export const vouPriorDocumentTypes = {
 } as const
 
 export const vouPriorSourceDocumentPresentation = {
+  BB: { label: '销售配货' },
+  BA: { label: '销售签收' },
   AA: { label: '采购订单' },
   AD: { label: '预付采购订单' },
   AB: { label: '采购入库' },
@@ -458,11 +463,22 @@ export interface VouPriorFact {
   sourceClosed: boolean
   sourceInstanceId: string
   sourceSchema: string
-  sourceDocumentType: 'AA' | 'AD' | 'AB' | 'AE' | 'AF' | 'AH'
+  sourceDocumentType: 'AA' | 'AD' | 'AB' | 'AE' | 'AF' | 'AH' | 'BB' | 'BA'
   sourceDocumentKey: string
   sourceDocumentNo: string
   capturedAt: string
   snapshotDigest: string
+}
+
+/** Pre-cutoff customer quantities; unresolved disposition remains separate from proven transit. */
+export interface VouPriorSaleDisposition {
+  sourceLineId: string
+  dispatchedBaseQuantity: string
+  signedBaseQuantity: string
+  rejectedBaseQuantity: string
+  lostBaseQuantity: string | null
+  unresolvedBaseQuantity: string
+  inTransitBaseQuantity: string | null
 }
 
 export interface VouPayloadBase {
@@ -644,6 +660,7 @@ export interface VouPayloadShapes {
   'purchase-invoice': VouInvoiceFacts & { supplier: VouVersionedReferenceInput }
   'sale-pricing': PricePayload
   'sale-order': ProductPayload & {
+    priorFact?: VouPriorFact
     customer: VouVersionedReferenceInput
     operatingEntity: VouAuxCurrentReferenceInput
     salesperson?: VouAuxCurrentReferenceInput
@@ -652,12 +669,13 @@ export interface VouPayloadShapes {
     creditOverrideReason?: string
     specialApproval?: boolean
   }
-  'sale-outbound': SourcePayload
+  'sale-outbound': SourcePayload & { priorFact?: VouPriorFact }
   'sale-delivery': SourcePayload & {
     carrier?: VouVersionedReferenceInput
     vehicle?: VouAuxCurrentReferenceInput
   }
   'sale-signoff': VouPayloadBase & {
+    priorFact?: VouPriorFact
     customer: VouVersionedReferenceInput
     expectedSolventContainers: number
     expectedResinContainers: number
@@ -668,6 +686,7 @@ export interface VouPayloadShapes {
       sourceLineId: string
       signedBaseQuantity: string
       rejectedBaseQuantity: string
+      lostBaseQuantity?: string
       remark?: string
     }[]
   }
@@ -884,6 +903,7 @@ export interface VouSubmissionFacts {
   referencesValid: boolean
   periodOpen: boolean
   trustedSystemActor: boolean
+  priorSaleContinuation?: boolean
 }
 
 export type VouSubmissionErrorKey =
@@ -1302,13 +1322,28 @@ function canonicalPayload<Entity extends VouEntity>(
       'sourceLines' in value
         ? value.sourceLines
         : (value as VouPayloadShapes['purchase-return']).returnLines
-    const historical = 'priorFact' in value && value.priorFact !== undefined
+    const historical =
+      (entity === 'purchase-inbound' || entity === 'purchase-return') &&
+      'priorFact' in value &&
+      value.priorFact !== undefined
     if (
       lines.some((line) =>
         historical
           ? line.priorAmount === undefined ||
             !/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(line.priorAmount)
           : line.priorAmount !== undefined,
+      )
+    )
+      return undefined
+  }
+  if (entity === 'sale-signoff') {
+    const signoff = value as VouPayloadShapes['sale-signoff']
+    if (
+      signoff.signoffLines.some(
+        (line) =>
+          line.lostBaseQuantity !== undefined &&
+          (!signoff.priorFact ||
+            !/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(line.lostBaseQuantity)),
       )
     )
       return undefined
@@ -1622,6 +1657,7 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
   ],
   'sale-pricing': ['priceLines'],
   'sale-order': [
+    'priorFact',
     'customer',
     'operatingEntity',
     'salesperson',
@@ -1631,9 +1667,10 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
     'creditOverrideReason',
     'specialApproval',
   ],
-  'sale-outbound': ['sourceLines'],
+  'sale-outbound': ['priorFact', 'sourceLines'],
   'sale-delivery': ['sourceLines', 'carrier', 'vehicle'],
   'sale-signoff': [
+    'priorFact',
     'customer',
     'expectedSolventContainers',
     'expectedResinContainers',
@@ -3149,7 +3186,13 @@ export function prepareVouSubmission(
     return { ok: false, errorKey: 'vou_invalid_command' }
   if (
     systemGeneratedSet.has(command.entity) &&
-    facts.trustedSystemActor !== true
+    facts.trustedSystemActor !== true &&
+    facts.priorSaleContinuation !== true &&
+    !(
+      'priorFact' in command.payload &&
+      command.payload.priorFact &&
+      command.entity in vouPriorDocumentTypes
+    )
   )
     return { ok: false, errorKey: 'vou_trusted_actor_required' }
   if (

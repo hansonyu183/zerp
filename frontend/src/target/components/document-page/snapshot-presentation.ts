@@ -6,6 +6,10 @@ import {
 // Shared captions for immutable voucher facts and ACC mapping field selection.
 export const snapshotCaptions: Readonly<Record<string, string>> = {
   priorFact: '此前事实',
+  dispatchedBaseQuantity: '此前出库量',
+  lostBaseQuantity: '已证损耗量',
+  unresolvedBaseQuantity: '未证去向余量',
+  inTransitBaseQuantity: '已证在途量',
   serviceLines: '服务明细',
   serviceName: '服务内容',
   serviceCode: '服务编码',

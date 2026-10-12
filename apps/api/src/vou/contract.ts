@@ -15,6 +15,7 @@ import type { Schema } from 'hono'
 import {
   vouEntities,
   vouServiceCounterpartyTypes,
+  vouPriorDocumentTypes,
   vouPriorCutoffPattern,
   vouEntityPresentation,
   vouPaymentMethodSelectionOrigins,
@@ -125,7 +126,16 @@ const priorFact = z
     sourceClosed: z.boolean(),
     sourceInstanceId: z.string().min(1).max(128),
     sourceSchema: z.string().min(1).max(64),
-    sourceDocumentType: z.enum(['AA', 'AD', 'AB', 'AE', 'AF', 'AH']),
+    sourceDocumentType: z.enum([
+      'AA',
+      'AD',
+      'AB',
+      'AE',
+      'AF',
+      'AH',
+      'BB',
+      'BA',
+    ]),
     sourceDocumentKey: z.string().min(1).max(128),
     sourceDocumentNo: z.string().min(1).max(200),
     capturedAt: z.string().datetime().regex(vouPriorCutoffPattern),
@@ -305,6 +315,7 @@ const signoffLine = z
     sourceLineId: z.string().min(1),
     signedBaseQuantity: quantity,
     rejectedBaseQuantity: quantity,
+    lostBaseQuantity: quantity.optional(),
     remark: z.string().max(1000).optional(),
   })
   .strict()
@@ -629,6 +640,7 @@ export const vouPayloadSchemaByEntity = {
   }),
   'sale-pricing': payload({ priceLines: z.array(priceLine).min(1).max(200) }),
   'sale-order': payload({
+    priorFact: priorFact.optional(),
     customer: versionedReference,
     operatingEntity: operatingEntityReference,
     salesperson: employeeReference.optional(),
@@ -639,6 +651,7 @@ export const vouPayloadSchemaByEntity = {
     specialApproval: z.boolean().optional(),
   }),
   'sale-outbound': payload({
+    priorFact: priorFact.optional(),
     sourceLines: z.array(sourceLine).min(1).max(200),
   }),
   'sale-delivery': payload({
@@ -647,6 +660,7 @@ export const vouPayloadSchemaByEntity = {
     vehicle: vehicleReference.optional(),
   }),
   'sale-signoff': payload({
+    priorFact: priorFact.optional(),
     customer: versionedReference,
     expectedSolventContainers: containerCount,
     expectedResinContainers: containerCount,
@@ -968,6 +982,21 @@ const vouView = z
     rejectedAt: z.string().datetime().nullable(),
     rejectionReason: z.string().nullable(),
     payload: payloadUnion,
+    priorSaleDisposition: z
+      .array(
+        z
+          .object({
+            sourceLineId: z.string().min(1),
+            dispatchedBaseQuantity: quantity,
+            signedBaseQuantity: quantity,
+            rejectedBaseQuantity: quantity,
+            lostBaseQuantity: quantity.nullable(),
+            unresolvedBaseQuantity: quantity,
+            inTransitBaseQuantity: quantity.nullable(),
+          })
+          .strict(),
+      )
+      .optional(),
     availableApprovalActions: z.array(approvalAction),
     canDelete: z.boolean(),
   })
@@ -1592,7 +1621,13 @@ export const vouCapabilityPermissionMetadata = [
           : `${entity} ${action}`,
     })),
   ),
-  ...userCreatableVouEntities.flatMap((entity) =>
+  ...[
+    ...new Set([
+      ...userCreatableVouEntities,
+      ...Object.keys(vouPriorDocumentTypes),
+      'sale-delivery',
+    ]),
+  ].flatMap((entity) =>
     ['submit-new', 'submit-change'].map((action) => ({
       permission: `/vou/${entity}/${action}`,
       title: `${entity} ${action}`,

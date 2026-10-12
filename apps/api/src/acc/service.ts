@@ -38,6 +38,7 @@ import type {
   PlanExecutor,
 } from '../platform/transaction-coordinator.ts'
 import { readVouPersistence } from '../vou/service.ts'
+import { auxCurrentDataSchemas } from '../app/aux-contract.ts'
 import { internalBookId, internalBookSubjects } from './internal-book-seed.ts'
 import { lockAccountingPeriod } from './period-lock.ts'
 import { settleInventoryCost, removeInventoryCost } from './month-end.ts'
@@ -3317,17 +3318,26 @@ export class AccService
             ] as const) {
               const id = line.dimensions[dimension]
               if (!id) continue
-              const current = await resolveAuxCurrentReference(
-                transaction,
-                entity,
-                id,
-              )
-              if (
-                entity === 'fund-account' &&
-                'currency' in current.data &&
-                current.data.currency !== line.currency
-              )
-                throw new AccApplicationError('acc_opening_dimension_required')
+              // Opening carries the old balance of an existing account, including
+              // a stopped one. This adoption never enables it for new cash business.
+              if (entity === 'fund-account') {
+                const account = await transaction
+                  .selectFrom('aux_objects')
+                  .select('data')
+                  .where('id', '=', id)
+                  .where('entity', '=', 'fund-account')
+                  .forShare()
+                  .executeTakeFirst()
+                const parsed = auxCurrentDataSchemas['fund-account'].safeParse(
+                  account?.data,
+                )
+                if (!parsed.success || parsed.data.currency !== line.currency)
+                  throw new AccApplicationError(
+                    'acc_opening_dimension_required',
+                  )
+                continue
+              }
+              await resolveAuxCurrentReference(transaction, entity, id)
             }
           } catch (error) {
             if (error instanceof AuxApplicationError)

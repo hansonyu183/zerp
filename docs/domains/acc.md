@@ -58,7 +58,7 @@ ACC 的动作、路径和数据结构由 `apps/api/` 的可执行 Hono/Zod 路�
 
 辅助核算维度限定为客户、Supplier、Other Unit、Employee、Sales Partner、部门、产品、仓库、资金账户、资产和票据。对应 wire value 固定为 `CUSTOMER`、`SUPPLIER`、`OTHER_UNIT`、`EMPLOYEE`、`SALES_PARTNER`、`DEPARTMENT`、`PRODUCT`、`WAREHOUSE`、`FUND_ACCOUNT`、`ASSET`、`BILL`。应收、预收必须要求客户，应付、预付必须要求 Supplier；其他往来必须使用一种明确强类型业务档案。Party 不是核算维度且不存在。
 
-会计分录继续用维度 stable ID 作为余额聚合键，同时保存业务档案维度的精确引用快照。Customer 快照包含 `customerId`、`customerApprovalEntryId`、编码和名称；Supplier、Other Unit 与 Sales Partner 快照包含明确 `entity`、stable ID、精确 `approvalEntryId`、编码和名称。后续档案改名、停用不改写既有分录；新期初和自动记账只接受当前有效引用。Employee、经营主体、仓库和资金账户采用 AUX current stable ID；VOU 采用时保存服务端当前快照，期初维度在同一事务验证启用状态并登记精确引用事实，资金账户币种必须匹配明细币种。部门、产品、资产和票据沿用各自已有的 stable ID 或专属历史快照规则，不伪装为业务档案引用。
+会计分录继续用维度 stable ID 作为余额聚合键，同时保存业务档案维度的精确引用快照。Customer 快照包含 `customerId`、`customerApprovalEntryId`、编码和名称；Supplier、Other Unit 与 Sales Partner 快照包含明确 `entity`、stable ID、精确 `approvalEntryId`、编码和名称。后续档案改名、停用不改写既有分录；新期初和自动记账只接受当前有效引用。Employee、经营主体、仓库和资金账户采用 AUX current stable ID；VOU 采用时保存服务端当前快照，期初维度在同一事务验证真实身份并登记精确引用事实；员工、仓库须启用，资金账户允许保留停用状态承接历史余额，其币种必须匹配明细币种。部门、产品、资产和票据沿用各自已有的 stable ID 或专属历史快照规则，不伪装为业务档案引用。
 
 只有末级且启用的科目可以被期初、会计映射或会计事实引用。ACC 以统一的科目引用登记标记已引用科目；一旦引用，编码、名称、父级、余额方向、辅助维度、库存属性和结算用途冻结，只允许从启用变为停用。未引用且没有子科目的科目可以删除；有子科目或已有引用的科目不能删除。
 
@@ -67,6 +67,8 @@ ACC 的动作、路径和数据结构由 `apps/api/` 的可执行 Hono/Zod 路�
 科目查询和读取要求对应动作权限及账簿查询范围；创建、保存和删除要求对应动作权限及账簿操作范围。
 
 ## 6. 账簿期初
+
+期初资金账户维度可以承接已停用账户的历史余额，须为真实存在的资金账户且币种与期初行一致；保留停用状态和固定身份，登记引用后不得删除。该事实不启用账户，后续新资金业务继续要求启用账户。
 
 账簿开始接收 VOU 会计事实前必须明确批准期初；没有任何期初余额时也必须批准零期初。每个 `bookId` 的 Opening 是一个 Approval-only stable subject，中央条目的 `versionNo` 永远为 `NULL`，持久化生命周期唯一为 `PENDING | APPROVED | REJECTED`。期初稳定主体、不可变提交和审批入口归 VOU；ACC 在 VOU 持有的同一事务内校验并持久化账务事实，不提供第二审批入口。期初编辑只存在页面实例内临时表单，刷新或关闭即销毁，submit 直接创建 `PENDING` Submission。接口响应通过 `ApprovalMeta` 暴露正式状态和元数据，并在根级通过必填 `availableApprovalActions` 返回当前操作者的 Approval Action Availability；期初不维护第二个业务 `state`。前端只渲染 shared TypeScript model 的 View State，不根据状态、提交人或本地权限推断生命周期动作。
 

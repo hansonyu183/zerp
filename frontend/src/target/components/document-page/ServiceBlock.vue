@@ -44,7 +44,16 @@ function update(patch: Partial<ServiceDraft>) {
       ...patch,
       ...(patch.counterpartyType &&
       patch.counterpartyType !== props.modelValue.counterpartyType
-        ? { counterparty: null, origin: 'CURRENT' as const, capabilities: [] }
+        ? {
+            counterparty: null,
+            origin: 'CURRENT' as const,
+            capabilities: [],
+            requiresPrepayment: false,
+            settlementDirection:
+              patch.counterpartyType === 'customer'
+                ? ('RECEIVABLE' as const)
+                : ('PAYABLE' as const),
+          }
         : {}),
     })
 }
@@ -66,8 +75,12 @@ const partyOptions = computed(() =>
   servicePartyOptions.filter((option) => {
     if (props.modelValue.priorFact)
       return (
-        props.modelValue.entity === 'service-acceptance' ||
-        option.value !== 'sales-partner'
+        (option.value === 'customer') ===
+          ['BB', 'BA'].includes(
+            props.modelValue.priorFact.sourceDocumentType,
+          ) &&
+        (props.modelValue.entity === 'service-acceptance' ||
+          option.value !== 'sales-partner')
       )
     return contexts.value.includes(serviceCounterpartyContexts[option.value])
   }),
@@ -109,6 +122,13 @@ async function contract(value: ServiceDraft['contract'], preserve = false) {
     const result = await queryTargetServiceContractLines(value.objectId)
     if (!active || version !== request || session.generation !== generation)
       return
+    update({
+      counterpartyType: result.counterpartyType,
+      settlementDirection:
+        result.counterpartyType === 'customer'
+          ? 'RECEIVABLE'
+          : props.modelValue.settlementDirection,
+    })
     contractLines.value = result.items.map((line) => ({
       ...line,
       contractLineId: line.lineId,
@@ -178,6 +198,17 @@ onBeforeUnmount(() => {
     :disabled="disabled"
     @update:model-value="update({ employee: $event })"
   />
+  <VouReference
+    v-if="
+      modelValue.counterpartyType === 'customer' &&
+      (modelValue.entity === 'service-contract' || !modelValue.contract)
+    "
+    entity="operating-entity"
+    caption="经营主体"
+    :model-value="modelValue.operatingEntity"
+    :disabled="disabled"
+    @update:model-value="update({ operatingEntity: $event })"
+  />
   <template v-if="modelValue.entity === 'service-contract'">
     <FormBlock
       :fields="[
@@ -223,7 +254,10 @@ onBeforeUnmount(() => {
       >
     </fieldset>
     <FieldInput
-      v-if="modelValue.counterpartyType !== 'sales-partner'"
+      v-if="
+        modelValue.counterpartyType !== 'sales-partner' &&
+        modelValue.counterpartyType !== 'customer'
+      "
       usage="edit"
       :field="{
         key: 'requiresPrepayment',
@@ -296,7 +330,12 @@ onBeforeUnmount(() => {
           type: 'enum',
           caption: '结算方向',
           required: true,
-          options: serviceDirectionOptions,
+          options:
+            modelValue.counterpartyType === 'customer'
+              ? serviceDirectionOptions.filter(
+                  (option) => option.value === 'RECEIVABLE',
+                )
+              : serviceDirectionOptions,
         },
         {
           key: 'amount',

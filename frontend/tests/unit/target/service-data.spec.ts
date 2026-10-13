@@ -139,3 +139,31 @@ describe('service carryover form orchestration', () => {
     },
   )
 })
+
+it('customer service contexts keep receivable direction, explicit consideration and the operating entity', () => {
+  const draft = setServiceContext(emptyService('service-contract'), 'PRIOR_BB')
+  expect(draft.counterpartyType).toBe('customer')
+  expect(draft.settlementDirection).toBe('RECEIVABLE')
+  expect(draft.requiresPrepayment).toBe(false)
+  const copy = cloneService('service-contract', {
+    ...payload,
+    counterpartyType: 'customer',
+    operatingEntity: { objectId: id },
+    priorFact: { ...fact, sourceDocumentType: 'BB' },
+    serviceContract: {},
+  })
+  expect(servicePayload(copy)).toMatchObject({
+    counterpartyType: 'customer',
+    operatingEntity: { objectId: id },
+  })
+  expect(servicePayload(copy)).not.toHaveProperty('priorFact')
+  expect(servicePayload(copy)).not.toHaveProperty(
+    'serviceContract.requiresPrepayment',
+  )
+  const ordinary = setServiceContext(
+    emptyService('service-acceptance'),
+    'CUSTOMER_CONTRACT',
+  )
+  expect(ordinary.counterpartyType).toBe('customer')
+  expect(serviceDraftContext(ordinary)).toBe('CUSTOMER_CONTRACT')
+})

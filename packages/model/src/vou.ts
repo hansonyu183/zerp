@@ -414,8 +414,8 @@ export const vouPriorDocumentTypes = {
   'purchase-order': ['AA', 'AD'],
   'purchase-inbound': ['AB', 'AH'],
   'purchase-return': ['AF'],
-  'service-contract': ['AA', 'AD'],
-  'service-acceptance': ['AB', 'AE', 'AH'],
+  'service-contract': ['AA', 'AD', 'BB'],
+  'service-acceptance': ['AB', 'AE', 'AH', 'BA'],
 } as const
 
 export const vouPriorSourceDocumentPresentation = {
@@ -653,6 +653,7 @@ export interface VouInvoiceFacts extends VouPayloadBase {
   invoiceLines: readonly VouInvoiceLine[]
 }
 export const vouServiceCounterpartyTypes = [
+  'customer',
   'supplier',
   'other-unit',
   'sales-partner',
@@ -851,6 +852,7 @@ export interface VouPayloadShapes {
     intermediaryCalculation: VouIntermediaryCalculationInput
   }
   'service-contract': VouPayloadBase & {
+    operatingEntity?: VouAuxCurrentReferenceInput
     priorFact?: VouPriorFact
     serviceLines?: readonly VouServiceLineInput[]
     counterparty: VouVersionedReferenceInput
@@ -865,6 +867,7 @@ export interface VouPayloadShapes {
     }
   }
   'service-acceptance': VouPayloadBase & {
+    operatingEntity?: VouAuxCurrentReferenceInput
     priorFact?: VouPriorFact
     serviceLines?: readonly VouServiceLineInput[]
     priorLineOrigins?: readonly VouPriorLineOrigin[]
@@ -1478,6 +1481,25 @@ function canonicalPayload<Entity extends VouEntity>(
       return undefined
     const historical = service.priorFact !== undefined
     const lines = service.serviceLines
+    const customer = service.counterpartyType === 'customer'
+    if (
+      (customer &&
+        (!lines?.length ||
+          ((!('serviceAcceptance' in service) ||
+            !service.serviceAcceptance.contractDocumentId) &&
+            !service.operatingEntity))) ||
+      (historical &&
+        (entity === 'service-contract'
+          ? (service.priorFact?.sourceDocumentType === 'BB') !== customer
+          : (service.priorFact?.sourceDocumentType === 'BA') !== customer)) ||
+      (customer &&
+        'serviceAcceptance' in service &&
+        service.serviceAcceptance.settlementDirection !== 'RECEIVABLE') ||
+      (customer &&
+        'serviceContract' in service &&
+        service.serviceContract.requiresPrepayment === true)
+    )
+      return undefined
     if (
       (historical && (!lines || !lines.length)) ||
       (lines !== undefined &&
@@ -1834,6 +1856,7 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
   'bill-maturity': ['maturityType', 'billLines', 'billCashLines'],
   'intermediary-calculation': ['intermediaryCalculation'],
   'service-contract': [
+    'operatingEntity',
     'priorFact',
     'serviceLines',
     'counterparty',
@@ -1842,6 +1865,7 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
     'serviceContract',
   ],
   'service-acceptance': [
+    'operatingEntity',
     'priorFact',
     'serviceLines',
     'priorLineOrigins',
@@ -1863,6 +1887,10 @@ const payloadRequiredFields: Readonly<Record<VouEntity, readonly string[]>> =
               'priorFact',
               'serviceLines',
               'priorLineOrigins',
+              ...(entity === 'service-contract' ||
+              entity === 'service-acceptance'
+                ? ['operatingEntity']
+                : []),
               'salesperson',
               'purchaser',
               'carrier',

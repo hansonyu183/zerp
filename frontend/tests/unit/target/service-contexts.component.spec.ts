@@ -89,9 +89,9 @@ it('workflow choices stay separate and readonly viewing does not rewrite grants'
   expect(wrapper.emitted('update:modelValue')).toBeUndefined()
   wrapper.unmount()
 })
-it('allows an explicitly authorized action to select all five contract types', async () => {
+it('allows an explicitly authorized action to select all explicitly authorized contract types', async () => {
   const contexts = [...servicePermissionContexts('/vou/service-contract/query')]
-  expect(contexts).toHaveLength(5)
+  expect(contexts).toHaveLength(7)
   useTargetSession().serviceContexts = {
     '/vou/service-contract/query': contexts,
   }
@@ -105,7 +105,7 @@ it('allows an explicitly authorized action to select all five contract types', a
     global: { stubs },
   })
   const field = wrapper.findComponent({ name: 'FieldInput' })
-  expect(field.props('field').options).toHaveLength(5)
+  expect(field.props('field').options).toHaveLength(contexts.length)
   field.vm.$emit('update:modelValue', contexts)
   expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([
     { read: contexts },

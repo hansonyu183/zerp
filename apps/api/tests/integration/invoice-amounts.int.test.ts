@@ -73,12 +73,39 @@ async function invoiceFixture(
         })),
       }),
     )
+    const sourceLines = [
+      {
+        sourceLineId: original.productLines[0]!.lineId,
+        baseQuantity: quantity,
+      },
+    ]
+    const outbound = await approve(
+      'sale-outbound',
+      await submit('sale-outbound', {
+        ...(fixture.documents['sale-outbound']
+          .payload as VouPayloadFor<'sale-outbound'>),
+        parentEntity: 'sale-order',
+        parentDocumentId: order.documentId,
+        sourceLines,
+      }),
+    )
+    const delivery = await approve(
+      'sale-delivery',
+      await submit('sale-delivery', {
+        ...(fixture.documents['sale-delivery']
+          .payload as VouPayloadFor<'sale-delivery'>),
+        parentEntity: 'sale-outbound',
+        parentDocumentId: outbound.documentId,
+        sourceLines,
+      }),
+    )
     const source = await approve(
       'sale-signoff',
       await submit('sale-signoff', {
         ...(fixture.documents['sale-signoff']
           .payload as VouPayloadFor<'sale-signoff'>),
-        parentDocumentId: order.documentId,
+        parentEntity: 'sale-delivery',
+        parentDocumentId: delivery.documentId,
         signoffLines: [
           {
             sourceLineId: original.productLines[0]!.lineId,

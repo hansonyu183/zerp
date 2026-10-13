@@ -189,6 +189,10 @@
                                 "items": {
                                   "type": "string",
                                   "enum": [
+                                    "CUSTOMER_CONTRACT",
+                                    "CUSTOMER",
+                                    "PRIOR_BB",
+                                    "PRIOR_BA",
                                     "OTHER_UNIT",
                                     "SUPPLIER",
                                     "SALES_PARTNER",
@@ -481,6 +485,10 @@
                                 "items": {
                                   "type": "string",
                                   "enum": [
+                                    "CUSTOMER_CONTRACT",
+                                    "CUSTOMER",
+                                    "PRIOR_BB",
+                                    "PRIOR_BA",
                                     "OTHER_UNIT",
                                     "SUPPLIER",
                                     "SALES_PARTNER",
@@ -15749,6 +15757,10 @@
                                 "items": {
                                   "type": "string",
                                   "enum": [
+                                    "CUSTOMER_CONTRACT",
+                                    "CUSTOMER",
+                                    "PRIOR_BB",
+                                    "PRIOR_BA",
                                     "OTHER_UNIT",
                                     "SUPPLIER",
                                     "SALES_PARTNER",
@@ -15761,7 +15773,7 @@
                                   ]
                                 },
                                 "minItems": 1,
-                                "maxItems": 9
+                                "maxItems": 13
                               }
                             },
                             "createdAt": {
@@ -15960,6 +15972,10 @@
                       "items": {
                         "type": "string",
                         "enum": [
+                          "CUSTOMER_CONTRACT",
+                          "CUSTOMER",
+                          "PRIOR_BB",
+                          "PRIOR_BA",
                           "OTHER_UNIT",
                           "SUPPLIER",
                           "SALES_PARTNER",
@@ -15972,7 +15988,7 @@
                         ]
                       },
                       "minItems": 1,
-                      "maxItems": 9
+                      "maxItems": 13
                     }
                   },
                   "customerScope": {
@@ -16101,6 +16117,10 @@
                                 "items": {
                                   "type": "string",
                                   "enum": [
+                                    "CUSTOMER_CONTRACT",
+                                    "CUSTOMER",
+                                    "PRIOR_BB",
+                                    "PRIOR_BA",
                                     "OTHER_UNIT",
                                     "SUPPLIER",
                                     "SALES_PARTNER",
@@ -16113,7 +16133,7 @@
                                   ]
                                 },
                                 "minItems": 1,
-                                "maxItems": 9
+                                "maxItems": 13
                               }
                             },
                             "createdAt": {
@@ -16311,6 +16331,10 @@
                       "items": {
                         "type": "string",
                         "enum": [
+                          "CUSTOMER_CONTRACT",
+                          "CUSTOMER",
+                          "PRIOR_BB",
+                          "PRIOR_BA",
                           "OTHER_UNIT",
                           "SUPPLIER",
                           "SALES_PARTNER",
@@ -16323,7 +16347,7 @@
                         ]
                       },
                       "minItems": 1,
-                      "maxItems": 9
+                      "maxItems": 13
                     }
                   },
                   "customerScope": {
@@ -16458,6 +16482,10 @@
                                 "items": {
                                   "type": "string",
                                   "enum": [
+                                    "CUSTOMER_CONTRACT",
+                                    "CUSTOMER",
+                                    "PRIOR_BB",
+                                    "PRIOR_BA",
                                     "OTHER_UNIT",
                                     "SUPPLIER",
                                     "SALES_PARTNER",
@@ -16470,7 +16498,7 @@
                                   ]
                                 },
                                 "minItems": 1,
-                                "maxItems": 9
+                                "maxItems": 13
                               }
                             },
                             "createdAt": {
@@ -16754,6 +16782,10 @@
                                 "items": {
                                   "type": "string",
                                   "enum": [
+                                    "CUSTOMER_CONTRACT",
+                                    "CUSTOMER",
+                                    "PRIOR_BB",
+                                    "PRIOR_BA",
                                     "OTHER_UNIT",
                                     "SUPPLIER",
                                     "SALES_PARTNER",
@@ -16766,7 +16798,7 @@
                                   ]
                                 },
                                 "minItems": 1,
-                                "maxItems": 9
+                                "maxItems": 13
                               }
                             },
                             "createdAt": {
@@ -17050,6 +17082,10 @@
                                 "items": {
                                   "type": "string",
                                   "enum": [
+                                    "CUSTOMER_CONTRACT",
+                                    "CUSTOMER",
+                                    "PRIOR_BB",
+                                    "PRIOR_BA",
                                     "OTHER_UNIT",
                                     "SUPPLIER",
                                     "SALES_PARTNER",
@@ -17062,7 +17098,7 @@
                                   ]
                                 },
                                 "minItems": 1,
-                                "maxItems": 9
+                                "maxItems": 13
                               }
                             },
                             "createdAt": {
@@ -103303,7 +103339,7 @@
         ],
         "responses": {
           "200": {
-            "description": "可采用的服务合同明细",
+            "description": "可采用的服务合同明细和客户结算上下文",
             "content": {
               "application/json": {
                 "schema": {
@@ -103332,6 +103368,105 @@
                         "data": {
                           "type": "object",
                           "properties": {
+                            "counterpartyType": {
+                              "type": "string",
+                              "enum": [
+                                "customer",
+                                "supplier",
+                                "other-unit",
+                                "sales-partner"
+                              ]
+                            },
+                            "operatingEntity": {
+                              "type": "object",
+                              "properties": {
+                                "objectId": {
+                                  "type": "string",
+                                  "minLength": 26,
+                                  "maxLength": 26
+                                },
+                                "code": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "snapshot": {
+                                  "type": "object",
+                                  "properties": {
+                                    "legalName": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "shortName": {
+                                      "type": "string",
+                                      "maxLength": 100
+                                    },
+                                    "legalIdentifier": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 128
+                                    },
+                                    "registeredAddress": {
+                                      "type": "string",
+                                      "maxLength": 500
+                                    },
+                                    "contactName": {
+                                      "type": "string",
+                                      "maxLength": 100
+                                    },
+                                    "contactPhone": {
+                                      "type": "string",
+                                      "maxLength": 32
+                                    },
+                                    "invoiceTitle": {
+                                      "type": "string",
+                                      "maxLength": 200
+                                    },
+                                    "invoiceAddress": {
+                                      "type": "string",
+                                      "maxLength": 500
+                                    },
+                                    "invoicePhone": {
+                                      "type": "string",
+                                      "maxLength": 32
+                                    },
+                                    "invoiceBank": {
+                                      "type": "string",
+                                      "maxLength": 200
+                                    },
+                                    "invoiceAccount": {
+                                      "type": "string",
+                                      "maxLength": 128
+                                    },
+                                    "remark": {
+                                      "type": "string",
+                                      "maxLength": 1000
+                                    }
+                                  },
+                                  "required": [
+                                    "legalName",
+                                    "shortName",
+                                    "legalIdentifier",
+                                    "registeredAddress",
+                                    "contactName",
+                                    "contactPhone",
+                                    "invoiceTitle",
+                                    "invoiceAddress",
+                                    "invoicePhone",
+                                    "invoiceBank",
+                                    "invoiceAccount",
+                                    "remark"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "required": [
+                                "objectId"
+                              ],
+                              "additionalProperties": false
+                            },
                             "items": {
                               "type": "array",
                               "items": {
@@ -103449,6 +103584,7 @@
                             }
                           },
                           "required": [
+                            "counterpartyType",
                             "items"
                           ],
                           "additionalProperties": false
@@ -103802,6 +103938,14 @@
                               "items": {
                                 "type": "object",
                                 "properties": {
+                                  "sourceEntity": {
+                                    "type": "string",
+                                    "enum": [
+                                      "sale-signoff",
+                                      "purchase-inbound",
+                                      "service-acceptance"
+                                    ]
+                                  },
                                   "sourceDocumentId": {
                                     "type": "string"
                                   },
@@ -103838,6 +103982,7 @@
                                   }
                                 },
                                 "required": [
+                                  "sourceEntity",
                                   "sourceDocumentId",
                                   "sourceApprovalEntryId",
                                   "sourceLineId",
@@ -104024,6 +104169,14 @@
                                     "items": {
                                       "type": "object",
                                       "properties": {
+                                        "sourceEntity": {
+                                          "type": "string",
+                                          "enum": [
+                                            "sale-signoff",
+                                            "purchase-inbound",
+                                            "service-acceptance"
+                                          ]
+                                        },
                                         "sourceDocumentId": {
                                           "type": "string"
                                         },
@@ -104060,6 +104213,7 @@
                                         }
                                       },
                                       "required": [
+                                        "sourceEntity",
                                         "sourceDocumentId",
                                         "sourceApprovalEntryId",
                                         "sourceLineId",
@@ -129379,6 +129533,96 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "operatingEntity": {
+                                      "type": "object",
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "code": {
+                                          "type": "string"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "snapshot": {
+                                          "type": "object",
+                                          "properties": {
+                                            "legalName": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 200
+                                            },
+                                            "shortName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "legalIdentifier": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 128
+                                            },
+                                            "registeredAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "contactName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "contactPhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceTitle": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "invoicePhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceBank": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAccount": {
+                                              "type": "string",
+                                              "maxLength": 128
+                                            },
+                                            "remark": {
+                                              "type": "string",
+                                              "maxLength": 1000
+                                            }
+                                          },
+                                          "required": [
+                                            "legalName",
+                                            "shortName",
+                                            "legalIdentifier",
+                                            "registeredAddress",
+                                            "contactName",
+                                            "contactPhone",
+                                            "invoiceTitle",
+                                            "invoiceAddress",
+                                            "invoicePhone",
+                                            "invoiceBank",
+                                            "invoiceAccount",
+                                            "remark"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
@@ -129595,6 +129839,7 @@
                                     "counterpartyType": {
                                       "type": "string",
                                       "enum": [
+                                        "customer",
                                         "supplier",
                                         "other-unit",
                                         "sales-partner"
@@ -129963,6 +130208,96 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "operatingEntity": {
+                                      "type": "object",
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "code": {
+                                          "type": "string"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "snapshot": {
+                                          "type": "object",
+                                          "properties": {
+                                            "legalName": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 200
+                                            },
+                                            "shortName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "legalIdentifier": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 128
+                                            },
+                                            "registeredAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "contactName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "contactPhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceTitle": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "invoicePhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceBank": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAccount": {
+                                              "type": "string",
+                                              "maxLength": 128
+                                            },
+                                            "remark": {
+                                              "type": "string",
+                                              "maxLength": 1000
+                                            }
+                                          },
+                                          "required": [
+                                            "legalName",
+                                            "shortName",
+                                            "legalIdentifier",
+                                            "registeredAddress",
+                                            "contactName",
+                                            "contactPhone",
+                                            "invoiceTitle",
+                                            "invoiceAddress",
+                                            "invoicePhone",
+                                            "invoiceBank",
+                                            "invoiceAccount",
+                                            "remark"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
@@ -130219,6 +130554,7 @@
                                     "counterpartyType": {
                                       "type": "string",
                                       "enum": [
+                                        "customer",
                                         "supplier",
                                         "other-unit",
                                         "sales-partner"
@@ -152363,6 +152699,96 @@
                             "minLength": 26,
                             "maxLength": 26
                           },
+                          "operatingEntity": {
+                            "type": "object",
+                            "properties": {
+                              "objectId": {
+                                "type": "string",
+                                "minLength": 26,
+                                "maxLength": 26
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "snapshot": {
+                                "type": "object",
+                                "properties": {
+                                  "legalName": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "shortName": {
+                                    "type": "string",
+                                    "maxLength": 100
+                                  },
+                                  "legalIdentifier": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 128
+                                  },
+                                  "registeredAddress": {
+                                    "type": "string",
+                                    "maxLength": 500
+                                  },
+                                  "contactName": {
+                                    "type": "string",
+                                    "maxLength": 100
+                                  },
+                                  "contactPhone": {
+                                    "type": "string",
+                                    "maxLength": 32
+                                  },
+                                  "invoiceTitle": {
+                                    "type": "string",
+                                    "maxLength": 200
+                                  },
+                                  "invoiceAddress": {
+                                    "type": "string",
+                                    "maxLength": 500
+                                  },
+                                  "invoicePhone": {
+                                    "type": "string",
+                                    "maxLength": 32
+                                  },
+                                  "invoiceBank": {
+                                    "type": "string",
+                                    "maxLength": 200
+                                  },
+                                  "invoiceAccount": {
+                                    "type": "string",
+                                    "maxLength": 128
+                                  },
+                                  "remark": {
+                                    "type": "string",
+                                    "maxLength": 1000
+                                  }
+                                },
+                                "required": [
+                                  "legalName",
+                                  "shortName",
+                                  "legalIdentifier",
+                                  "registeredAddress",
+                                  "contactName",
+                                  "contactPhone",
+                                  "invoiceTitle",
+                                  "invoiceAddress",
+                                  "invoicePhone",
+                                  "invoiceBank",
+                                  "invoiceAccount",
+                                  "remark"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "objectId"
+                            ],
+                            "additionalProperties": false
+                          },
                           "priorFact": {
                             "type": "object",
                             "properties": {
@@ -152579,6 +153005,7 @@
                           "counterpartyType": {
                             "type": "string",
                             "enum": [
+                              "customer",
                               "supplier",
                               "other-unit",
                               "sales-partner"
@@ -152947,6 +153374,96 @@
                             "minLength": 26,
                             "maxLength": 26
                           },
+                          "operatingEntity": {
+                            "type": "object",
+                            "properties": {
+                              "objectId": {
+                                "type": "string",
+                                "minLength": 26,
+                                "maxLength": 26
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "snapshot": {
+                                "type": "object",
+                                "properties": {
+                                  "legalName": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "shortName": {
+                                    "type": "string",
+                                    "maxLength": 100
+                                  },
+                                  "legalIdentifier": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 128
+                                  },
+                                  "registeredAddress": {
+                                    "type": "string",
+                                    "maxLength": 500
+                                  },
+                                  "contactName": {
+                                    "type": "string",
+                                    "maxLength": 100
+                                  },
+                                  "contactPhone": {
+                                    "type": "string",
+                                    "maxLength": 32
+                                  },
+                                  "invoiceTitle": {
+                                    "type": "string",
+                                    "maxLength": 200
+                                  },
+                                  "invoiceAddress": {
+                                    "type": "string",
+                                    "maxLength": 500
+                                  },
+                                  "invoicePhone": {
+                                    "type": "string",
+                                    "maxLength": 32
+                                  },
+                                  "invoiceBank": {
+                                    "type": "string",
+                                    "maxLength": 200
+                                  },
+                                  "invoiceAccount": {
+                                    "type": "string",
+                                    "maxLength": 128
+                                  },
+                                  "remark": {
+                                    "type": "string",
+                                    "maxLength": 1000
+                                  }
+                                },
+                                "required": [
+                                  "legalName",
+                                  "shortName",
+                                  "legalIdentifier",
+                                  "registeredAddress",
+                                  "contactName",
+                                  "contactPhone",
+                                  "invoiceTitle",
+                                  "invoiceAddress",
+                                  "invoicePhone",
+                                  "invoiceBank",
+                                  "invoiceAccount",
+                                  "remark"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "objectId"
+                            ],
+                            "additionalProperties": false
+                          },
                           "priorFact": {
                             "type": "object",
                             "properties": {
@@ -153203,6 +153720,7 @@
                           "counterpartyType": {
                             "type": "string",
                             "enum": [
+                              "customer",
                               "supplier",
                               "other-unit",
                               "sales-partner"
@@ -175051,6 +175569,96 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "operatingEntity": {
+                                      "type": "object",
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "code": {
+                                          "type": "string"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "snapshot": {
+                                          "type": "object",
+                                          "properties": {
+                                            "legalName": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 200
+                                            },
+                                            "shortName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "legalIdentifier": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 128
+                                            },
+                                            "registeredAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "contactName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "contactPhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceTitle": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "invoicePhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceBank": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAccount": {
+                                              "type": "string",
+                                              "maxLength": 128
+                                            },
+                                            "remark": {
+                                              "type": "string",
+                                              "maxLength": 1000
+                                            }
+                                          },
+                                          "required": [
+                                            "legalName",
+                                            "shortName",
+                                            "legalIdentifier",
+                                            "registeredAddress",
+                                            "contactName",
+                                            "contactPhone",
+                                            "invoiceTitle",
+                                            "invoiceAddress",
+                                            "invoicePhone",
+                                            "invoiceBank",
+                                            "invoiceAccount",
+                                            "remark"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
@@ -175267,6 +175875,7 @@
                                     "counterpartyType": {
                                       "type": "string",
                                       "enum": [
+                                        "customer",
                                         "supplier",
                                         "other-unit",
                                         "sales-partner"
@@ -175635,6 +176244,96 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "operatingEntity": {
+                                      "type": "object",
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "code": {
+                                          "type": "string"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "snapshot": {
+                                          "type": "object",
+                                          "properties": {
+                                            "legalName": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 200
+                                            },
+                                            "shortName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "legalIdentifier": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 128
+                                            },
+                                            "registeredAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "contactName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "contactPhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceTitle": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "invoicePhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceBank": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAccount": {
+                                              "type": "string",
+                                              "maxLength": 128
+                                            },
+                                            "remark": {
+                                              "type": "string",
+                                              "maxLength": 1000
+                                            }
+                                          },
+                                          "required": [
+                                            "legalName",
+                                            "shortName",
+                                            "legalIdentifier",
+                                            "registeredAddress",
+                                            "contactName",
+                                            "contactPhone",
+                                            "invoiceTitle",
+                                            "invoiceAddress",
+                                            "invoicePhone",
+                                            "invoiceBank",
+                                            "invoiceAccount",
+                                            "remark"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
@@ -175891,6 +176590,7 @@
                                     "counterpartyType": {
                                       "type": "string",
                                       "enum": [
+                                        "customer",
                                         "supplier",
                                         "other-unit",
                                         "sales-partner"
@@ -197800,6 +198500,96 @@
                             "minLength": 26,
                             "maxLength": 26
                           },
+                          "operatingEntity": {
+                            "type": "object",
+                            "properties": {
+                              "objectId": {
+                                "type": "string",
+                                "minLength": 26,
+                                "maxLength": 26
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "snapshot": {
+                                "type": "object",
+                                "properties": {
+                                  "legalName": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "shortName": {
+                                    "type": "string",
+                                    "maxLength": 100
+                                  },
+                                  "legalIdentifier": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 128
+                                  },
+                                  "registeredAddress": {
+                                    "type": "string",
+                                    "maxLength": 500
+                                  },
+                                  "contactName": {
+                                    "type": "string",
+                                    "maxLength": 100
+                                  },
+                                  "contactPhone": {
+                                    "type": "string",
+                                    "maxLength": 32
+                                  },
+                                  "invoiceTitle": {
+                                    "type": "string",
+                                    "maxLength": 200
+                                  },
+                                  "invoiceAddress": {
+                                    "type": "string",
+                                    "maxLength": 500
+                                  },
+                                  "invoicePhone": {
+                                    "type": "string",
+                                    "maxLength": 32
+                                  },
+                                  "invoiceBank": {
+                                    "type": "string",
+                                    "maxLength": 200
+                                  },
+                                  "invoiceAccount": {
+                                    "type": "string",
+                                    "maxLength": 128
+                                  },
+                                  "remark": {
+                                    "type": "string",
+                                    "maxLength": 1000
+                                  }
+                                },
+                                "required": [
+                                  "legalName",
+                                  "shortName",
+                                  "legalIdentifier",
+                                  "registeredAddress",
+                                  "contactName",
+                                  "contactPhone",
+                                  "invoiceTitle",
+                                  "invoiceAddress",
+                                  "invoicePhone",
+                                  "invoiceBank",
+                                  "invoiceAccount",
+                                  "remark"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "objectId"
+                            ],
+                            "additionalProperties": false
+                          },
                           "priorFact": {
                             "type": "object",
                             "properties": {
@@ -198016,6 +198806,7 @@
                           "counterpartyType": {
                             "type": "string",
                             "enum": [
+                              "customer",
                               "supplier",
                               "other-unit",
                               "sales-partner"
@@ -198384,6 +199175,96 @@
                             "minLength": 26,
                             "maxLength": 26
                           },
+                          "operatingEntity": {
+                            "type": "object",
+                            "properties": {
+                              "objectId": {
+                                "type": "string",
+                                "minLength": 26,
+                                "maxLength": 26
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "snapshot": {
+                                "type": "object",
+                                "properties": {
+                                  "legalName": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "shortName": {
+                                    "type": "string",
+                                    "maxLength": 100
+                                  },
+                                  "legalIdentifier": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 128
+                                  },
+                                  "registeredAddress": {
+                                    "type": "string",
+                                    "maxLength": 500
+                                  },
+                                  "contactName": {
+                                    "type": "string",
+                                    "maxLength": 100
+                                  },
+                                  "contactPhone": {
+                                    "type": "string",
+                                    "maxLength": 32
+                                  },
+                                  "invoiceTitle": {
+                                    "type": "string",
+                                    "maxLength": 200
+                                  },
+                                  "invoiceAddress": {
+                                    "type": "string",
+                                    "maxLength": 500
+                                  },
+                                  "invoicePhone": {
+                                    "type": "string",
+                                    "maxLength": 32
+                                  },
+                                  "invoiceBank": {
+                                    "type": "string",
+                                    "maxLength": 200
+                                  },
+                                  "invoiceAccount": {
+                                    "type": "string",
+                                    "maxLength": 128
+                                  },
+                                  "remark": {
+                                    "type": "string",
+                                    "maxLength": 1000
+                                  }
+                                },
+                                "required": [
+                                  "legalName",
+                                  "shortName",
+                                  "legalIdentifier",
+                                  "registeredAddress",
+                                  "contactName",
+                                  "contactPhone",
+                                  "invoiceTitle",
+                                  "invoiceAddress",
+                                  "invoicePhone",
+                                  "invoiceBank",
+                                  "invoiceAccount",
+                                  "remark"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "objectId"
+                            ],
+                            "additionalProperties": false
+                          },
                           "priorFact": {
                             "type": "object",
                             "properties": {
@@ -198640,6 +199521,7 @@
                           "counterpartyType": {
                             "type": "string",
                             "enum": [
+                              "customer",
                               "supplier",
                               "other-unit",
                               "sales-partner"
@@ -220488,6 +221370,96 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "operatingEntity": {
+                                      "type": "object",
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "code": {
+                                          "type": "string"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "snapshot": {
+                                          "type": "object",
+                                          "properties": {
+                                            "legalName": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 200
+                                            },
+                                            "shortName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "legalIdentifier": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 128
+                                            },
+                                            "registeredAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "contactName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "contactPhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceTitle": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "invoicePhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceBank": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAccount": {
+                                              "type": "string",
+                                              "maxLength": 128
+                                            },
+                                            "remark": {
+                                              "type": "string",
+                                              "maxLength": 1000
+                                            }
+                                          },
+                                          "required": [
+                                            "legalName",
+                                            "shortName",
+                                            "legalIdentifier",
+                                            "registeredAddress",
+                                            "contactName",
+                                            "contactPhone",
+                                            "invoiceTitle",
+                                            "invoiceAddress",
+                                            "invoicePhone",
+                                            "invoiceBank",
+                                            "invoiceAccount",
+                                            "remark"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
@@ -220704,6 +221676,7 @@
                                     "counterpartyType": {
                                       "type": "string",
                                       "enum": [
+                                        "customer",
                                         "supplier",
                                         "other-unit",
                                         "sales-partner"
@@ -221072,6 +222045,96 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "operatingEntity": {
+                                      "type": "object",
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "code": {
+                                          "type": "string"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "snapshot": {
+                                          "type": "object",
+                                          "properties": {
+                                            "legalName": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 200
+                                            },
+                                            "shortName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "legalIdentifier": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 128
+                                            },
+                                            "registeredAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "contactName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "contactPhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceTitle": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "invoicePhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceBank": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAccount": {
+                                              "type": "string",
+                                              "maxLength": 128
+                                            },
+                                            "remark": {
+                                              "type": "string",
+                                              "maxLength": 1000
+                                            }
+                                          },
+                                          "required": [
+                                            "legalName",
+                                            "shortName",
+                                            "legalIdentifier",
+                                            "registeredAddress",
+                                            "contactName",
+                                            "contactPhone",
+                                            "invoiceTitle",
+                                            "invoiceAddress",
+                                            "invoicePhone",
+                                            "invoiceBank",
+                                            "invoiceAccount",
+                                            "remark"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
@@ -221328,6 +222391,7 @@
                                     "counterpartyType": {
                                       "type": "string",
                                       "enum": [
+                                        "customer",
                                         "supplier",
                                         "other-unit",
                                         "sales-partner"
@@ -243381,6 +244445,96 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "operatingEntity": {
+                                      "type": "object",
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "code": {
+                                          "type": "string"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "snapshot": {
+                                          "type": "object",
+                                          "properties": {
+                                            "legalName": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 200
+                                            },
+                                            "shortName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "legalIdentifier": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 128
+                                            },
+                                            "registeredAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "contactName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "contactPhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceTitle": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "invoicePhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceBank": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAccount": {
+                                              "type": "string",
+                                              "maxLength": 128
+                                            },
+                                            "remark": {
+                                              "type": "string",
+                                              "maxLength": 1000
+                                            }
+                                          },
+                                          "required": [
+                                            "legalName",
+                                            "shortName",
+                                            "legalIdentifier",
+                                            "registeredAddress",
+                                            "contactName",
+                                            "contactPhone",
+                                            "invoiceTitle",
+                                            "invoiceAddress",
+                                            "invoicePhone",
+                                            "invoiceBank",
+                                            "invoiceAccount",
+                                            "remark"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
@@ -243597,6 +244751,7 @@
                                     "counterpartyType": {
                                       "type": "string",
                                       "enum": [
+                                        "customer",
                                         "supplier",
                                         "other-unit",
                                         "sales-partner"
@@ -243965,6 +245120,96 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "operatingEntity": {
+                                      "type": "object",
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "code": {
+                                          "type": "string"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "snapshot": {
+                                          "type": "object",
+                                          "properties": {
+                                            "legalName": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 200
+                                            },
+                                            "shortName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "legalIdentifier": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 128
+                                            },
+                                            "registeredAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "contactName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "contactPhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceTitle": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "invoicePhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceBank": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAccount": {
+                                              "type": "string",
+                                              "maxLength": 128
+                                            },
+                                            "remark": {
+                                              "type": "string",
+                                              "maxLength": 1000
+                                            }
+                                          },
+                                          "required": [
+                                            "legalName",
+                                            "shortName",
+                                            "legalIdentifier",
+                                            "registeredAddress",
+                                            "contactName",
+                                            "contactPhone",
+                                            "invoiceTitle",
+                                            "invoiceAddress",
+                                            "invoicePhone",
+                                            "invoiceBank",
+                                            "invoiceAccount",
+                                            "remark"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
@@ -244221,6 +245466,7 @@
                                     "counterpartyType": {
                                       "type": "string",
                                       "enum": [
+                                        "customer",
                                         "supplier",
                                         "other-unit",
                                         "sales-partner"
@@ -266280,6 +267526,96 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "operatingEntity": {
+                                      "type": "object",
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "code": {
+                                          "type": "string"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "snapshot": {
+                                          "type": "object",
+                                          "properties": {
+                                            "legalName": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 200
+                                            },
+                                            "shortName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "legalIdentifier": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 128
+                                            },
+                                            "registeredAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "contactName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "contactPhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceTitle": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "invoicePhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceBank": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAccount": {
+                                              "type": "string",
+                                              "maxLength": 128
+                                            },
+                                            "remark": {
+                                              "type": "string",
+                                              "maxLength": 1000
+                                            }
+                                          },
+                                          "required": [
+                                            "legalName",
+                                            "shortName",
+                                            "legalIdentifier",
+                                            "registeredAddress",
+                                            "contactName",
+                                            "contactPhone",
+                                            "invoiceTitle",
+                                            "invoiceAddress",
+                                            "invoicePhone",
+                                            "invoiceBank",
+                                            "invoiceAccount",
+                                            "remark"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
@@ -266496,6 +267832,7 @@
                                     "counterpartyType": {
                                       "type": "string",
                                       "enum": [
+                                        "customer",
                                         "supplier",
                                         "other-unit",
                                         "sales-partner"
@@ -266864,6 +268201,96 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "operatingEntity": {
+                                      "type": "object",
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "code": {
+                                          "type": "string"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "snapshot": {
+                                          "type": "object",
+                                          "properties": {
+                                            "legalName": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 200
+                                            },
+                                            "shortName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "legalIdentifier": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 128
+                                            },
+                                            "registeredAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "contactName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "contactPhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceTitle": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "invoicePhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceBank": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAccount": {
+                                              "type": "string",
+                                              "maxLength": 128
+                                            },
+                                            "remark": {
+                                              "type": "string",
+                                              "maxLength": 1000
+                                            }
+                                          },
+                                          "required": [
+                                            "legalName",
+                                            "shortName",
+                                            "legalIdentifier",
+                                            "registeredAddress",
+                                            "contactName",
+                                            "contactPhone",
+                                            "invoiceTitle",
+                                            "invoiceAddress",
+                                            "invoicePhone",
+                                            "invoiceBank",
+                                            "invoiceAccount",
+                                            "remark"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
@@ -267120,6 +268547,7 @@
                                     "counterpartyType": {
                                       "type": "string",
                                       "enum": [
+                                        "customer",
                                         "supplier",
                                         "other-unit",
                                         "sales-partner"
@@ -289173,6 +290601,96 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "operatingEntity": {
+                                      "type": "object",
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "code": {
+                                          "type": "string"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "snapshot": {
+                                          "type": "object",
+                                          "properties": {
+                                            "legalName": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 200
+                                            },
+                                            "shortName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "legalIdentifier": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 128
+                                            },
+                                            "registeredAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "contactName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "contactPhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceTitle": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "invoicePhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceBank": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAccount": {
+                                              "type": "string",
+                                              "maxLength": 128
+                                            },
+                                            "remark": {
+                                              "type": "string",
+                                              "maxLength": 1000
+                                            }
+                                          },
+                                          "required": [
+                                            "legalName",
+                                            "shortName",
+                                            "legalIdentifier",
+                                            "registeredAddress",
+                                            "contactName",
+                                            "contactPhone",
+                                            "invoiceTitle",
+                                            "invoiceAddress",
+                                            "invoicePhone",
+                                            "invoiceBank",
+                                            "invoiceAccount",
+                                            "remark"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
@@ -289389,6 +290907,7 @@
                                     "counterpartyType": {
                                       "type": "string",
                                       "enum": [
+                                        "customer",
                                         "supplier",
                                         "other-unit",
                                         "sales-partner"
@@ -289757,6 +291276,96 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "operatingEntity": {
+                                      "type": "object",
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "code": {
+                                          "type": "string"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "snapshot": {
+                                          "type": "object",
+                                          "properties": {
+                                            "legalName": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 200
+                                            },
+                                            "shortName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "legalIdentifier": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 128
+                                            },
+                                            "registeredAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "contactName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "contactPhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceTitle": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "invoicePhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceBank": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAccount": {
+                                              "type": "string",
+                                              "maxLength": 128
+                                            },
+                                            "remark": {
+                                              "type": "string",
+                                              "maxLength": 1000
+                                            }
+                                          },
+                                          "required": [
+                                            "legalName",
+                                            "shortName",
+                                            "legalIdentifier",
+                                            "registeredAddress",
+                                            "contactName",
+                                            "contactPhone",
+                                            "invoiceTitle",
+                                            "invoiceAddress",
+                                            "invoicePhone",
+                                            "invoiceBank",
+                                            "invoiceAccount",
+                                            "remark"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
@@ -290013,6 +291622,7 @@
                                     "counterpartyType": {
                                       "type": "string",
                                       "enum": [
+                                        "customer",
                                         "supplier",
                                         "other-unit",
                                         "sales-partner"
@@ -312072,6 +313682,96 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "operatingEntity": {
+                                      "type": "object",
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "code": {
+                                          "type": "string"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "snapshot": {
+                                          "type": "object",
+                                          "properties": {
+                                            "legalName": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 200
+                                            },
+                                            "shortName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "legalIdentifier": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 128
+                                            },
+                                            "registeredAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "contactName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "contactPhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceTitle": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "invoicePhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceBank": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAccount": {
+                                              "type": "string",
+                                              "maxLength": 128
+                                            },
+                                            "remark": {
+                                              "type": "string",
+                                              "maxLength": 1000
+                                            }
+                                          },
+                                          "required": [
+                                            "legalName",
+                                            "shortName",
+                                            "legalIdentifier",
+                                            "registeredAddress",
+                                            "contactName",
+                                            "contactPhone",
+                                            "invoiceTitle",
+                                            "invoiceAddress",
+                                            "invoicePhone",
+                                            "invoiceBank",
+                                            "invoiceAccount",
+                                            "remark"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
@@ -312288,6 +313988,7 @@
                                     "counterpartyType": {
                                       "type": "string",
                                       "enum": [
+                                        "customer",
                                         "supplier",
                                         "other-unit",
                                         "sales-partner"
@@ -312656,6 +314357,96 @@
                                       "minLength": 26,
                                       "maxLength": 26
                                     },
+                                    "operatingEntity": {
+                                      "type": "object",
+                                      "properties": {
+                                        "objectId": {
+                                          "type": "string",
+                                          "minLength": 26,
+                                          "maxLength": 26
+                                        },
+                                        "code": {
+                                          "type": "string"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "snapshot": {
+                                          "type": "object",
+                                          "properties": {
+                                            "legalName": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 200
+                                            },
+                                            "shortName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "legalIdentifier": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 128
+                                            },
+                                            "registeredAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "contactName": {
+                                              "type": "string",
+                                              "maxLength": 100
+                                            },
+                                            "contactPhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceTitle": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAddress": {
+                                              "type": "string",
+                                              "maxLength": 500
+                                            },
+                                            "invoicePhone": {
+                                              "type": "string",
+                                              "maxLength": 32
+                                            },
+                                            "invoiceBank": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "invoiceAccount": {
+                                              "type": "string",
+                                              "maxLength": 128
+                                            },
+                                            "remark": {
+                                              "type": "string",
+                                              "maxLength": 1000
+                                            }
+                                          },
+                                          "required": [
+                                            "legalName",
+                                            "shortName",
+                                            "legalIdentifier",
+                                            "registeredAddress",
+                                            "contactName",
+                                            "contactPhone",
+                                            "invoiceTitle",
+                                            "invoiceAddress",
+                                            "invoicePhone",
+                                            "invoiceBank",
+                                            "invoiceAccount",
+                                            "remark"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "objectId"
+                                      ],
+                                      "additionalProperties": false
+                                    },
                                     "priorFact": {
                                       "type": "object",
                                       "properties": {
@@ -312912,6 +314703,7 @@
                                     "counterpartyType": {
                                       "type": "string",
                                       "enum": [
+                                        "customer",
                                         "supplier",
                                         "other-unit",
                                         "sales-partner"

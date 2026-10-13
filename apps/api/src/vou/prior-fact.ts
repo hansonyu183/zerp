@@ -154,7 +154,9 @@ export async function validatePriorFact(
   if (entity === 'service-contract') {
     if (
       !('serviceContract' in payload) ||
-      !['supplier', 'other-unit'].includes(payload.counterpartyType) ||
+      !['supplier', 'other-unit', 'customer'].includes(
+        payload.counterpartyType,
+      ) ||
       payload.parentEntity ||
       payload.parentDocumentId
     )

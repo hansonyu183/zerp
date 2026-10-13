@@ -1112,7 +1112,29 @@ export class VouService implements WflVouPort {
         )
       ).dependencies
     }
-    await this.adoptService(tx, entity, input.documentId, input.payload, true)
+    await this.adoptService(
+      tx,
+      entity,
+      input.documentId,
+      input.payload,
+      true,
+      actor,
+      trustedSystemActor && actor.trusted !== true
+        ? workflowCreatePermission(entity)
+        : `/vou/${entity}/${action}`,
+    )
+    if (entity === 'service-acceptance') {
+      await assertPayloadCustomerAccess(tx, actor, entity, input.payload)
+      await assertServicePayloadAccess(
+        tx,
+        actor,
+        trustedSystemActor && actor.trusted !== true
+          ? workflowCreatePermission(entity)
+          : `/vou/${entity}/${action}`,
+        entity,
+        input.payload,
+      )
+    }
     await this.adoptProduction(tx, entity, input.documentId, input.payload)
     if (entity === 'inventory-count' && 'inventoryCountLines' in input.payload)
       await this.validateInventoryCount(tx, input.payload)
@@ -1193,6 +1215,7 @@ export class VouService implements WflVouPort {
         )
         if (
           !('operatingEntity' in source.payload) ||
+          !source.payload.operatingEntity ||
           source.payload.operatingEntity.objectId !==
             vehicle.carrier.operatingEntityId
         )
@@ -1413,6 +1436,7 @@ export class VouService implements WflVouPort {
         'purchase-inbound',
         'sale-return',
         'purchase-return',
+        'service-acceptance',
       ].includes(entity)
     )
       await lockInvoiceAmounts(tx)
@@ -1531,6 +1555,8 @@ export class VouService implements WflVouPort {
         input.documentId,
         persistedPayload,
         false,
+        actor,
+        `/vou/${entity}/${action}`,
       )
     if (action === 'approve' || action === 'unapprove')
       await this.validateServicePrepayment(
@@ -2177,7 +2203,7 @@ export class VouService implements WflVouPort {
   async serviceContractLines(contractDocumentId: string, actor: ApprovalActor) {
     const eligible = await sql<{ id: string }>`
       SELECT entry.id FROM approval_entries entry
-      JOIN vou_reference_snapshots party ON party.approval_entry_id = entry.id AND party.field = 'counterparty' AND party.line_no = 0 AND party.item_no = 0 AND party.reference_entity IN ('supplier','other-unit')
+      JOIN vou_reference_snapshots party ON party.approval_entry_id = entry.id AND party.field = 'counterparty' AND party.line_no = 0 AND party.item_no = 0 AND party.reference_entity IN ('supplier','other-unit','customer')
       WHERE entry.domain = 'vou' AND entry.entity = 'service-contract' AND entry.subject_id = ${contractDocumentId} AND entry.status = 'APPROVED'
         AND NOT EXISTS (SELECT 1 FROM vou_prior_facts prior WHERE prior.approval_entry_id = entry.id AND prior.source_closed)
         AND ${documentCustomerPredicate(await customerAccess(this.db, actor), sql`entry.subject_id`)}
@@ -2190,6 +2216,10 @@ export class VouService implements WflVouPort {
       eligible.rows[0].id,
     )) as VouPayloadFor<'service-contract'>
     return {
+      counterpartyType: contract.counterpartyType,
+      ...(contract.operatingEntity
+        ? { operatingEntity: { objectId: contract.operatingEntity.objectId } }
+        : {}),
       items: (contract.serviceLines ?? []).map(
         ({ sourceLineKey: _source, contractLineId: _contract, ...line }) =>
           line,
@@ -3181,6 +3211,8 @@ export class VouService implements WflVouPort {
     documentId: string,
     payload: VouPayload,
     newAdoption: boolean,
+    actor: ApprovalActor,
+    accessPath: string,
   ) {
     if (
       entity === 'other-payment' &&
@@ -3297,7 +3329,16 @@ export class VouService implements WflVouPort {
       'service-contract',
       entry.id,
     )) as VouPayloadFor<'service-contract'>
-    if (!['supplier', 'other-unit'].includes(contract.counterpartyType))
+    await assertDocumentCustomerAccess(tx, actor, acceptance.contractDocumentId)
+    await assertServicePayloadAccess(tx, actor, accessPath, entity, {
+      ...payload,
+      counterpartyType: contract.counterpartyType,
+    } as VouPayload)
+    if (
+      !['supplier', 'other-unit', 'customer'].includes(
+        contract.counterpartyType,
+      )
+    )
       throw new VouApplicationError('vou_reference_unavailable')
     if (
       (payload.counterpartyType !== undefined &&
@@ -3326,7 +3367,9 @@ export class VouService implements WflVouPort {
       throw new VouApplicationError('vou_prior_fact_invalid')
     if (
       amount === null ||
-      (priorFact(payload) ? amount < 0n : amount <= 0n) ||
+      (priorFact(payload) || contract.counterpartyType === 'customer'
+        ? amount < 0n
+        : amount <= 0n) ||
       payload.currency !== contract.currency ||
       acceptance.serviceDate > acceptance.acceptanceDate ||
       (contract.serviceContract.applicableFrom &&
@@ -3335,6 +3378,18 @@ export class VouService implements WflVouPort {
         acceptance.serviceDate > contract.serviceContract.applicableTo)
     )
       throw new VouApplicationError('vou_invalid_payload')
+    if (contract.counterpartyType === 'customer') {
+      if (
+        !contract.operatingEntity ||
+        !contract.serviceLines?.length ||
+        acceptance.settlementDirection !== 'RECEIVABLE' ||
+        (payload.operatingEntity &&
+          payload.operatingEntity.objectId !==
+            contract.operatingEntity.objectId)
+      )
+        throw new VouApplicationError('vou_invalid_payload')
+      payload.operatingEntity = { ...contract.operatingEntity }
+    }
     const contracted = contract.serviceLines
     if (contracted?.length) {
       if (!payload.serviceLines?.length)
@@ -5669,6 +5724,40 @@ export class VouService implements WflVouPort {
     actor: ApprovalActor,
   ): Promise<void> {
     if (
+      entity === 'service-acceptance' &&
+      'serviceAcceptance' in payload &&
+      payload.counterpartyType === 'customer'
+    ) {
+      if (!payload.counterparty)
+        throw new VouApplicationError('vou_invalid_payload')
+      const amount = decimalToFixed(payload.amount, 8)
+      if (amount === null || amount < 0n)
+        throw new VouApplicationError('vou_invalid_payload')
+      if (amount > 0n) {
+        const limit = await sql<{
+          credit_limit: string
+        }>`SELECT item->>'amount' AS credit_limit FROM dcl_customer_versions customer, jsonb_array_elements(customer.credit_limits) item WHERE customer.approval_entry_id=${payload.counterparty.approvalEntryId} AND item->>'currency'=${payload.currency} FOR UPDATE OF customer`.execute(
+          tx,
+        )
+        if (limit.rows[0]) {
+          const ceiling = decimalToFixed(limit.rows[0].credit_limit, 8)
+          if (ceiling === null)
+            throw new VouApplicationError('vou_invalid_payload')
+          const occupied = await this.controlBalances().customerCreditOccupancy(
+            tx,
+            {
+              customerId: payload.counterparty.objectId,
+              currency: payload.currency,
+              asOfDate: this.businessDateToday(),
+            },
+          )
+          if (occupied + amount > ceiling)
+            throw new VouApplicationError('vou_credit_limit_exceeded')
+        }
+      }
+      return
+    }
+    if (
       ![
         'sale-order',
         'purchase-order',
@@ -6567,6 +6656,9 @@ export class VouService implements WflVouPort {
         ...base,
         counterparty,
         counterpartyType,
+        ...(refs.has('operatingEntity:0:0')
+          ? { operatingEntity: reference('operatingEntity') }
+          : {}),
         employee: reference('employee'),
         ...(await this.readServiceLineFields(executor, approvalEntryId)),
         serviceContract: {
@@ -6599,6 +6691,9 @@ export class VouService implements WflVouPort {
         amount: amount(),
         counterparty,
         counterpartyType,
+        ...(refs.has('operatingEntity:0:0')
+          ? { operatingEntity: reference('operatingEntity') }
+          : {}),
         employee: reference('employee'),
         ...(await this.readServiceLineFields(executor, approvalEntryId)),
         serviceAcceptance: {

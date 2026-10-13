@@ -901,6 +901,7 @@ export const vouPayloadSchemaByEntity = {
   }),
   'intermediary-calculation': payload({ intermediaryCalculation }),
   'service-contract': payload({
+    operatingEntity: operatingEntityReference.optional(),
     priorFact: priorFact.optional(),
     serviceLines: z.array(serviceLine).min(1).max(200).optional(),
     counterparty: versionedReference,
@@ -919,6 +920,7 @@ export const vouPayloadSchemaByEntity = {
       .strict(),
   }),
   'service-acceptance': payload({
+    operatingEntity: operatingEntityReference.optional(),
     priorFact: priorFact.optional(),
     serviceLines: z.array(serviceLine).min(1).max(200).optional(),
     priorLineOrigins: z.array(priorLineOrigin).min(1).max(200).optional(),
@@ -1301,6 +1303,11 @@ const invoiceTaxOptionsRoute = {
   request: { ...invoiceTaxRead.request, params: invoiceParams },
 }
 const invoiceSourceFact = z.object({
+  sourceEntity: z.enum([
+    'sale-signoff',
+    'purchase-inbound',
+    'service-acceptance',
+  ]),
   sourceDocumentId: z.string(),
   sourceApprovalEntryId: z.string(),
   sourceLineId: z.string(),
@@ -1412,12 +1419,14 @@ const serviceContractLinesRoute = createRoute({
   },
   responses: {
     200: {
-      description: '可采用的服务合同明细',
+      description: '可采用的服务合同明细和客户结算上下文',
       content: {
         'application/json': {
           schema: envelope(
             z
               .object({
+                counterpartyType: z.enum(vouServiceCounterpartyTypes),
+                operatingEntity: operatingEntityReference.optional(),
                 items: z
                   .array(
                     serviceLine.omit({

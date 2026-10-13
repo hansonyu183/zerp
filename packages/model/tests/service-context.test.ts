@@ -77,7 +77,7 @@ test('supplier service agreements retain their type and historical identity with
   const current = { ...ordinary, serviceLines: [ordinaryLine] }
   assert.equal(prepare(current).ok, true)
   assert.equal(servicePayloadContext('service-contract', current), 'SUPPLIER')
-  for (const counterpartyType of ['customer', 'employee', 'product']) {
+  for (const counterpartyType of ['employee', 'product']) {
     assert.equal(prepare({ ...supplier, counterpartyType }).ok, false)
     assert.equal(prepare({ ...current, counterpartyType }).ok, false)
   }
@@ -135,12 +135,21 @@ test('service contexts are action and entity specific, with no wildcard or histo
     'SALES_PARTNER',
     'PRIOR_AA',
     'PRIOR_AD',
+    'CUSTOMER',
+    'PRIOR_BB',
   ])
   assert.deepEqual(
     servicePermissionContexts(
       '/wfl/process-instance/create-service-acceptance',
     ),
-    ['CONTRACT', 'PRIOR_AB', 'PRIOR_AE', 'PRIOR_AH'],
+    [
+      'CONTRACT',
+      'PRIOR_AB',
+      'PRIOR_AE',
+      'PRIOR_AH',
+      'PRIOR_BA',
+      'CUSTOMER_CONTRACT',
+    ],
   )
   assert.deepEqual(servicePermissionContexts('/vou/purchase-inbound/get'), [])
   assert.equal(servicePayloadContext('service-contract', contract), 'PRIOR_AD')
@@ -236,6 +245,61 @@ test('malformed service structures fail without exceptions and ordinary input ca
           },
         ],
       },
+      'service-acceptance',
+    ).ok,
+    false,
+  )
+})
+
+test('customer service preserves BB and BA origin without purchase permissions or invented consideration', () => {
+  const customer = {
+    ...contract,
+    counterpartyType: 'customer' as const,
+    operatingEntity: { objectId: id },
+    priorFact: { ...prior, sourceDocumentType: 'BB' as const },
+    serviceContract: { terms: '客户运输' },
+  }
+  assert.equal(prepare(customer).ok, true)
+  assert.equal(servicePayloadContext('service-contract', customer), 'PRIOR_BB')
+  assert.equal(prepare({ ...customer, priorFact: prior }).ok, false)
+  assert.equal(prepare({ ...customer, operatingEntity: undefined }).ok, false)
+  assert.equal(
+    prepare({ ...customer, serviceContract: { requiresPrepayment: true } }).ok,
+    false,
+  )
+  const { serviceContract: _contract, ...base } = customer
+  const acceptance = {
+    ...base,
+    priorFact: { ...prior, sourceDocumentType: 'BA' as const },
+    amount: '0.00',
+    serviceLines: [{ ...line, agreedAmount: '0.00' }],
+    serviceAcceptance: {
+      serviceDate: '2025-09-08',
+      acceptanceDate: '2025-09-08',
+      settlementDirection: 'RECEIVABLE' as const,
+    },
+  }
+  assert.equal(prepare(acceptance, 'service-acceptance').ok, true)
+  assert.equal(
+    servicePayloadContext('service-acceptance', acceptance),
+    'PRIOR_BA',
+  )
+  assert.equal(
+    prepare(
+      {
+        ...acceptance,
+        serviceAcceptance: {
+          ...acceptance.serviceAcceptance,
+          settlementDirection: 'PAYABLE',
+        },
+      },
+      'service-acceptance',
+    ).ok,
+    false,
+  )
+  assert.equal(
+    prepare(
+      { ...acceptance, priorFact: { ...prior, sourceDocumentType: 'AH' } },
       'service-acceptance',
     ).ok,
     false,

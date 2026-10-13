@@ -27,6 +27,7 @@ export async function readVerifiedUpgradeInput(input: {
     | 'purchase_carryover_upgrade'
     | 'purchase_inbound_scope_upgrade'
     | 'service_carryover_upgrade'
+    | 'service_context_upgrade'
     | 'attachment_archive_upgrade'
 }) {
   const backup = backupManifest.parse(

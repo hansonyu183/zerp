@@ -1,3 +1,4 @@
+import { precedingSaleCarryoverLayout } from '../fixtures/before-sale-carryover.ts'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
@@ -295,6 +296,7 @@ for (const expanded of [false, true])
               assert.equal(identity.status, 'PENDING')
               identityEntries.push({ entity, subjectId, submissionId })
             }
+            await precedingSaleCarryoverLayout(db)
             if (generalized) await precedingThreeEntityArchiveLayout(db)
             else await precedingCustomerArchiveLayout(db)
             if (!expanded) await precedingAttachmentArchiveChecks(db)
@@ -536,6 +538,7 @@ test('archive maintenance CLI validates frozen writers, paired bytes and exact r
         username: 'archive-cli-' + ulid(),
       }
       await new TargetBootstrapService(db).createE2EPrincipal(operator, true)
+      await precedingSaleCarryoverLayout(db)
       await precedingCustomerArchiveLayout(db)
       await precedingAttachmentArchiveChecks(db)
       const initial = await inspectAttachmentArchiveUpgrade(db)

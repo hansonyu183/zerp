@@ -1,3 +1,4 @@
+import { precedingSaleCarryoverLayout } from '../fixtures/before-sale-carryover.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { sql, type Kysely } from 'kysely'
@@ -103,6 +104,7 @@ async function oldFixture(db: Kysely<DB>, approvedReturn = false) {
       ],
     })
   }
+  await precedingSaleCarryoverLayout(db)
   await sql`DROP TABLE vou_prior_facts,vou_return_allocation_counters`.execute(
     db,
   )
@@ -298,6 +300,7 @@ test('purchase CLI checks frozen writers, backup bytes, release and baseline bef
     },
     true,
   )
+  await precedingSaleCarryoverLayout(db)
   await sql`DROP TABLE vou_prior_facts,vou_return_allocation_counters`.execute(
     db,
   )
@@ -547,6 +550,7 @@ async function standaloneLegacyFixture(db: Kysely<DB>) {
     permissions: [],
     trusted: true,
   })
+  await precedingSaleCarryoverLayout(db)
   await sql`DROP TABLE vou_prior_receipt_line_origins`.execute(db)
   await sql`ALTER TABLE vou_prior_facts DROP CONSTRAINT vou_prior_facts_source_document_type_check, ADD CONSTRAINT vou_prior_facts_source_document_type_check CHECK (source_document_type IN ('AA', 'AD', 'AB', 'AF'))`.execute(
     db,

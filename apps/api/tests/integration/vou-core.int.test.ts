@@ -1,3 +1,4 @@
+import { approveSaleDispatch } from '../fixtures/vou-sale-dispatch.ts'
 import {
   insertArchiveObjects,
   monthlySettlementSnapshot,
@@ -746,7 +747,15 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
   const db = createDatabase(databaseUrl)
   const service = new VouService(db, {
-    acc: { async apply() {} },
+    acc: {
+      async apply() {},
+      async partyBalance() {
+        return 0n
+      },
+      async customerCreditOccupancy() {
+        return 0n
+      },
+    },
     wfl: { async apply() {} },
   })
   const aux = new AuxService(db)
@@ -1023,6 +1032,29 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     })
     .execute()
 
+  const unit = {
+    objectId: ulid(),
+    code: 'TYPED-UNIT',
+    name: '件',
+    fixedFactor: null,
+  }
+  await db
+    .updateTable('dcl_product_versions')
+    .set({
+      unit_conversions: JSON.stringify([
+        {
+          unit: {
+            id: unit.objectId,
+            code: unit.code,
+            name: unit.name,
+            fixedFactor: null,
+          },
+          factor: '1.000000',
+        },
+      ]),
+    })
+    .where('approval_entry_id', '=', productApprovalId)
+    .execute()
   const payload = {
     businessDate: '2026-09-04',
     currency: 'CNY',
@@ -1075,8 +1107,80 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
   )
   assert.equal(payloadTables.rows[0]?.count, '0')
 
+  const warehouse = await aux.create(
+    'warehouse',
+    {
+      name: '签收来源仓库',
+      address: '',
+      contactName: '',
+      contactPhone: '',
+      managerEmployeeId: null,
+      remark: '',
+    },
+    { id: actorId, permissions: ['/aux/warehouse/create'] },
+  )
+  const saleLineId = ulid()
+  const orderId = ulid(),
+    orderEntry = ulid()
+  const order = await service.submit(
+    'sale-order',
+    'submit-new',
+    {
+      documentId: orderId,
+      submissionId: orderEntry,
+      idempotencyKey: orderEntry,
+      expectedRevision: null,
+      payload: {
+        businessDate: '2026-09-04',
+        currency: 'CNY',
+        attachments: [],
+        customer: {
+          objectId: customerId,
+          approvalEntryId: customerApprovalId,
+          selectionOrigin: 'CURRENT',
+        },
+        operatingEntity: { objectId: operatingEntity.id },
+        warehouse: { objectId: warehouse.id },
+        paymentMethod: null,
+        productLines: [
+          {
+            lineId: saleLineId,
+            product: {
+              objectId: productId,
+            },
+            enteredQuantity: '1.000000',
+            enteredUnit: unit,
+            baseQuantity: '1.000000',
+            unitPrice: '10.00',
+          },
+        ],
+      },
+    },
+    actor,
+    'typed-signoff-source',
+  )
+  await service.review(
+    'sale-order',
+    'approve',
+    {
+      documentId: orderId,
+      submissionId: orderEntry,
+      expectedRevision: order.revision,
+    },
+    reviewer,
+    'typed-signoff-source',
+  )
+  const deliveryId = await approveSaleDispatch(service, actor, reviewer, {
+    orderId,
+    lineId: saleLineId,
+    quantity: '1.000000',
+    businessDate: '2026-09-04',
+    currency: 'CNY',
+  })
   const signoffSubmissionId = ulid()
   const signoffPayload = {
+    parentEntity: 'sale-delivery' as const,
+    parentDocumentId: deliveryId,
     businessDate: '2026-09-04',
     currency: 'CNY',
     attachments: [],
@@ -1092,7 +1196,7 @@ test('VOU persists typed price snapshots and rolls back a failed submission', as
     containerDifferenceReason: '现场盘点差异',
     signoffLines: [
       {
-        sourceLineId: 'sale-line-1',
+        sourceLineId: saleLineId,
         signedBaseQuantity: '1.000000',
         rejectedBaseQuantity: '0.000000',
       },

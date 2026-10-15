@@ -1,3 +1,4 @@
+import { serviceContextValues } from '@zerp/model'
 import { upgradeDepartmentAccess } from '../../src/app/department-upgrade.ts'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
@@ -64,7 +65,7 @@ test('ownership migration preserves formal/history facts and exact grants, and r
   await sql`ALTER TABLE app_role_permissions ADD COLUMN purchase_inbound_scope text NOT NULL CHECK (purchase_inbound_scope IN ('ORDER_REFERENCE','INDEPENDENT_PRIOR','ALL'))`.execute(
     db,
   )
-  await sql`ALTER TABLE app_role_permissions ADD COLUMN service_contexts text[] NOT NULL CHECK (service_contexts <@ ARRAY['OTHER_UNIT','SUPPLIER','SALES_PARTNER','PRIOR_AA','PRIOR_AD','CONTRACT','PRIOR_AB','PRIOR_AE','PRIOR_AH']::text[])`.execute(
+  await sql`ALTER TABLE app_role_permissions ADD COLUMN service_contexts text[] NOT NULL CHECK (service_contexts <@ ARRAY[${sql.join(serviceContextValues.map((value) => sql.lit(value)))}]::text[])`.execute(
     db,
   )
   const bootstrap = new TargetBootstrapService(db)

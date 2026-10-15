@@ -11,6 +11,21 @@ const changed = [
   'vou_return_allocation_counters',
 ]
 const added = ['vou_prior_facts', 'vou_return_allocation_counters']
+// This maintenance stage predates sales carryover; its sealed target must not
+// change when the current runtime schema gains later sales capabilities.
+const priorFactsDefinition = `CREATE TABLE vou_prior_facts (
+    source_closed boolean NOT NULL,
+    approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
+    source_instance_id varchar(128) NOT NULL,
+    source_schema varchar(64) NOT NULL,
+    source_document_type varchar(2) NOT NULL CHECK (source_document_type IN ('AA', 'AD', 'AB', 'AE', 'AF', 'AH')),
+    source_component varchar(16) NOT NULL CHECK (source_component IN ('PROCUREMENT', 'SERVICE')),
+    source_document_key varchar(128) NOT NULL,
+    source_document_no varchar(200) NOT NULL,
+    captured_at timestamptz NOT NULL,
+    snapshot_digest char(64) NOT NULL,
+    UNIQUE (source_instance_id, source_schema, source_document_type, source_document_key, source_component)
+);`
 const oldLayout =
   '5c9ff5ebb314cdcd166e7a251aba9e6cb19fec57ec42fd7996c55370cf57829f'
 const newLayout =
@@ -155,9 +170,12 @@ export async function upgradePurchaseCarryover(
       'utf8',
     )
     for (const name of added) {
-      const definition = schema.match(
-        new RegExp(`CREATE TABLE ${name} \\([\\s\\S]*?\\n\\);`),
-      )?.[0]
+      const definition =
+        name === 'vou_prior_facts'
+          ? priorFactsDefinition
+          : schema.match(
+              new RegExp(`CREATE TABLE ${name} \\([\\s\\S]*?\\n\\);`),
+            )?.[0]
       if (!definition)
         throw new Error('purchase_carryover_upgrade_target_schema_missing')
       await sql.raw(definition).execute(tx)

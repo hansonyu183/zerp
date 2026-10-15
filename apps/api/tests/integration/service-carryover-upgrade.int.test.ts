@@ -1,3 +1,4 @@
+import { precedingSaleCarryoverLayout } from '../fixtures/before-sale-carryover.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { ulid } from 'ulid'
@@ -180,6 +181,7 @@ async function verifySupportedUpgrade(
         actor,
         'service-upgrade-fixture',
       )
+      await precedingSaleCarryoverLayout(db)
       await sql`UPDATE app_role_permissions SET service_contexts=array_remove(service_contexts,'SUPPLIER')`.execute(
         db,
       )
@@ -187,6 +189,7 @@ async function verifySupportedUpgrade(
         db,
       )
     } else {
+      await precedingSaleCarryoverLayout(db)
       // Reproduce the exact preceding deployed structural baseline, with actual populated rows.
       await sql`DROP TABLE vou_prior_service_line_origins`.execute(db)
       await sql`DROP TABLE vou_service_line_snapshots`.execute(db)

@@ -9,11 +9,19 @@ import { ManagementService } from '../../src/app/management.ts'
 import { createApp } from '../../src/app.ts'
 import { loadConfig } from '../../src/platform/config.ts'
 
-test('normal role creation and save preserve all five service contract contexts without widening delegated scope', async () => {
+test('normal role creation and save preserve all seven service contract contexts without widening delegated scope', async () => {
   await withCommittedPurchaseDatabase(async (db) => {
     const path = '/vou/service-contract/query'
     const contexts = servicePermissionContexts(path)
-    assert.equal(contexts.length, 5)
+    assert.deepEqual(contexts, [
+      'OTHER_UNIT',
+      'SUPPLIER',
+      'SALES_PARTNER',
+      'PRIOR_AA',
+      'PRIOR_AD',
+      'CUSTOMER',
+      'PRIOR_BB',
+    ])
     const permissions = [
       '/app/role/create',
       '/app/role/save',

@@ -6,6 +6,7 @@ import {
   vouEntityPresentation,
   systemGeneratedVouEntities,
   userCreatableVouEntities,
+  vouPriorSaleContinuationTargets,
 } from '@zerp/model'
 
 const facts = JSON.parse(
@@ -59,7 +60,13 @@ test('all real menus query their own summaries and open readable snapshots', asy
     }
     if (systemGeneratedVouEntities.some((value) => value === entity))
       await expect(
-        page.getByText('此类型由系统生成，不支持人工新增。'),
+        page.getByText(
+          Object.values(vouPriorSaleContinuationTargets).some(
+            (target) => target === entity,
+          )
+            ? '此类型从来源业务办理，不支持空白人工新增。'
+            : '此类型由系统生成，不支持人工新增。',
+        ),
       ).toBeVisible()
     await setDateRange(page, '期间', fact.businessDate, fact.businessDate)
     await page.getByLabel('单号', { exact: true }).fill(fact.documentNo)
@@ -239,7 +246,7 @@ for (const width of [1280, 390])
     })
 
 for (const width of [1280, 390])
-  test(`system-generated sales lists from real menus at ${width}px`, async ({
+  test(`source-based sales lists from real menus at ${width}px`, async ({
     page,
   }, testInfo) => {
     await signIn(
@@ -258,7 +265,9 @@ for (const width of [1280, 390])
       await page.setViewportSize({ width, height: 900 })
       const list = page.getByTestId('vou-list-page'),
         fact = facts[entity]!
-      await expect(list).toContainText('此类型由系统生成，不支持人工新增。')
+      await expect(list).toContainText(
+        '此类型从来源业务办理，不支持空白人工新增。',
+      )
       await expect(list).not.toContainText('编辑器尚未实施')
       await expect(
         list.getByRole('button', { name: '新增', exact: true }),

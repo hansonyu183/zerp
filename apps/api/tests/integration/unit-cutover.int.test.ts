@@ -1,3 +1,4 @@
+import { generalizeArchiveAttachments } from '../../src/platform/attachment-archive-upgrade.ts'
 import { upgradeDepartmentAccess } from '../../src/app/department-upgrade.ts'
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
@@ -39,9 +40,15 @@ test('unit cutover blocks conflicting fixed factors, preserves historical decima
       ),
     )
     .execute(db)
+  // Bring the unrelated archive capability to the current shape in this
+  // synthetic historical unit fixture before sealing its conversion baseline.
+  await db.transaction().execute(generalizeArchiveAttachments)
   await upgradeDepartmentAccess(db)
   // Current APP grants are independent of this historical business-domain fixture.
   await sql`ALTER TABLE app_role_permissions ADD COLUMN purchase_inbound_scope text NOT NULL CHECK (purchase_inbound_scope IN ('ORDER_REFERENCE','INDEPENDENT_PRIOR','ALL'))`.execute(
+    db,
+  )
+  await sql`ALTER TABLE app_role_permissions ADD COLUMN service_contexts text[] NOT NULL CHECK (service_contexts <@ ARRAY['OTHER_UNIT','SUPPLIER','SALES_PARTNER','PRIOR_AA','PRIOR_AD','CONTRACT','PRIOR_AB','PRIOR_AE','PRIOR_AH']::text[])`.execute(
     db,
   )
   const bootstrap = new TargetBootstrapService(db)

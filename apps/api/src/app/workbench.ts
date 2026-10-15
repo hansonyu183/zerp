@@ -1,4 +1,9 @@
 import { purchaseInboundAccess } from './purchase-inbound-access.ts'
+import { serviceAccess } from './service-access.ts'
+import {
+  serviceContextPredicate,
+  scopedServiceDocumentActor,
+} from '../vou/service-access.ts'
 import { purchaseInboundModePredicate } from '../vou/purchase-inbound-access.ts'
 import {
   purchaseInboundDocumentMode,
@@ -135,6 +140,21 @@ export class WorkbenchService {
     ])
     const actors = new Map<string, ApprovalActor>()
     for (const row of rows.flat()) {
+      if (
+        row.domain === 'vou' &&
+        (row.entity === 'service-contract' ||
+          row.entity === 'service-acceptance')
+      )
+        actors.set(
+          row.id,
+          await scopedServiceDocumentActor(
+            this.db,
+            actor,
+            row.entity,
+            row.subject_id,
+            row.id,
+          ),
+        )
       if (row.domain === 'vou' && row.entity === 'purchase-inbound') {
         const mode = await purchaseInboundDocumentMode(
           this.db,
@@ -288,6 +308,8 @@ export class WorkbenchService {
       WHERE e.domain = 'vou'
         AND ${documentCustomerPredicate(await customerAccess(this.db, actor), sql`d.id`)}
         AND (e.entity <> 'purchase-inbound' OR ${purchaseInboundModePredicate((await purchaseInboundAccess(this.db, actor))['/vou/purchase-inbound/query'], sql`e.id`)})
+        AND (e.entity <> 'service-contract' OR ${serviceContextPredicate('service-contract', (await serviceAccess(this.db, actor))['/vou/service-contract/query'], sql`e.id`)})
+        AND (e.entity <> 'service-acceptance' OR ${serviceContextPredicate('service-acceptance', (await serviceAccess(this.db, actor))['/vou/service-acceptance/query'], sql`e.id`)})
         AND e.status IN ('PENDING', 'REJECTED')
         AND e.entity IN (${sql.join(entities)})
     `.execute(this.db)

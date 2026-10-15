@@ -1,3 +1,7 @@
+import {
+  selectArchiveOriginals,
+  downloadArchiveOriginals,
+} from './archive-originals.ts'
 import { openArchive, findArchive } from './archive-navigation.ts'
 import { confirmCollection } from './collection-helpers.ts'
 import { randomBytes } from 'node:crypto'
@@ -48,7 +52,12 @@ async function select(
   } else {
     await control.locator('.v-field').click()
   }
-  await page.getByRole('option').filter({ hasText: name }).click()
+  const input = control.getByLabel(label, { exact: true })
+  await expect(input).toHaveAttribute('aria-controls', /\S+/)
+  const menuId = await input.getAttribute('aria-controls')
+  const menu = page.locator(`[id="${menuId}"]`)
+  await menu.getByRole('option').filter({ hasText: name }).click()
+  await expect(menu).toBeHidden()
 }
 async function approve(page: Page, name: string) {
   await openArchive(page, 'dcl', 'product')
@@ -72,6 +81,10 @@ test('product temporary form, exact quantity trial, approval and independent ena
   try {
     await signin(page)
     await signin(reviewer, true)
+    let staged = 0
+    page.on('response', (response) => {
+      if (response.url().endsWith('/dcl/product/attachment-stage')) staged++
+    })
     const tag = randomBytes(6).toString('hex')
     const name = `浏览器产品${tag}`
     const unitName = `产品单位${tag}`,
@@ -171,8 +184,11 @@ test('product temporary form, exact quantity trial, approval and independent ena
       .getByLabel('试算录入数量', { exact: true })
       .fill('9007199254740993.01')
     await expect(dialog).toContainText('1801439850948198602')
+    await selectArchiveOriginals(dialog)
+    expect(staged).toBe(0)
     await dialog.getByRole('button', { name: '提交', exact: true }).click()
     await expect(dialog).toHaveCount(0)
+    await expect.poll(() => staged).toBe(2)
     await approve(reviewer, name)
     await page.reload()
     await findArchive(page, name)
@@ -206,6 +222,14 @@ test('product temporary form, exact quantity trial, approval and independent ena
         () => document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBe(true)
+    await row.getByRole('button', { name: '查看', exact: true }).click()
+    const history = page.getByRole('dialog').last()
+    await downloadArchiveOriginals(page, history, 'product', 'current')
+    await history
+      .getByRole('button', { name: '查看版本 1', exact: true })
+      .click()
+    await downloadArchiveOriginals(page, history, 'product', 'submission')
+    await history.getByRole('button', { name: '关闭', exact: true }).click()
     await openArchive(page, 'dcl', 'product')
     await findArchive(page, name)
     await row.getByRole('button', { name: '查看', exact: true }).click()
@@ -214,6 +238,7 @@ test('product temporary form, exact quantity trial, approval and independent ena
       .getByRole('button', { name: '克隆为新档案', exact: true })
       .click()
     dialog = page.getByRole('dialog').last()
+    await expect(dialog.locator('.attachment-row')).toHaveCount(0)
     await select(page, dialog, '产品类型', finishedName)
     await dialog.getByRole('button', { name: '确认切换', exact: true }).click()
     await dialog.getByRole('button', { name: '填写配方', exact: true }).click()

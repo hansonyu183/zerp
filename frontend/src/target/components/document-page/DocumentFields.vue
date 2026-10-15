@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SaleContinuationBlock from './SaleContinuationBlock.vue'
 import { useTargetSession } from '../../session/vm.ts'
 import type { EditorDraft } from './draft.ts'
 import InvoiceBlock from './InvoiceBlock.vue'
@@ -73,8 +74,16 @@ function switchReceipt(standalone: boolean) {
 }
 </script>
 <template>
+  <SaleContinuationBlock
+    v-if="modelValue.kind === 'sale-continuation'"
+    :model-value="modelValue.value"
+    :disabled="disabled"
+    @update:model-value="
+      emit('update:modelValue', { kind: 'sale-continuation', value: $event })
+    "
+  />
   <InvoiceBlock
-    v-if="modelValue.kind === 'invoice'"
+    v-else-if="modelValue.kind === 'invoice'"
     :model-value="modelValue.value"
     :disabled="disabled"
     @update:model-value="
@@ -91,6 +100,8 @@ function switchReceipt(standalone: boolean) {
     "
   />
   <ServiceBlock
+    :action="action"
+    @pending="emit('pending', $event)"
     v-else-if="modelValue.kind === 'service'"
     :model-value="modelValue.value"
     :disabled="disabled"

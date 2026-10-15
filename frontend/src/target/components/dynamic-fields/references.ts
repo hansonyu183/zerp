@@ -130,7 +130,10 @@ export async function loadEditReferencePage(
       }
     }
     if (source.kind === 'vou-reference') {
-      const page = await api.queryTargetVouOptions(source.entity, query)
+      const page = await api.queryTargetVouOptions(source.entity, {
+        ...query,
+        ...(source.prepayment ? { prepayment: 'true' as const } : {}),
+      })
       return {
         ...page,
         items: page.items.map((item) => ({

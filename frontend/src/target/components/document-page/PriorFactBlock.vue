@@ -2,17 +2,26 @@
 import FieldInput from '../dynamic-fields/FieldInput.vue'
 import FormBlock from '../dynamic-fields/FormBlock.vue'
 import { priorFactFields, type PriorFactDraft } from './prior-fact-data.ts'
-const props = defineProps<{
-  modelValue?: PriorFactDraft | null
-  entity: 'purchase-order' | 'purchase-inbound' | 'purchase-return'
-  defaultSourceType?: 'AH'
-  disabled: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    modelValue?: PriorFactDraft | null
+    entity:
+      | 'purchase-order'
+      | 'purchase-inbound'
+      | 'purchase-return'
+      | 'service-contract'
+      | 'service-acceptance'
+    allowToggle?: boolean
+    defaultSourceType?: 'AH'
+    disabled: boolean
+  }>(),
+  { allowToggle: true },
+)
 const emit = defineEmits<{
   'update:modelValue': [value: PriorFactDraft | null]
 }>()
 function toggle(enabled: boolean) {
-  if (props.disabled) return
+  if (props.disabled || !props.allowToggle) return
   emit(
     'update:modelValue',
     enabled
@@ -42,7 +51,7 @@ function toggle(enabled: boolean) {
       usage="edit"
       :field="{ key: 'priorFact', type: 'boolean', caption: '登记此前事实' }"
       :model-value="Boolean(modelValue)"
-      :disabled="disabled"
+      :disabled="disabled || allowToggle === false"
       @update:model-value="toggle(Boolean($event))"
     />
     <template v-if="modelValue">
@@ -68,7 +77,13 @@ function toggle(enabled: boolean) {
         "
       />
       <FormBlock
-        :fields="priorFactFields"
+        :fields="
+          allowToggle === false
+            ? priorFactFields.filter(
+                (field) => field.key !== 'sourceDocumentType',
+              )
+            : priorFactFields
+        "
         :model-value="modelValue"
         :disabled="disabled"
         @update:model-value="!disabled && emit('update:modelValue', $event)"

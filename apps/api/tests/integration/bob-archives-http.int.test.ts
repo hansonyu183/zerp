@@ -146,6 +146,7 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
     const subjectId = ulid(),
       submissionId = ulid()
     const snapshot = {
+      attachments: [],
       ...(entity === 'supplier'
         ? { taxInformation: [] }
         : {
@@ -182,6 +183,22 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
     const submitted = await write(`/dcl/${entity}/submit-new`, input)
     assert.equal(submitted.code, 0, submitted.errorKey)
     assert.equal(submitted.data.status, 'PENDING')
+    const submissions = await write(`/dcl/${entity}/submission-query`, {
+      page: 1,
+      pageSize: 20,
+      filters: {},
+    })
+    assert.equal(submissions.code, 0, submissions.errorKey)
+    const candidate = submissions.data.items.find(
+      (item: { subjectId: string }) => item.subjectId === subjectId,
+    )
+    assert.ok(
+      candidate,
+      'ordinary HTTP query must include a new unpublished candidate',
+    )
+    assert.equal(candidate.latestApproved, null)
+    assert.equal(candidate.openCandidate.submissionId, submissionId)
+
     if (entity !== 'sales-partner') {
       assert.equal(
         submitted.data.snapshot.settlementMethod.termCode,

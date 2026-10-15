@@ -1002,6 +1002,14 @@ test('supported populated receipt grant upgrade conserves every old row and reje
       .select('id')
       .where('username', '=', 'upgrade-scope-admin')
       .executeTakeFirstOrThrow()
+    // Reconstruct the supported pre-Supplier grant layout, rather than inventing
+    // a historical installation with the later Supplier facet but no receipt scope.
+    await sql`UPDATE app_role_permissions SET service_contexts=array_remove(service_contexts,'SUPPLIER')`.execute(
+      db,
+    )
+    await sql`ALTER TABLE app_role_permissions DROP CONSTRAINT app_role_permissions_service_contexts_check, ADD CONSTRAINT app_role_permissions_service_contexts_check CHECK (service_contexts <@ ARRAY['OTHER_UNIT','SALES_PARTNER','PRIOR_AA','PRIOR_AD','CONTRACT','PRIOR_AB','PRIOR_AE','PRIOR_AH']::text[])`.execute(
+      db,
+    )
     await sql`ALTER TABLE app_role_permissions DROP COLUMN purchase_inbound_scope`.execute(
       db,
     )

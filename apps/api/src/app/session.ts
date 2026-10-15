@@ -1,4 +1,5 @@
-import type { PurchaseInboundScopes } from '@zerp/model'
+import type { PurchaseInboundScopes, ServiceContexts } from '@zerp/model'
+import { serviceAccess } from './service-access.ts'
 import { purchaseInboundAccess } from './purchase-inbound-access.ts'
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 
@@ -62,6 +63,7 @@ export interface Principal {
   csrfToken: string
   apiPaths: string[]
   purchaseInboundScopes: PurchaseInboundScopes
+  serviceContexts: ServiceContexts
   passwordChangeRequired: boolean
   passwordMinLength: number
   absoluteExpiresAt: Date
@@ -289,6 +291,7 @@ export class SessionService {
         purchaseInboundScopes: await purchaseInboundAccess(this.db, {
           id: user.id,
         }),
+        serviceContexts: await serviceAccess(this.db, { id: user.id }),
         passwordChangeRequired: user.password_change_required,
         passwordMinLength: this.config.passwordMinLength,
         absoluteExpiresAt,
@@ -367,6 +370,7 @@ export class SessionService {
       purchaseInboundScopes: await purchaseInboundAccess(this.db, {
         id: row.user_id,
       }),
+      serviceContexts: await serviceAccess(this.db, { id: row.user_id }),
       passwordChangeRequired: row.password_change_required,
       passwordMinLength: this.config.passwordMinLength,
       absoluteExpiresAt: row.absolute_expires_at,

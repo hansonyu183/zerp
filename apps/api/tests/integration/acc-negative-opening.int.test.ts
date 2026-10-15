@@ -40,6 +40,7 @@ test('normal HTTP carries a negative opening, allows staged replenishment and re
             role_id: roleId,
             permission_id: p.id,
             purchase_inbound_scope: 'ALL',
+            service_contexts: [],
           })),
         ),
       )

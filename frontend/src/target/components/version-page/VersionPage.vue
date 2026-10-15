@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import CandidateFields from './CandidateFields.vue'
 import VersionSnapshot from './VersionSnapshot.vue'
+import { archiveAttachmentEntities, type AttachmentMetadata } from '@zerp/model'
 import { actionIcons } from '../../presentation/action-icons.ts'
 import type { RowAction } from '../dynamic-fields/types.ts'
 import VersionLists from './VersionLists.vue'
@@ -27,7 +28,6 @@ import {
   attachmentScope,
 } from '../attachments/attachments.ts'
 import { wflErrors } from './wfl-data.ts'
-import type { CustomerSnapshot } from './customer-data.ts'
 import { extraSnapshotDetails } from './snapshot-details.ts'
 import HistoryBlock from './HistoryBlock.vue'
 import type {
@@ -193,12 +193,17 @@ type Pending =
   | { kind: 'version-toggle'; submission: Submission; enabled: boolean }
 const pending = shallowRef<Pending | null>(null)
 const locked = computed(() => busy.value || pending.value !== null)
-const attachments = createAttachments(
-  'dcl/customer',
-  () => token('attachment-stage'),
-  owns,
+const attachmentEntity = archiveAttachmentEntities.find((entity) =>
+  definition.resource.endsWith(`/${entity}`),
 )
-provide(attachmentScope, attachments.scope)
+const attachments = attachmentEntity
+  ? createAttachments(
+      `dcl/${attachmentEntity}`,
+      () => token('attachment-stage'),
+      owns,
+    )
+  : null
+if (attachments) provide(attachmentScope, attachments.scope)
 const attachmentReading = ref(false)
 const canCreate = computed(() => can('submit-new'))
 const canChange = computed(() => can('submit-change') && can('versions'))
@@ -217,9 +222,10 @@ const previousVersion = computed(() =>
 )
 const previous = computed(() => previousVersion.value?.snapshot)
 const previousAttachmentSource = computed(() =>
-  previousVersion.value
+  previousVersion.value && attachmentEntity
     ? {
         source: 'submission' as const,
+        entity: attachmentEntity,
         domain: 'bob' as const,
         subjectId: previousVersion.value.subjectId,
         submissionId: previousVersion.value.submissionId,
@@ -335,7 +341,7 @@ async function switchTab(value: 'current' | 'submissions') {
 function create(source?: Snapshot) {
   if (locked.value || !canCreate.value) return
   editorRequest++
-  attachments.reset()
+  attachments?.reset()
   attachmentReading.value = false
   draft.value = source
     ? adapter.clone(structuredClone(toRaw(source)))
@@ -356,7 +362,7 @@ function create(source?: Snapshot) {
 async function change(objectId: string) {
   if (locked.value || !canChange.value) return
   const request = ++editorRequest
-  attachments.reset()
+  attachments?.reset()
   attachmentReading.value = false
   open.value = true
   loading.value = true
@@ -397,7 +403,7 @@ function cloneSelected() {
 function close() {
   if (busy.value) return
   editorRequest++
-  attachments.reset()
+  attachments?.reset()
   attachmentReading.value = false
   open.value = false
   loading.value = false
@@ -566,12 +572,14 @@ async function submit() {
   }
   const command = { ...intent, snapshot: structuredClone(toRaw(draft.value)) }
   intent = command
-  if (definition.resource.endsWith('/customer')) {
+  if (attachments) {
     const request = editorRequest
     busy.value = true
     try {
-      const customer = command.snapshot as unknown as CustomerSnapshot
-      await attachments.prepare([...customer.attachments])
+      const archive = command.snapshot as unknown as {
+        attachments: AttachmentMetadata[]
+      }
+      await attachments.prepare(archive.attachments ?? [], command.subjectId)
     } catch (cause) {
       if (owns()) error.value = message(cause)
       return
@@ -590,7 +598,7 @@ async function submit() {
       open.value = false
       draft.value = {}
       intent = null
-      attachments.reset()
+      attachments?.reset()
       editorRequest++
     },
   )
@@ -767,7 +775,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => {
   active = false
-  attachments.reset()
+  attachments?.reset()
   queryRequest++
   detailRequest++
   editorRequest++
@@ -936,21 +944,35 @@ onBeforeUnmount(() => {
             :resource="definition.resource"
             :fields="detailFields"
             :value="selected.snapshot"
+            :submission="true"
             :previous="previous"
             :previous-source="previousAttachmentSource"
-            :source="{
-              source: 'submission',
-              domain: formal ? 'bob' : 'dcl',
-              subjectId: selected.subjectId,
-              submissionId: selected.submissionId,
-            }"
+            :source="
+              attachmentEntity
+                ? {
+                    source: 'submission',
+                    entity: attachmentEntity,
+                    domain: formal ? 'bob' : 'dcl',
+                    subjectId: selected.subjectId,
+                    submissionId: selected.submissionId,
+                  }
+                : undefined
+            "
         /></template>
         <template v-if="currentDetail"
           ><VersionSnapshot
             :resource="definition.resource"
             :fields="detailFields"
             :value="currentDetail.data"
-            :source="{ source: 'current', objectId: currentDetail.objectId }"
+            :source="
+              attachmentEntity
+                ? {
+                    source: 'current',
+                    entity: attachmentEntity,
+                    objectId: currentDetail.objectId,
+                  }
+                : undefined
+            "
           />
           <v-btn
             :prepend-icon="actionIcons.view"

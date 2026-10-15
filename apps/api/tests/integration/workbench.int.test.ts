@@ -219,6 +219,7 @@ test('real HTTP workbench returns only actionable BOB, WFL and VOU submissions',
       permissionPaths.map((path) => ({
         role_id: roleId,
         purchase_inbound_scope: 'ALL',
+        service_contexts: [],
         permission_id: permissionIds.get(path)!,
         created_by: reviewerId,
       })),

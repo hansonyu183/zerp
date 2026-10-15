@@ -32,6 +32,7 @@ export const rolePage = defineDirectPage<api.TargetRoleCreateInput>({
       description: null,
       permissionIds: [],
       purchaseInboundScopes: {},
+      serviceContexts: {},
     }),
     query: api.queryTargetRoles,
     get: async (token, id) => {
@@ -44,6 +45,7 @@ export const rolePage = defineDirectPage<api.TargetRoleCreateInput>({
           description: row.description,
           permissionIds: row.permissions.map((item) => item.id),
           purchaseInboundScopes: row.purchaseInboundScopes,
+          serviceContexts: row.serviceContexts,
         },
         options: {
           permissionIds: row.permissions.map((item) => permissionOption(item)),

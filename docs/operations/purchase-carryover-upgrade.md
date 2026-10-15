@@ -59,3 +59,5 @@ node apps/api/scripts/upgrade-purchase-carryover.ts --standalone-receipts --appl
 ```
 
 `CURRENT`、未知布局、并发数据漂移、无权维护、备份字节或 release 不符拒绝；全部 DDL 在同一事务中完成，后验失败回滚。升级后必须在相同 SHA 的 API/Web 上验证既有档案与单据、库存与会计基线、正常独立此前收货/退货的零重复效果及截止后退货的实际出库、记账和开票容量；升级本身不是全范围迁移完成证据。
+
+服务约定、履约明细及 Supplier 授权形状的后续保留数据转换见[服务结构升级](service-carryover-upgrade.md)。

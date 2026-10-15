@@ -19,6 +19,7 @@ export const emptyUnit = () => ({
 })
 export function emptyProduct(): ProductSnapshot {
   return {
+    attachments: [],
     name: '',
     barcode: '',
     specification: '',

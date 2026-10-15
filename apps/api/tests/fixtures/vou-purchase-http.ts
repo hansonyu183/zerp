@@ -19,7 +19,10 @@ import type { seedStockFixture } from './vou-stock.ts'
 // Committed exclusive fixture: concurrent HTTP calls require distinct database
 // transactions, not the savepoints used by the ordinary rollback fixture.
 export async function withCommittedPurchaseDatabase(
-  run: (db: ReturnType<typeof createDatabase>) => Promise<void>,
+  run: (
+    db: ReturnType<typeof createDatabase>,
+    databaseUrl: string,
+  ) => Promise<void>,
 ) {
   const url = new URL(process.env.TARGET_TEST_DATABASE_URL!)
   if (!url.pathname.endsWith('_test'))
@@ -42,7 +45,7 @@ export async function withCommittedPurchaseDatabase(
     await new TargetBootstrapService(db).syncPermissionCatalog(
       await readTargetPermissionCatalog(),
     )
-    await run(db)
+    await run(db, url.toString())
   } finally {
     await db?.destroy()
     await sql`DROP DATABASE IF EXISTS ${sql.id(name)}`.execute(owner)
@@ -54,7 +57,7 @@ export async function purchaseClients(
   db: ReturnType<typeof createDatabase>,
   fixture: Awaited<ReturnType<typeof seedStockFixture>>,
   context?: TestContext,
-  services: Pick<CreateAppOptions, 'vou' | 'wfl'> = {},
+  services: Pick<CreateAppOptions, 'vou' | 'wfl' | 'acc' | 'rpt'> = {},
 ) {
   const config = loadConfig({
     DATABASE_URL: process.env.TARGET_TEST_DATABASE_URL!,

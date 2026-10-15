@@ -492,6 +492,7 @@ test('RPT HTTP uses current contracts and exact grants; removed DCL routes are a
         permissions.map((permission) => ({
           role_id: roleId,
           purchase_inbound_scope: 'ALL',
+          service_contexts: [],
           permission_id: permission.id,
         })),
       )

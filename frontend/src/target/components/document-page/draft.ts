@@ -1,4 +1,8 @@
 import {
+  saleContinuationCommand,
+  type SaleContinuationDraft,
+} from './sale-continuation-data.ts'
+import {
   cloneIndependentReceipt,
   independentReceiptPayload,
   type IndependentReceiptDraft,
@@ -79,6 +83,7 @@ import {
   type IntermediaryDraft,
 } from './intermediary-data.ts'
 export type EditorDraft =
+  | { kind: 'sale-continuation'; value: SaleContinuationDraft }
   | { kind: 'invoice'; value: InvoiceDraft }
   | { kind: 'intermediary'; value: IntermediaryDraft }
   | { kind: 'service'; value: ServiceDraft }
@@ -305,6 +310,7 @@ export function cloneDocumentDraft(original: VouDetail): EditorDraft | null {
   return null
 }
 export type DocumentCommand =
+  | ReturnType<typeof saleContinuationCommand>
   | {
       kind: 'invoice'
       entity: InvoiceEntity
@@ -367,6 +373,8 @@ export function documentCommand(
   identity: DocumentIdentity,
 ): DocumentCommand {
   switch (editor.kind) {
+    case 'sale-continuation':
+      return saleContinuationCommand(editor.value, identity)
     case 'invoice':
       return {
         kind: 'invoice',

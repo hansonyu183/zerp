@@ -691,6 +691,7 @@ test('department roles enforce current customer ownership at real HTTP and repor
       managementPermissions.map((permission) => ({
         role_id: roleId('业务员'),
         purchase_inbound_scope: 'ALL',
+        service_contexts: [],
         permission_id: permission.id,
       })),
     )

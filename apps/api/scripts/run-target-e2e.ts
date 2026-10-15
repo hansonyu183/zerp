@@ -1203,6 +1203,8 @@ async function verifyTrustedSystemVouLifecycle() {
     {
       entity: 'sale-outbound',
       payload: {
+        parentEntity: 'sale-order',
+        parentDocumentId: vouSourceFacts.saleOrder.documentId,
         businessDate: '2026-09-04',
         currency: 'CNY',
         attachments: [],
@@ -1212,6 +1214,8 @@ async function verifyTrustedSystemVouLifecycle() {
     {
       entity: 'sale-delivery',
       payload: {
+        parentEntity: 'sale-outbound',
+        parentDocumentId: fixtureId('J', 1),
         businessDate: '2026-09-04',
         currency: 'CNY',
         attachments: [],
@@ -1224,8 +1228,8 @@ async function verifyTrustedSystemVouLifecycle() {
         businessDate: '2026-09-04',
         currency: 'CNY',
         attachments: [],
-        parentEntity: 'sale-order',
-        parentDocumentId: vouSourceFacts.saleOrder.documentId,
+        parentEntity: 'sale-delivery',
+        parentDocumentId: fixtureId('J', 2),
         customer: reference('customer'),
         expectedSolventContainers: 1,
         expectedResinContainers: 0,
@@ -1344,13 +1348,15 @@ async function verifyTrustedSystemVouLifecycle() {
       )
     )
       throw new Error(`${item.entity} trusted lifecycle audit is incomplete`)
-    if (item.entity === 'sale-signoff') {
+    if (
+      ['sale-outbound', 'sale-delivery', 'sale-signoff'].includes(item.entity)
+    ) {
       await vou.review(
         item.entity,
         'approve',
         { documentId, submissionId, expectedRevision: unapproved.revision },
         serviceActor(reviewer.userId),
-        'e2e-sale-return-source-approve',
+        'e2e-sale-chain-source-approve',
       )
     }
   }

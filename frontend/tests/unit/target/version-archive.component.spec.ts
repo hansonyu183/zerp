@@ -9,6 +9,16 @@ import { archiveStubs as stubs } from './helpers/archive-stubs.ts'
 
 vi.mock('@/target/api.ts', async (original) => ({
   ...(await original<typeof import('@/target/api.ts')>()),
+  queryTargetOtherUnits: vi.fn(),
+  queryTargetOtherUnitSubmissions: vi.fn(),
+  queryTargetOtherUnitVersions: vi.fn(),
+  getTargetOtherUnit: vi.fn(),
+  submitChangeTargetOtherUnit: vi.fn(),
+  queryTargetSalesPartners: vi.fn(),
+  queryTargetSalesPartnerSubmissions: vi.fn(),
+  queryTargetSalesPartnerVersions: vi.fn(),
+  getTargetSalesPartner: vi.fn(),
+  submitChangeTargetSalesPartner: vi.fn(),
   queryTargetSuppliers: vi.fn(),
   submitNewTargetSupplier: vi.fn(),
   queryTargetSupplierSubmissions: vi.fn(),
@@ -24,6 +34,9 @@ vi.mock('@/target/api.ts', async (original) => ({
   submitNewTargetCustomer: vi.fn(),
   queryTargetCustomers: vi.fn(),
   queryTargetProducts: vi.fn(),
+  getTargetProduct: vi.fn(),
+  getTargetProductSubmission: vi.fn(),
+  submitNewTargetProduct: vi.fn(),
   queryTargetProductSubmissions: vi.fn(),
   queryTargetProductVersions: vi.fn(),
   queryTargetBobOptions: vi.fn(),
@@ -44,10 +57,10 @@ vi.mock('@/target/api.ts', async (original) => ({
   wflAudit: vi.fn(),
   wflApprove: vi.fn(),
   wflCurrent: vi.fn(),
-  stageTargetCustomerAttachment: vi.fn(),
+  stageTargetArchiveAttachment: vi.fn(),
   queryTargetCustomerVersions: vi.fn(),
   submitChangeTargetCustomer: vi.fn(),
-  readTargetCustomerAttachment: vi.fn(),
+  readTargetArchiveAttachment: vi.fn(),
   getTargetCustomer: vi.fn(),
   queryTargetCustomerSubmissions: vi.fn(),
   getTargetCustomerSubmission: vi.fn(),
@@ -99,6 +112,7 @@ it('keeps an unknown submission locked after closing its Draft without query per
 })
 
 const supplierSnapshot = (name: string) => ({
+  attachments: [],
   identityKind: 'ORGANIZATION' as const,
   legalName: name,
   displayName: name,
@@ -1049,7 +1063,7 @@ it('keeps files local until submit, retries a failed stage with the same identit
       },
     ],
   } as never)
-  vi.mocked(api.stageTargetCustomerAttachment)
+  vi.mocked(api.stageTargetArchiveAttachment)
     .mockRejectedValueOnce(new TypeError('upload failed'))
     .mockResolvedValueOnce({} as never)
   vi.mocked(api.submitChangeTargetCustomer).mockResolvedValue({} as never)
@@ -1066,21 +1080,21 @@ it('keeps files local until submit, retries a failed stage with the same identit
   Object.defineProperty(input.element, 'files', { value: [file] })
   await input.trigger('change')
   await vi.waitFor(() => expect(wrapper.text()).toContain('待提交时上传'))
-  expect(api.stageTargetCustomerAttachment).not.toHaveBeenCalled()
+  expect(api.stageTargetArchiveAttachment).not.toHaveBeenCalled()
   await confirmItems(wrapper)
   await click(wrapper, '提交')
   expect(wrapper.text()).toContain('上传失败')
   expect(api.submitChangeTargetCustomer).not.toHaveBeenCalled()
   await confirmItems(wrapper)
   await click(wrapper, '提交')
-  const calls = vi.mocked(api.stageTargetCustomerAttachment).mock.calls
+  const calls = vi.mocked(api.stageTargetArchiveAttachment).mock.calls
   expect(calls[1]).toEqual(calls[0])
   expect(api.submitChangeTargetCustomer).toHaveBeenCalledTimes(1)
   expect(
     vi.mocked(api.submitChangeTargetCustomer).mock.calls[0]![1].snapshot
       .attachments[0],
   ).toMatchObject({
-    stagingId: calls[0]![1].stagingId,
+    stagingId: calls[0]![2].stagingId,
     fileName: 'identity.pdf',
   })
   wrapper.unmount()
@@ -1425,7 +1439,7 @@ it('downloads only the exact adopted attachment from the authorized current cust
     total: 1,
   } as never)
   vi.mocked(api.getTargetCustomer).mockResolvedValue(row as never)
-  vi.mocked(api.readTargetCustomerAttachment).mockResolvedValue({
+  vi.mocked(api.readTargetArchiveAttachment).mockResolvedValue({
     fileName: 'identity.pdf',
     mimeType: 'application/pdf',
     size: 13,
@@ -1447,8 +1461,9 @@ it('downloads only the exact adopted attachment from the authorized current cust
     await flushPromises()
     await click(wrapper, '查看')
     await click(wrapper, '下载附件')
-    expect(api.readTargetCustomerAttachment).toHaveBeenCalledWith(
+    expect(api.readTargetArchiveAttachment).toHaveBeenCalledWith(
       'test-csrf',
+      'customer',
       {
         source: 'current',
         objectId: 'customer',
@@ -1808,3 +1823,211 @@ function optionPage(items: readonly object[]) {
     pageSize: 20,
   }
 }
+
+function fileArchiveSnapshot(
+  entity: 'supplier' | 'product' | 'other-unit' | 'sales-partner',
+) {
+  if (entity === 'other-unit' || entity === 'sales-partner')
+    return {
+      identityKind: 'PERSON',
+      legalName: '签约人',
+      displayName: '原件档案',
+      legalIdentifier: '',
+      contactName: '',
+      phone: '',
+      address: '',
+      remark: '',
+      operatingEntities: [],
+      defaultOperatingEntityId: null,
+      attachments: [],
+      ...(entity === 'other-unit'
+        ? { settlementMethod: null }
+        : { capabilities: ['CHANNEL_PARTNER'] }),
+    }
+  if (entity === 'supplier') return supplierSnapshot('原件供应商')
+  const { data } = productFacts()
+  return {
+    ...data,
+    productType: { ...data.productType, behaviorProfile: 'RAW_MATERIAL' },
+    fixedFormula: null,
+    attachments: [],
+  }
+}
+
+it.each(['supplier', 'product', 'other-unit', 'sales-partner'] as const)(
+  'stages %s originals at submit and retries fixed entity, subject and file identities',
+  async (entity) => {
+    useTargetSession().apiPaths = [
+      `/dcl/${entity}/submission-query`,
+      `/dcl/${entity}/submit-change`,
+      `/dcl/${entity}/attachment-stage`,
+      `/bob/${entity}/versions`,
+    ]
+    const snapshot = fileArchiveSnapshot(entity)
+    const query = {
+      supplier: api.queryTargetSupplierSubmissions,
+      product: api.queryTargetProductSubmissions,
+      'other-unit': api.queryTargetOtherUnitSubmissions,
+      'sales-partner': api.queryTargetSalesPartnerSubmissions,
+    }[entity]
+    const versions = {
+      supplier: api.queryTargetSupplierVersions,
+      product: api.queryTargetProductVersions,
+      'other-unit': api.queryTargetOtherUnitVersions,
+      'sales-partner': api.queryTargetSalesPartnerVersions,
+    }[entity]
+    const submit = {
+      supplier: api.submitChangeTargetSupplier,
+      product: api.submitChangeTargetProduct,
+      'other-unit': api.submitChangeTargetOtherUnit,
+      'sales-partner': api.submitChangeTargetSalesPartner,
+    }[entity]
+    vi.mocked(query).mockResolvedValue({
+      items: [
+        {
+          subjectId: entity,
+          code: 'ARCHIVE',
+          latestApproved: { versionNo: 1 },
+          openCandidate: null,
+        },
+      ],
+      total: 1,
+    } as never)
+    vi.mocked(versions).mockResolvedValue({
+      items: [
+        {
+          subjectId: entity,
+          submissionId: 'approved',
+          versionNo: 1,
+          status: 'APPROVED',
+          revision: '3',
+          snapshot,
+        },
+      ],
+    } as never)
+    vi.mocked(api.queryTargetAuxOptions).mockResolvedValue(optionPage([]))
+    vi.mocked(api.stageTargetArchiveAttachment)
+      .mockRejectedValueOnce(new TypeError('lost stage response'))
+      .mockResolvedValueOnce({} as never)
+    vi.mocked(submit).mockResolvedValue({} as never)
+    const wrapper = mount(ResourceHost, {
+      props: { domain: 'dcl', entity },
+      global: { stubs },
+    })
+    try {
+      await flushPromises()
+      await click(wrapper, '提交变更')
+      const input = wrapper.get('[aria-label="添加原件"]')
+      const file = new File([], ' 原空文件.et ', {
+        type: 'application/octet-stream',
+      })
+      Object.defineProperty(input.element, 'files', { value: [file] })
+      await input.trigger('change')
+      await vi.waitFor(() => expect(wrapper.text()).toContain('待提交时上传'))
+      expect(api.stageTargetArchiveAttachment).not.toHaveBeenCalled()
+      await confirmItems(wrapper)
+      await click(wrapper, '提交')
+      expect(submit).not.toHaveBeenCalled()
+      await confirmItems(wrapper)
+      await click(wrapper, '提交')
+      const calls = vi.mocked(api.stageTargetArchiveAttachment).mock.calls
+      expect(calls).toHaveLength(2)
+      expect(calls[1]).toEqual(calls[0])
+      expect(calls[0]![1]).toBe(entity)
+      expect(calls[0]![2]).toMatchObject({
+        subjectId: entity,
+        fileName: ' 原空文件.et ',
+        size: 0,
+        contentBase64: '',
+      })
+      const command = vi.mocked(submit).mock.calls[0]![1]
+      expect(command.subjectId).toBe(entity)
+      expect(command.snapshot.attachments).toEqual([
+        expect.objectContaining({
+          id: calls[0]![2].fileId,
+          stagingId: calls[0]![2].stagingId,
+          fileName: ' 原空文件.et ',
+          sizeBytes: 0,
+        }),
+      ])
+    } finally {
+      wrapper.unmount()
+    }
+  },
+)
+
+it.each(['supplier', 'product', 'other-unit', 'sales-partner'] as const)(
+  'downloads the exact current %s original using its own typed route',
+  async (entity) => {
+    useTargetSession().apiPaths = ['query', 'get', 'attachment-read'].map(
+      (action) => `/bob/${entity}/${action}`,
+    )
+    const row = {
+      objectId: entity,
+      code: 'ARCHIVE',
+      name: '原件档案',
+      enabled: true,
+      data: {
+        ...fileArchiveSnapshot(entity),
+        attachments: [
+          {
+            id: 'file',
+            fileName: '原件.et',
+            contentType: 'application/octet-stream',
+            sizeBytes: 0,
+            sha256: 'a'.repeat(64),
+          },
+        ],
+      },
+    }
+    const query = {
+      supplier: api.queryTargetSuppliers,
+      product: api.queryTargetProducts,
+      'other-unit': api.queryTargetOtherUnits,
+      'sales-partner': api.queryTargetSalesPartners,
+    }[entity]
+    const get = {
+      supplier: api.getTargetSupplier,
+      product: api.getTargetProduct,
+      'other-unit': api.getTargetOtherUnit,
+      'sales-partner': api.getTargetSalesPartner,
+    }[entity]
+    vi.mocked(query).mockResolvedValue({ items: [row], total: 1 } as never)
+    vi.mocked(get).mockResolvedValue(row as never)
+    vi.mocked(api.readTargetArchiveAttachment).mockResolvedValue({
+      fileName: '原件.et',
+      mimeType: 'application/octet-stream',
+      size: 0,
+      digest: 'a'.repeat(64),
+      contentBase64: '',
+    })
+    const originalCreate = URL.createObjectURL,
+      originalRevoke = URL.revokeObjectURL
+    URL.createObjectURL = vi.fn().mockReturnValue('blob:archive')
+    URL.revokeObjectURL = vi.fn()
+    const anchor = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => {})
+    const wrapper = mount(ResourceHost, {
+      props: { domain: 'bob', entity },
+      global: { stubs },
+    })
+    try {
+      await flushPromises()
+      await click(wrapper, '查看')
+      await click(wrapper, '下载附件')
+      expect(api.readTargetArchiveAttachment).toHaveBeenCalledWith(
+        'test-csrf',
+        entity,
+        { source: 'current', objectId: entity, fileId: 'file' },
+        'bob',
+      )
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:archive')
+    } finally {
+      wrapper.unmount()
+      anchor.mockRestore()
+      URL.createObjectURL = originalCreate
+      URL.revokeObjectURL = originalRevoke
+    }
+  },
+)

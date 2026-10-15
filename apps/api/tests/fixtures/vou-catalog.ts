@@ -5,6 +5,7 @@ import {
   vouEntities,
   type VouEntity,
   type VouPayload,
+  type VouPayloadFor,
   type VouPayloadShapes,
 } from '@zerp/model'
 import type { DB } from '../../src/db/generated.ts'
@@ -626,6 +627,36 @@ export async function seedVouCatalogFixture(db: Kysely<DB>) {
     },
   }
   for (const [entity, payload] of Object.entries(payloads)) {
+    if (
+      entity === 'sale-outbound' ||
+      entity === 'sale-delivery' ||
+      entity === 'sale-signoff'
+    ) {
+      const parentEntity =
+        entity === 'sale-outbound'
+          ? 'sale-order'
+          : entity === 'sale-delivery'
+            ? 'sale-outbound'
+            : 'sale-delivery'
+      const parent = documents[parentEntity]!
+      if (parent.status !== 'APPROVED')
+        documents[parentEntity] = await vou.review(
+          parentEntity,
+          'approve',
+          {
+            documentId: parent.documentId,
+            submissionId: parent.submissionId,
+            expectedRevision: parent.revision,
+          },
+          reviewer,
+          'catalog-sale-source',
+        )
+      const child = payload as VouPayloadFor<
+        'sale-outbound' | 'sale-delivery' | 'sale-signoff'
+      >
+      child.parentEntity = parentEntity
+      child.parentDocumentId = parent.documentId
+    }
     if (entity === 'service-acceptance') {
       const contract = documents['service-contract']!
       documents['service-contract'] = await vou.review(

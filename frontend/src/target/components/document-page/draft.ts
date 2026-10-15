@@ -1,4 +1,13 @@
 import {
+  saleContinuationCommand,
+  type SaleContinuationDraft,
+} from './sale-continuation-data.ts'
+import {
+  cloneIndependentReceipt,
+  independentReceiptPayload,
+  type IndependentReceiptDraft,
+} from './independent-receipt-data.ts'
+import {
   emptyInvoice,
   invoicePayload,
   type InvoiceDraft,
@@ -74,6 +83,7 @@ import {
   type IntermediaryDraft,
 } from './intermediary-data.ts'
 export type EditorDraft =
+  | { kind: 'sale-continuation'; value: SaleContinuationDraft }
   | { kind: 'invoice'; value: InvoiceDraft }
   | { kind: 'intermediary'; value: IntermediaryDraft }
   | { kind: 'service'; value: ServiceDraft }
@@ -82,6 +92,7 @@ export type EditorDraft =
   | { kind: 'financial'; value: FinancialDraft }
   | { kind: 'order'; value: OrderDraft }
   | { kind: 'fulfillment'; value: FulfillmentDraft }
+  | { kind: 'independent-receipt'; value: IndependentReceiptDraft }
   | { kind: 'product-facts'; value: ProductFactsDraft }
   | { kind: 'production'; value: ProductionDraft }
   | { kind: 'opening'; value: OpeningDraft }
@@ -249,6 +260,20 @@ export function cloneDocumentDraft(original: VouDetail): EditorDraft | null {
       ),
     }
   } else if (
+    original.entity === 'purchase-inbound' &&
+    'productLines' in original.payload
+  ) {
+    return {
+      kind: 'independent-receipt',
+      value: cloneIndependentReceipt(
+        original.payload as Extract<
+          import('@zerp/model').VouPayloadFor<'purchase-inbound'>,
+          { productLines: readonly unknown[] }
+        >,
+        original.payload.productLines.map(() => ulid()),
+      ),
+    }
+  } else if (
     (original.entity === 'purchase-inbound' ||
       original.entity === 'sale-return' ||
       original.entity === 'purchase-return') &&
@@ -285,6 +310,7 @@ export function cloneDocumentDraft(original: VouDetail): EditorDraft | null {
   return null
 }
 export type DocumentCommand =
+  | ReturnType<typeof saleContinuationCommand>
   | {
       kind: 'invoice'
       entity: InvoiceEntity
@@ -347,6 +373,8 @@ export function documentCommand(
   identity: DocumentIdentity,
 ): DocumentCommand {
   switch (editor.kind) {
+    case 'sale-continuation':
+      return saleContinuationCommand(editor.value, identity)
     case 'invoice':
       return {
         kind: 'invoice',
@@ -443,6 +471,16 @@ export function documentCommand(
         },
       }
     }
+    case 'independent-receipt':
+      return {
+        kind: 'fulfillment',
+        entity: 'purchase-inbound',
+        input: {
+          ...identity,
+          expectedRevision: null,
+          payload: independentReceiptPayload(editor.value),
+        },
+      }
     case 'fulfillment': {
       const value = editor.value
       return {

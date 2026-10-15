@@ -86,8 +86,56 @@ export function orderPayload(
     !draft.warehouse?.objectId
   )
     throw new Error('请选择相对方与仓库。')
-  if (!draft.lines.length) throw new Error('至少添加一条商品行。')
-  const productLines = draft.lines.map((line, index): VouProductLineInput => {
+  const productLines = productLinesPayload(
+    draft.lines,
+    draft.entity === 'sale-order',
+  )
+  const common = {
+    businessDate: draft.businessDate,
+    currency: draft.currency,
+    remark: draft.remark,
+    attachments: draft.attachments,
+    warehouse: { objectId: draft.warehouse.objectId },
+    productLines,
+  }
+  const reference = {
+    objectId: draft.counterparty.objectId,
+    approvalEntryId: draft.counterparty.approvalEntryId,
+    selectionOrigin: draft.selectionOrigin,
+  }
+  if (draft.entity === 'purchase-order')
+    return {
+      ...common,
+      ...(draft.priorFact
+        ? { priorFact: priorFactPayload(draft.priorFact) }
+        : {}),
+      supplier: reference,
+      ...(draft.employee
+        ? { purchaser: { objectId: draft.employee.objectId } }
+        : {}),
+    }
+  if (!draft.operatingEntity) throw new Error('请选择经营主体。')
+  return {
+    ...common,
+    customer: reference,
+    ...(draft.specialApproval ? { specialApproval: true } : {}),
+    operatingEntity: { objectId: draft.operatingEntity.objectId },
+    paymentMethod: draft.paymentMethod,
+    ...(draft.employee
+      ? { salesperson: { objectId: draft.employee.objectId } }
+      : {}),
+    ...(draft.creditOverrideReason.trim()
+      ? { creditOverrideReason: draft.creditOverrideReason.trim() }
+      : {}),
+  }
+}
+
+export function productLinesPayload(
+  lines: readonly OrderLine[],
+  sales = false,
+): VouProductLineInput[] {
+  if (!lines.length) throw new Error('至少添加一条商品行。')
+  return lines.map((line, index): VouProductLineInput => {
     const unit = line.current?.data.unitConversions.find(
       (item) => item.unit.id === line.unitId,
     )?.unit
@@ -142,7 +190,7 @@ export function orderPayload(
       throw new Error(
         `商品行第 ${index + 1} 行：手工配方录入数量最多两位小数。`,
       )
-    const sale = draft.entity === 'sale-order',
+    const sale = sales,
       packaging = line.current.data.productType.behaviorProfile === 'PACKAGING'
     if (sale && !packaging && !line.formula?.components.length)
       throw new Error(`商品行第 ${index + 1} 行：非包装产品必须填写完整配方。`)
@@ -168,44 +216,6 @@ export function orderPayload(
         : {}),
     }
   })
-  const common = {
-    businessDate: draft.businessDate,
-    currency: draft.currency,
-    remark: draft.remark,
-    attachments: draft.attachments,
-    warehouse: { objectId: draft.warehouse.objectId },
-    productLines,
-  }
-  const reference = {
-    objectId: draft.counterparty.objectId,
-    approvalEntryId: draft.counterparty.approvalEntryId,
-    selectionOrigin: draft.selectionOrigin,
-  }
-  if (draft.entity === 'purchase-order')
-    return {
-      ...common,
-      ...(draft.priorFact
-        ? { priorFact: priorFactPayload(draft.priorFact) }
-        : {}),
-      supplier: reference,
-      ...(draft.employee
-        ? { purchaser: { objectId: draft.employee.objectId } }
-        : {}),
-    }
-  if (!draft.operatingEntity) throw new Error('请选择经营主体。')
-  return {
-    ...common,
-    customer: reference,
-    ...(draft.specialApproval ? { specialApproval: true } : {}),
-    operatingEntity: { objectId: draft.operatingEntity.objectId },
-    paymentMethod: draft.paymentMethod,
-    ...(draft.employee
-      ? { salesperson: { objectId: draft.employee.objectId } }
-      : {}),
-    ...(draft.creditOverrideReason.trim()
-      ? { creditOverrideReason: draft.creditOverrideReason.trim() }
-      : {}),
-  }
 }
 
 export function orderFormula(
@@ -275,34 +285,41 @@ export function cloneOrder(
     paymentMethod: sales ? payload.paymentMethod : null,
     creditOverrideReason: sales ? (payload.creditOverrideReason ?? '') : '',
     specialApproval: sales ? (payload.specialApproval ?? false) : false,
-    lines: payload.productLines.map((line, index) => ({
-      lineId: lineIds[index]!,
-      product: {
-        entity: 'product',
-        objectId: line.product.objectId,
-        code: '',
-        name: '重新采用产品',
-      },
-      current: null,
-      enteredQuantity: line.enteredQuantity,
-      unitId: line.enteredUnit.objectId,
-      baseQuantity: line.baseQuantity,
-      unitPrice: line.unitPrice,
-      agreedAmount: line.agreedAmount,
-      settlementSurcharge: line.settlementSurcharge ?? null,
-      remark: line.remark ?? '',
-      formula: line.formula ?? null,
-      inheritedFormula:
-        line.formula?.sourceType === 'PRODUCT_FIXED' ||
-        line.formula?.sourceType === 'CUSTOMER_LATEST'
-          ? structuredClone(line.formula)
-          : null,
-      formulaDraft: null,
-      deliverySpecificationType: line.deliverySpecificationType ?? 'PACKAGED',
-      quantityPerContainer: line.quantityPerContainer ?? '',
-      containerType: line.containerType ?? '',
-    })),
+    lines: cloneProductLines(payload.productLines, lineIds),
   }
+}
+
+export function cloneProductLines(
+  lines: readonly VouProductLineInput[],
+  lineIds: readonly string[],
+): OrderLine[] {
+  return lines.map((line, index) => ({
+    lineId: lineIds[index]!,
+    product: {
+      entity: 'product',
+      objectId: line.product.objectId,
+      code: '',
+      name: '重新采用产品',
+    },
+    current: null,
+    enteredQuantity: line.enteredQuantity,
+    unitId: line.enteredUnit.objectId,
+    baseQuantity: line.baseQuantity,
+    unitPrice: line.unitPrice,
+    agreedAmount: line.agreedAmount,
+    settlementSurcharge: line.settlementSurcharge ?? null,
+    remark: line.remark ?? '',
+    formula: line.formula ?? null,
+    inheritedFormula:
+      line.formula?.sourceType === 'PRODUCT_FIXED' ||
+      line.formula?.sourceType === 'CUSTOMER_LATEST'
+        ? structuredClone(line.formula)
+        : null,
+    formulaDraft: null,
+    deliverySpecificationType: line.deliverySpecificationType ?? 'PACKAGED',
+    quantityPerContainer: line.quantityPerContainer ?? '',
+    containerType: line.containerType ?? '',
+  }))
 }
 
 export function formulaDraftFromWire(

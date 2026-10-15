@@ -1,12 +1,45 @@
 import { vouPriorDocumentTypes, canonicalVouPriorCutoff } from '@zerp/model'
 import { sql, type Kysely, type Transaction } from 'kysely'
-import type { VouEntity, VouPayload, VouPriorFact } from '@zerp/model'
+import type {
+  VouEntity,
+  VouPayload,
+  VouPriorFact,
+  VouPayloadFor,
+} from '@zerp/model'
 import type { DB } from '../db/generated.ts'
 import { VouApplicationError } from './service.ts'
 
 type Executor = Kysely<DB> | Transaction<DB>
+function sourceComponent(entity: VouEntity) {
+  if (entity === 'sale-order') return 'SALE_ORDER' as const
+  if (entity === 'sale-outbound') return 'SALE_OUTBOUND' as const
+  if (entity === 'sale-signoff') return 'SALE_SIGNOFF' as const
+  if (entity === 'service-contract' || entity === 'service-acceptance')
+    return 'SERVICE' as const
+  if (
+    entity === 'purchase-order' ||
+    entity === 'purchase-inbound' ||
+    entity === 'purchase-return'
+  )
+    return 'PROCUREMENT' as const
+  throw new VouApplicationError('vou_prior_fact_invalid')
+}
 export function priorFact(payload: VouPayload): VouPriorFact | undefined {
   return 'priorFact' in payload ? payload.priorFact : undefined
+}
+
+export function isIndependentPriorReceipt(
+  entity: VouEntity,
+  payload: VouPayload,
+): payload is Extract<
+  VouPayloadFor<'purchase-inbound'>,
+  { productLines: readonly unknown[] }
+> {
+  return (
+    entity === 'purchase-inbound' &&
+    'productLines' in payload &&
+    Boolean(priorFact(payload))
+  )
 }
 
 export async function readPriorFact(
@@ -95,16 +128,132 @@ export async function validatePriorFact(
     JOIN approval_entries entry ON entry.id = prior.approval_entry_id
     WHERE prior.source_instance_id = ${fact.sourceInstanceId} AND prior.source_schema = ${fact.sourceSchema}
       AND prior.source_document_type = ${fact.sourceDocumentType} AND prior.source_document_key = ${fact.sourceDocumentKey}
+      AND prior.source_component = ${sourceComponent(entity)}
       AND entry.subject_id <> ${documentId} LIMIT 1
   `.execute(tx)
   if (duplicate.rows.length)
     throw new VouApplicationError('vou_prior_fact_source_conflict')
-  if (entity === 'purchase-order') {
+  const otherComponents = await sql<{ approval_entry_id: string }>`
+    SELECT prior.approval_entry_id FROM vou_prior_facts prior
+    WHERE prior.source_instance_id = ${fact.sourceInstanceId}
+      AND prior.source_schema = ${fact.sourceSchema}
+      AND prior.source_document_type = ${fact.sourceDocumentType}
+      AND prior.source_document_key = ${fact.sourceDocumentKey}
+      AND prior.source_component <> ${sourceComponent(entity)}
+  `.execute(tx)
+  for (const component of otherComponents.rows) {
+    const previous = await readPriorFact(tx, component.approval_entry_id)
+    if (
+      !previous ||
+      !sameCapture(fact, previous) ||
+      previous.sourceClosed !== fact.sourceClosed ||
+      previous.sourceDocumentNo !== fact.sourceDocumentNo
+    )
+      throw new VouApplicationError('vou_prior_fact_invalid')
+  }
+  if (entity === 'service-contract') {
+    if (
+      !('serviceContract' in payload) ||
+      !['supplier', 'other-unit', 'customer'].includes(
+        payload.counterpartyType,
+      ) ||
+      payload.parentEntity ||
+      payload.parentDocumentId
+    )
+      throw new VouApplicationError('vou_prior_fact_invalid')
+    return
+  }
+  if (entity === 'service-acceptance' && 'serviceAcceptance' in payload) {
+    const id = payload.serviceAcceptance.contractDocumentId
+    if (!id) {
+      if (
+        !payload.counterparty ||
+        payload.parentEntity ||
+        payload.parentDocumentId
+      )
+        throw new VouApplicationError('vou_prior_fact_invalid')
+      return
+    }
+    const contract = await tx
+      .selectFrom('approval_entries')
+      .select('id')
+      .where('domain', '=', 'vou')
+      .where('entity', '=', 'service-contract')
+      .where('subject_id', '=', id)
+      .where('status', '=', 'APPROVED')
+      .executeTakeFirst()
+    const contractFact = contract
+      ? await readPriorFact(tx, contract.id)
+      : undefined
+    if (!contractFact || !sameCapture(fact, contractFact))
+      throw new VouApplicationError('vou_prior_fact_invalid')
+    return
+  }
+  if (entity === 'purchase-order' || entity === 'sale-order') {
     if (payload.parentDocumentId)
       throw new VouApplicationError('vou_prior_fact_invalid')
     return
   }
-  if (payload.parentEntity !== 'purchase-order' || !payload.parentDocumentId)
+  if (entity === 'sale-signoff') {
+    if (payload.parentEntity !== 'sale-outbound' || !payload.parentDocumentId)
+      throw new VouApplicationError('vou_prior_fact_invalid')
+    const parent = await tx
+      .selectFrom('approval_entries')
+      .select('id')
+      .where('domain', '=', 'vou')
+      .where('entity', '=', 'sale-outbound')
+      .where('subject_id', '=', payload.parentDocumentId)
+      .where('status', '=', 'APPROVED')
+      .executeTakeFirst()
+    const parentFact = parent ? await readPriorFact(tx, parent.id) : undefined
+    if (
+      !parentFact ||
+      !sameCapture(fact, parentFact) ||
+      (parentFact.sourceDocumentType === 'BA' &&
+        (parentFact.sourceDocumentKey !== fact.sourceDocumentKey ||
+          parentFact.sourceDocumentNo !== fact.sourceDocumentNo ||
+          parentFact.sourceClosed !== fact.sourceClosed))
+    )
+      throw new VouApplicationError('vou_prior_fact_invalid')
+    return
+  }
+  if (entity === 'sale-outbound') {
+    if (payload.parentEntity !== 'sale-order' || !payload.parentDocumentId)
+      throw new VouApplicationError('vou_prior_fact_invalid')
+    const parent = await tx
+      .selectFrom('approval_entries')
+      .select('id')
+      .where('domain', '=', 'vou')
+      .where('entity', '=', 'sale-order')
+      .where('subject_id', '=', payload.parentDocumentId)
+      .where('status', '=', 'APPROVED')
+      .executeTakeFirst()
+    const parentFact = parent ? await readPriorFact(tx, parent.id) : undefined
+    if (
+      !parentFact ||
+      !sameCapture(fact, parentFact) ||
+      parentFact.sourceDocumentType !== 'BB' ||
+      (fact.sourceDocumentType === 'BB' &&
+        (parentFact.sourceDocumentKey !== fact.sourceDocumentKey ||
+          parentFact.sourceDocumentNo !== fact.sourceDocumentNo ||
+          parentFact.sourceClosed !== fact.sourceClosed))
+    )
+      throw new VouApplicationError('vou_prior_fact_invalid')
+    return
+  }
+  if (entity === 'purchase-inbound' && 'productLines' in payload) {
+    if (payload.parentEntity || payload.parentDocumentId)
+      throw new VouApplicationError('vou_prior_fact_invalid')
+    return
+  }
+  if (
+    !payload.parentDocumentId ||
+    (payload.parentEntity !== 'purchase-order' &&
+      !(
+        entity === 'purchase-return' &&
+        payload.parentEntity === 'purchase-inbound'
+      ))
+  )
     throw new VouApplicationError('vou_prior_fact_invalid')
   const ids = [
     payload.parentDocumentId,
@@ -130,6 +279,7 @@ export async function writePriorFact(
   tx: Transaction<DB>,
   approvalEntryId: string,
   fact: VouPriorFact,
+  entity: VouEntity,
 ) {
   await tx
     .insertInto('vou_prior_facts')
@@ -139,6 +289,7 @@ export async function writePriorFact(
       source_instance_id: fact.sourceInstanceId,
       source_schema: fact.sourceSchema,
       source_document_type: fact.sourceDocumentType,
+      source_component: sourceComponent(entity),
       source_document_key: fact.sourceDocumentKey,
       source_document_no: fact.sourceDocumentNo,
       captured_at: fact.capturedAt,
@@ -152,6 +303,11 @@ export async function validatePurchaseReceipt(
   documentId: string,
   payload: import('@zerp/model').VouPayloadFor<'purchase-inbound'>,
 ) {
+  if ('productLines' in payload) {
+    if (!payload.priorFact || payload.parentEntity || payload.parentDocumentId)
+      throw new VouApplicationError('vou_prior_fact_invalid')
+    return
+  }
   if (payload.parentEntity !== 'purchase-order' || !payload.parentDocumentId)
     throw new VouApplicationError('vou_parent_invalid')
   await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`vou:document:${payload.parentDocumentId}`}, 0))`.execute(

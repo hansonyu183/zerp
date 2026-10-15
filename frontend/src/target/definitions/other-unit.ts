@@ -27,12 +27,13 @@ export const otherUnitPage = defineVersionPage<'bob/other-unit'>({
       contactName: '',
       phone: '',
       address: '',
+      attachments: [],
       operatingEntities: [],
       defaultOperatingEntityId: null,
       remark: '',
       settlementMethod: null,
     }),
-    clone: (snapshot) => structuredClone(snapshot),
+    clone: (snapshot) => ({ ...structuredClone(snapshot), attachments: [] }),
     validate: (snapshot) =>
       !snapshot.legalName.trim() || !snapshot.displayName.trim()
         ? '请填写法定名称和显示名称。'

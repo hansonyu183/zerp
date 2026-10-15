@@ -2,7 +2,12 @@ import type { VouOpeningService } from './vou/opening-service.ts'
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { bodyLimit } from 'hono/body-limit'
 import { HTTPException } from 'hono/http-exception'
-import { modelBuildId } from '@zerp/model'
+import {
+  modelBuildId,
+  vouEntities,
+  archiveAttachmentEntities,
+  attachmentStageBodyLimitBytes,
+} from '@zerp/model'
 
 import { currentRequestId, requestId } from './platform/request-id.ts'
 import { registerHealthRoutes } from './app/health-contract.ts'
@@ -108,10 +113,9 @@ export function createApp(options: CreateAppOptions = {}) {
     if (context.req.method === 'OPTIONS') return context.body(null, 204)
     await next()
   })
-  app.use(
-    '*',
-    bodyLimit({
-      maxSize: options.bodyLimitBytes ?? 1_048_576,
+  function requestBodyLimit(maxSize: number) {
+    return bodyLimit({
+      maxSize,
       onError: (context) =>
         context.json(
           envelope(
@@ -121,8 +125,24 @@ export function createApp(options: CreateAppOptions = {}) {
             'request body is too large',
           ),
         ),
-    }),
-  )
+    })
+  }
+  const normalBodyLimit = requestBodyLimit(options.bodyLimitBytes ?? 1_048_576)
+  const attachmentBodyLimit = requestBodyLimit(attachmentStageBodyLimitBytes)
+  app.use('*', (context, next) => {
+    const attachmentStage =
+      context.req.method === 'POST' &&
+      (archiveAttachmentEntities.some(
+        (entity) => context.req.path === `/dcl/${entity}/attachment-stage`,
+      ) ||
+        vouEntities.some(
+          (entity) => context.req.path === `/vou/${entity}/attachment-stage`,
+        ))
+    return (attachmentStage ? attachmentBodyLimit : normalBodyLimit)(
+      context,
+      next,
+    )
+  })
   app.use('*', async (context, next) => {
     if (
       !context.req.path.startsWith('/app/') &&

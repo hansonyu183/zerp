@@ -272,7 +272,7 @@ const generatedSales = [
   'sale-signoff',
 ] as const
 it.each(generatedSales)(
-  '%s explains system generation without offering manual editing',
+  '%s explains source continuation without offering blank manual creation',
   async (entity) => {
     useTargetSession().apiPaths = ['query', 'get', 'approve', 'submit-new'].map(
       (action) => `/vou/${entity}/${action}`,
@@ -315,7 +315,9 @@ it.each(generatedSales)(
     } as typeof detail)
     const wrapper = host(entity)
     await flushPromises()
-    expect(wrapper.text()).toContain('此类型由系统生成，不支持人工新增。')
+    expect(wrapper.text()).toContain(
+      '此类型从来源业务办理，不支持空白人工新增。',
+    )
     expect(wrapper.text()).not.toContain('编辑器尚未实施')
     expect(wrapper.findAll('button').some((b) => b.text() === '新增')).toBe(
       false,

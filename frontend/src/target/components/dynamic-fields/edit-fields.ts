@@ -31,7 +31,13 @@ export type EditReferenceSource =
   | 'formula-materials'
   | 'external-salespeople'
   | 'channel-partners'
-export type EditValue = string | number | boolean | null | string[]
+export type EditValue =
+  | string
+  | number
+  | boolean
+  | null
+  | string[]
+  | Record<string, string | readonly string[]>
 export type EditValues = Record<string, EditValue>
 export type EditOption = {
   id: string
@@ -99,9 +105,11 @@ export type EditReference =
   | { kind: 'voucher'; entity: import('@zerp/model').VouEntity }
   | {
       kind: 'vou-reference'
+      prepayment?: boolean
       entity: import('../../api.ts').TargetReferenceEntity
     }
   | {
       kind: 'vou-source-line'
+      historical?: boolean
       entity: import('@zerp/model').VouSourceLineTargetEntity
     }

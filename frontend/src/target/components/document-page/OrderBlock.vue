@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PriorFactBlock from './PriorFactBlock.vue'
 import CollectionBlock from '../dynamic-fields/CollectionBlock.vue'
 import OrderLineEditor from './OrderLineEditor.vue'
 import { useOrderLineEditor } from './order-line-editor.ts'
@@ -211,6 +212,13 @@ onBeforeUnmount(() => {
 })
 </script>
 <template>
+  <PriorFactBlock
+    v-if="modelValue.entity === 'purchase-order'"
+    :entity="modelValue.entity"
+    :model-value="modelValue.priorFact"
+    :disabled="disabled"
+    @update:model-value="update({ priorFact: $event })"
+  />
   <FieldInput
     usage="edit"
     :field="{ key: 'specialApproval', type: 'boolean', caption: '特批销售' }"

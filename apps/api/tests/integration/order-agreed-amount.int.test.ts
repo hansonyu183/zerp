@@ -211,8 +211,14 @@ test('ordinary HTTP users preserve exact agreements through partial fulfillment,
       '3689.94',
     )
     assert.equal(
-      (await sourceSettlementMovements(tx, 'sale-signoff', sign.payload))[0]!
-        .amount,
+      (
+        await sourceSettlementMovements(
+          tx,
+          'sale-signoff',
+          sign.payload,
+          sign.documentId,
+        )
+      )[0]!.amount,
       '3689.94',
     )
     await approved('purchase-return', {

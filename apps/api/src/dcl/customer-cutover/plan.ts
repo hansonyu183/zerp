@@ -572,6 +572,23 @@ export function projectArchives(
     'dcl_customer_version_subunits',
   ])
     for (const row of rows(source, table)) preserve(plan, table, row)
+  // This historical one-shot converter builds the single current schema. Keep
+  // permanent Customer keys unchanged; legacy staging has no subject fact.
+  for (const row of rows(source, 'dcl_customer_attachment_staging'))
+    plan.review.push({
+      kind: 'UNBOUND_CUSTOMER_ATTACHMENT_STAGING',
+      table: 'dcl_customer_attachment_staging',
+      identity: str(row.id),
+    })
+  target.dcl_archive_attachments = rows(target, 'dcl_customer_attachments')
+  target.dcl_archive_attachment_staging = rows(
+    target,
+    'dcl_customer_attachment_staging',
+  )
+  delete target.dcl_customer_attachments
+  delete target.dcl_customer_attachment_staging
+  for (const table of ['dcl_product_versions', 'dcl_supplier_versions'])
+    for (const row of rows(target, table)) row.attachments = []
   delete target.dcl_customer_subunit_roots
   delete target.dcl_customer_version_subunits
   return plan

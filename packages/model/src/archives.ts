@@ -7,6 +7,23 @@ import {
   type SubmissionMechanicsPlan,
 } from './submission.ts'
 
+export const archiveAttachmentEntities = [
+  'customer',
+  'product',
+  'supplier',
+  'other-unit',
+  'sales-partner',
+] as const
+export type ArchiveAttachmentEntity = (typeof archiveAttachmentEntities)[number]
+
+export const archiveAttachmentErrorPresentation = {
+  archive_attachment_not_found: '附件不存在或不属于此版本。',
+  archive_attachment_invalid_content: '附件内容校验失败。',
+  archive_attachment_staging_conflict: '附件暂存请求冲突，请重新添加附件。',
+  archive_attachment_staging_invalid:
+    '附件暂存已失效或归属不匹配，请重新添加附件。',
+} as const
+
 export const archiveEntityPresentation = {
   product: { label: '产品', draftLabel: '产品资料' },
   supplier: { label: '供应商', draftLabel: '供应商资料' },
@@ -264,6 +281,7 @@ export interface ProductData {
   defaultPackagingSpec: Text
   recyclable: boolean
   fixedFormula: ProductFixedFormula | null
+  attachments?: readonly AttachmentMetadata[]
   remark: Text
 }
 export interface ProductSubmitCommand extends ArchiveCommand<ProductData> {}
@@ -349,6 +367,8 @@ export function normalizeProductData(
     unitIds.add(unit.id)
     unitConversions.push({ unit, factor })
   }
+  const attachments = normalizeArchiveAttachments(data.attachments ?? [])
+  if (!attachments) return invalid('attachments')
   if (!hasText(data.name)) return invalid('name')
   if (!productType) return invalid('productType')
   if (!productCategory) return invalid('productCategory')
@@ -418,6 +438,7 @@ export function normalizeProductData(
     return invalid('fixedFormula')
   return {
     ...data,
+    attachments,
     name: trim(data.name),
     barcode: trim(data.barcode).toUpperCase(),
     specification: trim(data.specification),
@@ -576,6 +597,7 @@ export interface SupplierData
     Omit<IdentityArchiveData, 'identityKind' | 'legalName' | 'legalIdentifier'>,
     OperatingEntitySetData {
   taxInformation: readonly TaxInformationSnapshot[]
+  attachments?: readonly AttachmentMetadata[]
   settlementMethod: (AuxSnapshot | SettlementMethodSnapshot) | null
   defaultPurchaser: StableArchiveReference | null
 }
@@ -611,7 +633,7 @@ function prepareIdentitySet<
   if ('ok' in common) return common
   const identity = normalizeIdentity(
       command.data,
-      entity === 'sales-partner' && command.data.identityKind === 'PERSON',
+      entity === 'other-unit' || command.data.identityKind === 'PERSON',
     ),
     set = normalizeOperatingEntitySet(command.data)
   return identity && set
@@ -629,8 +651,12 @@ export function prepareSupplierSubmit(
   )
   if ('ok' in common) return common
   const set = normalizeOperatingEntitySet(command.data)
+  const attachments = normalizeArchiveAttachments(
+    command.data.attachments ?? [],
+  )
   if (
     !set ||
+    !attachments ||
     !hasText(command.data.displayName) ||
     new Set(command.data.taxInformation.map((item) => item.id)).size !==
       command.data.taxInformation.length
@@ -640,6 +666,7 @@ export function prepareSupplierSubmit(
     common,
     data: {
       ...set,
+      attachments,
       displayName: trim(command.data.displayName),
       contactName: trim(command.data.contactName),
       phone: trim(command.data.phone),
@@ -700,6 +727,7 @@ export function projectSupplierViewState(
 export interface OtherUnitData
   extends IdentityArchiveData, OperatingEntitySetData {
   settlementMethod: (AuxSnapshot | SettlementMethodSnapshot) | null
+  attachments?: readonly AttachmentMetadata[]
 }
 export interface OtherUnitSubmitCommand extends ArchiveCommand<OtherUnitData> {}
 export interface OtherUnitSubmitFacts extends ArchiveFacts {
@@ -725,6 +753,11 @@ export function prepareOtherUnitSubmit(
     'other_unit_invalid_data',
   )
   if ('ok' in prepared) return prepared
+  const attachments = normalizeArchiveAttachments(
+    command.data.attachments ?? [],
+  )
+  if (!attachments)
+    return { ok: false, error: { errorKey: 'other_unit_invalid_data' } }
   for (const reference of prepared.data.operatingEntities) {
     const checked = stableReference(
       'operatingEntities',
@@ -748,6 +781,7 @@ export function prepareOtherUnitSubmit(
       data: {
         ...prepared.data,
         settlementMethod: command.data.settlementMethod,
+        attachments,
       },
     },
   }
@@ -763,6 +797,7 @@ export type SalesPartnerCapability = 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER'
 export interface SalesPartnerData
   extends IdentityArchiveData, OperatingEntitySetData {
   capabilities: readonly SalesPartnerCapability[]
+  attachments?: readonly AttachmentMetadata[]
 }
 export interface SalesPartnerSubmitCommand extends ArchiveCommand<SalesPartnerData> {}
 export interface SalesPartnerSubmitFacts extends ArchiveFacts {
@@ -789,7 +824,11 @@ export function prepareSalesPartnerSubmit(
   )
   if ('ok' in prepared) return prepared
   const capabilities = [...new Set(command.data.capabilities)]
+  const attachments = normalizeArchiveAttachments(
+    command.data.attachments ?? [],
+  )
   if (
+    !attachments ||
     capabilities.length === 0 ||
     capabilities.some(
       (capability) =>
@@ -815,7 +854,10 @@ export function prepareSalesPartnerSubmit(
   }
   return {
     ok: true,
-    plan: { ...prepared.common, data: { ...prepared.data, capabilities } },
+    plan: {
+      ...prepared.common,
+      data: { ...prepared.data, capabilities, attachments },
+    },
   }
 }
 export function projectSalesPartnerViewState(
@@ -911,19 +953,30 @@ function normalizeAttachment(
 ): AttachmentMetadata | undefined {
   const normalized = {
     id: trim(attachment.id),
-    fileName: trim(attachment.fileName),
+    fileName: attachment.fileName,
     contentType: trim(attachment.contentType),
     sizeBytes: attachment.sizeBytes,
     sha256: trim(attachment.sha256).toLowerCase(),
   }
   return normalized.id &&
-    normalized.fileName &&
+    normalized.fileName.trim() &&
     normalized.contentType &&
     Number.isInteger(normalized.sizeBytes) &&
     normalized.sizeBytes >= 0 &&
     /^[a-f0-9]{64}$/.test(normalized.sha256)
     ? normalized
     : undefined
+}
+function normalizeArchiveAttachments(
+  value: readonly AttachmentMetadata[],
+): AttachmentMetadata[] | undefined {
+  const attachments = value.map(normalizeAttachment)
+  if (
+    attachments.some((item) => !item) ||
+    new Set(attachments.map((item) => item?.id)).size !== attachments.length
+  )
+    return undefined
+  return attachments as AttachmentMetadata[]
 }
 const money = /^(?:0|[1-9]\d*)\.\d{2}$/
 const positiveMoney = /^(?:[1-9]\d*\.\d{2}|0\.(?:[1-9]\d|0[1-9]))$/

@@ -6,6 +6,7 @@ import ServiceBlock from '../../../src/target/components/document-page/ServiceBl
 import {
   emptyService,
   emptyServiceLine,
+  setServiceContext,
 } from '../../../src/target/components/document-page/service-data.ts'
 import { useTargetSession } from '../../../src/target/session/vm.ts'
 import * as api from '../../../src/target/api.ts'
@@ -31,7 +32,7 @@ const stubs = {
     props: ['entity', 'caption', 'modelValue', 'disabled'],
     template: '<div />',
   },
-  FormBlock: { template: '<div />' },
+  FormBlock: { name: 'FormBlock', props: ['fields'], template: '<div />' },
   FieldInput: { template: '<div />' },
   CollectionBlock: { name: 'CollectionBlock', template: '<div />' },
 }
@@ -122,3 +123,47 @@ it('a line readiness completion cannot clear an outstanding contract read', asyn
   expect(wrapper.emitted('pending')?.at(-1)).toEqual([false])
   wrapper.unmount()
 })
+
+it.each(['supplier', 'other-unit'] as const)(
+  'switching a prior AD counterparty to %s preserves mandatory prepayment',
+  async (counterpartyType) => {
+    const session = useTargetSession()
+    session.apiPaths = ['/vou/service-contract/submit-new']
+    session.serviceContexts = {
+      '/vou/service-contract/submit-new': ['PRIOR_AD'],
+    }
+    const draft = setServiceContext(
+      emptyService('service-contract'),
+      'PRIOR_AD',
+    )
+    draft.counterpartyType =
+      counterpartyType === 'supplier' ? 'other-unit' : 'supplier'
+    draft.counterparty = {
+      entity: draft.counterpartyType,
+      objectId: 'old-party',
+      approvalEntryId: 'old-version',
+      code: 'OLD',
+      name: '旧相对方',
+    }
+    const wrapper = mount(ServiceBlock, {
+      props: { modelValue: draft, disabled: false },
+      global: { stubs },
+    })
+    const party = wrapper
+      .findAllComponents({ name: 'FormBlock' })
+      .find((item) =>
+        item
+          .props('fields')
+          .some((field: { key: string }) => field.key === 'counterpartyType'),
+      )!
+    party.vm.$emit('update:modelValue', { counterpartyType })
+    await flushPromises()
+    expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toMatchObject({
+      counterpartyType,
+      counterparty: null,
+      requiresPrepayment: true,
+      priorFact: { sourceDocumentType: 'AD' },
+    })
+    wrapper.unmount()
+  },
+)

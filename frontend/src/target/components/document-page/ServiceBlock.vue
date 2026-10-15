@@ -48,7 +48,7 @@ function update(patch: Partial<ServiceDraft>) {
             counterparty: null,
             origin: 'CURRENT' as const,
             capabilities: [],
-            requiresPrepayment: false,
+            requiresPrepayment: context.value === 'PRIOR_AD',
             settlementDirection:
               patch.counterpartyType === 'customer'
                 ? ('RECEIVABLE' as const)

@@ -94,8 +94,8 @@ const currencyName = computed(() =>
         </dd>
         <dt>采购员</dt>
         <dd>
-          {{ order.purchaser?.name ?? '—' }}
-          <small v-if="order.purchaser"
+          {{ ('purchaser' in order ? order.purchaser?.name : null) ?? '—' }}
+          <small v-if="'purchaser' in order && order.purchaser"
             >（标识：{{ order.purchaser.objectId }}）</small
           >
         </dd>

@@ -12,6 +12,7 @@ export const supplierPage = defineVersionPage<'bob/supplier'>({
   adapter: {
     empty: () => ({
       displayName: '',
+      attachments: [],
       taxInformation: [],
       contactName: '',
       phone: '',
@@ -22,7 +23,7 @@ export const supplierPage = defineVersionPage<'bob/supplier'>({
       settlementMethod: null,
       defaultPurchaser: null,
     }),
-    clone: (snapshot) => structuredClone(snapshot),
+    clone: (snapshot) => ({ ...structuredClone(snapshot), attachments: [] }),
     validate: (snapshot) =>
       !snapshot.displayName.trim()
         ? '请填写供应商名称。'

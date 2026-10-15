@@ -2,6 +2,14 @@ name: CI
 
 on:
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+      - converted_to_draft
+      - labeled
+      - unlabeled
 
 permissions:
   contents: read
@@ -23,9 +31,16 @@ jobs:
           fetch-depth: 0
       - id: classify
         name: Classify tested merge
+        env:
+          FORCE_FULL: ${{ contains(github.event.pull_request.labels.*.name, 'ci:full') }}
         shell: bash
         run: |
           set -euo pipefail
+
+          if [[ "$FORCE_FULL" == "true" ]]; then
+            echo "level=L3" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           paths_file="$(mktemp)"
           baseline_classifier="$(mktemp --suffix=.mjs)"
@@ -119,6 +134,8 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.level == 'L3' }}
     uses: ./.github/workflows/target.yml
+    with:
+      full: ${{ !github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'ci:full') }}
 
   ci-required:
     name: ci-required

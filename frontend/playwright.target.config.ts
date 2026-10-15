@@ -23,6 +23,9 @@ export default defineConfig({
   testDir: './tests/target-e2e',
   testIgnore: [
     '**/wfl-starlark-parity.spec.ts',
+    ...(process.env.TARGET_E2E_RECEIPT_SCOPE_JSON
+      ? []
+      : ['**/purchase-inbound-scopes.spec.ts']),
     ...(process.env.TARGET_E2E_GENERAL === '1'
       ? [
           '**/wfl.spec.ts',

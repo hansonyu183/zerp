@@ -1,0 +1,444 @@
+import { vouPriorDocumentTypes, canonicalVouPriorCutoff } from '@zerp/model'
+import { sql, type Kysely, type Transaction } from 'kysely'
+import type {
+  VouEntity,
+  VouPayload,
+  VouPriorFact,
+  VouPayloadFor,
+} from '@zerp/model'
+import type { DB } from '../db/generated.ts'
+import { VouApplicationError } from './service.ts'
+
+type Executor = Kysely<DB> | Transaction<DB>
+function sourceComponent(entity: VouEntity) {
+  if (entity === 'sale-order') return 'SALE_ORDER' as const
+  if (entity === 'sale-outbound') return 'SALE_OUTBOUND' as const
+  if (entity === 'sale-signoff') return 'SALE_SIGNOFF' as const
+  if (entity === 'service-contract' || entity === 'service-acceptance')
+    return 'SERVICE' as const
+  if (
+    entity === 'purchase-order' ||
+    entity === 'purchase-inbound' ||
+    entity === 'purchase-return'
+  )
+    return 'PROCUREMENT' as const
+  throw new VouApplicationError('vou_prior_fact_invalid')
+}
+export function priorFact(payload: VouPayload): VouPriorFact | undefined {
+  return 'priorFact' in payload ? payload.priorFact : undefined
+}
+
+export function isIndependentPriorReceipt(
+  entity: VouEntity,
+  payload: VouPayload,
+): payload is Extract<
+  VouPayloadFor<'purchase-inbound'>,
+  { productLines: readonly unknown[] }
+> {
+  return (
+    entity === 'purchase-inbound' &&
+    'productLines' in payload &&
+    Boolean(priorFact(payload))
+  )
+}
+
+export async function readPriorFact(
+  executor: Executor,
+  approvalEntryId: string,
+) {
+  const row = await executor
+    .selectFrom('vou_prior_facts')
+    .selectAll()
+    .select(
+      sql<string>`to_char(captured_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`.as(
+        'captured_at_iso',
+      ),
+    )
+    .where('approval_entry_id', '=', approvalEntryId)
+    .executeTakeFirst()
+  if (!row) return undefined
+  return {
+    sourceClosed: row.source_closed,
+    sourceInstanceId: row.source_instance_id,
+    sourceSchema: row.source_schema,
+    sourceDocumentType:
+      row.source_document_type as VouPriorFact['sourceDocumentType'],
+    sourceDocumentKey: row.source_document_key,
+    sourceDocumentNo: row.source_document_no,
+    capturedAt: row.captured_at_iso,
+    snapshotDigest: row.snapshot_digest,
+  } satisfies VouPriorFact
+}
+
+// Callers hold the same control-book row lock as opening approval.
+export async function assertPriorFactEditable(tx: Transaction<DB>) {
+  const opening = await sql<{ id: string }>`
+    SELECT entry.id FROM acc_books book JOIN approval_entries entry
+      ON entry.subject_id = book.id AND entry.domain = 'vou'
+      AND entry.entity = 'opening' AND entry.status = 'APPROVED'
+    WHERE book.control_book LIMIT 1
+  `.execute(tx)
+  if (opening.rows.length)
+    throw new VouApplicationError('vou_prior_fact_frozen')
+}
+
+function sameCapture(a: VouPriorFact, b: VouPriorFact) {
+  const cutoff = canonicalVouPriorCutoff(a.capturedAt)
+  return (
+    cutoff !== undefined &&
+    a.sourceInstanceId === b.sourceInstanceId &&
+    a.sourceSchema === b.sourceSchema &&
+    cutoff === canonicalVouPriorCutoff(b.capturedAt) &&
+    a.snapshotDigest === b.snapshotDigest
+  )
+}
+
+export async function validatePriorFact(
+  tx: Transaction<DB>,
+  entity: VouEntity,
+  documentId: string,
+  payload: VouPayload,
+) {
+  const fact = priorFact(payload)
+  if (!fact) return
+  const allowed: readonly string[] =
+    entity in vouPriorDocumentTypes
+      ? vouPriorDocumentTypes[entity as keyof typeof vouPriorDocumentTypes]
+      : []
+  if (
+    typeof fact.sourceClosed !== 'boolean' ||
+    !allowed.includes(fact.sourceDocumentType) ||
+    !/^[0-9a-f]{64}$/.test(fact.snapshotDigest) ||
+    canonicalVouPriorCutoff(fact.capturedAt) === undefined ||
+    payload.businessDate > fact.capturedAt.slice(0, 10) ||
+    [
+      fact.sourceInstanceId,
+      fact.sourceSchema,
+      fact.sourceDocumentKey,
+      fact.sourceDocumentNo,
+    ].some((v) => typeof v !== 'string' || !v.trim())
+  )
+    throw new VouApplicationError('vou_prior_fact_invalid')
+  await assertPriorFactEditable(tx)
+  await sql`SELECT pg_advisory_xact_lock(hashtextextended(${JSON.stringify(['vou:prior-source', fact.sourceInstanceId, fact.sourceSchema, fact.sourceDocumentType, fact.sourceDocumentKey])}, 0))`.execute(
+    tx,
+  )
+  const duplicate = await sql<{ document_id: string }>`
+    SELECT entry.subject_id AS document_id FROM vou_prior_facts prior
+    JOIN approval_entries entry ON entry.id = prior.approval_entry_id
+    WHERE prior.source_instance_id = ${fact.sourceInstanceId} AND prior.source_schema = ${fact.sourceSchema}
+      AND prior.source_document_type = ${fact.sourceDocumentType} AND prior.source_document_key = ${fact.sourceDocumentKey}
+      AND prior.source_component = ${sourceComponent(entity)}
+      AND entry.subject_id <> ${documentId} LIMIT 1
+  `.execute(tx)
+  if (duplicate.rows.length)
+    throw new VouApplicationError('vou_prior_fact_source_conflict')
+  const otherComponents = await sql<{ approval_entry_id: string }>`
+    SELECT prior.approval_entry_id FROM vou_prior_facts prior
+    WHERE prior.source_instance_id = ${fact.sourceInstanceId}
+      AND prior.source_schema = ${fact.sourceSchema}
+      AND prior.source_document_type = ${fact.sourceDocumentType}
+      AND prior.source_document_key = ${fact.sourceDocumentKey}
+      AND prior.source_component <> ${sourceComponent(entity)}
+  `.execute(tx)
+  for (const component of otherComponents.rows) {
+    const previous = await readPriorFact(tx, component.approval_entry_id)
+    if (
+      !previous ||
+      !sameCapture(fact, previous) ||
+      previous.sourceClosed !== fact.sourceClosed ||
+      previous.sourceDocumentNo !== fact.sourceDocumentNo
+    )
+      throw new VouApplicationError('vou_prior_fact_invalid')
+  }
+  if (entity === 'service-contract') {
+    if (
+      !('serviceContract' in payload) ||
+      !['supplier', 'other-unit', 'customer'].includes(
+        payload.counterpartyType,
+      ) ||
+      payload.parentEntity ||
+      payload.parentDocumentId
+    )
+      throw new VouApplicationError('vou_prior_fact_invalid')
+    return
+  }
+  if (entity === 'service-acceptance' && 'serviceAcceptance' in payload) {
+    const id = payload.serviceAcceptance.contractDocumentId
+    if (!id) {
+      if (
+        !payload.counterparty ||
+        payload.parentEntity ||
+        payload.parentDocumentId
+      )
+        throw new VouApplicationError('vou_prior_fact_invalid')
+      return
+    }
+    const contract = await tx
+      .selectFrom('approval_entries')
+      .select('id')
+      .where('domain', '=', 'vou')
+      .where('entity', '=', 'service-contract')
+      .where('subject_id', '=', id)
+      .where('status', '=', 'APPROVED')
+      .executeTakeFirst()
+    const contractFact = contract
+      ? await readPriorFact(tx, contract.id)
+      : undefined
+    if (!contractFact || !sameCapture(fact, contractFact))
+      throw new VouApplicationError('vou_prior_fact_invalid')
+    return
+  }
+  if (entity === 'purchase-order' || entity === 'sale-order') {
+    if (payload.parentDocumentId)
+      throw new VouApplicationError('vou_prior_fact_invalid')
+    return
+  }
+  if (entity === 'sale-signoff') {
+    if (payload.parentEntity !== 'sale-outbound' || !payload.parentDocumentId)
+      throw new VouApplicationError('vou_prior_fact_invalid')
+    const parent = await tx
+      .selectFrom('approval_entries')
+      .select('id')
+      .where('domain', '=', 'vou')
+      .where('entity', '=', 'sale-outbound')
+      .where('subject_id', '=', payload.parentDocumentId)
+      .where('status', '=', 'APPROVED')
+      .executeTakeFirst()
+    const parentFact = parent ? await readPriorFact(tx, parent.id) : undefined
+    if (
+      !parentFact ||
+      !sameCapture(fact, parentFact) ||
+      (parentFact.sourceDocumentType === 'BA' &&
+        (parentFact.sourceDocumentKey !== fact.sourceDocumentKey ||
+          parentFact.sourceDocumentNo !== fact.sourceDocumentNo ||
+          parentFact.sourceClosed !== fact.sourceClosed))
+    )
+      throw new VouApplicationError('vou_prior_fact_invalid')
+    return
+  }
+  if (entity === 'sale-outbound') {
+    if (payload.parentEntity !== 'sale-order' || !payload.parentDocumentId)
+      throw new VouApplicationError('vou_prior_fact_invalid')
+    const parent = await tx
+      .selectFrom('approval_entries')
+      .select('id')
+      .where('domain', '=', 'vou')
+      .where('entity', '=', 'sale-order')
+      .where('subject_id', '=', payload.parentDocumentId)
+      .where('status', '=', 'APPROVED')
+      .executeTakeFirst()
+    const parentFact = parent ? await readPriorFact(tx, parent.id) : undefined
+    if (
+      !parentFact ||
+      !sameCapture(fact, parentFact) ||
+      parentFact.sourceDocumentType !== 'BB' ||
+      (fact.sourceDocumentType === 'BB' &&
+        (parentFact.sourceDocumentKey !== fact.sourceDocumentKey ||
+          parentFact.sourceDocumentNo !== fact.sourceDocumentNo ||
+          parentFact.sourceClosed !== fact.sourceClosed))
+    )
+      throw new VouApplicationError('vou_prior_fact_invalid')
+    return
+  }
+  if (entity === 'purchase-inbound' && 'productLines' in payload) {
+    if (payload.parentEntity || payload.parentDocumentId)
+      throw new VouApplicationError('vou_prior_fact_invalid')
+    return
+  }
+  if (
+    !payload.parentDocumentId ||
+    (payload.parentEntity !== 'purchase-order' &&
+      !(
+        entity === 'purchase-return' &&
+        payload.parentEntity === 'purchase-inbound'
+      ))
+  )
+    throw new VouApplicationError('vou_prior_fact_invalid')
+  const ids = [
+    payload.parentDocumentId,
+    ...('returnLines' in payload
+      ? payload.returnLines.map((line) => line.sourceDocumentId)
+      : []),
+  ]
+  for (const id of new Set(ids)) {
+    const source = await sql<{ approval_entry_id: string }>`
+      SELECT prior.approval_entry_id FROM vou_prior_facts prior
+      JOIN approval_entries entry ON entry.id = prior.approval_entry_id
+      WHERE entry.subject_id = ${id} AND entry.domain = 'vou' AND entry.status = 'APPROVED'
+    `.execute(tx)
+    const sourceFact = source.rows[0]
+      ? await readPriorFact(tx, source.rows[0].approval_entry_id)
+      : undefined
+    if (!sourceFact || !sameCapture(fact, sourceFact))
+      throw new VouApplicationError('vou_prior_fact_invalid')
+  }
+}
+
+export async function writePriorFact(
+  tx: Transaction<DB>,
+  approvalEntryId: string,
+  fact: VouPriorFact,
+  entity: VouEntity,
+) {
+  await tx
+    .insertInto('vou_prior_facts')
+    .values({
+      approval_entry_id: approvalEntryId,
+      source_closed: fact.sourceClosed,
+      source_instance_id: fact.sourceInstanceId,
+      source_schema: fact.sourceSchema,
+      source_document_type: fact.sourceDocumentType,
+      source_component: sourceComponent(entity),
+      source_document_key: fact.sourceDocumentKey,
+      source_document_no: fact.sourceDocumentNo,
+      captured_at: fact.capturedAt,
+      snapshot_digest: fact.snapshotDigest,
+    })
+    .execute()
+}
+
+export async function validatePurchaseReceipt(
+  tx: Transaction<DB>,
+  documentId: string,
+  payload: import('@zerp/model').VouPayloadFor<'purchase-inbound'>,
+) {
+  if ('productLines' in payload) {
+    if (!payload.priorFact || payload.parentEntity || payload.parentDocumentId)
+      throw new VouApplicationError('vou_prior_fact_invalid')
+    return
+  }
+  if (payload.parentEntity !== 'purchase-order' || !payload.parentDocumentId)
+    throw new VouApplicationError('vou_parent_invalid')
+  await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`vou:document:${payload.parentDocumentId}`}, 0))`.execute(
+    tx,
+  )
+  const order = await sql<{
+    id: string
+    business_date: string
+    currency: string
+    object_id: string
+    adopted_approval_entry_id: string
+  }>`
+    SELECT entry.id, detail.business_date::text AS business_date, detail.currency,
+      supplier.object_id, supplier.approval_reference_id AS adopted_approval_entry_id
+    FROM approval_entries entry JOIN vou_purchase_order_details detail ON detail.approval_entry_id = entry.id
+    JOIN vou_reference_snapshots supplier ON supplier.approval_entry_id = entry.id AND supplier.field = 'supplier' AND supplier.line_no = 0
+    WHERE entry.subject_id = ${payload.parentDocumentId} AND entry.domain = 'vou'
+      AND entry.entity = 'purchase-order' AND entry.status = 'APPROVED'
+  `.execute(tx)
+  const root = order.rows[0]
+  if (
+    !root ||
+    (!payload.priorFact && payload.businessDate < root.business_date) ||
+    payload.currency !== root.currency ||
+    payload.supplier.objectId !== root.object_id ||
+    payload.supplier.approvalEntryId !== root.adopted_approval_entry_id
+  )
+    throw new VouApplicationError('vou_parent_invalid')
+  const capture = await readPriorFact(tx, root.id)
+  if (!payload.priorFact && capture?.sourceClosed)
+    throw new VouApplicationError('vou_prior_order_closed', [
+      {
+        kind: 'REFERENCE',
+        field: 'parentDocumentId',
+        entity: 'purchase-order',
+        objectId: payload.parentDocumentId,
+        approvalEntryId: root.id,
+      },
+    ])
+  if (
+    !payload.priorFact &&
+    capture &&
+    payload.businessDate < capture.capturedAt.slice(0, 10)
+  )
+    throw new VouApplicationError('vou_prior_fact_invalid')
+  const requested = new Map<string, bigint>()
+  for (const line of payload.sourceLines) {
+    if (!/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(line.baseQuantity))
+      throw new VouApplicationError('vou_invalid_payload')
+    const [whole, fraction = ''] = line.baseQuantity.split('.')
+    const qty = BigInt(whole!) * 1000000n + BigInt(fraction.padEnd(6, '0'))
+    if (qty <= 0n) throw new VouApplicationError('vou_invalid_payload')
+    requested.set(
+      line.sourceLineId,
+      (requested.get(line.sourceLineId) ?? 0n) + qty,
+    )
+  }
+  for (const [lineId, quantity] of requested) {
+    const result = await sql<{
+      quantity: string
+      used: string
+      returned: string
+    }>`
+      SELECT product.base_quantity_micros::text AS quantity,
+      (SELECT COALESCE(SUM(line.base_quantity_micros),0)::text
+       FROM vou_purchase_inbound_details detail JOIN vou_source_line_snapshots line ON line.approval_entry_id = detail.approval_entry_id
+       WHERE detail.parent_document_id = ${payload.parentDocumentId} AND detail.document_id <> ${documentId} AND line.source_line_id = ${lineId}) AS used,
+      (SELECT COALESCE(SUM(line.base_quantity_micros),0)::text
+       FROM vou_purchase_return_details detail JOIN approval_entries approved ON approved.id = detail.approval_entry_id AND approved.status = 'APPROVED'
+       JOIN vou_return_line_snapshots line ON line.approval_entry_id = detail.approval_entry_id
+       WHERE detail.parent_document_id = ${payload.parentDocumentId} AND line.source_line_id = ${lineId}) AS returned
+      FROM vou_product_line_snapshots product WHERE product.approval_entry_id = ${root.id} AND product.line_id = ${lineId}
+    `.execute(tx)
+    const row = result.rows[0]
+    if (!row) throw new VouApplicationError('vou_source_line_unavailable')
+    if (
+      !payload.priorFact &&
+      quantity + BigInt(row.used) - BigInt(row.returned) > BigInt(row.quantity)
+    )
+      throw new VouApplicationError('vou_source_line_quantity_exceeded')
+  }
+}
+
+// This order is a persisted refund allocation fact, independent of timestamp ties.
+export async function allocatePurchaseReturnSequence(
+  tx: Transaction<DB>,
+  entryId: string,
+) {
+  const lines = await tx
+    .selectFrom('vou_return_line_snapshots')
+    .selectAll()
+    .where('approval_entry_id', '=', entryId)
+    .orderBy('source_document_id')
+    .orderBy('source_line_id')
+    .execute()
+  const sequences = new Map<string, string>()
+  for (const line of lines) {
+    const key = `${line.source_document_id}/${line.source_line_id}`
+    if (!sequences.has(key)) {
+      const counter = await sql<{ last_value: string }>`
+        INSERT INTO vou_return_allocation_counters(source_document_id,source_line_id,last_value)
+        VALUES (${line.source_document_id},${line.source_line_id},1)
+        ON CONFLICT(source_document_id,source_line_id) DO UPDATE
+        SET last_value=vou_return_allocation_counters.last_value+1 RETURNING last_value::text
+      `.execute(tx)
+      sequences.set(key, counter.rows[0]!.last_value)
+    }
+    await tx
+      .updateTable('vou_return_line_snapshots')
+      .set({ allocation_sequence: sequences.get(key)! })
+      .where('approval_entry_id', '=', entryId)
+      .where('line_no', '=', line.line_no)
+      .execute()
+  }
+}
+
+export async function purchaseReturnAllocationBlockers(
+  tx: Transaction<DB>,
+  entryId: string,
+) {
+  const later = await sql<{ id: string }>`
+    SELECT DISTINCT next.subject_id AS id FROM vou_return_line_snapshots own
+    JOIN vou_return_line_snapshots used ON used.source_document_id=own.source_document_id AND used.source_line_id=own.source_line_id
+    JOIN approval_entries next ON next.id=used.approval_entry_id AND next.status='APPROVED'
+    WHERE own.approval_entry_id=${entryId} AND used.approval_entry_id<>${entryId}
+      AND (used.allocation_sequence>own.allocation_sequence OR used.allocation_sequence IS NULL OR own.allocation_sequence IS NULL)
+    ORDER BY next.subject_id
+  `.execute(tx)
+  return later.rows.map((row) => ({
+    kind: 'DOWNSTREAM_DOCUMENT' as const,
+    id: row.id,
+    entity: 'purchase-return',
+  }))
+}

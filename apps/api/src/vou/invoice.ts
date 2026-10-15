@@ -112,6 +112,7 @@ export async function freezeInvoiceTax(
 }
 
 export interface InvoiceSource {
+  sourceEntity: 'sale-signoff' | 'purchase-inbound' | 'service-acceptance'
   sourceDocumentId: string
   sourceApprovalEntryId: string
   sourceLineId: string
@@ -138,7 +139,9 @@ const money = (value: bigint) => {
   return `${sign}${digits.slice(0, -2)}.${digits.slice(-2)}`
 }
 const lineAmount = (quantity: bigint, pricing: OrderAmountBasis) =>
-  orderLineAmountMinor(pricing, intermediaryDecimal(quantity, 6), 'HALF_UP')
+  quantity === 0n
+    ? 0n
+    : orderLineAmountMinor(pricing, intermediaryDecimal(quantity, 6), 'HALF_UP')
 const sourceKey = (documentId: string, lineId: string) =>
   `${documentId}:${lineId}`
 export async function lockInvoiceAmounts(tx: Transaction<DB>) {
@@ -172,7 +175,13 @@ async function readInvoiceAmounts(
     ])
     .where('entry.domain', '=', 'vou')
     .where('entry.status', '=', 'APPROVED')
-    .where('entry.entity', 'in', [sourceEntity, returnEntity])
+    .where(
+      'entry.entity',
+      'in',
+      entity === 'sale-invoice'
+        ? [sourceEntity, returnEntity, 'service-acceptance']
+        : [sourceEntity, returnEntity],
+    )
     .execute()
   const cache = new Map<
     string,
@@ -198,9 +207,50 @@ async function readInvoiceAmounts(
     return doc.payload as VouPayloadFor<'sale-order'>
   }
   const facts: InvoiceSource[] = []
-  for (const meta of approved.filter((item) => item.entity === sourceEntity)) {
+  for (const meta of approved.filter(
+    (item) =>
+      item.entity === sourceEntity ||
+      (entity === 'sale-invoice' && item.entity === 'service-acceptance'),
+  )) {
     const doc = await read(meta.subject_id)
     if (doc.businessDate > asOfDate) continue
+    if (meta.entity === 'service-acceptance') {
+      const payload = doc.payload as VouPayloadFor<'service-acceptance'>
+      if (
+        payload.counterpartyType !== 'customer' ||
+        payload.serviceAcceptance.settlementDirection !== 'RECEIVABLE'
+      )
+        continue
+      if (
+        !payload.counterparty ||
+        !payload.operatingEntity ||
+        !payload.serviceLines?.length
+      )
+        throw new VouApplicationError('vou_invoice_source_unavailable')
+      for (const line of payload.serviceLines) {
+        facts.push({
+          sourceEntity: 'service-acceptance',
+          sourceDocumentId: meta.subject_id,
+          sourceApprovalEntryId: meta.id,
+          sourceLineId: line.lineId,
+          documentNo: meta.document_no,
+          businessDate: doc.businessDate,
+          partyId: payload.counterparty.objectId,
+          operatingEntityId: payload.operatingEntity.objectId,
+          currency: payload.currency,
+          // A missing quote stays absent in the public view. Agreed amount is authoritative.
+          unitPrice: line.unitPrice ?? '',
+          pricing: {
+            baseQuantity: line.baseQuantity,
+            unitPrice: line.unitPrice ?? '',
+            agreedAmount: line.agreedAmount,
+          },
+          amount: line.agreedAmount,
+          availableAmount: line.agreedAmount,
+        })
+      }
+      continue
+    }
     if (entity === 'sale-invoice') {
       const payload = doc.payload as VouPayloadFor<'sale-signoff'>,
         order = await salesOrder(meta.subject_id)
@@ -210,10 +260,21 @@ async function readInvoiceAmounts(
         )
         if (!product)
           throw new VouApplicationError('vou_invoice_source_unavailable')
-        const amount = money(
-          lineAmount(units(line.signedBaseQuantity, 6), product),
-        )
+        // Historical actual amounts are facts, never reconstructed from today's
+        // or the original order quote. Missing old facts are not invoice candidates.
+        if (payload.priorFact && line.priorAmount === undefined) continue
+        const pricing: OrderAmountBasis = payload.priorFact
+          ? {
+              ...product,
+              agreedAmount: line.priorAmount!,
+              baseQuantity: line.signedBaseQuantity,
+            }
+          : product
+        const amount = payload.priorFact
+          ? line.priorAmount!
+          : money(lineAmount(units(line.signedBaseQuantity, 6), product))
         facts.push({
+          sourceEntity: 'sale-signoff',
           sourceDocumentId: meta.subject_id,
           sourceApprovalEntryId: meta.id,
           sourceLineId: line.sourceLineId,
@@ -223,13 +284,36 @@ async function readInvoiceAmounts(
           operatingEntityId: order.operatingEntity.objectId,
           currency: doc.payload.currency,
           unitPrice: product.unitPrice,
-          pricing: product,
+          pricing,
           amount,
           availableAmount: amount,
         })
       }
     } else {
       const payload = doc.payload as VouPayloadFor<'purchase-inbound'>
+      if ('productLines' in payload) {
+        for (const product of payload.productLines) {
+          const amount = money(
+            lineAmount(units(product.baseQuantity, 6), product),
+          )
+          facts.push({
+            sourceEntity: 'purchase-inbound',
+            sourceDocumentId: meta.subject_id,
+            sourceApprovalEntryId: meta.id,
+            sourceLineId: product.lineId,
+            documentNo: meta.document_no,
+            businessDate: doc.businessDate,
+            partyId: payload.supplier.objectId,
+            operatingEntityId: null,
+            currency: payload.currency,
+            unitPrice: product.unitPrice,
+            pricing: product,
+            amount,
+            availableAmount: amount,
+          })
+        }
+        continue
+      }
       for (const line of payload.sourceLines) {
         if (!payload.parentDocumentId)
           throw new VouApplicationError('vou_invoice_source_unavailable')
@@ -242,8 +326,17 @@ async function readInvoiceAmounts(
         )
         if (!product || order.supplier.objectId !== payload.supplier.objectId)
           throw new VouApplicationError('vou_invoice_source_unavailable')
-        const amount = money(lineAmount(units(line.baseQuantity, 6), product))
+        const pricing =
+          line.priorAmount === undefined
+            ? product
+            : {
+                ...product,
+                baseQuantity: line.baseQuantity,
+                agreedAmount: line.priorAmount,
+              }
+        const amount = money(lineAmount(units(line.baseQuantity, 6), pricing))
         facts.push({
+          sourceEntity: 'purchase-inbound',
           sourceDocumentId: meta.subject_id,
           sourceApprovalEntryId: meta.id,
           sourceLineId: line.sourceLineId,
@@ -253,7 +346,7 @@ async function readInvoiceAmounts(
           operatingEntityId: null,
           currency: doc.payload.currency,
           unitPrice: product.unitPrice,
-          pricing: product,
+          pricing,
           amount,
           availableAmount: amount,
         })
@@ -261,12 +354,28 @@ async function readInvoiceAmounts(
     }
   }
   const returnedQuantities = new Map<string, bigint>()
-  for (const meta of approved.filter((item) => item.entity === returnEntity)) {
+  const priorReturnQuantities = new Map<string, bigint>()
+  const priorReturnAmounts = new Map<string, bigint>()
+  for (const meta of approved.filter(
+    (item) =>
+      item.entity === returnEntity && item.subject_id !== excludeDocumentId,
+  )) {
     const doc = await read(meta.subject_id)
     if (doc.businessDate > asOfDate) continue
     for (const line of (doc.payload as VouPayloadFor<'sale-return'>)
       .returnLines) {
       const key = sourceKey(line.sourceDocumentId, line.sourceLineId)
+      if ('priorAmount' in line && typeof line.priorAmount === 'string') {
+        priorReturnQuantities.set(
+          key,
+          (priorReturnQuantities.get(key) ?? 0n) + units(line.baseQuantity, 6),
+        )
+        priorReturnAmounts.set(
+          key,
+          (priorReturnAmounts.get(key) ?? 0n) + units(line.priorAmount),
+        )
+      }
+
       returnedQuantities.set(
         key,
         (returnedQuantities.get(key) ?? 0n) + units(line.baseQuantity, 6),
@@ -278,7 +387,28 @@ async function readInvoiceAmounts(
       returnedQuantities.get(
         sourceKey(fact.sourceDocumentId, fact.sourceLineId),
       ) ?? 0n
-    fact.amount = money(units(fact.amount) - lineAmount(returned, fact.pricing))
+    const key = sourceKey(fact.sourceDocumentId, fact.sourceLineId)
+    const priorQuantity = priorReturnQuantities.get(key) ?? 0n
+    const priorAmount = priorReturnAmounts.get(key) ?? 0n
+    const remainingQuantity =
+      units(fact.pricing.baseQuantity, 6) - priorQuantity
+    const remainingAmount = units(fact.amount) - priorAmount
+    if (priorQuantity > 0n && remainingQuantity > 0n) {
+      fact.pricing = {
+        ...fact.pricing,
+        baseQuantity: intermediaryDecimal(remainingQuantity, 6),
+        agreedAmount: money(remainingAmount),
+      }
+    }
+    fact.amount =
+      priorQuantity > 0n && remainingQuantity === 0n
+        ? '0.00'
+        : money(
+            remainingAmount -
+              lineAmount(returned - priorQuantity, fact.pricing),
+          )
+    // These counts are relative to the residual amount basis after prior returns.
+    returnedQuantities.set(key, returned - priorQuantity)
     fact.availableAmount = fact.amount
   }
   const invoices = await sql<{
@@ -374,20 +504,28 @@ export async function validateReturnInvoiceCapacity(
     true,
   )
   const requested = new Map<string, bigint>()
+  const requestedPriorAmounts = new Map<string, bigint>()
   for (const line of payload.returnLines) {
     const fact = sources.find(
       (item) =>
         item.sourceDocumentId === line.sourceDocumentId &&
         item.sourceLineId === line.sourceLineId,
     )
-    if (!fact) throw new VouApplicationError('vou_invoice_source_unavailable')
+    if (!fact || fact.sourceEntity === 'service-acceptance')
+      throw new VouApplicationError('vou_invoice_source_unavailable')
     const key = sourceKey(line.sourceDocumentId, line.sourceLineId)
     const sum = (requested.get(key) ?? 0n) + units(line.baseQuantity, 6)
     requested.set(key, sum)
     const returned = returnedQuantities.get(key) ?? 0n
-    const additionalAmount =
-      lineAmount(returned + sum, fact.pricing) -
-      lineAmount(returned, fact.pricing)
+    if ('priorAmount' in line && typeof line.priorAmount === 'string')
+      requestedPriorAmounts.set(
+        key,
+        (requestedPriorAmounts.get(key) ?? 0n) + units(line.priorAmount),
+      )
+    const additionalAmount = requestedPriorAmounts.has(key)
+      ? requestedPriorAmounts.get(key)!
+      : lineAmount(returned + sum, fact.pricing) -
+        lineAmount(returned, fact.pricing)
     if (additionalAmount > units(fact.availableAmount))
       throw new VouApplicationError('vou_invoice_source_unavailable', [
         { kind: 'DOWNSTREAM_DOCUMENT', id: line.sourceDocumentId },
@@ -461,4 +599,37 @@ export async function unbilledSales(db: Executor, periodMonth: string) {
     })
   }
   return { periodMonth, items }
+}
+
+/** The same residual batch basis serves invoice capacity and actual refund posting. */
+export async function purchaseReturnSettlementAmounts(
+  tx: Transaction<DB>,
+  documentId: string,
+  payload: VouPayloadFor<'purchase-return'>,
+) {
+  const { sources, returnedQuantities } = await readInvoiceAmounts(
+    tx,
+    'purchase-invoice',
+    '9999-12-31',
+    false,
+    documentId,
+  )
+  const consumed = new Map<string, bigint>()
+  return payload.returnLines.map((line) => {
+    const key = sourceKey(line.sourceDocumentId, line.sourceLineId)
+    const source = sources.find(
+      (row) =>
+        row.sourceDocumentId === line.sourceDocumentId &&
+        row.sourceLineId === line.sourceLineId,
+    )
+    if (!source) throw new VouApplicationError('vou_source_line_unavailable')
+    const before =
+      (returnedQuantities.get(key) ?? 0n) + (consumed.get(key) ?? 0n)
+    const quantity = units(line.baseQuantity, 6)
+    consumed.set(key, (consumed.get(key) ?? 0n) + quantity)
+    return money(
+      lineAmount(before + quantity, source.pricing) -
+        lineAmount(before, source.pricing),
+    )
+  })
 }
